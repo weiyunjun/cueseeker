@@ -13,7 +13,10 @@ let package = Package(
     targets: [
         .target(
             name: "SubFinderXCore",
-            path: "Sources/SubFinderXCore"
+            path: "Sources/SubFinderXCore",
+            linkerSettings: [
+                .linkedLibrary("sqlite3")
+            ]
         ),
         .executableTarget(
             name: "SubFinderXApp",
