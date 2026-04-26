@@ -23,8 +23,10 @@ let package = Package(
         .testTarget(
             name: "SubFinderXCoreTests",
             dependencies: ["SubFinderXCore"],
-            path: "Tests/SubFinderXCoreTests"
+            path: "Tests/SubFinderXCoreTests",
+            resources: [
+                .process("Fixtures")
+            ]
         )
     ]
 )
-

@@ -12,3 +12,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Recorded the native macOS rewrite decision in ADR-0001.
 - Recorded native app stack, playback engine, and sandbox/file-access decisions in ADR-0002 through ADR-0004.
 - Started the native macOS app shell under `apps/macos-native/`.
+- Added core SRT parsing, subtitle file scanning, and same-directory video matching.

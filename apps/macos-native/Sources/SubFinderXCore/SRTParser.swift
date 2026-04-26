@@ -1,0 +1,117 @@
+import Foundation
+
+public enum SRTParser {
+    public static func parse(_ contents: String) -> [SubtitleEntry] {
+        splitBlocks(contents).compactMap(parseBlock)
+    }
+
+    public static func milliseconds(from timecode: String) -> Int? {
+        let trimmed = timecode.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hourParts = trimmed.split(separator: ":", omittingEmptySubsequences: false)
+
+        guard hourParts.count == 3,
+              let hours = Int(hourParts[0]),
+              let minutes = Int(hourParts[1]),
+              minutes >= 0,
+              minutes < 60
+        else {
+            return nil
+        }
+
+        let secondParts = hourParts[2].split(
+            omittingEmptySubsequences: false,
+            whereSeparator: { $0 == "," || $0 == "." }
+        )
+
+        guard secondParts.count == 2,
+              let seconds = Int(secondParts[0]),
+              seconds >= 0,
+              seconds < 60,
+              let milliseconds = Int(secondParts[1]),
+              milliseconds >= 0,
+              milliseconds < 1000
+        else {
+            return nil
+        }
+
+        return (((hours * 60) + minutes) * 60 + seconds) * 1000 + milliseconds
+    }
+
+    private static func parseBlock(_ lines: [String]) -> SubtitleEntry? {
+        guard !lines.isEmpty else {
+            return nil
+        }
+
+        let firstLine = lines[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let sequenceNumber = Int(firstLine)
+        let timeLineIndex = sequenceNumber == nil ? 0 : 1
+
+        guard lines.indices.contains(timeLineIndex) else {
+            return nil
+        }
+
+        let timeLine = lines[timeLineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let range = timeLine.range(of: "-->") else {
+            return nil
+        }
+
+        let startTimecode = String(timeLine[..<range.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let endTimecode = String(timeLine[range.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let startMilliseconds = milliseconds(from: startTimecode),
+              let endMilliseconds = milliseconds(from: endTimecode),
+              endMilliseconds >= startMilliseconds
+        else {
+            return nil
+        }
+
+        let textLines = lines.dropFirst(timeLineIndex + 1)
+        let text = textLines
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !text.isEmpty else {
+            return nil
+        }
+
+        return SubtitleEntry(
+            sequenceNumber: sequenceNumber,
+            startTimecode: startTimecode,
+            endTimecode: endTimecode,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            text: text
+        )
+    }
+
+    private static func splitBlocks(_ contents: String) -> [[String]] {
+        let normalized = contents
+            .replacingOccurrences(of: "\u{feff}", with: "")
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        var blocks: [[String]] = []
+        var currentBlock: [String] = []
+
+        for line in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
+            let stringLine = String(line)
+            if stringLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if !currentBlock.isEmpty {
+                    blocks.append(currentBlock)
+                    currentBlock.removeAll()
+                }
+            } else {
+                currentBlock.append(stringLine)
+            }
+        }
+
+        if !currentBlock.isEmpty {
+            blocks.append(currentBlock)
+        }
+
+        return blocks
+    }
+}

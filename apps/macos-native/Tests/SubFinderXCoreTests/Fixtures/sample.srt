@@ -1,0 +1,16 @@
+1
+00:00:01,000 --> 00:00:03,500
+Hello world.
+
+2
+00:01:00,250 --> 00:01:02,750
+First subtitle line.
+Second subtitle line.
+
+bad block
+this is not a timecode
+This block should be ignored.
+
+00:02:03,004 --> 00:02:05,006
+No sequence number.
+
