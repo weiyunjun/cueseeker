@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import SubFinderXPlayback
+@testable import SubFinderXPlayback
 
 @Test
 func playbackRequestRejectsMissingVideoFile() throws {
@@ -28,4 +28,26 @@ func playbackRequestClampsNegativeStartMilliseconds() throws {
 
     #expect(request.videoURL == videoURL)
     #expect(request.startMilliseconds == 0)
+}
+
+@Test
+func playbackRequestBuildsLoadfileCommandWithStartOption() throws {
+    let videoURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("SubFinderXPlaybackTests-\(UUID().uuidString)")
+        .appendingPathExtension("mp4")
+    defer {
+        try? FileManager.default.removeItem(at: videoURL)
+    }
+
+    try Data().write(to: videoURL)
+
+    let request = try PlaybackRequest(videoURL: videoURL, startMilliseconds: 1_250)
+
+    #expect(request.loadfileCommandArguments == [
+        "loadfile",
+        videoURL.path,
+        "replace",
+        "0",
+        "start=1.250"
+    ])
 }

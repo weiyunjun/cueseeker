@@ -22,6 +22,16 @@ public struct PlaybackRequest: Equatable, Sendable {
     var startSeconds: Double {
         Double(startMilliseconds) / 1_000
     }
+
+    var loadfileCommandArguments: [String] {
+        [
+            "loadfile",
+            videoURL.path,
+            "replace",
+            "0",
+            String(format: "start=%.3f", startSeconds)
+        ]
+    }
 }
 
 public enum PlaybackError: Error, Equatable, CustomStringConvertible {
@@ -62,6 +72,7 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
 public final class MPVPlayer: @unchecked Sendable {
     private var handle: OpaquePointer?
     private var renderContext: OpaquePointer?
+    public private(set) var currentVideoURL: URL?
 
     public init() throws {
         guard let handle = mpv_create() else {
@@ -96,13 +107,8 @@ public final class MPVPlayer: @unchecked Sendable {
     }
 
     public func open(_ request: PlaybackRequest) throws {
-        try command([
-            "loadfile",
-            request.videoURL.path,
-            "replace",
-            "-1",
-            String(format: "start=%.3f", request.startSeconds)
-        ])
+        try command(request.loadfileCommandArguments)
+        currentVideoURL = request.videoURL.standardizedFileURL
     }
 
     public func seek(toMilliseconds milliseconds: Int) throws {
@@ -123,6 +129,7 @@ public final class MPVPlayer: @unchecked Sendable {
 
     public func stop() throws {
         try command(["stop"])
+        currentVideoURL = nil
     }
 
     func createOpenGLRenderContext(

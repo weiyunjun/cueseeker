@@ -216,7 +216,13 @@ final class AppState: ObservableObject {
                 throw PlaybackError.mpvCreateFailed
             }
 
-            try player.open(request)
+            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+                try player.seek(toMilliseconds: request.startMilliseconds)
+            } else {
+                try player.open(request)
+            }
+
+            try player.setPaused(false)
             playbackStatus = .playing(result)
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
