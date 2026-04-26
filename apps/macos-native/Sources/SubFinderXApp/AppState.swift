@@ -53,6 +53,7 @@ enum PlaybackStatus: Equatable {
     case idle
     case opening(SubtitleSearchResult)
     case playing(SubtitleSearchResult)
+    case paused(SubtitleSearchResult)
     case failed(String)
 
     var isOpening: Bool {
@@ -183,7 +184,6 @@ final class AppState: ObservableObject {
                 }
 
                 searchResults = results
-                selectedSearchResult = results.first
                 searchStatus = .completed
             } catch is CancellationError {
                 return
@@ -201,6 +201,16 @@ final class AppState: ObservableObject {
 
     func selectSearchResult(_ result: SubtitleSearchResult) {
         selectedSearchResult = result
+    }
+
+    func openSearchResult(_ result: SubtitleSearchResult) {
+        selectedSearchResult = result
+        play(result)
+    }
+
+    func closeSelectedSearchResult() {
+        stopPlayback()
+        selectedSearchResult = nil
     }
 
     func play(_ result: SubtitleSearchResult) {
@@ -232,6 +242,44 @@ final class AppState: ObservableObject {
     func pausePlayback() {
         do {
             try player?.setPaused(true)
+            if case .playing(let result) = playbackStatus {
+                playbackStatus = .paused(result)
+            }
+        } catch {
+            playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
+    func resumePlayback() {
+        do {
+            try player?.setPaused(false)
+            if case .paused(let result) = playbackStatus {
+                playbackStatus = .playing(result)
+            }
+        } catch {
+            playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
+    func togglePlayback() {
+        switch playbackStatus {
+        case .playing:
+            pausePlayback()
+        case .paused:
+            resumePlayback()
+        case .idle:
+            if let selectedSearchResult {
+                play(selectedSearchResult)
+            }
+        case .opening, .failed:
+            break
+        }
+    }
+
+    func stopPlayback() {
+        do {
+            try player?.stop()
+            playbackStatus = .idle
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
         }

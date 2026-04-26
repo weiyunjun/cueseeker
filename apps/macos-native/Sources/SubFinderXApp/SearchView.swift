@@ -5,6 +5,14 @@ struct SearchView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
+        if let result = appState.selectedSearchResult {
+            playbackPage(for: result)
+        } else {
+            searchResultsPage
+        }
+    }
+
+    private var searchResultsPage: some View {
         VStack(alignment: .leading, spacing: 16) {
             TextField(
                 "Search subtitles",
@@ -13,8 +21,8 @@ struct SearchView: View {
                     set: { appState.updateSearchQuery($0) }
                 )
             )
-                .textFieldStyle(.roundedBorder)
-                .font(.title3)
+            .textFieldStyle(.roundedBorder)
+            .font(.title3)
 
             if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 EmptyStateView(
@@ -45,141 +53,85 @@ struct SearchView: View {
                     message: "No indexed subtitle entries matched this query."
                 )
             } else {
-                HStack(alignment: .top, spacing: 16) {
-                    resultsList
-                    selectedResultView
-                }
+                resultsList
             }
 
             Spacer()
         }
         .padding(24)
-        .navigationTitle("Search")
     }
 
     private var resultsList: some View {
         List {
             ForEach(appState.searchResults, id: \.entryID) { result in
                 Button {
-                    appState.selectSearchResult(result)
+                    appState.openSearchResult(result)
                 } label: {
-                    SearchResultRow(
-                        result: result,
-                        isSelected: appState.selectedSearchResult?.entryID == result.entryID
-                    )
+                    SearchResultRow(result: result)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .frame(minWidth: 420)
     }
 
-    @ViewBuilder
-    private var selectedResultView: some View {
-        if let result = appState.selectedSearchResult {
-            VStack(alignment: .leading, spacing: 12) {
-                PlaybackView(player: appState.playbackPlayer)
-                .frame(height: 220)
-                .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                Text(result.videoName)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-
-                Text(formatTimestamp(result.startMilliseconds))
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-
-                Text(result.content)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                HStack(spacing: 8) {
-                    Button {
-                        appState.play(result)
-                    } label: {
-                        Label("Play From Here", systemImage: "play.fill")
-                    }
-                    .disabled(appState.playbackStatus.isOpening)
-
-                    Button {
-                        appState.pausePlayback()
-                    } label: {
-                        Label("Pause", systemImage: "pause.fill")
-                    }
-                    .disabled(appState.playbackStatus.isOpening)
+    private func playbackPage(for result: SubtitleSearchResult) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Button {
+                    appState.closeSelectedSearchResult()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
                 }
-
-                playbackStatusView
-
-                Divider()
-
-                LabeledContent("Video Path") {
-                    Text(result.videoPath)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                }
-
-                LabeledContent("Start ms") {
-                    Text("\(result.startMilliseconds)")
-                        .textSelection(.enabled)
-                }
-
-                LabeledContent("Subtitle Path") {
-                    Text(result.subtitlePath)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                }
+                .keyboardShortcut(.cancelAction)
 
                 Spacer()
             }
-            .padding(16)
-            .frame(minWidth: 320, maxWidth: 420, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color(nsColor: .textBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-        } else {
-            EmptyStateView(
-                title: "No Result Selected",
-                systemImage: "rectangle.and.text.magnifyingglass",
-                message: "Select a result to inspect its video path and timestamp."
-            )
-            .frame(minWidth: 320, maxWidth: 420)
-        }
-    }
 
-    @ViewBuilder
-    private var playbackStatusView: some View {
-        switch appState.playbackStatus {
-        case .idle:
-            EmptyView()
-        case .opening(let result):
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Opening \(result.videoName)...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    PlaybackView(player: appState.playbackPlayer)
+                        .aspectRatio(16 / 9, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.black)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            appState.togglePlayback()
+                        }
+
+                    Text(result.content)
+                        .font(.body)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    LabeledContent("Start Time") {
+                        Text(formatTimestamp(result.startMilliseconds))
+                            .textSelection(.enabled)
+                    }
+
+                    LabeledContent("Video Path") {
+                        Text(result.videoPath)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                    }
+
+                    LabeledContent("Subtitle Path") {
+                        Text(result.subtitlePath)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-        case .playing(let result):
-            Label("Playing \(result.videoName) at \(formatTimestamp(result.startMilliseconds))", systemImage: "play.circle")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        case .failed(let message):
-            Label(message, systemImage: "exclamationmark.triangle")
-                .font(.caption)
-                .foregroundStyle(.red)
-                .lineLimit(3)
         }
+        .padding(24)
     }
 }
 
 private struct SearchResultRow: View {
     let result: SubtitleSearchResult
-    let isSelected: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -200,7 +152,6 @@ private struct SearchResultRow: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
     }
