@@ -3,9 +3,6 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
 
-    private let sidebarWidth: CGFloat = 220
-    private let topBarHeight: CGFloat = 56
-    private let collapsedContentInset: CGFloat = 104
     private let animation = Animation.easeInOut(duration: 0.22)
 
     private let windowBackground = Color(
@@ -32,21 +29,19 @@ struct ContentView: View {
             HStack(spacing: 0) {
                 if appState.isSidebarVisible {
                     sidebar
-                        .frame(width: sidebarWidth)
+                        .frame(width: AppShellLayout.sidebarWidth)
                         .transition(.move(edge: .leading).combined(with: .opacity))
                         .zIndex(2)
                 }
 
                 selectedSectionView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.top, topBarHeight)
-                    .padding(.leading, appState.isSidebarVisible ? 0 : collapsedContentInset)
-                    .animation(animation, value: appState.isSidebarVisible)
+                    .padding(.top, AppShellLayout.topBarHeight)
             }
             .animation(animation, value: appState.isSidebarVisible)
 
-            titleBarBackground
-                .frame(height: topBarHeight)
+            appTopBar
+                .frame(height: AppShellLayout.topBarHeight)
                 .zIndex(3)
         }
         .ignoresSafeArea(.container, edges: .top)
@@ -56,7 +51,7 @@ struct ContentView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 8) {
             Spacer()
-                .frame(height: topBarHeight)
+                .frame(height: AppShellLayout.topBarHeight)
 
             ForEach(AppSection.allCases) { section in
                 Button {
@@ -89,13 +84,55 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private var titleBarBackground: some View {
+    private var appTopBar: some View {
         topBarBackground
+            .overlay {
+                Text(appState.selectedSection.title)
+                    .font(.system(
+                        size: AppShellLayout.titleFontSize,
+                        weight: AppShellLayout.titleFontWeight
+                    ))
+                    .foregroundStyle(.primary)
+            }
+            .overlay(alignment: .leading) {
+                topBarLeadingControls
+            }
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color.black.opacity(0.12))
+                    .fill(Color.black.opacity(AppShellLayout.topBarSeparatorOpacity))
                     .frame(height: 1)
+            }
+    }
+
+    private var topBarLeadingControls: some View {
+        sidebarToggle
+            .padding(
+                .leading,
+                AppShellLayout.windowControlsReservedWidth
+                    + AppShellLayout.toggleLeadingAfterWindowControls
+            )
+            .frame(height: AppShellLayout.topBarHeight)
+    }
+
+    private var sidebarToggle: some View {
+        Button {
+            appState.toggleSidebar()
+        } label: {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: AppShellLayout.toggleIconSize, weight: .medium))
+                .frame(
+                    width: AppShellLayout.toggleSize,
+                    height: AppShellLayout.toggleSize
+                )
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .help(appState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
+        .frame(
+            width: AppShellLayout.toggleSize,
+            height: AppShellLayout.toggleSize
+        )
     }
 
     @ViewBuilder
@@ -107,4 +144,16 @@ struct ContentView: View {
             SettingsView()
         }
     }
+}
+
+private enum AppShellLayout {
+    static let topBarHeight: CGFloat = 45
+    static let sidebarWidth: CGFloat = 154
+    static let windowControlsReservedWidth: CGFloat = 68
+    static let toggleLeadingAfterWindowControls: CGFloat = 8
+    static let toggleSize: CGFloat = 28
+    static let toggleIconSize: CGFloat = 15
+    static let titleFontSize: CGFloat = 16
+    static let titleFontWeight: Font.Weight = .semibold
+    static let topBarSeparatorOpacity = 0.12
 }

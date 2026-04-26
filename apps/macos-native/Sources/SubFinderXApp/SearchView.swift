@@ -14,53 +14,63 @@ struct SearchView: View {
     }
 
     private var searchResultsPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SearchField(
-                text: Binding(
-                    get: { appState.searchQuery },
-                    set: { appState.updateSearchQuery($0) }
-                )
+        GeometryReader { geometry in
+            let contentWidth = min(
+                SearchLayout.contentWidth,
+                max(0, geometry.size.width - SearchLayout.minimumHorizontalMargin * 2)
             )
 
-            if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                EmptyStateView(
-                    title: "No Search Query",
-                    systemImage: "text.magnifyingglass",
-                    message: "Add subtitle folders in Settings, then search indexed subtitle text."
+            VStack(alignment: .leading, spacing: 16) {
+                SearchField(
+                    text: Binding(
+                        get: { appState.searchQuery },
+                        set: { appState.updateSearchQuery($0) }
+                    )
                 )
-                .font(.system(size: SearchTypography.bodySize))
-            } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {
-                EmptyStateView(
-                    title: "Searching",
-                    systemImage: "magnifyingglass",
-                    message: "Looking through indexed subtitle text."
-                )
-                .font(.system(size: SearchTypography.bodySize))
-                .overlay {
-                    ProgressView()
-                        .offset(y: 72)
-                }
-            } else if case .failed(let message) = appState.searchStatus {
-                EmptyStateView(
-                    title: "Search Failed",
-                    systemImage: "exclamationmark.triangle",
-                    message: message
-                )
-                .font(.system(size: SearchTypography.bodySize))
-            } else if appState.searchResults.isEmpty {
-                EmptyStateView(
-                    title: "No Results",
-                    systemImage: "tray",
-                    message: "No indexed subtitle entries matched this query."
-                )
-                .font(.system(size: SearchTypography.bodySize))
-            } else {
-                resultsList
-            }
 
-            Spacer()
+                if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    EmptyStateView(
+                        title: "No Search Query",
+                        systemImage: "text.magnifyingglass",
+                        message: "Add subtitle folders in Settings, then search indexed subtitle text."
+                    )
+                    .font(.system(size: SearchTypography.bodySize))
+                } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {
+                    EmptyStateView(
+                        title: "Searching",
+                        systemImage: "magnifyingglass",
+                        message: "Looking through indexed subtitle text."
+                    )
+                    .font(.system(size: SearchTypography.bodySize))
+                    .overlay {
+                        ProgressView()
+                            .offset(y: 72)
+                    }
+                } else if case .failed(let message) = appState.searchStatus {
+                    EmptyStateView(
+                        title: "Search Failed",
+                        systemImage: "exclamationmark.triangle",
+                        message: message
+                    )
+                    .font(.system(size: SearchTypography.bodySize))
+                } else if appState.searchResults.isEmpty {
+                    EmptyStateView(
+                        title: "No Results",
+                        systemImage: "tray",
+                        message: "No indexed subtitle entries matched this query."
+                    )
+                    .font(.system(size: SearchTypography.bodySize))
+                } else {
+                    resultsList
+                }
+
+                Spacer()
+            }
+            .frame(width: contentWidth, alignment: .topLeading)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .padding(.top, SearchLayout.topPadding)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
-        .padding(24)
     }
 
     private var resultsList: some View {
@@ -198,6 +208,12 @@ private enum SearchTypography {
     static let playbackSubtitleSize: CGFloat = 22
     static let detailSize: CGFloat = 16
     static let controlSize: CGFloat = 17
+}
+
+private enum SearchLayout {
+    static let contentWidth: CGFloat = 860
+    static let minimumHorizontalMargin: CGFloat = 24
+    static let topPadding: CGFloat = 24
 }
 
 private func highlightedContent(_ content: String, query: String) -> AttributedString {

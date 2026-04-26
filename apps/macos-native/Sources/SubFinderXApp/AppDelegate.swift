@@ -3,9 +3,8 @@ import SwiftUI
 import SubFinderXCore
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
-    private var titlebarControls: TitlebarControlsCoordinator?
     private let appState = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -34,16 +33,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.minSize = NSSize(width: 860, height: 560)
+        window.delegate = self
         window.center()
         window.contentView = NSHostingView(rootView: contentView)
         window.makeKeyAndOrderFront(nil)
 
-        titlebarControls = TitlebarControlsCoordinator(
-            window: window,
-            appState: appState
-        )
-
         self.window = window
+    }
+
+    func windowWillEnterFullScreen(_ notification: Notification) {
+        window?.titleVisibility = .visible
+    }
+
+    func windowDidExitFullScreen(_ notification: Notification) {
+        window?.titleVisibility = .hidden
     }
 
     private func configureMainMenu() {
