@@ -154,6 +154,22 @@ final class SQLiteStatement {
         return intColumn(index)
     }
 
+    func nullableInt64Column(_ index: Int32) -> Int64? {
+        guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
+            return nil
+        }
+
+        return int64Column(index)
+    }
+
+    func nullableDoubleColumn(_ index: Int32) -> Double? {
+        guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
+            return nil
+        }
+
+        return sqlite3_column_double(statement, index)
+    }
+
     func stringColumn(_ index: Int32) -> String {
         guard let text = sqlite3_column_text(statement, index) else {
             return ""
@@ -161,5 +177,12 @@ final class SQLiteStatement {
 
         return String(cString: text)
     }
-}
 
+    func nullableStringColumn(_ index: Int32) -> String? {
+        guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
+            return nil
+        }
+
+        return stringColumn(index)
+    }
+}

@@ -14,3 +14,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Started the native macOS app shell under `apps/macos-native/`.
 - Added core SRT parsing, subtitle file scanning, and same-directory video matching.
 - Added the initial SQLite + FTS5 database layer for subtitle entries and search paths.
+- Added the core indexing pipeline from selected folders into the SQLite search database.

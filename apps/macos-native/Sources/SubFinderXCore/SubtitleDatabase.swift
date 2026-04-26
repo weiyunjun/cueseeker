@@ -23,6 +23,15 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let content: String
 }
 
+public struct SubtitleFileMetadata: Equatable, Sendable {
+    public let subtitlePath: String
+    public let videoPath: String?
+    public let videoName: String?
+    public let fileSize: Int64?
+    public let modifiedAt: Date?
+    public let indexedAt: String
+}
+
 public final class SubtitleDatabase {
     public static let currentSchemaVersion: Int = 1
 
@@ -173,6 +182,32 @@ public final class SubtitleDatabase {
         return entries
     }
 
+    public func subtitleFiles() throws -> [SubtitleFileMetadata] {
+        let statement = try database.prepare(
+            """
+            SELECT srt_path, video_path, video_name, file_size, modified_at, indexed_at
+            FROM subtitle_files
+            ORDER BY srt_path ASC;
+            """
+        )
+
+        var files: [SubtitleFileMetadata] = []
+        while try statement.step() {
+            files.append(
+                SubtitleFileMetadata(
+                    subtitlePath: statement.stringColumn(0),
+                    videoPath: statement.nullableStringColumn(1),
+                    videoName: statement.nullableStringColumn(2),
+                    fileSize: statement.nullableInt64Column(3),
+                    modifiedAt: statement.nullableDoubleColumn(4).map(Date.init(timeIntervalSince1970:)),
+                    indexedAt: statement.stringColumn(5)
+                )
+            )
+        }
+
+        return files
+    }
+
     public func search(_ query: String, limit: Int = 50) throws -> [SubtitleSearchResult] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty, limit > 0 else {
@@ -209,6 +244,73 @@ public final class SubtitleDatabase {
         }
 
         return results
+    }
+
+    public func removeStaleEntries(under folder: URL, keeping subtitleFiles: Set<String>) throws {
+        let folderPathPrefixes = Self.folderPathPrefixes(for: folder)
+        let prefixCondition = folderPathPrefixes
+            .map { _ in "substr(srt_path, 1, ?) = ?" }
+            .joined(separator: " OR ")
+        let keepCondition: String
+        let keepPlaceholders: String
+
+        if subtitleFiles.isEmpty {
+            keepCondition = ""
+            keepPlaceholders = ""
+        } else {
+            keepPlaceholders = subtitleFiles.map { _ in "?" }.joined(separator: ", ")
+            keepCondition = "AND srt_path NOT IN (\(keepPlaceholders))"
+        }
+
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            let deleteFTS = try database.prepare(
+                """
+                DELETE FROM subtitle_entries_fts
+                WHERE subtitle_entry_id IN (
+                    SELECT id FROM subtitle_entries
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteFTS,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteFTS.run()
+
+            let deleteEntries = try database.prepare(
+                """
+                DELETE FROM subtitle_entries
+                WHERE (\(prefixCondition)) \(keepCondition);
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteEntries,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteEntries.run()
+
+            let deleteFiles = try database.prepare(
+                """
+                DELETE FROM subtitle_files
+                WHERE (\(prefixCondition)) \(keepCondition);
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteFiles,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteFiles.run()
+
+            try database.execute("COMMIT")
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
     }
 
     private func upsertSubtitleFile(
@@ -332,5 +434,39 @@ public final class SubtitleDatabase {
             content: statement.stringColumn(9)
         )
     }
-}
 
+    private func bindStaleEntryParameters(
+        statement: SQLiteStatement,
+        folderPathPrefixes: [String],
+        subtitleFiles: Set<String>
+    ) throws {
+        var bindIndex: Int32 = 1
+        for prefix in folderPathPrefixes {
+            try statement.bind(prefix.count, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+        }
+
+        for (offset, path) in subtitleFiles.sorted().enumerated() {
+            try statement.bind(path, at: bindIndex + Int32(offset))
+        }
+    }
+
+    private static func folderPathPrefixes(for folder: URL) -> [String] {
+        var path = folder.path
+        if !path.hasSuffix("/") {
+            path.append("/")
+        }
+
+        var prefixes = Set([path])
+
+        if path.hasPrefix("/var/") {
+            prefixes.insert("/private" + path)
+        } else if path.hasPrefix("/private/var/") {
+            prefixes.insert(String(path.dropFirst("/private".count)))
+        }
+
+        return prefixes.sorted()
+    }
+}
