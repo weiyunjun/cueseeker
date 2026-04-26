@@ -40,8 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         titlebarControls = TitlebarControlsCoordinator(
             window: window,
-            appState: appState,
-            sidebarWidth: 220
+            appState: appState
         )
 
         self.window = window

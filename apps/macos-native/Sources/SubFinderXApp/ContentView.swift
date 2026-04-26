@@ -18,6 +18,11 @@ struct ContentView: View {
         green: 0.942,
         blue: 0.936
     )
+    private let topBarBackground = Color(
+        red: 0.92,
+        green: 0.92,
+        blue: 0.915
+    )
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -42,6 +47,7 @@ struct ContentView: View {
 
             titleBarBackground
                 .frame(height: topBarHeight)
+                .zIndex(3)
         }
         .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 860, minHeight: 560)
@@ -80,21 +86,16 @@ struct ContentView: View {
                 .fill(Color.black.opacity(0.08))
                 .frame(width: 1)
         }
-        .shadow(color: Color.black.opacity(0.16), radius: 12, x: 5, y: 0)
     }
 
     @ViewBuilder
     private var titleBarBackground: some View {
-        HStack(spacing: 0) {
-            if appState.isSidebarVisible {
-                sidebarBackground
-                    .frame(width: sidebarWidth)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            }
-
-            windowBackground
+        topBarBackground
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.black.opacity(0.12))
+                    .frame(height: 1)
         }
-        .animation(animation, value: appState.isSidebarVisible)
     }
 
     @ViewBuilder

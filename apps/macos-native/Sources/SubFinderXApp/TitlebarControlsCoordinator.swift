@@ -5,22 +5,15 @@ import Combine
 final class TitlebarControlsCoordinator: NSObject {
     private weak var window: NSWindow?
     private let appState: AppState
-    private let sidebarWidth: CGFloat
-    private let expandedToggleTrailing: CGFloat = 24
     private let collapsedToggleGap: CGFloat = 10
-    private let animationDuration: TimeInterval = 0.22
 
     private let toggleButton = NSButton()
     private let titleLabel = NSTextField(labelWithString: "")
     private var cancellables: Set<AnyCancellable> = []
-    private var expandedToggleConstraint: NSLayoutConstraint?
-    private var collapsedToggleConstraint: NSLayoutConstraint?
-    private var titleCenterConstraint: NSLayoutConstraint?
 
-    init(window: NSWindow, appState: AppState, sidebarWidth: CGFloat) {
+    init(window: NSWindow, appState: AppState) {
         self.window = window
         self.appState = appState
-        self.sidebarWidth = sidebarWidth
         super.init()
 
         installControls()
@@ -45,32 +38,24 @@ final class TitlebarControlsCoordinator: NSObject {
         titlebarView.addSubview(toggleButton)
         titlebarView.addSubview(titleLabel)
 
-        let expandedToggleConstraint = toggleButton.centerXAnchor.constraint(
-            equalTo: titlebarView.leadingAnchor,
-            constant: sidebarWidth - expandedToggleTrailing
-        )
-        let collapsedToggleConstraint = toggleButton.leadingAnchor.constraint(
+        let toggleConstraint = toggleButton.leadingAnchor.constraint(
             equalTo: zoomButton.trailingAnchor,
             constant: collapsedToggleGap
         )
         let titleCenterConstraint = titleLabel.centerXAnchor.constraint(
-            equalTo: titlebarView.centerXAnchor,
-            constant: appState.isSidebarVisible ? sidebarWidth / 2 : 0
+            equalTo: titlebarView.centerXAnchor
         )
-
-        self.expandedToggleConstraint = expandedToggleConstraint
-        self.collapsedToggleConstraint = collapsedToggleConstraint
-        self.titleCenterConstraint = titleCenterConstraint
 
         NSLayoutConstraint.activate([
             toggleButton.widthAnchor.constraint(equalToConstant: 28),
             toggleButton.heightAnchor.constraint(equalToConstant: 28),
+            toggleConstraint,
             toggleButton.centerYAnchor.constraint(equalTo: zoomButton.centerYAnchor),
             titleLabel.centerYAnchor.constraint(equalTo: zoomButton.centerYAnchor),
             titleCenterConstraint
         ])
 
-        applySidebarVisibility(appState.isSidebarVisible, animated: false)
+        applySidebarVisibility(appState.isSidebarVisible)
     }
 
     private func configureToggleButton() {
@@ -100,7 +85,7 @@ final class TitlebarControlsCoordinator: NSObject {
     private func bindState() {
         appState.$isSidebarVisible
             .sink { [weak self] isVisible in
-                self?.applySidebarVisibility(isVisible, animated: true)
+                self?.applySidebarVisibility(isVisible)
             }
             .store(in: &cancellables)
 
@@ -111,27 +96,7 @@ final class TitlebarControlsCoordinator: NSObject {
             .store(in: &cancellables)
     }
 
-    private func applySidebarVisibility(_ isVisible: Bool, animated: Bool) {
-        if isVisible {
-            collapsedToggleConstraint?.isActive = false
-            expandedToggleConstraint?.isActive = true
-        } else {
-            expandedToggleConstraint?.isActive = false
-            collapsedToggleConstraint?.isActive = true
-        }
-
-        titleCenterConstraint?.constant = isVisible ? sidebarWidth / 2 : 0
+    private func applySidebarVisibility(_ isVisible: Bool) {
         toggleButton.toolTip = isVisible ? "Hide Sidebar" : "Show Sidebar"
-
-        guard animated, let titlebarView = toggleButton.superview else {
-            toggleButton.superview?.layoutSubtreeIfNeeded()
-            return
-        }
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = animationDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            titlebarView.layoutSubtreeIfNeeded()
-        }
     }
 }
