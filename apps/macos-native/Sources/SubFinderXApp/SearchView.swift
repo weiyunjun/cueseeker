@@ -91,6 +91,24 @@ struct SearchView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
+                HStack(spacing: 8) {
+                    Button {
+                        appState.play(result)
+                    } label: {
+                        Label("Play From Here", systemImage: "play.fill")
+                    }
+                    .disabled(appState.playbackStatus.isOpening)
+
+                    Button {
+                        appState.pausePlayback()
+                    } label: {
+                        Label("Pause", systemImage: "pause.fill")
+                    }
+                    .disabled(appState.playbackStatus.isOpening)
+                }
+
+                playbackStatusView
+
                 Divider()
 
                 LabeledContent("Video Path") {
@@ -125,6 +143,31 @@ struct SearchView: View {
                 message: "Select a result to inspect its video path and timestamp."
             )
             .frame(minWidth: 320, maxWidth: 420)
+        }
+    }
+
+    @ViewBuilder
+    private var playbackStatusView: some View {
+        switch appState.playbackStatus {
+        case .idle:
+            EmptyView()
+        case .opening(let result):
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Opening \(result.videoName)...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .playing(let result):
+            Label("Playing \(result.videoName) at \(formatTimestamp(result.startMilliseconds))", systemImage: "play.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(3)
         }
     }
 }

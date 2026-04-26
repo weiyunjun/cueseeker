@@ -36,7 +36,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "SubFinderXApp",
-            dependencies: ["SubFinderXCore"],
+            dependencies: [
+                "SubFinderXCore",
+                "SubFinderXPlayback"
+            ],
             path: "Sources/SubFinderXApp"
         ),
         .testTarget(

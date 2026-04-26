@@ -1,5 +1,6 @@
 import Foundation
 import SubFinderXCore
+import SubFinderXPlayback
 
 enum AppSection: String, CaseIterable, Identifiable {
     case search
@@ -48,6 +49,21 @@ enum SearchStatus: Equatable {
     case failed(String)
 }
 
+enum PlaybackStatus: Equatable {
+    case idle
+    case opening(SubtitleSearchResult)
+    case playing(SubtitleSearchResult)
+    case failed(String)
+
+    var isOpening: Bool {
+        if case .opening = self {
+            return true
+        }
+
+        return false
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
@@ -59,11 +75,13 @@ final class AppState: ObservableObject {
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
     @Published var selectedSearchResult: SubtitleSearchResult?
+    @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
 
     let databaseURL: URL
 
     private let userDefaults: UserDefaults
+    private var player: MPVPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
 
@@ -179,6 +197,34 @@ final class AppState: ObservableObject {
 
     func selectSearchResult(_ result: SubtitleSearchResult) {
         selectedSearchResult = result
+    }
+
+    func play(_ result: SubtitleSearchResult) {
+        playbackStatus = .opening(result)
+
+        do {
+            let request = try PlaybackRequest(
+                videoURL: URL(fileURLWithPath: result.videoPath),
+                startMilliseconds: result.startMilliseconds
+            )
+
+            if player == nil {
+                player = try MPVPlayer()
+            }
+
+            try player?.open(request)
+            playbackStatus = .playing(result)
+        } catch {
+            playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
+    func pausePlayback() {
+        do {
+            try player?.setPaused(true)
+        } catch {
+            playbackStatus = .failed(Self.errorMessage(for: error))
+        }
     }
 
     private func refreshCurrentSearch() {
