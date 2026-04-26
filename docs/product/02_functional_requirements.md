@@ -110,7 +110,7 @@ Requirements:
 - Allow basic seek controls.
 - Allow closing or hiding the playback area.
 
-The final playback engine is not decided in this document.
+The playback engine is selected in `docs/decisions/ADR-0003-playback-engine.md`.
 
 ## 9. Settings
 
@@ -135,4 +135,3 @@ When implemented, the app should support:
 - View favorite subtitle lines.
 - Jump from a favorite to video playback.
 - Preserve favorite identity across reindexing when possible.
-

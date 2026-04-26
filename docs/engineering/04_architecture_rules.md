@@ -59,6 +59,12 @@ Default assumptions until a more specific document or ADR replaces them:
 - Remote services are out of scope.
 - Local file access is central to the app and must be designed explicitly.
 
+Accepted ADRs:
+
+- ADR-0002 selects Swift, SwiftUI, AppKit bridges, Swift Package Manager, SQLite with FTS5, and a project-owned persistence layer for M1.
+- ADR-0003 selects embedded `libmpv` as the target playback engine.
+- ADR-0004 disables App Sandbox for M1 local development and personal builds.
+
 ## 5. Module Boundaries
 
 The native app should be organized around clear engineering responsibilities.
@@ -127,8 +133,9 @@ Rules:
 
 - Folder selection must use native macOS folder selection behavior.
 - Persistent access to selected folders must be designed before relying on it across launches.
-- If sandboxing is enabled, security-scoped bookmark handling must be documented and tested.
-- If sandboxing is deferred for personal local use, that decision must be documented before packaging assumptions depend on it.
+- ADR-0004 disables App Sandbox for M1 local development and personal builds.
+- Security-scoped bookmark handling is not required for M1 while App Sandbox is disabled.
+- If sandboxing is later enabled, security-scoped bookmark handling must be documented and tested.
 - The app must not silently scan folders that the user has not selected or otherwise authorized.
 
 The final sandboxing and persistent file-access strategy may require an ADR.
@@ -140,8 +147,7 @@ Playback is a high-risk component.
 Rules:
 
 - M1 requires local file playback and timestamp seek only.
-- The playback engine must be selected through an ADR before production implementation depends on it.
-- The playback ADR must compare AVFoundation, embedded `libmpv`, and any other serious candidate.
+- ADR-0003 selects embedded `libmpv` as the target playback engine.
 - Playback code must not assume remote streams, local HTTP proxying, cache layers, or advanced subtitle rendering.
 - Playback errors must be propagated in a form that the UI can present clearly.
 
@@ -226,4 +232,3 @@ The following decisions require ADRs before production implementation depends on
 - Any destructive or hard-to-reverse schema change.
 - Any remote service, sync, or network-backed storage feature.
 - Raising the minimum supported macOS version.
-

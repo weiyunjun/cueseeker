@@ -65,15 +65,12 @@ Expected behavior:
 
 ## 5. Playback Engine Selection
 
-The final playback engine is not decided in this document.
+The playback engine is selected in `docs/decisions/ADR-0003-playback-engine.md`.
 
-The playback engine decision must be recorded in an ADR before production implementation.
+Current decision:
 
-The ADR must compare:
-
-- AVFoundation.
-- Embedded `libmpv`.
-- Any other serious candidate.
+- Use embedded `libmpv` as the target playback engine for the native macOS app.
+- AVFoundation may be used only for exploratory prototypes or fallback experiments unless a future ADR changes the decision.
 
 Evaluation criteria:
 
@@ -112,4 +109,3 @@ Examples:
 - Playback engine initialization failed.
 
 The app should avoid exposing raw engine logs directly in primary UI.
-

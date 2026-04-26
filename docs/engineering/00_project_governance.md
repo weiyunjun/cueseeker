@@ -413,7 +413,7 @@ docs/engineering/04_architecture_rules.md
 
 or a dedicated ADR.
 
-The final playback engine choice must be recorded as an ADR before production implementation.
+The final playback engine choice is recorded in `docs/decisions/ADR-0003-playback-engine.md`.
 
 The playback ADR must compare at least:
 

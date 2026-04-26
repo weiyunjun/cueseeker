@@ -81,9 +81,10 @@ Sandboxing and entitlements directly affect local folder and video access.
 
 Rules:
 
-- If sandboxing is enabled, required entitlements must be documented.
-- Security-scoped bookmark behavior must be verified before release if the app relies on persistent folder access.
-- If sandboxing is disabled for personal local use, that decision must be documented before release.
+- ADR-0004 disables App Sandbox for M1 local development and personal builds.
+- If sandboxing is later enabled, required entitlements must be documented.
+- Security-scoped bookmark behavior must be verified before any sandboxed release if the app relies on persistent folder access.
+- If sandboxing remains disabled for a personal release, that release must explicitly verify the unsandboxed setting.
 - Release builds must not accidentally change sandbox behavior compared with tested builds.
 
 ## 8. Database Upgrade Safety
@@ -162,9 +163,7 @@ Until the native app project and packaging strategy exist, the following remain 
 - Versioning scheme.
 - Signing strategy.
 - Notarization strategy.
-- Sandbox strategy.
 - Entitlements.
 - Distribution method.
 
 These items must be finalized before a formal distributable release.
-
