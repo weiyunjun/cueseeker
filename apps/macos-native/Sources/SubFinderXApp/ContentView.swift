@@ -47,8 +47,8 @@ struct ContentView: View {
 
                 titleBar(width: geometry.size.width)
             }
-            .ignoresSafeArea(.container, edges: .top)
         }
+        .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 860, minHeight: 560)
     }
 
@@ -110,9 +110,6 @@ struct ContentView: View {
         }
         .frame(height: topBarHeight)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
     }
 
     @ViewBuilder
