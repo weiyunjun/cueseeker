@@ -1,22 +1,22 @@
 import AppKit
 import SwiftUI
+import SubFinderXPlayback
 
 struct PlaybackView: NSViewRepresentable {
-    let onReady: (UInt) -> Void
+    let player: MPVPlayer?
 
     func makeNSView(context: Context) -> NSView {
-        let view = PlaybackHostView()
-        let viewID = UInt(bitPattern: Unmanaged.passUnretained(view).toOpaque())
-        DispatchQueue.main.async {
-            onReady(viewID)
+        guard let player else {
+            return PlaybackPlaceholderView()
         }
-        return view
+
+        return MPVRenderView(player: player)
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-private final class PlaybackHostView: NSView {
+private final class PlaybackPlaceholderView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true

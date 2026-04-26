@@ -79,10 +79,12 @@ final class AppState: ObservableObject {
     @Published var startupError: String?
 
     let databaseURL: URL
+    var playbackPlayer: MPVPlayer? {
+        player
+    }
 
     private let userDefaults: UserDefaults
     private var player: MPVPlayer?
-    private var playbackViewID: UInt?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
 
@@ -98,6 +100,7 @@ final class AppState: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
+            player = try MPVPlayer()
         } catch {
             startupError = Self.errorMessage(for: error)
         }
@@ -200,10 +203,6 @@ final class AppState: ObservableObject {
         selectedSearchResult = result
     }
 
-    func attachPlaybackView(id viewID: UInt) {
-        playbackViewID = viewID
-    }
-
     func play(_ result: SubtitleSearchResult) {
         playbackStatus = .opening(result)
 
@@ -213,9 +212,11 @@ final class AppState: ObservableObject {
                 startMilliseconds: result.startMilliseconds
             )
 
-            try initializePlayerIfNeeded()
+            guard let player else {
+                throw PlaybackError.mpvCreateFailed
+            }
 
-            try player?.open(request)
+            try player.open(request)
             playbackStatus = .playing(result)
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -228,18 +229,6 @@ final class AppState: ObservableObject {
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
         }
-    }
-
-    private func initializePlayerIfNeeded() throws {
-        guard player == nil else {
-            return
-        }
-
-        guard let playbackViewID else {
-            throw PlaybackError.missingPlaybackView
-        }
-
-        player = try MPVPlayer(viewID: playbackViewID)
     }
 
     private func refreshCurrentSearch() {
