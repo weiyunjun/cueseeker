@@ -40,6 +40,8 @@ Goal:
 - Write subtitle entries to SQLite + FTS5.
 - Search subtitle text.
 - Click a search result to open the matching local video at the matching timestamp.
+- Provide an embedded playback experience inside the app window.
+- Provide a usable native macOS shell with Search and Settings navigation.
 
 Acceptance criteria:
 
@@ -49,7 +51,22 @@ Acceptance criteria:
 - The app can search indexed subtitle content.
 - The app can open a matching local video from a search result.
 - The app can seek to the subtitle start timestamp.
+- The matching video renders inside the native app window, not in an external player window.
+- Clicking a search result enters a playback page for that result.
+- Returning from the playback page stops playback.
+- Clicking the embedded video toggles play/pause.
+- Repeated selection within the same video should seek rather than reload the video when practical.
+- Search and Settings are available through the native app shell.
 - Remote playback and advanced visual effects are out of scope.
+
+Current M1 status:
+
+- The legacy Flutter implementation is archived under `archive/flutter/`.
+- The active native macOS app lives under `apps/macos-native/`.
+- Core subtitle scanning, parsing, same-directory video matching, SQLite persistence, FTS5 search, incremental reindexing, and basic settings are implemented.
+- Embedded playback uses `libmpv` with the render API and an `NSOpenGLView` bridge.
+- The app shell has moved to a custom native shell with AppKit titlebar controls and SwiftUI content.
+- UI polish is still in progress. The current shell, search result presentation, and playback page are usable but not final M1 visual design.
 
 ## 4. M2: macOS Experience Polish
 

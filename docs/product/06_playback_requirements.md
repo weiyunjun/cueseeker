@@ -10,7 +10,8 @@ The primary playback action is:
 
 ```text
 Click subtitle search result
-Open matching local video
+Open playback page
+Open matching local video inside the app
 Seek to subtitle start timestamp
 Play or pause as needed
 ```
@@ -26,8 +27,11 @@ Required:
 - Open a local video file.
 - Seek to a specific timestamp in milliseconds.
 - Start playback near the subtitle start time.
+- Render playback inside the app window.
 - Pause playback.
-- Seek manually.
+- Toggle play/pause from the video surface.
+- Seek when a different subtitle result in the same video is selected.
+- Stop playback when the user returns from the playback page.
 - Handle missing files gracefully.
 
 Out of scope for M1:
@@ -39,6 +43,7 @@ Out of scope for M1:
 - Real-time video effects.
 - Advanced glass or blur effects.
 - Media library management.
+- External player windows as the primary playback experience.
 
 ## 3. Video Matching Dependency
 
@@ -71,6 +76,16 @@ Current decision:
 
 - Use embedded `libmpv` as the target playback engine for the native macOS app.
 - AVFoundation may be used only for exploratory prototypes or fallback experiments unless a future ADR changes the decision.
+
+Current M1 implementation:
+
+- The native app uses Homebrew `libmpv` during local development.
+- Playback is driven through the `libmpv` client API.
+- Rendering uses the `libmpv` render API with `vo=libmpv`.
+- The current render bridge is `MPVRenderView`, an `NSOpenGLView`-backed AppKit view embedded in SwiftUI.
+- OpenGL deprecation warnings are expected for the current M1 bridge and are not build failures.
+- The previous `wid` style embedding and external player-window approach are not acceptable as the primary M1 playback implementation.
+- `loadfile` is used for new videos; selecting another result in the same video should prefer `seek`.
 
 Evaluation criteria:
 

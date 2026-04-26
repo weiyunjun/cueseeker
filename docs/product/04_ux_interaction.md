@@ -13,8 +13,9 @@ Index subtitles
 Search text
 Review results
 Click result
-Video opens at matching timestamp
-Continue searching or inspect playback
+Playback page opens
+Video plays at matching timestamp
+Return to search when done
 ```
 
 ## 2. First Launch
@@ -41,10 +42,11 @@ Expected behavior:
 
 When the user selects a result:
 
-- The row should become visually selected.
-- Playback should start or seek to the matching timestamp.
+- The app should navigate from the search results page to a dedicated playback page.
+- Playback should start at or near the matching timestamp.
 - If the same video is already open, the app should seek instead of reopening when practical.
 - If the video file is missing, the app should show a clear error.
+- Returning from the playback page should stop playback and return to the current search results.
 
 ## 5. Playback Interaction
 
@@ -52,13 +54,21 @@ M1 playback interaction should be minimal.
 
 Required interactions:
 
-- Play.
-- Pause.
+- Auto-play after selecting a result.
+- Toggle play/pause by clicking the embedded video.
 - Seek.
 - Jump from search result to timestamp.
-- Close or hide playback.
+- Return from playback to search.
+- Stop playback when returning to search.
 
 Keyboard interactions should not interfere with text input.
+
+Current M1 behavior:
+
+- Selecting a result calls playback immediately.
+- Re-selecting a timestamp in the same video should use seek rather than reloading the file.
+- The embedded video view is always inside the app window.
+- External player windows are not acceptable for the core workflow.
 
 ## 6. Indexing Interaction
 
@@ -101,6 +111,6 @@ The app should remember:
 - Configured local folders.
 - Window size if practical.
 - Last selected app section if practical.
+- Sidebar collapsed or expanded state if practical.
 
 The app should not surprise the user by losing local configuration after restart.
-

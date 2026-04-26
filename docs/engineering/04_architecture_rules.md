@@ -124,6 +124,9 @@ Rules:
 - Search, indexing status, and playback state should be represented explicitly in UI state.
 - Keyboard behavior must preserve standard macOS text editing behavior.
 - UI errors should be concise and actionable, with technical detail reserved for logs.
+- The M1 app shell may combine SwiftUI content with AppKit titlebar controls when SwiftUI-only layout cannot match native macOS titlebar behavior.
+- AppKit titlebar controls should coordinate through shared app state rather than duplicating sidebar state.
+- The current M1 shell uses a fixed titlebar toggle and centered title. Further visual polish should remain incremental.
 
 ## 8. File Access and Sandboxing
 
@@ -150,6 +153,8 @@ Rules:
 - ADR-0003 selects embedded `libmpv` as the target playback engine.
 - Playback code must not assume remote streams, local HTTP proxying, cache layers, or advanced subtitle rendering.
 - Playback errors must be propagated in a form that the UI can present clearly.
+- M1 playback must be embedded in the native app window.
+- The current render bridge uses the `libmpv` render API through an AppKit view embedded in SwiftUI.
 
 ## 10. Dependency Management
 

@@ -26,12 +26,21 @@ Playback integration rules:
 - Playback must open local files directly.
 - Playback must seek to `start_ms` from a selected subtitle result.
 - Playback must not depend on a local HTTP proxy for M1.
+- Playback must be embedded in the app window for the M1 core workflow.
+- Playback must not launch or rely on an external player window as the primary experience.
 - Playback must not implement advanced subtitle overlay rendering for M1.
 - Playback errors must be surfaced in a form the UI can present clearly.
 - Exact frame-perfect seeking is not required for M1.
 - AVFoundation may be used only for exploratory prototypes or fallback experiments unless a future ADR changes this decision.
 
-The exact native view bridge and rendering backend may be decided during implementation, but changing away from `libmpv` requires a new or superseding ADR.
+The exact native view bridge and rendering backend may evolve during implementation, but changing away from `libmpv` requires a new or superseding ADR.
+
+Current implementation note:
+
+- The M1 native app currently uses the `libmpv` render API with `vo=libmpv`.
+- Rendering is bridged through an AppKit `NSOpenGLView` embedded in SwiftUI.
+- OpenGL deprecation warnings are expected in the current implementation.
+- The current implementation intentionally avoids `wid` as the primary embedding strategy.
 
 ## Rationale
 
@@ -119,12 +128,13 @@ Launching an external player would reduce embedded playback complexity.
 
 It was not selected because the product requires an integrated search-to-playback workflow and predictable timestamp control.
 
+This remains explicitly rejected for M1. External player windows are not acceptable for the primary core loop.
+
 ## Consequences
 
 - M1 playback implementation should integrate embedded `libmpv`.
 - The app stack must allow AppKit or native view bridging for playback.
 - Packaging and release rules must account for bundled native playback dependencies.
 - Signing and notarization must be revisited before any distributable release.
-- Playback tests must verify local file open, timestamp seek, play, pause, manual seek, and clear errors.
+- Playback tests must verify local file open, timestamp jump from a result, same-video seek behavior, play/pause behavior, and clear errors.
 - If `libmpv` integration blocks M1, a follow-up ADR is required before switching to another engine.
-

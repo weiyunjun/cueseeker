@@ -89,14 +89,20 @@ Requirements:
 
 Search results must show enough information for the user to choose the correct match.
 
-Each result should display:
+Current M1 result rows display:
 
 - Subtitle text.
-- Video name.
-- Subtitle timestamp.
-- Optional source folder or path context.
+- Highlighted query matches.
+- Subtitle file name.
 
 Clicking a result must trigger playback for the matching video at the subtitle start timestamp.
+
+The playback page displays additional context:
+
+- Subtitle content.
+- Start time.
+- Video path.
+- Subtitle path.
 
 ## 8. Local Playback
 
@@ -106,9 +112,12 @@ Requirements:
 
 - Open the matched local video file.
 - Seek to the subtitle start timestamp.
+- Render video inside the native app window.
 - Allow play and pause.
-- Allow basic seek controls.
-- Allow closing or hiding the playback area.
+- Toggle play/pause by clicking the video surface.
+- Prefer seek over reload when the current video is already open.
+- Stop playback when returning from the playback page.
+- Allow returning from playback to search.
 
 The playback engine is selected in `docs/decisions/ADR-0003-playback-engine.md`.
 
