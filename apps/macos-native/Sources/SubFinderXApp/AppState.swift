@@ -199,6 +199,18 @@ final class AppState: ObservableObject {
         selectedSearchResult = result
     }
 
+    func attachPlaybackView(id viewID: UInt) {
+        guard player == nil else {
+            return
+        }
+
+        do {
+            player = try MPVPlayer(viewID: viewID)
+        } catch {
+            playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
     func play(_ result: SubtitleSearchResult) {
         playbackStatus = .opening(result)
 

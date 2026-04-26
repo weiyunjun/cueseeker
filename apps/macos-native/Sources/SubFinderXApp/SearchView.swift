@@ -78,6 +78,13 @@ struct SearchView: View {
     private var selectedResultView: some View {
         if let result = appState.selectedSearchResult {
             VStack(alignment: .leading, spacing: 12) {
+                PlaybackView { viewID in
+                    appState.attachPlaybackView(id: viewID)
+                }
+                .frame(height: 220)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
                 Text(result.videoName)
                     .font(.title3)
                     .fontWeight(.semibold)

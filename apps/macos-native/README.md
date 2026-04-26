@@ -10,6 +10,12 @@ Current stack decisions are defined in:
 
 ## Build
 
+The playback module links against Homebrew `libmpv`.
+
+```bash
+brew install mpv
+```
+
 ```bash
 swift build
 ```
@@ -26,5 +32,5 @@ swift test
 swift run SubFinderX
 ```
 
-The current target is a minimal native macOS app shell for M1 development.
-
+The current target is a minimal native macOS M1 loop for local subtitle indexing,
+search, and timestamp playback.

@@ -52,7 +52,7 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
 public final class MPVPlayer {
     private var handle: OpaquePointer?
 
-    public init() throws {
+    public init(viewID: UInt? = nil) throws {
         guard let handle = mpv_create() else {
             throw PlaybackError.mpvCreateFailed
         }
@@ -63,6 +63,11 @@ public final class MPVPlayer {
             try setOption(name: "terminal", value: "no")
             try setOption(name: "idle", value: "yes")
             try setOption(name: "keep-open", value: "yes")
+            try setOption(name: "force-window", value: "yes")
+
+            if let viewID {
+                try setOption(name: "wid", value: String(viewID))
+            }
 
             let status = mpv_initialize(handle)
             guard status >= 0 else {
