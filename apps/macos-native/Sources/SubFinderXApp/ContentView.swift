@@ -5,32 +5,49 @@ struct ContentView: View {
     @State private var isSidebarVisible = true
 
     private let sidebarWidth: CGFloat = 220
-    private let topBarHeight: CGFloat = 54
-    private let titleBarControlY: CGFloat = 25
-    private let collapsedToggleX: CGFloat = 118
-    private let titleLeadingGap: CGFloat = 22
+    private let topBarHeight: CGFloat = 56
+    private let titleBarControlY: CGFloat = 28
+    private let expandedToggleTrailing: CGFloat = 24
+    private let collapsedToggleX: CGFloat = 96
+    private let collapsedContentInset: CGFloat = 104
+    private let animation = Animation.easeInOut(duration: 0.22)
+
+    private let windowBackground = Color(
+        red: 0.955,
+        green: 0.955,
+        blue: 0.95
+    )
+    private let sidebarBackground = Color(
+        red: 0.942,
+        green: 0.942,
+        blue: 0.936
+    )
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color(nsColor: .windowBackgroundColor)
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack(alignment: .topLeading) {
+                windowBackground
+                    .ignoresSafeArea()
 
-            HStack(spacing: 0) {
-                if isSidebarVisible {
-                    sidebar
-                        .frame(width: sidebarWidth)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                HStack(spacing: 0) {
+                    if isSidebarVisible {
+                        sidebar
+                            .frame(width: sidebarWidth)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                            .zIndex(2)
+                    }
 
-                    Divider()
+                    selectedSectionView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.top, topBarHeight)
+                        .padding(.leading, isSidebarVisible ? 0 : collapsedContentInset)
+                        .animation(animation, value: isSidebarVisible)
                 }
+                .animation(animation, value: isSidebarVisible)
 
-                selectedSectionView
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.top, topBarHeight)
+                titleBar(width: geometry.size.width)
             }
-            .animation(.easeInOut(duration: 0.22), value: isSidebarVisible)
-
-            titleBar
+            .ignoresSafeArea(.container, edges: .top)
         }
         .frame(minWidth: 860, minHeight: 560)
     }
@@ -62,28 +79,34 @@ struct ContentView: View {
             Spacer()
         }
         .padding(.horizontal, 12)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(sidebarBackground)
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color.black.opacity(0.08))
+                .frame(width: 1)
+        }
+        .shadow(color: Color.black.opacity(0.16), radius: 12, x: 5, y: 0)
     }
 
-    private var titleBar: some View {
+    private func titleBar(width: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
-            Color(nsColor: .windowBackgroundColor)
+            titleBarBackground
 
             sidebarToggle
                 .position(
-                    x: isSidebarVisible ? sidebarWidth - 25 : collapsedToggleX,
+                    x: toggleX,
                     y: titleBarControlY
                 )
-                .animation(.easeInOut(duration: 0.22), value: isSidebarVisible)
+                .animation(animation, value: isSidebarVisible)
 
             Text(appState.selectedSection.title)
                 .font(.system(size: 16, weight: .semibold))
                 .lineLimit(1)
                 .position(
-                    x: titleX,
+                    x: titleX(totalWidth: width),
                     y: titleBarControlY
                 )
-                .animation(.easeInOut(duration: 0.22), value: isSidebarVisible)
+                .animation(animation, value: isSidebarVisible)
         }
         .frame(height: topBarHeight)
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -92,13 +115,31 @@ struct ContentView: View {
         }
     }
 
-    private var titleX: CGFloat {
-        (isSidebarVisible ? sidebarWidth - 25 : collapsedToggleX) + titleLeadingGap + 36
+    @ViewBuilder
+    private var titleBarBackground: some View {
+        HStack(spacing: 0) {
+            if isSidebarVisible {
+                sidebarBackground
+                    .frame(width: sidebarWidth)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+
+            windowBackground
+        }
+    }
+
+    private var toggleX: CGFloat {
+        isSidebarVisible ? sidebarWidth - expandedToggleTrailing : collapsedToggleX
+    }
+
+    private func titleX(totalWidth: CGFloat) -> CGFloat {
+        let mainLeading = isSidebarVisible ? sidebarWidth : 0
+        return mainLeading + max(0, totalWidth - mainLeading) / 2
     }
 
     private var sidebarToggle: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.22)) {
+            withAnimation(animation) {
                 isSidebarVisible.toggle()
             }
         } label: {
