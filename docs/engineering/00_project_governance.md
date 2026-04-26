@@ -55,7 +55,7 @@ docs/
 
 `docs/product/` records stable product facts.
 
-Recommended structure:
+Formal structure:
 
 ```text
 docs/product/
@@ -91,7 +91,7 @@ docs/engineering/
   07_release_rules.md
 ```
 
-This document is the top-level governance document. Detailed rules may later be split into the dedicated files listed above.
+This document is the top-level governance document. Detailed rules live in the dedicated files listed above.
 
 ### 4.3 Proposals
 
@@ -661,12 +661,10 @@ Each major difficult-to-reverse decision must create or update an ADR.
 
 Current priority:
 
-1. Review and confirm this governance document.
-2. Create the product documentation structure.
-3. Write the first product requirement documents.
-4. Initialize Git and freeze the Flutter baseline.
-5. Archive the Flutter implementation.
-6. Start the native macOS M1 minimal loop.
+1. Keep product and engineering documents aligned.
+2. Finalize the formal engineering document structure.
+3. Record any hard-to-reverse architecture decisions as ADRs.
+4. Start the native macOS M1 minimal loop only after the required engineering rules are in place.
 
 Do not prioritize the following before M1 is complete:
 
