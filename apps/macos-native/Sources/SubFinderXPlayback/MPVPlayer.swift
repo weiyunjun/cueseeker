@@ -27,6 +27,7 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
     case invalidVideoURL(String)
     case missingVideoFile(String)
     case mpvCreateFailed
+    case missingPlaybackView
     case mpvInitializeFailed(String)
     case mpvOptionFailed(name: String, message: String)
     case mpvCommandFailed(command: String, message: String)
@@ -39,6 +40,8 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
             "Video file does not exist: \(path)"
         case .mpvCreateFailed:
             "Failed to create libmpv handle."
+        case .missingPlaybackView:
+            "Playback view is not ready."
         case .mpvInitializeFailed(let message):
             "Failed to initialize libmpv: \(message)"
         case .mpvOptionFailed(let name, let message):

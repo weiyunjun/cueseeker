@@ -82,6 +82,7 @@ final class AppState: ObservableObject {
 
     private let userDefaults: UserDefaults
     private var player: MPVPlayer?
+    private var playbackViewID: UInt?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
 
@@ -200,12 +201,14 @@ final class AppState: ObservableObject {
     }
 
     func attachPlaybackView(id viewID: UInt) {
+        playbackViewID = viewID
+
         guard player == nil else {
             return
         }
 
         do {
-            player = try MPVPlayer(viewID: viewID)
+            try initializePlayerIfNeeded()
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
         }
@@ -220,9 +223,7 @@ final class AppState: ObservableObject {
                 startMilliseconds: result.startMilliseconds
             )
 
-            if player == nil {
-                player = try MPVPlayer()
-            }
+            try initializePlayerIfNeeded()
 
             try player?.open(request)
             playbackStatus = .playing(result)
@@ -237,6 +238,18 @@ final class AppState: ObservableObject {
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
         }
+    }
+
+    private func initializePlayerIfNeeded() throws {
+        guard player == nil else {
+            return
+        }
+
+        guard let playbackViewID else {
+            throw PlaybackError.missingPlaybackView
+        }
+
+        player = try MPVPlayer(viewID: playbackViewID)
     }
 
     private func refreshCurrentSearch() {
