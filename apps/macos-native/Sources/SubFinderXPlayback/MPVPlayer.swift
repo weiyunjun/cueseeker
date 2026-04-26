@@ -66,7 +66,6 @@ public final class MPVPlayer {
             try setOption(name: "terminal", value: "no")
             try setOption(name: "idle", value: "yes")
             try setOption(name: "keep-open", value: "yes")
-            try setOption(name: "force-window", value: "yes")
 
             if let viewID {
                 try setOption(name: "wid", value: String(viewID))
@@ -94,6 +93,7 @@ public final class MPVPlayer {
             "loadfile",
             request.videoURL.path,
             "replace",
+            "-1",
             String(format: "start=%.3f", request.startSeconds)
         ])
     }

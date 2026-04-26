@@ -202,16 +202,6 @@ final class AppState: ObservableObject {
 
     func attachPlaybackView(id viewID: UInt) {
         playbackViewID = viewID
-
-        guard player == nil else {
-            return
-        }
-
-        do {
-            try initializePlayerIfNeeded()
-        } catch {
-            playbackStatus = .failed(Self.errorMessage(for: error))
-        }
     }
 
     func play(_ result: SubtitleSearchResult) {
