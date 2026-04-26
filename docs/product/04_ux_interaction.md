@@ -1,0 +1,106 @@
+# UX Interaction
+
+Status: Draft
+
+## 1. Core Workflow
+
+The primary workflow is:
+
+```text
+Open app
+Add or confirm local subtitle folder
+Index subtitles
+Search text
+Review results
+Click result
+Video opens at matching timestamp
+Continue searching or inspect playback
+```
+
+## 2. First Launch
+
+On first launch, if no folders are configured:
+
+- The app should make it obvious that a local subtitle folder must be added.
+- The user should be able to add a folder without navigating through unnecessary screens.
+- The app should explain indexing status only when needed.
+
+## 3. Search Interaction
+
+Search should feel immediate.
+
+Expected behavior:
+
+- Typing updates results after a short debounce.
+- Empty search shows an empty or guidance state.
+- Invalid search syntax should not crash the app.
+- Search results should not flicker unnecessarily.
+- Repeating the same query should not trigger expensive work without reason.
+
+## 4. Result Selection
+
+When the user selects a result:
+
+- The row should become visually selected.
+- Playback should start or seek to the matching timestamp.
+- If the same video is already open, the app should seek instead of reopening when practical.
+- If the video file is missing, the app should show a clear error.
+
+## 5. Playback Interaction
+
+M1 playback interaction should be minimal.
+
+Required interactions:
+
+- Play.
+- Pause.
+- Seek.
+- Jump from search result to timestamp.
+- Close or hide playback.
+
+Keyboard interactions should not interfere with text input.
+
+## 6. Indexing Interaction
+
+Indexing should communicate progress without blocking the whole app unnecessarily.
+
+Expected behavior:
+
+- Show indexing state.
+- Show completion state.
+- Show errors for unreadable folders or files.
+- Allow the user to continue using existing indexed data when possible.
+
+## 7. Error Handling
+
+Errors should be understandable and actionable.
+
+Error messages should answer:
+
+- What failed?
+- What can the user do?
+- Is the rest of the app still usable?
+
+Technical details may be available in logs, but should not overwhelm the main UI.
+
+## 8. Keyboard Behavior
+
+Keyboard behavior should follow native macOS expectations.
+
+Initial expectations:
+
+- Standard text editing shortcuts work in search fields.
+- Escape should dismiss transient UI or unfocus search when appropriate.
+- Playback shortcuts should apply only when playback focus or context makes sense.
+- Global shortcuts should be documented before implementation.
+
+## 9. Persistence
+
+The app should remember:
+
+- Configured local folders.
+- Window size if practical.
+- Last selected app section if practical.
+
+The app should not surprise the user by losing local configuration after restart.
+
