@@ -5,6 +5,7 @@ import SubFinderXCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
+    private var titlebarControls: TitlebarControlsCoordinator?
     private let appState = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -36,6 +37,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.contentView = NSHostingView(rootView: contentView)
         window.makeKeyAndOrderFront(nil)
+
+        titlebarControls = TitlebarControlsCoordinator(
+            window: window,
+            appState: appState,
+            sidebarWidth: 220
+        )
 
         self.window = window
     }

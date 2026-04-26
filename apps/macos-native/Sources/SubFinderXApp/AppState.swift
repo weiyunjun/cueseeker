@@ -78,6 +78,7 @@ final class AppState: ObservableObject {
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
+    @Published var isSidebarVisible = true
 
     let databaseURL: URL
     var playbackPlayer: MPVPlayer? {
@@ -123,6 +124,10 @@ final class AppState: ObservableObject {
     func removeFolders(at offsets: IndexSet) {
         selectedFolders.remove(atOffsets: offsets)
         persistSelectedFolders()
+    }
+
+    func toggleSidebar() {
+        isSidebarVisible.toggle()
     }
 
     func indexFolder(_ folder: URL) {
