@@ -4,6 +4,7 @@ public struct SubtitleIndexingResult: Equatable, Sendable {
     public var scannedSubtitleFiles: Int = 0
     public var indexedSubtitleFiles: Int = 0
     public var indexedSubtitleEntries: Int = 0
+    public var skippedUnchangedSubtitleFiles: Int = 0
     public var skippedMissingVideo: Int = 0
     public var skippedUnreadableSubtitle: Int = 0
     public var failedFiles: [SubtitleIndexingFailure] = []
@@ -34,11 +35,26 @@ public struct SubtitleIndexer {
         let subtitleFiles = scanner.scanSRTFiles(in: folder)
         result.scannedSubtitleFiles = subtitleFiles.count
 
+        let existingFiles = Dictionary(
+            uniqueKeysWithValues: try database.subtitleFiles().map { ($0.subtitlePath, $0) }
+        )
         var keptSubtitlePaths = Set<String>()
 
         for subtitleFile in subtitleFiles {
             guard let videoFile = matcher.matchingVideo(for: subtitleFile) else {
                 result.skippedMissingVideo += 1
+                continue
+            }
+
+            let attributes = try? FileManager.default.attributesOfItem(atPath: subtitleFile.path)
+            let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
+            let modifiedAt = attributes?[.modificationDate] as? Date
+
+            if let metadata = existingFiles[subtitleFile.path],
+               isUnchanged(metadata: metadata, videoFile: videoFile, fileSize: fileSize, modifiedAt: modifiedAt)
+            {
+                keptSubtitlePaths.insert(subtitleFile.path)
+                result.skippedUnchangedSubtitleFiles += 1
                 continue
             }
 
@@ -57,9 +73,6 @@ public struct SubtitleIndexer {
             }
 
             let entries = SRTParser.parse(contents)
-            let attributes = try? FileManager.default.attributesOfItem(atPath: subtitleFile.path)
-            let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
-            let modifiedAt = attributes?[.modificationDate] as? Date
 
             try database.replaceEntries(
                 subtitleFile: subtitleFile,
@@ -77,5 +90,22 @@ public struct SubtitleIndexer {
         try database.removeStaleEntries(under: folder, keeping: keptSubtitlePaths)
 
         return result
+    }
+
+    private func isUnchanged(
+        metadata: SubtitleFileMetadata,
+        videoFile: URL,
+        fileSize: Int64?,
+        modifiedAt: Date?
+    ) -> Bool {
+        guard metadata.videoPath == videoFile.path,
+              metadata.fileSize == fileSize,
+              let existingModifiedAt = metadata.modifiedAt,
+              let modifiedAt
+        else {
+            return false
+        }
+
+        return abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001
     }
 }

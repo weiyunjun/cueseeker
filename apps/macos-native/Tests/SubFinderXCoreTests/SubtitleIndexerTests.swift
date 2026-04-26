@@ -151,6 +151,41 @@ func reindexingFolderReplacesChangedSubtitleContent() throws {
     #expect(freshResults[0].startMilliseconds == 9_000)
 }
 
+@Test
+func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Stable searchable text.
+
+        """
+    )
+    try fixture.writeVideo(name: "Episode.mp4")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let initialResult = try indexer.index(folder: fixture.root, into: database)
+    let unchangedResult = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(initialResult.indexedSubtitleFiles == 1)
+    #expect(unchangedResult.scannedSubtitleFiles == 1)
+    #expect(unchangedResult.indexedSubtitleFiles == 0)
+    #expect(unchangedResult.indexedSubtitleEntries == 0)
+    #expect(unchangedResult.skippedUnchangedSubtitleFiles == 1)
+
+    let searchResults = try database.search("Stable")
+    #expect(searchResults.count == 1)
+    #expect(searchResults[0].content == "Stable searchable text.")
+}
+
 private struct IndexingFixture {
     let root: URL
     let databaseURL: URL
@@ -180,4 +215,3 @@ private struct IndexingFixture {
         try? FileManager.default.removeItem(at: root)
     }
 }
-

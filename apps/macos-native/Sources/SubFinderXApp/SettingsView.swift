@@ -136,6 +136,7 @@ struct SettingsView: View {
             "\(result.scannedSubtitleFiles) scanned",
             "\(result.indexedSubtitleFiles) indexed files",
             "\(result.indexedSubtitleEntries) entries",
+            "\(result.skippedUnchangedSubtitleFiles) unchanged",
             "\(result.skippedMissingVideo) missing videos",
             "\(result.skippedUnreadableSubtitle) unreadable"
         ].joined(separator: " · ")
