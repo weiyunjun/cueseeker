@@ -209,8 +209,7 @@ public final class SubtitleDatabase {
     }
 
     public func search(_ query: String, limit: Int = 50) throws -> [SubtitleSearchResult] {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty, limit > 0 else {
+        guard let ftsQuery = Self.normalizedFTSQuery(for: query), limit > 0 else {
             return []
         }
 
@@ -225,7 +224,7 @@ public final class SubtitleDatabase {
             """
         )
 
-        try statement.bind(trimmedQuery, at: 1)
+        try statement.bind(ftsQuery, at: 1)
         try statement.bind(limit, at: 2)
 
         var results: [SubtitleSearchResult] = []
@@ -244,6 +243,22 @@ public final class SubtitleDatabase {
         }
 
         return results
+    }
+
+    private static func normalizedFTSQuery(for query: String) -> String? {
+        let terms = query
+            .unicodeScalars
+            .split(whereSeparator: { !$0.properties.isAlphabetic && $0.properties.numericType == nil })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+
+        guard !terms.isEmpty else {
+            return nil
+        }
+
+        return terms
+            .map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }
+            .joined(separator: " AND ")
     }
 
     public func removeStaleEntries(under folder: URL, keeping subtitleFiles: Set<String>) throws {

@@ -145,9 +145,43 @@ func emptySearchQueryReturnsNoResults() throws {
     #expect(try database.search("   ").isEmpty)
 }
 
+@Test
+func searchNormalizesFTSQuerySyntaxCharacters() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Special.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Special.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "He said hello to spider-man again."
+            )
+        ]
+    )
+
+    let results = try database.search(#""hello": spider-man"#)
+
+    #expect(results.count == 1)
+    #expect(results[0].content == "He said hello to spider-man again.")
+    #expect(try database.search(":::").isEmpty)
+}
+
 private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("SubFinderXDatabaseTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
 }
-
