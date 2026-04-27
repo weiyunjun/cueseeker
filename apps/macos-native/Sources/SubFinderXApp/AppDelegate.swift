@@ -86,6 +86,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         if window.styleMask.contains(.fullScreen) { return }
         
+        // Use bounds translation to shift the entire traffic light container right by 12 points.
+        // Setting bounds.origin.x to -12 visually shifts its coordinate system to the right.
+        // This avoids fighting AppKit's frame layout engine during window resize.
+        if let closeButton = window.standardWindowButton(.closeButton),
+           let container = closeButton.superview {
+            if abs(container.bounds.origin.x - (-12)) > 0.1 {
+                container.bounds.origin.x = -12
+            }
+        }
+        
         let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
         
         for type in buttons {
