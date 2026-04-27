@@ -63,8 +63,11 @@ struct ContentView: View {
                         .padding(.vertical, 10)
                         .background(
                             appState.selectedSection == section
-                                ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.16)
+                                ? Color.accentColor
                                 : Color.clear
+                        )
+                        .foregroundStyle(
+                            appState.selectedSection == section ? .white : .primary
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .contentShape(Rectangle())
@@ -138,6 +141,7 @@ struct ContentView: View {
                     height: AppShellLayout.toggleSize
                 )
                 .contentShape(Rectangle())
+                .hoverBackground(cornerRadius: 6)
         }
         .buttonStyle(.plain)
         .focusable(false)
@@ -160,6 +164,7 @@ struct ContentView: View {
                     height: AppShellLayout.toggleSize
                 )
                 .contentShape(Rectangle())
+                .hoverBackground(cornerRadius: 6)
         }
         .buttonStyle(.plain)
         .focusable(false)

@@ -35,18 +35,9 @@ struct SearchView: View {
 
     private var searchResultsPane: some View {
         GeometryReader { geometry in
-            let contentWidth = min(
-                SearchLayout.contentWidth,
-                max(0, geometry.size.width - SearchLayout.minimumHorizontalMargin * 2)
-            )
-
             VStack(alignment: .leading, spacing: 16) {
-                SearchField(
-                    text: Binding(
-                        get: { appState.searchQuery },
-                        set: { appState.updateSearchQuery($0) }
-                    )
-                )
+                SearchField(text: $appState.searchQuery)
+                    .padding(.horizontal, 12)
 
                 if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     EmptyStateView(
@@ -86,29 +77,36 @@ struct SearchView: View {
 
                 Spacer()
             }
-            .frame(width: contentWidth, alignment: .topLeading)
             .frame(maxHeight: .infinity, alignment: .topLeading)
             .padding(.top, SearchLayout.topPadding)
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            .contentShape(Rectangle()) // Global scroll capability
         }
     }
 
     private var resultsList: some View {
-        List {
-            ForEach(appState.searchResults, id: \.entryID) { result in
-                Button {
-                    appState.openSearchResult(result)
-                } label: {
-                    SearchResultRow(
-                        result: result,
-                        query: appState.searchQuery,
-                        isSelected: appState.selectedSearchResult?.entryID == result.entryID
-                    )
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(Array(appState.searchResults.enumerated()), id: \.element.entryID) { index, result in
+                    let isSelected = appState.selectedSearchResult?.entryID == result.entryID
+                    let isNextSelected = index + 1 < appState.searchResults.count && appState.selectedSearchResult?.entryID == appState.searchResults[index + 1].entryID
+                    let isLast = index == appState.searchResults.count - 1
+
+                    Button {
+                        appState.openSearchResult(result)
+                    } label: {
+                        SearchResultRow(
+                            result: result,
+                            query: appState.searchQuery,
+                            isSelected: isSelected,
+                            showDivider: !isSelected && !isNextSelected && !isLast
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.vertical, 8)
         }
-        .listStyle(.plain)
     }
 
     private var playbackInspector: some View {
@@ -256,7 +254,7 @@ private struct SearchField: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .frame(height: 36)
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -271,29 +269,37 @@ private struct SearchResultRow: View {
     let result: SubtitleSearchResult
     let query: String
     let isSelected: Bool
+    let showDivider: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(highlightedContent(result.content, query: query))
-                .font(.system(size: SearchTypography.bodySize))
-                .lineLimit(3)
-                .multilineTextAlignment(.leading)
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(highlightedContent(result.content, query: query, isSelected: isSelected))
+                    .font(.system(size: SearchTypography.bodySize))
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
 
-            Text(URL(fileURLWithPath: result.subtitlePath).lastPathComponent)
-                .font(.system(size: SearchTypography.detailSize))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+                Text(URL(fileURLWithPath: result.subtitlePath).lastPathComponent)
+                    .font(.system(size: SearchTypography.detailSize))
+                    .foregroundStyle(isSelected ? Color.white.opacity(0.8) : Color.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isSelected ? Color.accentColor : Color.clear
+            )
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 12)
+            
+            Rectangle()
+                .fill(showDivider ? Color(nsColor: .separatorColor) : Color.clear)
+                .frame(height: 1)
+                .padding(.horizontal, 24)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            isSelected
-                ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.16)
-                : Color.clear
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
     }
 }
@@ -401,12 +407,12 @@ private enum SearchLayout {
     static let topPadding: CGFloat = 24
     static let searchPaneMinimumWidth: CGFloat = 480
     static let playbackInspectorMinimumWidth: Double = 380
-    static let dividerHitWidth: CGFloat = 12
+    static let dividerHitWidth: CGFloat = 6
     static let dividerLineWidth: CGFloat = 1
     static let dividerActiveLineWidth: CGFloat = 3
 }
 
-private func highlightedContent(_ content: String, query: String) -> AttributedString {
+private func highlightedContent(_ content: String, query: String, isSelected: Bool = false) -> AttributedString {
     var highlighted = AttributedString(content)
     let terms = highlightTerms(from: query)
 
@@ -420,8 +426,8 @@ private func highlightedContent(_ content: String, query: String) -> AttributedS
         ) {
             if let lowerBound = AttributedString.Index(match.lowerBound, within: highlighted),
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
-                highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(0.55)
-                highlighted[lowerBound..<upperBound].foregroundColor = Color.primary
+                highlighted[lowerBound..<upperBound].backgroundColor = isSelected ? Color.white.opacity(0.3) : Color.yellow.opacity(0.55)
+                highlighted[lowerBound..<upperBound].foregroundColor = isSelected ? Color.white : Color.primary
             }
 
             guard match.upperBound < content.endIndex else {
