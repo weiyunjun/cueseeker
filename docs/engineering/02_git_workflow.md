@@ -162,3 +162,4 @@ Rules:
 Rules:
 
 - For every code modification, the AI must explicitly state both the before-modification version (e.g., commit hash) and the after-modification version to the user to prevent them from having to scroll through chat history.
+- Unless the user provides an explicit instruction to modify code, all user prompts must be treated as discussion or proposal requests. The AI is strictly prohibited from modifying code without explicit permission.
