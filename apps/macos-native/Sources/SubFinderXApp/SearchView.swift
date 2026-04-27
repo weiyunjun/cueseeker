@@ -132,11 +132,6 @@ struct SearchView: View {
                                 .foregroundStyle(.red)
                         }
 
-                        Text(result.content)
-                            .font(.system(size: SearchTypography.playbackSubtitleSize))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
                         MetadataField(
                             title: "Start Time",
                             value: formatTimestamp(result.startMilliseconds)
@@ -232,11 +227,12 @@ struct SearchView: View {
 
 private struct SearchField: View {
     @Binding var text: String
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 20, weight: .medium))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
 
             TextField(
@@ -248,14 +244,25 @@ private struct SearchField: View {
             )
             .textFieldStyle(.plain)
             .font(.system(size: SearchTypography.searchFieldSize))
+            .focused($isFocused)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 16)
-        .frame(height: 54)
+        .frame(height: 36)
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                .stroke(isFocused ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isFocused ? 2 : 1)
         }
     }
 }
@@ -382,10 +389,9 @@ private final class ResizerNSView: NSView {
     }
 }
 private enum SearchTypography {
-    static let searchFieldSize: CGFloat = 24
-    static let bodySize: CGFloat = 20
-    static let playbackSubtitleSize: CGFloat = 20
-    static let detailSize: CGFloat = 16
+    static let searchFieldSize: CGFloat = 16
+    static let bodySize: CGFloat = 14
+    static let detailSize: CGFloat = 12
     static let metadataLabelSize: CGFloat = 13
 }
 

@@ -90,10 +90,10 @@ The search input should stay easy to access.
 
 Accepted M1 search presentation:
 
-- The search field is a custom SwiftUI control with a leading magnifying-glass icon and a taller input height.
-- Search results are shown as a list.
+- The search field is a custom SwiftUI control with a leading magnifying-glass icon, a focused state border highlight, and an inline clear button.
+- Search results are shown as a list of rounded rectangular cards.
 - Selecting a search result opens or updates the Playback Inspector without leaving Search.
-- Search results currently use larger text and highlight query matches with a yellow background.
+- Search results use refined macOS-native typography and highlight query matches with a yellow background.
 - Search result visual polish is still incomplete and subject to further iteration.
 
 ## 5. Search Result Row
@@ -117,7 +117,6 @@ The Playback Inspector is the right-side playback and result-detail panel in the
 Required content:
 
 - Embedded video.
-- Subtitle text.
 - Start time.
 - Video path.
 - Subtitle path.
