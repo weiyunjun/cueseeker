@@ -180,39 +180,27 @@ struct SearchView: View {
                 .frame(width: isActive ? SearchLayout.dividerActiveLineWidth : SearchLayout.dividerLineWidth)
         }
             .frame(width: SearchLayout.dividerHitWidth)
-            .contentShape(Rectangle())
-            .onHover { isHovered in
-                isInspectorDividerHovered = isHovered
-                if isHovered {
-                    NSCursor.resizeLeftRight.push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
-            .onDisappear {
-                if isInspectorDividerHovered {
-                    NSCursor.pop()
-                }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        if inspectorDragStartWidth == nil {
-                            inspectorDragStartWidth = appState.playbackInspectorWidth
-                        }
-
+            .overlay(
+                ResizerView(
+                    onHoverChanged: { isHovered in
+                        isInspectorDividerHovered = isHovered
+                    },
+                    onDragStarted: {
                         isInspectorDividerDragging = true
-
+                        inspectorDragStartWidth = appState.playbackInspectorWidth
+                    },
+                    onDragChanged: { translationX in
                         let startWidth = inspectorDragStartWidth ?? appState.playbackInspectorWidth
-                        let proposedWidth = startWidth - Double(value.translation.width)
+                        let proposedWidth = startWidth - Double(translationX)
                         appState.updatePlaybackInspectorWidth(
                             clampedInspectorWidth(proposedWidth, availableWidth: availableWidth)
                         )
-                    }
-                    .onEnded { _ in
+                    },
+                    onDragEnded: {
                         inspectorDragStartWidth = nil
                         isInspectorDividerDragging = false
                     }
+                )
             )
     }
 
@@ -323,7 +311,76 @@ private struct MetadataField: View {
     }
 }
 
+private struct ResizerView: NSViewRepresentable {
+    var onHoverChanged: (Bool) -> Void
+    var onDragStarted: () -> Void
+    var onDragChanged: (CGFloat) -> Void
+    var onDragEnded: () -> Void
 
+    func makeNSView(context: Context) -> ResizerNSView {
+        let view = ResizerNSView()
+        view.onHoverChanged = onHoverChanged
+        view.onDragStarted = onDragStarted
+        view.onDragChanged = onDragChanged
+        view.onDragEnded = onDragEnded
+        return view
+    }
+
+    func updateNSView(_ nsView: ResizerNSView, context: Context) {
+        nsView.onHoverChanged = onHoverChanged
+        nsView.onDragStarted = onDragStarted
+        nsView.onDragChanged = onDragChanged
+        nsView.onDragEnded = onDragEnded
+    }
+}
+
+private final class ResizerNSView: NSView {
+    var onHoverChanged: ((Bool) -> Void)?
+    var onDragStarted: (() -> Void)?
+    var onDragChanged: ((CGFloat) -> Void)?
+    var onDragEnded: (() -> Void)?
+
+    private var startLocation: NSPoint?
+    private var trackingArea: NSTrackingArea?
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .resizeLeftRight)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea = trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        onHoverChanged?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        onHoverChanged?(false)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        startLocation = event.locationInWindow
+        onDragStarted?()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let startLocation = startLocation else { return }
+        let delta = event.locationInWindow.x - startLocation.x
+        onDragChanged?(delta)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        startLocation = nil
+        onDragEnded?()
+    }
+}
 private enum SearchTypography {
     static let searchFieldSize: CGFloat = 24
     static let bodySize: CGFloat = 20
