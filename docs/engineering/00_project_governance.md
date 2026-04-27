@@ -162,6 +162,10 @@ Status
 
 The changelog does not replace Git commits. Git records concrete file changes. The changelog records meaningful project progress and milestone outcomes.
 
+The changelog must be updated when a completed milestone, user-visible behavior change, accepted architecture or process rule, release milestone, or accumulated group of small commits changes meaningful project status. Routine formatting, wording cleanup, internal refactors without behavior or rule impact, test-only maintenance, and transient work in progress do not require entries.
+
+Detailed changelog update rules are defined in `docs/engineering/01_documentation_rules.md`.
+
 ## 5. Documentation Change Process
 
 ### 5.1 Small Documentation Changes
@@ -198,7 +202,7 @@ Confirm decision
 Merge stable conclusions into product or engineering docs
 Implement
 Verify
-Update changelog
+Evaluate changelog trigger and update when required
 Commit changes
 ```
 
@@ -654,6 +658,8 @@ Each completed milestone must update:
 ```text
 docs/changelog.md
 ```
+
+Other changelog triggers are defined in `docs/engineering/01_documentation_rules.md`.
 
 Each major difficult-to-reverse decision must create or update an ADR.
 

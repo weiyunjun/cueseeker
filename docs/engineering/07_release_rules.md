@@ -150,7 +150,8 @@ Formal releases must update project records.
 
 Rules:
 
-- `docs/changelog.md` should record milestone-level release progress.
+- `docs/changelog.md` must record formal release progress, release candidates, and tagged release or milestone points.
+- Required release changelog entries must be added before creating the corresponding release tag.
 - Git tags should mark meaningful release or milestone points.
 - Tags must not be moved without explicit approval.
 - Release notes must be written in English.

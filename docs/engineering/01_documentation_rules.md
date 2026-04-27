@@ -194,7 +194,15 @@ Rules:
 - The changelog does not replace Git history.
 - Git records concrete file changes.
 - The changelog records meaningful progress and milestone outcomes.
-- Each completed milestone should update the changelog.
+- Each completed milestone must update the changelog.
+- Update the changelog when a milestone is completed, paused, resumed, renamed, or its acceptance status changes.
+- Update the changelog when a change affects user-visible behavior, core workflows, product scope, or documented acceptance criteria.
+- Update the changelog when an architecture decision, engineering process rule, release rule, database schema rule, sandboxing rule, or other stable project rule is accepted or materially changed.
+- Update the changelog when preparing a formal release, tagged milestone, or release candidate.
+- Update the changelog when a group of small commits has accumulated into meaningful product or engineering progress.
+- Do not add changelog entries for formatting-only edits, wording cleanup that does not change meaning, internal refactors with no behavior or rule impact, test-only maintenance, or transient work in progress.
+- Changelog entries should summarize outcomes, not implementation details or individual commits.
+- Changelog entries belong in `Unreleased` until a formal release section exists.
 
 ## 10. Change Process
 
@@ -226,7 +234,7 @@ Review the decision
 Merge stable conclusions into product or engineering docs
 Implement
 Verify
-Update changelog when milestone-level progress changes
+Evaluate changelog trigger and update when required
 Commit changes
 ```
 
@@ -239,4 +247,3 @@ Rules:
 - Draft documents may guide discussion.
 - Draft documents are not final project rules until accepted.
 - If implementation must diverge from documentation, update the documentation first or create a proposal or ADR.
-

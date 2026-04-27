@@ -143,8 +143,11 @@ Rules:
 
 - Git records concrete file changes.
 - `docs/changelog.md` records milestone-level progress.
-- Each completed milestone should update the changelog.
+- Each completed milestone must update the changelog.
 - Small internal commits do not need individual changelog entries unless they change user-visible behavior or milestone status.
+- Before committing, check whether the change triggers the changelog rules in `docs/engineering/01_documentation_rules.md`.
+- When a changelog update is required, include it in the same commit or change set that completes the milestone, accepts the rule, or prepares the release.
+- Multiple related small commits may be represented by one changelog entry when they form a single meaningful outcome.
 
 ## 9. Documentation Before Implementation
 
