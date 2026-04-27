@@ -34,4 +34,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Overhauled Sidebar and Search Results layout to adopt a clean, Ulysses-style design with progressive padding, solid accent selection, and native titlebar hover states.
 - Fixed a UI regression where the Search Field decoupled from the FTS engine, restoring real-time subtitle queries.
 - Removed duplicate subtitle text display from the Playback Inspector to streamline the UI.
+- Unified global content layout by standardizing top padding across all application panes (Sidebar, Search, Inspector, Settings) to a strict 16pt baseline.
+- Fixed Search UI layout regressions including horizontal width bounding, AttributedString line-height inflation, and text reflow jitter during selection state changes.
 - UI polish remains in progress and is not yet considered final for M1.
