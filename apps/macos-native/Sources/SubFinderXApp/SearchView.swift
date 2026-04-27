@@ -177,10 +177,19 @@ struct SearchView: View {
                 .frame(width: isActive ? SearchLayout.dividerActiveLineWidth : SearchLayout.dividerLineWidth)
         }
             .frame(width: SearchLayout.dividerHitWidth)
-            .background(HorizontalResizeCursorView())
             .contentShape(Rectangle())
             .onHover { isHovered in
                 isInspectorDividerHovered = isHovered
+                if isHovered {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .onDisappear {
+                if isInspectorDividerHovered {
+                    NSCursor.pop()
+                }
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -312,23 +321,6 @@ private struct MetadataField: View {
     }
 }
 
-private struct HorizontalResizeCursorView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        HorizontalResizeCursorNSView()
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
-private final class HorizontalResizeCursorNSView: NSView {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .resizeLeftRight)
-    }
-}
 
 private enum SearchTypography {
     static let searchFieldSize: CGFloat = 24
