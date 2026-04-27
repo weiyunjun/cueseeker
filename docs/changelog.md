@@ -32,5 +32,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Refined custom titlebar layout by securely offsetting native traffic light controls, eliminating resize jitter while preserving native hover and click behaviors.
 - Refined Search UI typography to match native macOS standards, added search field focus state, and added a clear-text button.
 - Overhauled Sidebar and Search Results layout to adopt a clean, Ulysses-style design with progressive padding, solid accent selection, and native titlebar hover states.
+- Fixed a UI regression where the Search Field decoupled from the FTS engine, restoring real-time subtitle queries.
 - Removed duplicate subtitle text display from the Playback Inspector to streamline the UI.
 - UI polish remains in progress and is not yet considered final for M1.
