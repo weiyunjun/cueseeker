@@ -25,6 +25,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added basic playback-page interactions: auto-play on result selection, return-to-search stop behavior, and click-to-toggle play/pause on the video surface.
 - Accepted the Playback Inspector workflow to replace default playback-page navigation for search result preview.
 - Implemented the Playback Inspector workflow with a resizable right-side panel, fixed titlebar toggle, and pause-on-hide behavior.
+- Refined the Playback Inspector resize divider with a wider hit area, hover feedback, and a horizontal resize cursor.
 - Added a custom native app shell with Search and Settings navigation.
 - Moved titlebar controls to AppKit so the sidebar toggle and centered section title align with the native macOS titlebar.
 - Updated Search result presentation with a larger custom search field, subtitle-file-name context, and highlighted query matches.

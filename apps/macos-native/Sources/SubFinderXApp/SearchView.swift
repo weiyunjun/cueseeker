@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import SubFinderXCore
@@ -5,6 +6,8 @@ import SubFinderXCore
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
     @State private var inspectorDragStartWidth: Double?
+    @State private var isInspectorDividerHovered = false
+    @State private var isInspectorDividerDragging = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -163,16 +166,30 @@ struct SearchView: View {
     }
 
     private func inspectorResizeDivider(availableWidth: CGFloat) -> some View {
-        Rectangle()
-            .fill(Color.black.opacity(0.08))
-            .frame(width: SearchLayout.dividerWidth)
+        let isActive = isInspectorDividerHovered || isInspectorDividerDragging
+
+        return ZStack {
+            Rectangle()
+                .fill(Color.clear)
+
+            Rectangle()
+                .fill(Color.black.opacity(isActive ? 0.18 : 0.08))
+                .frame(width: isActive ? SearchLayout.dividerActiveLineWidth : SearchLayout.dividerLineWidth)
+        }
+            .frame(width: SearchLayout.dividerHitWidth)
+            .background(HorizontalResizeCursorView())
             .contentShape(Rectangle())
+            .onHover { isHovered in
+                isInspectorDividerHovered = isHovered
+            }
             .gesture(
-                DragGesture()
+                DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         if inspectorDragStartWidth == nil {
                             inspectorDragStartWidth = appState.playbackInspectorWidth
                         }
+
+                        isInspectorDividerDragging = true
 
                         let startWidth = inspectorDragStartWidth ?? appState.playbackInspectorWidth
                         let proposedWidth = startWidth - Double(value.translation.width)
@@ -182,6 +199,7 @@ struct SearchView: View {
                     }
                     .onEnded { _ in
                         inspectorDragStartWidth = nil
+                        isInspectorDividerDragging = false
                     }
             )
     }
@@ -199,7 +217,7 @@ struct SearchView: View {
         let availableInspectorWidth = Double(
             availableWidth
                 - SearchLayout.searchPaneMinimumWidth
-                - SearchLayout.dividerWidth
+                - SearchLayout.dividerHitWidth
         )
         let maxWidth = max(
             SearchLayout.playbackInspectorMinimumWidth,
@@ -294,6 +312,24 @@ private struct MetadataField: View {
     }
 }
 
+private struct HorizontalResizeCursorView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        HorizontalResizeCursorNSView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+private final class HorizontalResizeCursorNSView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .resizeLeftRight)
+    }
+}
+
 private enum SearchTypography {
     static let searchFieldSize: CGFloat = 24
     static let bodySize: CGFloat = 20
@@ -308,7 +344,9 @@ private enum SearchLayout {
     static let topPadding: CGFloat = 24
     static let searchPaneMinimumWidth: CGFloat = 480
     static let playbackInspectorMinimumWidth: Double = 380
-    static let dividerWidth: CGFloat = 8
+    static let dividerHitWidth: CGFloat = 12
+    static let dividerLineWidth: CGFloat = 1
+    static let dividerActiveLineWidth: CGFloat = 3
 }
 
 private func highlightedContent(_ content: String, query: String) -> AttributedString {
