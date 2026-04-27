@@ -77,26 +77,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         if window.styleMask.contains(.fullScreen) { return }
         
-        if let close = window.standardWindowButton(.closeButton),
-           let titlebarView = close.superview,
-           let titlebarContainer = titlebarView.superview {
+        let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+        
+        for type in buttons {
+            guard let button = window.standardWindowButton(type),
+                  let superview = button.superview else { continue }
             
-            // AppTopBar is 45pt. NSTitlebarContainerView is 28pt.
-            // Center of container is 14pt from top. Center of top bar is 22.5pt.
-            // We need to shift the container down by ~8.5pt (we use 9.0) to align them.
-            let offset: CGFloat = 9.0
-            let isFlipped = titlebarContainer.superview?.isFlipped ?? false
+            // Prevent clipping if the buttons are shifted outside their standard view bounds
+            superview.clipsToBounds = false
+            superview.superview?.clipsToBounds = false
+            
+            // AppTopBar is 45pt. We want the traffic lights centered vertically.
+            // Center of top bar is 22.5pt from the top.
+            let targetCenterFromTop: CGFloat = 22.5
+            let isFlipped = superview.isFlipped
             
             let targetY: CGFloat
             if isFlipped {
-                targetY = offset
+                targetY = targetCenterFromTop - (button.frame.height / 2)
             } else {
-                let naturalY = window.frame.height - titlebarContainer.frame.height
-                targetY = naturalY - offset
+                targetY = superview.frame.height - targetCenterFromTop - (button.frame.height / 2)
             }
             
-            if titlebarContainer.frame.origin.y != targetY {
-                titlebarContainer.frame.origin.y = targetY
+            if abs(button.frame.origin.y - targetY) > 0.1 {
+                button.frame.origin.y = targetY
             }
         }
     }
