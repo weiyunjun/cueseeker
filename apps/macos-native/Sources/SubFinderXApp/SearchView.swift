@@ -16,10 +16,13 @@ struct SearchView: View {
             HStack(spacing: 0) {
                 searchResultsPane
                     .frame(minWidth: SearchLayout.searchPaneMinimumWidth, maxWidth: .infinity)
+                    .overlay(alignment: .trailing) {
+                        if appState.isPlaybackInspectorVisible {
+                            inspectorResizeDivider(availableWidth: geometry.size.width)
+                        }
+                    }
 
                 if appState.isPlaybackInspectorVisible {
-                    inspectorResizeDivider(availableWidth: geometry.size.width)
-
                     playbackInspector
                         .frame(width: inspectorWidth)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -168,9 +171,9 @@ struct SearchView: View {
     private func inspectorResizeDivider(availableWidth: CGFloat) -> some View {
         let isActive = isInspectorDividerHovered || isInspectorDividerDragging
 
-        return ZStack {
+        return ZStack(alignment: .trailing) {
             Rectangle()
-                .fill(Color.clear)
+                .fill(Color.black.opacity(0.001))
 
             Rectangle()
                 .fill(Color.black.opacity(isActive ? 0.18 : 0.08))
@@ -226,7 +229,6 @@ struct SearchView: View {
         let availableInspectorWidth = Double(
             availableWidth
                 - SearchLayout.searchPaneMinimumWidth
-                - SearchLayout.dividerHitWidth
         )
         let maxWidth = max(
             SearchLayout.playbackInspectorMinimumWidth,
