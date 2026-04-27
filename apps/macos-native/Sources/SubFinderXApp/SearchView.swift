@@ -42,7 +42,8 @@ struct SearchView: View {
                         set: { appState.updateSearchQuery($0) }
                     )
                 )
-                .padding(.horizontal, 12)
+                .padding(.leading, 12)
+                .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
 
                 if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     EmptyStateView(
@@ -431,8 +432,13 @@ private func highlightedContent(_ content: String, query: String, isSelected: Bo
         ) {
             if let lowerBound = AttributedString.Index(match.lowerBound, within: highlighted),
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
-                highlighted[lowerBound..<upperBound].backgroundColor = isSelected ? Color.white.opacity(0.3) : Color.yellow.opacity(0.55)
-                highlighted[lowerBound..<upperBound].foregroundColor = isSelected ? Color.white : Color.primary
+                if isSelected {
+                    highlighted[lowerBound..<upperBound].foregroundColor = .white
+                    highlighted[lowerBound..<upperBound].font = .system(size: SearchTypography.bodySize, weight: .bold)
+                } else {
+                    highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(0.55)
+                    highlighted[lowerBound..<upperBound].foregroundColor = Color.primary
+                }
             }
 
             guard match.upperBound < content.endIndex else {
