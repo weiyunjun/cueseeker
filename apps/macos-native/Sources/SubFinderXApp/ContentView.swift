@@ -127,6 +127,7 @@ struct ContentView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .foregroundStyle(.primary)
         .help(appState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
         .frame(
