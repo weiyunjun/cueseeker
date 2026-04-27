@@ -157,3 +157,8 @@ Rules:
 - Expensive or hard-to-reverse decisions require ADRs.
 - Significant proposed changes should start in `docs/proposals/`.
 
+## 10. AI Assistant Interaction Rules
+
+Rules:
+
+- For every code modification, the AI must explicitly state both the before-modification version (e.g., commit hash) and the after-modification version to the user to prevent them from having to scroll through chat history.
