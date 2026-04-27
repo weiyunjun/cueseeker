@@ -36,8 +36,13 @@ struct SearchView: View {
     private var searchResultsPane: some View {
         GeometryReader { geometry in
             VStack(alignment: .leading, spacing: 16) {
-                SearchField(text: $appState.searchQuery)
-                    .padding(.horizontal, 12)
+                SearchField(
+                    text: Binding(
+                        get: { appState.searchQuery },
+                        set: { appState.updateSearchQuery($0) }
+                    )
+                )
+                .padding(.horizontal, 12)
 
                 if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     EmptyStateView(
