@@ -152,7 +152,7 @@ private enum AppShellLayout {
     static let topBarHeight: CGFloat = 45
     static let sidebarWidth: CGFloat = 154
     static let windowControlsReservedWidth: CGFloat = 80
-    static let toggleLeadingAfterWindowControls: CGFloat = 8
+    static let toggleLeadingAfterWindowControls: CGFloat = 38
     static let toggleSize: CGFloat = 28
     static let toggleIconSize: CGFloat = 15
     static let titleFontSize: CGFloat = 16
