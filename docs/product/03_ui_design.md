@@ -40,7 +40,7 @@ Current shell direction:
 - Traffic lights, sidebar toggle, and the current section title belong to the titlebar.
 - The sidebar toggle should stay in a fixed titlebar position near the traffic lights.
 - The current section title should remain centered in the titlebar.
-- Traffic lights are visually centered relative to the custom titlebar by applying a programmatic vertical offset directly to the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) within their container, preventing the container's native top border from becoming a visible artifact.
+- Traffic lights are shifted 12pt to the right and vertically centered within the custom titlebar. To achieve this without fighting AppKit's native layout engine during window resizing, the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) are reparented (extracted from their system container and placed into a custom transparent `NSView` proxy). This preserves native hover effects and accurate hit testing.
 - The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
 - The `NSWindow` title dynamically tracks the active sidebar section to ensure correct contextual labeling in the full-screen drop-down title bar.
 - To prevent UI artifacts when exiting full-screen mode, the native title visibility is hidden in the `windowWillExitFullScreen` delegate callback before the transition animation begins.

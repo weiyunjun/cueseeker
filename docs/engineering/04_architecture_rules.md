@@ -126,7 +126,9 @@ Rules:
 - UI errors should be concise and actionable, with technical detail reserved for logs.
 - The M1 app shell may combine SwiftUI content with AppKit titlebar controls when SwiftUI-only layout cannot match native macOS titlebar behavior.
 - AppKit titlebar controls should coordinate through shared app state rather than duplicating sidebar state.
-- The current M1 shell uses a fixed titlebar toggle and centered title. Further visual polish should remain incremental.
+- The current M1 shell uses a fixed titlebar toggle and centered title.
+- To achieve custom offsets for native traffic light buttons, the app uses a Proxy View reparenting pattern to extract buttons from the system's `_NSTitlebarContainerView` rather than fighting the private AppKit layout engine with frame or bounds overrides.
+- Further visual polish should remain incremental.
 
 ## 8. File Access and Sandboxing
 
