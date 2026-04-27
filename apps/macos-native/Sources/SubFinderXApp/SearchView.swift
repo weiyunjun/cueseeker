@@ -432,9 +432,9 @@ private func highlightedContent(_ content: String, query: String, isSelected: Bo
         ) {
             if let lowerBound = AttributedString.Index(match.lowerBound, within: highlighted),
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
+                highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
                 if isSelected {
                     highlighted[lowerBound..<upperBound].foregroundColor = .white
-                    highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
                 } else {
                     highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(0.55)
                     highlighted[lowerBound..<upperBound].foregroundColor = Color.primary
