@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private let appState = AppState()
     private var cancellables = Set<AnyCancellable>()
+    private var windowButtonsProxy: WindowButtonsProxyView?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
@@ -60,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillEnterFullScreen(_ notification: Notification) {
         window?.titleVisibility = .visible
+        windowButtonsProxy?.isHidden = true
     }
 
     func windowWillExitFullScreen(_ notification: Notification) {
@@ -84,43 +86,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func adjustTrafficLights() {
         guard let window = self.window else { return }
         
-        if window.styleMask.contains(.fullScreen) { return }
+        if window.styleMask.contains(.fullScreen) { 
+            windowButtonsProxy?.isHidden = true
+            return 
+        }
         
-        // Use bounds translation to shift the entire traffic light container right by 12 points.
-        // Setting bounds.origin.x to -12 visually shifts its coordinate system to the right.
-        // This avoids fighting AppKit's frame layout engine during window resize.
-        if let closeButton = window.standardWindowButton(.closeButton),
-           let container = closeButton.superview {
-            if abs(container.bounds.origin.x - (-12)) > 0.1 {
-                container.bounds.origin.x = -12
-            }
+        if windowButtonsProxy == nil, let themeFrame = window.contentView?.superview {
+            // AppTopBar is 45pt tall, width 80 is enough for the 3 buttons
+            let proxy = WindowButtonsProxyView(frame: NSRect(x: 24, y: 0, width: 80, height: 45))
+            themeFrame.addSubview(proxy)
+            windowButtonsProxy = proxy
+        }
+        
+        guard let proxy = windowButtonsProxy else { return }
+        proxy.isHidden = false
+        
+        if let themeFrame = proxy.superview {
+            let proxyY = themeFrame.isFlipped ? 0 : themeFrame.frame.height - proxy.frame.height
+            proxy.frame.origin = CGPoint(x: 24, y: proxyY)
         }
         
         let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+        var xOffset: CGFloat = 0
+        let targetCenterFromTop: CGFloat = 22.5
         
         for type in buttons {
-            guard let button = window.standardWindowButton(type),
-                  let superview = button.superview else { continue }
+            guard let button = window.standardWindowButton(type) else { continue }
             
-            // Prevent clipping if the buttons are shifted outside their standard view bounds
-            superview.clipsToBounds = false
-            superview.superview?.clipsToBounds = false
+            if button.superview !== proxy {
+                proxy.addSubview(button)
+            }
             
-            // AppTopBar is 45pt. We want the traffic lights centered vertically.
-            // Center of top bar is 22.5pt from the top.
-            let targetCenterFromTop: CGFloat = 22.5
-            let isFlipped = superview.isFlipped
+            // Prevent clipping just in case
+            button.superview?.clipsToBounds = false
             
             let targetY: CGFloat
-            if isFlipped {
+            if proxy.isFlipped {
                 targetY = targetCenterFromTop - (button.frame.height / 2)
             } else {
-                targetY = superview.frame.height - targetCenterFromTop - (button.frame.height / 2)
+                targetY = proxy.frame.height - targetCenterFromTop - (button.frame.height / 2)
             }
             
-            if abs(button.frame.origin.y - targetY) > 0.1 {
-                button.frame.origin.y = targetY
-            }
+            button.frame.origin = CGPoint(x: xOffset, y: targetY)
+            // Native inter-button spacing is roughly 6pt (button width is typically 14, standard origin diff is 20)
+            xOffset += button.frame.width + 6
         }
     }
 
@@ -140,5 +149,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
         NSApp.mainMenu = mainMenu
+    }
+}
+
+/// A transparent proxy view that holds the native traffic light buttons.
+/// It ignores hit testing on itself so clicks pass through to the background,
+/// but allows clicks on its subviews (the buttons).
+final class WindowButtonsProxyView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let view = super.hitTest(point)
+        return view === self ? nil : view
     }
 }
