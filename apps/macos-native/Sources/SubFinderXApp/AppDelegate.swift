@@ -45,6 +45,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appState.$selectedSection
             .sink { [weak self] section in
                 self?.window?.title = section.title
+                
+                // Force AppKit to perform the pending titlebar layout synchronously,
+                // then immediately re-apply our custom traffic light offsets.
+                // This prevents the buttons from jumping to their default positions
+                // for a single frame before windowDidUpdate catches them.
+                if let themeFrame = self?.window?.contentView?.superview {
+                    themeFrame.layoutSubtreeIfNeeded()
+                }
+                self?.adjustTrafficLights()
             }
             .store(in: &cancellables)
     }
