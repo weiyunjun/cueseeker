@@ -79,6 +79,8 @@ final class AppState: ObservableObject {
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
     @Published var isSidebarVisible = true
+    @Published var isPlaybackInspectorVisible = false
+    @Published var playbackInspectorWidth: Double = 520
 
     let databaseURL: URL
     var playbackPlayer: MPVPlayer? {
@@ -130,6 +132,35 @@ final class AppState: ObservableObject {
         isSidebarVisible.toggle()
     }
 
+    func togglePlaybackInspector() {
+        if isPlaybackInspectorVisible {
+            collapsePlaybackInspector()
+        } else {
+            isPlaybackInspectorVisible = true
+        }
+    }
+
+    func collapsePlaybackInspector() {
+        isPlaybackInspectorVisible = false
+        pausePlayback()
+    }
+
+    func updatePlaybackInspectorWidth(_ width: Double) {
+        playbackInspectorWidth = width
+    }
+
+    func selectSection(_ section: AppSection) {
+        guard selectedSection != section else {
+            return
+        }
+
+        selectedSection = section
+
+        if section != .search {
+            pausePlayback()
+        }
+    }
+
     func indexFolder(_ folder: URL) {
         indexingTask?.cancel()
         indexingStatus = .indexing(folder)
@@ -161,7 +192,6 @@ final class AppState: ObservableObject {
 
     func updateSearchQuery(_ query: String) {
         searchQuery = query
-        selectedSearchResult = nil
         searchTask?.cancel()
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -198,24 +228,15 @@ final class AppState: ObservableObject {
                 }
 
                 searchResults = []
-                selectedSearchResult = nil
                 searchStatus = .failed(Self.errorMessage(for: error))
             }
         }
     }
 
-    func selectSearchResult(_ result: SubtitleSearchResult) {
-        selectedSearchResult = result
-    }
-
     func openSearchResult(_ result: SubtitleSearchResult) {
         selectedSearchResult = result
+        isPlaybackInspectorVisible = true
         play(result)
-    }
-
-    func closeSelectedSearchResult() {
-        stopPlayback()
-        selectedSearchResult = nil
     }
 
     func play(_ result: SubtitleSearchResult) {

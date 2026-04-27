@@ -4,16 +4,30 @@ import SubFinderXCore
 
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var inspectorDragStartWidth: Double?
 
     var body: some View {
-        if let result = appState.selectedSearchResult {
-            playbackPage(for: result)
-        } else {
-            searchResultsPage
+        GeometryReader { geometry in
+            let inspectorWidth = clampedInspectorWidth(for: geometry.size.width)
+
+            HStack(spacing: 0) {
+                searchResultsPane
+                    .frame(minWidth: SearchLayout.searchPaneMinimumWidth, maxWidth: .infinity)
+
+                if appState.isPlaybackInspectorVisible {
+                    inspectorResizeDivider(availableWidth: geometry.size.width)
+
+                    playbackInspector
+                        .frame(width: inspectorWidth)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .animation(.easeInOut(duration: 0.18), value: appState.isPlaybackInspectorVisible)
         }
     }
 
-    private var searchResultsPage: some View {
+    private var searchResultsPane: some View {
         GeometryReader { geometry in
             let contentWidth = min(
                 SearchLayout.contentWidth,
@@ -81,69 +95,121 @@ struct SearchView: View {
                 } label: {
                     SearchResultRow(
                         result: result,
-                        query: appState.searchQuery
+                        query: appState.searchQuery,
+                        isSelected: appState.selectedSearchResult?.entryID == result.entryID
                     )
                 }
                 .buttonStyle(.plain)
             }
         }
+        .listStyle(.plain)
     }
 
-    private func playbackPage(for result: SubtitleSearchResult) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Button {
-                    appState.closeSelectedSearchResult()
-                } label: {
-                    Label("Back", systemImage: "chevron.left")
-                }
-                .keyboardShortcut(.cancelAction)
-                .font(.system(size: SearchTypography.controlSize))
+    private var playbackInspector: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let result = appState.selectedSearchResult {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        PlaybackView(player: appState.playbackPlayer)
+                            .aspectRatio(16 / 9, contentMode: .fit)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                appState.togglePlayback()
+                            }
 
-                Spacer()
-            }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    PlaybackView(player: appState.playbackPlayer)
-                        .aspectRatio(16 / 9, contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            appState.togglePlayback()
+                        if case .failed(let message) = appState.playbackStatus {
+                            Label(message, systemImage: "exclamationmark.triangle")
+                                .font(.system(size: SearchTypography.detailSize))
+                                .foregroundStyle(.red)
                         }
 
-                    Text(result.content)
-                        .font(.system(size: SearchTypography.playbackSubtitleSize))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    LabeledContent("Start Time") {
-                        Text(formatTimestamp(result.startMilliseconds))
+                        Text(result.content)
+                            .font(.system(size: SearchTypography.playbackSubtitleSize))
                             .textSelection(.enabled)
-                    }
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    LabeledContent("Video Path") {
-                        Text(result.videoPath)
-                            .lineLimit(2)
-                            .truncationMode(.middle)
-                            .textSelection(.enabled)
-                    }
+                        MetadataField(
+                            title: "Start Time",
+                            value: formatTimestamp(result.startMilliseconds)
+                        )
 
-                    LabeledContent("Subtitle Path") {
-                        Text(result.subtitlePath)
-                            .lineLimit(2)
-                            .truncationMode(.middle)
-                            .textSelection(.enabled)
+                        MetadataField(
+                            title: "Video Path",
+                            value: result.videoPath
+                        )
+
+                        MetadataField(
+                            title: "Subtitle Path",
+                            value: result.subtitlePath
+                        )
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(20)
                 }
+            } else {
+                EmptyStateView(
+                    title: "No Selection",
+                    systemImage: "play.rectangle",
+                    message: "Select a subtitle result to preview its matching video."
+                )
                 .font(.system(size: SearchTypography.detailSize))
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(24)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private func inspectorResizeDivider(availableWidth: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color.black.opacity(0.08))
+            .frame(width: SearchLayout.dividerWidth)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if inspectorDragStartWidth == nil {
+                            inspectorDragStartWidth = appState.playbackInspectorWidth
+                        }
+
+                        let startWidth = inspectorDragStartWidth ?? appState.playbackInspectorWidth
+                        let proposedWidth = startWidth - Double(value.translation.width)
+                        appState.updatePlaybackInspectorWidth(
+                            clampedInspectorWidth(proposedWidth, availableWidth: availableWidth)
+                        )
+                    }
+                    .onEnded { _ in
+                        inspectorDragStartWidth = nil
+                    }
+            )
+    }
+
+    private func clampedInspectorWidth(for availableWidth: CGFloat) -> CGFloat {
+        CGFloat(
+            clampedInspectorWidth(
+                appState.playbackInspectorWidth,
+                availableWidth: availableWidth
+            )
+        )
+    }
+
+    private func clampedInspectorWidth(_ width: Double, availableWidth: CGFloat) -> Double {
+        let availableInspectorWidth = Double(
+            availableWidth
+                - SearchLayout.searchPaneMinimumWidth
+                - SearchLayout.dividerWidth
+        )
+        let maxWidth = max(
+            SearchLayout.playbackInspectorMinimumWidth,
+            availableInspectorWidth
+        )
+
+        return min(
+            max(width, SearchLayout.playbackInspectorMinimumWidth),
+            Double(maxWidth)
+        )
     }
 }
 
@@ -180,6 +246,7 @@ private struct SearchField: View {
 private struct SearchResultRow: View {
     let result: SubtitleSearchResult
     let query: String
+    let isSelected: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -197,23 +264,51 @@ private struct SearchResultRow: View {
         .padding(.vertical, 10)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            isSelected
+                ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.16)
+                : Color.clear
+        )
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
+    }
+}
+
+private struct MetadataField: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: SearchTypography.metadataLabelSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text(value)
+                .font(.system(size: SearchTypography.detailSize))
+                .lineLimit(3)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
 private enum SearchTypography {
     static let searchFieldSize: CGFloat = 24
     static let bodySize: CGFloat = 20
-    static let playbackSubtitleSize: CGFloat = 22
+    static let playbackSubtitleSize: CGFloat = 20
     static let detailSize: CGFloat = 16
-    static let controlSize: CGFloat = 17
+    static let metadataLabelSize: CGFloat = 13
 }
 
 private enum SearchLayout {
     static let contentWidth: CGFloat = 860
     static let minimumHorizontalMargin: CGFloat = 24
     static let topPadding: CGFloat = 24
+    static let searchPaneMinimumWidth: CGFloat = 480
+    static let playbackInspectorMinimumWidth: Double = 380
+    static let dividerWidth: CGFloat = 8
 }
 
 private func highlightedContent(_ content: String, query: String) -> AttributedString {

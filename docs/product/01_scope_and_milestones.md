@@ -68,7 +68,8 @@ Current M1 status:
 - Core subtitle scanning, parsing, same-directory video matching, SQLite persistence, FTS5 search, incremental reindexing, and basic settings are implemented.
 - Embedded playback uses `libmpv` with the render API and an `NSOpenGLView` bridge.
 - The app shell has moved to a custom native shell with AppKit titlebar controls and SwiftUI content.
-- UI polish is still in progress. The current implementation still uses a dedicated playback page, but the accepted M1 interaction direction is the Playback Inspector workflow.
+- The Search workflow now uses the Playback Inspector instead of dedicated playback-page navigation.
+- UI polish is still in progress. The current shell, search result presentation, and Playback Inspector are usable but not final M1 visual design.
 
 ## 4. M2: macOS Experience Polish
 
