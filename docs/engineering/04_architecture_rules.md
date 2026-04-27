@@ -128,6 +128,8 @@ Rules:
 - AppKit titlebar controls should coordinate through shared app state rather than duplicating sidebar state.
 - The current M1 shell uses a fixed titlebar toggle and centered title.
 - To achieve custom offsets for native traffic light buttons, the app uses a Proxy View reparenting pattern to extract buttons from the system's `_NSTitlebarContainerView` rather than fighting the private AppKit layout engine with frame or bounds overrides.
+- Window dragging must be handled explicitly by the custom titlebar (`performDrag(with:)`) with `window.isMovableByWindowBackground` set to `false`. Relying on window background dragging causes conflicts with SwiftUI drag gestures on transparent views.
+- Resizable dividers must use a custom `NSView` overlay to natively handle `resetCursorRects`, `NSTrackingArea`, and drag events (`mouseDown`/`mouseDragged`). SwiftUI's `.onHover` with `NSCursor.push()` is unreliable due to AppKit's continuous cursor rect evaluation, and SwiftUI's `DragGesture` can conflict with window event routing.
 - Further visual polish should remain incremental.
 
 ## 8. File Access and Sandboxing
