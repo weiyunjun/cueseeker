@@ -1,11 +1,13 @@
 import AppKit
 import SwiftUI
+import Combine
 import SubFinderXCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private let appState = AppState()
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
@@ -28,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
 
-        window.title = ApplicationInfo.name
+        window.title = appState.selectedSection.title
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
@@ -39,10 +41,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
 
         self.window = window
+        
+        appState.$selectedSection
+            .sink { [weak self] section in
+                self?.window?.title = section.title
+            }
+            .store(in: &cancellables)
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
         window?.titleVisibility = .visible
+    }
+
+    func windowWillExitFullScreen(_ notification: Notification) {
+        window?.titleVisibility = .hidden
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
