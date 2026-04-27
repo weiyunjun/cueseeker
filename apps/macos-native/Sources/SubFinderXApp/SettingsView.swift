@@ -61,7 +61,8 @@ struct SettingsView: View {
 
             Spacer()
         }
-        .padding(24)
+        .padding(.top, AppShellLayout.contentTopPadding)
+        .padding([.horizontal, .bottom], 24)
         .navigationTitle("Settings")
     }
 

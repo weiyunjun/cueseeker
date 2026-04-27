@@ -84,7 +84,7 @@ struct SearchView: View {
                 Spacer()
             }
             .frame(maxHeight: .infinity, alignment: .topLeading)
-            .padding(.top, SearchLayout.topPadding)
+            .padding(.top, AppShellLayout.contentTopPadding)
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             .contentShape(Rectangle()) // Global scroll capability
         }
@@ -152,7 +152,8 @@ struct SearchView: View {
                         )
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(20)
+                    .padding(.top, AppShellLayout.contentTopPadding)
+                    .padding([.horizontal, .bottom], 20)
                 }
             } else {
                 EmptyStateView(
@@ -410,7 +411,6 @@ private enum SearchTypography {
 private enum SearchLayout {
     static let contentWidth: CGFloat = 860
     static let minimumHorizontalMargin: CGFloat = 24
-    static let topPadding: CGFloat = 24
     static let searchPaneMinimumWidth: CGFloat = 480
     static let playbackInspectorMinimumWidth: Double = 380
     static let dividerHitWidth: CGFloat = 6

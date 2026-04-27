@@ -50,9 +50,6 @@ struct ContentView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Spacer()
-                .frame(height: AppShellLayout.topBarHeight)
-
             ForEach(AppSection.allCases) { section in
                 Button {
                     appState.selectSection(section)
@@ -78,6 +75,7 @@ struct ContentView: View {
 
             Spacer()
         }
+        .padding(.top, AppShellLayout.topBarHeight + AppShellLayout.contentTopPadding)
         .padding(.horizontal, 12)
         .background(sidebarBackground)
         .overlay(alignment: .trailing) {
@@ -187,7 +185,8 @@ struct ContentView: View {
     }
 }
 
-private enum AppShellLayout {
+enum AppShellLayout {
+    static let contentTopPadding: CGFloat = 24
     static let minimumWindowWidth: CGFloat = 1_040
     static let minimumWindowHeight: CGFloat = 560
     static let topBarHeight: CGFloat = 45
