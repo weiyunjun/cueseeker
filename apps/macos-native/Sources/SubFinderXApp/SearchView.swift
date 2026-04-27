@@ -283,14 +283,13 @@ private struct SearchResultRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(highlightedContent(result.content, query: query, isSelected: isSelected))
                     .font(.system(size: SearchTypography.bodySize))
-                    .lineLimit(3)
                     .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(URL(fileURLWithPath: result.subtitlePath).lastPathComponent)
                     .font(.system(size: SearchTypography.detailSize))
                     .foregroundStyle(isSelected ? Color.white.opacity(0.8) : Color.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
@@ -307,6 +306,7 @@ private struct SearchResultRow: View {
                 .frame(height: 1)
                 .padding(.horizontal, 24)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
 }
@@ -434,7 +434,7 @@ private func highlightedContent(_ content: String, query: String, isSelected: Bo
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
                 if isSelected {
                     highlighted[lowerBound..<upperBound].foregroundColor = .white
-                    highlighted[lowerBound..<upperBound].font = .system(size: SearchTypography.bodySize, weight: .bold)
+                    highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
                 } else {
                     highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(0.55)
                     highlighted[lowerBound..<upperBound].foregroundColor = Color.primary
