@@ -40,6 +40,10 @@ Current shell direction:
 - Traffic lights, sidebar toggle, and the current section title belong to the titlebar.
 - The sidebar toggle should stay in a fixed titlebar position near the traffic lights.
 - The current section title should remain centered in the titlebar.
+- Traffic lights are visually centered relative to the custom titlebar by applying a programmatic vertical offset to the `NSTitlebarContainerView`.
+- The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
+- The `NSWindow` title dynamically tracks the active sidebar section to ensure correct contextual labeling in the full-screen drop-down title bar.
+- To prevent UI artifacts when exiting full-screen mode, the native title visibility is hidden in the `windowWillExitFullScreen` delegate callback before the transition animation begins.
 - The titlebar should use a slightly darker gray than the main content background.
 - A thin gray divider should separate the titlebar from the content below.
 - The titlebar should visually sit above the sidebar.
