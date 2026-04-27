@@ -95,9 +95,9 @@ Current M1 result rows display:
 - Highlighted query matches.
 - Subtitle file name.
 
-Clicking a result must trigger playback for the matching video at the subtitle start timestamp.
+Clicking a result must open or update the Playback Inspector and trigger playback for the matching video at the subtitle start timestamp.
 
-The playback page displays additional context:
+The Playback Inspector displays additional context:
 
 - Subtitle content.
 - Start time.
@@ -116,8 +116,10 @@ Requirements:
 - Allow play and pause.
 - Toggle play/pause by clicking the video surface.
 - Prefer seek over reload when the current video is already open.
-- Stop playback when returning from the playback page.
-- Allow returning from playback to search.
+- Pause playback when the Playback Inspector is collapsed.
+- Pause playback when the user switches from Search to another top-level section.
+- Preserve the current selected result when the Playback Inspector is collapsed.
+- Do not automatically resume playback when the Playback Inspector is reopened.
 
 The playback engine is selected in `docs/decisions/ADR-0003-playback-engine.md`.
 

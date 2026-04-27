@@ -23,6 +23,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Connected search results to playback, including timestamp start behavior and same-video seek handling.
 - Reworked the Search flow from split result/detail presentation to a search-results page and a dedicated playback page.
 - Added basic playback-page interactions: auto-play on result selection, return-to-search stop behavior, and click-to-toggle play/pause on the video surface.
+- Accepted the Playback Inspector workflow to replace default playback-page navigation for search result preview.
 - Added a custom native app shell with Search and Settings navigation.
 - Moved titlebar controls to AppKit so the sidebar toggle and centered section title align with the native macOS titlebar.
 - Updated Search result presentation with a larger custom search field, subtitle-file-name context, and highlighted query matches.

@@ -10,7 +10,7 @@ The primary playback action is:
 
 ```text
 Click subtitle search result
-Open playback page
+Open or update Playback Inspector
 Open matching local video inside the app
 Seek to subtitle start timestamp
 Play or pause as needed
@@ -31,7 +31,10 @@ Required:
 - Pause playback.
 - Toggle play/pause from the video surface.
 - Seek when a different subtitle result in the same video is selected.
-- Stop playback when the user returns from the playback page.
+- Pause playback when the Playback Inspector is collapsed.
+- Pause playback when the user leaves Search for another top-level section.
+- Preserve the selected result when the Playback Inspector is collapsed.
+- Do not automatically resume playback when the Playback Inspector is reopened.
 - Handle missing files gracefully.
 
 Out of scope for M1:
@@ -42,6 +45,8 @@ Out of scope for M1:
 - Advanced subtitle overlay.
 - Real-time video effects.
 - Advanced glass or blur effects.
+- Expanded playback mode.
+- Focus Mode.
 - Media library management.
 - External player windows as the primary playback experience.
 

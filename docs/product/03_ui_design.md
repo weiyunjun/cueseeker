@@ -20,12 +20,13 @@ The app should avoid marketing-style layouts, decorative hero sections, and unne
 
 The main window should be a persistent work surface.
 
-Current M1 structure:
+Accepted M1 structure:
 
 ```text
 Native titlebar
 Sidebar navigation
-Main content area
+Search Results Pane
+Playback Inspector
 ```
 
 The main window should support:
@@ -39,6 +40,7 @@ Current shell direction:
 
 - Traffic lights, sidebar toggle, and the current section title belong to the titlebar.
 - The sidebar toggle should stay in a fixed titlebar position near the traffic lights.
+- The Playback Inspector Toggle should stay in a fixed titlebar position on the right side.
 - The current section title should remain centered in the titlebar.
 - Traffic lights are shifted 12pt to the right and vertically centered within the custom titlebar. To achieve this without fighting AppKit's native layout engine during window resizing, the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) are reparented (extracted from their system container and placed into a custom transparent `NSView` proxy). This preserves native hover effects and accurate hit testing.
 - The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
@@ -86,11 +88,11 @@ Required elements:
 
 The search input should stay easy to access.
 
-Current M1 search presentation:
+Accepted M1 search presentation:
 
 - The search field is a custom SwiftUI control with a leading magnifying-glass icon and a taller input height.
 - Search results are shown as a list.
-- Selecting a search result navigates to a dedicated playback page instead of keeping a split detail panel open.
+- Selecting a search result opens or updates the Playback Inspector without leaving Search.
 - Search results currently use larger text and highlight query matches with a yellow background.
 - Search result visual polish is still incomplete and subject to further iteration.
 
@@ -108,17 +110,44 @@ Rows should have stable height or predictable dynamic height. Long subtitle text
 
 The row should remain fully clickable. Video file name and timestamp are not currently shown in the search result row.
 
-## 6. Playback Area
+## 6. Playback Inspector
 
-The playback area appears after the user selects a result.
+The Playback Inspector is the right-side playback and result-detail panel in the Search workspace.
 
-Current M1 layout:
+Required content:
 
-- Selecting a result opens a dedicated playback page.
-- The playback page contains, in order: a top action row, embedded video, subtitle text, start time, video path, and subtitle path.
-- The top action row currently contains the back action.
-- Returning from the playback page stops playback.
+- Embedded video.
+- Subtitle text.
+- Start time.
+- Video path.
+- Subtitle path.
+
+Behavior:
+
+- Selecting a result opens or updates the Playback Inspector.
+- Selecting a result expands the Playback Inspector when it is collapsed.
 - Clicking the embedded video toggles play/pause.
+- Collapsing the Playback Inspector pauses playback and hides the panel.
+- Collapsing the Playback Inspector does not clear the current selected result.
+- Reopening the Playback Inspector does not automatically resume playback.
+- Switching from Search to Settings or another top-level section pauses playback without stopping it.
+
+Layout:
+
+- The Playback Inspector appears on the right side of the Search workspace.
+- The Playback Inspector is resizable by dragging its left edge.
+- The sidebar width remains fixed according to the current shell behavior.
+- The Search Results Pane width changes dynamically as the Playback Inspector width changes.
+- The Search Results Pane must keep a usable minimum width.
+
+Initial sizing guidance:
+
+- Search Results Pane minimum width: `480pt`.
+- Playback Inspector default width: `520pt`.
+- Playback Inspector minimum width: `380pt`.
+- Playback Inspector maximum width: available content width minus the Search Results Pane minimum width.
+
+The Playback Inspector Toggle belongs in the titlebar at a fixed right-side position. It should conceptually match the sidebar toggle pattern while controlling the right-side inspector.
 
 M1 does not require advanced visual effects.
 

@@ -13,9 +13,9 @@ Index subtitles
 Search text
 Review results
 Click result
-Playback page opens
+Playback Inspector opens or updates
 Video plays at matching timestamp
-Return to search when done
+Collapse Playback Inspector when not needed
 ```
 
 ## 2. First Launch
@@ -42,11 +42,12 @@ Expected behavior:
 
 When the user selects a result:
 
-- The app should navigate from the search results page to a dedicated playback page.
+- The app should remain in Search and open or update the Playback Inspector.
+- The Playback Inspector should expand automatically if it is collapsed.
 - Playback should start at or near the matching timestamp.
 - If the same video is already open, the app should seek instead of reopening when practical.
 - If the video file is missing, the app should show a clear error.
-- Returning from the playback page should stop playback and return to the current search results.
+- Selecting a different result should switch video or seek within the current video and auto-play.
 
 ## 5. Playback Interaction
 
@@ -58,16 +59,19 @@ Required interactions:
 - Toggle play/pause by clicking the embedded video.
 - Seek.
 - Jump from search result to timestamp.
-- Return from playback to search.
-- Stop playback when returning to search.
+- Pause playback when the Playback Inspector is collapsed.
+- Pause playback when switching from Search to Settings or another top-level section.
+- Preserve the current selected result when the Playback Inspector is collapsed.
+- Do not automatically resume playback when the Playback Inspector is reopened.
 
 Keyboard interactions should not interfere with text input.
 
-Current M1 behavior:
+Accepted M1 behavior:
 
 - Selecting a result calls playback immediately.
 - Re-selecting a timestamp in the same video should use seek rather than reloading the file.
 - The embedded video view is always inside the app window.
+- Normal result preview should use the Playback Inspector instead of dedicated playback-page navigation.
 - External player windows are not acceptable for the core workflow.
 
 ## 6. Indexing Interaction
@@ -112,5 +116,6 @@ The app should remember:
 - Window size if practical.
 - Last selected app section if practical.
 - Sidebar collapsed or expanded state if practical.
+- Playback Inspector width and visibility if practical.
 
 The app should not surprise the user by losing local configuration after restart.
