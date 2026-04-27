@@ -42,11 +42,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
-        window?.titleVisibility = .visible
+        // Removed titleVisibility modifications to prevent full-screen layout bugs
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
-        window?.titleVisibility = .hidden
+        // Removed titleVisibility modifications to prevent full-screen layout bugs
+        // Re-adjust traffic lights after exiting full screen
+        DispatchQueue.main.async { [weak self] in
+            self?.adjustTrafficLights()
+        }
+    }
+    
+    func windowDidResize(_ notification: Notification) {
+        adjustTrafficLights()
+    }
+    
+    func windowDidUpdate(_ notification: Notification) {
+        adjustTrafficLights()
+    }
+    
+    private func adjustTrafficLights() {
+        guard let window = self.window else { return }
+        
+        // System handles traffic lights natively in full screen; do not interfere.
+        if window.styleMask.contains(.fullScreen) { return }
+        
+        // AppTopBar is 45pt tall. Buttons are ~16pt tall. 
+        // To center them vertically: (45 - 16) / 2 ≈ 14.5
+        let targetY: CGFloat = 14.0
+        
+        if let close = window.standardWindowButton(.closeButton),
+           let min = window.standardWindowButton(.miniaturizeButton),
+           let zoom = window.standardWindowButton(.zoomButton) {
+            
+            for btn in [close, min, zoom] {
+                if btn.frame.origin.y != targetY {
+                    btn.frame.origin.y = targetY
+                }
+            }
+        }
     }
 
     private func configureMainMenu() {
