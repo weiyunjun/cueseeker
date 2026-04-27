@@ -42,12 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
-        // Removed titleVisibility modifications to prevent full-screen layout bugs
+        window?.titleVisibility = .visible
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
-        // Removed titleVisibility modifications to prevent full-screen layout bugs
-        // Re-adjust traffic lights after exiting full screen
+        window?.titleVisibility = .hidden
         DispatchQueue.main.async { [weak self] in
             self?.adjustTrafficLights()
         }
@@ -64,21 +63,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func adjustTrafficLights() {
         guard let window = self.window else { return }
         
-        // System handles traffic lights natively in full screen; do not interfere.
         if window.styleMask.contains(.fullScreen) { return }
         
-        // AppTopBar is 45pt tall. Buttons are ~16pt tall. 
-        // To center them vertically: (45 - 16) / 2 ≈ 14.5
-        let targetY: CGFloat = 14.0
-        
         if let close = window.standardWindowButton(.closeButton),
-           let min = window.standardWindowButton(.miniaturizeButton),
-           let zoom = window.standardWindowButton(.zoomButton) {
+           let titlebarView = close.superview,
+           let titlebarContainer = titlebarView.superview {
             
-            for btn in [close, min, zoom] {
-                if btn.frame.origin.y != targetY {
-                    btn.frame.origin.y = targetY
-                }
+            // AppTopBar is 45pt. NSTitlebarContainerView is 28pt.
+            // Center of container is 14pt from top. Center of top bar is 22.5pt.
+            // We need to shift the container down by ~8.5pt (we use 9.0) to align them.
+            let offset: CGFloat = 9.0
+            let isFlipped = titlebarContainer.superview?.isFlipped ?? false
+            
+            let targetY: CGFloat
+            if isFlipped {
+                targetY = offset
+            } else {
+                let naturalY = window.frame.height - titlebarContainer.frame.height
+                targetY = naturalY - offset
+            }
+            
+            if titlebarContainer.frame.origin.y != targetY {
+                titlebarContainer.frame.origin.y = targetY
             }
         }
     }
