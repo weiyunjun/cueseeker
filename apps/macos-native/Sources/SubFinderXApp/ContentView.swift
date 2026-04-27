@@ -86,7 +86,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var appTopBar: some View {
-        topBarBackground
+        TitlebarBackgroundView(backgroundColor: topBarBackground)
             .overlay {
                 Text(appState.selectedSection.title)
                     .font(.system(
