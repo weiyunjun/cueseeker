@@ -7,6 +7,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 ## Unreleased
 
 - Established project documentation governance.
+- Clarified when `docs/changelog.md` must be updated across documentation, Git workflow, and release rules.
 - Archived the legacy Flutter implementation under `archive/flutter/`.
 - Began formal engineering documentation for the native macOS rewrite.
 - Recorded the native macOS rewrite decision in ADR-0001.
@@ -25,4 +26,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added a custom native app shell with Search and Settings navigation.
 - Moved titlebar controls to AppKit so the sidebar toggle and centered section title align with the native macOS titlebar.
 - Updated Search result presentation with a larger custom search field, subtitle-file-name context, and highlighted query matches.
+- Refined custom titlebar layout by securely offsetting native traffic light controls, eliminating resize jitter while preserving native hover and click behaviors.
 - UI polish remains in progress and is not yet considered final for M1.
