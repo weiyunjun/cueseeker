@@ -42,12 +42,19 @@ Expected behavior:
 
 When the user selects a result:
 
+- The selected row visually turns into a solid accent color (e.g., blue) with white text, overriding the default separator lines.
 - The app should remain in Search and open or update the Playback Inspector.
 - The Playback Inspector should expand automatically if it is collapsed.
 - Playback should start at or near the matching timestamp.
 - If the same video is already open, the app should seek instead of reopening when practical.
 - If the video file is missing, the app should show a clear error.
 - Selecting a different result should switch video or seek within the current video and auto-play.
+
+## 5. Visual Feedback and Hover
+
+- **Sidebar**: The selected sidebar item uses a solid accent background with white text. Sidebar items do not have hover effects.
+- **Titlebar Buttons**: Toolbar toggle buttons use a subtle gray background on hover to indicate interactivity.
+- **Search Results**: Interactive result rows emphasize the selection state over hover, relying on progressive padding and a strong blue selection card.
 
 ## 5. Playback Interaction
 

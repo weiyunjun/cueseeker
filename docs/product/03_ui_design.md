@@ -73,6 +73,7 @@ Current M1 behavior:
 - When expanded, the sidebar is a single visual navigation region under the titlebar.
 - When collapsed, the main content receives a left inset so content does not start underneath the traffic lights and titlebar toggle.
 - Sidebar edge treatment should remain subtle. A gray divider is preferred over a drop shadow for the current M1 shell.
+- Selected sidebar items use a solid accent background with white text. Sidebar items do not respond to hover.
 
 ## 4. Search View
 
@@ -109,6 +110,11 @@ Current M1 row content:
 Rows should have stable height or predictable dynamic height. Long subtitle text should not break the layout.
 
 The row should remain fully clickable. Video file name and timestamp are not currently shown in the search result row.
+
+Layout and Selection Behavior:
+- The search list uses progressive horizontal padding (`a - b = b - c`) where the margin from the pane edge to the selection card equals the margin from the card edge to the text content.
+- Unselected rows are separated by horizontal gray dividers with padding.
+- When a row is selected, it renders a solid accent color (blue) rounded rectangle background with white text, and this selection background visually covers the divider line.
 
 ## 6. Playback Inspector
 
