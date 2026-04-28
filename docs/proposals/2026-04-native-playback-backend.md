@@ -262,6 +262,13 @@ Validated so far:
 - A display-mode seek smoke run against a generated 4-second H.264/AAC sample
   at 2.0 seconds produced 45 hardware video frames, 0 software video frames, 0
   late paced video frames, and no audio decode failures.
+- The probe's frame limit now counts post-seek output video frames instead of
+  raw video packets, with a bounded seek-preroll packet limit to avoid hiding
+  long-GOP seek cost or running unbounded preroll decode.
+- A display-mode seek run against the representative H.264/Opus Matroska sample
+  at 60.0 seconds with 180 requested output video frames produced 477 hardware
+  decoded frames, 0 software frames, 180 paced output frames, 0 late paced
+  frames, and no audio decode failures.
 
 Important prototype observations:
 
@@ -272,6 +279,8 @@ Important prototype observations:
   successfully after the initial shortened frame.
 - The current probe pacing is video timestamp based. It is not yet a final
   audio-master synchronization model.
+- The representative Matroska sample required about 297 decoded video frames of
+  preroll before the first output frame at approximately 60.027 seconds.
 
 Current prototype command:
 
@@ -281,11 +290,15 @@ swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --display --seek 60.0 "/path/to/video.mkv" 300
 ```
 
+The optional trailing number is the target number of output video frames after
+the seek target, not a raw demux packet limit.
+
 Expected representative output includes:
 
 ```text
 Hardware frames: 300
 Software frames: 0
+Output video frames: 300
 Paced video frames: 300
 Audio decode failures: 0
 ```
