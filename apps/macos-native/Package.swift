@@ -8,7 +8,8 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "SubFinderX", targets: ["SubFinderXApp"])
+        .executable(name: "SubFinderX", targets: ["SubFinderXApp"]),
+        .executable(name: "NativePlaybackProbe", targets: ["NativePlaybackProbe"])
     ],
     targets: [
         .target(
@@ -41,6 +42,23 @@ let package = Package(
                 "SubFinderXPlayback"
             ],
             path: "Sources/SubFinderXApp"
+        ),
+        .executableTarget(
+            name: "NativePlaybackProbe",
+            path: "Sources/NativePlaybackProbe",
+            cSettings: [
+                .unsafeFlags(["-I", "/opt/homebrew/include"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-L", "/opt/homebrew/lib"]),
+                .linkedLibrary("avformat"),
+                .linkedLibrary("avcodec"),
+                .linkedLibrary("avutil"),
+                .linkedFramework("VideoToolbox"),
+                .linkedFramework("CoreMedia"),
+                .linkedFramework("CoreVideo"),
+                .linkedFramework("CoreFoundation")
+            ]
         ),
         .testTarget(
             name: "SubFinderXCoreTests",
