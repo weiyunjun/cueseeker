@@ -16,7 +16,9 @@ public protocol PlaybackPlayerDelegate: AnyObject {
 
 public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private let nativePlayer = SFXNativePlaybackPlayer()
-    private let mpvPlayer: MPVPlayer
+    private let mpvPlayerFactory: () throws -> MPVPlayer
+    private var mpvPlayer: MPVPlayer?
+    private var observedProperties: [(name: String, format: mpv_format)] = []
     private var activeBackendStorage: PlaybackBackend = .native
     private var currentRequest: PlaybackRequest?
     private var storedVolume: Double = 100
@@ -32,12 +34,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     @MainActor public lazy var renderView: NSView = PlaybackRenderContainerView()
 
-    public init(mpvPlayer: MPVPlayer) {
-        self.mpvPlayer = mpvPlayer
+    public init(mpvPlayerFactory: @escaping () throws -> MPVPlayer = { try MPVPlayer() }) {
+        self.mpvPlayerFactory = mpvPlayerFactory
         super.init()
         nativePlayer.delegate = self
         nativePlayer.volume = Float(storedVolume / 100)
-        mpvPlayer.delegate = self
     }
 
     public func open(_ request: PlaybackRequest) throws {
@@ -61,7 +62,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         case .native:
             try nativePlayer.seek(toMilliseconds: max(0, milliseconds))
         case .mpv:
-            try mpvPlayer.seek(toMilliseconds: milliseconds)
+            try requireMPVPlayer().seek(toMilliseconds: milliseconds)
         }
     }
 
@@ -70,13 +71,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         case .native:
             try nativePlayer.setPaused(isPaused)
         case .mpv:
-            try mpvPlayer.setPaused(isPaused)
+            try requireMPVPlayer().setPaused(isPaused)
         }
     }
 
     public func stop() throws {
         nativePlayer.stop()
-        try mpvPlayer.stop()
+        try mpvPlayer?.stop()
         currentRequest = nil
         currentVideoURL = nil
         notifyBackendIfNeeded(.native)
@@ -99,7 +100,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 throw PlaybackError.mpvOptionFailed(name: name, message: "Native playback property is unsupported.")
             }
         case .mpv:
-            return try mpvPlayer.getDoubleProperty(name)
+            return try requireMPVPlayer().getDoubleProperty(name)
         }
     }
 
@@ -115,19 +116,23 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 storedSpeed = min(max(value, 0.5), 2.0)
                 if abs(storedSpeed - 1.0) > 0.001 {
                     try fallbackToMPVAtCurrentNativeTime()
-                    try mpvPlayer.setDoubleProperty(name, value: storedSpeed)
+                    try requireMPVPlayer().setDoubleProperty(name, value: storedSpeed)
                 }
                 delegate?.player(self, didChangeProperty: "speed", value: .double(storedSpeed))
             default:
                 throw PlaybackError.mpvOptionFailed(name: name, message: "Native playback property is unsupported.")
             }
         case .mpv:
+            let mpvPlayer = try requireMPVPlayer()
             if name == "volume" {
                 storedVolume = min(max(value, 0), 100)
             } else if name == "speed" {
                 storedSpeed = value
             }
             try mpvPlayer.setDoubleProperty(name, value: value)
+            if name == "speed", shouldTryNativeBackend {
+                trySwitchToNativeFromMPVAtCurrentTime(mpvPlayer: mpvPlayer)
+            }
         }
     }
 
@@ -140,7 +145,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 throw PlaybackError.mpvOptionFailed(name: name, message: "Native playback string property is unsupported.")
             }
         case .mpv:
-            try mpvPlayer.setStringProperty(name, value: value)
+            try requireMPVPlayer().setStringProperty(name, value: value)
         }
     }
 
@@ -152,7 +157,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             }
             throw PlaybackError.mpvOptionFailed(name: name, message: "Native playback bool property is unsupported.")
         case .mpv:
-            return try mpvPlayer.getBoolProperty(name)
+            return try requireMPVPlayer().getBoolProperty(name)
         }
     }
 
@@ -165,12 +170,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 throw PlaybackError.mpvOptionFailed(name: name, message: "Native playback bool property is unsupported.")
             }
         case .mpv:
-            try mpvPlayer.setBoolProperty(name, value: value)
+            try requireMPVPlayer().setBoolProperty(name, value: value)
         }
     }
 
     public func observeProperty(_ name: String, format: mpv_format) {
-        mpvPlayer.observeProperty(name, format: format)
+        observedProperties.append((name, format))
+        mpvPlayer?.observeProperty(name, format: format)
     }
 
     @MainActor public func attachActiveRenderView() {
@@ -182,6 +188,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         case .native:
             container.attach(nativePlayer.view)
         case .mpv:
+            guard let mpvPlayer else {
+                return
+            }
             container.attach(mpvPlayer.renderView)
         }
     }
@@ -195,16 +204,18 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             request.videoURL.path,
             startMilliseconds: request.startMilliseconds
         )
-        try? mpvPlayer.stop()
+        try? mpvPlayer?.stop()
         notifyBackendIfNeeded(.native)
         Task { @MainActor in
             self.attachActiveRenderView()
+            self.releaseMPVPlayerIfNativeIsActive()
         }
         emitInitialNativeState()
     }
 
     private func openMPV(_ request: PlaybackRequest) throws {
         nativePlayer.stop()
+        let mpvPlayer = try requireMPVPlayer()
         try mpvPlayer.open(request)
         notifyBackendIfNeeded(.mpv)
         Task { @MainActor in
@@ -228,6 +239,55 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             startMilliseconds: Int(nativePlayer.currentTime * 1000)
         )
         try openMPV(request)
+    }
+
+    private func trySwitchToNativeFromMPVAtCurrentTime(mpvPlayer: MPVPlayer) {
+        guard activeBackendStorage == .mpv, let currentVideoURL else {
+            return
+        }
+
+        let startMilliseconds: Int
+        do {
+            let currentTime = try mpvPlayer.getDoubleProperty("time-pos")
+            startMilliseconds = Int(max(0, currentTime) * 1000)
+        } catch {
+            startMilliseconds = 0
+        }
+
+        guard let request = try? PlaybackRequest(
+            videoURL: currentVideoURL,
+            startMilliseconds: startMilliseconds
+        ) else {
+            return
+        }
+
+        do {
+            try openNative(request)
+            currentRequest = request
+        } catch {
+            nativePlayer.stop()
+        }
+    }
+
+    private func requireMPVPlayer() throws -> MPVPlayer {
+        if let mpvPlayer {
+            return mpvPlayer
+        }
+
+        let player = try mpvPlayerFactory()
+        player.delegate = self
+        for property in observedProperties {
+            player.observeProperty(property.name, format: property.format)
+        }
+        mpvPlayer = player
+        return player
+    }
+
+    @MainActor private func releaseMPVPlayerIfNativeIsActive() {
+        guard activeBackendStorage == .native else {
+            return
+        }
+        mpvPlayer = nil
     }
 
     private func notifyBackendIfNeeded(_ backend: PlaybackBackend) {

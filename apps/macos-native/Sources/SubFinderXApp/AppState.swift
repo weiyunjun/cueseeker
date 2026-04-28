@@ -120,7 +120,7 @@ final class AppState: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
-            let player = PlaybackPlayer(mpvPlayer: try MPVPlayer())
+            let player = PlaybackPlayer()
             self.player = player
             playbackViewModel = PlaybackViewModel(player: player)
         } catch {
@@ -287,7 +287,8 @@ final class AppState: ObservableObject {
                 throw PlaybackError.mpvCreateFailed
             }
 
-            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path,
+               player.activeBackend == .native {
                 try player.seek(toMilliseconds: request.startMilliseconds)
             } else {
                 try player.open(request)

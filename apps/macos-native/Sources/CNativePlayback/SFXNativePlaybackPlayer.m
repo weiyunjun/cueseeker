@@ -95,6 +95,60 @@ static int64_t SFXSeekTimestamp(double seconds, AVStream *stream) {
     return stream->start_time + relativeTimestamp;
 }
 
+static int64_t SFXGlobalSeekTimestamp(double seconds, AVFormatContext *formatContext) {
+    int64_t timestamp = (int64_t)llround(seconds * AV_TIME_BASE);
+    if (formatContext->start_time != AV_NOPTS_VALUE) {
+        timestamp += formatContext->start_time;
+    }
+    return timestamp;
+}
+
+static BOOL SFXSeekToStartPosition(
+    AVFormatContext *formatContext,
+    int videoStreamIndex,
+    double seconds,
+    NSError **error
+) {
+    AVStream *videoStream = formatContext->streams[videoStreamIndex];
+    int64_t streamTimestamp = SFXSeekTimestamp(seconds, videoStream);
+    int streamResult = av_seek_frame(
+        formatContext,
+        videoStreamIndex,
+        streamTimestamp,
+        AVSEEK_FLAG_BACKWARD
+    );
+    if (streamResult >= 0) {
+        return YES;
+    }
+
+    int64_t globalTimestamp = SFXGlobalSeekTimestamp(seconds, formatContext);
+    int globalResult = av_seek_frame(
+        formatContext,
+        -1,
+        globalTimestamp,
+        AVSEEK_FLAG_BACKWARD
+    );
+    if (globalResult >= 0) {
+        return YES;
+    }
+
+    if (seconds <= 0.001) {
+        return YES;
+    }
+
+    if (error != NULL) {
+        *error = SFXNativePlaybackError(
+            14,
+            [NSString stringWithFormat:
+                @"av_seek_frame failed: stream seek %@, global seek %@",
+                SFXFFmpegErrorString(streamResult),
+                SFXFFmpegErrorString(globalResult)
+            ]
+        );
+    }
+    return NO;
+}
+
 static BOOL SFXFrameBeforeSeekTarget(const AVFrame *frame, AVStream *stream, double seekSeconds) {
     double frameSeconds = SFXFramePlaybackSeconds(frame, stream);
     if (frameSeconds < 0) {
@@ -333,13 +387,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         return NO;
     }
 
-    AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
-    int64_t seekTimestamp = SFXSeekTimestamp(_seekSeconds, videoStream);
-    result = av_seek_frame(_formatContext, _videoStreamIndex, seekTimestamp, AVSEEK_FLAG_BACKWARD);
-    if (result < 0) {
-        if (error != NULL) {
-            *error = SFXNativePlaybackError(14, [NSString stringWithFormat:@"av_seek_frame failed: %@", SFXFFmpegErrorString(result)]);
-        }
+    if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, error)) {
         return NO;
     }
 
