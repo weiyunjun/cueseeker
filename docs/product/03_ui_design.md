@@ -139,10 +139,14 @@ Behavior:
 - Reopening the Playback Inspector does not automatically resume playback.
 - Switching from Search to Settings or another top-level section pauses playback without stopping it.
 - Playback fullscreen presents the video in a black Theater Mode window rather than fullscreening the app shell.
+- Theater Mode must not visually cover system app-switching UI; Cmd-Tab and other system overlays should appear above playback fullscreen.
+- When the app resigns active during Theater Mode, playback fullscreen hides and then restores when the app becomes active again.
 - Transient playback feedback overlays appear above the video for play/pause, subtitle visibility, seek, volume, and speed changes.
 - The playback speed selector is an app-drawn menu that opens upward from the speed control.
 - The speed control must display fractional presets such as `1.25x` and `1.75x` without truncation.
 - The speed control should show only the current speed value; the preset menu appears on hover rather than through a visible arrow affordance.
+- The speed control hover area, click area, and preset menu width should match.
+- The speed menu should remain open only while the pointer is inside the rectangular hover region spanning from the menu top edge to the speed button bottom edge.
 - When the volume control is hovered, the volume slider and numeric percentage appear together without moving the playback controls vertically.
 - The timeline hover and drag states must not move the playback controls vertically.
 

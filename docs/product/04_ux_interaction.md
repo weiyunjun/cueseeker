@@ -105,6 +105,9 @@ M2 playback interaction model:
 - Entering or exiting playback fullscreen must not create a second `MPVRenderView` or a second `libmpv` render context.
 - Entering playback fullscreen should immediately hide the playback operation controls and mouse cursor once, regardless of whether the controls were visible before fullscreen.
 - In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse or click activity.
+- In playback fullscreen, only mouse or click activity should reveal the playback operation controls and cursor; keyboard playback shortcuts should not reveal them.
+- Theater Mode should hide while the app is inactive so the visible UI matches the active foreground app.
+- Theater Mode should stay below system switchers and overlays such as Cmd-Tab.
 - The progress bar and its enlarged hit area are named the `Timeline Zone`.
 - The button row below the progress bar is named the `Transport Controls Zone`.
 - Together, the `Timeline Zone` and `Transport Controls Zone` form the `Playback Operation Zone`.
@@ -124,9 +127,13 @@ Current M2 implementation:
 
 - Playback fullscreen uses a Theater Mode window and returns the same video render view to the Playback Inspector when closed.
 - Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
+- Fullscreen playback reveals controls and cursor from mouse or click activity, not from keyboard shortcuts.
+- Theater Mode suspends during app deactivation and restores on app activation without recreating the playback render context.
+- The Theater Mode window level allows Cmd-Tab and other system overlays to remain visible above playback fullscreen.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
 - Shortcut and control actions show transient feedback overlays for subtitle visibility, play/pause, relative seek, volume, and speed.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
+- The speed button hover area, speed button click area, and speed menu width are aligned to the same horizontal bounds.
 - Keyboard shortcuts adjust speed in `0.25x` steps and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - The previous Flutter shortcut model was used as a reference, but the native M2 map intentionally changes subtitles to `C`, removes the bottom-mask shortcut, and changes speed adjustment to `Shift+,` and `Shift+.`.
 

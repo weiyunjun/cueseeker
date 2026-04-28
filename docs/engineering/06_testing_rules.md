@@ -140,6 +140,19 @@ Required M1 playback checks:
 - Missing video files produce a clear error.
 - Selecting another result for the same open video seeks instead of unnecessarily reopening when practical.
 
+Required M2 playback interaction checks:
+
+- Playback fullscreen affects only the video experience and does not put the main app window into macOS Full Screen.
+- Cmd-Tab and other system overlays remain visible above the Theater Mode window.
+- Theater Mode hides when the app resigns active and restores when the app becomes active again.
+- Fullscreen keyboard shortcuts execute playback commands without revealing the playback operation controls.
+- Mouse or click activity reveals fullscreen controls and cursor and restarts the inactivity timer.
+- Selecting a search result, clicking app-owned feature buttons, selecting another sidebar section, or clicking the Playback Inspector clears Search field focus.
+- Cmd-Tab away and back, titlebar double-click resize, native traffic-light clicks, and foreground/background transitions do not intentionally clear Search field focus.
+- The speed menu has no separate show or hide animation.
+- The speed button hover area, speed button click area, and speed menu width are aligned.
+- The speed menu remains visible only while the pointer is inside the documented rectangular hover region spanning the menu and speed button.
+
 Rules:
 
 - Frame-perfect seek accuracy is not required for M1.
@@ -226,4 +239,3 @@ A milestone is not complete until:
 - Test gaps are listed explicitly.
 - Database migrations, if any, have fresh-create and migrate-path verification.
 - Playback behavior, if included in the milestone, has been verified against the selected playback strategy.
-

@@ -61,3 +61,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Clarified and implemented Search field focus behavior for app-owned commands, sidebar navigation, search result selection, Playback Inspector clicks, and system-level app switching.
 - Refined playback fullscreen and speed menu interaction so keyboard shortcuts no longer reveal fullscreen controls, the speed menu has no separate animation, and speed button hover/click geometry matches the menu.
 - Verified the M2 playback interaction refinements after user testing and passing the Swift test suite with 23 tests on 2026-04-28.
+- Consolidated documentation for the accepted M2 interaction refinements covering Theater Mode app switching, Cmd-Tab visibility, Search focus preservation rules, fullscreen chrome triggers, and speed menu hover geometry.
