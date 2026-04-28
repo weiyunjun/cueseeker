@@ -108,7 +108,7 @@ struct SearchView: View {
                             showDivider: !isSelected && !isNextSelected && !isLast
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(StaticButtonStyle())
                 }
             }
             .padding(.vertical, 8)
@@ -233,6 +233,7 @@ struct SearchView: View {
 private struct SearchField: View {
     @Binding var text: String
     @FocusState private var isFocused: Bool
+    @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -259,6 +260,7 @@ private struct SearchField: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .opacity(isHovering ? 1.0 : 0.0)
             }
         }
         .padding(.horizontal, 12)
@@ -267,7 +269,10 @@ private struct SearchField: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isFocused ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isFocused ? 2 : 1)
+                .stroke(isFocused ? Color.accentColor : Color.clear, lineWidth: isFocused ? 2 : 0)
+        }
+        .onHover { hovering in
+            isHovering = hovering
         }
     }
 }

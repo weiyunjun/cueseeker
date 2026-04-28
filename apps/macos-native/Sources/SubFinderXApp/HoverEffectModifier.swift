@@ -20,3 +20,25 @@ extension View {
         self.modifier(HoverBackgroundModifier(hoverColor: color, cornerRadius: cornerRadius))
     }
 }
+
+struct ToolbarButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                configuration.isPressed ? Color.black.opacity(0.15) :
+                (isHovered ? Color.black.opacity(0.08) : Color.clear)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .onHover { hovering in
+                isHovered = hovering
+            }
+    }
+}
+
+struct StaticButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
+}

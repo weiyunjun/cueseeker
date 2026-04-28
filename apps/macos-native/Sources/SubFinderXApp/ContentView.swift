@@ -69,7 +69,7 @@ struct ContentView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StaticButtonStyle())
                 .focusable(false)
             }
 
@@ -95,6 +95,7 @@ struct ContentView: View {
                         weight: AppShellLayout.titleFontWeight
                     ))
                     .foregroundStyle(.primary)
+                    .allowsHitTesting(false)
             }
             .overlay(alignment: .leading) {
                 topBarLeadingControls
@@ -139,9 +140,8 @@ struct ContentView: View {
                     height: AppShellLayout.toggleSize
                 )
                 .contentShape(Rectangle())
-                .hoverBackground(cornerRadius: 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ToolbarButtonStyle())
         .focusable(false)
         .foregroundStyle(.primary)
         .help(appState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
@@ -162,9 +162,8 @@ struct ContentView: View {
                     height: AppShellLayout.toggleSize
                 )
                 .contentShape(Rectangle())
-                .hoverBackground(cornerRadius: 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ToolbarButtonStyle())
         .focusable(false)
         .foregroundStyle(.primary)
         .help(appState.isPlaybackInspectorVisible ? "Hide Playback Inspector" : "Show Playback Inspector")
