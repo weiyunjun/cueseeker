@@ -62,3 +62,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Refined playback fullscreen and speed menu interaction so keyboard shortcuts no longer reveal fullscreen controls, the speed menu has no separate animation, and speed button hover/click geometry matches the menu.
 - Verified the M2 playback interaction refinements after user testing and passing the Swift test suite with 23 tests on 2026-04-28.
 - Consolidated documentation for the accepted M2 interaction refinements covering Theater Mode app switching, Cmd-Tab visibility, Search focus preservation rules, fullscreen chrome triggers, and speed menu hover geometry.
+- Proposed a native playback backend direction that uses FFmpeg demuxing, VideoToolbox hardware decoding, native display, native audio output, and mpv fallback for unsupported cases.
+- Added an isolated `NativePlaybackProbe` target to validate the native playback direction without changing the production `libmpv` playback path.
+- Verified the probe can demux the representative H.264 1080p60 Matroska sample, decode 300/300 video frames through VideoToolbox hardware decode, display decoded frames through `AVSampleBufferDisplayLayer`, decode Opus audio through FFmpeg, schedule PCM audio through `AVAudioEngine`, and pace video frames by timestamp.

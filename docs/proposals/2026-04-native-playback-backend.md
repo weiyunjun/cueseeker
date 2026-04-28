@@ -231,6 +231,58 @@ Rules:
 - Seeking must flush decoder state and output queues.
 - Playback should drop or delay video frames when necessary to preserve sync.
 
+### Prototype Status
+
+An isolated native playback probe now exists under:
+
+```text
+apps/macos-native/Sources/NativePlaybackProbe/
+```
+
+The probe is intentionally separate from the production app playback path. It is
+used to validate the proposed backend direction before the app's `libmpv`
+integration is changed.
+
+Validated so far:
+
+- FFmpeg/libavformat can open the representative Matroska sample.
+- FFmpeg/libavcodec can decode the H.264 video stream through VideoToolbox.
+- The representative H.264 1080p60 sample produces hardware frames with
+  `videotoolbox_vld`.
+- The decoded VideoToolbox frame output can be displayed in a temporary AppKit
+  window through `AVSampleBufferDisplayLayer`.
+- The representative Opus audio stream can be decoded by FFmpeg into planar
+  float PCM and scheduled through `AVAudioEngine`.
+- Basic timestamp-driven video pacing works for the representative sample.
+- A 300-video-packet run produced 300 hardware video frames, 0 software video
+  frames, 0 late paced video frames, and no audio decode failures.
+
+Important prototype observations:
+
+- Running the probe inside the Codex sandbox can prevent VideoToolbox hardware
+  decode initialization. The same probe succeeds from a normal macOS Terminal.
+- The FFmpeg Opus decoder may print a startup timestamp warning related to
+  skipped samples. The representative sample still decodes and schedules audio
+  successfully after the initial shortened frame.
+- The current probe pacing is video timestamp based. It is not yet a final
+  audio-master synchronization model.
+
+Current prototype command:
+
+```bash
+swift build --product NativePlaybackProbe
+.build/debug/NativePlaybackProbe --display "/path/to/video.mkv" 300
+```
+
+Expected representative output includes:
+
+```text
+Hardware frames: 300
+Software frames: 0
+Paced video frames: 300
+Audio decode failures: 0
+```
+
 ### Seeking
 
 Seeking should:
@@ -291,12 +343,25 @@ The proposal can be accepted when the team agrees on:
 The first implementation milestone should be considered successful only if:
 
 - The representative H.264 1080p60 MKV plays through the native backend.
-- Playback can seek to a subtitle result timestamp.
 - Play and pause work.
 - Audio stays acceptably synchronized for subtitle context review.
 - Memory usage is substantially below the current mpv-based path.
 - Unsupported files fall back to mpv without breaking the user workflow.
 - The implementation does not introduce unbounded packet, frame, or audio queues.
+
+Prototype acceptance progress:
+
+- Done: FFmpeg demux for the representative Matroska file.
+- Done: VideoToolbox hardware decode for the representative H.264 stream.
+- Done: Temporary native display of decoded hardware frames.
+- Done: FFmpeg Opus decode and native audio scheduling for the representative
+  sample.
+- Done: Timestamp-driven video pacing for the representative sample.
+- Not done: seek to a subtitle result timestamp.
+- Not done: audio-master clock synchronization.
+- Not done: production app integration.
+- Not done: mpv fallback routing from the app.
+- Not done: memory target verification against the app-level playback workflow.
 
 ## Decision
 
