@@ -12,6 +12,7 @@
 #include <libavutil/channel_layout.h>
 #include <libavutil/error.h>
 #include <libavutil/hwcontext.h>
+#include <libavutil/log.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/pixdesc.h>
 #include <libswresample/swresample.h>
@@ -1081,6 +1082,8 @@ static int SFXOutputChannelCount(int inputChannels) {
         return nil;
     }
 
+    av_log_set_level(AV_LOG_ERROR);
+
     _volume = 1.0;
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
     return self;
@@ -1120,7 +1123,7 @@ startMilliseconds:(NSInteger)startMilliseconds
            error:(NSError **)error {
     return [self openPath:path
         startMilliseconds:startMilliseconds
-       flushDisplayBeforeStart:YES
+       flushDisplayBeforeStart:NO
                     error:error];
 }
 
