@@ -2,6 +2,15 @@ import CMpv
 import Darwin
 import Foundation
 
+public enum MPVPropertyValue: Sendable, Equatable {
+    case double(Double)
+    case bool(Bool)
+}
+
+public protocol MPVPlayerDelegate: AnyObject {
+    func player(_ player: MPVPlayer, didChangeProperty name: String, value: MPVPropertyValue?)
+}
+
 public struct PlaybackRequest: Equatable, Sendable {
     public let videoURL: URL
     public let startMilliseconds: Int
@@ -72,6 +81,10 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
 public final class MPVPlayer: @unchecked Sendable {
     private var handle: OpaquePointer?
     private var renderContext: OpaquePointer?
+    private var eventThread: Thread?
+    private var isTerminated = false
+    
+    public weak var delegate: MPVPlayerDelegate?
     public private(set) var currentVideoURL: URL?
 
     public init() throws {
@@ -91,6 +104,8 @@ public final class MPVPlayer: @unchecked Sendable {
             guard status >= 0 else {
                 throw PlaybackError.mpvInitializeFailed(Self.errorMessage(for: status))
             }
+            
+            startEventLoop()
         } catch {
             mpv_terminate_destroy(handle)
             self.handle = nil
@@ -99,6 +114,11 @@ public final class MPVPlayer: @unchecked Sendable {
     }
 
     deinit {
+        isTerminated = true
+        if let handle {
+            mpv_wakeup(handle)
+        }
+        
         destroyRenderContext()
 
         if let handle {
@@ -130,6 +150,88 @@ public final class MPVPlayer: @unchecked Sendable {
     public func stop() throws {
         try command(["stop"])
         currentVideoURL = nil
+    }
+
+    public func getDoubleProperty(_ name: String) throws -> Double {
+        guard let handle else { throw PlaybackError.mpvCreateFailed }
+        var value: Double = 0
+        let status = mpv_get_property(handle, name, MPV_FORMAT_DOUBLE, &value)
+        guard status >= 0 else {
+            throw PlaybackError.mpvOptionFailed(name: name, message: Self.errorMessage(for: status))
+        }
+        return value
+    }
+
+    public func setDoubleProperty(_ name: String, value: Double) throws {
+        guard let handle else { throw PlaybackError.mpvCreateFailed }
+        var val = value
+        let status = mpv_set_property(handle, name, MPV_FORMAT_DOUBLE, &val)
+        guard status >= 0 else {
+            throw PlaybackError.mpvOptionFailed(name: name, message: Self.errorMessage(for: status))
+        }
+    }
+
+    public func getBoolProperty(_ name: String) throws -> Bool {
+        guard let handle else { throw PlaybackError.mpvCreateFailed }
+        var value: Int32 = 0
+        let status = mpv_get_property(handle, name, MPV_FORMAT_FLAG, &value)
+        guard status >= 0 else {
+            throw PlaybackError.mpvOptionFailed(name: name, message: Self.errorMessage(for: status))
+        }
+        return value != 0
+    }
+
+    public func setBoolProperty(_ name: String, value: Bool) throws {
+        guard let handle else { throw PlaybackError.mpvCreateFailed }
+        var val: Int32 = value ? 1 : 0
+        let status = mpv_set_property(handle, name, MPV_FORMAT_FLAG, &val)
+        guard status >= 0 else {
+            throw PlaybackError.mpvOptionFailed(name: name, message: Self.errorMessage(for: status))
+        }
+    }
+
+    public func observeProperty(_ name: String, format: mpv_format) {
+        guard let handle else { return }
+        mpv_observe_property(handle, 0, name, format)
+    }
+
+    private func startEventLoop() {
+        eventThread = Thread { [weak self] in
+            self?.runEventLoop()
+        }
+        eventThread?.name = "SubFinderX.MPVEventThread"
+        eventThread?.start()
+    }
+
+    private func runEventLoop() {
+        while !isTerminated {
+            guard let handle else { break }
+            let event = mpv_wait_event(handle, 1.0)
+            guard let event = event, event.pointee.event_id != MPV_EVENT_NONE else {
+                continue
+            }
+            if event.pointee.event_id == MPV_EVENT_SHUTDOWN {
+                break
+            }
+            if event.pointee.event_id == MPV_EVENT_PROPERTY_CHANGE {
+                let prop = event.pointee.data.bindMemory(to: mpv_event_property.self, capacity: 1)
+                let name = String(cString: prop.pointee.name)
+                var value: MPVPropertyValue? = nil
+                
+                if prop.pointee.format == MPV_FORMAT_DOUBLE {
+                    let doubleValue = prop.pointee.data.bindMemory(to: Double.self, capacity: 1).pointee
+                    value = .double(doubleValue)
+                } else if prop.pointee.format == MPV_FORMAT_FLAG {
+                    let boolValue = prop.pointee.data.bindMemory(to: Int32.self, capacity: 1).pointee != 0
+                    value = .bool(boolValue)
+                }
+                
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.delegate?.player(self, didChangeProperty: name, value: value)
+                }
+            }
+        }
     }
 
     func createOpenGLRenderContext(
