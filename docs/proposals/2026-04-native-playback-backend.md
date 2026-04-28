@@ -284,6 +284,13 @@ Validated so far:
   120 total output video frames, 532 hardware decoded frames, 0 software frames,
   118 audio-master paced video frames, 2 video-clock fallback frames, and no
   audio decode failures.
+- The display probe can simulate pause and resume with `--pause-after-frames`
+  and `--pause-duration`, pausing the audio player plus decode/display loop and
+  shifting playback clocks before resuming.
+- A seek plus pause display run against the representative Matroska sample at
+  60.0 seconds, pausing for 1.0 seconds after 60 output frames, produced 120
+  output video frames, 0 late paced frames, 119 audio-master paced video frames,
+  1 video-clock fallback frame, and no audio decode failures.
 
 Important prototype observations:
 
@@ -305,6 +312,7 @@ swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --display "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --seek 60.0 "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --seek 60.0 --seek-again 90.0 "/path/to/video.mkv" 60
+.build/debug/NativePlaybackProbe --display --seek 60.0 --pause-after-frames 60 --pause-duration 1.0 "/path/to/video.mkv" 120
 ```
 
 The optional trailing number is the target number of output video frames after
@@ -399,6 +407,7 @@ Prototype acceptance progress:
 - Done: isolated probe seek to a requested playback timestamp before display.
 - Done: narrow display-probe audio-master pacing prototype.
 - Done: repeated display-probe seek between two requested playback timestamps.
+- Done: display-probe pause and resume simulation.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.

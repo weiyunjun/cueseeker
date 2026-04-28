@@ -32,6 +32,8 @@ typedef struct {
     double seekSeconds;
     bool hasSeekAgain;
     double seekAgainSeconds;
+    int pauseAfterOutputFrames;
+    double pauseDurationSeconds;
     bool displayFrames;
     AVSampleBufferDisplayLayer *__unsafe_unretained displayLayer;
     AVAudioEngine *__unsafe_unretained audioEngine;
@@ -72,6 +74,14 @@ typedef struct {
     double maxWaitSeconds;
     double maxLatenessSeconds;
 } AudioClock;
+
+typedef struct {
+    bool enabled;
+    bool triggered;
+    int pauseAfterOutputFrames;
+    double durationSeconds;
+    int completedPauses;
+} PauseProbe;
 
 static enum AVPixelFormat hardwarePixelFormat = AV_PIX_FMT_NONE;
 static const int defaultMaxOutputFrames = 300;
@@ -521,6 +531,57 @@ static void reset_audio_output(AVAudioPlayerNode *audioPlayer) {
     [audioPlayer stop];
 }
 
+static void shift_playback_clocks(
+    VideoPacer *videoPacer,
+    AudioClock *audioClock,
+    double shiftSeconds
+) {
+    if (videoPacer != NULL && videoPacer->initialized) {
+        videoPacer->startHostSeconds += shiftSeconds;
+    }
+    if (audioClock != NULL && audioClock->initialized) {
+        audioClock->startHostSeconds += shiftSeconds;
+    }
+}
+
+static void pause_and_resume_probe_outputs(
+    PauseProbe *pauseProbe,
+    AVAudioPlayerNode *audioPlayer,
+    VideoPacer *videoPacer,
+    AudioClock *audioClock
+) {
+    if (pauseProbe == NULL || !pauseProbe->enabled || pauseProbe->triggered) {
+        return;
+    }
+
+    pauseProbe->triggered = true;
+
+    printf(
+        "Pausing probe playback for %.3fs after output frame %d\n",
+        pauseProbe->durationSeconds,
+        pauseProbe->pauseAfterOutputFrames
+    );
+
+    double pauseStartSeconds = CACurrentMediaTime();
+    if (audioPlayer != nil) {
+        [audioPlayer pause];
+    }
+
+    if (pauseProbe->durationSeconds > 0) {
+        usleep((useconds_t)(pauseProbe->durationSeconds * 1000000.0));
+    }
+
+    double pauseDurationSeconds = CACurrentMediaTime() - pauseStartSeconds;
+    shift_playback_clocks(videoPacer, audioClock, pauseDurationSeconds);
+
+    if (audioPlayer != nil) {
+        [audioPlayer play];
+    }
+
+    pauseProbe->completedPauses++;
+    printf("Resumed probe playback after %.3fs pause\n", pauseDurationSeconds);
+}
+
 static int seek_input_to_seconds(
     ProbeRunContext context,
     AVCodecContext *videoCodecContext,
@@ -670,6 +731,8 @@ static int receive_available_frames(
     AVSampleBufferDisplayLayer *displayLayer,
     VideoPacer *videoPacer,
     AudioClock *audioClock,
+    PauseProbe *pauseProbe,
+    AVAudioPlayerNode *audioPlayer,
     bool hasSeek,
     double seekSeconds,
     int *skippedVideoFrames,
@@ -709,6 +772,17 @@ static int receive_available_frames(
                     pixelBuffer,
                     cm_time_from_frame(frame, videoStream)
                 );
+                if (pauseProbe != NULL
+                    && pauseProbe->enabled
+                    && !pauseProbe->triggered
+                    && outputFrames >= pauseProbe->pauseAfterOutputFrames) {
+                    pause_and_resume_probe_outputs(
+                        pauseProbe,
+                        audioPlayer,
+                        videoPacer,
+                        audioClock
+                    );
+                }
             }
 
             if (shouldPrint) {
@@ -845,6 +919,11 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     AudioClock audioClock = {
         .enabled = context.displayFrames && context.audioPlayer != nil && context.audioFormat != nil
     };
+    PauseProbe pauseProbe = {
+        .enabled = context.displayFrames && context.pauseAfterOutputFrames > 0,
+        .pauseAfterOutputFrames = context.pauseAfterOutputFrames,
+        .durationSeconds = context.pauseDurationSeconds
+    };
 
     int segmentCount = context.hasSeekAgain ? 2 : 1;
     bool activeHasSeek = context.hasSeek;
@@ -954,6 +1033,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                 context.displayLayer,
                 &videoPacer,
                 &audioClock,
+                &pauseProbe,
+                context.audioPlayer,
                 segmentHasSeek,
                 segmentSeekSeconds,
                 &skippedVideoFrames,
@@ -1003,6 +1084,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             context.displayLayer,
             &videoPacer,
             &audioClock,
+            &pauseProbe,
+            context.audioPlayer,
             activeHasSeek,
             activeSeekSeconds,
             &skippedVideoFrames,
@@ -1052,6 +1135,10 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             printf("Video-clock fallback frames: %d\n", audioClock.fallbackVideoFrames);
             printf("Max audio-clock wait: %.3fs\n", audioClock.maxWaitSeconds);
             printf("Max audio-clock lateness: %.3fs\n", audioClock.maxLatenessSeconds);
+        }
+        if (pauseProbe.enabled) {
+            printf("Pause probe completed pauses: %d\n", pauseProbe.completedPauses);
+            printf("Pause probe duration: %.3fs\n", pauseProbe.durationSeconds);
         }
     }
     if (audio != NULL) {
@@ -1232,7 +1319,9 @@ static int run_console_probe(
     bool hasSeek,
     double seekSeconds,
     bool hasSeekAgain,
-    double seekAgainSeconds
+    double seekAgainSeconds,
+    int pauseAfterOutputFrames,
+    double pauseDurationSeconds
 ) {
     __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
@@ -1251,6 +1340,8 @@ static int run_console_probe(
         .seekSeconds = seekSeconds,
         .hasSeekAgain = hasSeekAgain,
         .seekAgainSeconds = seekAgainSeconds,
+        .pauseAfterOutputFrames = pauseAfterOutputFrames,
+        .pauseDurationSeconds = pauseDurationSeconds,
         .displayFrames = false,
         .displayLayer = nil,
         .audioEngine = nil,
@@ -1268,7 +1359,9 @@ static int run_display_probe(
     bool hasSeek,
     double seekSeconds,
     bool hasSeekAgain,
-    double seekAgainSeconds
+    double seekAgainSeconds,
+    int pauseAfterOutputFrames,
+    double pauseDurationSeconds
 ) {
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -1313,6 +1406,8 @@ static int run_display_probe(
             .seekSeconds = seekSeconds,
             .hasSeekAgain = hasSeekAgain,
             .seekAgainSeconds = seekAgainSeconds,
+            .pauseAfterOutputFrames = pauseAfterOutputFrames,
+            .pauseDurationSeconds = pauseDurationSeconds,
             .displayFrames = true,
             .displayLayer = displayLayer,
             .audioEngine = audioEngine,
@@ -1352,10 +1447,22 @@ static bool parse_nonnegative_seconds(const char *value, double *secondsOut) {
     return true;
 }
 
+static bool parse_positive_int(const char *value, int *intOut) {
+    errno = 0;
+    char *end = NULL;
+    long parsed = strtol(value, &end, 10);
+    if (errno != 0 || end == value || *end != '\0' || parsed <= 0 || parsed > INT32_MAX) {
+        return false;
+    }
+
+    *intOut = (int)parsed;
+    return true;
+}
+
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: NativePlaybackProbe [--display] [--seek seconds] [--seek-again seconds] <media-file> [max-output-video-frames]\n"
+        "Usage: NativePlaybackProbe [--display] [--seek seconds] [--seek-again seconds] [--pause-after-frames count] [--pause-duration seconds] <media-file> [max-output-video-frames]\n"
     );
 }
 
@@ -1371,6 +1478,8 @@ int main(int argc, char **argv) {
         double seekSeconds = 0;
         bool hasSeekAgain = false;
         double seekAgainSeconds = 0;
+        int pauseAfterOutputFrames = 0;
+        double pauseDurationSeconds = 1.0;
         int argumentIndex = 1;
 
         while (argumentIndex < argc) {
@@ -1406,11 +1515,40 @@ int main(int argc, char **argv) {
                 continue;
             }
 
+            if (strcmp(argv[argumentIndex], "--pause-after-frames") == 0) {
+                if (argumentIndex + 1 >= argc
+                    || !parse_positive_int(argv[argumentIndex + 1], &pauseAfterOutputFrames)) {
+                    fprintf(stderr, "Invalid --pause-after-frames value.\n");
+                    print_usage();
+                    return 2;
+                }
+
+                argumentIndex += 2;
+                continue;
+            }
+
+            if (strcmp(argv[argumentIndex], "--pause-duration") == 0) {
+                if (argumentIndex + 1 >= argc
+                    || !parse_nonnegative_seconds(argv[argumentIndex + 1], &pauseDurationSeconds)) {
+                    fprintf(stderr, "Invalid --pause-duration value.\n");
+                    print_usage();
+                    return 2;
+                }
+
+                argumentIndex += 2;
+                continue;
+            }
+
             break;
         }
 
         if (hasSeekAgain && !hasSeek) {
             fprintf(stderr, "--seek-again requires an initial --seek value.\n");
+            print_usage();
+            return 2;
+        }
+        if (pauseAfterOutputFrames > 0 && !displayFrames) {
+            fprintf(stderr, "--pause-after-frames requires --display.\n");
             print_usage();
             return 2;
         }
@@ -1439,7 +1577,9 @@ int main(int argc, char **argv) {
                 hasSeek,
                 seekSeconds,
                 hasSeekAgain,
-                seekAgainSeconds
+                seekAgainSeconds,
+                pauseAfterOutputFrames,
+                pauseDurationSeconds
             );
         }
 
@@ -1449,7 +1589,9 @@ int main(int argc, char **argv) {
             hasSeek,
             seekSeconds,
             hasSeekAgain,
-            seekAgainSeconds
+            seekAgainSeconds,
+            pauseAfterOutputFrames,
+            pauseDurationSeconds
         );
     }
 }
