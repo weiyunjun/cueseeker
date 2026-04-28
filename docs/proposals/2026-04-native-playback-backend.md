@@ -193,7 +193,8 @@ The implementation must handle container-specific codec metadata:
 
 ### Display
 
-The display path should avoid unnecessary frame copies.
+The display path should avoid unnecessary frame copies and should expose real
+codec/container boundary cases early.
 
 Candidate approaches:
 
@@ -201,10 +202,57 @@ Candidate approaches:
 - A Metal-backed view that renders VideoToolbox `CVPixelBuffer` output through
   CoreVideo/IOSurface-backed textures.
 
-The first implementation should choose the simpler path that can prove low
-memory usage and stable seek/playback behavior. If `AVSampleBufferDisplayLayer`
-is not flexible enough for the app's fullscreen and overlay requirements, a
-Metal display path should be evaluated.
+The current direction is to move to a Metal YUV renderer rather than extending
+the `AVSampleBufferDisplayLayer` path. The renderer should accept:
+
+- Hardware frames from VideoToolbox as `CVPixelBuffer`/IOSurface-backed Metal
+  textures.
+- Software frames from FFmpeg decoders such as `libdav1d` as uploaded YUV plane
+  textures.
+
+The first Metal implementation may target Apple Silicon only, but it should not
+pretend video playback is limited to ideal SDR 8-bit files. It must surface and
+track unsupported combinations explicitly, including:
+
+- 8-bit and 10-bit 4:2:0 YUV layouts.
+- NV12/P010 and planar YUV420 sources.
+- Video range and full range.
+- BT.601, BT.709, and BT.2020 matrix metadata.
+- Frame stride and plane size differences from visible width and height.
+- Missing or ambiguous color metadata.
+
+Unsupported layouts should fail with a specific native fallback reason rather
+than silently rendering with incorrect color or memory behavior.
+
+### Hardware Capability Detection
+
+Native hardware decode support must be decided at runtime.
+
+The app should consider a codec hardware-decodable only when all of these are
+true:
+
+- VideoToolbox reports hardware decode support for the codec type where an
+  Apple API is available.
+- FFmpeg can provide a decoder for that codec with
+  `AV_HWDEVICE_TYPE_VIDEOTOOLBOX`.
+- VideoToolbox hardware device/session creation succeeds.
+- `avcodec_open2` succeeds with the hardware device attached.
+- Actual decoded frames arrive as `AV_PIX_FMT_VIDEOTOOLBOX`.
+
+If any step fails, the facade should try native software decode when implemented
+and then fall back to `libmpv` if software decode is unavailable or fails.
+
+### Software Decode
+
+Software decode is the planned native fallback below hardware decode and above
+`libmpv`.
+
+For AV1, the expected first software decoder is `libdav1d`. Software decode
+should feed the same Metal YUV renderer by uploading FFmpeg `AVFrame` planes to
+bounded, reusable Metal textures. This route is expected to use materially more
+CPU and memory bandwidth than VideoToolbox hardware decode, so it must be
+measured with the same single-file probe commands before becoming a production
+fallback.
 
 ### Audio
 
@@ -366,6 +414,18 @@ Current interpretation:
   releases fallback state after successful native open, retries native playback
   after returning to `1.0x`, and retries native timestamp setup with a global
   seek if stream-specific seek fails.
+- AV1 hardware decode is supported by selecting a VideoToolbox-capable FFmpeg
+  decoder rather than accepting the default `libdav1d` software decoder. On the
+  representative GTA V AV1 WebM sample, the probe selected FFmpeg `av1` with
+  `videotoolbox_vld`, produced only hardware frames in a 60-second run, and the
+  user observed production app memory staying below 50 MB.
+- Native hardware capability must be treated as a runtime result, not a codec
+  name lookup: check VideoToolbox hardware support, FFmpeg VideoToolbox decoder
+  config, device/session creation, and actual decoded frame format.
+- The next display direction is a shared Metal YUV renderer for both
+  VideoToolbox `CVPixelBuffer` frames and future software-decoded FFmpeg
+  `AVFrame` planes. This should expose color, range, bit-depth, stride, and
+  chroma-layout issues early instead of hiding them behind idealized samples.
 - The probe remains useful for multi-format screening with `--inspect` and
   `--inspect-list`, followed by stability runs for files reported as native
   candidates. Multi-audio files should be checked with `--audio-stream` when the
@@ -448,6 +508,8 @@ Use mpv fallback when:
 - The codec is unsupported by the native backend.
 - VideoToolbox cannot create a decode session.
 - Hardware decode is unavailable and software fallback is not implemented.
+- Software decode is implemented but cannot decode, upload, color-convert, or
+  pace the file reliably.
 - Audio cannot be decoded or synchronized.
 - Seek behavior fails validation.
 - Playback enters an unrecoverable backend error state.
@@ -517,6 +579,12 @@ Prototype acceptance progress:
 - Done: lazy MPV fallback initialization, fallback release after native success,
   native retry after returning to `1.0x`, and global seek fallback for native
   timestamp setup.
+- Done: AV1 VideoToolbox decoder selection for files where FFmpeg defaults to
+  `libdav1d` but a hardware-capable `av1` decoder is available.
+- Planned: shared Metal YUV renderer for hardware `CVPixelBuffer` frames and
+  software FFmpeg `AVFrame` planes.
+- Planned: native software decode fallback, starting with AV1 `libdav1d`, with
+  explicit measurement before production fallback enablement.
 - Not done: user-verified app-level memory target verification across the full
   playback inspector and fullscreen workflow.
 

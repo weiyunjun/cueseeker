@@ -79,3 +79,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Fixed a playback crash when a search result falls back from native playback to `libmpv` by removing recursive render-container initialization.
 - Refined native-first playback so `libmpv` is initialized only on fallback demand, native success releases fallback state, 1.0x playback can retry native after fallback, and native timestamp seek has a global seek fallback.
 - Added native AV1 hardware decode routing by selecting a VideoToolbox-capable FFmpeg decoder instead of accepting the default `libdav1d` software decoder for AV1 files.
+- Verified native AV1 VideoToolbox playback on the representative GTA V WebM sample with all decoded video frames reported as hardware frames and user-observed app memory staying below 50 MB.
+- Recorded the next native playback direction: move hard-decoded and future software-decoded frames through a shared Metal YUV renderer while retaining `libmpv` fallback.

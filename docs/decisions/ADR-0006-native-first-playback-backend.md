@@ -103,6 +103,14 @@ The first app integration is intentionally narrow:
   retry the native backend from the current playback position.
 - Native timestamp seek should tolerate files that reject stream-specific seek
   by retrying with a global seek before falling back to `libmpv`.
+- AV1 hardware decode should select a VideoToolbox-capable FFmpeg decoder when
+  the default decoder is software-only, such as `libdav1d`.
+- The next native display direction is a shared Metal YUV renderer that can
+  render both VideoToolbox hardware frames and future software-decoded YUV
+  frames.
+- `libmpv` remains the final fallback while native software decode, Metal color
+  handling, subtitle behavior, and broader format coverage are still being
+  validated.
 - Full app workflow testing is required before declaring the native backend
   complete.
 - Packaging, signing, and notarization must account for FFmpeg libraries in

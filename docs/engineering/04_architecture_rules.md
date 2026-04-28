@@ -163,6 +163,9 @@ Rules:
 - The current playback route is owned by a playback facade that tries the native backend first and falls back to `libmpv`.
 - The playback facade must create `libmpv` lazily on fallback demand; successful native playback must not initialize or retain an MPV player just because fallback exists.
 - The native backend uses FFmpeg demuxing, VideoToolbox hardware decode, native display, FFmpeg audio decode, and `AVAudioEngine` output.
+- Hardware decode support must be confirmed at runtime through VideoToolbox/FFmpeg capabilities and actual hardware frame output; codec names alone are not sufficient.
+- The native display path should move toward a shared Metal YUV renderer for both hardware `CVPixelBuffer` frames and future software-decoded FFmpeg `AVFrame` planes.
+- Unsupported color layouts, bit depths, ranges, chroma layouts, or frame strides must produce explicit native fallback reasons rather than silent incorrect rendering.
 - Native timestamp seek should first try the selected video stream and then fall back to a global seek before treating seek setup as a native failure.
 - If playback is currently using `libmpv`, same-file result selection and returning to `1.0x` speed should allow the facade to retry native playback instead of permanently pinning that file to fallback for the session.
 - The playback UI hosts a singleton render container owned by the playback facade; fullscreen must move that same container rather than creating an independent render view.
