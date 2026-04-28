@@ -8,7 +8,7 @@ struct SearchView: View {
     @State private var inspectorDragStartWidth: Double?
     @State private var isInspectorDividerHovered = false
     @State private var isInspectorDividerDragging = false
-    @FocusState private var isSearchFocused: Bool
+    @State private var isSearchFocused = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -235,7 +235,7 @@ struct SearchView: View {
 
 private struct SearchField: View {
     @Binding var text: String
-    var isFocused: FocusState<Bool>.Binding
+    @Binding var isFocused: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -249,7 +249,7 @@ private struct SearchField: View {
                     set: { text = $0 }
                 ),
                 placeholder: "Search subtitles",
-                isFocused: isFocused
+                isFocused: $isFocused
             )
             .frame(height: 22)
 
@@ -269,7 +269,7 @@ private struct SearchField: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isFocused.wrappedValue ? Color.accentColor : Color.clear, lineWidth: isFocused.wrappedValue ? 2 : 0)
+                .stroke(isFocused ? Color.accentColor : Color.clear, lineWidth: isFocused ? 2 : 0)
         }
     }
 }

@@ -4,7 +4,7 @@ import AppKit
 struct SearchTextView: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
-    var isFocused: FocusState<Bool>.Binding
+    @Binding var isFocused: Bool
 
     func makeNSView(context: Context) -> CustomTextView {
         let textView = CustomTextView()
@@ -25,7 +25,7 @@ struct SearchTextView: NSViewRepresentable {
         textView.placeholder = placeholder
         textView.onFocusChange = { focused in
             DispatchQueue.main.async {
-                self.isFocused.wrappedValue = focused
+                self.isFocused = focused
             }
         }
         
@@ -38,11 +38,11 @@ struct SearchTextView: NSViewRepresentable {
             textView.string = text
         }
         
-        if isFocused.wrappedValue && textView.window?.firstResponder != textView {
+        if isFocused && textView.window?.firstResponder != textView {
             DispatchQueue.main.async {
                 textView.window?.makeFirstResponder(textView)
             }
-        } else if !isFocused.wrappedValue && textView.window?.firstResponder == textView {
+        } else if !isFocused && textView.window?.firstResponder == textView {
             DispatchQueue.main.async {
                 textView.window?.makeFirstResponder(nil)
             }
