@@ -68,6 +68,9 @@ enum PlaybackStatus: Equatable {
 @MainActor
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
+    private static let isSidebarVisibleKey = "isSidebarVisible"
+    private static let isPlaybackInspectorVisibleKey = "isPlaybackInspectorVisible"
+    private static let playbackInspectorWidthKey = "playbackInspectorWidth"
 
     @Published var selectedSection: AppSection = .search
     @Published var selectedFolders: [URL] = []
@@ -100,6 +103,15 @@ final class AppState: ObservableObject {
         self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
 
+        userDefaults.register(defaults: [
+            Self.isSidebarVisibleKey: true,
+            Self.isPlaybackInspectorVisibleKey: false,
+            Self.playbackInspectorWidthKey: 520.0
+        ])
+        isSidebarVisible = userDefaults.bool(forKey: Self.isSidebarVisibleKey)
+        isPlaybackInspectorVisible = userDefaults.bool(forKey: Self.isPlaybackInspectorVisibleKey)
+        playbackInspectorWidth = userDefaults.double(forKey: Self.playbackInspectorWidthKey)
+
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
@@ -130,6 +142,7 @@ final class AppState: ObservableObject {
 
     func toggleSidebar() {
         isSidebarVisible.toggle()
+        userDefaults.set(isSidebarVisible, forKey: Self.isSidebarVisibleKey)
     }
 
     func togglePlaybackInspector() {
@@ -137,16 +150,19 @@ final class AppState: ObservableObject {
             collapsePlaybackInspector()
         } else {
             isPlaybackInspectorVisible = true
+            userDefaults.set(true, forKey: Self.isPlaybackInspectorVisibleKey)
         }
     }
 
     func collapsePlaybackInspector() {
         isPlaybackInspectorVisible = false
+        userDefaults.set(false, forKey: Self.isPlaybackInspectorVisibleKey)
         pausePlayback()
     }
 
     func updatePlaybackInspectorWidth(_ width: Double) {
         playbackInspectorWidth = width
+        userDefaults.set(width, forKey: Self.playbackInspectorWidthKey)
     }
 
     func selectSection(_ section: AppSection) {
@@ -236,6 +252,7 @@ final class AppState: ObservableObject {
     func openSearchResult(_ result: SubtitleSearchResult) {
         selectedSearchResult = result
         isPlaybackInspectorVisible = true
+        userDefaults.set(true, forKey: Self.isPlaybackInspectorVisibleKey)
         play(result)
     }
 
