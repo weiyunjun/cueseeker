@@ -3,6 +3,15 @@ import Testing
 @testable import SubFinderXPlayback
 
 @Test
+@MainActor
+func playbackRenderContainerViewInitializesWithoutAttachingBackendView() {
+    let view = PlaybackRenderContainerView()
+
+    #expect(view.subviews.isEmpty)
+    #expect(view.wantsLayer)
+}
+
+@Test
 func playbackRequestRejectsMissingVideoFile() throws {
     let missingVideo = FileManager.default.temporaryDirectory
         .appendingPathComponent("SubFinderXMissingVideo-\(UUID().uuidString)")

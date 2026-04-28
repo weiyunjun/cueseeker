@@ -76,3 +76,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Accepted native-first playback in ADR-0006, superseding the previous `libmpv`-primary decision while retaining `libmpv` as fallback.
 - Integrated the native playback backend into the production macOS app behind a playback facade that tries FFmpeg + VideoToolbox + native audio first and falls back to `libmpv` when needed.
 - Aligned playback product, engineering, proposal, and ADR documentation with the native-first production playback path and generalized fullscreen render-container ownership.
+- Fixed a playback crash when a search result falls back from native playback to `libmpv` by removing recursive render-container initialization.

@@ -30,7 +30,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         activeBackendStorage
     }
 
-    @MainActor public lazy var renderView: NSView = PlaybackRenderContainerView(player: self)
+    @MainActor public lazy var renderView: NSView = PlaybackRenderContainerView()
 
     public init(mpvPlayer: MPVPlayer) {
         self.mpvPlayer = mpvPlayer
@@ -285,15 +285,12 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
 
 @MainActor
 public final class PlaybackRenderContainerView: NSView {
-    private weak var player: PlaybackPlayer?
     private weak var attachedView: NSView?
 
-    init(player: PlaybackPlayer) {
-        self.player = player
+    init() {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
-        player.attachActiveRenderView()
     }
 
     @available(*, unavailable)
