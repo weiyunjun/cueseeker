@@ -56,3 +56,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Refined playback speed and volume controls by aligning keyboard speed limits with the control menu, adding the `1.75x` speed preset, reducing keyboard volume steps to `5%`, and stabilizing the volume hover layout.
 - Refined playback fullscreen chrome behavior, speed-menu hover behavior, timeline hover stability, and playback shortcut focus handling around read-only selectable metadata text.
 - Fixed fullscreen entry behavior so the initial hover event from the newly opened fullscreen window does not immediately reveal playback controls or the mouse cursor.
+- Verified the M2 playback interaction refinements after user testing and passing the Swift test suite with 23 tests on 2026-04-28.

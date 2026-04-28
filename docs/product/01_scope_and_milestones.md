@@ -105,7 +105,8 @@ Expected areas:
   Define shortcut commands, focus scope, and conflict rules, especially for search text input and playback context.
 - Playback interaction model.
   Refine playback controls, progress and seek interaction, action buttons, and visual feedback such as operation HUD or animation. Playback controls and keyboard shortcuts should share the same underlying playback command model.
-  Current implementation includes an app-drawn upward playback speed menu, subtitle visibility toggle, video-surface-only play/pause tapping, playback operation-zone click isolation, Theater Mode fullscreen, keyboard shortcuts, and transient feedback overlays.
+  Current implementation includes an app-drawn upward playback speed menu, hover-based speed preset selection, subtitle visibility toggle, video-surface-only play/pause tapping, playback operation-zone click isolation, Theater Mode fullscreen, keyboard shortcuts, and transient feedback overlays.
+  Recent playback refinements align keyboard speed limits with playback controls, add the `1.75x` speed preset, use `5%` keyboard volume steps, keep timeline and volume hover states vertically stable, keep playback shortcuts active while read-only metadata text is selected, and suppress initial fullscreen hover events so controls and the cursor remain hidden immediately after entering fullscreen.
 - Window sizing and restoration regression verification.
   M1 already implemented launch maximization, AppShell layout persistence, titlebar/full-screen behavior, and Playback Inspector width and visibility persistence. M2 should verify these behaviors and fix concrete regressions rather than treating this as a new major feature area.
 - File and folder management with file-access persistence.
