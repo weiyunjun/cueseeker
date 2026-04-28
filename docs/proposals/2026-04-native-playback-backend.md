@@ -291,6 +291,14 @@ Validated so far:
   60.0 seconds, pausing for 1.0 seconds after 60 output frames, produced 120
   output video frames, 0 late paced frames, 119 audio-master paced video frames,
   1 video-clock fallback frame, and no audio decode failures.
+- The display probe can now run for a requested wall-clock playback duration
+  with `--run-duration` and print process memory samples with
+  `--memory-sample-interval`.
+- A duration-limited display run against the representative Matroska sample at
+  60.0 seconds for 1.0 second produced 62 output video frames, 359 hardware
+  decoded frames, 0 software frames, 61 audio-master paced video frames, 1
+  video-clock fallback frame, 0 late paced frames, no audio decode failures, and
+  a native probe physical-footprint range from 12.6 MB at start to 23.5 MB max.
 
 Important prototype observations:
 
@@ -313,10 +321,13 @@ swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --display --seek 60.0 "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --seek 60.0 --seek-again 90.0 "/path/to/video.mkv" 60
 .build/debug/NativePlaybackProbe --display --seek 60.0 --pause-after-frames 60 --pause-duration 1.0 "/path/to/video.mkv" 120
+.build/debug/NativePlaybackProbe --display --seek 60.0 --run-duration 600 --memory-sample-interval 10 "/path/to/video.mkv"
 ```
 
 The optional trailing number is the target number of output video frames after
 each seek target, not a raw demux packet limit.
+When `--run-duration` is provided without a trailing frame count, the probe uses
+the requested playback duration as the primary stop condition.
 
 Expected representative output includes:
 
@@ -328,6 +339,9 @@ Paced video frames: 300
 Audio clock initialized: yes
 Audio-master paced video frames: 299
 Audio decode failures: 0
+Run duration reached: yes
+Memory RSS MB: start=36.1, max=80.9, end=80.6, delta=44.5
+Memory footprint MB: start=12.6, max=23.5, end=23.2, delta=10.6
 ```
 
 ### Seeking
@@ -408,6 +422,8 @@ Prototype acceptance progress:
 - Done: narrow display-probe audio-master pacing prototype.
 - Done: repeated display-probe seek between two requested playback timestamps.
 - Done: display-probe pause and resume simulation.
+- Done: duration-limited display-probe runs with process RSS and physical
+  footprint sampling.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.

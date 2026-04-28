@@ -14,6 +14,8 @@
 #include <libavutil/pixdesc.h>
 
 #include <errno.h>
+#include <limits.h>
+#include <mach/mach.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -34,6 +36,8 @@ typedef struct {
     double seekAgainSeconds;
     int pauseAfterOutputFrames;
     double pauseDurationSeconds;
+    double runDurationSeconds;
+    double memorySampleIntervalSeconds;
     bool displayFrames;
     AVSampleBufferDisplayLayer *__unsafe_unretained displayLayer;
     AVAudioEngine *__unsafe_unretained audioEngine;
@@ -83,12 +87,42 @@ typedef struct {
     int completedPauses;
 } PauseProbe;
 
+typedef struct {
+    bool enabled;
+    bool started;
+    bool expired;
+    double durationSeconds;
+    double startHostSeconds;
+} RunDurationLimit;
+
+typedef struct {
+    double rssMB;
+    double footprintMB;
+    double virtualMB;
+} ProcessMemorySnapshot;
+
+typedef struct {
+    bool enabled;
+    bool started;
+    double sampleIntervalSeconds;
+    double startHostSeconds;
+    double lastSampleHostSeconds;
+    int samples;
+    double firstRssMB;
+    double firstFootprintMB;
+    double lastRssMB;
+    double lastFootprintMB;
+    double maxRssMB;
+    double maxFootprintMB;
+} MemoryProbe;
+
 static enum AVPixelFormat hardwarePixelFormat = AV_PIX_FMT_NONE;
 static const int defaultMaxOutputFrames = 300;
 static const int defaultSeekPrerollPacketLimit = 3000;
 static const int receiveFramesOK = 0;
 static const int receiveFramesError = 1;
 static const int receiveFramesOutputLimit = 2;
+static const int receiveFramesRunDurationLimit = 3;
 
 static const char *codec_name(enum AVCodecID codecID) {
     const char *name = avcodec_get_name(codecID);
@@ -99,6 +133,150 @@ static void ffmpeg_error_string(int code, char *buffer, size_t bufferSize) {
     if (av_strerror(code, buffer, bufferSize) < 0) {
         snprintf(buffer, bufferSize, "FFmpeg error %d", code);
     }
+}
+
+static double bytes_to_mb(uint64_t bytes) {
+    return (double)bytes / (1024.0 * 1024.0);
+}
+
+static bool read_process_memory_snapshot(ProcessMemorySnapshot *snapshot) {
+    if (snapshot == NULL) {
+        return false;
+    }
+
+    task_vm_info_data_t info;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    kern_return_t result = task_info(
+        mach_task_self(),
+        TASK_VM_INFO,
+        (task_info_t)&info,
+        &count
+    );
+    if (result != KERN_SUCCESS) {
+        fprintf(stderr, "task_info(TASK_VM_INFO) failed: %s\n", mach_error_string(result));
+        return false;
+    }
+
+    snapshot->rssMB = bytes_to_mb(info.resident_size);
+    snapshot->footprintMB = bytes_to_mb(info.phys_footprint);
+    snapshot->virtualMB = bytes_to_mb(info.virtual_size);
+    return true;
+}
+
+static void print_memory_sample(
+    MemoryProbe *probe,
+    int outputVideoFrames,
+    const char *reason
+) {
+    if (probe == NULL || !probe->enabled) {
+        return;
+    }
+
+    double now = CACurrentMediaTime();
+    if (!probe->started) {
+        probe->started = true;
+        probe->startHostSeconds = now;
+        probe->lastSampleHostSeconds = now;
+    }
+
+    ProcessMemorySnapshot snapshot = {0};
+    if (!read_process_memory_snapshot(&snapshot)) {
+        return;
+    }
+
+    if (probe->samples == 0) {
+        probe->firstRssMB = snapshot.rssMB;
+        probe->firstFootprintMB = snapshot.footprintMB;
+        probe->maxRssMB = snapshot.rssMB;
+        probe->maxFootprintMB = snapshot.footprintMB;
+    }
+
+    if (snapshot.rssMB > probe->maxRssMB) {
+        probe->maxRssMB = snapshot.rssMB;
+    }
+    if (snapshot.footprintMB > probe->maxFootprintMB) {
+        probe->maxFootprintMB = snapshot.footprintMB;
+    }
+
+    probe->lastRssMB = snapshot.rssMB;
+    probe->lastFootprintMB = snapshot.footprintMB;
+    probe->lastSampleHostSeconds = now;
+    probe->samples++;
+
+    printf(
+        "Memory sample: reason=%s, elapsed=%.3fs, output_video_frames=%d, rss=%.1fMB, footprint=%.1fMB, virtual=%.1fMB\n",
+        reason,
+        now - probe->startHostSeconds,
+        outputVideoFrames,
+        snapshot.rssMB,
+        snapshot.footprintMB,
+        snapshot.virtualMB
+    );
+}
+
+static void maybe_print_memory_sample(MemoryProbe *probe, int outputVideoFrames) {
+    if (probe == NULL || !probe->enabled) {
+        return;
+    }
+
+    if (!probe->started) {
+        print_memory_sample(probe, outputVideoFrames, "start");
+        return;
+    }
+
+    double now = CACurrentMediaTime();
+    if (now - probe->lastSampleHostSeconds >= probe->sampleIntervalSeconds) {
+        print_memory_sample(probe, outputVideoFrames, "periodic");
+    }
+}
+
+static void print_memory_summary(MemoryProbe *probe, int outputVideoFrames) {
+    if (probe == NULL || !probe->enabled) {
+        return;
+    }
+
+    print_memory_sample(probe, outputVideoFrames, "end");
+    if (probe->samples == 0) {
+        return;
+    }
+
+    printf("Memory samples: %d\n", probe->samples);
+    printf(
+        "Memory RSS MB: start=%.1f, max=%.1f, end=%.1f, delta=%.1f\n",
+        probe->firstRssMB,
+        probe->maxRssMB,
+        probe->lastRssMB,
+        probe->lastRssMB - probe->firstRssMB
+    );
+    printf(
+        "Memory footprint MB: start=%.1f, max=%.1f, end=%.1f, delta=%.1f\n",
+        probe->firstFootprintMB,
+        probe->maxFootprintMB,
+        probe->lastFootprintMB,
+        probe->lastFootprintMB - probe->firstFootprintMB
+    );
+}
+
+static void start_run_duration_limit(RunDurationLimit *limit) {
+    if (limit == NULL || !limit->enabled || limit->started) {
+        return;
+    }
+
+    limit->started = true;
+    limit->startHostSeconds = CACurrentMediaTime();
+}
+
+static bool run_duration_limit_reached(RunDurationLimit *limit) {
+    if (limit == NULL || !limit->enabled || !limit->started) {
+        return false;
+    }
+
+    if (CACurrentMediaTime() - limit->startHostSeconds >= limit->durationSeconds) {
+        limit->expired = true;
+        return true;
+    }
+
+    return false;
 }
 
 static CMTime cm_time_from_frame(const AVFrame *frame, AVStream *videoStream) {
@@ -733,6 +911,8 @@ static int receive_available_frames(
     AudioClock *audioClock,
     PauseProbe *pauseProbe,
     AVAudioPlayerNode *audioPlayer,
+    RunDurationLimit *runDurationLimit,
+    MemoryProbe *memoryProbe,
     bool hasSeek,
     double seekSeconds,
     int *skippedVideoFrames,
@@ -762,6 +942,9 @@ static int receive_available_frames(
         }
 
         int outputFrames = outputVideoFrames != NULL ? *outputVideoFrames : *decodedFrames;
+        start_run_duration_limit(runDurationLimit);
+        maybe_print_memory_sample(memoryProbe, outputFrames);
+
         bool shouldPrint = outputFrames <= 5 || *decodedFrames % 60 == 0;
         if (frame->format == hardwarePixelFormat) {
             if (displayFrames) {
@@ -795,6 +978,10 @@ static int receive_available_frames(
         }
 
         av_frame_unref(frame);
+
+        if (run_duration_limit_reached(runDurationLimit)) {
+            return receiveFramesRunDurationLimit;
+        }
 
         if (maxOutputFrames > 0 && outputFrames >= maxOutputFrames) {
             return receiveFramesOutputLimit;
@@ -919,11 +1106,21 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     AudioClock audioClock = {
         .enabled = context.displayFrames && context.audioPlayer != nil && context.audioFormat != nil
     };
+    RunDurationLimit runDurationLimit = {
+        .enabled = context.runDurationSeconds > 0,
+        .durationSeconds = context.runDurationSeconds
+    };
+    MemoryProbe memoryProbe = {
+        .enabled = context.memorySampleIntervalSeconds > 0,
+        .sampleIntervalSeconds = context.memorySampleIntervalSeconds
+    };
     PauseProbe pauseProbe = {
         .enabled = context.displayFrames && context.pauseAfterOutputFrames > 0,
         .pauseAfterOutputFrames = context.pauseAfterOutputFrames,
         .durationSeconds = context.pauseDurationSeconds
     };
+
+    maybe_print_memory_sample(&memoryProbe, outputVideoFrames);
 
     int segmentCount = context.hasSeekAgain ? 2 : 1;
     bool activeHasSeek = context.hasSeek;
@@ -937,7 +1134,9 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         int segmentStartOutputFrames = outputVideoFrames;
         int segmentStartFedPackets = fedPackets;
         int segmentStartSkippedVideoFrames = skippedVideoFrames;
-        int segmentOutputLimit = segmentStartOutputFrames + context.maxOutputFrames;
+        int segmentOutputLimit = context.maxOutputFrames >= INT_MAX - segmentStartOutputFrames
+            ? INT_MAX
+            : segmentStartOutputFrames + context.maxOutputFrames;
         activeOutputLimit = segmentOutputLimit;
 
         activeHasSeek = segmentHasSeek;
@@ -962,7 +1161,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             seekOperations++;
         }
 
-        while (outputVideoFrames < segmentOutputLimit) {
+        while (outputVideoFrames < segmentOutputLimit && !runDurationLimit.expired) {
             if (segmentHasSeek
                 && outputVideoFrames == segmentStartOutputFrames
                 && fedPackets - segmentStartFedPackets >= context.seekPrerollPacketLimit) {
@@ -1035,6 +1234,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                 &audioClock,
                 &pauseProbe,
                 context.audioPlayer,
+                &runDurationLimit,
+                &memoryProbe,
                 segmentHasSeek,
                 segmentSeekSeconds,
                 &skippedVideoFrames,
@@ -1042,6 +1243,9 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                 segmentOutputLimit
             );
             if (receiveResult == receiveFramesOutputLimit) {
+                break;
+            }
+            if (receiveResult == receiveFramesRunDurationLimit) {
                 break;
             }
             if (receiveResult != receiveFramesOK) {
@@ -1066,7 +1270,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             completedSegments++;
         }
 
-        if (reachedEndOfInput || hitPrerollPacketLimit || decodeFailed) {
+        if (reachedEndOfInput || hitPrerollPacketLimit || decodeFailed || runDurationLimit.expired) {
             break;
         }
     }
@@ -1086,6 +1290,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             &audioClock,
             &pauseProbe,
             context.audioPlayer,
+            &runDurationLimit,
+            &memoryProbe,
             activeHasSeek,
             activeSeekSeconds,
             &skippedVideoFrames,
@@ -1124,6 +1330,14 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     if (context.hasSeekAgain) {
         printf("Repeated seek target: %.3fs\n", context.seekAgainSeconds);
     }
+    if (runDurationLimit.enabled) {
+        double elapsedSeconds = runDurationLimit.started
+            ? CACurrentMediaTime() - runDurationLimit.startHostSeconds
+            : 0;
+        printf("Run duration limit: %.3fs\n", runDurationLimit.durationSeconds);
+        printf("Run duration elapsed: %.3fs\n", elapsedSeconds);
+        printf("Run duration reached: %s\n", runDurationLimit.expired ? "yes" : "no");
+    }
     if (context.displayFrames) {
         printf("Paced video frames: %d\n", videoPacer.pacedFrames);
         printf("Late video frames: %d\n", videoPacer.lateFrames);
@@ -1151,6 +1365,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         printf("Unsupported audio frames: %d\n", audio->unsupportedFrames);
         printf("Audio decode failures: %d\n", audio->decodeFailures);
     }
+    print_memory_summary(&memoryProbe, outputVideoFrames);
 
     av_packet_free(&packet);
     av_frame_free(&frame);
@@ -1158,9 +1373,11 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     av_buffer_unref(&hardwareDeviceContext);
     destroy_audio_decode_context(audio);
 
+    bool completedRequestedWork = completedSegments == segmentCount || runDurationLimit.expired;
+
     return !decodeFailed
         && !hitPrerollPacketLimit
-        && completedSegments == segmentCount
+        && completedRequestedWork
         && outputVideoFrames > 0
         ? 0
         : 1;
@@ -1321,7 +1538,9 @@ static int run_console_probe(
     bool hasSeekAgain,
     double seekAgainSeconds,
     int pauseAfterOutputFrames,
-    double pauseDurationSeconds
+    double pauseDurationSeconds,
+    double runDurationSeconds,
+    double memorySampleIntervalSeconds
 ) {
     __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
@@ -1342,6 +1561,8 @@ static int run_console_probe(
         .seekAgainSeconds = seekAgainSeconds,
         .pauseAfterOutputFrames = pauseAfterOutputFrames,
         .pauseDurationSeconds = pauseDurationSeconds,
+        .runDurationSeconds = runDurationSeconds,
+        .memorySampleIntervalSeconds = memorySampleIntervalSeconds,
         .displayFrames = false,
         .displayLayer = nil,
         .audioEngine = nil,
@@ -1361,7 +1582,9 @@ static int run_display_probe(
     bool hasSeekAgain,
     double seekAgainSeconds,
     int pauseAfterOutputFrames,
-    double pauseDurationSeconds
+    double pauseDurationSeconds,
+    double runDurationSeconds,
+    double memorySampleIntervalSeconds
 ) {
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -1408,6 +1631,8 @@ static int run_display_probe(
             .seekAgainSeconds = seekAgainSeconds,
             .pauseAfterOutputFrames = pauseAfterOutputFrames,
             .pauseDurationSeconds = pauseDurationSeconds,
+            .runDurationSeconds = runDurationSeconds,
+            .memorySampleIntervalSeconds = memorySampleIntervalSeconds,
             .displayFrames = true,
             .displayLayer = displayLayer,
             .audioEngine = audioEngine,
@@ -1447,6 +1672,14 @@ static bool parse_nonnegative_seconds(const char *value, double *secondsOut) {
     return true;
 }
 
+static bool parse_positive_seconds(const char *value, double *secondsOut) {
+    if (!parse_nonnegative_seconds(value, secondsOut)) {
+        return false;
+    }
+
+    return *secondsOut > 0;
+}
+
 static bool parse_positive_int(const char *value, int *intOut) {
     errno = 0;
     char *end = NULL;
@@ -1462,7 +1695,7 @@ static bool parse_positive_int(const char *value, int *intOut) {
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: NativePlaybackProbe [--display] [--seek seconds] [--seek-again seconds] [--pause-after-frames count] [--pause-duration seconds] <media-file> [max-output-video-frames]\n"
+        "Usage: NativePlaybackProbe [--display] [--seek seconds] [--seek-again seconds] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
     );
 }
 
@@ -1480,6 +1713,8 @@ int main(int argc, char **argv) {
         double seekAgainSeconds = 0;
         int pauseAfterOutputFrames = 0;
         double pauseDurationSeconds = 1.0;
+        double runDurationSeconds = 0;
+        double memorySampleIntervalSeconds = 0;
         int argumentIndex = 1;
 
         while (argumentIndex < argc) {
@@ -1539,6 +1774,30 @@ int main(int argc, char **argv) {
                 continue;
             }
 
+            if (strcmp(argv[argumentIndex], "--run-duration") == 0) {
+                if (argumentIndex + 1 >= argc
+                    || !parse_positive_seconds(argv[argumentIndex + 1], &runDurationSeconds)) {
+                    fprintf(stderr, "Invalid --run-duration value.\n");
+                    print_usage();
+                    return 2;
+                }
+
+                argumentIndex += 2;
+                continue;
+            }
+
+            if (strcmp(argv[argumentIndex], "--memory-sample-interval") == 0) {
+                if (argumentIndex + 1 >= argc
+                    || !parse_positive_seconds(argv[argumentIndex + 1], &memorySampleIntervalSeconds)) {
+                    fprintf(stderr, "Invalid --memory-sample-interval value.\n");
+                    print_usage();
+                    return 2;
+                }
+
+                argumentIndex += 2;
+                continue;
+            }
+
             break;
         }
 
@@ -1559,15 +1818,20 @@ int main(int argc, char **argv) {
         }
 
         const char *path = argv[argumentIndex++];
-        int maxOutputFrames = argumentIndex < argc
-            ? atoi(argv[argumentIndex++])
-            : defaultMaxOutputFrames;
+        bool hasExplicitMaxOutputFrames = argumentIndex < argc;
+        int maxOutputFrames = defaultMaxOutputFrames;
+        if (hasExplicitMaxOutputFrames
+            && !parse_positive_int(argv[argumentIndex++], &maxOutputFrames)) {
+            fprintf(stderr, "Invalid max-output-video-frames value.\n");
+            print_usage();
+            return 2;
+        }
         if (argumentIndex != argc) {
             print_usage();
             return 2;
         }
-        if (maxOutputFrames <= 0) {
-            maxOutputFrames = defaultMaxOutputFrames;
+        if (runDurationSeconds > 0 && !hasExplicitMaxOutputFrames) {
+            maxOutputFrames = INT_MAX;
         }
 
         if (displayFrames) {
@@ -1579,7 +1843,9 @@ int main(int argc, char **argv) {
                 hasSeekAgain,
                 seekAgainSeconds,
                 pauseAfterOutputFrames,
-                pauseDurationSeconds
+                pauseDurationSeconds,
+                runDurationSeconds,
+                memorySampleIntervalSeconds
             );
         }
 
@@ -1591,7 +1857,9 @@ int main(int argc, char **argv) {
             hasSeekAgain,
             seekAgainSeconds,
             pauseAfterOutputFrames,
-            pauseDurationSeconds
+            pauseDurationSeconds,
+            runDurationSeconds,
+            memorySampleIntervalSeconds
         );
     }
 }
