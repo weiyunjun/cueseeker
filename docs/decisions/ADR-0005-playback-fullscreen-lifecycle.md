@@ -28,6 +28,7 @@ We decouple the lifecycle of the OpenGL render view from SwiftUI.
 We abandon the buggy macOS native `toggleFullScreen` animations for the video player.
 - The `FullscreenVideoManager` will create a pure-black, borderless `NSWindow` matching the screen's exact dimensions.
 - The manager will instantly display this window over the entire screen and programmatically hide the Menu Bar and Dock using `NSApp.presentationOptions = [.autoHideMenuBar, .autoHideDock]`.
+- The Theater Mode window must stay below system overlays, including the Cmd-Tab app switcher.
 - Exiting fullscreen simply involves closing the window and restoring the presentation options.
 - This bypasses all Space Transition animations, providing a 0-delay, native-feeling fullscreen experience that cannot crash the Window Server.
 

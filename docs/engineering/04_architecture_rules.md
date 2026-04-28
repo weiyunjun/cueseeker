@@ -164,6 +164,7 @@ Rules:
 - The current M2 fullscreen architecture uses a singleton `MPVRenderView` owned by `MPVPlayer`.
 - SwiftUI playback views host or borrow the singleton render view; they must not create independent render views for fullscreen.
 - Playback fullscreen uses a borderless Theater Mode window and must not call the app window's system Full Screen transition.
+- The Theater Mode window must use an app-level window level and must not use `screenSaver` or other system-overlay window levels that can cover the Cmd-Tab app switcher.
 - Closing fullscreen, hiding the Playback Inspector, switching away from Search, closing the main window, or terminating the app must clean up the fullscreen window.
 - Playback controls in the inspector and fullscreen overlay should share the same playback view model and feedback overlay model.
 - Fullscreen chrome visibility and cursor hiding are owned by the fullscreen manager, not by individual SwiftUI playback control views.

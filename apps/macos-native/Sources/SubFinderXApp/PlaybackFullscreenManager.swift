@@ -57,7 +57,8 @@ final class PlaybackFullscreenManager: ObservableObject {
         window.isOpaque = true
         window.acceptsMouseMovedEvents = true
         window.isReleasedWhenClosed = false
-        window.level = .screenSaver
+        // Keep Theater Mode below system overlays such as the Cmd-Tab app switcher.
+        window.level = .normal
         window.onEscape = { [weak self] in
             Task { @MainActor in
                 self?.exitFullscreen()

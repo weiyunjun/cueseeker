@@ -57,4 +57,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Refined playback fullscreen chrome behavior, speed-menu hover behavior, timeline hover stability, and playback shortcut focus handling around read-only selectable metadata text.
 - Fixed fullscreen entry behavior so the initial hover event from the newly opened fullscreen window does not immediately reveal playback controls or the mouse cursor.
 - Suspended Theater Mode while the app is inactive so app switching no longer leaves the fullscreen playback window visually covering other applications.
+- Lowered the Theater Mode window level so the Cmd-Tab app switcher remains visible while playback fullscreen is active.
 - Verified the M2 playback interaction refinements after user testing and passing the Swift test suite with 23 tests on 2026-04-28.

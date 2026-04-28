@@ -126,6 +126,7 @@ Required behavior:
 - Fullscreen should apply to the video playback experience, not to the entire app shell.
 - Entering fullscreen should present the current video in an independent black theater-style window.
 - The main app window should not enter the system Full Screen Space when the playback fullscreen button is used.
+- The Theater Mode window must remain below system overlays such as the Cmd-Tab app switcher.
 - The fullscreen window should reuse the same `MPVRenderView` and `libmpv` render context used by the Playback Inspector.
 - Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
 - The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
