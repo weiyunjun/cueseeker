@@ -25,6 +25,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define MAX_SEEK_TARGETS 128
+
 typedef struct {
     AVFormatContext *formatContext;
     int videoStreamIndex;
@@ -35,6 +37,9 @@ typedef struct {
     double seekSeconds;
     bool hasSeekAgain;
     double seekAgainSeconds;
+    int seekTargetCount;
+    int seekListLoops;
+    double seekTargets[MAX_SEEK_TARGETS];
     int pauseAfterOutputFrames;
     double pauseDurationSeconds;
     double runDurationSeconds;
@@ -1152,15 +1157,20 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
 
     maybe_print_memory_sample(&memoryProbe, outputVideoFrames);
 
-    int segmentCount = context.hasSeekAgain ? 2 : 1;
+    int seekTargetCount = context.seekTargetCount;
+    int seekLoopCount = seekTargetCount > 0 ? context.seekListLoops : 1;
+    if (seekLoopCount <= 0) {
+        seekLoopCount = 1;
+    }
+    int segmentCount = seekTargetCount > 0 ? seekTargetCount * seekLoopCount : 1;
     bool activeHasSeek = context.hasSeek;
     double activeSeekSeconds = context.seekSeconds;
 
     for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++) {
-        bool segmentHasSeek = segmentIndex == 0 ? context.hasSeek : true;
-        double segmentSeekSeconds = segmentIndex == 0
-            ? context.seekSeconds
-            : context.seekAgainSeconds;
+        bool segmentHasSeek = seekTargetCount > 0;
+        double segmentSeekSeconds = segmentHasSeek
+            ? context.seekTargets[segmentIndex % seekTargetCount]
+            : 0;
         int segmentStartOutputFrames = outputVideoFrames;
         int segmentStartFedPackets = fedPackets;
         int segmentStartSkippedVideoFrames = skippedVideoFrames;
@@ -1173,9 +1183,12 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         activeSeekSeconds = segmentSeekSeconds;
 
         if (segmentHasSeek) {
-            if (segmentIndex > 0) {
-                printf("Repeated seek %d\n", segmentIndex);
-            }
+            printf(
+                "Seek segment %d/%d target: %.3fs\n",
+                segmentIndex + 1,
+                segmentCount,
+                segmentSeekSeconds
+            );
 
             if (seek_input_to_seconds(
                 context,
@@ -1370,16 +1383,23 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     printf("Hardware frames: %d\n", hardwareFrames);
     printf("Software frames: %d\n", softwareFrames);
     printf("Output video frames: %d\n", outputVideoFrames);
-    if (context.hasSeek || context.hasSeekAgain) {
+    if (seekOperations > 0) {
         printf("Seek operations: %d\n", seekOperations);
     }
-    if (context.hasSeek) {
+    if (context.hasSeek && !context.hasSeekAgain && context.seekTargetCount == 1) {
         printf("Seek target: %.3fs\n", context.seekSeconds);
         printf("Skipped video frames before seek target: %d\n", skippedVideoFrames);
         printf("Seek preroll packet limit: %d\n", context.seekPrerollPacketLimit);
-    }
-    if (context.hasSeekAgain) {
+    } else if (context.hasSeekAgain && context.seekTargetCount == 2) {
+        printf("Seek target: %.3fs\n", context.seekSeconds);
         printf("Repeated seek target: %.3fs\n", context.seekAgainSeconds);
+        printf("Skipped video frames before seek target: %d\n", skippedVideoFrames);
+        printf("Seek preroll packet limit: %d\n", context.seekPrerollPacketLimit);
+    } else if (context.seekTargetCount > 0) {
+        printf("Seek target count: %d\n", context.seekTargetCount);
+        printf("Seek list loops: %d\n", seekLoopCount);
+        printf("Skipped video frames before seek targets: %d\n", skippedVideoFrames);
+        printf("Seek preroll packet limit: %d\n", context.seekPrerollPacketLimit);
     }
     if (runDurationLimit.enabled) {
         double elapsedSeconds = runDurationLimit.started
@@ -1410,8 +1430,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         printf("Audio packets fed: %d\n", audioPackets);
         printf("Decoded audio frames: %d\n", audio->decodedFrames);
         printf("Scheduled audio buffers: %d\n", audio->scheduledBuffers);
-        if (context.hasSeek) {
-            printf("Skipped audio frames before seek target: %d\n", audio->skippedBeforeSeek);
+        if (seekOperations > 0) {
+            printf("Skipped audio frames before seek targets: %d\n", audio->skippedBeforeSeek);
         }
         printf("Unsupported audio frames: %d\n", audio->unsupportedFrames);
         printf("Audio decode failures: %d\n", audio->decodeFailures);
@@ -1590,6 +1610,9 @@ static int run_console_probe(
     double seekSeconds,
     bool hasSeekAgain,
     double seekAgainSeconds,
+    int seekTargetCount,
+    const double *seekTargets,
+    int seekListLoops,
     int pauseAfterOutputFrames,
     double pauseDurationSeconds,
     double runDurationSeconds,
@@ -1613,6 +1636,8 @@ static int run_console_probe(
         .seekSeconds = seekSeconds,
         .hasSeekAgain = hasSeekAgain,
         .seekAgainSeconds = seekAgainSeconds,
+        .seekTargetCount = seekTargetCount,
+        .seekListLoops = seekListLoops,
         .pauseAfterOutputFrames = pauseAfterOutputFrames,
         .pauseDurationSeconds = pauseDurationSeconds,
         .runDurationSeconds = runDurationSeconds,
@@ -1624,6 +1649,9 @@ static int run_console_probe(
         .audioPlayer = nil,
         .audioFormat = nil
     };
+    if (seekTargetCount > 0 && seekTargets != NULL) {
+        memcpy(context.seekTargets, seekTargets, sizeof(double) * (size_t)seekTargetCount);
+    }
     int probeResult = run_videotoolbox_decode_probe(context);
     avformat_close_input(&formatContext);
     return probeResult;
@@ -1636,6 +1664,9 @@ static int run_display_probe(
     double seekSeconds,
     bool hasSeekAgain,
     double seekAgainSeconds,
+    int seekTargetCount,
+    const double *seekTargets,
+    int seekListLoops,
     int pauseAfterOutputFrames,
     double pauseDurationSeconds,
     double runDurationSeconds,
@@ -1685,6 +1716,8 @@ static int run_display_probe(
             .seekSeconds = seekSeconds,
             .hasSeekAgain = hasSeekAgain,
             .seekAgainSeconds = seekAgainSeconds,
+            .seekTargetCount = seekTargetCount,
+            .seekListLoops = seekListLoops,
             .pauseAfterOutputFrames = pauseAfterOutputFrames,
             .pauseDurationSeconds = pauseDurationSeconds,
             .runDurationSeconds = runDurationSeconds,
@@ -1696,6 +1729,9 @@ static int run_display_probe(
             .audioPlayer = audioPlayer,
             .audioFormat = audioFormat
         };
+        if (seekTargetCount > 0 && seekTargets != NULL) {
+            memcpy(context.seekTargets, seekTargets, sizeof(double) * (size_t)seekTargetCount);
+        }
         probeResult = run_videotoolbox_decode_probe(context);
 
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -1749,10 +1785,53 @@ static bool parse_positive_int(const char *value, int *intOut) {
     return true;
 }
 
+static bool parse_seek_list(const char *value, double *targets, int *targetCountOut) {
+    if (value == NULL || targets == NULL || targetCountOut == NULL) {
+        return false;
+    }
+
+    char *copy = strdup(value);
+    if (copy == NULL) {
+        return false;
+    }
+
+    int count = 0;
+    char *cursor = copy;
+    while (cursor != NULL) {
+        char *comma = strchr(cursor, ',');
+        if (comma != NULL) {
+            *comma = '\0';
+        }
+
+        if (*cursor == '\0' || count >= MAX_SEEK_TARGETS) {
+            free(copy);
+            return false;
+        }
+
+        double seconds = 0;
+        if (!parse_nonnegative_seconds(cursor, &seconds)) {
+            free(copy);
+            return false;
+        }
+
+        targets[count++] = seconds;
+        cursor = comma != NULL ? comma + 1 : NULL;
+    }
+
+    free(copy);
+
+    if (count <= 0) {
+        return false;
+    }
+
+    *targetCountOut = count;
+    return true;
+}
+
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: NativePlaybackProbe [--display] [--quiet] [--seek seconds] [--seek-again seconds] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
+        "Usage: NativePlaybackProbe [--display] [--quiet] [--seek seconds] [--seek-again seconds] [--seek-list seconds[,seconds...]] [--seek-list-loops count] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
     );
 }
 
@@ -1770,6 +1849,10 @@ int main(int argc, char **argv) {
         double seekSeconds = 0;
         bool hasSeekAgain = false;
         double seekAgainSeconds = 0;
+        bool hasSeekList = false;
+        int seekTargetCount = 0;
+        int seekListLoops = 1;
+        double seekTargets[MAX_SEEK_TARGETS] = {0};
         int pauseAfterOutputFrames = 0;
         double pauseDurationSeconds = 1.0;
         double runDurationSeconds = 0;
@@ -1812,6 +1895,31 @@ int main(int argc, char **argv) {
                 }
 
                 hasSeekAgain = true;
+                argumentIndex += 2;
+                continue;
+            }
+
+            if (strcmp(argv[argumentIndex], "--seek-list") == 0) {
+                if (argumentIndex + 1 >= argc
+                    || !parse_seek_list(argv[argumentIndex + 1], seekTargets, &seekTargetCount)) {
+                    fprintf(stderr, "Invalid --seek-list value.\n");
+                    print_usage();
+                    return 2;
+                }
+
+                hasSeekList = true;
+                argumentIndex += 2;
+                continue;
+            }
+
+            if (strcmp(argv[argumentIndex], "--seek-list-loops") == 0) {
+                if (argumentIndex + 1 >= argc
+                    || !parse_positive_int(argv[argumentIndex + 1], &seekListLoops)) {
+                    fprintf(stderr, "Invalid --seek-list-loops value.\n");
+                    print_usage();
+                    return 2;
+                }
+
                 argumentIndex += 2;
                 continue;
             }
@@ -1872,8 +1980,30 @@ int main(int argc, char **argv) {
             print_usage();
             return 2;
         }
+        if (hasSeekList && (hasSeek || hasSeekAgain)) {
+            fprintf(stderr, "--seek-list cannot be combined with --seek or --seek-again.\n");
+            print_usage();
+            return 2;
+        }
+        if (!hasSeekList && seekListLoops != 1) {
+            fprintf(stderr, "--seek-list-loops requires --seek-list.\n");
+            print_usage();
+            return 2;
+        }
         if (pauseAfterOutputFrames > 0 && !displayFrames) {
             fprintf(stderr, "--pause-after-frames requires --display.\n");
+            print_usage();
+            return 2;
+        }
+
+        if (!hasSeekList && hasSeek) {
+            seekTargets[seekTargetCount++] = seekSeconds;
+            if (hasSeekAgain) {
+                seekTargets[seekTargetCount++] = seekAgainSeconds;
+            }
+        }
+        if (seekTargetCount > 0 && seekListLoops > INT_MAX / seekTargetCount) {
+            fprintf(stderr, "Too many seek-list segments.\n");
             print_usage();
             return 2;
         }
@@ -1908,6 +2038,9 @@ int main(int argc, char **argv) {
                 seekSeconds,
                 hasSeekAgain,
                 seekAgainSeconds,
+                seekTargetCount,
+                seekTargets,
+                seekListLoops,
                 pauseAfterOutputFrames,
                 pauseDurationSeconds,
                 runDurationSeconds,
@@ -1923,6 +2056,9 @@ int main(int argc, char **argv) {
             seekSeconds,
             hasSeekAgain,
             seekAgainSeconds,
+            seekTargetCount,
+            seekTargets,
+            seekListLoops,
             pauseAfterOutputFrames,
             pauseDurationSeconds,
             runDurationSeconds,

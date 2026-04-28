@@ -68,3 +68,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Advanced the native playback probe with timestamp seek, seek-preroll handling, audio-clock video pacing, repeated seek simulation, and pause/resume simulation against the representative H.264/Opus Matroska sample while keeping the production `libmpv` playback path unchanged.
 - Added duration-limited native playback probe runs with process RSS and physical-footprint sampling to support long-running stability and memory comparisons before any production playback backend change.
 - Added quiet and interrupt-safe native playback probe output so repeated 5-minute stability runs remain readable and still produce final summaries when stopped early.
+- Added seek-list native playback probe runs to simulate repeated search result selection and stress decoder, audio, display, and clock reset behavior before app integration.

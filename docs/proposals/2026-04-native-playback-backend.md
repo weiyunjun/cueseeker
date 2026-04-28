@@ -302,6 +302,9 @@ Validated so far:
 - The probe now supports `--quiet` for iterative stability runs and handles
   Ctrl-C/SIGTERM by finishing the decode loop, printing the usual summary, and
   preserving a non-zero interrupted exit code in display mode.
+- The probe now supports `--seek-list` and `--seek-list-loops` so repeated
+  search-result selection can be stress-tested without manually restarting the
+  probe.
 
 Important prototype observations:
 
@@ -326,6 +329,7 @@ swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --display --seek 60.0 --pause-after-frames 60 --pause-duration 1.0 "/path/to/video.mkv" 120
 .build/debug/NativePlaybackProbe --display --seek 60.0 --run-duration 600 --memory-sample-interval 10 "/path/to/video.mkv"
 .build/debug/NativePlaybackProbe --display --quiet --seek 60.0 --run-duration 300 --memory-sample-interval 10 "/path/to/video.mkv"
+.build/debug/NativePlaybackProbe --display --quiet --seek-list 60.0,90.0,120.0,150.0 --seek-list-loops 15 --memory-sample-interval 10 "/path/to/video.mkv" 300
 ```
 
 The optional trailing number is the target number of output video frames after
@@ -334,6 +338,9 @@ When `--run-duration` is provided without a trailing frame count, the probe uses
 the requested playback duration as the primary stop condition.
 Use `--quiet` for repeated 5-minute runs so memory samples and the final summary
 remain readable.
+Use `--seek-list` with a trailing frame count to simulate repeatedly selecting
+different subtitle search results. For a 59.94 fps file, `300` output frames per
+seek target is roughly five seconds per selected result.
 
 Expected representative output includes:
 
@@ -434,6 +441,7 @@ Prototype acceptance progress:
 - Done: duration-limited display-probe runs with process RSS and physical
   footprint sampling.
 - Done: quiet iterative probe output and interrupt-safe final summaries.
+- Done: repeated seek-list stress runs for search-result selection simulation.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.
