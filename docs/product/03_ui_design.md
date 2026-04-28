@@ -141,6 +141,8 @@ Behavior:
 - Playback fullscreen presents the video in a black Theater Mode window rather than fullscreening the app shell.
 - Transient playback feedback overlays appear above the video for play/pause, subtitle visibility, seek, volume, and speed changes.
 - The playback speed selector is an app-drawn menu that opens upward from the speed control.
+- The speed control must display fractional presets such as `1.25x` and `1.75x` without truncation.
+- When the volume control is hovered, the volume slider and numeric percentage appear together without moving the playback controls vertically.
 
 Layout:
 

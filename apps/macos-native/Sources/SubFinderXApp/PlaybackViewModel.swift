@@ -18,6 +18,10 @@ struct PlaybackFeedback: Identifiable, Equatable {
 
 @MainActor
 public final class PlaybackViewModel: ObservableObject {
+    static let minimumPlaybackSpeed = 0.5
+    static let maximumPlaybackSpeed = 2.0
+    static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+
     public let player: MPVPlayer
     
     @Published public var isPlaying: Bool = false
@@ -117,7 +121,10 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     public func setSpeed(_ value: Double, showsFeedback: Bool = true) {
-        let clampedValue = min(max(value, 0.25), 4.0)
+        let clampedValue = min(
+            max(value, Self.minimumPlaybackSpeed),
+            Self.maximumPlaybackSpeed
+        )
 
         do {
             try player.setDoubleProperty("speed", value: clampedValue)
@@ -174,7 +181,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: "speedometer",
-                text: formatSpeed(speed),
+                text: Self.formatSpeed(speed),
                 isCircular: false
             )
         )
@@ -218,7 +225,7 @@ public final class PlaybackViewModel: ObservableObject {
         }
     }
 
-    private func formatSpeed(_ speed: Double) -> String {
+    static func formatSpeed(_ speed: Double) -> String {
         if speed.rounded() == speed {
             return String(format: "%.0fx", speed)
         }

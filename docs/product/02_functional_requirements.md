@@ -123,8 +123,10 @@ Requirements:
 - Do not automatically resume playback when the Playback Inspector is reopened.
 - Provide video-level fullscreen that does not put the app shell into macOS Full Screen.
 - Provide a subtitle visibility toggle.
-- Provide playback speed control with the existing preset menu.
+- Provide playback speed control with preset choices from `0.5x` through `2.0x`.
 - Provide keyboard shortcuts for subtitle visibility, fullscreen, play or pause, relative seek, volume, and speed adjustment.
+- Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
+- Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
 
 The playback engine is selected in `docs/decisions/ADR-0003-playback-engine.md`.

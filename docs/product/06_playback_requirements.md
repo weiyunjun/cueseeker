@@ -157,23 +157,24 @@ Required behavior:
 - The playback speed selector should be an app-drawn menu that opens upward from the speed button.
 - The playback speed menu should match the current playback control visual style.
 - The subtitle button should toggle subtitle visibility through the playback engine.
-- Playback keyboard shortcuts should be available when a playback result is selected and the user is not typing into a text field.
+- Playback keyboard shortcuts should be available when a playback result is selected, the playback interface is visible, and the user is not typing into a text field.
 - `C` should show or hide subtitles.
 - `F` should enter or exit playback fullscreen.
 - `Space` should play or pause.
 - `Left Arrow` should seek backward by 5 seconds.
 - `Right Arrow` should seek forward by 5 seconds.
-- `Up Arrow` should increase volume by 10 percentage points.
-- `Down Arrow` should decrease volume by 10 percentage points.
+- `Up Arrow` should increase volume by 5 percentage points.
+- `Down Arrow` should decrease volume by 5 percentage points.
 - `Shift+,` should decrease playback speed by 0.25x.
 - `Shift+.` should increase playback speed by 0.25x.
-- The visible playback speed menu should keep its existing preset choices.
+- Playback speed changes must stay within `0.5x` through `2.0x`.
+- The visible playback speed menu should offer `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - Playback commands should show transient feedback for subtitle visibility, play or pause, seek direction and amount, volume, and playback speed.
 
 Current implementation notes:
 
-- The speed preset menu remains `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, and `2.0x`.
-- Keyboard speed changes adjust the current speed by `0.25x` and are not limited to only the visible preset values.
+- The speed preset menu remains `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
+- Keyboard speed changes adjust the current speed by `0.25x` and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
 

@@ -103,7 +103,8 @@ Current M2 implementation:
 - Playback fullscreen uses a Theater Mode window and returns the same video render view to the Playback Inspector when closed.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
 - Shortcut and control actions show transient feedback overlays for subtitle visibility, play/pause, relative seek, volume, and speed.
-- The visible playback speed menu keeps its preset choices while keyboard shortcuts adjust speed in 0.25x steps.
+- The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
+- Keyboard shortcuts adjust speed in `0.25x` steps and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - The previous Flutter shortcut model was used as a reference, but the native M2 map intentionally changes subtitles to `C`, removes the bottom-mask shortcut, and changes speed adjustment to `Shift+,` and `Shift+.`.
 
 ## 6. Indexing Interaction
@@ -147,12 +148,12 @@ M2 keyboard shortcut model:
 - Playback shortcuts should trigger the same playback commands used by visible playback controls.
 - Shortcut handling should not duplicate playback state transitions separately from the playback interaction model.
 - The native menu bar should expose relevant commands so keyboard shortcuts are discoverable through standard macOS menus where practical.
-- Playback shortcuts should be active only when a playback result is selected and text input is not focused.
+- Playback shortcuts should be active only when a playback result is selected, the playback interface is visible, and text input is not focused.
 - `C` should show or hide subtitles.
 - `F` should enter or exit playback fullscreen.
 - `Space` should toggle play or pause.
 - `Left Arrow` and `Right Arrow` should seek backward or forward by 5 seconds.
-- `Up Arrow` and `Down Arrow` should adjust volume by 10 percentage points.
+- `Up Arrow` and `Down Arrow` should adjust volume by 5 percentage points.
 - `Shift+,` and `Shift+.` should decrease or increase playback speed by 0.25x.
 - Playback shortcut commands should show lightweight feedback overlays for subtitle visibility, play or pause, relative seek, volume, and speed changes.
 

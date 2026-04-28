@@ -63,31 +63,7 @@ struct PlaybackControlsView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
 
-                HStack(spacing: 8) {
-                    Button(action: {
-                        viewModel.setVolume(viewModel.volume > 0 ? 0 : 100)
-                    }) {
-                        Image(systemName: volumeIcon)
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
-                            .frame(width: 20)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-
-                    if isVolumeHovered {
-                        CustomVolumeSlider(volume: Binding(
-                            get: { viewModel.volume },
-                            set: { newValue in
-                                viewModel.volume = newValue
-                                viewModel.setVolume(newValue, showsFeedback: false)
-                            }
-                        ))
-                        .frame(width: 80, height: 20)
-                    }
-                }
-                .onHover { hovering in
-                    isVolumeHovered = hovering
-                }
+                volumeControl
 
                 Text("\(formatTime(viewModel.currentTime)) / \(formatTime(viewModel.duration))")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -110,12 +86,14 @@ struct PlaybackControlsView: View {
                     }
                 }) {
                     HStack(spacing: 2) {
-                        Text(String(format: "%.1fx", viewModel.playbackSpeed))
+                        Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
                             .font(.system(size: 13, weight: .semibold))
+                            .fixedSize(horizontal: true, vertical: false)
                         Image(systemName: "chevron.up")
                             .font(.system(size: 10, weight: .bold))
                     }
                     .foregroundColor(.white)
+                    .frame(minWidth: 54, alignment: .center)
                 }
                 .buttonStyle(PlainButtonStyle())
 
@@ -130,6 +108,7 @@ struct PlaybackControlsView: View {
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
+            .frame(height: 36, alignment: .center)
         }
         .background(
             LinearGradient(
@@ -152,6 +131,40 @@ struct PlaybackControlsView: View {
         if viewModel.volume < 66 { return "speaker.wave.2.fill" }
         return "speaker.wave.3.fill"
     }
+
+    private var volumeControl: some View {
+        HStack(spacing: 8) {
+            Button(action: {
+                viewModel.setVolume(viewModel.volume > 0 ? 0 : 100)
+            }) {
+                Image(systemName: volumeIcon)
+                    .font(.system(size: 16))
+                    .foregroundColor(.white)
+                    .frame(width: 20)
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            if isVolumeHovered {
+                CustomVolumeSlider(volume: Binding(
+                    get: { viewModel.volume },
+                    set: { newValue in
+                        viewModel.volume = newValue
+                        viewModel.setVolume(newValue, showsFeedback: false)
+                    }
+                ))
+                .frame(width: 80, height: 20)
+
+                Text("\(Int(viewModel.volume.rounded()))%")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.9))
+                    .frame(width: 34, alignment: .trailing)
+            }
+        }
+        .frame(height: 24, alignment: .center)
+        .onHover { hovering in
+            isVolumeHovered = hovering
+        }
+    }
     
     private func formatTime(_ seconds: Double) -> String {
         let totalSeconds = Int(seconds.isNaN || seconds.isInfinite ? 0 : seconds)
@@ -165,16 +178,14 @@ private struct PlaybackSpeedMenu: View {
     let selectedSpeed: Double
     let onSelect: (Double) -> Void
 
-    private let speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(speeds, id: \.self) { speed in
+            ForEach(PlaybackViewModel.speedPresets, id: \.self) { speed in
                 Button {
                     onSelect(speed)
                 } label: {
                     HStack(spacing: 10) {
-                        Text(formatSpeed(speed))
+                        Text(PlaybackViewModel.formatSpeed(speed))
                             .font(.system(size: 13, weight: .medium))
                             .frame(width: 42, alignment: .leading)
 
@@ -201,18 +212,6 @@ private struct PlaybackSpeedMenu: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .shadow(color: .black.opacity(0.28), radius: 12, x: 0, y: 4)
-    }
-
-    private func formatSpeed(_ speed: Double) -> String {
-        if speed.rounded() == speed {
-            return String(format: "%.0fx", speed)
-        }
-
-        if (speed * 10).rounded() == speed * 10 {
-            return String(format: "%.1fx", speed)
-        }
-
-        return String(format: "%.2fx", speed)
     }
 }
 

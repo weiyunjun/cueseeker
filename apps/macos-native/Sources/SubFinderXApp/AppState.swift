@@ -336,6 +336,13 @@ final class AppState: ObservableObject {
         keyCode: UInt16,
         modifierFlagsRawValue: UInt
     ) -> Bool {
+        let isPlaybackInterfaceVisible = selectedSection == .search
+            && (isPlaybackInspectorVisible || playbackFullscreenManager.isFullscreen)
+
+        guard isPlaybackInterfaceVisible else {
+            return false
+        }
+
         guard selectedSearchResult != nil, let viewModel = playbackViewModel else {
             return false
         }
@@ -375,10 +382,10 @@ final class AppState: ObservableObject {
             viewModel.seekRelative(by: 5)
             return true
         case 126:
-            viewModel.adjustVolume(by: 10)
+            viewModel.adjustVolume(by: 5)
             return true
         case 125:
-            viewModel.adjustVolume(by: -10)
+            viewModel.adjustVolume(by: -5)
             return true
         case 43 where hasShift:
             viewModel.adjustSpeed(by: -0.25)
