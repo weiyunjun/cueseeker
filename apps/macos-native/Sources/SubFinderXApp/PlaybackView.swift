@@ -3,7 +3,7 @@ import SwiftUI
 import SubFinderXPlayback
 
 struct PlaybackView: View {
-    let player: MPVPlayer?
+    let player: PlaybackPlayer?
     let viewModel: PlaybackViewModel?
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
@@ -23,7 +23,7 @@ struct PlaybackView: View {
 }
 
 struct PlaybackVideoView: View {
-    let player: MPVPlayer
+    let player: PlaybackPlayer
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
@@ -34,7 +34,7 @@ struct PlaybackVideoView: View {
             if fullscreenManager.isFullscreen {
                 Color.black
             } else {
-                MPVRenderViewWrapper(player: player)
+                PlaybackRenderViewWrapper(player: player)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         onSurfaceTap()
@@ -61,20 +61,20 @@ struct PlaybackVideoView: View {
     }
 }
 
-struct MPVRenderViewWrapper: NSViewRepresentable {
-    let player: MPVPlayer
+struct PlaybackRenderViewWrapper: NSViewRepresentable {
+    let player: PlaybackPlayer
 
     func makeNSView(context: Context) -> NSView {
-        MPVRenderHostView(player: player)
+        PlaybackRenderHostView(player: player)
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-private final class MPVRenderHostView: NSView {
-    private let renderView: MPVRenderView
+private final class PlaybackRenderHostView: NSView {
+    private let renderView: NSView
 
-    init(player: MPVPlayer) {
+    init(player: PlaybackPlayer) {
         self.renderView = player.renderView
         super.init(frame: .zero)
         wantsLayer = true

@@ -18,7 +18,7 @@ final class PlaybackFullscreenManager: ObservableObject {
     private var initialHoverLocation: CGPoint?
     private let initialHoverMovementThreshold: CGFloat = 6
 
-    func toggleFullscreen(player: MPVPlayer, viewModel: PlaybackViewModel) {
+    func toggleFullscreen(player: PlaybackPlayer, viewModel: PlaybackViewModel) {
         if isFullscreen {
             exitFullscreen()
         } else {
@@ -26,7 +26,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         }
     }
 
-    func enterFullscreen(player: MPVPlayer, viewModel: PlaybackViewModel) {
+    func enterFullscreen(player: PlaybackPlayer, viewModel: PlaybackViewModel) {
         guard !isFullscreen, fullscreenWindow == nil else {
             return
         }
@@ -278,10 +278,10 @@ private final class PlaybackFullscreenWindow: NSWindow {
 }
 
 private final class PlaybackFullscreenRootView: NSView {
-    private let renderView: MPVRenderView
+    private let renderView: NSView
     private let overlayView: NSView
 
-    init(renderView: MPVRenderView, overlayView: NSView) {
+    init(renderView: NSView, overlayView: NSView) {
         self.renderView = renderView
         self.overlayView = overlayView
         super.init(frame: .zero)

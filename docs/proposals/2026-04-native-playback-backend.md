@@ -1,6 +1,9 @@
 # Native Playback Backend
 
-Status: Draft
+Status: Accepted
+
+Accepted on 2026-04-29. ADR-0006 supersedes ADR-0003 and moves the production
+app to native-first playback with `libmpv` fallback.
 
 ## Background
 
@@ -509,9 +512,9 @@ Prototype acceptance progress:
 
 ## Decision
 
-Pending.
+Accepted.
 
-This proposal records the candidate direction for discussion:
+The accepted direction is:
 
 ```text
 Move from mpv-primary playback to a native macOS playback backend for supported
@@ -519,9 +522,7 @@ files, using FFmpeg demuxing plus VideoToolbox hardware decoding, while keeping
 mpv as a fallback backend for compatibility.
 ```
 
-If accepted, this proposal should be followed by either:
-
-- A superseding ADR that updates `ADR-0003-playback-engine.md`.
-- Product and engineering document updates that define the new playback backend
-  strategy.
-- A focused implementation plan for a narrow native-backend prototype.
+ADR-0006 records the superseding playback decision. The first production app
+integration uses a playback facade that tries the native backend first and falls
+back to `libmpv` when native opening, decoding, seek setup, or unsupported
+actions fail.

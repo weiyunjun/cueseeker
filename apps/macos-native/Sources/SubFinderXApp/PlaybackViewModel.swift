@@ -22,7 +22,8 @@ public final class PlaybackViewModel: ObservableObject {
     static let maximumPlaybackSpeed = 2.0
     static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
-    public let player: MPVPlayer
+    public let player: PlaybackPlayer
+    @Published public var activeBackend: PlaybackBackend = .native
     
     @Published public var isPlaying: Bool = false
     @Published public var currentTime: Double = 0
@@ -36,7 +37,7 @@ public final class PlaybackViewModel: ObservableObject {
     private var accumulatedForwardSeconds = 0
     private var accumulatedRewindSeconds = 0
 
-    public init(player: MPVPlayer) {
+    public init(player: PlaybackPlayer) {
         self.player = player
         self.player.delegate = self
         
@@ -238,8 +239,8 @@ public final class PlaybackViewModel: ObservableObject {
     }
 }
 
-extension PlaybackViewModel: MPVPlayerDelegate {
-    nonisolated public func player(_ player: MPVPlayer, didChangeProperty name: String, value: MPVPropertyValue?) {
+extension PlaybackViewModel: PlaybackPlayerDelegate {
+    nonisolated public func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: MPVPropertyValue?) {
         Task { @MainActor in
             guard let value else { return }
             switch name {
@@ -257,5 +258,15 @@ extension PlaybackViewModel: MPVPlayerDelegate {
                 break
             }
         }
+    }
+
+    nonisolated public func player(_ player: PlaybackPlayer, didSwitchBackend backend: PlaybackBackend) {
+        Task { @MainActor in
+            self.activeBackend = backend
+        }
+    }
+
+    nonisolated public func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
+        print("Native playback failed: \(message)")
     }
 }

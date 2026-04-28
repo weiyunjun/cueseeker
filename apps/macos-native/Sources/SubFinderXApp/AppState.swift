@@ -90,12 +90,12 @@ final class AppState: ObservableObject {
 
     let databaseURL: URL
     let playbackFullscreenManager = PlaybackFullscreenManager()
-    var playbackPlayer: MPVPlayer? {
+    var playbackPlayer: PlaybackPlayer? {
         player
     }
 
     private let userDefaults: UserDefaults
-    private var player: MPVPlayer?
+    private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
 
@@ -120,7 +120,7 @@ final class AppState: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
-            let player = try MPVPlayer()
+            let player = PlaybackPlayer(mpvPlayer: try MPVPlayer())
             self.player = player
             playbackViewModel = PlaybackViewModel(player: player)
         } catch {
@@ -377,10 +377,7 @@ final class AppState: ObservableObject {
             return true
         case 3:
             if let player {
-                playbackFullscreenManager.toggleFullscreen(
-                    player: player,
-                    viewModel: viewModel
-                )
+                playbackFullscreenManager.toggleFullscreen(player: player, viewModel: viewModel)
                 return true
             }
             return false

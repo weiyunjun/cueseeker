@@ -75,22 +75,28 @@ Expected behavior:
 
 ## 5. Playback Engine Selection
 
-The playback engine is selected in `docs/decisions/ADR-0003-playback-engine.md`.
+The playback engine is selected in `docs/decisions/ADR-0006-native-first-playback-backend.md`,
+which supersedes ADR-0003.
 
 Current decision:
 
-- Use embedded `libmpv` as the target playback engine for the native macOS app.
-- AVFoundation may be used only for exploratory prototypes or fallback experiments unless a future ADR changes the decision.
+- Try the native backend first for supported local files.
+- Keep embedded `libmpv` as a fallback backend for unsupported files, native
+  backend failures, and playback actions not yet implemented by the native path.
 
-Current M1 implementation:
+Current implementation:
 
-- The native app uses Homebrew `libmpv` during local development.
-- Playback is driven through the `libmpv` client API.
-- Rendering uses the `libmpv` render API with `vo=libmpv`.
-- The current render bridge is `MPVRenderView`, an `NSOpenGLView`-backed AppKit view embedded in SwiftUI.
-- OpenGL deprecation warnings are expected for the current M1 bridge and are not build failures.
-- The previous `wid` style embedding and external player-window approach are not acceptable as the primary M1 playback implementation.
-- `loadfile` is used for new videos; selecting another result in the same video should prefer `seek`.
+- The native backend uses FFmpeg demuxing, VideoToolbox hardware decode,
+  `AVSampleBufferDisplayLayer` display, FFmpeg audio decode, `swresample`
+  downmix or format conversion when needed, and `AVAudioEngine` output.
+- The app uses a playback facade that owns both the native backend and `libmpv`
+  fallback.
+- The playback UI hosts a stable render container so the active backend view can
+  be embedded in the Playback Inspector and moved into Theater Mode fullscreen.
+- Selecting a result in the same video should prefer seek behavior when
+  practical.
+- The previous `wid` style embedding and external player-window approach are not
+  acceptable as the primary playback implementation.
 
 Evaluation criteria:
 
@@ -127,7 +133,7 @@ Required behavior:
 - Entering fullscreen should present the current video in an independent black theater-style window.
 - The main app window should not enter the system Full Screen Space when the playback fullscreen button is used.
 - The Theater Mode window must remain below system overlays such as the Cmd-Tab app switcher.
-- The fullscreen window should reuse the same `MPVRenderView` and `libmpv` render context used by the Playback Inspector.
+- The fullscreen window should reuse the same playback render container used by the Playback Inspector.
 - Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
 - The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
 - Mouse or click activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
@@ -142,9 +148,9 @@ Required behavior:
 Implementation constraints:
 
 - Do not create a second playback render view for fullscreen.
-- Do not create a second `libmpv` render context for fullscreen.
-- Do not let SwiftUI view lifetime decide when the `libmpv` render context is destroyed.
-- Playback fullscreen should use the singleton render view owned by the player.
+- Do not create a second backend render context for fullscreen.
+- Do not let SwiftUI view lifetime decide when backend render state is destroyed.
+- Playback fullscreen should use the singleton render container owned by the playback facade.
 - The fullscreen overlay should reuse the same playback controls and feedback model as the Playback Inspector.
 
 ## 8. M2 Playback Controls

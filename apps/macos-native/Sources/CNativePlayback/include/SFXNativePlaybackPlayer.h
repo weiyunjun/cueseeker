@@ -1,0 +1,38 @@
+#import <AppKit/AppKit.h>
+#import <Foundation/Foundation.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@class SFXNativePlaybackPlayer;
+
+@protocol SFXNativePlaybackPlayerDelegate <NSObject>
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+               didUpdateTime:(double)time
+                    duration:(double)duration
+                     playing:(BOOL)playing;
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+        didFailWithMessage:(NSString *)message;
+@end
+
+@interface SFXNativePlaybackPlayer : NSObject
+
+@property (nonatomic, weak, nullable) id<SFXNativePlaybackPlayerDelegate> delegate;
+@property (nonatomic, strong, readonly) NSView *view;
+@property (nonatomic, copy, readonly, nullable) NSString *currentPath;
+@property (nonatomic, readonly) double currentTime;
+@property (nonatomic, readonly) double duration;
+@property (nonatomic, readonly, getter=isPlaying) BOOL playing;
+@property (nonatomic) float volume;
+
+- (BOOL)openPath:(NSString *)path
+startMilliseconds:(NSInteger)startMilliseconds
+           error:(NSError **)error;
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error;
+- (BOOL)setPaused:(BOOL)paused error:(NSError **)error;
+- (void)stop;
+
+@end
+
+FOUNDATION_EXPORT NSString * const SFXNativePlaybackErrorDomain;
+
+NS_ASSUME_NONNULL_END

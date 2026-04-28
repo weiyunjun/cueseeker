@@ -27,8 +27,33 @@ let package = Package(
             ]
         ),
         .target(
+            name: "CNativePlayback",
+            path: "Sources/CNativePlayback",
+            publicHeadersPath: "include",
+            cSettings: [
+                .unsafeFlags(["-I", "/opt/homebrew/include"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-L", "/opt/homebrew/lib"]),
+                .linkedLibrary("avformat"),
+                .linkedLibrary("avcodec"),
+                .linkedLibrary("avutil"),
+                .linkedLibrary("swresample"),
+                .linkedFramework("AppKit"),
+                .linkedFramework("AVFoundation"),
+                .linkedFramework("VideoToolbox"),
+                .linkedFramework("CoreMedia"),
+                .linkedFramework("CoreVideo"),
+                .linkedFramework("CoreFoundation"),
+                .linkedFramework("QuartzCore")
+            ]
+        ),
+        .target(
             name: "SubFinderXPlayback",
-            dependencies: ["CMpv"],
+            dependencies: [
+                "CMpv",
+                "CNativePlayback"
+            ],
             path: "Sources/SubFinderXPlayback",
             linkerSettings: [
                 .unsafeFlags(["-L", "/opt/homebrew/lib"]),

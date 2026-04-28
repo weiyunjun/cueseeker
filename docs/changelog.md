@@ -73,3 +73,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Recorded user-verified native playback probe results for 10-minute single-seek playback, interrupted 5-minute iteration, and 60-operation repeated seek-list stress testing on the representative H.264/Opus Matroska sample.
 - Extended the isolated native playback probe with audio stream enumeration, explicit audio stream selection, and stereo downmix for multi-channel audio, keeping the production `libmpv` playback path unchanged.
 - Added batch inspect-list screening to the isolated native playback probe so multiple media files can be classified before longer native-backend stability runs.
+- Accepted native-first playback in ADR-0006, superseding the previous `libmpv`-primary decision while retaining `libmpv` as fallback.
+- Integrated the native playback backend into the production macOS app behind a playback facade that tries FFmpeg + VideoToolbox + native audio first and falls back to `libmpv` when needed.

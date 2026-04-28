@@ -1,6 +1,11 @@
 # ADR-0003: Playback Engine
 
-Status: Accepted
+Status: Superseded by ADR-0006
+
+Superseded on 2026-04-29 by ADR-0006 after the native playback probe showed
+substantially lower memory usage for representative local files and enough
+codec/container coverage to move native playback into the production app as the
+primary path with `libmpv` retained as fallback.
 
 ## Background
 
