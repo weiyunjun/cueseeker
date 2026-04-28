@@ -8,10 +8,14 @@
 #include <libavcodec/avcodec.h>
 #include <libavcodec/packet.h>
 #include <libavformat/avformat.h>
+#include <libavutil/channel_layout.h>
+#include <libavutil/dict.h>
 #include <libavutil/avutil.h>
 #include <libavutil/error.h>
 #include <libavutil/hwcontext.h>
+#include <libavutil/mathematics.h>
 #include <libavutil/pixdesc.h>
+#include <libswresample/swresample.h>
 
 #include <errno.h>
 #include <limits.h>
@@ -31,6 +35,9 @@ typedef struct {
     AVFormatContext *formatContext;
     int videoStreamIndex;
     int audioStreamIndex;
+    int requestedAudioStreamIndex;
+    int audioOutputSampleRate;
+    int audioOutputChannels;
     int maxOutputFrames;
     int seekPrerollPacketLimit;
     bool hasSeek;
@@ -55,13 +62,29 @@ typedef struct {
 typedef struct {
     AVCodecContext *codecContext;
     AVFrame *frame;
+    AVFrame *convertedFrame;
+    struct SwrContext *resampler;
     int decodedFrames;
     int scheduledBuffers;
     int skippedBeforeSeek;
     int unsupportedFrames;
     int decodeFailures;
+    int conversionFailures;
+    int passthroughFrames;
+    int convertedFrames;
     int sampleRate;
     int channels;
+    int outputSampleRate;
+    int outputChannels;
+    int resamplerInputSampleRate;
+    int resamplerInputChannels;
+    enum AVSampleFormat resamplerInputFormat;
+    enum AVSampleFormat outputSampleFormat;
+    AVChannelLayout outputLayout;
+    bool resamplerInitialized;
+    bool outputUsesDownmix;
+    bool outputUsesFormatConversion;
+    bool outputUsesSampleRateConversion;
 } AudioDecodeContext;
 
 typedef struct {
@@ -155,6 +178,60 @@ static bool should_stop_for_interrupt(void) {
 static const char *codec_name(enum AVCodecID codecID) {
     const char *name = avcodec_get_name(codecID);
     return name != NULL ? name : "unknown";
+}
+
+static const char *stream_metadata_value(AVStream *stream, const char *key) {
+    if (stream == NULL || key == NULL) {
+        return NULL;
+    }
+
+    AVDictionaryEntry *entry = av_dict_get(stream->metadata, key, NULL, 0);
+    return entry != NULL ? entry->value : NULL;
+}
+
+static const char *text_or_dash(const char *value) {
+    return value != NULL && value[0] != '\0' ? value : "-";
+}
+
+static const char *yes_no(bool value) {
+    return value ? "yes" : "no";
+}
+
+static void describe_channel_layout(
+    const AVChannelLayout *layout,
+    int fallbackChannels,
+    char *buffer,
+    size_t bufferSize
+) {
+    if (buffer == NULL || bufferSize == 0) {
+        return;
+    }
+
+    buffer[0] = '\0';
+    if (layout != NULL && layout->nb_channels > 0) {
+        if (av_channel_layout_describe(layout, buffer, bufferSize) >= 0 && buffer[0] != '\0') {
+            return;
+        }
+        fallbackChannels = layout->nb_channels;
+    }
+
+    if (fallbackChannels > 0) {
+        snprintf(buffer, bufferSize, "%d channel%s", fallbackChannels, fallbackChannels == 1 ? "" : "s");
+    } else {
+        snprintf(buffer, bufferSize, "unknown");
+    }
+}
+
+static int audio_output_channel_count(int inputChannels) {
+    if (inputChannels <= 0) {
+        return 0;
+    }
+
+    return inputChannels > 2 ? 2 : inputChannels;
+}
+
+static int positive_or_default(int value, int defaultValue) {
+    return value > 0 ? value : defaultValue;
 }
 
 static void ffmpeg_error_string(int code, char *buffer, size_t bufferSize) {
@@ -533,7 +610,9 @@ static void pace_video_frame(
 
 static AudioDecodeContext *create_audio_decode_context(
     AVFormatContext *formatContext,
-    int audioStreamIndex
+    int audioStreamIndex,
+    int outputSampleRate,
+    int outputChannels
 ) {
     if (audioStreamIndex < 0) {
         return NULL;
@@ -554,10 +633,12 @@ static AudioDecodeContext *create_audio_decode_context(
 
     audio->codecContext = avcodec_alloc_context3(decoder);
     audio->frame = av_frame_alloc();
-    if (audio->codecContext == NULL || audio->frame == NULL) {
+    audio->convertedFrame = av_frame_alloc();
+    if (audio->codecContext == NULL || audio->frame == NULL || audio->convertedFrame == NULL) {
         fprintf(stderr, "Could not allocate audio decoder context.\n");
         avcodec_free_context(&audio->codecContext);
         av_frame_free(&audio->frame);
+        av_frame_free(&audio->convertedFrame);
         free(audio);
         return NULL;
     }
@@ -569,6 +650,7 @@ static AudioDecodeContext *create_audio_decode_context(
         fprintf(stderr, "avcodec_parameters_to_context for audio failed: %s\n", error);
         avcodec_free_context(&audio->codecContext);
         av_frame_free(&audio->frame);
+        av_frame_free(&audio->convertedFrame);
         free(audio);
         return NULL;
     }
@@ -580,18 +662,40 @@ static AudioDecodeContext *create_audio_decode_context(
         fprintf(stderr, "avcodec_open2 for audio failed: %s\n", error);
         avcodec_free_context(&audio->codecContext);
         av_frame_free(&audio->frame);
+        av_frame_free(&audio->convertedFrame);
         free(audio);
         return NULL;
     }
 
     audio->sampleRate = audio->codecContext->sample_rate;
     audio->channels = audio->codecContext->ch_layout.nb_channels;
+    audio->outputSampleRate = positive_or_default(outputSampleRate, audio->sampleRate);
+    audio->outputChannels = audio_output_channel_count(outputChannels);
+    audio->outputSampleFormat = AV_SAMPLE_FMT_FLTP;
+    audio->resamplerInputFormat = AV_SAMPLE_FMT_NONE;
+    if (audio->outputSampleRate <= 0) {
+        audio->outputSampleRate = 48000;
+    }
+    if (audio->outputChannels <= 0) {
+        audio->outputChannels = audio_output_channel_count(audio->channels);
+    }
+    if (audio->outputChannels <= 0) {
+        fprintf(stderr, "Could not determine audio output channel count.\n");
+        avcodec_free_context(&audio->codecContext);
+        av_frame_free(&audio->frame);
+        av_frame_free(&audio->convertedFrame);
+        free(audio);
+        return NULL;
+    }
+    av_channel_layout_default(&audio->outputLayout, audio->outputChannels);
 
     printf(
-        "Audio decoder: %s, sample_rate=%d, channels=%d\n",
+        "Audio decoder: %s, sample_rate=%d, channels=%d, output_sample_rate=%d, output_channels=%d\n",
         decoder->name,
         audio->sampleRate,
-        audio->channels
+        audio->channels,
+        audio->outputSampleRate,
+        audio->outputChannels
     );
 
     return audio;
@@ -602,16 +706,205 @@ static void destroy_audio_decode_context(AudioDecodeContext *audio) {
         return;
     }
 
+    swr_free(&audio->resampler);
+    av_channel_layout_uninit(&audio->outputLayout);
     avcodec_free_context(&audio->codecContext);
     av_frame_free(&audio->frame);
+    av_frame_free(&audio->convertedFrame);
     free(audio);
+}
+
+static int audio_frame_sample_rate(
+    const AudioDecodeContext *audio,
+    const AVFrame *frame
+) {
+    if (frame != NULL && frame->sample_rate > 0) {
+        return frame->sample_rate;
+    }
+
+    if (audio != NULL && audio->sampleRate > 0) {
+        return audio->sampleRate;
+    }
+
+    return audio != NULL && audio->outputSampleRate > 0 ? audio->outputSampleRate : 48000;
+}
+
+static int audio_frame_channel_count(
+    const AudioDecodeContext *audio,
+    const AVFrame *frame
+) {
+    if (frame != NULL && frame->ch_layout.nb_channels > 0) {
+        return frame->ch_layout.nb_channels;
+    }
+
+    return audio != NULL ? audio->channels : 0;
+}
+
+static bool audio_frame_matches_output(
+    const AudioDecodeContext *audio,
+    const AVFrame *frame
+) {
+    if (audio == NULL || frame == NULL) {
+        return false;
+    }
+
+    return frame->format == audio->outputSampleFormat
+        && audio_frame_sample_rate(audio, frame) == audio->outputSampleRate
+        && audio_frame_channel_count(audio, frame) == audio->outputChannels;
+}
+
+static bool ensure_audio_resampler(
+    AudioDecodeContext *audio,
+    const AVFrame *frame
+) {
+    if (audio == NULL || frame == NULL) {
+        return false;
+    }
+
+    int inputSampleRate = audio_frame_sample_rate(audio, frame);
+    int inputChannels = audio_frame_channel_count(audio, frame);
+    enum AVSampleFormat inputFormat = (enum AVSampleFormat)frame->format;
+    if (inputSampleRate <= 0 || inputChannels <= 0 || inputFormat == AV_SAMPLE_FMT_NONE) {
+        fprintf(stderr, "Cannot configure audio resampler for incomplete input format.\n");
+        return false;
+    }
+
+    if (audio->resamplerInitialized
+        && audio->resamplerInputSampleRate == inputSampleRate
+        && audio->resamplerInputChannels == inputChannels
+        && audio->resamplerInputFormat == inputFormat) {
+        return true;
+    }
+
+    swr_free(&audio->resampler);
+    audio->resamplerInitialized = false;
+
+    AVChannelLayout inputLayout = {0};
+    bool ownsInputLayout = false;
+    const AVChannelLayout *inputLayoutRef = &frame->ch_layout;
+    if (frame->ch_layout.nb_channels <= 0) {
+        av_channel_layout_default(&inputLayout, inputChannels);
+        inputLayoutRef = &inputLayout;
+        ownsInputLayout = true;
+    }
+
+    int result = swr_alloc_set_opts2(
+        &audio->resampler,
+        &audio->outputLayout,
+        audio->outputSampleFormat,
+        audio->outputSampleRate,
+        inputLayoutRef,
+        inputFormat,
+        inputSampleRate,
+        0,
+        NULL
+    );
+
+    if (ownsInputLayout) {
+        av_channel_layout_uninit(&inputLayout);
+    }
+
+    if (result < 0 || audio->resampler == NULL) {
+        char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+        ffmpeg_error_string(result, error, sizeof(error));
+        fprintf(stderr, "swr_alloc_set_opts2 failed: %s\n", error);
+        swr_free(&audio->resampler);
+        return false;
+    }
+
+    result = swr_init(audio->resampler);
+    if (result < 0) {
+        char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+        ffmpeg_error_string(result, error, sizeof(error));
+        fprintf(stderr, "swr_init failed: %s\n", error);
+        swr_free(&audio->resampler);
+        return false;
+    }
+
+    audio->resamplerInitialized = true;
+    audio->resamplerInputSampleRate = inputSampleRate;
+    audio->resamplerInputChannels = inputChannels;
+    audio->resamplerInputFormat = inputFormat;
+    if (inputChannels != audio->outputChannels) {
+        audio->outputUsesDownmix = true;
+    }
+    if (inputFormat != audio->outputSampleFormat) {
+        audio->outputUsesFormatConversion = true;
+    }
+    if (inputSampleRate != audio->outputSampleRate) {
+        audio->outputUsesSampleRateConversion = true;
+    }
+
+    char inputLayoutDescription[128] = {0};
+    char outputLayoutDescription[128] = {0};
+    describe_channel_layout(&frame->ch_layout, inputChannels, inputLayoutDescription, sizeof(inputLayoutDescription));
+    describe_channel_layout(&audio->outputLayout, audio->outputChannels, outputLayoutDescription, sizeof(outputLayoutDescription));
+    printf(
+        "Audio resampler: input=%s/%s/%dHz, output=%s/fltp/%dHz\n",
+        inputLayoutDescription,
+        av_get_sample_fmt_name(inputFormat) != NULL ? av_get_sample_fmt_name(inputFormat) : "unknown",
+        inputSampleRate,
+        outputLayoutDescription,
+        audio->outputSampleRate
+    );
+
+    return true;
+}
+
+static const AVFrame *audio_output_frame_for_schedule(
+    AudioDecodeContext *audio,
+    const AVFrame *frame
+) {
+    if (audio == NULL || frame == NULL) {
+        return NULL;
+    }
+
+    if (audio_frame_matches_output(audio, frame)) {
+        audio->passthroughFrames++;
+        return frame;
+    }
+
+    if (!ensure_audio_resampler(audio, frame)) {
+        audio->conversionFailures++;
+        return NULL;
+    }
+
+    av_frame_unref(audio->convertedFrame);
+    if (av_channel_layout_copy(&audio->convertedFrame->ch_layout, &audio->outputLayout) < 0) {
+        fprintf(stderr, "av_channel_layout_copy failed for converted audio frame.\n");
+        audio->conversionFailures++;
+        return NULL;
+    }
+
+    int inputSampleRate = audio_frame_sample_rate(audio, frame);
+    audio->convertedFrame->format = audio->outputSampleFormat;
+    audio->convertedFrame->sample_rate = audio->outputSampleRate;
+    audio->convertedFrame->nb_samples = (int)av_rescale_rnd(
+        frame->nb_samples,
+        audio->outputSampleRate,
+        inputSampleRate,
+        AV_ROUND_UP
+    ) + 256;
+
+    int result = swr_convert_frame(audio->resampler, audio->convertedFrame, frame);
+    if (result < 0) {
+        char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+        ffmpeg_error_string(result, error, sizeof(error));
+        fprintf(stderr, "swr_convert_frame failed: %s\n", error);
+        audio->conversionFailures++;
+        av_frame_unref(audio->convertedFrame);
+        return NULL;
+    }
+
+    audio->convertedFrames++;
+    return audio->convertedFrame;
 }
 
 static bool schedule_audio_frame(
     const AVFrame *frame,
     AVAudioPlayerNode *audioPlayer,
     AVAudioFormat *audioFormat,
-    AVStream *audioStream,
+    double mediaSeconds,
     AudioClock *audioClock
 ) {
     if (audioPlayer == nil || audioFormat == nil) {
@@ -655,7 +948,6 @@ static bool schedule_audio_frame(
     [audioPlayer scheduleBuffer:buffer completionHandler:nil];
 
     if (audioClock != NULL && audioClock->enabled && !audioClock->startedPlayer) {
-        double mediaSeconds = playback_seconds_from_frame(frame, audioStream);
         if (mediaSeconds >= 0 && !audioClock->initialized) {
             audioClock->initialized = true;
             audioClock->firstMediaSeconds = mediaSeconds;
@@ -694,7 +986,10 @@ static int receive_available_audio_frames(
             print_audio_frame(audio->frame, audioStream, audio->decodedFrames);
         }
 
-        if (schedule_audio_frame(audio->frame, audioPlayer, audioFormat, audioStream, audioClock)) {
+        double mediaSeconds = playback_seconds_from_frame(audio->frame, audioStream);
+        const AVFrame *outputFrame = audio_output_frame_for_schedule(audio, audio->frame);
+        if (outputFrame != NULL
+            && schedule_audio_frame(outputFrame, audioPlayer, audioFormat, mediaSeconds, audioClock)) {
             audio->scheduledBuffers++;
         } else {
             audio->unsupportedFrames++;
@@ -1038,7 +1333,12 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         ? context.formatContext->streams[context.audioStreamIndex]
         : NULL;
     AudioDecodeContext *audio = context.audioStreamIndex >= 0
-        ? create_audio_decode_context(context.formatContext, context.audioStreamIndex)
+        ? create_audio_decode_context(
+            context.formatContext,
+            context.audioStreamIndex,
+            context.audioOutputSampleRate,
+            context.audioOutputChannels
+        )
         : NULL;
     AVCodecParameters *codecParameters = videoStream->codecpar;
     const AVCodec *decoder = avcodec_find_decoder(codecParameters->codec_id);
@@ -1433,6 +1733,12 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         if (seekOperations > 0) {
             printf("Skipped audio frames before seek targets: %d\n", audio->skippedBeforeSeek);
         }
+        printf("Audio passthrough frames: %d\n", audio->passthroughFrames);
+        printf("Audio converted frames: %d\n", audio->convertedFrames);
+        printf("Audio conversion failures: %d\n", audio->conversionFailures);
+        printf("Audio output downmix used: %s\n", yes_no(audio->outputUsesDownmix));
+        printf("Audio output format conversion used: %s\n", yes_no(audio->outputUsesFormatConversion));
+        printf("Audio output sample-rate conversion used: %s\n", yes_no(audio->outputUsesSampleRateConversion));
         printf("Unsupported audio frames: %d\n", audio->unsupportedFrames);
         printf("Audio decode failures: %d\n", audio->decodeFailures);
     }
@@ -1460,7 +1766,8 @@ static int open_input(
     const char *path,
     AVFormatContext **formatContext,
     int *videoStreamIndex,
-    int *audioStreamIndex
+    int *audioStreamIndex,
+    int requestedAudioStreamIndex
 ) {
     int result = avformat_open_input(formatContext, path, NULL, NULL);
     if (result < 0) {
@@ -1485,13 +1792,20 @@ static int open_input(
         AVStream *stream = (*formatContext)->streams[index];
         if (*videoStreamIndex < 0 && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             *videoStreamIndex = (int)index;
-        } else if (*audioStreamIndex < 0 && stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+        } else if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO
+            && ((requestedAudioStreamIndex < 0 && *audioStreamIndex < 0)
+                || requestedAudioStreamIndex == (int)index)) {
             *audioStreamIndex = (int)index;
         }
     }
 
     if (*videoStreamIndex < 0) {
         fprintf(stderr, "No video stream found.\n");
+        avformat_close_input(formatContext);
+        return 1;
+    }
+    if (requestedAudioStreamIndex >= 0 && *audioStreamIndex < 0) {
+        fprintf(stderr, "Requested audio stream #%d was not found or is not an audio stream.\n", requestedAudioStreamIndex);
         avformat_close_input(formatContext);
         return 1;
     }
@@ -1515,18 +1829,96 @@ static int open_input(
     if (*audioStreamIndex >= 0) {
         AVStream *audioStream = (*formatContext)->streams[*audioStreamIndex];
         AVCodecParameters *audioParameters = audioStream->codecpar;
+        char layoutDescription[128] = {0};
+        describe_channel_layout(
+            &audioParameters->ch_layout,
+            audioParameters->ch_layout.nb_channels,
+            layoutDescription,
+            sizeof(layoutDescription)
+        );
         printf(
-            "Audio stream: #%d %s, sample_rate=%d, channels=%d, time_base=%d/%d\n",
+            "Audio stream: #%d %s, sample_rate=%d, channels=%d, channel_layout=%s, time_base=%d/%d\n",
             *audioStreamIndex,
             codec_name(audioParameters->codec_id),
             audioParameters->sample_rate,
             audioParameters->ch_layout.nb_channels,
+            layoutDescription,
             audioStream->time_base.num,
             audioStream->time_base.den
         );
+    } else {
+        printf("Audio stream: none\n");
     }
 
     return 0;
+}
+
+static void print_audio_stream_details(
+    AVFormatContext *formatContext,
+    int streamIndex,
+    bool selected
+) {
+    AVStream *stream = formatContext->streams[streamIndex];
+    AVCodecParameters *parameters = stream->codecpar;
+    const AVCodec *decoder = avcodec_find_decoder(parameters->codec_id);
+    const char *profileName = avcodec_profile_name(parameters->codec_id, parameters->profile);
+    char layoutDescription[128] = {0};
+    describe_channel_layout(
+        &parameters->ch_layout,
+        parameters->ch_layout.nb_channels,
+        layoutDescription,
+        sizeof(layoutDescription)
+    );
+    int outputChannels = audio_output_channel_count(parameters->ch_layout.nb_channels);
+
+    printf(
+        "Audio candidate stream: #%d%s codec=%s",
+        streamIndex,
+        selected ? " selected" : "",
+        codec_name(parameters->codec_id)
+    );
+    if (profileName != NULL) {
+        printf(", profile=%s", profileName);
+    }
+    printf(
+        ", sample_rate=%d, channels=%d, channel_layout=%s, output_channels=%d, downmix=%s, decoder=%s, language=%s, title=%s, default=%s, forced=%s, comment=%s, descriptions=%s\n",
+        parameters->sample_rate,
+        parameters->ch_layout.nb_channels,
+        layoutDescription,
+        outputChannels,
+        yes_no(parameters->ch_layout.nb_channels > outputChannels && outputChannels > 0),
+        decoder != NULL ? decoder->name : "unavailable",
+        text_or_dash(stream_metadata_value(stream, "language")),
+        text_or_dash(stream_metadata_value(stream, "title")),
+        yes_no((stream->disposition & AV_DISPOSITION_DEFAULT) != 0),
+        yes_no((stream->disposition & AV_DISPOSITION_FORCED) != 0),
+        yes_no((stream->disposition & AV_DISPOSITION_COMMENT) != 0),
+        yes_no((stream->disposition & AV_DISPOSITION_DESCRIPTIONS) != 0)
+    );
+}
+
+static void print_all_audio_stream_details(
+    AVFormatContext *formatContext,
+    int selectedAudioStreamIndex
+) {
+    int audioStreamCount = 0;
+    for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
+        AVStream *stream = formatContext->streams[index];
+        if (stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
+            continue;
+        }
+
+        print_audio_stream_details(
+            formatContext,
+            (int)index,
+            selectedAudioStreamIndex == (int)index
+        );
+        audioStreamCount++;
+    }
+
+    if (audioStreamCount == 0) {
+        printf("Audio candidate streams: none\n");
+    }
 }
 
 static int inspect_native_capability(
@@ -1575,25 +1967,46 @@ static int inspect_native_capability(
         printf("VideoToolbox device creation: no, %s\n", error);
     }
 
+    print_all_audio_stream_details(formatContext, audioStreamIndex);
+
     bool hasAudioDecoder = true;
+    bool hasAudioOutputCandidate = true;
     if (audioStreamIndex >= 0) {
         AVStream *audioStream = formatContext->streams[audioStreamIndex];
         AVCodecParameters *audioParameters = audioStream->codecpar;
         const AVCodec *audioDecoder = avcodec_find_decoder(audioParameters->codec_id);
         hasAudioDecoder = audioDecoder != NULL;
+        int outputChannels = audio_output_channel_count(audioParameters->ch_layout.nb_channels);
+        hasAudioOutputCandidate = hasAudioDecoder
+            && audioParameters->sample_rate > 0
+            && outputChannels > 0;
         printf(
-            "Audio decoder: %s\n",
+            "Selected audio decoder: %s\n",
             hasAudioDecoder ? audioDecoder->name : "unavailable"
         );
+        printf(
+            "Selected audio output candidate: %s",
+            yes_no(hasAudioOutputCandidate)
+        );
+        if (outputChannels > 0) {
+            printf(
+                ", output_channels=%d, downmix=%s",
+                outputChannels,
+                yes_no(audioParameters->ch_layout.nb_channels > outputChannels)
+            );
+        }
+        printf("\n");
     } else {
-        printf("Audio decoder: no audio stream\n");
+        printf("Selected audio decoder: no audio stream\n");
     }
 
-    bool nativeCandidate = hasVideoDecoder
+    bool videoNativeCandidate = hasVideoDecoder
         && hasVideoToolboxConfig
-        && hardwareDeviceResult == 0
-        && hasAudioDecoder;
-    printf("Native candidate: %s\n", nativeCandidate ? "yes" : "no");
+        && hardwareDeviceResult == 0;
+    bool nativeCandidate = videoNativeCandidate && hasAudioOutputCandidate;
+    printf("Video native candidate: %s\n", yes_no(videoNativeCandidate));
+    printf("Full native candidate: %s\n", yes_no(nativeCandidate));
+    printf("Native candidate: %s\n", yes_no(nativeCandidate));
     if (!nativeCandidate) {
         printf("Fallback recommended: yes\n");
     }
@@ -1601,11 +2014,17 @@ static int inspect_native_capability(
     return 0;
 }
 
-static int run_inspect_probe(const char *path) {
+static int run_inspect_probe(const char *path, int requestedAudioStreamIndex) {
     __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
     int audioStreamIndex = -1;
-    if (open_input(path, &formatContext, &videoStreamIndex, &audioStreamIndex) != 0) {
+    if (open_input(
+        path,
+        &formatContext,
+        &videoStreamIndex,
+        &audioStreamIndex,
+        requestedAudioStreamIndex
+    ) != 0) {
         return 1;
     }
 
@@ -1657,6 +2076,12 @@ static bool make_audio_output(
     AVAudioFormat **formatOut
 ) {
     if (sampleRate <= 0 || channels <= 0) {
+        fprintf(
+            stderr,
+            "Invalid AVAudioEngine output format request: sample_rate=%d, channels=%d\n",
+            sampleRate,
+            channels
+        );
         return false;
     }
 
@@ -1668,6 +2093,13 @@ static bool make_audio_output(
     ];
 
     if (engine == nil || player == nil || format == nil) {
+        fprintf(
+            stderr,
+            "Could not allocate AVAudioEngine output objects: engine=%s, player=%s, format=%s\n",
+            engine != nil ? "yes" : "no",
+            player != nil ? "yes" : "no",
+            format != nil ? "yes" : "no"
+        );
         return false;
     }
 
@@ -1694,6 +2126,7 @@ static bool make_audio_output(
 
 static int run_console_probe(
     const char *path,
+    int requestedAudioStreamIndex,
     int maxOutputFrames,
     bool hasSeek,
     double seekSeconds,
@@ -1711,7 +2144,13 @@ static int run_console_probe(
     __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
     int audioStreamIndex = -1;
-    if (open_input(path, &formatContext, &videoStreamIndex, &audioStreamIndex) != 0) {
+    if (open_input(
+        path,
+        &formatContext,
+        &videoStreamIndex,
+        &audioStreamIndex,
+        requestedAudioStreamIndex
+    ) != 0) {
         return 1;
     }
 
@@ -1719,6 +2158,9 @@ static int run_console_probe(
         .formatContext = formatContext,
         .videoStreamIndex = videoStreamIndex,
         .audioStreamIndex = -1,
+        .requestedAudioStreamIndex = requestedAudioStreamIndex,
+        .audioOutputSampleRate = 0,
+        .audioOutputChannels = 0,
         .maxOutputFrames = maxOutputFrames,
         .seekPrerollPacketLimit = defaultSeekPrerollPacketLimit,
         .hasSeek = hasSeek,
@@ -1748,6 +2190,7 @@ static int run_console_probe(
 
 static int run_display_probe(
     const char *path,
+    int requestedAudioStreamIndex,
     int maxOutputFrames,
     bool hasSeek,
     double seekSeconds,
@@ -1768,7 +2211,13 @@ static int run_display_probe(
     __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
     int audioStreamIndex = -1;
-    if (open_input(path, &formatContext, &videoStreamIndex, &audioStreamIndex) != 0) {
+    if (open_input(
+        path,
+        &formatContext,
+        &videoStreamIndex,
+        &audioStreamIndex,
+        requestedAudioStreamIndex
+    ) != 0) {
         return 1;
     }
 
@@ -1777,17 +2226,45 @@ static int run_display_probe(
     AVAudioEngine *audioEngine = nil;
     AVAudioPlayerNode *audioPlayer = nil;
     AVAudioFormat *audioFormat = nil;
+    int audioOutputSampleRate = 0;
+    int audioOutputChannels = 0;
 
     if (audioStreamIndex >= 0) {
         AVCodecParameters *audioParameters = formatContext->streams[audioStreamIndex]->codecpar;
-        if (!make_audio_output(
-            audioParameters->sample_rate,
+        audioOutputSampleRate = positive_or_default(audioParameters->sample_rate, 48000);
+        audioOutputChannels = audio_output_channel_count(audioParameters->ch_layout.nb_channels);
+        if (audioOutputChannels <= 0) {
+            fprintf(
+                stderr,
+                "Audio output unavailable for stream #%d: unsupported channel count %d.\n",
+                audioStreamIndex,
+                audioParameters->ch_layout.nb_channels
+            );
+            audioStreamIndex = -1;
+        }
+    }
+
+    if (audioStreamIndex >= 0) {
+        AVCodecParameters *audioParameters = formatContext->streams[audioStreamIndex]->codecpar;
+        printf(
+            "Audio output request: stream #%d, input_channels=%d, output_channels=%d, downmix=%s\n",
+            audioStreamIndex,
             audioParameters->ch_layout.nb_channels,
+            audioOutputChannels,
+            yes_no(audioParameters->ch_layout.nb_channels > audioOutputChannels)
+        );
+        if (!make_audio_output(
+            audioOutputSampleRate,
+            audioOutputChannels,
             &audioEngine,
             &audioPlayer,
             &audioFormat
         )) {
-            fprintf(stderr, "Audio output unavailable; continuing video-only.\n");
+            fprintf(
+                stderr,
+                "Audio output unavailable for stream #%d; continuing video-only.\n",
+                audioStreamIndex
+            );
             audioStreamIndex = -1;
         }
     }
@@ -1799,6 +2276,9 @@ static int run_display_probe(
             .formatContext = formatContext,
             .videoStreamIndex = videoStreamIndex,
             .audioStreamIndex = audioStreamIndex,
+            .requestedAudioStreamIndex = requestedAudioStreamIndex,
+            .audioOutputSampleRate = audioOutputSampleRate,
+            .audioOutputChannels = audioOutputChannels,
             .maxOutputFrames = maxOutputFrames,
             .seekPrerollPacketLimit = defaultSeekPrerollPacketLimit,
             .hasSeek = hasSeek,
@@ -1874,6 +2354,18 @@ static bool parse_positive_int(const char *value, int *intOut) {
     return true;
 }
 
+static bool parse_nonnegative_int(const char *value, int *intOut) {
+    errno = 0;
+    char *end = NULL;
+    long parsed = strtol(value, &end, 10);
+    if (errno != 0 || end == value || *end != '\0' || parsed < 0 || parsed > INT32_MAX) {
+        return false;
+    }
+
+    *intOut = (int)parsed;
+    return true;
+}
+
 static bool parse_seek_list(const char *value, double *targets, int *targetCountOut) {
     if (value == NULL || targets == NULL || targetCountOut == NULL) {
         return false;
@@ -1920,7 +2412,7 @@ static bool parse_seek_list(const char *value, double *targets, int *targetCount
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: NativePlaybackProbe [--inspect] [--display] [--quiet] [--seek seconds] [--seek-again seconds] [--seek-list seconds[,seconds...]] [--seek-list-loops count] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
+        "Usage: NativePlaybackProbe [--inspect] [--display] [--quiet] [--audio-stream stream-index] [--seek seconds] [--seek-again seconds] [--seek-list seconds[,seconds...]] [--seek-list-loops count] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
     );
 }
 
@@ -1935,6 +2427,7 @@ int main(int argc, char **argv) {
 
         bool inspectOnly = false;
         bool displayFrames = false;
+        int requestedAudioStreamIndex = -1;
         bool hasSeek = false;
         double seekSeconds = 0;
         bool hasSeekAgain = false;
@@ -1966,6 +2459,18 @@ int main(int argc, char **argv) {
             if (strcmp(argv[argumentIndex], "--quiet") == 0) {
                 quietOutput = true;
                 argumentIndex++;
+                continue;
+            }
+
+            if (strcmp(argv[argumentIndex], "--audio-stream") == 0) {
+                if (argumentIndex + 1 >= argc
+                    || !parse_nonnegative_int(argv[argumentIndex + 1], &requestedAudioStreamIndex)) {
+                    fprintf(stderr, "Invalid --audio-stream value.\n");
+                    print_usage();
+                    return 2;
+                }
+
+                argumentIndex += 2;
                 continue;
             }
 
@@ -2132,12 +2637,13 @@ int main(int argc, char **argv) {
         }
 
         if (inspectOnly) {
-            return run_inspect_probe(path);
+            return run_inspect_probe(path, requestedAudioStreamIndex);
         }
 
         if (displayFrames) {
             return run_display_probe(
                 path,
+                requestedAudioStreamIndex,
                 maxOutputFrames,
                 hasSeek,
                 seekSeconds,
@@ -2156,6 +2662,7 @@ int main(int argc, char **argv) {
 
         return run_console_probe(
             path,
+            requestedAudioStreamIndex,
             maxOutputFrames,
             hasSeek,
             seekSeconds,

@@ -71,3 +71,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added seek-list native playback probe runs to simulate repeated search result selection and stress decoder, audio, display, and clock reset behavior before app integration.
 - Added an inspect-only native playback probe mode to classify candidate files before spending time on multi-format playback stability runs.
 - Recorded user-verified native playback probe results for 10-minute single-seek playback, interrupted 5-minute iteration, and 60-operation repeated seek-list stress testing on the representative H.264/Opus Matroska sample.
+- Extended the isolated native playback probe with audio stream enumeration, explicit audio stream selection, and stereo downmix for multi-channel audio, keeping the production `libmpv` playback path unchanged.

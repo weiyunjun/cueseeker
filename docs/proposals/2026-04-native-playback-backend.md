@@ -309,6 +309,11 @@ Validated so far:
   playback testing by reporting container streams, FFmpeg decoder availability,
   VideoToolbox config availability, VideoToolbox device creation, audio decoder
   availability, and whether the file is a native-backend candidate.
+- The probe now enumerates audio streams during `--inspect`, reports stream
+  metadata such as language, title, disposition, channel layout, and downmix
+  requirement, supports `--audio-stream` for selecting a specific FFmpeg stream
+  index, and can downmix multi-channel audio to stereo for `AVAudioEngine`
+  output through FFmpeg `swresample`.
 
 Important prototype observations:
 
@@ -352,14 +357,18 @@ Current interpretation:
   production playback backend decision.
 - The next useful probe step is multi-format screening with `--inspect`, followed
   by short 5-minute stability runs only for files reported as native candidates.
+  Multi-audio files should be checked with `--audio-stream` when the default
+  selected stream is not the intended main audio track.
 
 Current prototype command:
 
 ```bash
 swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --inspect "/path/to/video.mkv"
+.build/debug/NativePlaybackProbe --inspect --audio-stream 1 "/path/to/video.mkv"
 .build/debug/NativePlaybackProbe --display "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --seek 60.0 "/path/to/video.mkv" 300
+.build/debug/NativePlaybackProbe --display --audio-stream 1 --seek 60.0 --run-duration 60 "/path/to/video.mkv"
 .build/debug/NativePlaybackProbe --display --seek 60.0 --seek-again 90.0 "/path/to/video.mkv" 60
 .build/debug/NativePlaybackProbe --display --seek 60.0 --pause-after-frames 60 --pause-duration 1.0 "/path/to/video.mkv" 120
 .build/debug/NativePlaybackProbe --display --seek 60.0 --run-duration 600 --memory-sample-interval 10 "/path/to/video.mkv"
@@ -379,6 +388,9 @@ seek target is roughly five seconds per selected result.
 Use `--inspect` first when screening HEVC, AV1, MOV, FLV, AVI, or other files.
 Files that are not reported as native candidates should remain fallback-only
 until a specific codec/container path is implemented and tested.
+Use `--audio-stream` with the absolute FFmpeg stream index shown by `--inspect`
+when a file contains multiple audio tracks, such as a main multi-channel track
+and a commentary stereo track.
 
 Expected representative output includes:
 
@@ -481,6 +493,8 @@ Prototype acceptance progress:
 - Done: quiet iterative probe output and interrupt-safe final summaries.
 - Done: repeated seek-list stress runs for search-result selection simulation.
 - Done: inspect-only native candidate classification for multi-format screening.
+- Done: audio stream inspection, explicit audio stream selection, and stereo
+  downmix for multi-channel audio in the isolated probe.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.
