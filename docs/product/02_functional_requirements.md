@@ -115,11 +115,17 @@ Requirements:
 - Render video inside the native app window.
 - Allow play and pause.
 - Toggle play/pause by clicking the video surface.
+- Keep clicks in the playback operation controls from falling through to video-surface play or pause.
 - Prefer seek over reload when the current video is already open.
 - Pause playback when the Playback Inspector is collapsed.
 - Pause playback when the user switches from Search to another top-level section.
 - Preserve the current selected result when the Playback Inspector is collapsed.
 - Do not automatically resume playback when the Playback Inspector is reopened.
+- Provide video-level fullscreen that does not put the app shell into macOS Full Screen.
+- Provide a subtitle visibility toggle.
+- Provide playback speed control with the existing preset menu.
+- Provide keyboard shortcuts for subtitle visibility, fullscreen, play or pause, relative seek, volume, and speed adjustment.
+- Provide transient visual feedback for shortcut and playback-control actions.
 
 The playback engine is selected in `docs/decisions/ADR-0003-playback-engine.md`.
 

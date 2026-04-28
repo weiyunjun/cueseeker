@@ -98,6 +98,14 @@ M2 playback interaction model:
 - The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
 
+Current M2 implementation:
+
+- Playback fullscreen uses a Theater Mode window and returns the same video render view to the Playback Inspector when closed.
+- Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
+- Shortcut and control actions show transient feedback overlays for subtitle visibility, play/pause, relative seek, volume, and speed.
+- The visible playback speed menu keeps its preset choices while keyboard shortcuts adjust speed in 0.25x steps.
+- The previous Flutter shortcut model was used as a reference, but the native M2 map intentionally changes subtitles to `C`, removes the bottom-mask shortcut, and changes speed adjustment to `Shift+,` and `Shift+.`.
+
 ## 6. Indexing Interaction
 
 Indexing should communicate progress without blocking the whole app unnecessarily.

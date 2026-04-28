@@ -137,6 +137,8 @@ Implementation constraints:
 - Do not create a second playback render view for fullscreen.
 - Do not create a second `libmpv` render context for fullscreen.
 - Do not let SwiftUI view lifetime decide when the `libmpv` render context is destroyed.
+- Playback fullscreen should use the singleton render view owned by the player.
+- The fullscreen overlay should reuse the same playback controls and feedback model as the Playback Inspector.
 
 ## 8. M2 Playback Controls
 
@@ -167,6 +169,13 @@ Required behavior:
 - `Shift+.` should increase playback speed by 0.25x.
 - The visible playback speed menu should keep its existing preset choices.
 - Playback commands should show transient feedback for subtitle visibility, play or pause, seek direction and amount, volume, and playback speed.
+
+Current implementation notes:
+
+- The speed preset menu remains `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, and `2.0x`.
+- Keyboard speed changes adjust the current speed by `0.25x` and are not limited to only the visible preset values.
+- Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
+- Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
 
 ## 9. Error States
 

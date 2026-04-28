@@ -133,10 +133,14 @@ Behavior:
 - Selecting a result opens or updates the Playback Inspector.
 - Selecting a result expands the Playback Inspector when it is collapsed.
 - Clicking the embedded video toggles play/pause.
+- Clicking the playback operation controls should not toggle play/pause unless the play/pause control is targeted.
 - Collapsing the Playback Inspector pauses playback and hides the panel.
 - Collapsing the Playback Inspector does not clear the current selected result.
 - Reopening the Playback Inspector does not automatically resume playback.
 - Switching from Search to Settings or another top-level section pauses playback without stopping it.
+- Playback fullscreen presents the video in a black Theater Mode window rather than fullscreening the app shell.
+- Transient playback feedback overlays appear above the video for play/pause, subtitle visibility, seek, volume, and speed changes.
+- The playback speed selector is an app-drawn menu that opens upward from the speed control.
 
 Layout:
 
@@ -156,6 +160,12 @@ Initial sizing guidance:
 The Playback Inspector Toggle belongs in the titlebar at a fixed right-side position. It should conceptually match the sidebar toggle pattern while controlling the right-side inspector.
 
 M1 does not require advanced visual effects.
+
+Current M2 playback control terminology:
+
+- `Timeline Zone`: the progress bar and its enlarged seek hit area.
+- `Transport Controls Zone`: the button row below the progress bar.
+- `Playback Operation Zone`: the combined `Timeline Zone` and `Transport Controls Zone`.
 
 ## 7. Settings View
 

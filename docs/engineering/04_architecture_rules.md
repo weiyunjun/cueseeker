@@ -130,6 +130,8 @@ Rules:
 - To achieve custom offsets for native traffic light buttons, the app uses a Proxy View reparenting pattern to extract buttons from the system's `_NSTitlebarContainerView` rather than fighting the private AppKit layout engine with frame or bounds overrides.
 - Window dragging must be handled explicitly by the custom titlebar (`performDrag(with:)`) with `window.isMovableByWindowBackground` set to `false`. Relying on window background dragging causes conflicts with SwiftUI drag gestures on transparent views.
 - Resizable dividers must use a custom `NSView` overlay to natively handle `resetCursorRects`, `NSTrackingArea`, and drag events (`mouseDown`/`mouseDragged`). SwiftUI's `.onHover` with `NSCursor.push()` is unreliable due to AppKit's continuous cursor rect evaluation, and SwiftUI's `DragGesture` can conflict with window event routing.
+- Playback keyboard shortcuts are handled through a local AppKit key-down monitor and must not intercept keys while native text input is focused.
+- Playback shortcut handling should route through shared playback state instead of duplicating command behavior in individual views.
 - Further visual polish should remain incremental.
 
 ## 8. File Access and Sandboxing
@@ -159,6 +161,11 @@ Rules:
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
 - The current render bridge uses the `libmpv` render API through an AppKit view embedded in SwiftUI.
+- The current M2 fullscreen architecture uses a singleton `MPVRenderView` owned by `MPVPlayer`.
+- SwiftUI playback views host or borrow the singleton render view; they must not create independent render views for fullscreen.
+- Playback fullscreen uses a borderless Theater Mode window and must not call the app window's system Full Screen transition.
+- Closing fullscreen, hiding the Playback Inspector, switching away from Search, closing the main window, or terminating the app must clean up the fullscreen window.
+- Playback controls in the inspector and fullscreen overlay should share the same playback view model and feedback overlay model.
 
 ## 10. Dependency Management
 

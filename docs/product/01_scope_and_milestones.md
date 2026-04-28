@@ -91,6 +91,7 @@ Planning status:
 
 - Started on 2026-04-28 after the M1 native macOS minimal local loop was accepted.
 - M2 scope is being refined from broad macOS polish into reviewable interaction, file-management, error, settings, and packaging work.
+- Playback interaction work has started and currently includes video-level Theater Mode fullscreen, playback operation controls, keyboard shortcuts, and visible feedback overlays.
 
 Goal:
 
@@ -104,6 +105,7 @@ Expected areas:
   Define shortcut commands, focus scope, and conflict rules, especially for search text input and playback context.
 - Playback interaction model.
   Refine playback controls, progress and seek interaction, action buttons, and visual feedback such as operation HUD or animation. Playback controls and keyboard shortcuts should share the same underlying playback command model.
+  Current implementation includes an app-drawn upward playback speed menu, subtitle visibility toggle, video-surface-only play/pause tapping, playback operation-zone click isolation, Theater Mode fullscreen, keyboard shortcuts, and transient feedback overlays.
 - Window sizing and restoration regression verification.
   M1 already implemented launch maximization, AppShell layout persistence, titlebar/full-screen behavior, and Playback Inspector width and visibility persistence. M2 should verify these behaviors and fix concrete regressions rather than treating this as a new major feature area.
 - File and folder management with file-access persistence.
@@ -122,6 +124,8 @@ Acceptance criteria:
 - The core local workflow feels stable and native.
 - Common keyboard interactions do not conflict with text input.
 - Playback controls, keyboard shortcuts, and visible playback feedback behave consistently.
+- Playback fullscreen affects only the video experience, not the app shell.
+- Playback operation controls do not accidentally trigger video-surface play or pause.
 - Folder permissions remain available after app restart if required.
 - The user can remove configured folders and recover clearly from missing or unavailable folders.
 - User-facing errors are understandable.

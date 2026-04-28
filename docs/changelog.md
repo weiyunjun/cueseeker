@@ -50,3 +50,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Clarified the M2 playback fullscreen behavior as video-level Theater Mode rather than app-window Full Screen.
 - Clarified playback control terminology and interaction rules for the Timeline Zone, Transport Controls Zone, and Playback Operation Zone.
 - Added M2 playback shortcut and feedback overlay requirements for subtitles, fullscreen, play/pause, relative seek, volume, and speed.
+- Implemented video-level Theater Mode fullscreen using a singleton `MPVRenderView`, avoiding app-window Full Screen transitions.
+- Refined playback operation controls with an app-drawn upward speed menu, subtitle visibility toggle, and video-surface-only play/pause tapping.
+- Added playback keyboard shortcuts and feedback overlays for subtitle visibility, fullscreen, play/pause, relative seek, volume, and speed.
