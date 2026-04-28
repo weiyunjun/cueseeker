@@ -17,6 +17,7 @@
 #include <limits.h>
 #include <mach/mach.h>
 #include <math.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -38,6 +39,7 @@ typedef struct {
     double pauseDurationSeconds;
     double runDurationSeconds;
     double memorySampleIntervalSeconds;
+    bool quietOutput;
     bool displayFrames;
     AVSampleBufferDisplayLayer *__unsafe_unretained displayLayer;
     AVAudioEngine *__unsafe_unretained audioEngine;
@@ -123,6 +125,27 @@ static const int receiveFramesOK = 0;
 static const int receiveFramesError = 1;
 static const int receiveFramesOutputLimit = 2;
 static const int receiveFramesRunDurationLimit = 3;
+static const int receiveFramesInterrupted = 4;
+
+static volatile sig_atomic_t receivedInterrupt = 0;
+
+static void handle_interrupt_signal(int signalNumber) {
+    (void)signalNumber;
+    receivedInterrupt = 1;
+}
+
+static void install_interrupt_handler(void) {
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = handle_interrupt_signal;
+    sigemptyset(&action.sa_mask);
+    sigaction(SIGINT, &action, NULL);
+    sigaction(SIGTERM, &action, NULL);
+}
+
+static bool should_stop_for_interrupt(void) {
+    return receivedInterrupt != 0;
+}
 
 static const char *codec_name(enum AVCodecID codecID) {
     const char *name = avcodec_get_name(codecID);
@@ -648,7 +671,8 @@ static int receive_available_audio_frames(
     AVAudioFormat *audioFormat,
     AudioClock *audioClock,
     bool hasSeek,
-    double seekSeconds
+    double seekSeconds,
+    bool quietOutput
 ) {
     int result = 0;
     while ((result = avcodec_receive_frame(audio->codecContext, audio->frame)) >= 0) {
@@ -661,7 +685,7 @@ static int receive_available_audio_frames(
         }
 
         int outputFrames = audio->decodedFrames - audio->skippedBeforeSeek;
-        if (outputFrames <= 5 || audio->decodedFrames % 50 == 0) {
+        if (!quietOutput && (outputFrames <= 5 || audio->decodedFrames % 50 == 0)) {
             print_audio_frame(audio->frame, audioStream, audio->decodedFrames);
         }
 
@@ -917,7 +941,8 @@ static int receive_available_frames(
     double seekSeconds,
     int *skippedVideoFrames,
     int *outputVideoFrames,
-    int maxOutputFrames
+    int maxOutputFrames,
+    bool quietOutput
 ) {
     int result = 0;
     while ((result = avcodec_receive_frame(codecContext, frame)) >= 0) {
@@ -945,7 +970,7 @@ static int receive_available_frames(
         start_run_duration_limit(runDurationLimit);
         maybe_print_memory_sample(memoryProbe, outputFrames);
 
-        bool shouldPrint = outputFrames <= 5 || *decodedFrames % 60 == 0;
+        bool shouldPrint = !quietOutput && (outputFrames <= 5 || *decodedFrames % 60 == 0);
         if (frame->format == hardwarePixelFormat) {
             if (displayFrames) {
                 pace_video_frame(videoPacer, audioClock, frame, videoStream);
@@ -981,6 +1006,10 @@ static int receive_available_frames(
 
         if (run_duration_limit_reached(runDurationLimit)) {
             return receiveFramesRunDurationLimit;
+        }
+
+        if (should_stop_for_interrupt()) {
+            return receiveFramesInterrupted;
         }
 
         if (maxOutputFrames > 0 && outputFrames >= maxOutputFrames) {
@@ -1102,6 +1131,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     bool reachedEndOfInput = false;
     bool hitPrerollPacketLimit = false;
     bool decodeFailed = false;
+    bool interrupted = false;
     VideoPacer videoPacer = {0};
     AudioClock audioClock = {
         .enabled = context.displayFrames && context.audioPlayer != nil && context.audioFormat != nil
@@ -1162,6 +1192,11 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         }
 
         while (outputVideoFrames < segmentOutputLimit && !runDurationLimit.expired) {
+            if (should_stop_for_interrupt()) {
+                interrupted = true;
+                break;
+            }
+
             if (segmentHasSeek
                 && outputVideoFrames == segmentStartOutputFrames
                 && fedPackets - segmentStartFedPackets >= context.seekPrerollPacketLimit) {
@@ -1199,7 +1234,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                     context.audioFormat,
                     &audioClock,
                     segmentHasSeek,
-                    segmentSeekSeconds
+                    segmentSeekSeconds,
+                    context.quietOutput
                 );
                 continue;
             }
@@ -1240,12 +1276,17 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                 segmentSeekSeconds,
                 &skippedVideoFrames,
                 &outputVideoFrames,
-                segmentOutputLimit
+                segmentOutputLimit,
+                context.quietOutput
             );
             if (receiveResult == receiveFramesOutputLimit) {
                 break;
             }
             if (receiveResult == receiveFramesRunDurationLimit) {
+                break;
+            }
+            if (receiveResult == receiveFramesInterrupted) {
+                interrupted = true;
                 break;
             }
             if (receiveResult != receiveFramesOK) {
@@ -1270,12 +1311,16 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             completedSegments++;
         }
 
-        if (reachedEndOfInput || hitPrerollPacketLimit || decodeFailed || runDurationLimit.expired) {
+        if (reachedEndOfInput
+            || hitPrerollPacketLimit
+            || decodeFailed
+            || runDurationLimit.expired
+            || interrupted) {
             break;
         }
     }
 
-    if (reachedEndOfInput && !decodeFailed && !hitPrerollPacketLimit) {
+    if (reachedEndOfInput && !decodeFailed && !hitPrerollPacketLimit && !interrupted) {
         avcodec_send_packet(codecContext, NULL);
         (void)receive_available_frames(
             codecContext,
@@ -1296,11 +1341,12 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             activeSeekSeconds,
             &skippedVideoFrames,
             &outputVideoFrames,
-            activeOutputLimit
+            activeOutputLimit,
+            context.quietOutput
         );
     }
 
-    if (reachedEndOfInput && audio != NULL && !hitPrerollPacketLimit) {
+    if (reachedEndOfInput && audio != NULL && !hitPrerollPacketLimit && !interrupted) {
         avcodec_send_packet(audio->codecContext, NULL);
         (void)receive_available_audio_frames(
             audio,
@@ -1309,8 +1355,13 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             context.audioFormat,
             &audioClock,
             activeHasSeek,
-            activeSeekSeconds
+            activeSeekSeconds,
+            context.quietOutput
         );
+    }
+
+    if (interrupted) {
+        printf("Interrupted: yes\n");
     }
 
     printf("Video packets fed: %d\n", fedPackets);
@@ -1373,13 +1424,15 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     av_buffer_unref(&hardwareDeviceContext);
     destroy_audio_decode_context(audio);
 
-    bool completedRequestedWork = completedSegments == segmentCount || runDurationLimit.expired;
+    bool completedRequestedWork = completedSegments == segmentCount
+        || runDurationLimit.expired
+        || interrupted;
 
     return !decodeFailed
         && !hitPrerollPacketLimit
         && completedRequestedWork
         && outputVideoFrames > 0
-        ? 0
+        ? (interrupted ? 130 : 0)
         : 1;
 }
 
@@ -1540,7 +1593,8 @@ static int run_console_probe(
     int pauseAfterOutputFrames,
     double pauseDurationSeconds,
     double runDurationSeconds,
-    double memorySampleIntervalSeconds
+    double memorySampleIntervalSeconds,
+    bool quietOutput
 ) {
     __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
@@ -1563,6 +1617,7 @@ static int run_console_probe(
         .pauseDurationSeconds = pauseDurationSeconds,
         .runDurationSeconds = runDurationSeconds,
         .memorySampleIntervalSeconds = memorySampleIntervalSeconds,
+        .quietOutput = quietOutput,
         .displayFrames = false,
         .displayLayer = nil,
         .audioEngine = nil,
@@ -1584,7 +1639,8 @@ static int run_display_probe(
     int pauseAfterOutputFrames,
     double pauseDurationSeconds,
     double runDurationSeconds,
-    double memorySampleIntervalSeconds
+    double memorySampleIntervalSeconds,
+    bool quietOutput
 ) {
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -1633,6 +1689,7 @@ static int run_display_probe(
             .pauseDurationSeconds = pauseDurationSeconds,
             .runDurationSeconds = runDurationSeconds,
             .memorySampleIntervalSeconds = memorySampleIntervalSeconds,
+            .quietOutput = quietOutput,
             .displayFrames = true,
             .displayLayer = displayLayer,
             .audioEngine = audioEngine,
@@ -1650,7 +1707,7 @@ static int run_display_probe(
                     [audioEngine stop];
                     avformat_close_input(&formatContext);
                     [window close];
-                    [NSApp terminate:nil];
+                    exit(probeResult);
                 }
             );
         });
@@ -1695,12 +1752,14 @@ static bool parse_positive_int(const char *value, int *intOut) {
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: NativePlaybackProbe [--display] [--seek seconds] [--seek-again seconds] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
+        "Usage: NativePlaybackProbe [--display] [--quiet] [--seek seconds] [--seek-again seconds] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
     );
 }
 
 int main(int argc, char **argv) {
     @autoreleasepool {
+        install_interrupt_handler();
+
         if (argc < 2) {
             print_usage();
             return 2;
@@ -1715,11 +1774,18 @@ int main(int argc, char **argv) {
         double pauseDurationSeconds = 1.0;
         double runDurationSeconds = 0;
         double memorySampleIntervalSeconds = 0;
+        bool quietOutput = false;
         int argumentIndex = 1;
 
         while (argumentIndex < argc) {
             if (strcmp(argv[argumentIndex], "--display") == 0) {
                 displayFrames = true;
+                argumentIndex++;
+                continue;
+            }
+
+            if (strcmp(argv[argumentIndex], "--quiet") == 0) {
+                quietOutput = true;
                 argumentIndex++;
                 continue;
             }
@@ -1845,7 +1911,8 @@ int main(int argc, char **argv) {
                 pauseAfterOutputFrames,
                 pauseDurationSeconds,
                 runDurationSeconds,
-                memorySampleIntervalSeconds
+                memorySampleIntervalSeconds,
+                quietOutput
             );
         }
 
@@ -1859,7 +1926,8 @@ int main(int argc, char **argv) {
             pauseAfterOutputFrames,
             pauseDurationSeconds,
             runDurationSeconds,
-            memorySampleIntervalSeconds
+            memorySampleIntervalSeconds,
+            quietOutput
         );
     }
 }

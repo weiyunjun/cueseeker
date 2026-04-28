@@ -299,6 +299,9 @@ Validated so far:
   decoded frames, 0 software frames, 61 audio-master paced video frames, 1
   video-clock fallback frame, 0 late paced frames, no audio decode failures, and
   a native probe physical-footprint range from 12.6 MB at start to 23.5 MB max.
+- The probe now supports `--quiet` for iterative stability runs and handles
+  Ctrl-C/SIGTERM by finishing the decode loop, printing the usual summary, and
+  preserving a non-zero interrupted exit code in display mode.
 
 Important prototype observations:
 
@@ -322,12 +325,15 @@ swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --display --seek 60.0 --seek-again 90.0 "/path/to/video.mkv" 60
 .build/debug/NativePlaybackProbe --display --seek 60.0 --pause-after-frames 60 --pause-duration 1.0 "/path/to/video.mkv" 120
 .build/debug/NativePlaybackProbe --display --seek 60.0 --run-duration 600 --memory-sample-interval 10 "/path/to/video.mkv"
+.build/debug/NativePlaybackProbe --display --quiet --seek 60.0 --run-duration 300 --memory-sample-interval 10 "/path/to/video.mkv"
 ```
 
 The optional trailing number is the target number of output video frames after
 each seek target, not a raw demux packet limit.
 When `--run-duration` is provided without a trailing frame count, the probe uses
 the requested playback duration as the primary stop condition.
+Use `--quiet` for repeated 5-minute runs so memory samples and the final summary
+remain readable.
 
 Expected representative output includes:
 
@@ -343,6 +349,9 @@ Run duration reached: yes
 Memory RSS MB: start=36.1, max=80.9, end=80.6, delta=44.5
 Memory footprint MB: start=12.6, max=23.5, end=23.2, delta=10.6
 ```
+
+When a run is stopped with Ctrl-C or SIGTERM, the summary includes
+`Interrupted: yes`.
 
 ### Seeking
 
@@ -424,6 +433,7 @@ Prototype acceptance progress:
 - Done: display-probe pause and resume simulation.
 - Done: duration-limited display-probe runs with process RSS and physical
   footprint sampling.
+- Done: quiet iterative probe output and interrupt-safe final summaries.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.
