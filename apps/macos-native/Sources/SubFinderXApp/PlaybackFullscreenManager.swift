@@ -13,6 +13,9 @@ final class PlaybackFullscreenManager: ObservableObject {
     private weak var previousKeyWindow: NSWindow?
     private var chromeHideTask: Task<Void, Never>?
     private var isCursorHidden = false
+    private var isSuppressingInitialHover = false
+    private var initialHoverLocation: CGPoint?
+    private let initialHoverMovementThreshold: CGFloat = 6
 
     func toggleFullscreen(player: MPVPlayer, viewModel: PlaybackViewModel) {
         if isFullscreen {
@@ -82,12 +85,17 @@ final class PlaybackFullscreenManager: ObservableObject {
         fullscreenWindow = window
         fullscreenRootView = rootView
         isFullscreen = true
+        beginInitialHoverSuppression()
         hideChromeImmediately()
 
         window.contentView = rootView
         NSApplication.shared.presentationOptions = [.autoHideMenuBar, .autoHideDock]
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.hideChromeImmediately()
+        }
     }
 
     func exitFullscreen() {
@@ -103,6 +111,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         chromeHideTask?.cancel()
         chromeHideTask = nil
         isChromeVisible = false
+        endInitialHoverSuppression()
         showCursorIfNeeded()
 
         rootView?.detachRenderView()
@@ -124,8 +133,31 @@ final class PlaybackFullscreenManager: ObservableObject {
             return
         }
 
+        endInitialHoverSuppression()
         showChrome()
         scheduleChromeHide()
+    }
+
+    func registerHoverActivity(at location: CGPoint) {
+        guard isFullscreen else {
+            return
+        }
+
+        if isSuppressingInitialHover {
+            guard let initialHoverLocation else {
+                self.initialHoverLocation = location
+                return
+            }
+
+            let deltaX = location.x - initialHoverLocation.x
+            let deltaY = location.y - initialHoverLocation.y
+            let distance = sqrt(deltaX * deltaX + deltaY * deltaY)
+            guard distance >= initialHoverMovementThreshold else {
+                return
+            }
+        }
+
+        registerActivity()
     }
 
     func hideChromeImmediately() {
@@ -156,6 +188,16 @@ final class PlaybackFullscreenManager: ObservableObject {
                 self?.hideChromeImmediately()
             }
         }
+    }
+
+    private func beginInitialHoverSuppression() {
+        isSuppressingInitialHover = true
+        initialHoverLocation = nil
+    }
+
+    private func endInitialHoverSuppression() {
+        isSuppressingInitialHover = false
+        initialHoverLocation = nil
     }
 
     private func hideCursorIfNeeded() {
@@ -260,8 +302,8 @@ private struct PlaybackFullscreenOverlayView: View {
         }
         .background(Color.clear)
         .onContinuousHover { phase in
-            if case .active = phase {
-                fullscreenManager.registerActivity()
+            if case .active(let location) = phase {
+                fullscreenManager.registerHoverActivity(at: location)
             }
         }
         .animation(.easeInOut(duration: 0.16), value: fullscreenManager.isChromeVisible)
