@@ -14,6 +14,7 @@ final class PlaybackFullscreenManager: ObservableObject {
     private var chromeHideTask: Task<Void, Never>?
     private var isCursorHidden = false
     private var isSuppressingInitialHover = false
+    private var isSuspendedForAppDeactivation = false
     private var initialHoverLocation: CGPoint?
     private let initialHoverMovementThreshold: CGFloat = 6
 
@@ -98,6 +99,40 @@ final class PlaybackFullscreenManager: ObservableObject {
         }
     }
 
+    func suspendFullscreenForAppDeactivation() {
+        guard isFullscreen, !isSuspendedForAppDeactivation else {
+            return
+        }
+
+        isSuspendedForAppDeactivation = true
+        chromeHideTask?.cancel()
+        chromeHideTask = nil
+        isChromeVisible = false
+        endInitialHoverSuppression()
+        showCursorIfNeeded()
+        fullscreenWindow?.orderOut(nil)
+
+        if let previousPresentationOptions {
+            NSApplication.shared.presentationOptions = previousPresentationOptions
+        }
+    }
+
+    func restoreFullscreenAfterAppActivation() {
+        guard isFullscreen, isSuspendedForAppDeactivation, let fullscreenWindow else {
+            return
+        }
+
+        isSuspendedForAppDeactivation = false
+        beginInitialHoverSuppression()
+        hideChromeImmediately()
+        NSApplication.shared.presentationOptions = [.autoHideMenuBar, .autoHideDock]
+        fullscreenWindow.makeKeyAndOrderFront(nil)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.hideChromeImmediately()
+        }
+    }
+
     func exitFullscreen() {
         guard isFullscreen || fullscreenWindow != nil else {
             return
@@ -111,6 +146,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         chromeHideTask?.cancel()
         chromeHideTask = nil
         isChromeVisible = false
+        isSuspendedForAppDeactivation = false
         endInitialHoverSuppression()
         showCursorIfNeeded()
 

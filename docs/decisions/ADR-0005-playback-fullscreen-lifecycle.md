@@ -43,3 +43,4 @@ Furthermore, leveraging Theater Mode aligns with how professional macOS video pl
 - SwiftUI's `PlaybackVideoView` must conditionally hide the `MPVRenderViewWrapper` when fullscreen is active to prevent SwiftUI from attempting to steal the view back from the fullscreen window.
 - The `prepareOpenGL` method in `MPVRenderView` must be guarded (`guard !renderContextCreated`) to ensure the OpenGL context is initialized only once, even as the view moves between windows.
 - Any future fullscreen controls must be implemented as a separate SwiftUI overlay (`PlaybackControlsOverlay`) hosted in the fullscreen window, floating above the native video view.
+- Theater Mode must suspend when the app resigns active by hiding the fullscreen window and restoring presentation options, then restore the same fullscreen window and singleton render view when the app becomes active again.

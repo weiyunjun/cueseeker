@@ -130,6 +130,8 @@ Required behavior:
 - Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
 - The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
 - Mouse, click, or keyboard activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
+- When the app resigns active during playback fullscreen, the fullscreen window should hide so other apps are visually reachable.
+- When the app becomes active again after such a suspension, playback fullscreen should be restored without recreating the playback render context.
 - Exiting fullscreen should return the video view to the Playback Inspector.
 - Escape should exit playback fullscreen.
 - Closing or hiding the Playback Inspector should leave playback fullscreen cleanly.
@@ -183,6 +185,7 @@ Current implementation notes:
 - Keyboard speed changes adjust the current speed by `0.25x` and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - Fullscreen chrome state suppresses the initial hover event emitted when the fullscreen window appears, then reveals controls and cursor only after real user activity.
 - Fullscreen entry hides the playback operation controls and cursor immediately for both keyboard and button entry paths.
+- App deactivation hides the Theater Mode window and restores system presentation options; app reactivation restores Theater Mode without destroying the singleton render view.
 - Read-only selectable metadata text does not count as editable text input for playback shortcut suppression.
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
