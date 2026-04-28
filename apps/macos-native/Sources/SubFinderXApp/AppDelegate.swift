@@ -40,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.center()
         window.contentView = NSHostingView(rootView: contentView)
         window.makeKeyAndOrderFront(nil)
+        
+        if let screen = window.screen {
+            window.setFrame(screen.visibleFrame, display: true)
+        }
 
         self.window = window
         
