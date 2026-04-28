@@ -7,13 +7,13 @@ app to native-first playback with `libmpv` fallback.
 
 ## Background
 
-The current native macOS app uses embedded `libmpv` for local playback.
-This direction was accepted in `docs/decisions/ADR-0003-playback-engine.md`
-because `libmpv` provides broad local media compatibility and reliable
-container support.
+At the start of this proposal, the native macOS app used embedded `libmpv` for
+local playback. That direction had been accepted in
+`docs/decisions/ADR-0003-playback-engine.md` because `libmpv` provided broad
+local media compatibility and reliable container support.
 
-Recent playback memory checks show that the current `libmpv` direction has a
-high memory baseline for ordinary local playback. A representative file is:
+Playback memory checks from the then-current `libmpv`-primary direction showed
+a high memory baseline for ordinary local playback. A representative file was:
 
 ```text
 Container: Matroska
@@ -242,9 +242,9 @@ An isolated native playback probe now exists under:
 apps/macos-native/Sources/NativePlaybackProbe/
 ```
 
-The probe is intentionally separate from the production app playback path. It is
-used to validate the proposed backend direction before the app's `libmpv`
-integration is changed.
+The probe started as an intentionally separate validation target. After ADR-0006,
+it remains useful for codec/container screening and stability runs, while the
+production app now uses native-first playback with `libmpv` fallback.
 
 Validated so far:
 
@@ -358,13 +358,14 @@ Current interpretation:
 - The native probe has shown a substantially lower physical-footprint profile
   than the observed `libmpv` app playback path for the representative H.264/Opus
   Matroska sample.
-- The repeated seek-list result is good enough to continue toward broader
-  candidate screening, but it still needs app-level verification before any
-  production playback backend decision.
-- The next useful probe step is multi-format screening with `--inspect`, followed
-  by short 5-minute stability runs only for files reported as native candidates.
-  Multi-audio files should be checked with `--audio-stream` when the default
-  selected stream is not the intended main audio track.
+- ADR-0006 accepted native-first production playback with `libmpv` fallback.
+- The production app now includes a playback facade that tries the native backend
+  first and falls back to `libmpv` when native opening, decoding, seek setup, or
+  unsupported actions fail.
+- The probe remains useful for multi-format screening with `--inspect` and
+  `--inspect-list`, followed by stability runs for files reported as native
+  candidates. Multi-audio files should be checked with `--audio-stream` when the
+  default selected stream is not the intended main audio track.
 
 Current prototype command:
 
@@ -506,9 +507,11 @@ Prototype acceptance progress:
 - Done: audio stream inspection, explicit audio stream selection, and stereo
   downmix for multi-channel audio in the isolated probe.
 - Done: batch inspect-list candidate screening in the isolated probe.
-- Not done: production app integration.
-- Not done: mpv fallback routing from the app.
-- Not done: memory target verification against the app-level playback workflow.
+- Done: production app integration through a native-first playback facade.
+- Done: `libmpv` fallback routing from the app for native backend failures and
+  unsupported native actions.
+- Not done: user-verified app-level memory target verification across the full
+  playback inspector and fullscreen workflow.
 
 ## Decision
 

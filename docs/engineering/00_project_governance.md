@@ -417,12 +417,15 @@ docs/engineering/04_architecture_rules.md
 
 or a dedicated ADR.
 
-The final playback engine choice is recorded in `docs/decisions/ADR-0003-playback-engine.md`.
+The current playback engine choice is recorded in
+`docs/decisions/ADR-0006-native-first-playback-backend.md`, which supersedes
+ADR-0003.
 
 The playback ADR must compare at least:
 
 - Native AVFoundation-based playback.
-- Embedded `libmpv` playback.
+- Native-first playback.
+- Embedded `libmpv` playback as fallback.
 - Any other seriously considered playback strategy.
 
 The ADR must evaluate:

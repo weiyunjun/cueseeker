@@ -1,6 +1,13 @@
 # ADR-0005: Playback Fullscreen Lifecycle and RenderView Architecture
 
-Status: Accepted
+Status: Accepted, generalized by ADR-0006
+
+ADR-0006 keeps the Theater Mode fullscreen rule but generalizes the concrete
+render ownership from an `MPVRenderView` singleton to a playback render
+container owned by the playback facade. The `libmpv`-specific crash analysis
+below remains historical context for why fullscreen must move a stable backend
+view instead of creating or destroying backend render state during fullscreen
+transitions.
 
 ## Background
 
@@ -45,3 +52,11 @@ Furthermore, leveraging Theater Mode aligns with how professional macOS video pl
 - The `prepareOpenGL` method in `MPVRenderView` must be guarded (`guard !renderContextCreated`) to ensure the OpenGL context is initialized only once, even as the view moves between windows.
 - Any future fullscreen controls must be implemented as a separate SwiftUI overlay (`PlaybackControlsOverlay`) hosted in the fullscreen window, floating above the native video view.
 - Theater Mode must suspend when the app resigns active by hiding the fullscreen window and restoring presentation options, then restore the same fullscreen window and singleton render view when the app becomes active again.
+
+Current implementation note after ADR-0006:
+
+- The production app now moves a playback render container owned by the playback
+  facade. That container may host either the native backend view or the `libmpv`
+  fallback view.
+- The fullscreen invariant remains the same: Theater Mode must move the existing
+  backend view/container and must not create duplicate render state.

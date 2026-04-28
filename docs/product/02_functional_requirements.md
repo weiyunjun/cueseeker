@@ -129,7 +129,7 @@ Requirements:
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
 
-The playback engine is selected in `docs/decisions/ADR-0003-playback-engine.md`.
+The playback engine is selected in `docs/decisions/ADR-0006-native-first-playback-backend.md`.
 
 ## 9. Settings
 

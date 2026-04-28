@@ -102,7 +102,7 @@ M2 playback interaction model:
 - Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
 - Playback fullscreen should use an independent theater-style fullscreen window and return the embedded video to the Playback Inspector when closed.
-- Entering or exiting playback fullscreen must not create a second `MPVRenderView` or a second `libmpv` render context.
+- Entering or exiting playback fullscreen must not create a second playback render container or duplicate backend render state.
 - Entering playback fullscreen should immediately hide the playback operation controls and mouse cursor once, regardless of whether the controls were visible before fullscreen.
 - In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse or click activity.
 - In playback fullscreen, only mouse or click activity should reveal the playback operation controls and cursor; keyboard playback shortcuts should not reveal them.
@@ -125,7 +125,7 @@ M2 playback interaction model:
 
 Current M2 implementation:
 
-- Playback fullscreen uses a Theater Mode window and returns the same video render view to the Playback Inspector when closed.
+- Playback fullscreen uses a Theater Mode window and returns the same playback render container to the Playback Inspector when closed.
 - Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
 - Fullscreen playback reveals controls and cursor from mouse or click activity, not from keyboard shortcuts.
 - Theater Mode suspends during app deactivation and restores on app activation without recreating the playback render context.
