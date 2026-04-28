@@ -188,6 +188,8 @@ private struct PlaybackFullscreenOverlayView: View {
                 )
                 .transition(.opacity)
             }
+
+            PlaybackFeedbackOverlay(feedback: viewModel.feedback)
         }
         .background(Color.clear)
         .onHover { hovering in

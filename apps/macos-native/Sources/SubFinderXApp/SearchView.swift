@@ -133,7 +133,7 @@ struct SearchView: View {
                             viewModel: appState.playbackViewModel,
                             fullscreenManager: appState.playbackFullscreenManager,
                             onSurfaceTap: {
-                                appState.togglePlayback()
+                                appState.togglePlaybackFromUser()
                             }
                         )
                             .aspectRatio(16 / 9, contentMode: .fit)

@@ -79,7 +79,7 @@ struct PlaybackControlsView: View {
                             get: { viewModel.volume },
                             set: { newValue in
                                 viewModel.volume = newValue
-                                viewModel.setVolume(newValue)
+                                viewModel.setVolume(newValue, showsFeedback: false)
                             }
                         ))
                         .frame(width: 80, height: 20)

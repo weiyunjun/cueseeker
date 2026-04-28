@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SubFinderXCore
 import SubFinderXPlayback
@@ -325,6 +326,71 @@ final class AppState: ObservableObject {
         }
     }
 
+    func togglePlaybackFromUser() {
+        let willPlay = !(playbackViewModel?.isPlaying ?? false)
+        togglePlayback()
+        playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
+    }
+
+    func handlePlaybackKeyDown(
+        keyCode: UInt16,
+        modifierFlagsRawValue: UInt
+    ) -> Bool {
+        guard selectedSearchResult != nil, let viewModel = playbackViewModel else {
+            return false
+        }
+
+        guard !Self.isTextInputFocused() else {
+            return false
+        }
+
+        let modifierFlags = NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
+        let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
+        guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
+            return false
+        }
+
+        let hasShift = modifierFlags.contains(.shift)
+
+        switch keyCode {
+        case 8:
+            viewModel.toggleSubtitles()
+            return true
+        case 3:
+            if let player {
+                playbackFullscreenManager.toggleFullscreen(
+                    player: player,
+                    viewModel: viewModel
+                )
+                return true
+            }
+            return false
+        case 49:
+            togglePlaybackFromUser()
+            return true
+        case 123:
+            viewModel.seekRelative(by: -5)
+            return true
+        case 124:
+            viewModel.seekRelative(by: 5)
+            return true
+        case 126:
+            viewModel.adjustVolume(by: 10)
+            return true
+        case 125:
+            viewModel.adjustVolume(by: -10)
+            return true
+        case 43 where hasShift:
+            viewModel.adjustSpeed(by: -0.25)
+            return true
+        case 47 where hasShift:
+            viewModel.adjustSpeed(by: 0.25)
+            return true
+        default:
+            return false
+        }
+    }
+
     func stopPlayback() {
         do {
             playbackFullscreenManager.exitFullscreen()
@@ -333,6 +399,22 @@ final class AppState: ObservableObject {
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
         }
+    }
+
+    private static func isTextInputFocused() -> Bool {
+        guard let firstResponder = NSApplication.shared.keyWindow?.firstResponder else {
+            return false
+        }
+
+        if firstResponder is NSTextView || firstResponder is NSTextField {
+            return true
+        }
+
+        if let view = firstResponder as? NSView {
+            return view.ancestorOrSelfContainsTextInput
+        }
+
+        return false
     }
 
     private func refreshCurrentSearch() {
@@ -376,5 +458,23 @@ final class AppState: ObservableObject {
 
     private static func errorMessage(for error: Error) -> String {
         String(describing: error)
+    }
+}
+
+private extension NSView {
+    var ancestorOrSelfContainsTextInput: Bool {
+        if self is NSTextView || self is NSTextField {
+            return true
+        }
+
+        var ancestor = superview
+        while let current = ancestor {
+            if current is NSTextView || current is NSTextField {
+                return true
+            }
+            ancestor = current.superview
+        }
+
+        return false
     }
 }

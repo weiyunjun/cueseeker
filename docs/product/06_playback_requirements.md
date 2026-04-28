@@ -155,6 +155,18 @@ Required behavior:
 - The playback speed selector should be an app-drawn menu that opens upward from the speed button.
 - The playback speed menu should match the current playback control visual style.
 - The subtitle button should toggle subtitle visibility through the playback engine.
+- Playback keyboard shortcuts should be available when a playback result is selected and the user is not typing into a text field.
+- `C` should show or hide subtitles.
+- `F` should enter or exit playback fullscreen.
+- `Space` should play or pause.
+- `Left Arrow` should seek backward by 5 seconds.
+- `Right Arrow` should seek forward by 5 seconds.
+- `Up Arrow` should increase volume by 10 percentage points.
+- `Down Arrow` should decrease volume by 10 percentage points.
+- `Shift+,` should decrease playback speed by 0.25x.
+- `Shift+.` should increase playback speed by 0.25x.
+- The visible playback speed menu should keep its existing preset choices.
+- Playback commands should show transient feedback for subtitle visibility, play or pause, seek direction and amount, volume, and playback speed.
 
 ## 9. Error States
 

@@ -52,6 +52,8 @@ struct PlaybackVideoView: View {
                     }
                 )
             }
+
+            PlaybackFeedbackOverlay(feedback: viewModel.feedback)
         }
         .onHover { hover in
             isControlsVisible = hover

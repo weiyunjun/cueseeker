@@ -9,10 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let appState = AppState()
     private var cancellables = Set<AnyCancellable>()
     private var windowButtonsProxy: WindowButtonsProxyView?
+    private var keyDownMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
         createMainWindow()
+        configurePlaybackKeyboardShortcuts()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -21,6 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let keyDownMonitor {
+            NSEvent.removeMonitor(keyDownMonitor)
+            self.keyDownMonitor = nil
+        }
         appState.playbackFullscreenManager.exitFullscreen()
     }
 
@@ -65,6 +71,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.adjustTrafficLights()
             }
             .store(in: &cancellables)
+    }
+
+    private func configurePlaybackKeyboardShortcuts() {
+        keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else {
+                return event
+            }
+
+            let keyCode = event.keyCode
+            let modifierFlags = event.modifierFlags
+                .intersection(.deviceIndependentFlagsMask)
+                .rawValue
+            let handled = MainActor.assumeIsolated {
+                self.appState.handlePlaybackKeyDown(
+                    keyCode: keyCode,
+                    modifierFlagsRawValue: modifierFlags
+                )
+            }
+
+            return handled ? nil : event
+        }
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
