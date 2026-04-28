@@ -478,6 +478,47 @@ static const AVCodecHWConfig *find_videotoolbox_config(const AVCodec *decoder) {
     }
 }
 
+static const AVCodec *find_videotoolbox_decoder(
+    enum AVCodecID codecID,
+    const AVCodecHWConfig **hardwareConfig
+) {
+    const AVCodec *defaultDecoder = avcodec_find_decoder(codecID);
+    if (defaultDecoder != NULL) {
+        const AVCodecHWConfig *config = find_videotoolbox_config(defaultDecoder);
+        if (config != NULL) {
+            if (hardwareConfig != NULL) {
+                *hardwareConfig = config;
+            }
+            return defaultDecoder;
+        }
+    }
+
+    void *iterator = NULL;
+    const AVCodec *candidate = NULL;
+    while ((candidate = av_codec_iterate(&iterator)) != NULL) {
+        if (!av_codec_is_decoder(candidate)
+            || candidate->type != AVMEDIA_TYPE_VIDEO
+            || candidate->id != codecID) {
+            continue;
+        }
+
+        const AVCodecHWConfig *config = find_videotoolbox_config(candidate);
+        if (config == NULL) {
+            continue;
+        }
+
+        if (hardwareConfig != NULL) {
+            *hardwareConfig = config;
+        }
+        return candidate;
+    }
+
+    if (hardwareConfig != NULL) {
+        *hardwareConfig = NULL;
+    }
+    return defaultDecoder;
+}
+
 static int print_frame(
     const AVFrame *frame,
     AVStream *videoStream,
@@ -1349,15 +1390,20 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         )
         : NULL;
     AVCodecParameters *codecParameters = videoStream->codecpar;
-    const AVCodec *decoder = avcodec_find_decoder(codecParameters->codec_id);
+    const AVCodecHWConfig *hardwareConfig = NULL;
+    const AVCodec *decoder = find_videotoolbox_decoder(codecParameters->codec_id, &hardwareConfig);
     if (decoder == NULL) {
         fprintf(stderr, "No FFmpeg decoder found for %s.\n", codec_name(codecParameters->codec_id));
         return 1;
     }
 
-    const AVCodecHWConfig *hardwareConfig = find_videotoolbox_config(decoder);
     if (hardwareConfig == NULL) {
-        fprintf(stderr, "Decoder %s does not expose a VideoToolbox config.\n", decoder->name);
+        fprintf(
+            stderr,
+            "No VideoToolbox-capable FFmpeg decoder found for %s; default decoder is %s.\n",
+            codec_name(codecParameters->codec_id),
+            decoder->name
+        );
         return 1;
     }
 
@@ -1938,20 +1984,26 @@ static int inspect_native_capability(
     AVStream *videoStream = formatContext->streams[videoStreamIndex];
     AVCodecParameters *videoParameters = videoStream->codecpar;
     const AVCodec *videoDecoder = avcodec_find_decoder(videoParameters->codec_id);
+    const AVCodecHWConfig *videoToolboxConfig = NULL;
+    const AVCodec *videoToolboxDecoder = find_videotoolbox_decoder(
+        videoParameters->codec_id,
+        &videoToolboxConfig
+    );
     bool hasVideoDecoder = videoDecoder != NULL;
-    bool hasVideoToolboxConfig = false;
+    bool hasVideoToolboxConfig = videoToolboxConfig != NULL;
 
     printf("Native capability inspect:\n");
     if (hasVideoDecoder) {
-        const AVCodecHWConfig *hardwareConfig = find_videotoolbox_config(videoDecoder);
-        hasVideoToolboxConfig = hardwareConfig != NULL;
         printf("Video decoder: %s\n", videoDecoder->name);
+        if (videoToolboxDecoder != NULL && videoToolboxDecoder != videoDecoder) {
+            printf("VideoToolbox decoder: %s\n", videoToolboxDecoder->name);
+        }
         printf(
             "VideoToolbox config: %s",
             hasVideoToolboxConfig ? "yes" : "no"
         );
         if (hasVideoToolboxConfig) {
-            printf(", pixel_format=%s", av_get_pix_fmt_name(hardwareConfig->pix_fmt));
+            printf(", pixel_format=%s", av_get_pix_fmt_name(videoToolboxConfig->pix_fmt));
         }
         printf("\n");
     } else {

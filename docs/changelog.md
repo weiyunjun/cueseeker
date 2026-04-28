@@ -78,3 +78,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Aligned playback product, engineering, proposal, and ADR documentation with the native-first production playback path and generalized fullscreen render-container ownership.
 - Fixed a playback crash when a search result falls back from native playback to `libmpv` by removing recursive render-container initialization.
 - Refined native-first playback so `libmpv` is initialized only on fallback demand, native success releases fallback state, 1.0x playback can retry native after fallback, and native timestamp seek has a global seek fallback.
+- Added native AV1 hardware decode routing by selecting a VideoToolbox-capable FFmpeg decoder instead of accepting the default `libdav1d` software decoder for AV1 files.

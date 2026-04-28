@@ -58,6 +58,47 @@ static const AVCodecHWConfig *SFXFindVideoToolboxConfig(const AVCodec *decoder) 
     }
 }
 
+static const AVCodec *SFXFindVideoToolboxDecoder(
+    enum AVCodecID codecID,
+    const AVCodecHWConfig **hardwareConfig
+) {
+    const AVCodec *defaultDecoder = avcodec_find_decoder(codecID);
+    if (defaultDecoder != NULL) {
+        const AVCodecHWConfig *config = SFXFindVideoToolboxConfig(defaultDecoder);
+        if (config != NULL) {
+            if (hardwareConfig != NULL) {
+                *hardwareConfig = config;
+            }
+            return defaultDecoder;
+        }
+    }
+
+    void *iterator = NULL;
+    const AVCodec *candidate = NULL;
+    while ((candidate = av_codec_iterate(&iterator)) != NULL) {
+        if (!av_codec_is_decoder(candidate)
+            || candidate->type != AVMEDIA_TYPE_VIDEO
+            || candidate->id != codecID) {
+            continue;
+        }
+
+        const AVCodecHWConfig *config = SFXFindVideoToolboxConfig(candidate);
+        if (config == NULL) {
+            continue;
+        }
+
+        if (hardwareConfig != NULL) {
+            *hardwareConfig = config;
+        }
+        return candidate;
+    }
+
+    if (hardwareConfig != NULL) {
+        *hardwareConfig = NULL;
+    }
+    return defaultDecoder;
+}
+
 static enum AVPixelFormat SFXChooseHardwareFormat(
     AVCodecContext *context,
     const enum AVPixelFormat *pixelFormats
@@ -406,7 +447,8 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (BOOL)prepareVideoWithError:(NSError **)error {
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
     AVCodecParameters *parameters = videoStream->codecpar;
-    const AVCodec *decoder = avcodec_find_decoder(parameters->codec_id);
+    const AVCodecHWConfig *hardwareConfig = NULL;
+    const AVCodec *decoder = SFXFindVideoToolboxDecoder(parameters->codec_id, &hardwareConfig);
     if (decoder == NULL) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(20, @"No FFmpeg video decoder found.");
@@ -414,10 +456,15 @@ static int SFXOutputChannelCount(int inputChannels) {
         return NO;
     }
 
-    const AVCodecHWConfig *hardwareConfig = SFXFindVideoToolboxConfig(decoder);
     if (hardwareConfig == NULL) {
         if (error != NULL) {
-            *error = SFXNativePlaybackError(21, @"Video decoder does not expose a VideoToolbox config.");
+            *error = SFXNativePlaybackError(
+                21,
+                [NSString stringWithFormat:
+                    @"No VideoToolbox-capable FFmpeg video decoder found for %@.",
+                    [NSString stringWithUTF8String:avcodec_get_name(parameters->codec_id)]
+                ]
+            );
         }
         return NO;
     }
