@@ -1529,6 +1529,95 @@ static int open_input(
     return 0;
 }
 
+static int inspect_native_capability(
+    AVFormatContext *formatContext,
+    int videoStreamIndex,
+    int audioStreamIndex
+) {
+    AVStream *videoStream = formatContext->streams[videoStreamIndex];
+    AVCodecParameters *videoParameters = videoStream->codecpar;
+    const AVCodec *videoDecoder = avcodec_find_decoder(videoParameters->codec_id);
+    bool hasVideoDecoder = videoDecoder != NULL;
+    bool hasVideoToolboxConfig = false;
+
+    printf("Native capability inspect:\n");
+    if (hasVideoDecoder) {
+        const AVCodecHWConfig *hardwareConfig = find_videotoolbox_config(videoDecoder);
+        hasVideoToolboxConfig = hardwareConfig != NULL;
+        printf("Video decoder: %s\n", videoDecoder->name);
+        printf(
+            "VideoToolbox config: %s",
+            hasVideoToolboxConfig ? "yes" : "no"
+        );
+        if (hasVideoToolboxConfig) {
+            printf(", pixel_format=%s", av_get_pix_fmt_name(hardwareConfig->pix_fmt));
+        }
+        printf("\n");
+    } else {
+        printf("Video decoder: unavailable for %s\n", codec_name(videoParameters->codec_id));
+        printf("VideoToolbox config: no\n");
+    }
+
+    AVBufferRef *hardwareDeviceContext = NULL;
+    int hardwareDeviceResult = av_hwdevice_ctx_create(
+        &hardwareDeviceContext,
+        AV_HWDEVICE_TYPE_VIDEOTOOLBOX,
+        NULL,
+        NULL,
+        0
+    );
+    if (hardwareDeviceResult == 0) {
+        printf("VideoToolbox device creation: yes\n");
+        av_buffer_unref(&hardwareDeviceContext);
+    } else {
+        char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+        ffmpeg_error_string(hardwareDeviceResult, error, sizeof(error));
+        printf("VideoToolbox device creation: no, %s\n", error);
+    }
+
+    bool hasAudioDecoder = true;
+    if (audioStreamIndex >= 0) {
+        AVStream *audioStream = formatContext->streams[audioStreamIndex];
+        AVCodecParameters *audioParameters = audioStream->codecpar;
+        const AVCodec *audioDecoder = avcodec_find_decoder(audioParameters->codec_id);
+        hasAudioDecoder = audioDecoder != NULL;
+        printf(
+            "Audio decoder: %s\n",
+            hasAudioDecoder ? audioDecoder->name : "unavailable"
+        );
+    } else {
+        printf("Audio decoder: no audio stream\n");
+    }
+
+    bool nativeCandidate = hasVideoDecoder
+        && hasVideoToolboxConfig
+        && hardwareDeviceResult == 0
+        && hasAudioDecoder;
+    printf("Native candidate: %s\n", nativeCandidate ? "yes" : "no");
+    if (!nativeCandidate) {
+        printf("Fallback recommended: yes\n");
+    }
+
+    return 0;
+}
+
+static int run_inspect_probe(const char *path) {
+    __block AVFormatContext *formatContext = NULL;
+    int videoStreamIndex = -1;
+    int audioStreamIndex = -1;
+    if (open_input(path, &formatContext, &videoStreamIndex, &audioStreamIndex) != 0) {
+        return 1;
+    }
+
+    int inspectResult = inspect_native_capability(
+        formatContext,
+        videoStreamIndex,
+        audioStreamIndex
+    );
+    avformat_close_input(&formatContext);
+    return inspectResult;
+}
+
 static AVSampleBufferDisplayLayer *make_display_layer(NSWindow **windowOut) {
     NSRect frame = NSMakeRect(0, 0, 960, 540);
     NSWindow *window = [[NSWindow alloc]
@@ -1831,7 +1920,7 @@ static bool parse_seek_list(const char *value, double *targets, int *targetCount
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: NativePlaybackProbe [--display] [--quiet] [--seek seconds] [--seek-again seconds] [--seek-list seconds[,seconds...]] [--seek-list-loops count] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
+        "Usage: NativePlaybackProbe [--inspect] [--display] [--quiet] [--seek seconds] [--seek-again seconds] [--seek-list seconds[,seconds...]] [--seek-list-loops count] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
     );
 }
 
@@ -1844,6 +1933,7 @@ int main(int argc, char **argv) {
             return 2;
         }
 
+        bool inspectOnly = false;
         bool displayFrames = false;
         bool hasSeek = false;
         double seekSeconds = 0;
@@ -1861,6 +1951,12 @@ int main(int argc, char **argv) {
         int argumentIndex = 1;
 
         while (argumentIndex < argc) {
+            if (strcmp(argv[argumentIndex], "--inspect") == 0) {
+                inspectOnly = true;
+                argumentIndex++;
+                continue;
+            }
+
             if (strcmp(argv[argumentIndex], "--display") == 0) {
                 displayFrames = true;
                 argumentIndex++;
@@ -2026,8 +2122,17 @@ int main(int argc, char **argv) {
             print_usage();
             return 2;
         }
+        if (inspectOnly && hasExplicitMaxOutputFrames) {
+            fprintf(stderr, "--inspect does not accept max-output-video-frames.\n");
+            print_usage();
+            return 2;
+        }
         if (runDurationSeconds > 0 && !hasExplicitMaxOutputFrames) {
             maxOutputFrames = INT_MAX;
+        }
+
+        if (inspectOnly) {
+            return run_inspect_probe(path);
         }
 
         if (displayFrames) {

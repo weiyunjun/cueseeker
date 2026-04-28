@@ -305,6 +305,10 @@ Validated so far:
 - The probe now supports `--seek-list` and `--seek-list-loops` so repeated
   search-result selection can be stress-tested without manually restarting the
   probe.
+- The probe now supports `--inspect` to quickly classify media files before
+  playback testing by reporting container streams, FFmpeg decoder availability,
+  VideoToolbox config availability, VideoToolbox device creation, audio decoder
+  availability, and whether the file is a native-backend candidate.
 
 Important prototype observations:
 
@@ -323,6 +327,7 @@ Current prototype command:
 
 ```bash
 swift build --product NativePlaybackProbe
+.build/debug/NativePlaybackProbe --inspect "/path/to/video.mkv"
 .build/debug/NativePlaybackProbe --display "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --seek 60.0 "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --seek 60.0 --seek-again 90.0 "/path/to/video.mkv" 60
@@ -341,6 +346,9 @@ remain readable.
 Use `--seek-list` with a trailing frame count to simulate repeatedly selecting
 different subtitle search results. For a 59.94 fps file, `300` output frames per
 seek target is roughly five seconds per selected result.
+Use `--inspect` first when screening HEVC, AV1, MOV, FLV, AVI, or other files.
+Files that are not reported as native candidates should remain fallback-only
+until a specific codec/container path is implemented and tested.
 
 Expected representative output includes:
 
@@ -442,6 +450,7 @@ Prototype acceptance progress:
   footprint sampling.
 - Done: quiet iterative probe output and interrupt-safe final summaries.
 - Done: repeated seek-list stress runs for search-result selection simulation.
+- Done: inspect-only native candidate classification for multi-format screening.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.
