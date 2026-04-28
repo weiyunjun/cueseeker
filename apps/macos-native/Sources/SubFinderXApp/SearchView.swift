@@ -128,7 +128,11 @@ struct SearchView: View {
             if let result = appState.selectedSearchResult {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        PlaybackView(player: appState.playbackPlayer)
+                        PlaybackView(
+                            player: appState.playbackPlayer,
+                            viewModel: appState.playbackViewModel,
+                            fullscreenManager: appState.playbackFullscreenManager
+                        )
                             .aspectRatio(16 / 9, contentMode: .fit)
                             .frame(maxWidth: .infinity)
                             .background(Color.black)

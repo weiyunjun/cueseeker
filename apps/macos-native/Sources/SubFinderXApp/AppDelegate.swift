@@ -20,6 +20,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         true
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        appState.playbackFullscreenManager.exitFullscreen()
+    }
+
     private func createMainWindow() {
         let contentView = ContentView()
             .environmentObject(appState)
@@ -70,6 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillExitFullScreen(_ notification: Notification) {
         window?.titleVisibility = .hidden
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        appState.playbackFullscreenManager.exitFullscreen()
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {

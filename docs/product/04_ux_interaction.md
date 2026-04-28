@@ -87,6 +87,9 @@ M2 playback interaction model:
 - Playback should include progress and seek interaction suitable for reviewing subtitle context.
 - Playback actions should provide clear visual feedback, such as a lightweight operation HUD or animation when the user plays, pauses, seeks, or triggers another command.
 - Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
+- Playback fullscreen should fullscreen the video experience itself, not the full app shell.
+- Playback fullscreen should use an independent theater-style fullscreen window and return the embedded video to the Playback Inspector when closed.
+- Entering or exiting playback fullscreen must not create a second `MPVRenderView` or a second `libmpv` render context.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
 
 ## 6. Indexing Interaction

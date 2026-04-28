@@ -3,7 +3,7 @@ import CMpv
 import OpenGL.GL3
 
 public final class MPVRenderView: NSOpenGLView {
-    private let player: MPVPlayer
+    private unowned let player: MPVPlayer
     private var renderContextCreated = false
     private var lastRenderError: Error?
 
@@ -34,12 +34,12 @@ public final class MPVRenderView: NSOpenGLView {
         nil
     }
 
-    deinit {
-        player.destroyRenderContext()
-    }
-
     public override func prepareOpenGL() {
         super.prepareOpenGL()
+
+        guard !renderContextCreated else {
+            return
+        }
 
         openGLContext?.makeCurrentContext()
 

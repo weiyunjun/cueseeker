@@ -2,9 +2,21 @@ import SwiftUI
 
 struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackViewModel
+    let isFullscreen: Bool
+    let onToggleFullscreen: () -> Void
     
     @State private var isVolumeHovered = false
     @State private var isSpeedMenuVisible = false
+
+    init(
+        viewModel: PlaybackViewModel,
+        isFullscreen: Bool = false,
+        onToggleFullscreen: @escaping () -> Void = {}
+    ) {
+        self.viewModel = viewModel
+        self.isFullscreen = isFullscreen
+        self.onToggleFullscreen = onToggleFullscreen
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -116,12 +128,9 @@ struct PlaybackControlsView: View {
                     
                     // Fullscreen
                     Button(action: {
-                        print("Fullscreen clicked")
-                        if let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow }) {
-                            window.toggleFullScreen(nil)
-                        }
+                        onToggleFullscreen()
                     }) {
-                        Image(systemName: "viewfinder")
+                        Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "viewfinder")
                             .font(.system(size: 16))
                             .foregroundColor(.white)
                     }

@@ -117,7 +117,28 @@ Future versions may need:
 
 These features should be designed after the playback engine is selected.
 
-## 7. Error States
+## 7. M2 Fullscreen Behavior
+
+Playback fullscreen belongs to the playback interaction model.
+
+Required behavior:
+
+- Fullscreen should apply to the video playback experience, not to the entire app shell.
+- Entering fullscreen should present the current video in an independent black theater-style window.
+- The main app window should not enter the system Full Screen Space when the playback fullscreen button is used.
+- The fullscreen window should reuse the same `MPVRenderView` and `libmpv` render context used by the Playback Inspector.
+- Exiting fullscreen should return the video view to the Playback Inspector.
+- Escape should exit playback fullscreen.
+- Closing or hiding the Playback Inspector should leave playback fullscreen cleanly.
+- Switching away from Search should pause playback and must not leave an orphan fullscreen window.
+
+Implementation constraints:
+
+- Do not create a second playback render view for fullscreen.
+- Do not create a second `libmpv` render context for fullscreen.
+- Do not let SwiftUI view lifetime decide when the `libmpv` render context is destroyed.
+
+## 8. Error States
 
 Playback errors should be clear.
 

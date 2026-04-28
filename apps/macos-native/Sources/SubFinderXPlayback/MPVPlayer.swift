@@ -86,6 +86,7 @@ public final class MPVPlayer: @unchecked Sendable {
     
     public weak var delegate: MPVPlayerDelegate?
     public private(set) var currentVideoURL: URL?
+    @MainActor public lazy var renderView: MPVRenderView = MPVRenderView(player: self)
 
     public init() throws {
         guard let handle = mpv_create() else {

@@ -84,8 +84,10 @@ final class AppState: ObservableObject {
     @Published var isSidebarVisible = true
     @Published var isPlaybackInspectorVisible = false
     @Published var playbackInspectorWidth: Double = 520
+    @Published var playbackViewModel: PlaybackViewModel?
 
     let databaseURL: URL
+    let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: MPVPlayer? {
         player
     }
@@ -116,7 +118,9 @@ final class AppState: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
-            player = try MPVPlayer()
+            let player = try MPVPlayer()
+            self.player = player
+            playbackViewModel = PlaybackViewModel(player: player)
         } catch {
             startupError = Self.errorMessage(for: error)
         }
@@ -157,6 +161,7 @@ final class AppState: ObservableObject {
     func collapsePlaybackInspector() {
         isPlaybackInspectorVisible = false
         userDefaults.set(false, forKey: Self.isPlaybackInspectorVisibleKey)
+        playbackFullscreenManager.exitFullscreen()
         pausePlayback()
     }
 
@@ -173,6 +178,7 @@ final class AppState: ObservableObject {
         selectedSection = section
 
         if section != .search {
+            playbackFullscreenManager.exitFullscreen()
             pausePlayback()
         }
     }
@@ -321,6 +327,7 @@ final class AppState: ObservableObject {
 
     func stopPlayback() {
         do {
+            playbackFullscreenManager.exitFullscreen()
             try player?.stop()
             playbackStatus = .idle
         } catch {
