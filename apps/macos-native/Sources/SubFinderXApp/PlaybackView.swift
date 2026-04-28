@@ -2,29 +2,48 @@ import AppKit
 import SwiftUI
 import SubFinderXPlayback
 
-struct PlaybackView: NSViewRepresentable {
+struct PlaybackView: View {
     let player: MPVPlayer?
 
-    func makeNSView(context: Context) -> NSView {
-        guard let player else {
-            return PlaybackPlaceholderView()
+    var body: some View {
+        if let player = player {
+            PlaybackVideoView(player: player)
+        } else {
+            Color.black
         }
+    }
+}
 
-        return MPVRenderView(player: player)
+struct PlaybackVideoView: View {
+    let player: MPVPlayer
+    @StateObject private var viewModel: PlaybackViewModel
+    @State private var isControlsVisible = false
+
+    init(player: MPVPlayer) {
+        self.player = player
+        _viewModel = StateObject(wrappedValue: PlaybackViewModel(player: player))
+    }
+
+    var body: some View {
+        ZStack {
+            MPVRenderViewWrapper(player: player)
+            
+            if isControlsVisible {
+                PlaybackControlsView(viewModel: viewModel)
+            }
+        }
+        .onHover { hover in
+            isControlsVisible = hover
+        }
+    }
+}
+
+struct MPVRenderViewWrapper: NSViewRepresentable {
+    let player: MPVPlayer
+
+    func makeNSView(context: Context) -> NSView {
+        MPVRenderView(player: player)
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
-private final class PlaybackPlaceholderView: NSView {
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.black.cgColor
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
-    }
 }
