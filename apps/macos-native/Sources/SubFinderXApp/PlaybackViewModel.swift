@@ -11,6 +11,7 @@ public final class PlaybackViewModel: ObservableObject {
     @Published public var duration: Double = 0
     @Published public var volume: Double = 100
     @Published public var playbackSpeed: Double = 1.0
+    @Published public var areSubtitlesVisible: Bool = true
 
     public init(player: MPVPlayer) {
         self.player = player
@@ -52,6 +53,17 @@ public final class PlaybackViewModel: ObservableObject {
             try player.setDoubleProperty("speed", value: value)
         } catch {
             print("Failed to set speed: \(error)")
+        }
+    }
+
+    public func toggleSubtitles() {
+        let newValue = !areSubtitlesVisible
+
+        do {
+            try player.setStringProperty("sid", value: newValue ? "auto" : "no")
+            areSubtitlesVisible = newValue
+        } catch {
+            print("Failed to toggle subtitles: \(error)")
         }
     }
 }

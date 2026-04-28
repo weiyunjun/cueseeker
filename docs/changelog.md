@@ -48,3 +48,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Designed the "Singleton RenderView" and "Theater Mode" architecture to permanently resolve fullscreen pointer dereference crashes (recorded in ADR-0005).
 - Started M2 planning on 2026-04-28 and clarified that playback interaction is a separate M2 work area from keyboard shortcuts, while M1 window sizing and restoration work should be treated as M2 regression verification.
 - Clarified the M2 playback fullscreen behavior as video-level Theater Mode rather than app-window Full Screen.
+- Clarified playback control terminology and interaction rules for the Timeline Zone, Transport Controls Zone, and Playback Operation Zone.

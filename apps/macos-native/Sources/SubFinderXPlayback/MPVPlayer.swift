@@ -172,6 +172,20 @@ public final class MPVPlayer: @unchecked Sendable {
         }
     }
 
+    public func setStringProperty(_ name: String, value: String) throws {
+        guard let handle else { throw PlaybackError.mpvCreateFailed }
+
+        let status = name.withCString { namePointer in
+            value.withCString { valuePointer in
+                mpv_set_property_string(handle, namePointer, valuePointer)
+            }
+        }
+
+        guard status >= 0 else {
+            throw PlaybackError.mpvOptionFailed(name: name, message: Self.errorMessage(for: status))
+        }
+    }
+
     public func getBoolProperty(_ name: String) throws -> Bool {
         guard let handle else { throw PlaybackError.mpvCreateFailed }
         var value: Int32 = 0

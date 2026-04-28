@@ -138,7 +138,25 @@ Implementation constraints:
 - Do not create a second `libmpv` render context for fullscreen.
 - Do not let SwiftUI view lifetime decide when the `libmpv` render context is destroyed.
 
-## 8. Error States
+## 8. M2 Playback Controls
+
+Playback controls should be explicit and should avoid accidental video-surface commands.
+
+Terminology:
+
+- `Timeline Zone`: the progress bar and its enlarged seek hit area.
+- `Transport Controls Zone`: the button row below the progress bar.
+- `Playback Operation Zone`: the combined `Timeline Zone` and `Transport Controls Zone`.
+
+Required behavior:
+
+- Clicking the video surface may toggle play or pause.
+- Clicking inside the `Playback Operation Zone` must not toggle play or pause unless the targeted control is the play or pause button.
+- The playback speed selector should be an app-drawn menu that opens upward from the speed button.
+- The playback speed menu should match the current playback control visual style.
+- The subtitle button should toggle subtitle visibility through the playback engine.
+
+## 9. Error States
 
 Playback errors should be clear.
 

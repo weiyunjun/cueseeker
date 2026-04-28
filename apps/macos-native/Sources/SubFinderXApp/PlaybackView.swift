@@ -6,13 +6,15 @@ struct PlaybackView: View {
     let player: MPVPlayer?
     let viewModel: PlaybackViewModel?
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+    let onSurfaceTap: () -> Void
 
     var body: some View {
         if let player, let viewModel {
             PlaybackVideoView(
                 player: player,
                 viewModel: viewModel,
-                fullscreenManager: fullscreenManager
+                fullscreenManager: fullscreenManager,
+                onSurfaceTap: onSurfaceTap
             )
         } else {
             Color.black
@@ -24,6 +26,7 @@ struct PlaybackVideoView: View {
     let player: MPVPlayer
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+    let onSurfaceTap: () -> Void
     @State private var isControlsVisible = false
 
     var body: some View {
@@ -32,6 +35,10 @@ struct PlaybackVideoView: View {
                 Color.black
             } else {
                 MPVRenderViewWrapper(player: player)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSurfaceTap()
+                    }
             }
             
             if isControlsVisible && !fullscreenManager.isFullscreen {

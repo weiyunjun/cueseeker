@@ -21,131 +21,128 @@ struct PlaybackControlsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-            
-            VStack(spacing: 0) {
-                CustomProgressBar(
-                    currentTime: $viewModel.currentTime,
-                    duration: viewModel.duration,
-                    onSeek: { time in
-                        viewModel.seek(to: time)
+            playbackOperationZone
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if isSpeedMenuVisible {
+                PlaybackSpeedMenu(
+                    selectedSpeed: viewModel.playbackSpeed,
+                    onSelect: { speed in
+                        viewModel.setSpeed(speed)
+                        isSpeedMenuVisible = false
                     }
                 )
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
-                
-                HStack(spacing: 16) {
-                    // Play/Pause
-                    Button(action: {
-                        viewModel.togglePlayPause()
-                    }) {
-                        Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    // Volume Control
-                    HStack(spacing: 8) {
-                        Button(action: {
-                            viewModel.setVolume(viewModel.volume > 0 ? 0 : 100)
-                        }) {
-                            Image(systemName: volumeIcon)
-                                .font(.system(size: 16))
-                                .foregroundColor(.white)
-                                .frame(width: 20)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        if isVolumeHovered {
-                            CustomVolumeSlider(volume: Binding(
-                                get: { viewModel.volume },
-                                set: { newValue in
-                                    viewModel.volume = newValue
-                                    viewModel.setVolume(newValue)
-                                }
-                            ))
-                            .frame(width: 80, height: 20)
-                        }
-                    }
-                    .onHover { hovering in
-                        isVolumeHovered = hovering
-                    }
-                    
-                    // Time Display
-                    Text("\(formatTime(viewModel.currentTime)) / \(formatTime(viewModel.duration))")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    // Subtitles (CC)
-                    Button(action: {
-                        print("Subtitles clicked")
-                    }) {
-                        Image(systemName: "captions.bubble.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    // Speed Control
-                    Button(action: {
-                        isSpeedMenuVisible.toggle()
-                    }) {
-                        HStack(spacing: 2) {
-                            Text(String(format: "%.1fx", viewModel.playbackSpeed))
-                                .font(.system(size: 13, weight: .semibold))
-                            Image(systemName: "chevron.up")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .popover(isPresented: $isSpeedMenuVisible, arrowEdge: .bottom) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
-                                Button(action: {
-                                    viewModel.setSpeed(speed)
-                                    isSpeedMenuVisible = false
-                                }) {
-                                    HStack {
-                                        Text(String(format: "%.1fx", speed))
-                                        Spacer()
-                                        if abs(viewModel.playbackSpeed - speed) < 0.01 {
-                                            Image(systemName: "checkmark")
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                    .padding(.horizontal, 8)
-                                    .frame(width: 80)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    
-                    // Fullscreen
-                    Button(action: {
-                        onToggleFullscreen()
-                    }) {
-                        Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "viewfinder")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 12)
+                .padding(.trailing, 44)
+                .padding(.bottom, 44)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .zIndex(10)
             }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.black.opacity(0.0), Color.black.opacity(0.6)]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+        }
+        .animation(.easeInOut(duration: 0.14), value: isSpeedMenuVisible)
+    }
+
+    private var playbackOperationZone: some View {
+        VStack(spacing: 0) {
+            CustomProgressBar(
+                currentTime: $viewModel.currentTime,
+                duration: viewModel.duration,
+                onSeek: { time in
+                    viewModel.seek(to: time)
+                }
             )
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+
+            HStack(spacing: 16) {
+                Button(action: {
+                    viewModel.togglePlayPause()
+                }) {
+                    Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                HStack(spacing: 8) {
+                    Button(action: {
+                        viewModel.setVolume(viewModel.volume > 0 ? 0 : 100)
+                    }) {
+                        Image(systemName: volumeIcon)
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .frame(width: 20)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    if isVolumeHovered {
+                        CustomVolumeSlider(volume: Binding(
+                            get: { viewModel.volume },
+                            set: { newValue in
+                                viewModel.volume = newValue
+                                viewModel.setVolume(newValue)
+                            }
+                        ))
+                        .frame(width: 80, height: 20)
+                    }
+                }
+                .onHover { hovering in
+                    isVolumeHovered = hovering
+                }
+
+                Text("\(formatTime(viewModel.currentTime)) / \(formatTime(viewModel.duration))")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                Button(action: {
+                    viewModel.toggleSubtitles()
+                }) {
+                    Image(systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(viewModel.areSubtitlesVisible ? 1 : 0.55))
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                Button(action: {
+                    DispatchQueue.main.async {
+                        isSpeedMenuVisible.toggle()
+                    }
+                }) {
+                    HStack(spacing: 2) {
+                        Text(String(format: "%.1fx", viewModel.playbackSpeed))
+                            .font(.system(size: 13, weight: .semibold))
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                Button(action: {
+                    onToggleFullscreen()
+                }) {
+                    Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "viewfinder")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+        }
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.black.opacity(0.0), Color.black.opacity(0.6)]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isSpeedMenuVisible {
+                isSpeedMenuVisible = false
+            }
         }
     }
     
@@ -161,6 +158,61 @@ struct PlaybackControlsView: View {
         let m = totalSeconds / 60
         let s = totalSeconds % 60
         return String(format: "%02d:%02d", m, s)
+    }
+}
+
+private struct PlaybackSpeedMenu: View {
+    let selectedSpeed: Double
+    let onSelect: (Double) -> Void
+
+    private let speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(speeds, id: \.self) { speed in
+                Button {
+                    onSelect(speed)
+                } label: {
+                    HStack(spacing: 10) {
+                        Text(formatSpeed(speed))
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 42, alignment: .leading)
+
+                        Spacer(minLength: 0)
+
+                        if abs(selectedSpeed - speed) < 0.01 {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .frame(width: 96, height: 28)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.vertical, 6)
+        .background(Color.black.opacity(0.82))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .shadow(color: .black.opacity(0.28), radius: 12, x: 0, y: 4)
+    }
+
+    private func formatSpeed(_ speed: Double) -> String {
+        if speed.rounded() == speed {
+            return String(format: "%.0fx", speed)
+        }
+
+        if (speed * 10).rounded() == speed * 10 {
+            return String(format: "%.1fx", speed)
+        }
+
+        return String(format: "%.2fx", speed)
     }
 }
 

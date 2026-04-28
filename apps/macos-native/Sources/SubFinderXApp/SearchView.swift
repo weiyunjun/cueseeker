@@ -131,16 +131,15 @@ struct SearchView: View {
                         PlaybackView(
                             player: appState.playbackPlayer,
                             viewModel: appState.playbackViewModel,
-                            fullscreenManager: appState.playbackFullscreenManager
+                            fullscreenManager: appState.playbackFullscreenManager,
+                            onSurfaceTap: {
+                                appState.togglePlayback()
+                            }
                         )
                             .aspectRatio(16 / 9, contentMode: .fit)
                             .frame(maxWidth: .infinity)
                             .background(Color.black)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                appState.togglePlayback()
-                            }
 
                         if case .failed(let message) = appState.playbackStatus {
                             Label(message, systemImage: "exclamationmark.triangle")

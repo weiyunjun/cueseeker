@@ -90,6 +90,12 @@ M2 playback interaction model:
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
 - Playback fullscreen should use an independent theater-style fullscreen window and return the embedded video to the Playback Inspector when closed.
 - Entering or exiting playback fullscreen must not create a second `MPVRenderView` or a second `libmpv` render context.
+- The progress bar and its enlarged hit area are named the `Timeline Zone`.
+- The button row below the progress bar is named the `Transport Controls Zone`.
+- Together, the `Timeline Zone` and `Transport Controls Zone` form the `Playback Operation Zone`.
+- Mouse clicks in the `Playback Operation Zone` should control only the targeted playback control and must not fall through to video-surface play or pause toggling.
+- Playback speed selection should use an app-drawn upward menu that stays within the playback controls surface.
+- The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
 
 ## 6. Indexing Interaction
