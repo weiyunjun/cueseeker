@@ -54,6 +54,7 @@ struct PlaybackControlsView: View {
                             ), in: 0...100)
                             .frame(width: 80)
                             .controlSize(.mini)
+                            .tint(.white)
                         }
                     }
                     .onHover { hovering in

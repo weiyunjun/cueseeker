@@ -26,13 +26,13 @@ struct CustomProgressBar: View {
                 
                 // Filled Track
                 Rectangle()
-                    .fill(Color.red)
+                    .fill(Color.accentColor)
                     .frame(width: thumbX, height: barHeight)
                 
                 // Thumb
                 if isHovering || dragTime != nil {
                     Circle()
-                        .fill(Color.red)
+                        .fill(Color.accentColor)
                         .frame(width: 14, height: 14)
                         .offset(x: thumbX - 7)
                 }
