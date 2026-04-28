@@ -256,6 +256,12 @@ Validated so far:
 - Basic timestamp-driven video pacing works for the representative sample.
 - A 300-video-packet run produced 300 hardware video frames, 0 software video
   frames, 0 late paced video frames, and no audio decode failures.
+- The isolated probe can seek before playback with `--seek`, reset decoder and
+  output state, discard pre-target frames, and resume VideoToolbox-backed video
+  output plus native audio scheduling on a generated H.264/AAC sample.
+- A display-mode seek smoke run against a generated 4-second H.264/AAC sample
+  at 2.0 seconds produced 45 hardware video frames, 0 software video frames, 0
+  late paced video frames, and no audio decode failures.
 
 Important prototype observations:
 
@@ -272,6 +278,7 @@ Current prototype command:
 ```bash
 swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --display "/path/to/video.mkv" 300
+.build/debug/NativePlaybackProbe --display --seek 60.0 "/path/to/video.mkv" 300
 ```
 
 Expected representative output includes:
@@ -357,7 +364,7 @@ Prototype acceptance progress:
 - Done: FFmpeg Opus decode and native audio scheduling for the representative
   sample.
 - Done: Timestamp-driven video pacing for the representative sample.
-- Not done: seek to a subtitle result timestamp.
+- Done: isolated probe seek to a requested playback timestamp before display.
 - Not done: audio-master clock synchronization.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.

@@ -13,10 +13,13 @@
 #include <libavutil/hwcontext.h>
 #include <libavutil/pixdesc.h>
 
+#include <errno.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 typedef struct {
@@ -24,6 +27,8 @@ typedef struct {
     int videoStreamIndex;
     int audioStreamIndex;
     int maxPackets;
+    bool hasSeek;
+    double seekSeconds;
     bool displayFrames;
     AVSampleBufferDisplayLayer *__unsafe_unretained displayLayer;
     AVAudioEngine *__unsafe_unretained audioEngine;
@@ -36,6 +41,7 @@ typedef struct {
     AVFrame *frame;
     int decodedFrames;
     int scheduledBuffers;
+    int skippedBeforeSeek;
     int unsupportedFrames;
     int decodeFailures;
     int sampleRate;
@@ -80,6 +86,45 @@ static double seconds_from_frame(const AVFrame *frame, AVStream *stream) {
     }
 
     return av_q2d(stream->time_base) * frame->best_effort_timestamp;
+}
+
+static double stream_start_seconds(AVStream *stream) {
+    if (stream->start_time == AV_NOPTS_VALUE) {
+        return 0;
+    }
+
+    return av_q2d(stream->time_base) * stream->start_time;
+}
+
+static double playback_seconds_from_frame(const AVFrame *frame, AVStream *stream) {
+    double seconds = seconds_from_frame(frame, stream);
+    if (seconds < 0) {
+        return -1;
+    }
+
+    return seconds - stream_start_seconds(stream);
+}
+
+static int64_t timestamp_for_seek_seconds(double seconds, AVStream *stream) {
+    int64_t relativeTimestamp = (int64_t)llround(seconds / av_q2d(stream->time_base));
+    if (stream->start_time == AV_NOPTS_VALUE) {
+        return relativeTimestamp;
+    }
+
+    return stream->start_time + relativeTimestamp;
+}
+
+static bool frame_is_before_seek_target(
+    const AVFrame *frame,
+    AVStream *stream,
+    double seekSeconds
+) {
+    double frameSeconds = playback_seconds_from_frame(frame, stream);
+    if (frameSeconds < 0) {
+        return false;
+    }
+
+    return frameSeconds + 0.002 < seekSeconds;
 }
 
 static enum AVPixelFormat choose_hardware_format(
@@ -339,13 +384,22 @@ static int receive_available_audio_frames(
     AudioDecodeContext *audio,
     AVStream *audioStream,
     AVAudioPlayerNode *audioPlayer,
-    AVAudioFormat *audioFormat
+    AVAudioFormat *audioFormat,
+    bool hasSeek,
+    double seekSeconds
 ) {
     int result = 0;
     while ((result = avcodec_receive_frame(audio->codecContext, audio->frame)) >= 0) {
         audio->decodedFrames++;
 
-        if (audio->decodedFrames <= 5 || audio->decodedFrames % 50 == 0) {
+        if (hasSeek && frame_is_before_seek_target(audio->frame, audioStream, seekSeconds)) {
+            audio->skippedBeforeSeek++;
+            av_frame_unref(audio->frame);
+            continue;
+        }
+
+        int outputFrames = audio->decodedFrames - audio->skippedBeforeSeek;
+        if (outputFrames <= 5 || audio->decodedFrames % 50 == 0) {
             print_audio_frame(audio->frame, audioStream, audio->decodedFrames);
         }
 
@@ -367,6 +421,78 @@ static int receive_available_audio_frames(
     fprintf(stderr, "avcodec_receive_frame for audio failed: %s\n", error);
     audio->decodeFailures++;
     return 1;
+}
+
+static void flush_display_layer(AVSampleBufferDisplayLayer *displayLayer) {
+    if (displayLayer == nil) {
+        return;
+    }
+
+    void (^flushBlock)(void) = ^{
+        [displayLayer flushAndRemoveImage];
+    };
+
+    if ([NSThread isMainThread]) {
+        flushBlock();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), flushBlock);
+    }
+}
+
+static void reset_audio_output(AVAudioPlayerNode *audioPlayer) {
+    if (audioPlayer == nil) {
+        return;
+    }
+
+    [audioPlayer stop];
+    [audioPlayer play];
+}
+
+static int seek_input_to_seconds(
+    ProbeRunContext context,
+    AVCodecContext *videoCodecContext,
+    AudioDecodeContext *audio,
+    VideoPacer *videoPacer
+) {
+    if (!context.hasSeek) {
+        return 0;
+    }
+
+    AVStream *videoStream = context.formatContext->streams[context.videoStreamIndex];
+    int64_t seekTimestamp = timestamp_for_seek_seconds(context.seekSeconds, videoStream);
+
+    printf(
+        "Seek target: %.3fs, video stream timestamp=%lld\n",
+        context.seekSeconds,
+        (long long)seekTimestamp
+    );
+
+    int result = av_seek_frame(
+        context.formatContext,
+        context.videoStreamIndex,
+        seekTimestamp,
+        AVSEEK_FLAG_BACKWARD
+    );
+    if (result < 0) {
+        char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+        ffmpeg_error_string(result, error, sizeof(error));
+        fprintf(stderr, "av_seek_frame failed: %s\n", error);
+        return 1;
+    }
+
+    avcodec_flush_buffers(videoCodecContext);
+    if (audio != NULL) {
+        avcodec_flush_buffers(audio->codecContext);
+    }
+
+    flush_display_layer(context.displayLayer);
+    reset_audio_output(context.audioPlayer);
+
+    if (videoPacer != NULL) {
+        *videoPacer = (VideoPacer){0};
+    }
+
+    return 0;
 }
 
 static CMSampleBufferRef create_sample_buffer_for_pixel_buffer(
@@ -450,16 +576,34 @@ static int receive_available_frames(
     int *softwareFrames,
     bool displayFrames,
     AVSampleBufferDisplayLayer *displayLayer,
-    VideoPacer *videoPacer
+    VideoPacer *videoPacer,
+    bool hasSeek,
+    double seekSeconds,
+    int *skippedVideoFrames
 ) {
     int result = 0;
     while ((result = avcodec_receive_frame(codecContext, frame)) >= 0) {
         (*decodedFrames)++;
 
-        bool shouldPrint = *decodedFrames <= 5 || *decodedFrames % 60 == 0;
         if (frame->format == hardwarePixelFormat) {
             (*hardwareFrames)++;
+        } else {
+            (*softwareFrames)++;
+        }
 
+        if (hasSeek && frame_is_before_seek_target(frame, videoStream, seekSeconds)) {
+            if (skippedVideoFrames != NULL) {
+                (*skippedVideoFrames)++;
+            }
+            av_frame_unref(frame);
+            continue;
+        }
+
+        int outputFrames = skippedVideoFrames != NULL
+            ? *decodedFrames - *skippedVideoFrames
+            : *decodedFrames;
+        bool shouldPrint = outputFrames <= 5 || *decodedFrames % 60 == 0;
+        if (frame->format == hardwarePixelFormat) {
             if (displayFrames) {
                 pace_video_frame(videoPacer, frame, videoStream);
                 CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)frame->data[3];
@@ -474,7 +618,6 @@ static int receive_available_frames(
                 print_frame(frame, videoStream, *decodedFrames);
             }
         } else {
-            (*softwareFrames)++;
             if (shouldPrint) {
                 print_frame(frame, videoStream, *decodedFrames);
             }
@@ -589,7 +732,17 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     int softwareFrames = 0;
     int sendFailures = 0;
     int audioPackets = 0;
+    int skippedVideoFrames = 0;
     VideoPacer videoPacer = {0};
+
+    if (seek_input_to_seconds(context, codecContext, audio, &videoPacer) != 0) {
+        av_packet_free(&packet);
+        av_frame_free(&frame);
+        avcodec_free_context(&codecContext);
+        av_buffer_unref(&hardwareDeviceContext);
+        destroy_audio_decode_context(audio);
+        return 1;
+    }
 
     while (fedPackets < context.maxPackets && av_read_frame(context.formatContext, packet) >= 0) {
         if (packet->stream_index == context.audioStreamIndex && audio != NULL) {
@@ -609,7 +762,9 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                 audio,
                 audioStream,
                 context.audioPlayer,
-                context.audioFormat
+                context.audioFormat,
+                context.hasSeek,
+                context.seekSeconds
             );
             continue;
         }
@@ -640,7 +795,10 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             &softwareFrames,
             context.displayFrames,
             context.displayLayer,
-            &videoPacer
+            &videoPacer,
+            context.hasSeek,
+            context.seekSeconds,
+            &skippedVideoFrames
         ) != 0) {
             break;
         }
@@ -656,7 +814,10 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         &softwareFrames,
         context.displayFrames,
         context.displayLayer,
-        &videoPacer
+        &videoPacer,
+        context.hasSeek,
+        context.seekSeconds,
+        &skippedVideoFrames
     );
 
     if (audio != NULL) {
@@ -665,7 +826,9 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             audio,
             audioStream,
             context.audioPlayer,
-            context.audioFormat
+            context.audioFormat,
+            context.hasSeek,
+            context.seekSeconds
         );
     }
 
@@ -674,6 +837,10 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     printf("Decoded frames: %d\n", decodedFrames);
     printf("Hardware frames: %d\n", hardwareFrames);
     printf("Software frames: %d\n", softwareFrames);
+    if (context.hasSeek) {
+        printf("Seek target: %.3fs\n", context.seekSeconds);
+        printf("Skipped video frames before seek target: %d\n", skippedVideoFrames);
+    }
     if (context.displayFrames) {
         printf("Paced video frames: %d\n", videoPacer.pacedFrames);
         printf("Late video frames: %d\n", videoPacer.lateFrames);
@@ -684,6 +851,9 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         printf("Audio packets fed: %d\n", audioPackets);
         printf("Decoded audio frames: %d\n", audio->decodedFrames);
         printf("Scheduled audio buffers: %d\n", audio->scheduledBuffers);
+        if (context.hasSeek) {
+            printf("Skipped audio frames before seek target: %d\n", audio->skippedBeforeSeek);
+        }
         printf("Unsupported audio frames: %d\n", audio->unsupportedFrames);
         printf("Audio decode failures: %d\n", audio->decodeFailures);
     }
@@ -848,7 +1018,9 @@ static bool make_audio_output(
 
 static int run_console_probe(
     const char *path,
-    int maxPackets
+    int maxPackets,
+    bool hasSeek,
+    double seekSeconds
 ) {
     __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
@@ -862,6 +1034,8 @@ static int run_console_probe(
         .videoStreamIndex = videoStreamIndex,
         .audioStreamIndex = -1,
         .maxPackets = maxPackets,
+        .hasSeek = hasSeek,
+        .seekSeconds = seekSeconds,
         .displayFrames = false,
         .displayLayer = nil,
         .audioEngine = nil,
@@ -875,7 +1049,9 @@ static int run_console_probe(
 
 static int run_display_probe(
     const char *path,
-    int maxPackets
+    int maxPackets,
+    bool hasSeek,
+    double seekSeconds
 ) {
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -915,6 +1091,8 @@ static int run_display_probe(
             .videoStreamIndex = videoStreamIndex,
             .audioStreamIndex = audioStreamIndex,
             .maxPackets = maxPackets,
+            .hasSeek = hasSeek,
+            .seekSeconds = seekSeconds,
             .displayFrames = true,
             .displayLayer = displayLayer,
             .audioEngine = audioEngine,
@@ -942,42 +1120,79 @@ static int run_display_probe(
     return probeResult;
 }
 
+static bool parse_nonnegative_seconds(const char *value, double *secondsOut) {
+    errno = 0;
+    char *end = NULL;
+    double seconds = strtod(value, &end);
+    if (errno != 0 || end == value || *end != '\0' || !isfinite(seconds) || seconds < 0) {
+        return false;
+    }
+
+    *secondsOut = seconds;
+    return true;
+}
+
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: NativePlaybackProbe [--display] <media-file> [max-video-packets]\n"
+        "Usage: NativePlaybackProbe [--display] [--seek seconds] <media-file> [max-video-packets]\n"
     );
 }
 
 int main(int argc, char **argv) {
     @autoreleasepool {
-        if (argc < 2 || argc > 4) {
+        if (argc < 2) {
             print_usage();
             return 2;
         }
 
         bool displayFrames = false;
-        int pathIndex = 1;
-        if (strcmp(argv[1], "--display") == 0) {
-            displayFrames = true;
-            pathIndex = 2;
+        bool hasSeek = false;
+        double seekSeconds = 0;
+        int argumentIndex = 1;
+
+        while (argumentIndex < argc) {
+            if (strcmp(argv[argumentIndex], "--display") == 0) {
+                displayFrames = true;
+                argumentIndex++;
+                continue;
+            }
+
+            if (strcmp(argv[argumentIndex], "--seek") == 0) {
+                if (argumentIndex + 1 >= argc
+                    || !parse_nonnegative_seconds(argv[argumentIndex + 1], &seekSeconds)) {
+                    fprintf(stderr, "Invalid --seek value.\n");
+                    print_usage();
+                    return 2;
+                }
+
+                hasSeek = true;
+                argumentIndex += 2;
+                continue;
+            }
+
+            break;
         }
 
-        if (pathIndex >= argc) {
+        if (argumentIndex >= argc) {
             print_usage();
             return 2;
         }
 
-        const char *path = argv[pathIndex];
-        int maxPackets = pathIndex + 1 < argc ? atoi(argv[pathIndex + 1]) : 300;
+        const char *path = argv[argumentIndex++];
+        int maxPackets = argumentIndex < argc ? atoi(argv[argumentIndex++]) : 300;
+        if (argumentIndex != argc) {
+            print_usage();
+            return 2;
+        }
         if (maxPackets <= 0) {
             maxPackets = 300;
         }
 
         if (displayFrames) {
-            return run_display_probe(path, maxPackets);
+            return run_display_probe(path, maxPackets, hasSeek, seekSeconds);
         }
 
-        return run_console_probe(path, maxPackets);
+        return run_console_probe(path, maxPackets, hasSeek, seekSeconds);
     }
 }
