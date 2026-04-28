@@ -61,7 +61,14 @@ Acceptance criteria:
 - Search and Settings are available through the native app shell.
 - Remote playback and advanced visual effects are out of scope.
 
-Current M1 status:
+M1 acceptance status:
+
+- Accepted on 2026-04-28.
+- The project owner has manually reviewed the current UI interactions and confirmed that the Search, Settings, Playback Inspector, and embedded playback workflow are usable for the M1 milestone.
+- The current implementation exceeds the M1 milestone bar for UI interaction quality, even though future UI and playback refinements remain expected.
+- The automated Swift test suite passed with 23 tests on 2026-04-28 using `swift test --package-path apps/macos-native`.
+
+Accepted M1 implementation summary:
 
 - The legacy Flutter implementation is archived under `archive/flutter/`.
 - The active native macOS app lives under `apps/macos-native/`.
@@ -69,7 +76,13 @@ Current M1 status:
 - Embedded playback uses `libmpv` with the render API and an `NSOpenGLView` bridge.
 - The app shell has moved to a custom native shell with AppKit titlebar controls and SwiftUI content.
 - The Search workflow now uses the Playback Inspector instead of dedicated playback-page navigation.
-- UI polish is still in progress. The current shell, search result presentation, and Playback Inspector are usable but not final M1 visual design.
+
+Known post-M1 follow-up areas:
+
+- Search ranking, query semantics, CJK behavior, and other search-quality improvements require dedicated post-M1 design work and should not block M1 acceptance.
+- Keyboard shortcuts, playback interaction refinement, native menu behavior, window behavior, file-access persistence, error presentation, settings refinement, and packaging preparation belong to M2.
+- The current `NSOpenGLView` playback bridge is acceptable for M1. Future playback rendering changes require focused design and verification.
+- UI polish may continue in M2, but the current UI is accepted for the M1 minimal local loop.
 
 ## 4. M2: macOS Experience Polish
 

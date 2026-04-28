@@ -41,4 +41,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Configured the main window to automatically maximize to the screen's visible frame upon startup, preserving native window behavior without forcing Full Screen mode.
 - Adopted "Main Workspace" as the standard nomenclature for the center content region to support future scalability (e.g., Favorites).
 - Kept Search mounted while switching to Settings so embedded playback preserves its render view and returns without a black frame.
-- UI polish remains in progress and is not yet considered final for M1.
+- Accepted the M1 native macOS minimal local loop on 2026-04-28 after manual UI interaction review and passing the Swift test suite.
+- Deferred search-quality optimization, keyboard shortcuts, playback interaction refinement, and broader native macOS polish to post-M1 work.
