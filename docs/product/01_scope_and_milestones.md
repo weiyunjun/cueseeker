@@ -80,33 +80,52 @@ Accepted M1 implementation summary:
 Known post-M1 follow-up areas:
 
 - Search ranking, query semantics, CJK behavior, and other search-quality improvements require dedicated post-M1 design work and should not block M1 acceptance.
-- Keyboard shortcuts, playback interaction refinement, native menu behavior, window behavior, file-access persistence, error presentation, settings refinement, and packaging preparation belong to M2.
+- Keyboard shortcuts, playback interaction refinement, native menu behavior, file and folder management, file-access persistence, error presentation, settings refinement, and packaging preparation belong to M2.
+- Window sizing and restoration were substantially completed during M1 and should be treated as M2 regression-verification areas unless concrete defects are found.
 - The current `NSOpenGLView` playback bridge is acceptable for M1. Future playback rendering changes require focused design and verification.
 - UI polish may continue in M2, but the current UI is accepted for the M1 minimal local loop.
 
 ## 4. M2: macOS Experience Polish
 
+Planning status:
+
+- Started on 2026-04-28 after the M1 native macOS minimal local loop was accepted.
+- M2 scope is being refined from broad macOS polish into reviewable interaction, file-management, error, settings, and packaging work.
+
 Goal:
 
-- Improve native macOS behavior around windows, menus, keyboard shortcuts, file permissions, and core UI quality.
+- Improve native macOS behavior around menus, keyboard shortcuts, playback interaction, file permissions, error presentation, settings, and packaging readiness.
 
 Expected areas:
 
 - Native menu bar.
+  Define and implement standard macOS menu commands for app-level, file, edit, view, playback, and window operations.
 - Keyboard shortcut model.
-- Window sizing and restoration.
-- File access persistence.
+  Define shortcut commands, focus scope, and conflict rules, especially for search text input and playback context.
+- Playback interaction model.
+  Refine playback controls, progress and seek interaction, action buttons, and visual feedback such as operation HUD or animation. Playback controls and keyboard shortcuts should share the same underlying playback command model.
+- Window sizing and restoration regression verification.
+  M1 already implemented launch maximization, AppShell layout persistence, titlebar/full-screen behavior, and Playback Inspector width and visibility persistence. M2 should verify these behaviors and fix concrete regressions rather than treating this as a new major feature area.
+- File and folder management with file-access persistence.
+  Complete local folder management, including folder removal, reindex behavior, missing-folder handling, and restart behavior for previously selected folders.
 - Error presentation.
+  Provide understandable user-facing errors for file access, indexing, database, search, and playback failures.
 - App settings.
+  Refine settings beyond the current folder-management surface after the specific M2 settings scope is confirmed.
 - Packaging preparation.
+  Prepare the app bundle for reliable local review builds, including dependency bundling concerns such as `libmpv`.
 - Signing and notarization preparation if needed.
+  Prepare signing or notarization only if personal distribution beyond local development requires it.
 
 Acceptance criteria:
 
 - The core local workflow feels stable and native.
 - Common keyboard interactions do not conflict with text input.
+- Playback controls, keyboard shortcuts, and visible playback feedback behave consistently.
 - Folder permissions remain available after app restart if required.
+- The user can remove configured folders and recover clearly from missing or unavailable folders.
 - User-facing errors are understandable.
+- Window sizing, restoration, titlebar, full-screen, and inspector persistence behavior remain stable after M2 changes.
 
 ## 5. M3: Favorites and Personal Learning Flow
 

@@ -43,3 +43,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Kept Search mounted while switching to Settings so embedded playback preserves its render view and returns without a black frame.
 - Accepted the M1 native macOS minimal local loop on 2026-04-28 after manual UI interaction review and passing the Swift test suite.
 - Deferred search-quality optimization, keyboard shortcuts, playback interaction refinement, and broader native macOS polish to post-M1 work.
+- Started M2 planning on 2026-04-28 and clarified that playback interaction is a separate M2 work area from keyboard shortcuts, while M1 window sizing and restoration work should be treated as M2 regression verification.

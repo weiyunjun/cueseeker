@@ -81,6 +81,14 @@ Accepted M1 behavior:
 - Normal result preview should use the Playback Inspector instead of dedicated playback-page navigation.
 - External player windows are not acceptable for the core workflow.
 
+M2 playback interaction model:
+
+- Playback should expose explicit controls for the actions the user can perform from the video area.
+- Playback should include progress and seek interaction suitable for reviewing subtitle context.
+- Playback actions should provide clear visual feedback, such as a lightweight operation HUD or animation when the user plays, pauses, seeks, or triggers another command.
+- Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
+- Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
+
 ## 6. Indexing Interaction
 
 Indexing should communicate progress without blocking the whole app unnecessarily.
@@ -114,6 +122,14 @@ Initial expectations:
 - Escape should dismiss transient UI or unfocus search when appropriate.
 - Playback shortcuts should apply only when playback focus or context makes sense.
 - Global shortcuts should be documented before implementation.
+
+M2 keyboard shortcut model:
+
+- The shortcut model should define commands, default key bindings, focus scope, and conflict rules before implementation.
+- Search text editing must keep standard macOS editing behavior.
+- Playback shortcuts should trigger the same playback commands used by visible playback controls.
+- Shortcut handling should not duplicate playback state transitions separately from the playback interaction model.
+- The native menu bar should expose relevant commands so keyboard shortcuts are discoverable through standard macOS menus where practical.
 
 ## 9. Persistence
 
