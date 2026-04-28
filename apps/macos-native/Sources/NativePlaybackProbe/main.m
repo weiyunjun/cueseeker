@@ -42,6 +42,16 @@ typedef struct {
     int channels;
 } AudioDecodeContext;
 
+typedef struct {
+    bool initialized;
+    double firstMediaSeconds;
+    double startHostSeconds;
+    int pacedFrames;
+    int lateFrames;
+    double maxWaitSeconds;
+    double maxLatenessSeconds;
+} VideoPacer;
+
 static enum AVPixelFormat hardwarePixelFormat = AV_PIX_FMT_NONE;
 
 static const char *codec_name(enum AVCodecID codecID) {
@@ -62,6 +72,14 @@ static CMTime cm_time_from_frame(const AVFrame *frame, AVStream *videoStream) {
 
     int64_t value = frame->best_effort_timestamp * videoStream->time_base.num;
     return CMTimeMake(value, videoStream->time_base.den);
+}
+
+static double seconds_from_frame(const AVFrame *frame, AVStream *stream) {
+    if (frame->best_effort_timestamp == AV_NOPTS_VALUE) {
+        return -1;
+    }
+
+    return av_q2d(stream->time_base) * frame->best_effort_timestamp;
 }
 
 static enum AVPixelFormat choose_hardware_format(
@@ -99,9 +117,7 @@ static int print_frame(
     AVStream *videoStream,
     int decodedFrames
 ) {
-    double seconds = frame->best_effort_timestamp == AV_NOPTS_VALUE
-        ? -1
-        : av_q2d(videoStream->time_base) * frame->best_effort_timestamp;
+    double seconds = seconds_from_frame(frame, videoStream);
     const char *formatName = av_get_pix_fmt_name((enum AVPixelFormat)frame->format);
 
     if (frame->format == hardwarePixelFormat) {
@@ -136,9 +152,7 @@ static void print_audio_frame(
     AVStream *audioStream,
     int decodedFrames
 ) {
-    double seconds = frame->best_effort_timestamp == AV_NOPTS_VALUE
-        ? -1
-        : av_q2d(audioStream->time_base) * frame->best_effort_timestamp;
+    double seconds = seconds_from_frame(frame, audioStream);
     const char *formatName = av_get_sample_fmt_name((enum AVSampleFormat)frame->format);
 
     printf(
@@ -149,6 +163,53 @@ static void print_audio_frame(
         frame->ch_layout.nb_channels,
         formatName != NULL ? formatName : "unknown"
     );
+}
+
+static void pace_video_frame(
+    VideoPacer *pacer,
+    const AVFrame *frame,
+    AVStream *videoStream
+) {
+    if (pacer == NULL) {
+        return;
+    }
+
+    double mediaSeconds = seconds_from_frame(frame, videoStream);
+    if (mediaSeconds < 0) {
+        return;
+    }
+
+    double now = CACurrentMediaTime();
+    if (!pacer->initialized) {
+        pacer->initialized = true;
+        pacer->firstMediaSeconds = mediaSeconds;
+        pacer->startHostSeconds = now;
+        pacer->pacedFrames++;
+        return;
+    }
+
+    double targetHostSeconds = pacer->startHostSeconds
+        + (mediaSeconds - pacer->firstMediaSeconds);
+    double waitSeconds = targetHostSeconds - now;
+
+    if (waitSeconds > 0) {
+        if (waitSeconds > pacer->maxWaitSeconds) {
+            pacer->maxWaitSeconds = waitSeconds;
+        }
+
+        double cappedWaitSeconds = waitSeconds > 0.25 ? 0.25 : waitSeconds;
+        usleep((useconds_t)(cappedWaitSeconds * 1000000.0));
+    } else {
+        double latenessSeconds = -waitSeconds;
+        if (latenessSeconds > 0.002) {
+            pacer->lateFrames++;
+        }
+        if (latenessSeconds > pacer->maxLatenessSeconds) {
+            pacer->maxLatenessSeconds = latenessSeconds;
+        }
+    }
+
+    pacer->pacedFrames++;
 }
 
 static AudioDecodeContext *create_audio_decode_context(
@@ -388,7 +449,8 @@ static int receive_available_frames(
     int *hardwareFrames,
     int *softwareFrames,
     bool displayFrames,
-    AVSampleBufferDisplayLayer *displayLayer
+    AVSampleBufferDisplayLayer *displayLayer,
+    VideoPacer *videoPacer
 ) {
     int result = 0;
     while ((result = avcodec_receive_frame(codecContext, frame)) >= 0) {
@@ -399,13 +461,13 @@ static int receive_available_frames(
             (*hardwareFrames)++;
 
             if (displayFrames) {
+                pace_video_frame(videoPacer, frame, videoStream);
                 CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)frame->data[3];
                 enqueue_pixel_buffer_for_display(
                     displayLayer,
                     pixelBuffer,
                     cm_time_from_frame(frame, videoStream)
                 );
-                usleep(16 * 1000);
             }
 
             if (shouldPrint) {
@@ -527,6 +589,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     int softwareFrames = 0;
     int sendFailures = 0;
     int audioPackets = 0;
+    VideoPacer videoPacer = {0};
 
     while (fedPackets < context.maxPackets && av_read_frame(context.formatContext, packet) >= 0) {
         if (packet->stream_index == context.audioStreamIndex && audio != NULL) {
@@ -576,7 +639,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             &hardwareFrames,
             &softwareFrames,
             context.displayFrames,
-            context.displayLayer
+            context.displayLayer,
+            &videoPacer
         ) != 0) {
             break;
         }
@@ -591,7 +655,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         &hardwareFrames,
         &softwareFrames,
         context.displayFrames,
-        context.displayLayer
+        context.displayLayer,
+        &videoPacer
     );
 
     if (audio != NULL) {
@@ -609,6 +674,12 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     printf("Decoded frames: %d\n", decodedFrames);
     printf("Hardware frames: %d\n", hardwareFrames);
     printf("Software frames: %d\n", softwareFrames);
+    if (context.displayFrames) {
+        printf("Paced video frames: %d\n", videoPacer.pacedFrames);
+        printf("Late video frames: %d\n", videoPacer.lateFrames);
+        printf("Max video wait: %.3fs\n", videoPacer.maxWaitSeconds);
+        printf("Max video lateness: %.3fs\n", videoPacer.maxLatenessSeconds);
+    }
     if (audio != NULL) {
         printf("Audio packets fed: %d\n", audioPackets);
         printf("Decoded audio frames: %d\n", audio->decodedFrames);
