@@ -146,6 +146,14 @@ typedef struct {
     double maxFootprintMB;
 } MemoryProbe;
 
+typedef struct {
+    bool videoNativeCandidate;
+    bool hasSelectedAudioStream;
+    bool audioOutputCandidate;
+    bool fullNativeCandidate;
+    bool fallbackRecommended;
+} NativeCapabilityReport;
+
 static enum AVPixelFormat hardwarePixelFormat = AV_PIX_FMT_NONE;
 static const int defaultMaxOutputFrames = 300;
 static const int defaultSeekPrerollPacketLimit = 3000;
@@ -1924,7 +1932,8 @@ static void print_all_audio_stream_details(
 static int inspect_native_capability(
     AVFormatContext *formatContext,
     int videoStreamIndex,
-    int audioStreamIndex
+    int audioStreamIndex,
+    NativeCapabilityReport *report
 ) {
     AVStream *videoStream = formatContext->streams[videoStreamIndex];
     AVCodecParameters *videoParameters = videoStream->codecpar;
@@ -2004,6 +2013,13 @@ static int inspect_native_capability(
         && hasVideoToolboxConfig
         && hardwareDeviceResult == 0;
     bool nativeCandidate = videoNativeCandidate && hasAudioOutputCandidate;
+    if (report != NULL) {
+        report->videoNativeCandidate = videoNativeCandidate;
+        report->hasSelectedAudioStream = audioStreamIndex >= 0;
+        report->audioOutputCandidate = hasAudioOutputCandidate;
+        report->fullNativeCandidate = nativeCandidate;
+        report->fallbackRecommended = !nativeCandidate;
+    }
     printf("Video native candidate: %s\n", yes_no(videoNativeCandidate));
     printf("Full native candidate: %s\n", yes_no(nativeCandidate));
     printf("Native candidate: %s\n", yes_no(nativeCandidate));
@@ -2014,7 +2030,11 @@ static int inspect_native_capability(
     return 0;
 }
 
-static int run_inspect_probe(const char *path, int requestedAudioStreamIndex) {
+static int run_inspect_probe(
+    const char *path,
+    int requestedAudioStreamIndex,
+    NativeCapabilityReport *report
+) {
     __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
     int audioStreamIndex = -1;
@@ -2031,10 +2051,94 @@ static int run_inspect_probe(const char *path, int requestedAudioStreamIndex) {
     int inspectResult = inspect_native_capability(
         formatContext,
         videoStreamIndex,
-        audioStreamIndex
+        audioStreamIndex,
+        report
     );
     avformat_close_input(&formatContext);
     return inspectResult;
+}
+
+static void strip_trailing_line_endings(char *line) {
+    if (line == NULL) {
+        return;
+    }
+
+    size_t length = strlen(line);
+    while (length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r')) {
+        line[length - 1] = '\0';
+        length--;
+    }
+}
+
+static int run_inspect_list_probe(
+    const char *listPath,
+    int requestedAudioStreamIndex
+) {
+    FILE *file = fopen(listPath, "r");
+    if (file == NULL) {
+        fprintf(stderr, "Could not open inspect list: %s\n", listPath);
+        return 1;
+    }
+
+    char *line = NULL;
+    size_t lineCapacity = 0;
+    int lineNumber = 0;
+    int inspectedFiles = 0;
+    int openOrInspectFailures = 0;
+    int fullNativeCandidates = 0;
+    int fallbackRecommended = 0;
+
+    while (getline(&line, &lineCapacity, file) >= 0) {
+        lineNumber++;
+        strip_trailing_line_endings(line);
+
+        if (line[0] == '\0' || line[0] == '#') {
+            continue;
+        }
+
+        inspectedFiles++;
+        printf("Inspect list item %d (line %d): %s\n", inspectedFiles, lineNumber, line);
+
+        NativeCapabilityReport report = {0};
+        int result = run_inspect_probe(line, requestedAudioStreamIndex, &report);
+        if (result != 0) {
+            openOrInspectFailures++;
+            fallbackRecommended++;
+            printf(
+                "Inspect list result: item=%d, status=failed, full_native=no, fallback_recommended=yes, path=%s\n",
+                inspectedFiles,
+                line
+            );
+            continue;
+        }
+
+        if (report.fullNativeCandidate) {
+            fullNativeCandidates++;
+        }
+        if (report.fallbackRecommended) {
+            fallbackRecommended++;
+        }
+
+        printf(
+            "Inspect list result: item=%d, status=ok, video_native=%s, audio_output=%s, full_native=%s, fallback_recommended=%s, path=%s\n",
+            inspectedFiles,
+            yes_no(report.videoNativeCandidate),
+            yes_no(report.audioOutputCandidate),
+            yes_no(report.fullNativeCandidate),
+            yes_no(report.fallbackRecommended),
+            line
+        );
+    }
+
+    free(line);
+    fclose(file);
+
+    printf("Inspect list files: %d\n", inspectedFiles);
+    printf("Inspect list failures: %d\n", openOrInspectFailures);
+    printf("Inspect list full native candidates: %d\n", fullNativeCandidates);
+    printf("Inspect list fallback recommended: %d\n", fallbackRecommended);
+
+    return openOrInspectFailures == 0 ? 0 : 1;
 }
 
 static AVSampleBufferDisplayLayer *make_display_layer(NSWindow **windowOut) {
@@ -2412,7 +2516,7 @@ static bool parse_seek_list(const char *value, double *targets, int *targetCount
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: NativePlaybackProbe [--inspect] [--display] [--quiet] [--audio-stream stream-index] [--seek seconds] [--seek-again seconds] [--seek-list seconds[,seconds...]] [--seek-list-loops count] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file> [max-output-video-frames]\n"
+        "Usage: NativePlaybackProbe [--inspect | --inspect-list] [--display] [--quiet] [--audio-stream stream-index] [--seek seconds] [--seek-again seconds] [--seek-list seconds[,seconds...]] [--seek-list-loops count] [--pause-after-frames count] [--pause-duration seconds] [--run-duration seconds] [--memory-sample-interval seconds] <media-file-or-list-file> [max-output-video-frames]\n"
     );
 }
 
@@ -2426,6 +2530,7 @@ int main(int argc, char **argv) {
         }
 
         bool inspectOnly = false;
+        bool inspectList = false;
         bool displayFrames = false;
         int requestedAudioStreamIndex = -1;
         bool hasSeek = false;
@@ -2446,6 +2551,12 @@ int main(int argc, char **argv) {
         while (argumentIndex < argc) {
             if (strcmp(argv[argumentIndex], "--inspect") == 0) {
                 inspectOnly = true;
+                argumentIndex++;
+                continue;
+            }
+
+            if (strcmp(argv[argumentIndex], "--inspect-list") == 0) {
+                inspectList = true;
                 argumentIndex++;
                 continue;
             }
@@ -2596,6 +2707,27 @@ int main(int argc, char **argv) {
             print_usage();
             return 2;
         }
+        if (inspectOnly && inspectList) {
+            fprintf(stderr, "--inspect and --inspect-list cannot be combined.\n");
+            print_usage();
+            return 2;
+        }
+        if (inspectList && displayFrames) {
+            fprintf(stderr, "--inspect-list cannot be combined with --display.\n");
+            print_usage();
+            return 2;
+        }
+        if (inspectList
+            && (hasSeek
+                || hasSeekAgain
+                || hasSeekList
+                || pauseAfterOutputFrames > 0
+                || runDurationSeconds > 0
+                || memorySampleIntervalSeconds > 0)) {
+            fprintf(stderr, "--inspect-list cannot be combined with playback run options.\n");
+            print_usage();
+            return 2;
+        }
 
         if (!hasSeekList && hasSeek) {
             seekTargets[seekTargetCount++] = seekSeconds;
@@ -2627,8 +2759,8 @@ int main(int argc, char **argv) {
             print_usage();
             return 2;
         }
-        if (inspectOnly && hasExplicitMaxOutputFrames) {
-            fprintf(stderr, "--inspect does not accept max-output-video-frames.\n");
+        if ((inspectOnly || inspectList) && hasExplicitMaxOutputFrames) {
+            fprintf(stderr, "--inspect and --inspect-list do not accept max-output-video-frames.\n");
             print_usage();
             return 2;
         }
@@ -2637,7 +2769,11 @@ int main(int argc, char **argv) {
         }
 
         if (inspectOnly) {
-            return run_inspect_probe(path, requestedAudioStreamIndex);
+            return run_inspect_probe(path, requestedAudioStreamIndex, NULL);
+        }
+
+        if (inspectList) {
+            return run_inspect_list_probe(path, requestedAudioStreamIndex);
         }
 
         if (displayFrames) {

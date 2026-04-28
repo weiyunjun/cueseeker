@@ -314,6 +314,9 @@ Validated so far:
   requirement, supports `--audio-stream` for selecting a specific FFmpeg stream
   index, and can downmix multi-channel audio to stereo for `AVAudioEngine`
   output through FFmpeg `swresample`.
+- The probe now supports `--inspect-list` for line-based batch candidate
+  screening, printing per-file native/fallback classification plus aggregate
+  counts before longer display stability runs.
 
 Important prototype observations:
 
@@ -366,6 +369,7 @@ Current prototype command:
 swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --inspect "/path/to/video.mkv"
 .build/debug/NativePlaybackProbe --inspect --audio-stream 1 "/path/to/video.mkv"
+.build/debug/NativePlaybackProbe --inspect-list "/path/to/media-list.txt"
 .build/debug/NativePlaybackProbe --display "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --seek 60.0 "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --audio-stream 1 --seek 60.0 --run-duration 60 "/path/to/video.mkv"
@@ -391,6 +395,9 @@ until a specific codec/container path is implemented and tested.
 Use `--audio-stream` with the absolute FFmpeg stream index shown by `--inspect`
 when a file contains multiple audio tracks, such as a main multi-channel track
 and a commentary stereo track.
+Use `--inspect-list` with a UTF-8 text file containing one media path per line
+to screen multiple files before deciding which candidates deserve 5-minute
+display stability runs. Blank lines and lines beginning with `#` are ignored.
 
 Expected representative output includes:
 
@@ -495,6 +502,7 @@ Prototype acceptance progress:
 - Done: inspect-only native candidate classification for multi-format screening.
 - Done: audio stream inspection, explicit audio stream selection, and stereo
   downmix for multi-channel audio in the isolated probe.
+- Done: batch inspect-list candidate screening in the isolated probe.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.

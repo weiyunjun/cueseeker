@@ -72,3 +72,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added an inspect-only native playback probe mode to classify candidate files before spending time on multi-format playback stability runs.
 - Recorded user-verified native playback probe results for 10-minute single-seek playback, interrupted 5-minute iteration, and 60-operation repeated seek-list stress testing on the representative H.264/Opus Matroska sample.
 - Extended the isolated native playback probe with audio stream enumeration, explicit audio stream selection, and stereo downmix for multi-channel audio, keeping the production `libmpv` playback path unchanged.
+- Added batch inspect-list screening to the isolated native playback probe so multiple media files can be classified before longer native-backend stability runs.
