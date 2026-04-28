@@ -117,7 +117,8 @@ Expected areas:
 - App settings.
   Refine settings beyond the current folder-management surface after the specific M2 settings scope is confirmed.
 - Packaging preparation.
-  Prepare the app bundle for reliable local review builds, including dependency bundling concerns such as `libmpv`.
+  Prepare the app bundle for reliable local review builds, including dependency
+  bundling concerns such as FFmpeg and, while fallback remains present, `libmpv`.
 - Signing and notarization preparation if needed.
   Prepare signing or notarization only if personal distribution beyond local development requires it.
 

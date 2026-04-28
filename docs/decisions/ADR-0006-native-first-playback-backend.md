@@ -115,3 +115,8 @@ The first app integration is intentionally narrow:
   complete.
 - Packaging, signing, and notarization must account for FFmpeg libraries in
   addition to `libmpv` while fallback remains present.
+- If a future decision removes `libmpv`, packaging still must bundle FFmpeg's
+  required libraries and any non-system transitive codec dependencies used by
+  the selected FFmpeg build. macOS system frameworks such as VideoToolbox,
+  Metal, AVFoundation, CoreVideo, CoreMedia, and AVFAudio should remain system
+  dependencies rather than bundled app payload.

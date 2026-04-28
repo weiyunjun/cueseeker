@@ -531,6 +531,28 @@ Key risks:
 The project should mitigate these risks by keeping the first implementation
 narrow and measurable.
 
+## Packaging Direction
+
+While `libmpv` fallback remains present, distributable builds must account for
+both FFmpeg and `libmpv`.
+
+If a later decision removes `libmpv`, the main external playback dependency
+becomes FFmpeg, but that does not necessarily mean a single `ffmpeg` binary or
+one dylib. The app must bundle the FFmpeg libraries it links against, such as
+`libavformat`, `libavcodec`, `libavutil`, `libswresample`, and any required
+non-system transitive codec libraries from the chosen FFmpeg build. For example,
+native AV1 software fallback through `libdav1d` would require `dav1d` to be
+available either as a bundled dynamic library or statically included in a custom
+FFmpeg build.
+
+macOS frameworks used by the native playback path, including VideoToolbox,
+Metal, AVFoundation, CoreVideo, CoreMedia, and AVFAudio, are system frameworks
+and should not be bundled in the DMG.
+
+Before public distribution, the release process must verify app-bundle
+`@rpath`/install names, code signing, notarization, and FFmpeg license
+configuration for the exact binaries shipped.
+
 ## Acceptance Criteria
 
 The proposal can be accepted when the team agrees on:

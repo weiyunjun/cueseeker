@@ -83,3 +83,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Recorded the next native playback direction: move hard-decoded and future software-decoded frames through a shared Metal YUV renderer while retaining `libmpv` fallback.
 - Fixed native playback seek flicker by preserving the current displayed frame during same-file seek rebuilds until the first target frame is ready.
 - Fixed native playback result-switch flicker by preserving the previous frame until the next video's first frame is ready, and suppressed non-error FFmpeg warning logs from production native playback.
+- Clarified future packaging direction: if `libmpv` fallback is removed, the distributable app should bundle FFmpeg libraries and their required non-system transitive dependencies, while relying on macOS system frameworks for VideoToolbox, Metal, AVFoundation, and audio output.
