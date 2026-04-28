@@ -362,6 +362,10 @@ Current interpretation:
 - The production app now includes a playback facade that tries the native backend
   first and falls back to `libmpv` when native opening, decoding, seek setup, or
   unsupported actions fail.
+- The production facade now creates MPV only when fallback is actually needed,
+  releases fallback state after successful native open, retries native playback
+  after returning to `1.0x`, and retries native timestamp setup with a global
+  seek if stream-specific seek fails.
 - The probe remains useful for multi-format screening with `--inspect` and
   `--inspect-list`, followed by stability runs for files reported as native
   candidates. Multi-audio files should be checked with `--audio-stream` when the
@@ -510,6 +514,9 @@ Prototype acceptance progress:
 - Done: production app integration through a native-first playback facade.
 - Done: `libmpv` fallback routing from the app for native backend failures and
   unsupported native actions.
+- Done: lazy MPV fallback initialization, fallback release after native success,
+  native retry after returning to `1.0x`, and global seek fallback for native
+  timestamp setup.
 - Not done: user-verified app-level memory target verification across the full
   playback inspector and fullscreen workflow.
 

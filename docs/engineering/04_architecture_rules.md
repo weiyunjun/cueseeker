@@ -161,7 +161,10 @@ Rules:
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
 - The current playback route is owned by a playback facade that tries the native backend first and falls back to `libmpv`.
+- The playback facade must create `libmpv` lazily on fallback demand; successful native playback must not initialize or retain an MPV player just because fallback exists.
 - The native backend uses FFmpeg demuxing, VideoToolbox hardware decode, native display, FFmpeg audio decode, and `AVAudioEngine` output.
+- Native timestamp seek should first try the selected video stream and then fall back to a global seek before treating seek setup as a native failure.
+- If playback is currently using `libmpv`, same-file result selection and returning to `1.0x` speed should allow the facade to retry native playback instead of permanently pinning that file to fallback for the session.
 - The playback UI hosts a singleton render container owned by the playback facade; fullscreen must move that same container rather than creating an independent render view.
 - Playback fullscreen uses a borderless Theater Mode window and must not call the app window's system Full Screen transition.
 - The Theater Mode window must use an app-level window level and must not use `screenSaver` or other system-overlay window levels that can cover the Cmd-Tab app switcher.

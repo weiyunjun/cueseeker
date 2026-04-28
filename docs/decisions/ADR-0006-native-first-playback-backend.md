@@ -97,7 +97,12 @@ compatibility path for failures and unsupported behavior.
 The first app integration is intentionally narrow:
 
 - Native backend is primary for ordinary open, seek, play, pause, and volume.
-- `libmpv` remains bundled and available as fallback.
+- `libmpv` remains bundled and available as fallback, but the app should not
+  initialize or retain an MPV player during successful native playback.
+- Returning playback speed to `1.0x` should give the facade an opportunity to
+  retry the native backend from the current playback position.
+- Native timestamp seek should tolerate files that reject stream-specific seek
+  by retrying with a global seek before falling back to `libmpv`.
 - Full app workflow testing is required before declaring the native backend
   complete.
 - Packaging, signing, and notarization must account for FFmpeg libraries in
