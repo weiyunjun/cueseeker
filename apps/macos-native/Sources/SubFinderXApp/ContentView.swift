@@ -34,7 +34,7 @@ struct ContentView: View {
                         .zIndex(2)
                 }
 
-                selectedSectionView
+                mainWorkspace
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.top, AppShellLayout.topBarHeight)
             }
@@ -174,12 +174,21 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private var selectedSectionView: some View {
-        switch appState.selectedSection {
-        case .search:
+    private var mainWorkspace: some View {
+        ZStack {
             SearchView()
-        case .settings:
+                .opacity(appState.selectedSection == .search ? 1 : 0)
+                .allowsHitTesting(appState.selectedSection == .search)
+                .accessibilityHidden(appState.selectedSection != .search)
+                .zIndex(appState.selectedSection == .search ? 1 : 0)
+
             SettingsView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(windowBackground)
+                .opacity(appState.selectedSection == .settings ? 1 : 0)
+                .allowsHitTesting(appState.selectedSection == .settings)
+                .accessibilityHidden(appState.selectedSection != .settings)
+                .zIndex(appState.selectedSection == .settings ? 1 : 0)
         }
     }
 }

@@ -32,6 +32,11 @@ struct SearchView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
             .animation(.easeInOut(duration: 0.18), value: appState.isPlaybackInspectorVisible)
         }
+        .onReceive(appState.$selectedSection) { section in
+            if section != .search {
+                isSearchFocused = false
+            }
+        }
     }
 
     private var searchResultsPane: some View {

@@ -40,4 +40,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Implemented global AppShell layout persistence using `UserDefaults` within `AppState` to automatically save and restore Sidebar visibility, Playback Inspector visibility, and Inspector width across application launches.
 - Configured the main window to automatically maximize to the screen's visible frame upon startup, preserving native window behavior without forcing Full Screen mode.
 - Adopted "Main Workspace" as the standard nomenclature for the center content region to support future scalability (e.g., Favorites).
+- Kept Search mounted while switching to Settings so embedded playback preserves its render view and returns without a black frame.
 - UI polish remains in progress and is not yet considered final for M1.
