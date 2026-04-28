@@ -59,4 +59,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Suspended Theater Mode while the app is inactive so app switching no longer leaves the fullscreen playback window visually covering other applications.
 - Lowered the Theater Mode window level so the Cmd-Tab app switcher remains visible while playback fullscreen is active.
 - Clarified and implemented Search field focus behavior for app-owned commands, sidebar navigation, search result selection, Playback Inspector clicks, and system-level app switching.
+- Refined playback fullscreen and speed menu interaction so keyboard shortcuts no longer reveal fullscreen controls, the speed menu has no separate animation, and speed button hover/click geometry matches the menu.
 - Verified the M2 playback interaction refinements after user testing and passing the Swift test suite with 23 tests on 2026-04-28.

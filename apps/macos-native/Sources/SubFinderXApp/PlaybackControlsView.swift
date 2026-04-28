@@ -7,7 +7,6 @@ struct PlaybackControlsView: View {
     
     @State private var isVolumeHovered = false
     @State private var isSpeedMenuVisible = false
-    @State private var speedMenuHideTask: Task<Void, Never>?
 
     init(
         viewModel: PlaybackViewModel,
@@ -26,30 +25,11 @@ struct PlaybackControlsView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if isSpeedMenuVisible {
-                PlaybackSpeedMenu(
-                    selectedSpeed: viewModel.playbackSpeed,
-                    onSelect: { speed in
-                        viewModel.setSpeed(speed)
-                        cancelSpeedMenuHide()
-                        isSpeedMenuVisible = false
-                    }
-                )
-                .padding(.trailing, 44)
-                .padding(.bottom, 44)
-                .onHover { hovering in
-                    if hovering {
-                        showSpeedMenu()
-                    } else {
-                        scheduleSpeedMenuHide()
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                .zIndex(10)
+                speedMenuHoverRegion
+                    .padding(.trailing, PlaybackControlsLayout.speedMenuTrailingPadding)
+                    .padding(.bottom, PlaybackControlsLayout.speedButtonBottomPadding)
+                    .zIndex(10)
             }
-        }
-        .animation(.easeInOut(duration: 0.14), value: isSpeedMenuVisible)
-        .onDisappear {
-            cancelSpeedMenuHide()
         }
     }
 
@@ -89,6 +69,10 @@ struct PlaybackControlsView: View {
                     Image(systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble")
                         .font(.system(size: 16))
                         .foregroundColor(.white.opacity(viewModel.areSubtitlesVisible ? 1 : 0.55))
+                        .frame(
+                            width: PlaybackControlsLayout.iconButtonSize,
+                            height: PlaybackControlsLayout.iconButtonSize
+                        )
                 }
                 .buttonStyle(PlainButtonStyle())
 
@@ -100,12 +84,16 @@ struct PlaybackControlsView: View {
                     Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "viewfinder")
                         .font(.system(size: 16))
                         .foregroundColor(.white)
+                        .frame(
+                            width: PlaybackControlsLayout.iconButtonSize,
+                            height: PlaybackControlsLayout.iconButtonSize
+                        )
                 }
                 .buttonStyle(PlainButtonStyle())
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 12)
-            .frame(height: 36, alignment: .center)
+            .padding(.horizontal, PlaybackControlsLayout.horizontalPadding)
+            .padding(.bottom, PlaybackControlsLayout.transportRowBottomPadding)
+            .frame(height: PlaybackControlsLayout.transportRowHeight, alignment: .center)
         }
         .background(
             LinearGradient(
@@ -115,11 +103,6 @@ struct PlaybackControlsView: View {
             )
         )
         .contentShape(Rectangle())
-        .onTapGesture {
-            if isSpeedMenuVisible {
-                isSpeedMenuVisible = false
-            }
-        }
     }
     
     private var volumeIcon: String {
@@ -164,44 +147,69 @@ struct PlaybackControlsView: View {
     }
 
     private var speedControl: some View {
-        Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(.white)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 54, minHeight: 24, alignment: .center)
-            .contentShape(Rectangle())
+        speedButton
             .onHover { hovering in
                 if hovering {
                     showSpeedMenu()
-                } else {
-                    scheduleSpeedMenuHide()
                 }
             }
     }
 
-    private func showSpeedMenu() {
-        cancelSpeedMenuHide()
-        isSpeedMenuVisible = true
+    private var speedButton: some View {
+        Button {
+            showSpeedMenu()
+        } label: {
+            Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(
+                    width: PlaybackControlsLayout.speedMenuWidth,
+                    height: PlaybackControlsLayout.speedButtonHeight,
+                    alignment: .center
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
-    private func scheduleSpeedMenuHide() {
-        cancelSpeedMenuHide()
-        speedMenuHideTask = Task {
-            try? await Task.sleep(nanoseconds: 160_000_000)
-            guard !Task.isCancelled else {
-                return
-            }
+    private var speedMenuHoverRegion: some View {
+        VStack(spacing: 0) {
+            PlaybackSpeedMenu(
+                selectedSpeed: viewModel.playbackSpeed,
+                onSelect: { speed in
+                    viewModel.setSpeed(speed)
+                    hideSpeedMenu()
+                }
+            )
 
-            await MainActor.run {
-                isSpeedMenuVisible = false
-                speedMenuHideTask = nil
+            Color.clear
+                .frame(
+                    width: PlaybackControlsLayout.speedMenuWidth,
+                    height: PlaybackControlsLayout.speedButtonHeight
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showSpeedMenu()
+                }
+        }
+        .frame(width: PlaybackControlsLayout.speedMenuWidth)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            if hovering {
+                showSpeedMenu()
+            } else {
+                hideSpeedMenu()
             }
         }
     }
 
-    private func cancelSpeedMenuHide() {
-        speedMenuHideTask?.cancel()
-        speedMenuHideTask = nil
+    private func showSpeedMenu() {
+        isSpeedMenuVisible = true
+    }
+
+    private func hideSpeedMenu() {
+        isSpeedMenuVisible = false
     }
     
     private func formatTime(_ seconds: Double) -> String {
@@ -210,6 +218,18 @@ struct PlaybackControlsView: View {
         let s = totalSeconds % 60
         return String(format: "%02d:%02d", m, s)
     }
+}
+
+private enum PlaybackControlsLayout {
+    static let horizontalPadding: CGFloat = 12
+    static let transportRowBottomPadding: CGFloat = 12
+    static let transportRowHeight: CGFloat = 36
+    static let trailingControlSpacing: CGFloat = 16
+    static let iconButtonSize: CGFloat = 24
+    static let speedMenuWidth: CGFloat = 96
+    static let speedButtonHeight: CGFloat = 24
+    static let speedMenuTrailingPadding = horizontalPadding + iconButtonSize + trailingControlSpacing
+    static let speedButtonBottomPadding = transportRowBottomPadding + ((transportRowHeight - speedButtonHeight) / 2)
 }
 
 private struct PlaybackSpeedMenu: View {
@@ -236,7 +256,7 @@ private struct PlaybackSpeedMenu: View {
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 10)
-                    .frame(width: 96, height: 28)
+                    .frame(width: PlaybackControlsLayout.speedMenuWidth, height: 28)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())

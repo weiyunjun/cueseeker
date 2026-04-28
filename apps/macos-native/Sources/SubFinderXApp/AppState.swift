@@ -364,9 +364,6 @@ final class AppState: ObservableObject {
 
         let modifierFlags = NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
         let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
-        if playbackFullscreenManager.isFullscreen {
-            playbackFullscreenManager.registerActivity()
-        }
 
         guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
             return false

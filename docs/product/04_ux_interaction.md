@@ -104,7 +104,7 @@ M2 playback interaction model:
 - Playback fullscreen should use an independent theater-style fullscreen window and return the embedded video to the Playback Inspector when closed.
 - Entering or exiting playback fullscreen must not create a second `MPVRenderView` or a second `libmpv` render context.
 - Entering playback fullscreen should immediately hide the playback operation controls and mouse cursor once, regardless of whether the controls were visible before fullscreen.
-- In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse, click, or keyboard activity.
+- In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse or click activity.
 - The progress bar and its enlarged hit area are named the `Timeline Zone`.
 - The button row below the progress bar is named the `Transport Controls Zone`.
 - Together, the `Timeline Zone` and `Transport Controls Zone` form the `Playback Operation Zone`.
@@ -112,6 +112,11 @@ M2 playback interaction model:
 - Hovering or dragging the `Timeline Zone` should not change the vertical position of the `Playback Operation Zone`.
 - Playback speed selection should use an app-drawn upward menu that stays within the playback controls surface.
 - The speed menu should appear from hover over the speed control instead of requiring an arrow button.
+- The speed menu should not have a separate show or hide animation.
+- The speed button's hover area and click area should be identical and should match the speed menu width.
+- The speed menu should appear only when hovering over the speed button area.
+- The speed menu should disappear only after the pointer leaves the combined rectangular region whose top edge is the speed menu top edge and whose bottom edge is the speed button bottom edge.
+- Keyboard shortcuts in fullscreen should not reveal the playback operation controls.
 - The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
 

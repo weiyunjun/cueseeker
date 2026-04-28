@@ -130,7 +130,8 @@ Required behavior:
 - The fullscreen window should reuse the same `MPVRenderView` and `libmpv` render context used by the Playback Inspector.
 - Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
 - The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
-- Mouse, click, or keyboard activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
+- Mouse or click activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
+- Keyboard shortcuts in fullscreen should run playback commands without revealing the playback operation controls.
 - When the app resigns active during playback fullscreen, the fullscreen window should hide so other apps are visually reachable.
 - When the app becomes active again after such a suspension, playback fullscreen should be restored without recreating the playback render context.
 - Exiting fullscreen should return the video view to the Playback Inspector.
@@ -163,6 +164,11 @@ Required behavior:
 - The playback speed selector should be an app-drawn menu that opens upward from the speed button.
 - The playback speed menu should match the current playback control visual style.
 - The playback speed menu should appear on hover over the speed control, and the speed control should not show a separate arrow icon.
+- The playback speed menu should appear and disappear without its own animation.
+- The playback speed button hover area and click area should be identical.
+- The playback speed button hover and click area should have the same width as the playback speed menu.
+- The playback speed menu should appear only when hovering the playback speed button area.
+- The playback speed menu should remain visible while the pointer is inside the rectangle spanning the menu's top edge and the speed button's bottom edge, with the menu and button sharing left and right edges.
 - The subtitle button should toggle subtitle visibility through the playback engine.
 - Playback keyboard shortcuts should be available when a playback result is selected, the playback interface is visible, and the user is not typing into an editable text field.
 - Read-only selectable metadata text must not disable playback keyboard shortcuts.
@@ -186,6 +192,8 @@ Current implementation notes:
 - Keyboard speed changes adjust the current speed by `0.25x` and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - Fullscreen chrome state suppresses the initial hover event emitted when the fullscreen window appears, then reveals controls and cursor only after real user activity.
 - Fullscreen entry hides the playback operation controls and cursor immediately for both keyboard and button entry paths.
+- Fullscreen playback shortcuts do not reveal the playback operation controls.
+- The speed preset menu uses the same width as the speed button and has no separate show or hide animation.
 - App deactivation hides the Theater Mode window and restores system presentation options; app reactivation restores Theater Mode without destroying the singleton render view.
 - Read-only selectable metadata text does not count as editable text input for playback shortcut suppression.
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
