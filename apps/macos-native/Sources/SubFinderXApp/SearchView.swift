@@ -8,6 +8,7 @@ struct SearchView: View {
     @State private var inspectorDragStartWidth: Double?
     @State private var isInspectorDividerHovered = false
     @State private var isInspectorDividerDragging = false
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         GeometryReader { geometry in
@@ -40,7 +41,8 @@ struct SearchView: View {
                     text: Binding(
                         get: { appState.searchQuery },
                         set: { appState.updateSearchQuery($0) }
-                    )
+                    ),
+                    isFocused: $isSearchFocused
                 )
                 .padding(.leading, 12)
                 .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
@@ -99,6 +101,7 @@ struct SearchView: View {
                     let isLast = index == appState.searchResults.count - 1
 
                     Button {
+                        isSearchFocused = false
                         appState.openSearchResult(result)
                     } label: {
                         SearchResultRow(
@@ -232,8 +235,7 @@ struct SearchView: View {
 
 private struct SearchField: View {
     @Binding var text: String
-    @FocusState private var isFocused: Bool
-    @State private var isHovering = false
+    var isFocused: FocusState<Bool>.Binding
 
     var body: some View {
         HStack(spacing: 12) {
@@ -250,7 +252,7 @@ private struct SearchField: View {
             )
             .textFieldStyle(.plain)
             .font(.system(size: SearchTypography.searchFieldSize))
-            .focused($isFocused)
+            .focused(isFocused)
 
             if !text.isEmpty {
                 Button {
@@ -260,7 +262,6 @@ private struct SearchField: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .opacity(isHovering ? 1.0 : 0.0)
             }
         }
         .padding(.horizontal, 12)
@@ -269,10 +270,7 @@ private struct SearchField: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isFocused ? Color.accentColor : Color.clear, lineWidth: isFocused ? 2 : 0)
-        }
-        .onHover { hovering in
-            isHovering = hovering
+                .stroke(isFocused.wrappedValue ? Color.accentColor : Color.clear, lineWidth: isFocused.wrappedValue ? 2 : 0)
         }
     }
 }
