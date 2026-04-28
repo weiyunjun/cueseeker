@@ -243,16 +243,15 @@ private struct SearchField: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            TextField(
-                "Search subtitles",
+            SearchTextView(
                 text: Binding(
                     get: { text },
                     set: { text = $0 }
-                )
+                ),
+                placeholder: "Search subtitles",
+                isFocused: isFocused
             )
-            .textFieldStyle(.plain)
-            .font(.system(size: SearchTypography.searchFieldSize))
-            .focused(isFocused)
+            .frame(height: 22)
 
             if !text.isEmpty {
                 Button {
