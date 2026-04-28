@@ -25,7 +25,7 @@ Accepted M1 structure:
 ```text
 Native titlebar
 Sidebar navigation
-Search Results Pane
+Main Workspace (Search Pane, Settings Pane, etc.)
 Playback Inspector
 ```
 
@@ -50,6 +50,7 @@ Current shell direction:
 - A thin gray divider should separate the titlebar from the content below.
 - The titlebar should visually sit above the sidebar.
 - The sidebar should use a quiet background and a right-side divider, not a heavy shadow.
+- The window automatically maximizes to the screen's visible frame upon launch.
 - The current titlebar/sidebar implementation is an M1 iteration, not final polish.
 
 ## 3. Sidebar
@@ -91,7 +92,7 @@ The search input should stay easy to access.
 
 Accepted M1 search presentation:
 
-- The search field is a custom SwiftUI control with a leading magnifying-glass icon, a focused state border highlight, and an inline clear button.
+- The search field is a custom `NSTextView` wrapper (`SearchTextView`) allowing a 36pt high focus ring with zero baseline jitter, a leading magnifying-glass icon, and an inline clear button.
 - Search results are shown as a list of rounded rectangular cards.
 - Selecting a search result opens or updates the Playback Inspector without leaving Search.
 - Search results use refined macOS-native typography and highlight query matches with a yellow background.

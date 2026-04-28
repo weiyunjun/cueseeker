@@ -36,4 +36,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Removed duplicate subtitle text display from the Playback Inspector to streamline the UI.
 - Unified global content layout by standardizing top padding across all application panes (Sidebar, Search, Inspector, Settings) to a strict 16pt baseline.
 - Fixed Search UI layout regressions including horizontal width bounding, AttributedString line-height inflation, and text reflow jitter during selection state changes.
+- Eliminated Search input text baseline jitter by replacing the standard SwiftUI `TextField` with a custom `NSTextView` wrapper (`SearchTextView`), bypassing AppKit Field Editor swapping while preserving the custom 36pt focus ring via explicit state bridging.
+- Implemented global AppShell layout persistence using `UserDefaults` within `AppState` to automatically save and restore Sidebar visibility, Playback Inspector visibility, and Inspector width across application launches.
+- Configured the main window to automatically maximize to the screen's visible frame upon startup, preserving native window behavior without forcing Full Screen mode.
+- Adopted "Main Workspace" as the standard nomenclature for the center content region to support future scalability (e.g., Favorites).
 - UI polish remains in progress and is not yet considered final for M1.

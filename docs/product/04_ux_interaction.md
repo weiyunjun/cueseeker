@@ -120,9 +120,9 @@ Initial expectations:
 The app should remember:
 
 - Configured local folders.
-- Window size if practical.
+- Window size and maximized state.
 - Last selected app section if practical.
-- Sidebar collapsed or expanded state if practical.
-- Playback Inspector width and visibility if practical.
+- Sidebar collapsed or expanded state.
+- Playback Inspector width and visibility.
 
-The app should not surprise the user by losing local configuration after restart.
+The app should not surprise the user by losing local configuration after restart. The structural layout (Sidebar, Inspector) persistence is globally bound to the AppShell, natively supporting future modules like Favorites.
