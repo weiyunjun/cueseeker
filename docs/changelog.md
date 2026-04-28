@@ -12,6 +12,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Began formal engineering documentation for the native macOS rewrite.
 - Recorded the native macOS rewrite decision in ADR-0001.
 - Recorded native app stack, playback engine, and sandbox/file-access decisions in ADR-0002 through ADR-0004.
+- Recorded the Playback Fullscreen Lifecycle and Singleton RenderView architecture in ADR-0005.
 - Started the native macOS app shell under `apps/macos-native/`.
 - Added core SRT parsing, subtitle file scanning, and same-directory video matching.
 - Added the initial SQLite + FTS5 database layer for subtitle entries and search paths.
@@ -43,4 +44,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Kept Search mounted while switching to Settings so embedded playback preserves its render view and returns without a black frame.
 - Accepted the M1 native macOS minimal local loop on 2026-04-28 after manual UI interaction review and passing the Swift test suite.
 - Deferred search-quality optimization, keyboard shortcuts, playback interaction refinement, and broader native macOS polish to post-M1 work.
+- Researched and documented the root causes of `libmpv` OpenGL context crashes and `toggleFullScreen` IMK crashes during playback fullscreen transitions.
+- Designed the "Singleton RenderView" and "Theater Mode" architecture to permanently resolve fullscreen pointer dereference crashes (recorded in ADR-0005).
 - Started M2 planning on 2026-04-28 and clarified that playback interaction is a separate M2 work area from keyboard shortcuts, while M1 window sizing and restoration work should be treated as M2 regression verification.
