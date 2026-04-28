@@ -90,17 +90,22 @@ M2 playback interaction model:
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
 - Playback fullscreen should use an independent theater-style fullscreen window and return the embedded video to the Playback Inspector when closed.
 - Entering or exiting playback fullscreen must not create a second `MPVRenderView` or a second `libmpv` render context.
+- Entering playback fullscreen should immediately hide the playback operation controls and mouse cursor once, regardless of whether the controls were visible before fullscreen.
+- In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse, click, or keyboard activity.
 - The progress bar and its enlarged hit area are named the `Timeline Zone`.
 - The button row below the progress bar is named the `Transport Controls Zone`.
 - Together, the `Timeline Zone` and `Transport Controls Zone` form the `Playback Operation Zone`.
 - Mouse clicks in the `Playback Operation Zone` should control only the targeted playback control and must not fall through to video-surface play or pause toggling.
+- Hovering or dragging the `Timeline Zone` should not change the vertical position of the `Playback Operation Zone`.
 - Playback speed selection should use an app-drawn upward menu that stays within the playback controls surface.
+- The speed menu should appear from hover over the speed control instead of requiring an arrow button.
 - The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
 
 Current M2 implementation:
 
 - Playback fullscreen uses a Theater Mode window and returns the same video render view to the Playback Inspector when closed.
+- Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
 - Shortcut and control actions show transient feedback overlays for subtitle visibility, play/pause, relative seek, volume, and speed.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
@@ -148,7 +153,8 @@ M2 keyboard shortcut model:
 - Playback shortcuts should trigger the same playback commands used by visible playback controls.
 - Shortcut handling should not duplicate playback state transitions separately from the playback interaction model.
 - The native menu bar should expose relevant commands so keyboard shortcuts are discoverable through standard macOS menus where practical.
-- Playback shortcuts should be active only when a playback result is selected, the playback interface is visible, and text input is not focused.
+- Playback shortcuts should be active only when a playback result is selected, the playback interface is visible, and editable text input is not focused.
+- Read-only selectable text in playback metadata should not suppress playback shortcuts.
 - `C` should show or hide subtitles.
 - `F` should enter or exit playback fullscreen.
 - `Space` should toggle play or pause.

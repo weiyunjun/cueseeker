@@ -127,6 +127,9 @@ Required behavior:
 - Entering fullscreen should present the current video in an independent black theater-style window.
 - The main app window should not enter the system Full Screen Space when the playback fullscreen button is used.
 - The fullscreen window should reuse the same `MPVRenderView` and `libmpv` render context used by the Playback Inspector.
+- Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
+- The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
+- Mouse, click, or keyboard activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
 - Exiting fullscreen should return the video view to the Playback Inspector.
 - Escape should exit playback fullscreen.
 - Closing or hiding the Playback Inspector should leave playback fullscreen cleanly.
@@ -156,8 +159,10 @@ Required behavior:
 - Clicking inside the `Playback Operation Zone` must not toggle play or pause unless the targeted control is the play or pause button.
 - The playback speed selector should be an app-drawn menu that opens upward from the speed button.
 - The playback speed menu should match the current playback control visual style.
+- The playback speed menu should appear on hover over the speed control, and the speed control should not show a separate arrow icon.
 - The subtitle button should toggle subtitle visibility through the playback engine.
-- Playback keyboard shortcuts should be available when a playback result is selected, the playback interface is visible, and the user is not typing into a text field.
+- Playback keyboard shortcuts should be available when a playback result is selected, the playback interface is visible, and the user is not typing into an editable text field.
+- Read-only selectable metadata text must not disable playback keyboard shortcuts.
 - `C` should show or hide subtitles.
 - `F` should enter or exit playback fullscreen.
 - `Space` should play or pause.
@@ -169,6 +174,7 @@ Required behavior:
 - `Shift+.` should increase playback speed by 0.25x.
 - Playback speed changes must stay within `0.5x` through `2.0x`.
 - The visible playback speed menu should offer `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
+- Timeline hover and drag states must not move the playback operation controls vertically.
 - Playback commands should show transient feedback for subtitle visibility, play or pause, seek direction and amount, volume, and playback speed.
 
 Current implementation notes:

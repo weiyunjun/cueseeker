@@ -5,11 +5,14 @@ import SubFinderXPlayback
 @MainActor
 final class PlaybackFullscreenManager: ObservableObject {
     @Published private(set) var isFullscreen = false
+    @Published private(set) var isChromeVisible = false
 
     private var fullscreenWindow: PlaybackFullscreenWindow?
     private var fullscreenRootView: PlaybackFullscreenRootView?
     private var previousPresentationOptions: NSApplication.PresentationOptions?
     private weak var previousKeyWindow: NSWindow?
+    private var chromeHideTask: Task<Void, Never>?
+    private var isCursorHidden = false
 
     func toggleFullscreen(player: MPVPlayer, viewModel: PlaybackViewModel) {
         if isFullscreen {
@@ -48,6 +51,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         window.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
         window.hasShadow = false
         window.isOpaque = true
+        window.acceptsMouseMovedEvents = true
         window.isReleasedWhenClosed = false
         window.level = .screenSaver
         window.onEscape = { [weak self] in
@@ -58,6 +62,7 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         let overlayView = NSHostingView(
             rootView: PlaybackFullscreenOverlayView(
+                fullscreenManager: self,
                 viewModel: viewModel,
                 onExit: { [weak self] in
                     Task { @MainActor in
@@ -77,6 +82,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         fullscreenWindow = window
         fullscreenRootView = rootView
         isFullscreen = true
+        hideChromeImmediately()
 
         window.contentView = rootView
         NSApplication.shared.presentationOptions = [.autoHideMenuBar, .autoHideDock]
@@ -94,6 +100,10 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         fullscreenWindow = nil
         fullscreenRootView = nil
+        chromeHideTask?.cancel()
+        chromeHideTask = nil
+        isChromeVisible = false
+        showCursorIfNeeded()
 
         rootView?.detachRenderView()
         window?.contentView = nil
@@ -107,6 +117,63 @@ final class PlaybackFullscreenManager: ObservableObject {
         previousKeyWindow?.makeKeyAndOrderFront(nil)
         previousKeyWindow = nil
         isFullscreen = false
+    }
+
+    func registerActivity() {
+        guard isFullscreen else {
+            return
+        }
+
+        showChrome()
+        scheduleChromeHide()
+    }
+
+    func hideChromeImmediately() {
+        guard isFullscreen else {
+            return
+        }
+
+        chromeHideTask?.cancel()
+        chromeHideTask = nil
+        isChromeVisible = false
+        hideCursorIfNeeded()
+    }
+
+    private func showChrome() {
+        isChromeVisible = true
+        showCursorIfNeeded()
+    }
+
+    private func scheduleChromeHide() {
+        chromeHideTask?.cancel()
+        chromeHideTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                self?.hideChromeImmediately()
+            }
+        }
+    }
+
+    private func hideCursorIfNeeded() {
+        guard !isCursorHidden else {
+            return
+        }
+
+        NSCursor.hide()
+        isCursorHidden = true
+    }
+
+    private func showCursorIfNeeded() {
+        guard isCursorHidden else {
+            return
+        }
+
+        NSCursor.unhide()
+        isCursorHidden = false
     }
 }
 
@@ -167,20 +234,20 @@ private final class PlaybackFullscreenRootView: NSView {
 }
 
 private struct PlaybackFullscreenOverlayView: View {
+    @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @ObservedObject var viewModel: PlaybackViewModel
     let onExit: () -> Void
-
-    @State private var isControlsVisible = true
 
     var body: some View {
         ZStack {
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    fullscreenManager.registerActivity()
                     viewModel.togglePlayPause()
                 }
 
-            if isControlsVisible {
+            if fullscreenManager.isChromeVisible {
                 PlaybackControlsView(
                     viewModel: viewModel,
                     isFullscreen: true,
@@ -192,9 +259,11 @@ private struct PlaybackFullscreenOverlayView: View {
             PlaybackFeedbackOverlay(feedback: viewModel.feedback)
         }
         .background(Color.clear)
-        .onHover { hovering in
-            isControlsVisible = hovering
+        .onContinuousHover { phase in
+            if case .active = phase {
+                fullscreenManager.registerActivity()
+            }
         }
-        .animation(.easeInOut(duration: 0.16), value: isControlsVisible)
+        .animation(.easeInOut(duration: 0.16), value: fullscreenManager.isChromeVisible)
     }
 }

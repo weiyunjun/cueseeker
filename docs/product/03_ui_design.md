@@ -142,7 +142,9 @@ Behavior:
 - Transient playback feedback overlays appear above the video for play/pause, subtitle visibility, seek, volume, and speed changes.
 - The playback speed selector is an app-drawn menu that opens upward from the speed control.
 - The speed control must display fractional presets such as `1.25x` and `1.75x` without truncation.
+- The speed control should show only the current speed value; the preset menu appears on hover rather than through a visible arrow affordance.
 - When the volume control is hovered, the volume slider and numeric percentage appear together without moving the playback controls vertically.
+- The timeline hover and drag states must not move the playback controls vertically.
 
 Layout:
 

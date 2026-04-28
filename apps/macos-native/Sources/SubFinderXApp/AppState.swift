@@ -347,12 +347,16 @@ final class AppState: ObservableObject {
             return false
         }
 
-        guard !Self.isTextInputFocused() else {
+        guard !Self.isEditableTextInputFocused() else {
             return false
         }
 
         let modifierFlags = NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
         let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
+        if playbackFullscreenManager.isFullscreen {
+            playbackFullscreenManager.registerActivity()
+        }
+
         guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
             return false
         }
@@ -408,17 +412,21 @@ final class AppState: ObservableObject {
         }
     }
 
-    private static func isTextInputFocused() -> Bool {
+    private static func isEditableTextInputFocused() -> Bool {
         guard let firstResponder = NSApplication.shared.keyWindow?.firstResponder else {
             return false
         }
 
-        if firstResponder is NSTextView || firstResponder is NSTextField {
-            return true
+        if let textView = firstResponder as? NSTextView {
+            return textView.isEditable
+        }
+
+        if let textField = firstResponder as? NSTextField {
+            return textField.isEditable
         }
 
         if let view = firstResponder as? NSView {
-            return view.ancestorOrSelfContainsTextInput
+            return view.ancestorOrSelfContainsEditableTextInput
         }
 
         return false
@@ -469,15 +477,23 @@ final class AppState: ObservableObject {
 }
 
 private extension NSView {
-    var ancestorOrSelfContainsTextInput: Bool {
-        if self is NSTextView || self is NSTextField {
-            return true
+    var ancestorOrSelfContainsEditableTextInput: Bool {
+        if let textView = self as? NSTextView {
+            return textView.isEditable
+        }
+
+        if let textField = self as? NSTextField {
+            return textField.isEditable
         }
 
         var ancestor = superview
         while let current = ancestor {
-            if current is NSTextView || current is NSTextField {
-                return true
+            if let textView = current as? NSTextView {
+                return textView.isEditable
+            }
+
+            if let textField = current as? NSTextField {
+                return textField.isEditable
             }
             ancestor = current.superview
         }
