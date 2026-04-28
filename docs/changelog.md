@@ -70,3 +70,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added quiet and interrupt-safe native playback probe output so repeated 5-minute stability runs remain readable and still produce final summaries when stopped early.
 - Added seek-list native playback probe runs to simulate repeated search result selection and stress decoder, audio, display, and clock reset behavior before app integration.
 - Added an inspect-only native playback probe mode to classify candidate files before spending time on multi-format playback stability runs.
+- Recorded user-verified native playback probe results for 10-minute single-seek playback, interrupted 5-minute iteration, and 60-operation repeated seek-list stress testing on the representative H.264/Opus Matroska sample.

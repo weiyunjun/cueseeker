@@ -323,6 +323,36 @@ Important prototype observations:
 - The representative Matroska sample required about 297 decoded video frames of
   preroll before the first output frame at approximately 60.027 seconds.
 
+Latest user-verified representative runs:
+
+- A 600.015-second duration-limited display run from 60.0 seconds produced
+  35,966 output video frames, 36,263 hardware decoded frames, 0 software frames,
+  0 late video frames, 35,965 audio-master paced video frames, 1 video-clock
+  fallback frame, 0 audio decode failures, and a physical-footprint profile of
+  13.4 MB start, 33.2 MB max, and 32.9 MB end.
+- An interrupted 184.482-second quiet display run from 60.0 seconds produced
+  11,059 output video frames, 11,356 hardware decoded frames, 0 software frames,
+  3 late video frames with 0.016 seconds max lateness, 0 audio decode failures,
+  and a physical-footprint profile of 13.3 MB start, 27.2 MB max, and 26.8 MB
+  end.
+- A repeated search-result selection simulation using `--seek-list
+  60.0,90.0,120.0,150.0 --seek-list-loops 15` with 300 output frames per
+  segment completed 60 seek operations, produced 18,000 output video frames,
+  29,340 hardware decoded frames, 0 software frames, 13 late video frames with
+  0.106 seconds max lateness, 0 audio decode failures, and a physical-footprint
+  profile of 12.4 MB start, 27.5 MB max, and 24.6 MB end.
+
+Current interpretation:
+
+- The native probe has shown a substantially lower physical-footprint profile
+  than the observed `libmpv` app playback path for the representative H.264/Opus
+  Matroska sample.
+- The repeated seek-list result is good enough to continue toward broader
+  candidate screening, but it still needs app-level verification before any
+  production playback backend decision.
+- The next useful probe step is multi-format screening with `--inspect`, followed
+  by short 5-minute stability runs only for files reported as native candidates.
+
 Current prototype command:
 
 ```bash
