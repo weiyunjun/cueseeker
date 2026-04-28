@@ -85,6 +85,7 @@ final class AppState: ObservableObject {
     @Published var isSidebarVisible = true
     @Published var isPlaybackInspectorVisible = false
     @Published var playbackInspectorWidth: Double = 520
+    @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
 
     let databaseURL: URL
@@ -145,6 +146,15 @@ final class AppState: ObservableObject {
         persistSelectedFolders()
     }
 
+    func clearSearchFocus() {
+        isSearchFocused = false
+    }
+
+    func performUserInitiatedAppCommand(_ action: () -> Void) {
+        clearSearchFocus()
+        action()
+    }
+
     func toggleSidebar() {
         isSidebarVisible.toggle()
         userDefaults.set(isSidebarVisible, forKey: Self.isSidebarVisibleKey)
@@ -176,6 +186,7 @@ final class AppState: ObservableObject {
             return
         }
 
+        clearSearchFocus()
         selectedSection = section
 
         if section != .search {

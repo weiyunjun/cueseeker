@@ -8,7 +8,6 @@ struct SearchView: View {
     @State private var inspectorDragStartWidth: Double?
     @State private var isInspectorDividerHovered = false
     @State private var isInspectorDividerDragging = false
-    @State private var isSearchFocused = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -32,11 +31,6 @@ struct SearchView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
             .animation(.easeInOut(duration: 0.18), value: appState.isPlaybackInspectorVisible)
         }
-        .onReceive(appState.$selectedSection) { section in
-            if section != .search {
-                isSearchFocused = false
-            }
-        }
     }
 
     private var searchResultsPane: some View {
@@ -47,7 +41,7 @@ struct SearchView: View {
                         get: { appState.searchQuery },
                         set: { appState.updateSearchQuery($0) }
                     ),
-                    isFocused: $isSearchFocused
+                    isFocused: $appState.isSearchFocused
                 )
                 .padding(.leading, 12)
                 .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
@@ -106,7 +100,7 @@ struct SearchView: View {
                     let isLast = index == appState.searchResults.count - 1
 
                     Button {
-                        isSearchFocused = false
+                        appState.clearSearchFocus()
                         appState.openSearchResult(result)
                     } label: {
                         SearchResultRow(
@@ -133,6 +127,7 @@ struct SearchView: View {
                             viewModel: appState.playbackViewModel,
                             fullscreenManager: appState.playbackFullscreenManager,
                             onSurfaceTap: {
+                                appState.clearSearchFocus()
                                 appState.togglePlaybackFromUser()
                             }
                         )
@@ -177,6 +172,11 @@ struct SearchView: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                appState.clearSearchFocus()
+            }
+        )
     }
 
     private func inspectorResizeDivider(availableWidth: CGFloat) -> some View {
@@ -197,6 +197,7 @@ struct SearchView: View {
                         isInspectorDividerHovered = isHovered
                     },
                     onDragStarted: {
+                        appState.clearSearchFocus()
                         isInspectorDividerDragging = true
                         inspectorDragStartWidth = appState.playbackInspectorWidth
                     },

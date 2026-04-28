@@ -131,7 +131,9 @@ struct ContentView: View {
 
     private var sidebarToggle: some View {
         Button {
-            appState.toggleSidebar()
+            appState.performUserInitiatedAppCommand {
+                appState.toggleSidebar()
+            }
         } label: {
             Image(systemName: "sidebar.left")
                 .font(.system(size: AppShellLayout.toggleIconSize, weight: .medium))
@@ -153,7 +155,9 @@ struct ContentView: View {
 
     private var playbackInspectorToggle: some View {
         Button {
-            appState.togglePlaybackInspector()
+            appState.performUserInitiatedAppCommand {
+                appState.togglePlaybackInspector()
+            }
         } label: {
             Image(systemName: "sidebar.right")
                 .font(.system(size: AppShellLayout.toggleIconSize, weight: .medium))

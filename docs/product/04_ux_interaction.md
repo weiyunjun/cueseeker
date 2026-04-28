@@ -38,6 +38,19 @@ Expected behavior:
 - Search results should not flicker unnecessarily.
 - Repeating the same query should not trigger expensive work without reason.
 
+Search focus behavior:
+
+- User-initiated app commands should clear Search field focus.
+- Selecting a search result should clear Search field focus.
+- Clicking App-owned expand or collapse buttons should clear Search field focus.
+- Future App-owned feature buttons should clear Search field focus by default.
+- Selecting another sidebar section should clear Search field focus.
+- Clicking anywhere in the Playback Inspector should clear Search field focus.
+- System-level app switching should not intentionally clear Search field focus.
+- Returning to the app after backgrounding should preserve the Search field focus state when AppKit preserves the first responder.
+- Double-clicking the titlebar to resize the window should not intentionally clear Search field focus.
+- Clicking native traffic light controls should not intentionally clear Search field focus.
+
 ## 4. Result Selection
 
 When the user selects a result:
