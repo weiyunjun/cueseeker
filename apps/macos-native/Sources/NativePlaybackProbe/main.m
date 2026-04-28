@@ -59,6 +59,18 @@ typedef struct {
     double maxLatenessSeconds;
 } VideoPacer;
 
+typedef struct {
+    bool enabled;
+    bool initialized;
+    bool startedPlayer;
+    double firstMediaSeconds;
+    double startHostSeconds;
+    int pacedVideoFrames;
+    int fallbackVideoFrames;
+    double maxWaitSeconds;
+    double maxLatenessSeconds;
+} AudioClock;
+
 static enum AVPixelFormat hardwarePixelFormat = AV_PIX_FMT_NONE;
 static const int defaultMaxOutputFrames = 300;
 static const int defaultSeekPrerollPacketLimit = 3000;
@@ -218,6 +230,7 @@ static void print_audio_frame(
 
 static void pace_video_frame(
     VideoPacer *pacer,
+    AudioClock *audioClock,
     const AVFrame *frame,
     AVStream *videoStream
 ) {
@@ -225,12 +238,49 @@ static void pace_video_frame(
         return;
     }
 
-    double mediaSeconds = seconds_from_frame(frame, videoStream);
+    double mediaSeconds = playback_seconds_from_frame(frame, videoStream);
     if (mediaSeconds < 0) {
         return;
     }
 
     double now = CACurrentMediaTime();
+    if (audioClock != NULL && audioClock->enabled && audioClock->initialized) {
+        double targetHostSeconds = audioClock->startHostSeconds
+            + (mediaSeconds - audioClock->firstMediaSeconds);
+        double waitSeconds = targetHostSeconds - now;
+
+        if (waitSeconds > 0) {
+            if (waitSeconds > pacer->maxWaitSeconds) {
+                pacer->maxWaitSeconds = waitSeconds;
+            }
+            if (waitSeconds > audioClock->maxWaitSeconds) {
+                audioClock->maxWaitSeconds = waitSeconds;
+            }
+
+            double cappedWaitSeconds = waitSeconds > 0.25 ? 0.25 : waitSeconds;
+            usleep((useconds_t)(cappedWaitSeconds * 1000000.0));
+        } else {
+            double latenessSeconds = -waitSeconds;
+            if (latenessSeconds > 0.002) {
+                pacer->lateFrames++;
+            }
+            if (latenessSeconds > pacer->maxLatenessSeconds) {
+                pacer->maxLatenessSeconds = latenessSeconds;
+            }
+            if (latenessSeconds > audioClock->maxLatenessSeconds) {
+                audioClock->maxLatenessSeconds = latenessSeconds;
+            }
+        }
+
+        pacer->pacedFrames++;
+        audioClock->pacedVideoFrames++;
+        return;
+    }
+
+    if (audioClock != NULL && audioClock->enabled) {
+        audioClock->fallbackVideoFrames++;
+    }
+
     if (!pacer->initialized) {
         pacer->initialized = true;
         pacer->firstMediaSeconds = mediaSeconds;
@@ -342,7 +392,9 @@ static void destroy_audio_decode_context(AudioDecodeContext *audio) {
 static bool schedule_audio_frame(
     const AVFrame *frame,
     AVAudioPlayerNode *audioPlayer,
-    AVAudioFormat *audioFormat
+    AVAudioFormat *audioFormat,
+    AVStream *audioStream,
+    AudioClock *audioClock
 ) {
     if (audioPlayer == nil || audioFormat == nil) {
         return false;
@@ -383,6 +435,19 @@ static bool schedule_audio_frame(
     }
 
     [audioPlayer scheduleBuffer:buffer completionHandler:nil];
+
+    if (audioClock != NULL && audioClock->enabled && !audioClock->startedPlayer) {
+        double mediaSeconds = playback_seconds_from_frame(frame, audioStream);
+        if (mediaSeconds >= 0 && !audioClock->initialized) {
+            audioClock->initialized = true;
+            audioClock->firstMediaSeconds = mediaSeconds;
+            audioClock->startHostSeconds = CACurrentMediaTime();
+        }
+
+        audioClock->startedPlayer = true;
+        [audioPlayer play];
+    }
+
     return true;
 }
 
@@ -391,6 +456,7 @@ static int receive_available_audio_frames(
     AVStream *audioStream,
     AVAudioPlayerNode *audioPlayer,
     AVAudioFormat *audioFormat,
+    AudioClock *audioClock,
     bool hasSeek,
     double seekSeconds
 ) {
@@ -409,7 +475,7 @@ static int receive_available_audio_frames(
             print_audio_frame(audio->frame, audioStream, audio->decodedFrames);
         }
 
-        if (schedule_audio_frame(audio->frame, audioPlayer, audioFormat)) {
+        if (schedule_audio_frame(audio->frame, audioPlayer, audioFormat, audioStream, audioClock)) {
             audio->scheduledBuffers++;
         } else {
             audio->unsupportedFrames++;
@@ -451,14 +517,14 @@ static void reset_audio_output(AVAudioPlayerNode *audioPlayer) {
     }
 
     [audioPlayer stop];
-    [audioPlayer play];
 }
 
 static int seek_input_to_seconds(
     ProbeRunContext context,
     AVCodecContext *videoCodecContext,
     AudioDecodeContext *audio,
-    VideoPacer *videoPacer
+    VideoPacer *videoPacer,
+    AudioClock *audioClock
 ) {
     if (!context.hasSeek) {
         return 0;
@@ -496,6 +562,11 @@ static int seek_input_to_seconds(
 
     if (videoPacer != NULL) {
         *videoPacer = (VideoPacer){0};
+    }
+    if (audioClock != NULL) {
+        bool enabled = audioClock->enabled;
+        *audioClock = (AudioClock){0};
+        audioClock->enabled = enabled;
     }
 
     return 0;
@@ -583,6 +654,7 @@ static int receive_available_frames(
     bool displayFrames,
     AVSampleBufferDisplayLayer *displayLayer,
     VideoPacer *videoPacer,
+    AudioClock *audioClock,
     bool hasSeek,
     double seekSeconds,
     int *skippedVideoFrames,
@@ -615,7 +687,7 @@ static int receive_available_frames(
         bool shouldPrint = outputFrames <= 5 || *decodedFrames % 60 == 0;
         if (frame->format == hardwarePixelFormat) {
             if (displayFrames) {
-                pace_video_frame(videoPacer, frame, videoStream);
+                pace_video_frame(videoPacer, audioClock, frame, videoStream);
                 CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)frame->data[3];
                 enqueue_pixel_buffer_for_display(
                     displayLayer,
@@ -752,8 +824,11 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     bool hitPrerollPacketLimit = false;
     bool decodeFailed = false;
     VideoPacer videoPacer = {0};
+    AudioClock audioClock = {
+        .enabled = context.displayFrames && context.audioPlayer != nil && context.audioFormat != nil
+    };
 
-    if (seek_input_to_seconds(context, codecContext, audio, &videoPacer) != 0) {
+    if (seek_input_to_seconds(context, codecContext, audio, &videoPacer, &audioClock) != 0) {
         av_packet_free(&packet);
         av_frame_free(&frame);
         avcodec_free_context(&codecContext);
@@ -798,6 +873,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                 audioStream,
                 context.audioPlayer,
                 context.audioFormat,
+                &audioClock,
                 context.hasSeek,
                 context.seekSeconds
             );
@@ -831,6 +907,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             context.displayFrames,
             context.displayLayer,
             &videoPacer,
+            &audioClock,
             context.hasSeek,
             context.seekSeconds,
             &skippedVideoFrames,
@@ -858,6 +935,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             context.displayFrames,
             context.displayLayer,
             &videoPacer,
+            &audioClock,
             context.hasSeek,
             context.seekSeconds,
             &skippedVideoFrames,
@@ -873,6 +951,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             audioStream,
             context.audioPlayer,
             context.audioFormat,
+            &audioClock,
             context.hasSeek,
             context.seekSeconds
         );
@@ -894,6 +973,13 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         printf("Late video frames: %d\n", videoPacer.lateFrames);
         printf("Max video wait: %.3fs\n", videoPacer.maxWaitSeconds);
         printf("Max video lateness: %.3fs\n", videoPacer.maxLatenessSeconds);
+        if (audioClock.enabled) {
+            printf("Audio clock initialized: %s\n", audioClock.initialized ? "yes" : "no");
+            printf("Audio-master paced video frames: %d\n", audioClock.pacedVideoFrames);
+            printf("Video-clock fallback frames: %d\n", audioClock.fallbackVideoFrames);
+            printf("Max audio-clock wait: %.3fs\n", audioClock.maxWaitSeconds);
+            printf("Max audio-clock lateness: %.3fs\n", audioClock.maxLatenessSeconds);
+        }
     }
     if (audio != NULL) {
         printf("Audio packets fed: %d\n", audioPackets);
@@ -1053,8 +1139,6 @@ static bool make_audio_output(
         );
         return false;
     }
-
-    [player play];
 
     *engineOut = engine;
     *playerOut = player;

@@ -269,6 +269,13 @@ Validated so far:
   at 60.0 seconds with 180 requested output video frames produced 477 hardware
   decoded frames, 0 software frames, 180 paced output frames, 0 late paced
   frames, and no audio decode failures.
+- The display probe now starts `AVAudioPlayerNode` only after the first valid
+  post-target audio buffer is scheduled, and video pacing uses the audio clock
+  once that clock is initialized.
+- A display-mode audio-clock seek run against the representative Matroska sample
+  at 60.0 seconds with 180 requested output video frames produced 179
+  audio-master paced video frames, 1 video-clock fallback frame, 0 late paced
+  frames, and no audio decode failures.
 
 Important prototype observations:
 
@@ -277,8 +284,9 @@ Important prototype observations:
 - The FFmpeg Opus decoder may print a startup timestamp warning related to
   skipped samples. The representative sample still decodes and schedules audio
   successfully after the initial shortened frame.
-- The current probe pacing is video timestamp based. It is not yet a final
-  audio-master synchronization model.
+- The current probe has a narrow audio-master pacing prototype. It is not yet a
+  final production synchronization model and does not yet implement bounded
+  packet, frame, or audio queues.
 - The representative Matroska sample required about 297 decoded video frames of
   preroll before the first output frame at approximately 60.027 seconds.
 
@@ -300,6 +308,8 @@ Hardware frames: 300
 Software frames: 0
 Output video frames: 300
 Paced video frames: 300
+Audio clock initialized: yes
+Audio-master paced video frames: 299
 Audio decode failures: 0
 ```
 
@@ -378,7 +388,7 @@ Prototype acceptance progress:
   sample.
 - Done: Timestamp-driven video pacing for the representative sample.
 - Done: isolated probe seek to a requested playback timestamp before display.
-- Not done: audio-master clock synchronization.
+- Done: narrow display-probe audio-master pacing prototype.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.
