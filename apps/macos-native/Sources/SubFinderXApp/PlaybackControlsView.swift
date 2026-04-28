@@ -45,16 +45,14 @@ struct PlaybackControlsView: View {
                         .buttonStyle(PlainButtonStyle())
                         
                         if isVolumeHovered {
-                            Slider(value: Binding(
+                            CustomVolumeSlider(volume: Binding(
                                 get: { viewModel.volume },
                                 set: { newValue in
                                     viewModel.volume = newValue
                                     viewModel.setVolume(newValue)
                                 }
-                            ), in: 0...100)
-                            .frame(width: 80)
-                            .controlSize(.mini)
-                            .tint(.white)
+                            ))
+                            .frame(width: 80, height: 20)
                         }
                     }
                     .onHover { hovering in
@@ -154,5 +152,40 @@ struct PlaybackControlsView: View {
         let m = totalSeconds / 60
         let s = totalSeconds % 60
         return String(format: "%02d:%02d", m, s)
+    }
+}
+
+struct CustomVolumeSlider: View {
+    @Binding var volume: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            let totalWidth = geometry.size.width
+            let thumbX = totalWidth * (max(0, min(100, volume)) / 100)
+            
+            ZStack(alignment: .leading) {
+                Rectangle()
+                    .fill(Color.white.opacity(0.3))
+                    .frame(height: 3)
+                
+                Rectangle()
+                    .fill(Color.white)
+                    .frame(width: thumbX, height: 3)
+                
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 10, height: 10)
+                    .offset(x: thumbX - 5)
+            }
+            .frame(maxHeight: .infinity, alignment: .center)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let percent = max(0, min(1, value.location.x / totalWidth))
+                        volume = percent * 100
+                    }
+            )
+        }
     }
 }
