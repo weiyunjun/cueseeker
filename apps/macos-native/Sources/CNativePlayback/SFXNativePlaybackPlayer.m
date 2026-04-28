@@ -262,6 +262,7 @@ static int SFXOutputChannelCount(int inputChannels) {
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
                        owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
+      flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
                        error:(NSError **)error;
 - (void)start;
 - (void)stopAndWait;
@@ -314,6 +315,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     double _pauseStartedHostSeconds;
     float _volume;
 
+    BOOL _flushDisplayBeforeStart;
+    BOOL _flushDisplayOnFirstFrame;
     BOOL _audioClockInitialized;
     BOOL _audioPlayerStarted;
     BOOL _videoClockInitialized;
@@ -329,6 +332,7 @@ static int SFXOutputChannelCount(int inputChannels) {
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
                        owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
+      flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
                        error:(NSError **)error {
     self = [super init];
     if (self == nil) {
@@ -340,6 +344,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     _delegate = delegate;
     _owner = owner;
     _volume = volume;
+    _flushDisplayBeforeStart = flushDisplayBeforeStart;
+    _flushDisplayOnFirstFrame = !flushDisplayBeforeStart;
     _seekSeconds = MAX(0, (double)startMilliseconds / 1000.0);
     _videoStreamIndex = -1;
     _audioStreamIndex = -1;
@@ -437,9 +443,11 @@ static int SFXOutputChannelCount(int inputChannels) {
         avcodec_flush_buffers(_audioCodecContext);
     }
 
-    SFXDispatchSyncOnMain(^{
-        [_displayLayer flushAndRemoveImage];
-    });
+    if (_flushDisplayBeforeStart) {
+        SFXDispatchSyncOnMain(^{
+            [_displayLayer flushAndRemoveImage];
+        });
+    }
 
     return YES;
 }
@@ -837,8 +845,10 @@ static int SFXOutputChannelCount(int inputChannels) {
         CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:pixelBuffer
                                                          presentationTime:presentationTime];
         if (sampleBuffer != NULL) {
-            if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+            if (_flushDisplayOnFirstFrame
+                || displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
                 [displayLayer flush];
+                _flushDisplayOnFirstFrame = NO;
             }
             [displayLayer enqueueSampleBuffer:sampleBuffer];
             CFRelease(sampleBuffer);
@@ -1108,7 +1118,17 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
            error:(NSError **)error {
-    [self stop];
+    return [self openPath:path
+        startMilliseconds:startMilliseconds
+       flushDisplayBeforeStart:YES
+                    error:error];
+}
+
+- (BOOL)openPath:(NSString *)path
+startMilliseconds:(NSInteger)startMilliseconds
+flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
+           error:(NSError **)error {
+    [self stopAndFlushDisplay:flushDisplayBeforeStart];
 
     SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
         initWithPath:path
@@ -1117,6 +1137,7 @@ startMilliseconds:(NSInteger)startMilliseconds
         delegate:self.delegate
         owner:self
         volume:_volume
+        flushDisplayBeforeStart:flushDisplayBeforeStart
         error:error
     ];
     if (session == nil) {
@@ -1137,7 +1158,10 @@ startMilliseconds:(NSInteger)startMilliseconds
         return NO;
     }
 
-    return [self openPath:_currentPath startMilliseconds:milliseconds error:error];
+    return [self openPath:_currentPath
+        startMilliseconds:milliseconds
+       flushDisplayBeforeStart:NO
+                    error:error];
 }
 
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error {
@@ -1153,10 +1177,16 @@ startMilliseconds:(NSInteger)startMilliseconds
 }
 
 - (void)stop {
+    [self stopAndFlushDisplay:YES];
+}
+
+- (void)stopAndFlushDisplay:(BOOL)flushDisplay {
     [_session stopAndWait];
     _session = nil;
     _currentPath = nil;
-    [_nativeView flush];
+    if (flushDisplay) {
+        [_nativeView flush];
+    }
 }
 
 @end

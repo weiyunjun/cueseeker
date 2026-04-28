@@ -81,3 +81,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added native AV1 hardware decode routing by selecting a VideoToolbox-capable FFmpeg decoder instead of accepting the default `libdav1d` software decoder for AV1 files.
 - Verified native AV1 VideoToolbox playback on the representative GTA V WebM sample with all decoded video frames reported as hardware frames and user-observed app memory staying below 50 MB.
 - Recorded the next native playback direction: move hard-decoded and future software-decoded frames through a shared Metal YUV renderer while retaining `libmpv` fallback.
+- Fixed native playback seek flicker by preserving the current displayed frame during same-file seek rebuilds until the first target frame is ready.
