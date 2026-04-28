@@ -22,10 +22,25 @@
 typedef struct {
     AVFormatContext *formatContext;
     int videoStreamIndex;
+    int audioStreamIndex;
     int maxPackets;
     bool displayFrames;
     AVSampleBufferDisplayLayer *__unsafe_unretained displayLayer;
+    AVAudioEngine *__unsafe_unretained audioEngine;
+    AVAudioPlayerNode *__unsafe_unretained audioPlayer;
+    AVAudioFormat *__unsafe_unretained audioFormat;
 } ProbeRunContext;
+
+typedef struct {
+    AVCodecContext *codecContext;
+    AVFrame *frame;
+    int decodedFrames;
+    int scheduledBuffers;
+    int unsupportedFrames;
+    int decodeFailures;
+    int sampleRate;
+    int channels;
+} AudioDecodeContext;
 
 static enum AVPixelFormat hardwarePixelFormat = AV_PIX_FMT_NONE;
 
@@ -114,6 +129,183 @@ static int print_frame(
         formatName != NULL ? formatName : "unknown"
     );
     return 0;
+}
+
+static void print_audio_frame(
+    const AVFrame *frame,
+    AVStream *audioStream,
+    int decodedFrames
+) {
+    double seconds = frame->best_effort_timestamp == AV_NOPTS_VALUE
+        ? -1
+        : av_q2d(audioStream->time_base) * frame->best_effort_timestamp;
+    const char *formatName = av_get_sample_fmt_name((enum AVSampleFormat)frame->format);
+
+    printf(
+        "Decoded audio frame %d: %.3fs, samples=%d, channels=%d, format=%s\n",
+        decodedFrames,
+        seconds,
+        frame->nb_samples,
+        frame->ch_layout.nb_channels,
+        formatName != NULL ? formatName : "unknown"
+    );
+}
+
+static AudioDecodeContext *create_audio_decode_context(
+    AVFormatContext *formatContext,
+    int audioStreamIndex
+) {
+    if (audioStreamIndex < 0) {
+        return NULL;
+    }
+
+    AVStream *audioStream = formatContext->streams[audioStreamIndex];
+    AVCodecParameters *codecParameters = audioStream->codecpar;
+    const AVCodec *decoder = avcodec_find_decoder(codecParameters->codec_id);
+    if (decoder == NULL) {
+        fprintf(stderr, "No FFmpeg decoder found for audio codec %s.\n", codec_name(codecParameters->codec_id));
+        return NULL;
+    }
+
+    AudioDecodeContext *audio = calloc(1, sizeof(AudioDecodeContext));
+    if (audio == NULL) {
+        return NULL;
+    }
+
+    audio->codecContext = avcodec_alloc_context3(decoder);
+    audio->frame = av_frame_alloc();
+    if (audio->codecContext == NULL || audio->frame == NULL) {
+        fprintf(stderr, "Could not allocate audio decoder context.\n");
+        avcodec_free_context(&audio->codecContext);
+        av_frame_free(&audio->frame);
+        free(audio);
+        return NULL;
+    }
+
+    int result = avcodec_parameters_to_context(audio->codecContext, codecParameters);
+    if (result < 0) {
+        char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+        ffmpeg_error_string(result, error, sizeof(error));
+        fprintf(stderr, "avcodec_parameters_to_context for audio failed: %s\n", error);
+        avcodec_free_context(&audio->codecContext);
+        av_frame_free(&audio->frame);
+        free(audio);
+        return NULL;
+    }
+
+    result = avcodec_open2(audio->codecContext, decoder, NULL);
+    if (result < 0) {
+        char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+        ffmpeg_error_string(result, error, sizeof(error));
+        fprintf(stderr, "avcodec_open2 for audio failed: %s\n", error);
+        avcodec_free_context(&audio->codecContext);
+        av_frame_free(&audio->frame);
+        free(audio);
+        return NULL;
+    }
+
+    audio->sampleRate = audio->codecContext->sample_rate;
+    audio->channels = audio->codecContext->ch_layout.nb_channels;
+
+    printf(
+        "Audio decoder: %s, sample_rate=%d, channels=%d\n",
+        decoder->name,
+        audio->sampleRate,
+        audio->channels
+    );
+
+    return audio;
+}
+
+static void destroy_audio_decode_context(AudioDecodeContext *audio) {
+    if (audio == NULL) {
+        return;
+    }
+
+    avcodec_free_context(&audio->codecContext);
+    av_frame_free(&audio->frame);
+    free(audio);
+}
+
+static bool schedule_audio_frame(
+    const AVFrame *frame,
+    AVAudioPlayerNode *audioPlayer,
+    AVAudioFormat *audioFormat
+) {
+    if (audioPlayer == nil || audioFormat == nil) {
+        return false;
+    }
+
+    if (frame->format != AV_SAMPLE_FMT_FLTP) {
+        const char *formatName = av_get_sample_fmt_name((enum AVSampleFormat)frame->format);
+        fprintf(
+            stderr,
+            "Unsupported audio sample format for this probe: %s\n",
+            formatName != NULL ? formatName : "unknown"
+        );
+        return false;
+    }
+
+    int channels = frame->ch_layout.nb_channels;
+    if (channels <= 0 || channels > (int)audioFormat.channelCount) {
+        fprintf(stderr, "Unsupported audio channel count: %d\n", channels);
+        return false;
+    }
+
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc]
+        initWithPCMFormat:audioFormat
+        frameCapacity:(AVAudioFrameCount)frame->nb_samples
+    ];
+    if (buffer == nil || buffer.floatChannelData == NULL) {
+        fprintf(stderr, "Could not allocate AVAudioPCMBuffer.\n");
+        return false;
+    }
+
+    buffer.frameLength = (AVAudioFrameCount)frame->nb_samples;
+    for (int channel = 0; channel < channels; channel++) {
+        memcpy(
+            buffer.floatChannelData[channel],
+            frame->extended_data[channel],
+            sizeof(float) * (size_t)frame->nb_samples
+        );
+    }
+
+    [audioPlayer scheduleBuffer:buffer completionHandler:nil];
+    return true;
+}
+
+static int receive_available_audio_frames(
+    AudioDecodeContext *audio,
+    AVStream *audioStream,
+    AVAudioPlayerNode *audioPlayer,
+    AVAudioFormat *audioFormat
+) {
+    int result = 0;
+    while ((result = avcodec_receive_frame(audio->codecContext, audio->frame)) >= 0) {
+        audio->decodedFrames++;
+
+        if (audio->decodedFrames <= 5 || audio->decodedFrames % 50 == 0) {
+            print_audio_frame(audio->frame, audioStream, audio->decodedFrames);
+        }
+
+        if (schedule_audio_frame(audio->frame, audioPlayer, audioFormat)) {
+            audio->scheduledBuffers++;
+        } else {
+            audio->unsupportedFrames++;
+        }
+
+        av_frame_unref(audio->frame);
+    }
+
+    if (result == AVERROR(EAGAIN) || result == AVERROR_EOF) {
+        return 0;
+    }
+
+    char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+    ffmpeg_error_string(result, error, sizeof(error));
+    fprintf(stderr, "avcodec_receive_frame for audio failed: %s\n", error);
+    audio->decodeFailures++;
+    return 1;
 }
 
 static CMSampleBufferRef create_sample_buffer_for_pixel_buffer(
@@ -241,6 +433,12 @@ static int receive_available_frames(
 
 static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     AVStream *videoStream = context.formatContext->streams[context.videoStreamIndex];
+    AVStream *audioStream = context.audioStreamIndex >= 0
+        ? context.formatContext->streams[context.audioStreamIndex]
+        : NULL;
+    AudioDecodeContext *audio = context.audioStreamIndex >= 0
+        ? create_audio_decode_context(context.formatContext, context.audioStreamIndex)
+        : NULL;
     AVCodecParameters *codecParameters = videoStream->codecpar;
     const AVCodec *decoder = avcodec_find_decoder(codecParameters->codec_id);
     if (decoder == NULL) {
@@ -328,8 +526,31 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
     int hardwareFrames = 0;
     int softwareFrames = 0;
     int sendFailures = 0;
+    int audioPackets = 0;
 
     while (fedPackets < context.maxPackets && av_read_frame(context.formatContext, packet) >= 0) {
+        if (packet->stream_index == context.audioStreamIndex && audio != NULL) {
+            result = avcodec_send_packet(audio->codecContext, packet);
+            av_packet_unref(packet);
+
+            if (result < 0) {
+                char error[AV_ERROR_MAX_STRING_SIZE] = {0};
+                ffmpeg_error_string(result, error, sizeof(error));
+                fprintf(stderr, "avcodec_send_packet for audio failed: %s\n", error);
+                audio->decodeFailures++;
+                continue;
+            }
+
+            audioPackets++;
+            (void)receive_available_audio_frames(
+                audio,
+                audioStream,
+                context.audioPlayer,
+                context.audioFormat
+            );
+            continue;
+        }
+
         if (packet->stream_index != context.videoStreamIndex) {
             av_packet_unref(packet);
             continue;
@@ -373,16 +594,34 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         context.displayLayer
     );
 
+    if (audio != NULL) {
+        avcodec_send_packet(audio->codecContext, NULL);
+        (void)receive_available_audio_frames(
+            audio,
+            audioStream,
+            context.audioPlayer,
+            context.audioFormat
+        );
+    }
+
     printf("Video packets fed: %d\n", fedPackets);
     printf("Packet send failures: %d\n", sendFailures);
     printf("Decoded frames: %d\n", decodedFrames);
     printf("Hardware frames: %d\n", hardwareFrames);
     printf("Software frames: %d\n", softwareFrames);
+    if (audio != NULL) {
+        printf("Audio packets fed: %d\n", audioPackets);
+        printf("Decoded audio frames: %d\n", audio->decodedFrames);
+        printf("Scheduled audio buffers: %d\n", audio->scheduledBuffers);
+        printf("Unsupported audio frames: %d\n", audio->unsupportedFrames);
+        printf("Audio decode failures: %d\n", audio->decodeFailures);
+    }
 
     av_packet_free(&packet);
     av_frame_free(&frame);
     avcodec_free_context(&codecContext);
     av_buffer_unref(&hardwareDeviceContext);
+    destroy_audio_decode_context(audio);
 
     return hardwareFrames > 0 ? 0 : 1;
 }
@@ -390,7 +629,8 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
 static int open_input(
     const char *path,
     AVFormatContext **formatContext,
-    int *videoStreamIndex
+    int *videoStreamIndex,
+    int *audioStreamIndex
 ) {
     int result = avformat_open_input(formatContext, path, NULL, NULL);
     if (result < 0) {
@@ -410,11 +650,13 @@ static int open_input(
     }
 
     *videoStreamIndex = -1;
+    *audioStreamIndex = -1;
     for (unsigned int index = 0; index < (*formatContext)->nb_streams; index++) {
         AVStream *stream = (*formatContext)->streams[index];
-        if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+        if (*videoStreamIndex < 0 && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             *videoStreamIndex = (int)index;
-            break;
+        } else if (*audioStreamIndex < 0 && stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            *audioStreamIndex = (int)index;
         }
     }
 
@@ -439,6 +681,20 @@ static int open_input(
         videoStream->time_base.den,
         codecParameters->extradata_size
     );
+
+    if (*audioStreamIndex >= 0) {
+        AVStream *audioStream = (*formatContext)->streams[*audioStreamIndex];
+        AVCodecParameters *audioParameters = audioStream->codecpar;
+        printf(
+            "Audio stream: #%d %s, sample_rate=%d, channels=%d, time_base=%d/%d\n",
+            *audioStreamIndex,
+            codec_name(audioParameters->codec_id),
+            audioParameters->sample_rate,
+            audioParameters->ch_layout.nb_channels,
+            audioStream->time_base.num,
+            audioStream->time_base.den
+        );
+    }
 
     return 0;
 }
@@ -474,22 +730,72 @@ static AVSampleBufferDisplayLayer *make_display_layer(NSWindow **windowOut) {
     return displayLayer;
 }
 
+static bool make_audio_output(
+    int sampleRate,
+    int channels,
+    AVAudioEngine **engineOut,
+    AVAudioPlayerNode **playerOut,
+    AVAudioFormat **formatOut
+) {
+    if (sampleRate <= 0 || channels <= 0) {
+        return false;
+    }
+
+    AVAudioEngine *engine = [[AVAudioEngine alloc] init];
+    AVAudioPlayerNode *player = [[AVAudioPlayerNode alloc] init];
+    AVAudioFormat *format = [[AVAudioFormat alloc]
+        initStandardFormatWithSampleRate:(double)sampleRate
+        channels:(AVAudioChannelCount)channels
+    ];
+
+    if (engine == nil || player == nil || format == nil) {
+        return false;
+    }
+
+    [engine attachNode:player];
+    [engine connect:player to:engine.mainMixerNode format:format];
+
+    NSError *error = nil;
+    if (![engine startAndReturnError:&error]) {
+        fprintf(
+            stderr,
+            "AVAudioEngine start failed: %s\n",
+            error.localizedDescription.UTF8String
+        );
+        return false;
+    }
+
+    [player play];
+
+    *engineOut = engine;
+    *playerOut = player;
+    *formatOut = format;
+
+    printf("Audio output: AVAudioEngine %.0f Hz, channels=%u\n", format.sampleRate, format.channelCount);
+    return true;
+}
+
 static int run_console_probe(
     const char *path,
     int maxPackets
 ) {
-    AVFormatContext *formatContext = NULL;
+    __block AVFormatContext *formatContext = NULL;
     int videoStreamIndex = -1;
-    if (open_input(path, &formatContext, &videoStreamIndex) != 0) {
+    int audioStreamIndex = -1;
+    if (open_input(path, &formatContext, &videoStreamIndex, &audioStreamIndex) != 0) {
         return 1;
     }
 
     ProbeRunContext context = {
         .formatContext = formatContext,
         .videoStreamIndex = videoStreamIndex,
+        .audioStreamIndex = -1,
         .maxPackets = maxPackets,
         .displayFrames = false,
-        .displayLayer = nil
+        .displayLayer = nil,
+        .audioEngine = nil,
+        .audioPlayer = nil,
+        .audioFormat = nil
     };
     int probeResult = run_videotoolbox_decode_probe(context);
     avformat_close_input(&formatContext);
@@ -503,30 +809,57 @@ static int run_display_probe(
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
+    __block AVFormatContext *formatContext = NULL;
+    int videoStreamIndex = -1;
+    int audioStreamIndex = -1;
+    if (open_input(path, &formatContext, &videoStreamIndex, &audioStreamIndex) != 0) {
+        return 1;
+    }
+
     NSWindow *window = nil;
     AVSampleBufferDisplayLayer *displayLayer = make_display_layer(&window);
+    AVAudioEngine *audioEngine = nil;
+    AVAudioPlayerNode *audioPlayer = nil;
+    AVAudioFormat *audioFormat = nil;
+
+    if (audioStreamIndex >= 0) {
+        AVCodecParameters *audioParameters = formatContext->streams[audioStreamIndex]->codecpar;
+        if (!make_audio_output(
+            audioParameters->sample_rate,
+            audioParameters->ch_layout.nb_channels,
+            &audioEngine,
+            &audioPlayer,
+            &audioFormat
+        )) {
+            fprintf(stderr, "Audio output unavailable; continuing video-only.\n");
+            audioStreamIndex = -1;
+        }
+    }
+
     __block int probeResult = 1;
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        AVFormatContext *formatContext = NULL;
-        int videoStreamIndex = -1;
-        if (open_input(path, &formatContext, &videoStreamIndex) == 0) {
-            ProbeRunContext context = {
-                .formatContext = formatContext,
-                .videoStreamIndex = videoStreamIndex,
-                .maxPackets = maxPackets,
-                .displayFrames = true,
-                .displayLayer = displayLayer
-            };
-            probeResult = run_videotoolbox_decode_probe(context);
-            avformat_close_input(&formatContext);
-        }
+        ProbeRunContext context = {
+            .formatContext = formatContext,
+            .videoStreamIndex = videoStreamIndex,
+            .audioStreamIndex = audioStreamIndex,
+            .maxPackets = maxPackets,
+            .displayFrames = true,
+            .displayLayer = displayLayer,
+            .audioEngine = audioEngine,
+            .audioPlayer = audioPlayer,
+            .audioFormat = audioFormat
+        };
+        probeResult = run_videotoolbox_decode_probe(context);
 
         dispatch_async(dispatch_get_main_queue(), ^{
             dispatch_after(
                 dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
                 dispatch_get_main_queue(),
                 ^{
+                    [audioPlayer stop];
+                    [audioEngine stop];
+                    avformat_close_input(&formatContext);
                     [window close];
                     [NSApp terminate:nil];
                 }
