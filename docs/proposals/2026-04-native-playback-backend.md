@@ -276,6 +276,14 @@ Validated so far:
   at 60.0 seconds with 180 requested output video frames produced 179
   audio-master paced video frames, 1 video-clock fallback frame, 0 late paced
   frames, and no audio decode failures.
+- The display probe can run a repeated seek with `--seek-again`, flushing decoder
+  and output state a second time and rebuilding the audio clock for the next
+  playback segment.
+- A repeated seek display run against the representative Matroska sample from
+  60.0 seconds to 90.0 seconds with 60 output video frames per segment produced
+  120 total output video frames, 532 hardware decoded frames, 0 software frames,
+  118 audio-master paced video frames, 2 video-clock fallback frames, and no
+  audio decode failures.
 
 Important prototype observations:
 
@@ -296,10 +304,11 @@ Current prototype command:
 swift build --product NativePlaybackProbe
 .build/debug/NativePlaybackProbe --display "/path/to/video.mkv" 300
 .build/debug/NativePlaybackProbe --display --seek 60.0 "/path/to/video.mkv" 300
+.build/debug/NativePlaybackProbe --display --seek 60.0 --seek-again 90.0 "/path/to/video.mkv" 60
 ```
 
 The optional trailing number is the target number of output video frames after
-the seek target, not a raw demux packet limit.
+each seek target, not a raw demux packet limit.
 
 Expected representative output includes:
 
@@ -389,6 +398,7 @@ Prototype acceptance progress:
 - Done: Timestamp-driven video pacing for the representative sample.
 - Done: isolated probe seek to a requested playback timestamp before display.
 - Done: narrow display-probe audio-master pacing prototype.
+- Done: repeated display-probe seek between two requested playback timestamps.
 - Not done: production app integration.
 - Not done: mpv fallback routing from the app.
 - Not done: memory target verification against the app-level playback workflow.
