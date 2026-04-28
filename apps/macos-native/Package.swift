@@ -54,10 +54,13 @@ let package = Package(
                 .linkedLibrary("avformat"),
                 .linkedLibrary("avcodec"),
                 .linkedLibrary("avutil"),
+                .linkedFramework("AppKit"),
+                .linkedFramework("AVFoundation"),
                 .linkedFramework("VideoToolbox"),
                 .linkedFramework("CoreMedia"),
                 .linkedFramework("CoreVideo"),
-                .linkedFramework("CoreFoundation")
+                .linkedFramework("CoreFoundation"),
+                .linkedFramework("QuartzCore")
             ]
         ),
         .testTarget(

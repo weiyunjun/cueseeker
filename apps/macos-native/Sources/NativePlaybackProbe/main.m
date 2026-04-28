@@ -1,4 +1,9 @@
-#include <CoreVideo/CoreVideo.h>
+#import <AppKit/AppKit.h>
+#import <AVFoundation/AVFoundation.h>
+#import <CoreMedia/CoreMedia.h>
+#import <CoreVideo/CoreVideo.h>
+#import <QuartzCore/QuartzCore.h>
+#import <dispatch/dispatch.h>
 
 #include <libavcodec/avcodec.h>
 #include <libavcodec/packet.h>
@@ -12,6 +17,15 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+typedef struct {
+    AVFormatContext *formatContext;
+    int videoStreamIndex;
+    int maxPackets;
+    bool displayFrames;
+    AVSampleBufferDisplayLayer *__unsafe_unretained displayLayer;
+} ProbeRunContext;
 
 static enum AVPixelFormat hardwarePixelFormat = AV_PIX_FMT_NONE;
 
@@ -24,6 +38,15 @@ static void ffmpeg_error_string(int code, char *buffer, size_t bufferSize) {
     if (av_strerror(code, buffer, bufferSize) < 0) {
         snprintf(buffer, bufferSize, "FFmpeg error %d", code);
     }
+}
+
+static CMTime cm_time_from_frame(const AVFrame *frame, AVStream *videoStream) {
+    if (frame->best_effort_timestamp == AV_NOPTS_VALUE) {
+        return CMTimeMake(0, 1);
+    }
+
+    int64_t value = frame->best_effort_timestamp * videoStream->time_base.num;
+    return CMTimeMake(value, videoStream->time_base.den);
 }
 
 static enum AVPixelFormat choose_hardware_format(
@@ -93,13 +116,87 @@ static int print_frame(
     return 0;
 }
 
+static CMSampleBufferRef create_sample_buffer_for_pixel_buffer(
+    CVPixelBufferRef pixelBuffer,
+    CMTime presentationTime
+) {
+    CMVideoFormatDescriptionRef formatDescription = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        &formatDescription
+    );
+    if (status != noErr || formatDescription == NULL) {
+        fprintf(stderr, "CMVideoFormatDescriptionCreateForImageBuffer failed: %d\n", (int)status);
+        return NULL;
+    }
+
+    CMSampleTimingInfo timing = {
+        .duration = CMTimeMake(1, 60),
+        .presentationTimeStamp = presentationTime,
+        .decodeTimeStamp = kCMTimeInvalid
+    };
+    CMSampleBufferRef sampleBuffer = NULL;
+    status = CMSampleBufferCreateReadyWithImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        formatDescription,
+        &timing,
+        &sampleBuffer
+    );
+    CFRelease(formatDescription);
+
+    if (status != noErr || sampleBuffer == NULL) {
+        fprintf(stderr, "CMSampleBufferCreateReadyWithImageBuffer failed: %d\n", (int)status);
+        return NULL;
+    }
+
+    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, true);
+    if (attachments != NULL && CFArrayGetCount(attachments) > 0) {
+        CFMutableDictionaryRef attachment = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+        CFDictionarySetValue(attachment, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+    }
+
+    return sampleBuffer;
+}
+
+static void enqueue_pixel_buffer_for_display(
+    AVSampleBufferDisplayLayer *displayLayer,
+    CVPixelBufferRef pixelBuffer,
+    CMTime presentationTime
+) {
+    if (displayLayer == nil || pixelBuffer == NULL) {
+        return;
+    }
+
+    CVPixelBufferRetain(pixelBuffer);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        CMSampleBufferRef sampleBuffer = create_sample_buffer_for_pixel_buffer(
+            pixelBuffer,
+            presentationTime
+        );
+
+        if (sampleBuffer != NULL) {
+            if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+                [displayLayer flush];
+            }
+            [displayLayer enqueueSampleBuffer:sampleBuffer];
+            CFRelease(sampleBuffer);
+        }
+
+        CVPixelBufferRelease(pixelBuffer);
+    });
+}
+
 static int receive_available_frames(
     AVCodecContext *codecContext,
     AVStream *videoStream,
     AVFrame *frame,
     int *decodedFrames,
     int *hardwareFrames,
-    int *softwareFrames
+    int *softwareFrames,
+    bool displayFrames,
+    AVSampleBufferDisplayLayer *displayLayer
 ) {
     int result = 0;
     while ((result = avcodec_receive_frame(codecContext, frame)) >= 0) {
@@ -108,6 +205,17 @@ static int receive_available_frames(
         bool shouldPrint = *decodedFrames <= 5 || *decodedFrames % 60 == 0;
         if (frame->format == hardwarePixelFormat) {
             (*hardwareFrames)++;
+
+            if (displayFrames) {
+                CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)frame->data[3];
+                enqueue_pixel_buffer_for_display(
+                    displayLayer,
+                    pixelBuffer,
+                    cm_time_from_frame(frame, videoStream)
+                );
+                usleep(16 * 1000);
+            }
+
             if (shouldPrint) {
                 print_frame(frame, videoStream, *decodedFrames);
             }
@@ -131,12 +239,8 @@ static int receive_available_frames(
     return 1;
 }
 
-static int run_videotoolbox_decode_probe(
-    AVFormatContext *formatContext,
-    int videoStreamIndex,
-    int maxPackets
-) {
-    AVStream *videoStream = formatContext->streams[videoStreamIndex];
+static int run_videotoolbox_decode_probe(ProbeRunContext context) {
+    AVStream *videoStream = context.formatContext->streams[context.videoStreamIndex];
     AVCodecParameters *codecParameters = videoStream->codecpar;
     const AVCodec *decoder = avcodec_find_decoder(codecParameters->codec_id);
     if (decoder == NULL) {
@@ -225,8 +329,8 @@ static int run_videotoolbox_decode_probe(
     int softwareFrames = 0;
     int sendFailures = 0;
 
-    while (fedPackets < maxPackets && av_read_frame(formatContext, packet) >= 0) {
-        if (packet->stream_index != videoStreamIndex) {
+    while (fedPackets < context.maxPackets && av_read_frame(context.formatContext, packet) >= 0) {
+        if (packet->stream_index != context.videoStreamIndex) {
             av_packet_unref(packet);
             continue;
         }
@@ -249,7 +353,9 @@ static int run_videotoolbox_decode_probe(
             frame,
             &decodedFrames,
             &hardwareFrames,
-            &softwareFrames
+            &softwareFrames,
+            context.displayFrames,
+            context.displayLayer
         ) != 0) {
             break;
         }
@@ -262,7 +368,9 @@ static int run_videotoolbox_decode_probe(
         frame,
         &decodedFrames,
         &hardwareFrames,
-        &softwareFrames
+        &softwareFrames,
+        context.displayFrames,
+        context.displayLayer
     );
 
     printf("Video packets fed: %d\n", fedPackets);
@@ -279,20 +387,12 @@ static int run_videotoolbox_decode_probe(
     return hardwareFrames > 0 ? 0 : 1;
 }
 
-int main(int argc, char **argv) {
-    if (argc < 2 || argc > 3) {
-        fprintf(stderr, "Usage: NativePlaybackProbe <media-file> [max-video-packets]\n");
-        return 2;
-    }
-
-    const char *path = argv[1];
-    int maxPackets = argc == 3 ? atoi(argv[2]) : 300;
-    if (maxPackets <= 0) {
-        maxPackets = 300;
-    }
-
-    AVFormatContext *formatContext = NULL;
-    int result = avformat_open_input(&formatContext, path, NULL, NULL);
+static int open_input(
+    const char *path,
+    AVFormatContext **formatContext,
+    int *videoStreamIndex
+) {
+    int result = avformat_open_input(formatContext, path, NULL, NULL);
     if (result < 0) {
         char error[AV_ERROR_MAX_STRING_SIZE] = {0};
         ffmpeg_error_string(result, error, sizeof(error));
@@ -300,38 +400,38 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    result = avformat_find_stream_info(formatContext, NULL);
+    result = avformat_find_stream_info(*formatContext, NULL);
     if (result < 0) {
         char error[AV_ERROR_MAX_STRING_SIZE] = {0};
         ffmpeg_error_string(result, error, sizeof(error));
         fprintf(stderr, "avformat_find_stream_info failed: %s\n", error);
-        avformat_close_input(&formatContext);
+        avformat_close_input(formatContext);
         return 1;
     }
 
-    int videoStreamIndex = -1;
-    for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
-        AVStream *stream = formatContext->streams[index];
+    *videoStreamIndex = -1;
+    for (unsigned int index = 0; index < (*formatContext)->nb_streams; index++) {
+        AVStream *stream = (*formatContext)->streams[index];
         if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            videoStreamIndex = (int)index;
+            *videoStreamIndex = (int)index;
             break;
         }
     }
 
-    if (videoStreamIndex < 0) {
+    if (*videoStreamIndex < 0) {
         fprintf(stderr, "No video stream found.\n");
-        avformat_close_input(&formatContext);
+        avformat_close_input(formatContext);
         return 1;
     }
 
-    AVStream *videoStream = formatContext->streams[videoStreamIndex];
+    AVStream *videoStream = (*formatContext)->streams[*videoStreamIndex];
     AVCodecParameters *codecParameters = videoStream->codecpar;
 
     printf("Input: %s\n", path);
-    printf("Container: %s\n", formatContext->iformat ? formatContext->iformat->name : "unknown");
+    printf("Container: %s\n", (*formatContext)->iformat ? (*formatContext)->iformat->name : "unknown");
     printf(
         "Video stream: #%d %s %dx%d, time_base=%d/%d, extradata=%d bytes\n",
-        videoStreamIndex,
+        *videoStreamIndex,
         codec_name(codecParameters->codec_id),
         codecParameters->width,
         codecParameters->height,
@@ -340,12 +440,140 @@ int main(int argc, char **argv) {
         codecParameters->extradata_size
     );
 
-    int probeResult = run_videotoolbox_decode_probe(
-        formatContext,
-        videoStreamIndex,
-        maxPackets
-    );
-    avformat_close_input(&formatContext);
+    return 0;
+}
 
+static AVSampleBufferDisplayLayer *make_display_layer(NSWindow **windowOut) {
+    NSRect frame = NSMakeRect(0, 0, 960, 540);
+    NSWindow *window = [[NSWindow alloc]
+        initWithContentRect:frame
+        styleMask:NSWindowStyleMaskTitled
+            | NSWindowStyleMaskClosable
+            | NSWindowStyleMaskResizable
+        backing:NSBackingStoreBuffered
+        defer:NO
+    ];
+    [window setTitle:@"Native Playback Probe"];
+    [window center];
+
+    NSView *contentView = [window contentView];
+    [contentView setWantsLayer:YES];
+    contentView.layer.backgroundColor = NSColor.blackColor.CGColor;
+
+    AVSampleBufferDisplayLayer *displayLayer = [AVSampleBufferDisplayLayer layer];
+    displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
+    displayLayer.backgroundColor = NSColor.blackColor.CGColor;
+    displayLayer.frame = contentView.bounds;
+    displayLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
+    [contentView.layer addSublayer:displayLayer];
+
+    [window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+
+    *windowOut = window;
+    return displayLayer;
+}
+
+static int run_console_probe(
+    const char *path,
+    int maxPackets
+) {
+    AVFormatContext *formatContext = NULL;
+    int videoStreamIndex = -1;
+    if (open_input(path, &formatContext, &videoStreamIndex) != 0) {
+        return 1;
+    }
+
+    ProbeRunContext context = {
+        .formatContext = formatContext,
+        .videoStreamIndex = videoStreamIndex,
+        .maxPackets = maxPackets,
+        .displayFrames = false,
+        .displayLayer = nil
+    };
+    int probeResult = run_videotoolbox_decode_probe(context);
+    avformat_close_input(&formatContext);
     return probeResult;
+}
+
+static int run_display_probe(
+    const char *path,
+    int maxPackets
+) {
+    [NSApplication sharedApplication];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+
+    NSWindow *window = nil;
+    AVSampleBufferDisplayLayer *displayLayer = make_display_layer(&window);
+    __block int probeResult = 1;
+
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        AVFormatContext *formatContext = NULL;
+        int videoStreamIndex = -1;
+        if (open_input(path, &formatContext, &videoStreamIndex) == 0) {
+            ProbeRunContext context = {
+                .formatContext = formatContext,
+                .videoStreamIndex = videoStreamIndex,
+                .maxPackets = maxPackets,
+                .displayFrames = true,
+                .displayLayer = displayLayer
+            };
+            probeResult = run_videotoolbox_decode_probe(context);
+            avformat_close_input(&formatContext);
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            dispatch_after(
+                dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+                dispatch_get_main_queue(),
+                ^{
+                    [window close];
+                    [NSApp terminate:nil];
+                }
+            );
+        });
+    });
+
+    [NSApp run];
+    return probeResult;
+}
+
+static void print_usage(void) {
+    fprintf(
+        stderr,
+        "Usage: NativePlaybackProbe [--display] <media-file> [max-video-packets]\n"
+    );
+}
+
+int main(int argc, char **argv) {
+    @autoreleasepool {
+        if (argc < 2 || argc > 4) {
+            print_usage();
+            return 2;
+        }
+
+        bool displayFrames = false;
+        int pathIndex = 1;
+        if (strcmp(argv[1], "--display") == 0) {
+            displayFrames = true;
+            pathIndex = 2;
+        }
+
+        if (pathIndex >= argc) {
+            print_usage();
+            return 2;
+        }
+
+        const char *path = argv[pathIndex];
+        int maxPackets = pathIndex + 1 < argc ? atoi(argv[pathIndex + 1]) : 300;
+        if (maxPackets <= 0) {
+            maxPackets = 300;
+        }
+
+        if (displayFrames) {
+            return run_display_probe(path, maxPackets);
+        }
+
+        return run_console_probe(path, maxPackets);
+    }
 }
