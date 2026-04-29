@@ -84,3 +84,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Fixed native playback seek flicker by preserving the current displayed frame during same-file seek rebuilds until the first target frame is ready.
 - Fixed native playback result-switch flicker by preserving the previous frame until the next video's first frame is ready, and suppressed non-error FFmpeg warning logs from production native playback.
 - Clarified future packaging direction: if `libmpv` fallback is removed, the distributable app should bundle FFmpeg libraries and their required non-system transitive dependencies, while relying on macOS system frameworks for VideoToolbox, Metal, AVFoundation, and audio output.
+- Fixed native timeline seek state so selecting a timeline timestamp no longer publishes a transient `0` playback time before the target time is ready.
+- Documented the video-first backend preselection direction: folder scanning should cache fast media-file backend preference using stream presence, codec names, and current-device VideoToolbox hardware support, while real playback remains responsible for fallback and correction.

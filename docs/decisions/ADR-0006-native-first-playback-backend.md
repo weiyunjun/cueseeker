@@ -103,8 +103,21 @@ The first app integration is intentionally narrow:
   retry the native backend from the current playback position.
 - Native timestamp seek should tolerate files that reject stream-specific seek
   by retrying with a global seek before falling back to `libmpv`.
+- Native seek state must not publish a transient `0` timestamp while preparing a
+  requested target timestamp.
 - AV1 hardware decode should select a VideoToolbox-capable FFmpeg decoder when
   the default decoder is software-only, such as `libdav1d`.
+- Media-file backend preselection should happen during folder scanning through a
+  fast codec and current-device hardware-capability check. It should not decode
+  frames or start a playback engine.
+- The initial video codec candidates for that fast check are H.264, HEVC, VP9,
+  and AV1, filtered by the current machine's VideoToolbox hardware decode
+  support.
+- Backend preselection must be keyed by media file, not by subtitle path or by
+  the current exact filename matching rule. Future fuzzy or manual subtitle
+  matching should not change media-file backend preference.
+- If native playback later proves the preselection wrong, the facade should fall
+  back to `libmpv` and may persist that fallback result for the media file.
 - The next native display direction is a shared Metal YUV renderer that can
   render both VideoToolbox hardware frames and future software-decoded YUV
   frames.

@@ -55,6 +55,10 @@ Out of scope for M1:
 Playback depends on subtitle-to-video matching.
 
 The initial matching rule is same-directory basename matching.
+This matching rule is not the long-term media identity model. Playback backend
+preference must be determined from the matched media file itself, so future fuzzy
+or manual subtitle matching can change the match without changing how backend
+preference is evaluated.
 
 Example:
 
@@ -72,6 +76,8 @@ Expected behavior:
 - Seek should be close enough for subtitle context review.
 - Exact frame-perfect seeking is not required for M1.
 - If the playback engine needs warm-up or delayed seek, the UI should still behave predictably.
+- Timeline seeking must not temporarily reset the displayed playback time to `0`.
+- The UI may show the requested target timestamp immediately while the backend completes the seek, then accept later backend time updates as confirmation or correction.
 
 ## 5. Playback Engine Selection
 
@@ -91,6 +97,23 @@ Current implementation:
   downmix or format conversion when needed, and `AVAudioEngine` output.
 - The app uses a playback facade that owns both the native backend and `libmpv`
   fallback.
+- Backend preference should be selected from video-file metadata before playback
+  begins, not by doing expensive playback capability checks after a subtitle
+  result is clicked.
+- Scanning-time backend preselection is video-first. Subtitle matching may
+  evolve from exact basename matching to fuzzy or manual matching, but backend
+  preference remains a property of the media file.
+- Fast backend preselection should inspect only stream presence and codec names,
+  combined with the current machine's VideoToolbox hardware decode capability.
+  It must not decode frames or start a player during folder scanning.
+- The initial video codec candidates are H.264, HEVC, VP9, and AV1, but a codec
+  should prefer the native backend only when the current machine reports
+  hardware decode support for that codec.
+- A media file with a currently supported video codec should prefer the native backend.
+  If there is no video stream but there is a supported audio stream, the file may
+  also prefer the native backend as audio-only playback support evolves.
+- If the preselected native backend fails during real playback, the app should
+  fall back to `libmpv` and persist the fallback result for that media file.
 - The playback UI hosts a stable render container so the active backend view can
   be embedded in the Playback Inspector and moved into Theater Mode fullscreen.
 - Selecting a result in the same video should prefer seek behavior when

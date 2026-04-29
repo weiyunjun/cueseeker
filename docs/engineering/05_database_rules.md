@@ -101,6 +101,9 @@ The database should support the product entities described in `docs/product/05_d
 Expected early entities:
 
 - Search paths.
+- Video files.
+- Subtitle files.
+- Subtitle-to-video matches.
 - Subtitle entries.
 - Index metadata.
 - FTS data.
@@ -112,11 +115,26 @@ Future entities:
 Rules:
 
 - Row IDs may be used internally but must not be the only stable identity for future favorites.
+- Playback backend preference is owned by the media file, not by subtitle entries or subtitle file paths.
+- Subtitle-to-video matching must be represented separately enough that exact basename matching can later be replaced or supplemented by fuzzy or manual matching.
 - Subtitle identity should preserve source subtitle path and timing information.
 - Indexed subtitle rows must keep enough metadata to open the matched video at `start_ms`.
 - Index metadata must allow incremental indexing based on source file metadata.
 
-## 9. Timestamp Rules
+## 9. Media Backend Profile Rules
+
+The database should cache fast playback backend preselection per media file.
+
+Rules:
+
+- Backend preselection must be keyed by media file identity, such as media path plus file size and modified time.
+- Backend preselection must not be keyed only by `srt_path`, subtitle entry ID, or exact subtitle-to-video filename matching.
+- Folder scanning should update backend preselection when the media file is new or its size or modified time changes.
+- Fast preselection should store the selected backend, the codec-based reason, and the time it was evaluated.
+- If a native playback attempt later fails and falls back to `libmpv`, the fallback result may be persisted for that media file so later selections do not repeat the same failed native attempt.
+- Future audio-only media should use the same media-file backend profile model.
+
+## 10. Timestamp Rules
 
 Subtitle timestamps must be stored in a form suitable for search result display and playback.
 
@@ -127,7 +145,7 @@ Rules:
 - Original or formatted time strings may be stored only when useful for display or debugging.
 - Timestamp parsing behavior belongs in parser tests and product requirements, not only in database code.
 
-## 10. Path Rules
+## 11. Path Rules
 
 Local paths are important user data.
 
@@ -139,7 +157,7 @@ Rules:
 - If security-scoped bookmarks are needed, they should be stored as file-access metadata rather than mixed into subtitle entry rows.
 - Missing files must be handled as stale or unavailable data, not as database corruption.
 
-## 11. FTS5 Rules
+## 12. FTS5 Rules
 
 Full-text search must use SQLite FTS5.
 
@@ -158,7 +176,7 @@ Search ranking and query syntax:
 - Invalid query syntax must not crash the app.
 - Query limits must prevent excessive result rendering.
 
-## 12. Indexing Consistency
+## 13. Indexing Consistency
 
 Indexing must keep database state aligned with selected folders.
 
@@ -170,7 +188,7 @@ Rules:
 - Stale entries for subtitle files that no longer exist should be removed during refresh.
 - Indexing progress should be trackable without requiring UI-specific database state.
 
-## 13. Test Data and Fixtures
+## 14. Test Data and Fixtures
 
 Database tests must use controlled test data.
 
@@ -182,7 +200,7 @@ Rules:
 - Migration tests should verify both fresh schema creation and migration from previous schema versions.
 - Tests may create temporary database files, but they must clean up or isolate them.
 
-## 14. Change Process
+## 15. Change Process
 
 Any database schema change must follow this order:
 
@@ -201,4 +219,3 @@ Rules:
 - Schema changes must not be hidden only inside implementation code.
 - Migrations and tests should be reviewed together.
 - Destructive or hard-to-reverse schema changes require an ADR.
-
