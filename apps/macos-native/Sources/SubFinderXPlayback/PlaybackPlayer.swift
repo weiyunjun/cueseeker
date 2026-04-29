@@ -23,7 +23,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var currentRequest: PlaybackRequest?
     private var storedVolume: Double = 100
     private var storedSpeed: Double = 1.0
-    private var intendedNativePaused = true
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -59,12 +58,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public func seek(toMilliseconds milliseconds: Int) throws {
         switch activeBackendStorage {
         case .native:
-            let shouldRemainPaused = intendedNativePaused
             try nativePlayer.seek(toMilliseconds: max(0, milliseconds))
-            if shouldRemainPaused {
-                try nativePlayer.setPaused(true)
-                emitPauseState(isPaused: true)
-            }
         case .mpv:
             try requireMPVPlayer().seek(toMilliseconds: milliseconds)
         }
@@ -74,7 +68,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         switch activeBackendStorage {
         case .native:
             try nativePlayer.setPaused(isPaused)
-            intendedNativePaused = isPaused
         case .mpv:
             try requireMPVPlayer().setPaused(isPaused)
         }
@@ -85,7 +78,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         try mpvPlayer?.stop()
         currentRequest = nil
         currentVideoURL = nil
-        intendedNativePaused = true
         notifyBackendIfNeeded(.native)
         emitPauseState(isPaused: true)
     }
@@ -153,7 +145,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         switch activeBackendStorage {
         case .native:
             if name == "pause" {
-                return intendedNativePaused
+                return !nativePlayer.isPlaying
             }
             throw PlaybackError.mpvOptionFailed(name: name, message: "Native playback bool property is unsupported.")
         case .mpv:
@@ -166,7 +158,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         case .native:
             if name == "pause" {
                 try nativePlayer.setPaused(value)
-                intendedNativePaused = value
             } else {
                 throw PlaybackError.mpvOptionFailed(name: name, message: "Native playback bool property is unsupported.")
             }
@@ -202,7 +193,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             request.videoURL.path,
             startMilliseconds: request.startMilliseconds
         )
-        intendedNativePaused = false
         try? mpvPlayer?.stop()
         notifyBackendIfNeeded(.native)
         Task { @MainActor in
@@ -290,13 +280,9 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         guard activeBackendStorage == .native else {
             return
         }
-        if intendedNativePaused && playing {
-            try? nativePlayer.setPaused(true)
-        }
-        let effectivePlaying = intendedNativePaused ? false : playing
         delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
-        delegate?.player(self, didChangeProperty: "pause", value: .bool(!effectivePlaying))
+        delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
     }
 
     public func nativePlaybackPlayer(
