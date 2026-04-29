@@ -1088,9 +1088,11 @@ static int SFXOutputChannelCount(int inputChannels) {
 
         _audioPlayerStarted = YES;
         AVAudioPlayerNode *audioPlayer = _audioPlayer;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [audioPlayer play];
-        });
+        if (!atomic_load(&_paused)) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [audioPlayer play];
+            });
+        }
     }
 }
 

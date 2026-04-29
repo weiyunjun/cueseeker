@@ -23,6 +23,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var currentRequest: PlaybackRequest?
     private var storedVolume: Double = 100
     private var storedSpeed: Double = 1.0
+    private var shouldRestorePauseAfterNativeSeek = false
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -58,7 +59,15 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public func seek(toMilliseconds milliseconds: Int) throws {
         switch activeBackendStorage {
         case .native:
+            let wasPaused = !nativePlayer.isPlaying
+            if wasPaused {
+                shouldRestorePauseAfterNativeSeek = true
+            }
             try nativePlayer.seek(toMilliseconds: max(0, milliseconds))
+            if wasPaused {
+                try nativePlayer.setPaused(true)
+                emitPauseState(isPaused: true)
+            }
         case .mpv:
             try requireMPVPlayer().seek(toMilliseconds: milliseconds)
         }
@@ -280,9 +289,21 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         guard activeBackendStorage == .native else {
             return
         }
+        let effectivePlaying: Bool
+        if shouldRestorePauseAfterNativeSeek {
+            if playing {
+                try? nativePlayer.setPaused(true)
+                effectivePlaying = false
+            } else {
+                shouldRestorePauseAfterNativeSeek = false
+                effectivePlaying = playing
+            }
+        } else {
+            effectivePlaying = playing
+        }
         delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
-        delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
+        delegate?.player(self, didChangeProperty: "pause", value: .bool(!effectivePlaying))
     }
 
     public func nativePlaybackPlayer(
