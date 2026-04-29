@@ -40,28 +40,6 @@ func playbackRequestClampsNegativeStartMilliseconds() throws {
 }
 
 @Test
-func playbackRequestBuildsLoadfileCommandWithStartOption() throws {
-    let videoURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SubFinderXPlaybackTests-\(UUID().uuidString)")
-        .appendingPathExtension("mp4")
-    defer {
-        try? FileManager.default.removeItem(at: videoURL)
-    }
-
-    try Data().write(to: videoURL)
-
-    let request = try PlaybackRequest(videoURL: videoURL, startMilliseconds: 1_250)
-
-    #expect(request.loadfileCommandArguments == [
-        "loadfile",
-        videoURL.path,
-        "replace",
-        "0",
-        "start=1.250"
-    ])
-}
-
-@Test
 func playbackSubtitleTrackSelectsCueForCurrentTime() {
     let track = PlaybackSubtitleTrack(cues: [
         PlaybackSubtitleCue(startMilliseconds: 1_000, endMilliseconds: 2_500, text: "First line"),
@@ -88,19 +66,18 @@ func playbackSubtitleTrackJoinsOverlappingCues() {
 
 @Test
 @MainActor
-func playbackPlayerKeepsNativeBackendWhenSettingNonDefaultSpeed() throws {
-    let player = PlaybackPlayer(mpvPlayerFactory: { throw PlaybackError.mpvCreateFailed })
+func playbackPlayerStoresNonDefaultNativeSpeed() throws {
+    let player = PlaybackPlayer()
 
     try player.setDoubleProperty("speed", value: 1.5)
 
-    #expect(player.activeBackend == .native)
     #expect(try player.getDoubleProperty("speed") == 1.5)
 }
 
 @Test
 @MainActor
 func playbackPlayerClampsNativeSpeedRange() throws {
-    let player = PlaybackPlayer(mpvPlayerFactory: { throw PlaybackError.mpvCreateFailed })
+    let player = PlaybackPlayer()
 
     try player.setDoubleProperty("speed", value: 3.0)
     #expect(try player.getDoubleProperty("speed") == 2.0)

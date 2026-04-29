@@ -289,11 +289,10 @@ final class AppState: ObservableObject {
             )
 
             guard let player else {
-                throw PlaybackError.mpvCreateFailed
+                throw PlaybackError.playbackPlayerUnavailable
             }
 
-            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path,
-               player.activeBackend == .native {
+            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
                 try player.seek(toMilliseconds: request.startMilliseconds)
             } else {
                 try player.open(request)

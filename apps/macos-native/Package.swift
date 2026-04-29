@@ -19,13 +19,6 @@ let package = Package(
                 .linkedLibrary("sqlite3")
             ]
         ),
-        .systemLibrary(
-            name: "CMpv",
-            path: "Sources/CMpv",
-            providers: [
-                .brew(["mpv"])
-            ]
-        ),
         .target(
             name: "CNativePlayback",
             path: "Sources/CNativePlayback",
@@ -51,14 +44,9 @@ let package = Package(
         .target(
             name: "SubFinderXPlayback",
             dependencies: [
-                "CMpv",
                 "CNativePlayback"
             ],
-            path: "Sources/SubFinderXPlayback",
-            linkerSettings: [
-                .unsafeFlags(["-L", "/opt/homebrew/lib"]),
-                .linkedLibrary("mpv")
-            ]
+            path: "Sources/SubFinderXPlayback"
         ),
         .executableTarget(
             name: "SubFinderXApp",

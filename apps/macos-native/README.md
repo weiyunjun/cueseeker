@@ -8,14 +8,14 @@ Current stack decisions are defined in:
 - `docs/decisions/ADR-0003-playback-engine.md`
 - `docs/decisions/ADR-0004-sandbox-and-file-access.md`
 - `docs/decisions/ADR-0006-native-first-playback-backend.md`
+- `docs/decisions/ADR-0007-native-only-playback-backend.md`
 
 ## Build
 
-The playback module uses FFmpeg libraries for the native backend and keeps
-Homebrew `libmpv` available as the fallback backend.
+The playback module uses FFmpeg libraries for the native backend.
 
 ```bash
-brew install ffmpeg mpv
+brew install ffmpeg
 ```
 
 ```bash

@@ -1,6 +1,5 @@
 import SwiftUI
 import SubFinderXPlayback
-import CMpv
 
 enum PlaybackFeedbackPosition: Equatable {
     case center
@@ -23,8 +22,7 @@ public final class PlaybackViewModel: ObservableObject {
     static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
     public let player: PlaybackPlayer
-    @Published public var activeBackend: PlaybackBackend = .native
-    
+
     @Published public var isPlaying: Bool = false
     @Published public var currentTime: Double = 0 {
         didSet {
@@ -46,12 +44,6 @@ public final class PlaybackViewModel: ObservableObject {
     public init(player: PlaybackPlayer) {
         self.player = player
         self.player.delegate = self
-        
-        self.player.observeProperty("time-pos", format: MPV_FORMAT_DOUBLE)
-        self.player.observeProperty("duration", format: MPV_FORMAT_DOUBLE)
-        self.player.observeProperty("pause", format: MPV_FORMAT_FLAG)
-        self.player.observeProperty("volume", format: MPV_FORMAT_DOUBLE)
-        self.player.observeProperty("speed", format: MPV_FORMAT_DOUBLE)
     }
 
     public func togglePlayPause() {
@@ -279,7 +271,7 @@ public final class PlaybackViewModel: ObservableObject {
 }
 
 extension PlaybackViewModel: PlaybackPlayerDelegate {
-    nonisolated public func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: MPVPropertyValue?) {
+    nonisolated public func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?) {
         Task { @MainActor in
             guard let value else { return }
             switch name {
@@ -299,12 +291,6 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
             default:
                 break
             }
-        }
-    }
-
-    nonisolated public func player(_ player: PlaybackPlayer, didSwitchBackend backend: PlaybackBackend) {
-        Task { @MainActor in
-            self.activeBackend = backend
         }
     }
 
