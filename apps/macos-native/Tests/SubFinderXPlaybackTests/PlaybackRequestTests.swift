@@ -60,3 +60,26 @@ func playbackRequestBuildsLoadfileCommandWithStartOption() throws {
         "start=1.250"
     ])
 }
+
+@Test
+@MainActor
+func playbackPlayerKeepsNativeBackendWhenSettingNonDefaultSpeed() throws {
+    let player = PlaybackPlayer(mpvPlayerFactory: { throw PlaybackError.mpvCreateFailed })
+
+    try player.setDoubleProperty("speed", value: 1.5)
+
+    #expect(player.activeBackend == .native)
+    #expect(try player.getDoubleProperty("speed") == 1.5)
+}
+
+@Test
+@MainActor
+func playbackPlayerClampsNativeSpeedRange() throws {
+    let player = PlaybackPlayer(mpvPlayerFactory: { throw PlaybackError.mpvCreateFailed })
+
+    try player.setDoubleProperty("speed", value: 3.0)
+    #expect(try player.getDoubleProperty("speed") == 2.0)
+
+    try player.setDoubleProperty("speed", value: 0.25)
+    #expect(try player.getDoubleProperty("speed") == 0.5)
+}

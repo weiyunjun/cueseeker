@@ -23,6 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) double duration;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
 @property (nonatomic) float volume;
+@property (nonatomic) float playbackRate;
 
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds

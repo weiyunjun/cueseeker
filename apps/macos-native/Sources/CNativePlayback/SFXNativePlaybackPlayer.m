@@ -17,11 +17,21 @@
 #include <libavutil/pixdesc.h>
 #include <libswresample/swresample.h>
 
+#include <math.h>
 #include <stdatomic.h>
 
 NSString * const SFXNativePlaybackErrorDomain = @"SubFinderX.NativePlayback";
 
 static enum AVPixelFormat SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
+static const float SFXMinimumPlaybackRate = 0.5f;
+static const float SFXMaximumPlaybackRate = 2.0f;
+
+static float SFXClampedPlaybackRate(float playbackRate) {
+    if (!isfinite(playbackRate)) {
+        return 1.0f;
+    }
+    return fmaxf(SFXMinimumPlaybackRate, fminf(playbackRate, SFXMaximumPlaybackRate));
+}
 
 static NSString *SFXFFmpegErrorString(int code) {
     char buffer[AV_ERROR_MAX_STRING_SIZE] = {0};
@@ -263,12 +273,14 @@ static int SFXOutputChannelCount(int inputChannels) {
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
                        owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
+                playbackRate:(float)playbackRate
       flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
                        error:(NSError **)error;
 - (void)start;
 - (void)stopAndWait;
 - (void)setPaused:(BOOL)paused;
 - (void)setVolume:(float)volume;
+- (void)setPlaybackRate:(float)playbackRate;
 @property (nonatomic, copy, readonly) NSString *path;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
@@ -295,6 +307,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     AVAudioEngine *_audioEngine;
     AVAudioPlayerNode *_audioPlayer;
+    AVAudioUnitTimePitch *_audioTimePitch;
     AVAudioFormat *_audioFormat;
 
     int _videoStreamIndex;
@@ -315,6 +328,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     double _lastDelegateUpdateHostSeconds;
     double _pauseStartedHostSeconds;
     float _volume;
+    float _playbackRate;
 
     BOOL _flushDisplayBeforeStart;
     BOOL _flushDisplayOnFirstFrame;
@@ -331,8 +345,9 @@ static int SFXOutputChannelCount(int inputChannels) {
            startMilliseconds:(NSInteger)startMilliseconds
                        layer:(AVSampleBufferDisplayLayer *)displayLayer
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
-                       owner:(SFXNativePlaybackPlayer *)owner
+                      owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
+                playbackRate:(float)playbackRate
       flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
                        error:(NSError **)error {
     self = [super init];
@@ -345,6 +360,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _delegate = delegate;
     _owner = owner;
     _volume = volume;
+    _playbackRate = SFXClampedPlaybackRate(playbackRate);
     _flushDisplayBeforeStart = flushDisplayBeforeStart;
     _flushDisplayOnFirstFrame = !flushDisplayBeforeStart;
     _seekSeconds = MAX(0, (double)startMilliseconds / 1000.0);
@@ -580,13 +596,15 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     _audioEngine = [[AVAudioEngine alloc] init];
     _audioPlayer = [[AVAudioPlayerNode alloc] init];
+    _audioTimePitch = [[AVAudioUnitTimePitch alloc] init];
     _audioPlayer.volume = _volume;
+    _audioTimePitch.rate = _playbackRate;
     _audioFormat = [[AVAudioFormat alloc]
         initStandardFormatWithSampleRate:(double)_audioOutputSampleRate
         channels:(AVAudioChannelCount)_audioOutputChannels
     ];
 
-    if (_audioEngine == nil || _audioPlayer == nil || _audioFormat == nil) {
+    if (_audioEngine == nil || _audioPlayer == nil || _audioTimePitch == nil || _audioFormat == nil) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(35, @"Could not create AVAudioEngine output objects.");
         }
@@ -594,7 +612,9 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     [_audioEngine attachNode:_audioPlayer];
-    [_audioEngine connect:_audioPlayer to:_audioEngine.mainMixerNode format:_audioFormat];
+    [_audioEngine attachNode:_audioTimePitch];
+    [_audioEngine connect:_audioPlayer to:_audioTimePitch format:_audioFormat];
+    [_audioEngine connect:_audioTimePitch to:_audioEngine.mainMixerNode format:_audioFormat];
 
     NSError *audioError = nil;
     if (![_audioEngine startAndReturnError:&audioError]) {
@@ -652,6 +672,51 @@ static int SFXOutputChannelCount(int inputChannels) {
     });
 }
 
+- (void)setPlaybackRate:(float)playbackRate {
+    float clampedRate = SFXClampedPlaybackRate(playbackRate);
+    double hostSeconds = CACurrentMediaTime();
+
+    @synchronized (self) {
+        [self rebasePlaybackClocksLockedAtHostSeconds:hostSeconds];
+        _playbackRate = clampedRate;
+        if (_isPausedInsideLoop) {
+            _pauseStartedHostSeconds = hostSeconds;
+        }
+    }
+
+    AVAudioUnitTimePitch *audioTimePitch = _audioTimePitch;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        audioTimePitch.rate = clampedRate;
+    });
+}
+
+- (void)rebasePlaybackClocksLockedAtHostSeconds:(double)hostSeconds {
+    if (_audioClockInitialized) {
+        _audioFirstMediaSeconds = [self mediaSecondsForClockLockedWithFirstMediaSeconds:_audioFirstMediaSeconds
+                                                                      startHostSeconds:_audioStartHostSeconds
+                                                                            hostSeconds:hostSeconds];
+        _audioStartHostSeconds = hostSeconds;
+    }
+
+    if (_videoClockInitialized) {
+        _videoFirstMediaSeconds = [self mediaSecondsForClockLockedWithFirstMediaSeconds:_videoFirstMediaSeconds
+                                                                      startHostSeconds:_videoStartHostSeconds
+                                                                            hostSeconds:hostSeconds];
+        _videoStartHostSeconds = hostSeconds;
+    }
+}
+
+- (double)mediaSecondsForClockLockedWithFirstMediaSeconds:(double)firstMediaSeconds
+                                         startHostSeconds:(double)startHostSeconds
+                                              hostSeconds:(double)hostSeconds {
+    if (atomic_load(&_paused) || _isPausedInsideLoop) {
+        return _currentTime;
+    }
+
+    double elapsedHostSeconds = fmax(0, hostSeconds - startHostSeconds);
+    return firstMediaSeconds + (elapsedHostSeconds * _playbackRate);
+}
+
 - (void)decodeLoop {
     atomic_store(&_playing, true);
     [self notifyTimeIfNeeded:YES];
@@ -691,9 +756,11 @@ static int SFXOutputChannelCount(int inputChannels) {
     if (!atomic_load(&_paused)) {
         if (_isPausedInsideLoop) {
             double pauseDuration = CACurrentMediaTime() - _pauseStartedHostSeconds;
-            _audioStartHostSeconds += pauseDuration;
-            _videoStartHostSeconds += pauseDuration;
-            _isPausedInsideLoop = NO;
+            @synchronized (self) {
+                _audioStartHostSeconds += pauseDuration;
+                _videoStartHostSeconds += pauseDuration;
+                _isPausedInsideLoop = NO;
+            }
 
             AVAudioPlayerNode *audioPlayer = _audioPlayer;
             if (_audioPlayerStarted) {
@@ -706,8 +773,10 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     if (!_isPausedInsideLoop) {
-        _isPausedInsideLoop = YES;
-        _pauseStartedHostSeconds = CACurrentMediaTime();
+        @synchronized (self) {
+            _isPausedInsideLoop = YES;
+            _pauseStartedHostSeconds = CACurrentMediaTime();
+        }
         AVAudioPlayerNode *audioPlayer = _audioPlayer;
         dispatch_async(dispatch_get_main_queue(), ^{
             [audioPlayer pause];
@@ -781,15 +850,18 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     double now = CACurrentMediaTime();
     double targetHostSeconds = 0;
-    if (_audioClockInitialized) {
-        targetHostSeconds = _audioStartHostSeconds + (mediaSeconds - _audioFirstMediaSeconds);
-    } else if (!_videoClockInitialized) {
-        _videoClockInitialized = YES;
-        _videoFirstMediaSeconds = mediaSeconds;
-        _videoStartHostSeconds = now;
-        return;
-    } else {
-        targetHostSeconds = _videoStartHostSeconds + (mediaSeconds - _videoFirstMediaSeconds);
+    @synchronized (self) {
+        double rate = fmax((double)_playbackRate, 0.001);
+        if (_audioClockInitialized) {
+            targetHostSeconds = _audioStartHostSeconds + ((mediaSeconds - _audioFirstMediaSeconds) / rate);
+        } else if (!_videoClockInitialized) {
+            _videoClockInitialized = YES;
+            _videoFirstMediaSeconds = mediaSeconds;
+            _videoStartHostSeconds = now;
+            return;
+        } else {
+            targetHostSeconds = _videoStartHostSeconds + ((mediaSeconds - _videoFirstMediaSeconds) / rate);
+        }
     }
 
     double waitSeconds = targetHostSeconds - now;
@@ -1004,10 +1076,14 @@ static int SFXOutputChannelCount(int inputChannels) {
     [_audioPlayer scheduleBuffer:buffer completionHandler:nil];
 
     if (!_audioPlayerStarted) {
-        if (mediaSeconds >= 0 && !_audioClockInitialized) {
-            _audioClockInitialized = YES;
-            _audioFirstMediaSeconds = mediaSeconds;
-            _audioStartHostSeconds = CACurrentMediaTime();
+        if (mediaSeconds >= 0) {
+            @synchronized (self) {
+                if (!_audioClockInitialized) {
+                    _audioClockInitialized = YES;
+                    _audioFirstMediaSeconds = mediaSeconds;
+                    _audioStartHostSeconds = CACurrentMediaTime();
+                }
+            }
         }
 
         _audioPlayerStarted = YES;
@@ -1067,6 +1143,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     avformat_close_input(&_formatContext);
 
     _audioPlayer = nil;
+    _audioTimePitch = nil;
     _audioEngine = nil;
     _audioFormat = nil;
 }
@@ -1078,6 +1155,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     SFXNativePlaybackSession *_session;
     NSString *_currentPath;
     float _volume;
+    float _playbackRate;
 }
 
 - (instancetype)init {
@@ -1089,6 +1167,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     av_log_set_level(AV_LOG_ERROR);
 
     _volume = 1.0;
+    _playbackRate = 1.0;
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
     return self;
 }
@@ -1117,9 +1196,18 @@ static int SFXOutputChannelCount(int inputChannels) {
     return _volume;
 }
 
+- (float)playbackRate {
+    return _playbackRate;
+}
+
 - (void)setVolume:(float)volume {
     _volume = fmaxf(0.0, fminf(volume, 1.0));
     [_session setVolume:_volume];
+}
+
+- (void)setPlaybackRate:(float)playbackRate {
+    _playbackRate = SFXClampedPlaybackRate(playbackRate);
+    [_session setPlaybackRate:_playbackRate];
 }
 
 - (BOOL)openPath:(NSString *)path
@@ -1144,6 +1232,7 @@ flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
         delegate:self.delegate
         owner:self
         volume:_volume
+        playbackRate:_playbackRate
         flushDisplayBeforeStart:flushDisplayBeforeStart
         error:error
     ];

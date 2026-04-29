@@ -45,13 +45,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         currentRequest = request
         currentVideoURL = request.videoURL.standardizedFileURL
 
-        if shouldTryNativeBackend {
-            do {
-                try openNative(request)
-                return
-            } catch {
-                print("Native playback failed, falling back to mpv: \(error)")
-            }
+        do {
+            try openNative(request)
+            return
+        } catch {
+            print("Native playback failed, falling back to mpv: \(error)")
         }
 
         try openMPV(request)
@@ -114,10 +112,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 delegate?.player(self, didChangeProperty: "volume", value: .double(storedVolume))
             case "speed":
                 storedSpeed = min(max(value, 0.5), 2.0)
-                if abs(storedSpeed - 1.0) > 0.001 {
-                    try fallbackToMPVAtCurrentNativeTime()
-                    try requireMPVPlayer().setDoubleProperty(name, value: storedSpeed)
-                }
+                nativePlayer.playbackRate = Float(storedSpeed)
                 delegate?.player(self, didChangeProperty: "speed", value: .double(storedSpeed))
             default:
                 throw PlaybackError.mpvOptionFailed(name: name, message: "Native playback property is unsupported.")
@@ -127,12 +122,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             if name == "volume" {
                 storedVolume = min(max(value, 0), 100)
             } else if name == "speed" {
-                storedSpeed = value
+                storedSpeed = min(max(value, 0.5), 2.0)
             }
-            try mpvPlayer.setDoubleProperty(name, value: value)
-            if name == "speed", shouldTryNativeBackend {
-                trySwitchToNativeFromMPVAtCurrentTime(mpvPlayer: mpvPlayer)
-            }
+            try mpvPlayer.setDoubleProperty(name, value: name == "speed" ? storedSpeed : value)
         }
     }
 
@@ -195,11 +187,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
     }
 
-    private var shouldTryNativeBackend: Bool {
-        abs(storedSpeed - 1.0) <= 0.001
-    }
-
     private func openNative(_ request: PlaybackRequest) throws {
+        nativePlayer.playbackRate = Float(storedSpeed)
         try nativePlayer.openPath(
             request.videoURL.path,
             startMilliseconds: request.startMilliseconds
@@ -226,46 +215,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
         if abs(storedSpeed - 1.0) > 0.001 {
             try? mpvPlayer.setDoubleProperty("speed", value: storedSpeed)
-        }
-    }
-
-    private func fallbackToMPVAtCurrentNativeTime() throws {
-        guard let currentVideoURL else {
-            throw PlaybackError.mpvCreateFailed
-        }
-
-        let request = try PlaybackRequest(
-            videoURL: currentVideoURL,
-            startMilliseconds: Int(nativePlayer.currentTime * 1000)
-        )
-        try openMPV(request)
-    }
-
-    private func trySwitchToNativeFromMPVAtCurrentTime(mpvPlayer: MPVPlayer) {
-        guard activeBackendStorage == .mpv, let currentVideoURL else {
-            return
-        }
-
-        let startMilliseconds: Int
-        do {
-            let currentTime = try mpvPlayer.getDoubleProperty("time-pos")
-            startMilliseconds = Int(max(0, currentTime) * 1000)
-        } catch {
-            startMilliseconds = 0
-        }
-
-        guard let request = try? PlaybackRequest(
-            videoURL: currentVideoURL,
-            startMilliseconds: startMilliseconds
-        ) else {
-            return
-        }
-
-        do {
-            try openNative(request)
-            currentRequest = request
-        } catch {
-            nativePlayer.stop()
         }
     }
 
