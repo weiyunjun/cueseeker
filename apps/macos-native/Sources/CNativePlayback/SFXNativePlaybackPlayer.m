@@ -348,6 +348,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _flushDisplayBeforeStart = flushDisplayBeforeStart;
     _flushDisplayOnFirstFrame = !flushDisplayBeforeStart;
     _seekSeconds = MAX(0, (double)startMilliseconds / 1000.0);
+    _currentTime = _seekSeconds;
     _videoStreamIndex = -1;
     _audioStreamIndex = -1;
     _decodeQueue = dispatch_queue_create("SubFinderX.NativePlayback.Decode", DISPATCH_QUEUE_SERIAL);
@@ -679,8 +680,11 @@ static int SFXOutputChannelCount(int inputChannels) {
         av_packet_unref(_packet);
     }
 
+    BOOL cancelled = atomic_load(&_cancelled);
     atomic_store(&_playing, false);
-    [self notifyTimeIfNeeded:YES];
+    if (!cancelled) {
+        [self notifyTimeIfNeeded:YES];
+    }
 }
 
 - (void)waitWhilePausedIfNeeded {

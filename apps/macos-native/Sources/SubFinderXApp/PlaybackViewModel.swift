@@ -60,9 +60,23 @@ public final class PlaybackViewModel: ObservableObject {
     }
     
     public func seek(to seconds: Double) {
+        performSeek(to: seconds, resetsAccumulatedFeedback: true)
+    }
+
+    private func performSeek(to seconds: Double, resetsAccumulatedFeedback: Bool) {
+        let nonnegativeSeconds = seconds.isFinite ? max(seconds, 0) : 0
+        let targetTime = duration > 0 ? min(nonnegativeSeconds, duration) : nonnegativeSeconds
+        let previousTime = currentTime
+        currentTime = targetTime
+        if resetsAccumulatedFeedback {
+            accumulatedForwardSeconds = 0
+            accumulatedRewindSeconds = 0
+        }
+
         do {
-            try player.seek(toMilliseconds: Int(seconds * 1000))
+            try player.seek(toMilliseconds: Int(targetTime * 1000))
         } catch {
+            currentTime = previousTime
             print("Failed to seek: \(error)")
         }
     }
@@ -76,7 +90,7 @@ public final class PlaybackViewModel: ObservableObject {
             targetTime = max(currentTime + seconds, 0)
         }
 
-        seek(to: targetTime)
+        performSeek(to: targetTime, resetsAccumulatedFeedback: false)
 
         if seconds > 0 {
             accumulatedRewindSeconds = 0
