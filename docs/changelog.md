@@ -88,3 +88,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Documented the video-first backend preselection direction: folder scanning should cache fast media-file backend preference using stream presence, codec names, and current-device VideoToolbox hardware support, while real playback remains responsible for fallback and correction.
 - Added app-owned subtitle overlay rendering for native-first playback using the indexed SRT file associated with the selected search result.
 - Fixed paused native playback seek behavior so timeline clicks and relative seek shortcuts preserve the previous pause state.
+- Hardened repeated paused native seek handling so consecutive keyboard seek shortcuts cannot publish a transient playing state.
