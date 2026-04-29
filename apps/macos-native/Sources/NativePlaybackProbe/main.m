@@ -104,7 +104,7 @@ typedef struct {
     double firstMediaSeconds;
     double startHostSeconds;
     int pacedVideoFrames;
-    int fallbackVideoFrames;
+    int videoClockPacedFrames;
     double maxWaitSeconds;
     double maxLatenessSeconds;
 } AudioClock;
@@ -151,7 +151,7 @@ typedef struct {
     bool hasSelectedAudioStream;
     bool audioOutputCandidate;
     bool fullNativeCandidate;
-    bool fallbackRecommended;
+    bool nativeUnsupported;
 } NativeCapabilityReport;
 
 static enum AVPixelFormat hardwarePixelFormat = AV_PIX_FMT_NONE;
@@ -207,7 +207,7 @@ static const char *yes_no(bool value) {
 
 static void describe_channel_layout(
     const AVChannelLayout *layout,
-    int fallbackChannels,
+    int channelCountForDescription,
     char *buffer,
     size_t bufferSize
 ) {
@@ -220,11 +220,11 @@ static void describe_channel_layout(
         if (av_channel_layout_describe(layout, buffer, bufferSize) >= 0 && buffer[0] != '\0') {
             return;
         }
-        fallbackChannels = layout->nb_channels;
+        channelCountForDescription = layout->nb_channels;
     }
 
-    if (fallbackChannels > 0) {
-        snprintf(buffer, bufferSize, "%d channel%s", fallbackChannels, fallbackChannels == 1 ? "" : "s");
+    if (channelCountForDescription > 0) {
+        snprintf(buffer, bufferSize, "%d channel%s", channelCountForDescription, channelCountForDescription == 1 ? "" : "s");
     } else {
         snprintf(buffer, bufferSize, "unknown");
     }
@@ -622,7 +622,7 @@ static void pace_video_frame(
     }
 
     if (audioClock != NULL && audioClock->enabled) {
-        audioClock->fallbackVideoFrames++;
+        audioClock->videoClockPacedFrames++;
     }
 
     if (!pacer->initialized) {
@@ -1185,13 +1185,13 @@ static int seek_input_to_seconds(
     if (audioClock != NULL) {
         bool enabled = audioClock->enabled;
         int pacedVideoFrames = audioClock->pacedVideoFrames;
-        int fallbackVideoFrames = audioClock->fallbackVideoFrames;
+        int videoClockPacedFrames = audioClock->videoClockPacedFrames;
         double maxWaitSeconds = audioClock->maxWaitSeconds;
         double maxLatenessSeconds = audioClock->maxLatenessSeconds;
         *audioClock = (AudioClock){0};
         audioClock->enabled = enabled;
         audioClock->pacedVideoFrames = pacedVideoFrames;
-        audioClock->fallbackVideoFrames = fallbackVideoFrames;
+        audioClock->videoClockPacedFrames = videoClockPacedFrames;
         audioClock->maxWaitSeconds = maxWaitSeconds;
         audioClock->maxLatenessSeconds = maxLatenessSeconds;
     }
@@ -1771,7 +1771,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
         if (audioClock.enabled) {
             printf("Audio clock initialized: %s\n", audioClock.initialized ? "yes" : "no");
             printf("Audio-master paced video frames: %d\n", audioClock.pacedVideoFrames);
-            printf("Video-clock fallback frames: %d\n", audioClock.fallbackVideoFrames);
+            printf("Video-clock paced frames: %d\n", audioClock.videoClockPacedFrames);
             printf("Max audio-clock wait: %.3fs\n", audioClock.maxWaitSeconds);
             printf("Max audio-clock lateness: %.3fs\n", audioClock.maxLatenessSeconds);
         }
@@ -2070,13 +2070,13 @@ static int inspect_native_capability(
         report->hasSelectedAudioStream = audioStreamIndex >= 0;
         report->audioOutputCandidate = hasAudioOutputCandidate;
         report->fullNativeCandidate = nativeCandidate;
-        report->fallbackRecommended = !nativeCandidate;
+        report->nativeUnsupported = !nativeCandidate;
     }
     printf("Video native candidate: %s\n", yes_no(videoNativeCandidate));
     printf("Full native candidate: %s\n", yes_no(nativeCandidate));
     printf("Native candidate: %s\n", yes_no(nativeCandidate));
     if (!nativeCandidate) {
-        printf("Fallback recommended: yes\n");
+        printf("Native unsupported: yes\n");
     }
 
     return 0;
@@ -2138,7 +2138,7 @@ static int run_inspect_list_probe(
     int inspectedFiles = 0;
     int openOrInspectFailures = 0;
     int fullNativeCandidates = 0;
-    int fallbackRecommended = 0;
+    int nativeUnsupported = 0;
 
     while (getline(&line, &lineCapacity, file) >= 0) {
         lineNumber++;
@@ -2155,9 +2155,9 @@ static int run_inspect_list_probe(
         int result = run_inspect_probe(line, requestedAudioStreamIndex, &report);
         if (result != 0) {
             openOrInspectFailures++;
-            fallbackRecommended++;
+            nativeUnsupported++;
             printf(
-                "Inspect list result: item=%d, status=failed, full_native=no, fallback_recommended=yes, path=%s\n",
+                "Inspect list result: item=%d, status=failed, full_native=no, native_unsupported=yes, path=%s\n",
                 inspectedFiles,
                 line
             );
@@ -2167,17 +2167,17 @@ static int run_inspect_list_probe(
         if (report.fullNativeCandidate) {
             fullNativeCandidates++;
         }
-        if (report.fallbackRecommended) {
-            fallbackRecommended++;
+        if (report.nativeUnsupported) {
+            nativeUnsupported++;
         }
 
         printf(
-            "Inspect list result: item=%d, status=ok, video_native=%s, audio_output=%s, full_native=%s, fallback_recommended=%s, path=%s\n",
+            "Inspect list result: item=%d, status=ok, video_native=%s, audio_output=%s, full_native=%s, native_unsupported=%s, path=%s\n",
             inspectedFiles,
             yes_no(report.videoNativeCandidate),
             yes_no(report.audioOutputCandidate),
             yes_no(report.fullNativeCandidate),
-            yes_no(report.fallbackRecommended),
+            yes_no(report.nativeUnsupported),
             line
         );
     }
@@ -2188,7 +2188,7 @@ static int run_inspect_list_probe(
     printf("Inspect list files: %d\n", inspectedFiles);
     printf("Inspect list failures: %d\n", openOrInspectFailures);
     printf("Inspect list full native candidates: %d\n", fullNativeCandidates);
-    printf("Inspect list fallback recommended: %d\n", fallbackRecommended);
+    printf("Inspect list native unsupported: %d\n", nativeUnsupported);
 
     return openOrInspectFailures == 0 ? 0 : 1;
 }
