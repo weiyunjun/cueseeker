@@ -2,8 +2,10 @@
 
 Status: Accepted
 
-Accepted on 2026-04-29. ADR-0006 supersedes ADR-0003 and moves the production
-app to native-first playback with `libmpv` fallback.
+Accepted on 2026-04-29. ADR-0006 superseded ADR-0003 and moved the production
+app to native-first playback with `libmpv` fallback. ADR-0007 later superseded
+ADR-0006 and removes production `libmpv` compatibility so native playback
+failures are exposed directly.
 
 ## Background
 

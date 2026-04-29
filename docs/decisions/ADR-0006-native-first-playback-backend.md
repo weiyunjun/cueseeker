@@ -1,6 +1,10 @@
 # ADR-0006: Native-First Playback Backend
 
-Status: Accepted
+Status: Superseded by ADR-0007
+
+Superseded on 2026-04-29 by ADR-0007. SubFinderX now removes production
+`libmpv` compatibility so native playback failures are exposed directly and the
+active app is forced through the project-owned native backend.
 
 ## Background
 

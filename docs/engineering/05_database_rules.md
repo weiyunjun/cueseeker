@@ -115,24 +115,31 @@ Future entities:
 Rules:
 
 - Row IDs may be used internally but must not be the only stable identity for future favorites.
-- Playback backend preference is owned by the media file, not by subtitle entries or subtitle file paths.
+- Native playback compatibility metadata is owned by the media file, not by
+  subtitle entries or subtitle file paths.
 - Subtitle-to-video matching must be represented separately enough that exact basename matching can later be replaced or supplemented by fuzzy or manual matching.
 - Subtitle identity should preserve source subtitle path and timing information.
 - Indexed subtitle rows must keep enough metadata to open the matched video at `start_ms`.
 - Index metadata must allow incremental indexing based on source file metadata.
 
-## 9. Media Backend Profile Rules
+## 9. Media Native Compatibility Profile Rules
 
-The database should cache fast playback backend preselection per media file.
+The database may cache fast native playback compatibility inspection per media file.
 
 Rules:
 
-- Backend preselection must be keyed by media file identity, such as media path plus file size and modified time.
-- Backend preselection must not be keyed only by `srt_path`, subtitle entry ID, or exact subtitle-to-video filename matching.
-- Folder scanning should update backend preselection when the media file is new or its size or modified time changes.
-- Fast preselection should store the selected backend, the codec-based reason, and the time it was evaluated.
-- If a native playback attempt later fails and falls back to `libmpv`, the fallback result may be persisted for that media file so later selections do not repeat the same failed native attempt.
-- Future audio-only media should use the same media-file backend profile model.
+- Native compatibility inspection must be keyed by media file identity, such as
+  media path plus file size and modified time.
+- Native compatibility inspection must not be keyed only by `srt_path`, subtitle
+  entry ID, or exact subtitle-to-video filename matching.
+- Folder scanning should update native compatibility metadata when the media file
+  is new or its size or modified time changes.
+- Fast inspection should store the native candidate result, the codec-based
+  reason, and the time it was evaluated.
+- If a native playback attempt later fails, the native failure reason may be
+  persisted for that media file for diagnostics and compatibility work.
+- Future audio-only media should use the same media-file native compatibility
+  profile model.
 
 ## 10. Timestamp Rules
 

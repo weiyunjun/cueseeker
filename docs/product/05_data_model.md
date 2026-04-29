@@ -44,7 +44,8 @@ Remote path types are deferred.
 
 A video file represents a local media file discovered under a selected search path.
 
-The video file is the owner of playback backend preference. Backend preference must not be keyed by subtitle file path or subtitle entry identity.
+The video file is the owner of native playback compatibility metadata. Native
+compatibility must not be keyed by subtitle file path or subtitle entry identity.
 
 Expected fields:
 
@@ -55,16 +56,20 @@ Expected fields:
 - `duration`
 - `video_codec`
 - `audio_codec`
-- `preferred_backend`
-- `backend_reason`
-- `probed_at`
+- `native_video_candidate`
+- `native_audio_candidate`
+- `native_compatibility_reason`
+- `native_failure_reason`
+- `compatibility_evaluated_at`
 
 Notes:
 
-- `preferred_backend` may be `native`, `mpv`, or `unknown`.
-- The initial fast backend preselection should use stream presence, codec names, and current-device hardware decode capability.
-- Fast backend preselection should not decode frames or start a playback engine during folder scanning.
-- If native playback fails for a media file, the app may update `preferred_backend` to `mpv` and preserve the fallback reason.
+- The initial fast native compatibility inspection should use stream presence,
+  codec names, and current-device hardware decode capability.
+- Fast native compatibility inspection should not decode frames or start a
+  playback engine during folder scanning.
+- If native playback fails for a media file, the app may preserve the native
+  failure reason for diagnostics and later compatibility work.
 - Future audio-only playback should use the same media-file identity model.
 
 ## 5. Subtitle File
@@ -82,7 +87,7 @@ Expected fields:
 Notes:
 
 - Subtitle files are the source of truth for parsed subtitle text.
-- Subtitle files must not own playback backend preference.
+- Subtitle files must not own native playback compatibility metadata.
 
 ## 6. Subtitle-to-Video Match
 
@@ -99,7 +104,8 @@ Expected fields:
 Notes:
 
 - The initial matching method may remain exact same-directory basename matching.
-- Future matching may add fuzzy or manual matching without changing video-file backend preference.
+- Future matching may add fuzzy or manual matching without changing video-file
+  native compatibility metadata.
 - Search results should resolve playback through the active subtitle-to-video match.
 
 ## 7. Subtitle Entry

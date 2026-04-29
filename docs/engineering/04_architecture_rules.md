@@ -62,7 +62,7 @@ Default assumptions until a more specific document or ADR replaces them:
 Accepted ADRs:
 
 - ADR-0002 selects Swift, SwiftUI, AppKit bridges, Swift Package Manager, SQLite with FTS5, and a project-owned persistence layer for M1.
-- ADR-0006 supersedes ADR-0003 and selects native-first playback with `libmpv` fallback.
+- ADR-0007 supersedes ADR-0006 and ADR-0003 and selects native-only playback.
 - ADR-0004 disables App Sandbox for M1 local development and personal builds.
 
 ## 5. Module Boundaries
@@ -156,26 +156,25 @@ Playback is a high-risk component.
 Rules:
 
 - M1 requires local file playback and timestamp seek only.
-- ADR-0006 selects native-first playback with `libmpv` fallback.
+- ADR-0007 selects native-only playback.
 - Playback code must not assume remote streams, local HTTP proxying, cache layers, or advanced subtitle rendering.
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
-- The current playback route is owned by a playback facade that tries the native backend first and falls back to `libmpv`.
-- The playback facade must create `libmpv` lazily on fallback demand; successful native playback must not initialize or retain an MPV player just because fallback exists.
+- The current playback route must always use the project-owned native backend.
+- The active native macOS app must not link against, initialize, or fall back to `libmpv`.
 - The native backend uses FFmpeg demuxing, VideoToolbox hardware decode, native display, FFmpeg audio decode, and `AVAudioEngine` output.
 - The app should query current-device VideoToolbox hardware decode support once at startup or before folder scanning, because codec support differs across Apple Silicon generations such as M1 and M4.
-- Folder scanning should perform fast media-file backend preselection using only stream presence, codec names, and current-device hardware decode support. Scanning must not decode frames, start a player, or perform heavy disk reads for backend selection.
-- The initial video codec candidates for fast native preselection are H.264, HEVC, VP9, and AV1, filtered by current-device VideoToolbox hardware decode support.
-- Fast video backend preselection should use video codec support first. If no video stream exists but an audio stream exists, the same media-file profile model should allow native audio-only candidates as audio playback support evolves.
-- Backend preselection is a media-file property. It must not depend on `srt_path` as a unique key or on exact subtitle-to-video filename matching.
-- If a preselected native media file fails during real playback, the facade should fall back to `libmpv` and may update the media-file profile so future selections skip the same native failure.
+- Folder scanning should perform fast media-file native compatibility inspection using only stream presence, codec names, and current-device hardware decode support. Scanning must not decode frames, start a player, or perform heavy disk reads for compatibility inspection.
+- The initial video codec candidates for fast native compatibility inspection are H.264, HEVC, VP9, and AV1, filtered by current-device VideoToolbox hardware decode support.
+- Fast video compatibility inspection should use video codec support first. If no video stream exists but an audio stream exists, the same media-file profile model should allow native audio-only candidates as audio playback support evolves.
+- Native compatibility metadata is a media-file property. It must not depend on `srt_path` as a unique key or on exact subtitle-to-video filename matching.
+- If a native media file fails during real playback, the app should surface the native failure and may update the media-file profile so the failure reason is available for diagnostics.
 - Full playback verification may still inspect actual decoder output when debugging the native backend, but that verification is not part of the fast folder-scan preselection path.
 - The native display path should move toward a shared Metal YUV renderer for both hardware `CVPixelBuffer` frames and future software-decoded FFmpeg `AVFrame` planes.
-- Unsupported color layouts, bit depths, ranges, chroma layouts, or frame strides must produce explicit native fallback reasons rather than silent incorrect rendering.
+- Unsupported color layouts, bit depths, ranges, chroma layouts, or frame strides must produce explicit native failure reasons rather than silent incorrect rendering.
 - Native timestamp seek should first try the selected video stream and then fall back to a global seek before treating seek setup as a native failure.
 - Native seek state updates must not publish a transient `0` timestamp while a target seek is being prepared.
-- If playback is currently using `libmpv`, same-file result selection and returning to `1.0x` speed should allow the facade to retry native playback instead of permanently pinning that file to fallback for the session.
-- The playback UI hosts a singleton render container owned by the playback facade; fullscreen must move that same container rather than creating an independent render view.
+- The playback UI hosts a singleton render container owned by the playback player; fullscreen must move that same container rather than creating an independent render view.
 - Playback fullscreen uses a borderless Theater Mode window and must not call the app window's system Full Screen transition.
 - The Theater Mode window must use an app-level window level and must not use `screenSaver` or other system-overlay window levels that can cover the Cmd-Tab app switcher.
 - Closing fullscreen, hiding the Playback Inspector, switching away from Search, closing the main window, or terminating the app must clean up the fullscreen window.

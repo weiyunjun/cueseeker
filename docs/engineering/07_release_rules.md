@@ -74,6 +74,9 @@ Rules:
 - Notarized builds require a release checklist update.
 - Any bundled native dependency that affects signing or notarization must be reviewed before release.
 - Playback engine choice may affect signing and notarization and must be considered in the playback ADR.
+- ADR-0007 removes production `libmpv` compatibility. Release packaging should
+  account for FFmpeg libraries and required non-system FFmpeg dependencies, but
+  should not include `libmpv` unless a future ADR reintroduces it.
 
 ## 7. Sandboxing and Entitlements
 

@@ -1,6 +1,6 @@
 # ADR-0005: Playback Fullscreen Lifecycle and RenderView Architecture
 
-Status: Accepted, generalized by ADR-0006
+Status: Accepted, generalized by ADR-0006 and ADR-0007
 
 ADR-0006 keeps the Theater Mode fullscreen rule but generalizes the concrete
 render ownership from an `MPVRenderView` singleton to a playback render
@@ -60,3 +60,10 @@ Current implementation note after ADR-0006:
   fallback view.
 - The fullscreen invariant remains the same: Theater Mode must move the existing
   backend view/container and must not create duplicate render state.
+
+Current implementation note after ADR-0007:
+
+- The production app still moves one stable playback render container, but that
+  container now hosts only the native playback view.
+- The fullscreen invariant remains the same: Theater Mode must move the existing
+  native render container and must not create duplicate render state.

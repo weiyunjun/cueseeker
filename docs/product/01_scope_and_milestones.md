@@ -73,7 +73,8 @@ Accepted M1 implementation summary:
 - The legacy Flutter implementation is archived under `archive/flutter/`.
 - The active native macOS app lives under `apps/macos-native/`.
 - Core subtitle scanning, parsing, same-directory video matching, SQLite persistence, FTS5 search, incremental reindexing, and basic settings are implemented.
-- Embedded playback now uses a native-first backend with `libmpv` fallback, replacing the earlier `libmpv`-primary bridge.
+- Embedded playback now uses the project-owned native backend, replacing the
+  earlier `libmpv`-primary bridge and later native-first fallback bridge.
 - The app shell has moved to a custom native shell with AppKit titlebar controls and SwiftUI content.
 - The Search workflow now uses the Playback Inspector instead of dedicated playback-page navigation.
 
@@ -82,7 +83,8 @@ Known post-M1 follow-up areas:
 - Search ranking, query semantics, CJK behavior, and other search-quality improvements require dedicated post-M1 design work and should not block M1 acceptance.
 - Keyboard shortcuts, playback interaction refinement, native menu behavior, file and folder management, file-access persistence, error presentation, settings refinement, and packaging preparation belong to M2.
 - Window sizing and restoration were substantially completed during M1 and should be treated as M2 regression-verification areas unless concrete defects are found.
-- The native-first playback integration requires focused app-level regression testing before it is treated as fully stabilized.
+- The native-only playback integration requires focused app-level regression
+  testing before it is treated as fully stabilized.
 - UI polish may continue in M2, but the current UI is accepted for the M1 minimal local loop.
 
 ## 4. M2: macOS Experience Polish
@@ -118,7 +120,7 @@ Expected areas:
   Refine settings beyond the current folder-management surface after the specific M2 settings scope is confirmed.
 - Packaging preparation.
   Prepare the app bundle for reliable local review builds, including dependency
-  bundling concerns such as FFmpeg and, while fallback remains present, `libmpv`.
+  bundling concerns such as FFmpeg and required non-system FFmpeg dependencies.
 - Signing and notarization preparation if needed.
   Prepare signing or notarization only if personal distribution beyond local development requires it.
 

@@ -55,10 +55,10 @@ Out of scope for M1:
 Playback depends on subtitle-to-video matching.
 
 The initial matching rule is same-directory basename matching.
-This matching rule is not the long-term media identity model. Playback backend
-preference must be determined from the matched media file itself, so future fuzzy
-or manual subtitle matching can change the match without changing how backend
-preference is evaluated.
+This matching rule is not the long-term media identity model. Native playback
+compatibility metadata must be determined from the matched media file itself, so
+future fuzzy or manual subtitle matching can change the match without changing
+how native compatibility is evaluated.
 
 Example:
 
@@ -81,41 +81,43 @@ Expected behavior:
 
 ## 5. Playback Engine Selection
 
-The playback engine is selected in `docs/decisions/ADR-0006-native-first-playback-backend.md`,
-which supersedes ADR-0003.
+The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`,
+which supersedes ADR-0006 and ADR-0003.
 
 Current decision:
 
-- Try the native backend first for supported local files.
-- Keep embedded `libmpv` as a fallback backend for unsupported files, native
-  backend failures, and playback actions not yet implemented by the native path.
+- Use the project-owned native backend as the only active production playback
+  path.
+- Do not link, initialize, or fall back to embedded `libmpv` in the active
+  native macOS app.
+- Surface native opening, demuxing, hardware decode, display, audio decode,
+  audio output, seek, and playback-control failures directly.
 
 Current implementation:
 
 - The native backend uses FFmpeg demuxing, VideoToolbox hardware decode,
   `AVSampleBufferDisplayLayer` display, FFmpeg audio decode, `swresample`
   downmix or format conversion when needed, and `AVAudioEngine` output.
-- The app uses a playback facade that owns both the native backend and `libmpv`
-  fallback.
-- Backend preference should be selected from video-file metadata before playback
-  begins, not by doing expensive playback capability checks after a subtitle
-  result is clicked.
-- Scanning-time backend preselection is video-first. Subtitle matching may
-  evolve from exact basename matching to fuzzy or manual matching, but backend
-  preference remains a property of the media file.
-- Fast backend preselection should inspect only stream presence and codec names,
-  combined with the current machine's VideoToolbox hardware decode capability.
-  It must not decode frames or start a player during folder scanning.
+- The app uses a stable playback render container that hosts the native playback
+  view in the Playback Inspector and Theater Mode fullscreen.
+- Native compatibility metadata should be selected from video-file metadata
+  before playback begins, not by doing expensive playback capability checks after
+  a subtitle result is clicked.
+- Scanning-time native compatibility inspection is video-first. Subtitle matching
+  may evolve from exact basename matching to fuzzy or manual matching, but
+  compatibility remains a property of the media file.
+- Fast native compatibility inspection should inspect only stream presence and
+  codec names, combined with the current machine's VideoToolbox hardware decode
+  capability. It must not decode frames or start a player during folder scanning.
 - The initial video codec candidates are H.264, HEVC, VP9, and AV1, but a codec
-  should prefer the native backend only when the current machine reports
+  should be marked as a native candidate only when the current machine reports
   hardware decode support for that codec.
-- A media file with a currently supported video codec should prefer the native backend.
+- A media file with a currently supported video codec should be treated as a
+  native playback candidate.
   If there is no video stream but there is a supported audio stream, the file may
-  also prefer the native backend as audio-only playback support evolves.
-- If the preselected native backend fails during real playback, the app should
-  fall back to `libmpv` and persist the fallback result for that media file.
-- The playback UI hosts a stable render container so the active backend view can
-  be embedded in the Playback Inspector and moved into Theater Mode fullscreen.
+  also become a native playback candidate as audio-only playback support evolves.
+- If a native candidate fails during real playback, the app should surface the
+  native failure and may persist the failure reason for that media file.
 - Selecting a result in the same video should prefer seek behavior when
   practical.
 - The previous `wid` style embedding and external player-window approach are not
@@ -149,8 +151,6 @@ Rules:
   associated with the selected search result.
 - The overlay is owned by the app playback UI, not by the native media decoder.
 - Native playback does not need to decode embedded subtitle streams for M1.
-- `libmpv` fallback should not render a duplicate subtitle track when the app
-  overlay is active.
 - The subtitle visibility control should show or hide the app-owned overlay.
 
 ## 7. M2 Fullscreen Behavior
@@ -180,7 +180,7 @@ Implementation constraints:
 - Do not create a second playback render view for fullscreen.
 - Do not create a second backend render context for fullscreen.
 - Do not let SwiftUI view lifetime decide when backend render state is destroyed.
-- Playback fullscreen should use the singleton render container owned by the playback facade.
+- Playback fullscreen should use the singleton render container owned by the playback player.
 - The fullscreen overlay should reuse the same playback controls and feedback model as the Playback Inspector.
 
 ## 8. M2 Playback Controls
