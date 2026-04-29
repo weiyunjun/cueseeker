@@ -53,11 +53,49 @@ struct PlaybackVideoView: View {
                 )
             }
 
+            PlaybackSubtitleOverlay(
+                text: viewModel.activeSubtitleText,
+                bottomPadding: isControlsVisible ? 112 : 28
+            )
+
             PlaybackFeedbackOverlay(feedback: viewModel.feedback)
         }
         .onHover { hover in
             isControlsVisible = hover
         }
+    }
+}
+
+struct PlaybackSubtitleOverlay: View {
+    let text: String?
+    let bottomPadding: CGFloat
+
+    var body: some View {
+        VStack {
+            Spacer()
+
+            if let text {
+                Text(text)
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.72)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.black.opacity(0.68))
+                    )
+                    .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+                    .frame(maxWidth: 900)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, bottomPadding)
+                    .transition(.opacity)
+            }
+        }
+        .allowsHitTesting(false)
+        .animation(.easeInOut(duration: 0.12), value: text)
     }
 }
 

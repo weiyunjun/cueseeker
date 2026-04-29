@@ -135,16 +135,23 @@ Evaluation criteria:
 
 ## 6. Subtitle Rendering
 
-M1 does not require custom subtitle overlay rendering.
+The current native-first playback implementation supports app-owned subtitle
+overlay rendering for the selected indexed SRT file.
 
 Future versions may need:
 
-- Display current subtitle text.
-- Toggle subtitle visibility.
 - Highlight current subtitle.
 - Support text selection or learning interactions.
 
-These features should be designed after the playback engine is selected.
+Rules:
+
+- Playback should display the current subtitle text from the indexed SRT file
+  associated with the selected search result.
+- The overlay is owned by the app playback UI, not by the native media decoder.
+- Native playback does not need to decode embedded subtitle streams for M1.
+- `libmpv` fallback should not render a duplicate subtitle track when the app
+  overlay is active.
+- The subtitle visibility control should show or hide the app-owned overlay.
 
 ## 7. M2 Fullscreen Behavior
 

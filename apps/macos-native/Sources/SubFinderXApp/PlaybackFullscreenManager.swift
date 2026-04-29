@@ -335,6 +335,11 @@ private struct PlaybackFullscreenOverlayView: View {
                 .transition(.opacity)
             }
 
+            PlaybackSubtitleOverlay(
+                text: viewModel.activeSubtitleText,
+                bottomPadding: fullscreenManager.isChromeVisible ? 128 : 56
+            )
+
             PlaybackFeedbackOverlay(feedback: viewModel.feedback)
         }
         .background(Color.clear)

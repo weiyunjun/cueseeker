@@ -26,16 +26,22 @@ public final class PlaybackViewModel: ObservableObject {
     @Published public var activeBackend: PlaybackBackend = .native
     
     @Published public var isPlaying: Bool = false
-    @Published public var currentTime: Double = 0
+    @Published public var currentTime: Double = 0 {
+        didSet {
+            refreshActiveSubtitleText()
+        }
+    }
     @Published public var duration: Double = 0
     @Published public var volume: Double = 100
     @Published public var playbackSpeed: Double = 1.0
     @Published public var areSubtitlesVisible: Bool = true
+    @Published public private(set) var activeSubtitleText: String?
     @Published var feedback: PlaybackFeedback?
 
     private var feedbackClearTask: Task<Void, Never>?
     private var accumulatedForwardSeconds = 0
     private var accumulatedRewindSeconds = 0
+    private var subtitleTrack = PlaybackSubtitleTrack.empty
 
     public init(player: PlaybackPlayer) {
         self.player = player
@@ -159,13 +165,25 @@ public final class PlaybackViewModel: ObservableObject {
     public func toggleSubtitles() {
         let newValue = !areSubtitlesVisible
 
-        do {
-            try player.setStringProperty("sid", value: newValue ? "auto" : "no")
-            areSubtitlesVisible = newValue
-            showSubtitleFeedback(isVisible: newValue)
-        } catch {
-            print("Failed to toggle subtitles: \(error)")
+        areSubtitlesVisible = newValue
+        refreshActiveSubtitleText()
+        showSubtitleFeedback(isVisible: newValue)
+    }
+
+    public func setSubtitleCues(
+        _ cues: [PlaybackSubtitleCue],
+        currentTimeMilliseconds: Int? = nil
+    ) {
+        subtitleTrack = PlaybackSubtitleTrack(cues: cues)
+        if let currentTimeMilliseconds {
+            currentTime = Double(max(0, currentTimeMilliseconds)) / 1_000
         }
+        refreshActiveSubtitleText()
+    }
+
+    public func clearSubtitleCues() {
+        subtitleTrack = .empty
+        refreshActiveSubtitleText()
     }
 
     func showPlayPauseFeedback(isPlaying: Bool) {
@@ -211,6 +229,13 @@ public final class PlaybackViewModel: ObservableObject {
                 isCircular: false
             )
         )
+    }
+
+    private func refreshActiveSubtitleText() {
+        let nextText = areSubtitlesVisible ? subtitleTrack.activeText(at: currentTime) : nil
+        if activeSubtitleText != nextText {
+            activeSubtitleText = nextText
+        }
     }
 
     private func showFeedback(
@@ -259,7 +284,10 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
             guard let value else { return }
             switch name {
             case "time-pos":
-                if case .double(let d) = value { self.currentTime = d }
+                if case .double(let d) = value {
+                    self.currentTime = d
+                    self.refreshActiveSubtitleText()
+                }
             case "duration":
                 if case .double(let d) = value { self.duration = d }
             case "pause":

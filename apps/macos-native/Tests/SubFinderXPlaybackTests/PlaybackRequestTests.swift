@@ -62,6 +62,31 @@ func playbackRequestBuildsLoadfileCommandWithStartOption() throws {
 }
 
 @Test
+func playbackSubtitleTrackSelectsCueForCurrentTime() {
+    let track = PlaybackSubtitleTrack(cues: [
+        PlaybackSubtitleCue(startMilliseconds: 1_000, endMilliseconds: 2_500, text: "First line"),
+        PlaybackSubtitleCue(startMilliseconds: 3_000, endMilliseconds: 4_000, text: "Second line")
+    ])
+
+    #expect(track.activeText(at: 0.999) == nil)
+    #expect(track.activeText(at: 1.0) == "First line")
+    #expect(track.activeText(at: 2.499) == "First line")
+    #expect(track.activeText(at: 2.5) == nil)
+    #expect(track.activeText(at: 3.0) == "Second line")
+}
+
+@Test
+func playbackSubtitleTrackJoinsOverlappingCues() {
+    let track = PlaybackSubtitleTrack(cues: [
+        PlaybackSubtitleCue(startMilliseconds: 2_000, endMilliseconds: 4_000, text: "Second"),
+        PlaybackSubtitleCue(startMilliseconds: 1_000, endMilliseconds: 3_000, text: "First"),
+        PlaybackSubtitleCue(startMilliseconds: 1_000, endMilliseconds: 3_000, text: "   ")
+    ])
+
+    #expect(track.activeText(at: 2.5) == "First\nSecond")
+}
+
+@Test
 @MainActor
 func playbackPlayerKeepsNativeBackendWhenSettingNonDefaultSpeed() throws {
     let player = PlaybackPlayer(mpvPlayerFactory: { throw PlaybackError.mpvCreateFailed })

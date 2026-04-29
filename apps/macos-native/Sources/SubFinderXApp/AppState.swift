@@ -276,6 +276,11 @@ final class AppState: ObservableObject {
 
     func play(_ result: SubtitleSearchResult) {
         playbackStatus = .opening(result)
+        let subtitleCues = playbackSubtitleCues(for: result)
+        playbackViewModel?.setSubtitleCues(
+            subtitleCues,
+            currentTimeMilliseconds: result.startMilliseconds
+        )
 
         do {
             let request = try PlaybackRequest(
@@ -297,6 +302,7 @@ final class AppState: ObservableObject {
             try player.setPaused(false)
             playbackStatus = .playing(result)
         } catch {
+            playbackViewModel?.clearSubtitleCues()
             playbackStatus = .failed(Self.errorMessage(for: error))
         }
     }
@@ -412,6 +418,7 @@ final class AppState: ObservableObject {
         do {
             playbackFullscreenManager.exitFullscreen()
             try player?.stop()
+            playbackViewModel?.clearSubtitleCues()
             playbackStatus = .idle
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -444,6 +451,37 @@ final class AppState: ObservableObject {
         }
 
         updateSearchQuery(searchQuery)
+    }
+
+    private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+            let entries = try database.entries(
+                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath)
+            )
+            let cues = entries.map {
+                PlaybackSubtitleCue(
+                    startMilliseconds: $0.startMilliseconds,
+                    endMilliseconds: $0.endMilliseconds,
+                    text: $0.content
+                )
+            }
+
+            if !cues.isEmpty {
+                return cues
+            }
+        } catch {
+            print("Failed to load playback subtitle track: \(error)")
+        }
+
+        return [
+            PlaybackSubtitleCue(
+                startMilliseconds: result.startMilliseconds,
+                endMilliseconds: result.endMilliseconds,
+                text: result.content
+            )
+        ]
     }
 
     private func persistSelectedFolders() {

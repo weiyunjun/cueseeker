@@ -86,3 +86,4 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Clarified future packaging direction: if `libmpv` fallback is removed, the distributable app should bundle FFmpeg libraries and their required non-system transitive dependencies, while relying on macOS system frameworks for VideoToolbox, Metal, AVFoundation, and audio output.
 - Fixed native timeline seek state so selecting a timeline timestamp no longer publishes a transient `0` playback time before the target time is ready.
 - Documented the video-first backend preselection direction: folder scanning should cache fast media-file backend preference using stream presence, codec names, and current-device VideoToolbox hardware support, while real playback remains responsible for fallback and correction.
+- Added app-owned subtitle overlay rendering for native-first playback using the indexed SRT file associated with the selected search result.

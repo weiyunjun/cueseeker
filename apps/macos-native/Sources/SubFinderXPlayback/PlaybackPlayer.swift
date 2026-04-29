@@ -206,6 +206,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         nativePlayer.stop()
         let mpvPlayer = try requireMPVPlayer()
         try mpvPlayer.open(request)
+        try? mpvPlayer.setStringProperty("sid", value: "no")
         notifyBackendIfNeeded(.mpv)
         Task { @MainActor in
             self.attachActiveRenderView()
