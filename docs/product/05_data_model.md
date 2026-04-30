@@ -40,6 +40,15 @@ Initial supported `type`:
 
 Remote path types are deferred.
 
+Notes:
+
+- Selected folder configuration is the source of truth for active local search
+  scope.
+- Database search-path rows and indexed subtitle rows are derived local index
+  state and must be reconciled with the selected folder configuration.
+- Removing a selected folder must remove or exclude derived index data under
+  that folder while preserving the local files on disk.
+
 ## 4. Video File
 
 A video file represents a local media file discovered under a selected search path.
@@ -155,6 +164,10 @@ Expected FTS data:
 - Link from FTS row to subtitle entry.
 
 CJK handling should preserve at least the practical behavior of the existing Flutter implementation.
+
+Search results must be scoped to the currently selected local subtitle folders.
+FTS rows outside that active folder scope are stale derived index data and must
+not appear in user-facing search results.
 
 ## 10. Favorite
 

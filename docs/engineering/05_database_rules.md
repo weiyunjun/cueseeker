@@ -79,6 +79,9 @@ The M1 database should be recoverable from source subtitle files for indexed con
 Rules:
 
 - The app should tolerate deleting and rebuilding derived subtitle index data.
+- Clearing all derived subtitle index data is allowed when no selected folders
+  remain, because source subtitle files can recreate that data after folders are
+  added again.
 - Durable user state, such as configured folders and future favorites, must not be casually discarded.
 - Before destructive schema changes to durable user state, the project must define backup or recovery expectations.
 - Corrupt database handling should prefer clear error reporting and rebuild options over silent data loss.
@@ -160,6 +163,9 @@ Rules:
 
 - Store enough path information to locate subtitle files and matched videos.
 - Do not store paths in a format that prevents migration between database versions.
+- Selected folder configuration is the active search scope. Search paths stored
+  in the database must be reconciled with that configuration rather than treated
+  as an independent source of truth.
 - Do not duplicate large path lists in logs or debug tables without reason.
 - If security-scoped bookmarks are needed, they should be stored as file-access metadata rather than mixed into subtitle entry rows.
 - Missing files must be handled as stale or unavailable data, not as database corruption.
@@ -180,6 +186,9 @@ Search ranking and query syntax:
 
 - Result ordering must be predictable.
 - Empty queries must not return arbitrary rows.
+- Search results must be scoped to the currently selected subtitle folders.
+- If no folders are selected, search must return no results even if stale
+  database rows still exist.
 - Invalid query syntax must not crash the app.
 - Query limits must prevent excessive result rendering.
 
@@ -190,6 +199,12 @@ Indexing must keep database state aligned with selected folders.
 Rules:
 
 - Reindexing a changed subtitle file must replace stale entries for that file.
+- Removing a selected folder must remove derived subtitle rows, FTS rows,
+  subtitle-file metadata, and stored search-path rows for that folder.
+- App startup must reconcile indexed content against the currently selected
+  folders so stale rows from previously removed folders cannot remain visible.
+- If no folders are currently selected, derived subtitle index data should be
+  cleared or excluded from search.
 - Removing or losing access to a selected folder must not corrupt unrelated indexed data.
 - Source files that cannot be read should be skipped with diagnostics.
 - Stale entries for subtitle files that no longer exist should be removed during refresh.

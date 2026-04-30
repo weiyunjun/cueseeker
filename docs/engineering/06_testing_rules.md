@@ -79,6 +79,10 @@ Required database test areas:
 - Invalid query behavior.
 - Result limits and predictable ordering.
 - CJK search behavior at least matching the archived Flutter implementation's practical behavior.
+- Search scoped to the currently selected folders.
+- Startup reconciliation that removes or excludes index rows outside the
+  currently selected folders.
+- Clearing derived index data when no folders are selected.
 
 Rules:
 
@@ -99,6 +103,10 @@ Required M1 integration scenarios:
 - Reindex after a subtitle file is removed.
 - Search indexed content and resolve a result to video path plus `start_ms`.
 - Handle a search result whose matched video no longer exists.
+- Remove a configured folder and verify its indexed subtitle rows no longer
+  appear in search results.
+- Start with stale indexed rows from a previously removed folder and verify they
+  are reconciled or excluded from search.
 
 Rules:
 
@@ -168,6 +176,7 @@ Required checks:
 
 - Selected folders can be scanned.
 - Removed folders are no longer indexed on refresh.
+- Removed folders no longer contribute search results.
 - Permission loss or unreadable folders are reported clearly.
 - If sandboxing is enabled, folder access persists across app restart through the documented mechanism.
 - If sandboxing is disabled for early personal use, that assumption is documented before packaging.
@@ -208,6 +217,8 @@ Confirm result text, video name, and timestamp are shown
 Click a result
 Confirm local video opens
 Confirm playback starts near the subtitle start time
+Remove the configured folder
+Confirm the same subtitle text no longer appears in Search
 Confirm missing or unreadable files show clear errors
 Restart app and confirm configured folder state is preserved if persistence is implemented
 ```

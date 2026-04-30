@@ -100,3 +100,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
   subtitle rows, FTS data, and stored search path from the local database.
 - Added startup index reconciliation and scoped search so stale subtitle rows
   outside the currently configured folders cannot appear in Search.
+- Documented the accepted Settings folder-management, scoped-search, and index
+  reconciliation behavior across product and engineering docs.

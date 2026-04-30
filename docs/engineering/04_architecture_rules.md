@@ -110,6 +110,9 @@ Rules:
 - Source subtitle files remain the source of truth for indexed subtitle content.
 - The SQLite database is an indexed local cache plus local app state, not a replacement for the source files.
 - Reindexing must be able to remove stale entries when source subtitle files disappear.
+- Indexed content must be reconciled with the currently selected folders so rows
+  from removed folders do not remain visible.
+- Search must be scoped to the currently selected folders.
 - Search result playback must be based on persisted subtitle timing and matched video path.
 
 ## 7. UI Architecture

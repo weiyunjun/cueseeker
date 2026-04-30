@@ -11,7 +11,9 @@ Requirements:
 - The user can choose a local folder through a native macOS folder picker.
 - The app stores selected folder entries.
 - The user can remove a selected folder.
-- The app can refresh indexes for selected folders.
+- Removing a folder must remove the app's derived index data for that folder,
+  without deleting local subtitle or video files.
+- The app can refresh indexes for all selected folders.
 - The app should avoid duplicate folder entries when possible.
 
 ## 2. Subtitle Scanning
@@ -71,6 +73,11 @@ Requirements:
 - Store searchable text content.
 - Support incremental indexing based on file metadata.
 - Remove stale entries when source subtitle files no longer exist.
+- Remove derived index rows when a selected folder is removed.
+- Reconcile indexed content with the currently selected folders when the app
+  starts.
+- If no folders are selected, previously derived index rows should be cleared or
+  ignored so they cannot appear in search results.
 
 ## 6. Search
 
@@ -84,6 +91,9 @@ Requirements:
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.
 - Results should be limited to avoid rendering excessive rows.
+- Search results must be scoped to the currently selected subtitle folders.
+- Stale index rows outside the currently selected folders must not appear in
+  Search.
 - The current native search behavior should preserve the practical legacy Flutter semantics:
   single Latin-token searches use prefix matching, multi-token Latin searches use
   ordered whole-token filtering after FTS recall, CJK content is segmented for
@@ -146,7 +156,9 @@ The app must provide a settings surface for local app configuration.
 Early settings:
 
 - Manage indexed folders.
-- Trigger reindexing.
+- Add a local subtitle folder.
+- Trigger reindexing for all selected folders from the Settings toolbar.
+- Remove a selected folder through a confirmation dialog.
 - View indexing status.
 
 Future settings may include playback, database, logging, and privacy options.

@@ -183,8 +183,10 @@ Required elements:
 
 - List of indexed folders.
 - Add folder action.
-- Remove folder action.
-- Reindex action.
+- Global `Index Now` action next to the add-folder action. This action should
+  reindex all selected folders.
+- Per-folder remove action.
+- Remove confirmation dialog explaining that local files will not be deleted.
 - Indexing status.
 
 Settings should be functional and clear before they are visually refined.
