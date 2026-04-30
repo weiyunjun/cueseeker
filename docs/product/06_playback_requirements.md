@@ -104,6 +104,10 @@ Current implementation:
   frames to BGRA with `libswscale` before display.
 - `auto` should prefer VideoToolbox hardware decode and may fall back to
   software video decode when hardware setup is unavailable.
+- Future Metal YUV work should first target software-decoded frame
+  compatibility only. It must not change the VideoToolbox hardware decode
+  display path unless a separate implementation decision explicitly expands
+  that scope.
 - The app uses a stable playback render container that hosts the native playback
   view in the Playback Inspector and Theater Mode fullscreen.
 - Native compatibility metadata should be selected from video-file metadata

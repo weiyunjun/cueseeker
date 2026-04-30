@@ -107,3 +107,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Connected Decode Settings to native playback, adding FFmpeg software video
   decode with `libswscale` BGRA conversion while keeping VideoToolbox hardware
   decode available.
+- Clarified that future Metal YUV playback work should first target
+  software-decoded frame compatibility and leave the VideoToolbox hardware
+  display path unchanged.

@@ -173,6 +173,9 @@ Rules:
   frames to BGRA with `libswscale` before display.
 - Automatic decode should prefer VideoToolbox and may fall back to software
   decode when hardware setup is unavailable.
+- The next Metal YUV iteration should be scoped to software-decoded frame
+  compatibility. The VideoToolbox hardware decode display path must remain on
+  the existing hardware path unless a separate decision expands that scope.
 - The app should query current-device VideoToolbox hardware decode support once at startup or before folder scanning, because codec support differs across Apple Silicon generations such as M1 and M4.
 - Folder scanning should perform fast media-file native compatibility inspection using only stream presence, codec names, and current-device hardware decode support. Scanning must not decode frames, start a player, or perform heavy disk reads for compatibility inspection.
 - The initial video codec candidates for fast native compatibility inspection are H.264, HEVC, VP9, and AV1, filtered by current-device VideoToolbox hardware decode support.
