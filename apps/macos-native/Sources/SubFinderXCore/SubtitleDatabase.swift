@@ -33,7 +33,7 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 1
+    public static let currentSchemaVersion: Int = 2
 
     private let database: SQLiteDatabase
 
@@ -42,6 +42,8 @@ public final class SubtitleDatabase {
     }
 
     public func migrate() throws {
+        let previousVersion = try schemaVersion()
+
         try database.execute(
             """
             CREATE TABLE IF NOT EXISTS search_paths (
@@ -88,10 +90,14 @@ public final class SubtitleDatabase {
                 content,
                 subtitle_entry_id UNINDEXED
             );
-
-            PRAGMA user_version = 1;
             """
         )
+
+        if previousVersion < 2 {
+            try rebuildFTSIndexForSearchAlgorithm()
+        }
+
+        try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
     }
 
     public func schemaVersion() throws -> Int {
@@ -209,28 +215,28 @@ public final class SubtitleDatabase {
     }
 
     public func search(_ query: String, limit: Int = 50) throws -> [SubtitleSearchResult] {
-        guard let ftsQuery = Self.normalizedFTSQuery(for: query), limit > 0 else {
+        guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
             return []
         }
 
-        let statement = try database.prepare(
-            """
-            SELECT e.id, e.srt_path, e.video_path, e.video_name, e.start_ms, e.end_ms, e.content
-            FROM subtitle_entries_fts f
-            JOIN subtitle_entries e ON e.id = f.subtitle_entry_id
-            WHERE subtitle_entries_fts MATCH ?
-            ORDER BY bm25(subtitle_entries_fts), e.start_ms ASC, e.id ASC
-            LIMIT ?;
-            """
-        )
+        do {
+            let statement = try database.prepare(
+                """
+                SELECT e.id, e.srt_path, e.video_path, e.video_name, e.start_ms, e.end_ms, e.content
+                FROM subtitle_entries_fts f
+                JOIN subtitle_entries e ON e.id = f.subtitle_entry_id
+                WHERE subtitle_entries_fts MATCH ?
+                ORDER BY e.video_name ASC, e.start_ms ASC, e.id ASC
+                LIMIT ?;
+                """
+            )
 
-        try statement.bind(ftsQuery, at: 1)
-        try statement.bind(limit, at: 2)
+            try statement.bind(plan.ftsQuery, at: 1)
+            try statement.bind(plan.sqlLimit, at: 2)
 
-        var results: [SubtitleSearchResult] = []
-        while try statement.step() {
-            results.append(
-                SubtitleSearchResult(
+            var results: [SubtitleSearchResult] = []
+            while try statement.step() {
+                let result = SubtitleSearchResult(
                     entryID: statement.int64Column(0),
                     subtitlePath: statement.stringColumn(1),
                     videoPath: statement.stringColumn(2),
@@ -239,26 +245,190 @@ public final class SubtitleDatabase {
                     endMilliseconds: statement.intColumn(5),
                     content: statement.stringColumn(6)
                 )
-            )
-        }
 
-        return results
+                if let orderedTokens = plan.orderedLatinTokens,
+                   !Self.matchesOrderedWholeTokens(result.content, queryTokens: orderedTokens) {
+                    continue
+                }
+
+                results.append(result)
+                if results.count == limit {
+                    break
+                }
+            }
+
+            return results
+        } catch {
+            return []
+        }
     }
 
-    private static func normalizedFTSQuery(for query: String) -> String? {
-        let terms = query
-            .unicodeScalars
-            .split(whereSeparator: { !$0.properties.isAlphabetic && $0.properties.numericType == nil })
-            .map(String.init)
-            .filter { !$0.isEmpty }
+    private struct SearchQueryPlan {
+        let ftsQuery: String
+        let sqlLimit: Int
+        let orderedLatinTokens: [String]?
+    }
 
-        guard !terms.isEmpty else {
+    private static func searchQueryPlan(for query: String, limit: Int) -> SearchQueryPlan? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, limit > 0 else {
             return nil
         }
 
-        return terms
-            .map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }
-            .joined(separator: " AND ")
+        let hasExplicitPhrase = trimmed.count >= 2 && trimmed.first == "\"" && trimmed.last == "\""
+        let hasFTSSyntax = hasExplicitPhrase || trimmed.contains("*") || containsFTSOperator(in: trimmed)
+        let hasCJK = containsFlutterCJK(in: trimmed)
+        let queryTokens = hasCJK ? [] : tokenizeLatinTokens(trimmed)
+        let useOrderedTokenFilter = !hasFTSSyntax && !hasCJK && queryTokens.count > 1
+
+        if !hasFTSSyntax && !hasCJK && queryTokens.isEmpty {
+            return nil
+        }
+
+        let ftsQuery: String
+        if hasFTSSyntax {
+            ftsQuery = trimmed
+        } else if hasCJK {
+            ftsQuery = "\"\(escapeFTSPhrase(segmentCJK(trimmed).trimmingCharacters(in: .whitespacesAndNewlines)))\""
+        } else if queryTokens.count > 1 {
+            ftsQuery = queryTokens.joined(separator: " AND ")
+        } else {
+            ftsQuery = "\(queryTokens[0])*"
+        }
+
+        let sqlLimit = useOrderedTokenFilter ? expandedSQLLimit(for: limit) : limit
+        return SearchQueryPlan(
+            ftsQuery: ftsQuery,
+            sqlLimit: sqlLimit,
+            orderedLatinTokens: useOrderedTokenFilter ? queryTokens : nil
+        )
+    }
+
+    private static func containsFTSOperator(in text: String) -> Bool {
+        let operators = Set(["AND", "OR", "NOT", "NEAR"])
+        var current = ""
+
+        func currentIsOperator() -> Bool {
+            operators.contains(current)
+        }
+
+        for character in text {
+            if isASCIIWordCharacter(character) {
+                current.append(character)
+            } else {
+                if currentIsOperator() {
+                    return true
+                }
+                current = ""
+            }
+        }
+
+        return currentIsOperator()
+    }
+
+    private static func tokenizeLatinTokens(_ text: String) -> [String] {
+        var tokens: [String] = []
+        var current = ""
+        var containsApostrophe = false
+        var index = text.startIndex
+
+        func flushToken() {
+            if !current.isEmpty {
+                tokens.append(current)
+                current = ""
+            }
+            containsApostrophe = false
+        }
+
+        while index < text.endIndex {
+            let character = text[index]
+
+            if isASCIILetterOrDigit(character) {
+                current.append(contentsOf: character.lowercased())
+            } else if character == "'", !current.isEmpty, !containsApostrophe {
+                let nextIndex = text.index(after: index)
+                if nextIndex < text.endIndex, isASCIILetterOrDigit(text[nextIndex]) {
+                    current.append(character)
+                    containsApostrophe = true
+                } else {
+                    flushToken()
+                }
+            } else {
+                flushToken()
+            }
+
+            index = text.index(after: index)
+        }
+
+        flushToken()
+        return tokens
+    }
+
+    private static func matchesOrderedWholeTokens(_ content: String, queryTokens: [String]) -> Bool {
+        guard !queryTokens.isEmpty else {
+            return false
+        }
+
+        let contentTokens = tokenizeLatinTokens(content)
+        guard contentTokens.count >= queryTokens.count else {
+            return false
+        }
+
+        var queryIndex = 0
+        for token in contentTokens where token == queryTokens[queryIndex] {
+            queryIndex += 1
+            if queryIndex == queryTokens.count {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private static func segmentCJK(_ text: String) -> String {
+        var segmented = ""
+        for scalar in text.unicodeScalars {
+            segmented.unicodeScalars.append(scalar)
+            if isFlutterCJK(scalar) {
+                segmented.append(" ")
+            }
+        }
+        return segmented
+    }
+
+    private static func containsFlutterCJK(in text: String) -> Bool {
+        text.unicodeScalars.contains(where: isFlutterCJK)
+    }
+
+    private static func isFlutterCJK(_ scalar: UnicodeScalar) -> Bool {
+        (0x4E00...0x9FA5).contains(Int(scalar.value))
+    }
+
+    private static func isASCIILetterOrDigit(_ character: Character) -> Bool {
+        guard character.unicodeScalars.count == 1,
+              let value = character.unicodeScalars.first?.value
+        else {
+            return false
+        }
+
+        return (65...90).contains(value) || (97...122).contains(value) || (48...57).contains(value)
+    }
+
+    private static func escapeFTSPhrase(_ text: String) -> String {
+        text.replacingOccurrences(of: "\"", with: "\"\"")
+    }
+
+    private static func expandedSQLLimit(for limit: Int) -> Int {
+        let (expanded, overflow) = limit.multipliedReportingOverflow(by: 5)
+        if overflow {
+            return Int(Int32.max)
+        }
+
+        return min(expanded, Int(Int32.max))
+    }
+
+    private static func isASCIIWordCharacter(_ character: Character) -> Bool {
+        isASCIILetterOrDigit(character) || character == "_"
     }
 
     public func removeStaleEntries(under folder: URL, keeping subtitleFiles: Set<String>) throws {
@@ -430,9 +600,42 @@ public final class SubtitleDatabase {
             """
         )
 
-        try insertFTS.bind(entry.text, at: 1)
+        try insertFTS.bind(Self.segmentCJK(entry.text), at: 1)
         try insertFTS.bind(entryID, at: 2)
         try insertFTS.run()
+    }
+
+    private func rebuildFTSIndexForSearchAlgorithm() throws {
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+
+        do {
+            try database.execute("DELETE FROM subtitle_entries_fts;")
+
+            let selectEntries = try database.prepare(
+                """
+                SELECT id, content
+                FROM subtitle_entries
+                ORDER BY id ASC;
+                """
+            )
+
+            while try selectEntries.step() {
+                let insertFTS = try database.prepare(
+                    """
+                    INSERT INTO subtitle_entries_fts(content, subtitle_entry_id)
+                    VALUES (?, ?);
+                    """
+                )
+                try insertFTS.bind(Self.segmentCJK(selectEntries.stringColumn(1)), at: 1)
+                try insertFTS.bind(selectEntries.int64Column(0), at: 2)
+                try insertFTS.run()
+            }
+
+            try database.execute("COMMIT")
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
     }
 
     private func entry(from statement: SQLiteStatement) -> SubtitleDatabaseEntry {

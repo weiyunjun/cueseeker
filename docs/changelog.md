@@ -90,3 +90,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Accepted native-only playback in ADR-0007, superseding native-first `libmpv`
   fallback so production playback failures surface directly through the native
   backend.
+- Restored native subtitle search semantics from the archived Flutter
+  implementation, including Latin prefix matching, ordered multi-token
+  filtering, CJK FTS segmentation, invalid-query handling, and migration of
+  existing FTS rows to the updated indexed representation.

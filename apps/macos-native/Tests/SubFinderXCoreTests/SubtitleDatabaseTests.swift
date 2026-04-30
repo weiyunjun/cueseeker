@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 import Testing
 import SubFinderXCore
 
@@ -180,8 +181,245 @@ func searchNormalizesFTSQuerySyntaxCharacters() throws {
     #expect(try database.search(":::").isEmpty)
 }
 
+@Test
+func searchUsesFlutterLikeSingleTokenPrefixMatching() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Prefix.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Prefix.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Spider-man returns."
+            )
+        ]
+    )
+
+    let results = try database.search("spi")
+
+    #expect(results.count == 1)
+    #expect(results[0].content == "Spider-man returns.")
+}
+
+@Test
+func searchFiltersMultipleLatinTokensByWholeTokenOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Ordered.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Ordered.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "alpha beta gamma"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "beta alpha gamma"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:00:07,000",
+                endTimecode: "00:00:09,000",
+                startMilliseconds: 7_000,
+                endMilliseconds: 9_000,
+                text: "alpha middle beta"
+            )
+        ]
+    )
+
+    let results = try database.search("alpha beta")
+
+    #expect(results.map(\.content) == ["alpha beta gamma", "alpha middle beta"])
+}
+
+@Test
+func searchSegmentsCJKContentLikeFlutter() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/CJK.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/CJK.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "你好世界"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "世界你好"
+            )
+        ]
+    )
+
+    let results = try database.search("好世")
+
+    #expect(results.map(\.content) == ["你好世界"])
+}
+
+@Test
+func invalidExplicitFTSQueryReturnsNoResults() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/InvalidSyntax.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/InvalidSyntax.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "hello syntax"
+            )
+        ]
+    )
+
+    #expect(try database.search("hello AND").isEmpty)
+}
+
+@Test
+func migrationRebuildsLegacyFTSRowsWithCJKSegmentation() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try createLegacyVersionOneDatabase(at: databaseURL)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+    #expect(try database.search("好世").map(\.content) == ["你好世界"])
+}
+
 private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("SubFinderXDatabaseTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
+}
+
+private func createLegacyVersionOneDatabase(at url: URL) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(
+        database,
+        """
+        CREATE TABLE subtitle_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            srt_path TEXT NOT NULL,
+            video_path TEXT NOT NULL,
+            video_name TEXT NOT NULL,
+            seq INTEGER,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            content TEXT NOT NULL
+        );
+
+        CREATE VIRTUAL TABLE subtitle_entries_fts USING fts5(
+            content,
+            subtitle_entry_id UNINDEXED
+        );
+
+        INSERT INTO subtitle_entries(
+            srt_path,
+            video_path,
+            video_name,
+            seq,
+            start_time,
+            end_time,
+            start_ms,
+            end_ms,
+            content
+        )
+        VALUES (
+            '/Media/LegacyCJK.srt',
+            '/Media/LegacyCJK.mkv',
+            'LegacyCJK.mkv',
+            1,
+            '00:00:01,000',
+            '00:00:03,000',
+            1000,
+            3000,
+            '你好世界'
+        );
+
+        INSERT INTO subtitle_entries_fts(content, subtitle_entry_id)
+        VALUES ('你好世界', 1);
+
+        PRAGMA user_version = 1;
+        """
+    )
+}
+
+private func executeSQLite(_ database: OpaquePointer?, _ sql: String) throws {
+    var errorMessage: UnsafeMutablePointer<CChar>?
+    guard sqlite3_exec(database, sql, nil, nil, &errorMessage) == SQLITE_OK else {
+        let message = errorMessage.map { String(cString: $0) } ?? "Unknown SQLite error"
+        sqlite3_free(errorMessage)
+        throw SQLiteFixtureError.executeFailed(message)
+    }
+}
+
+private enum SQLiteFixtureError: Error {
+    case openFailed(String)
+    case executeFailed(String)
 }

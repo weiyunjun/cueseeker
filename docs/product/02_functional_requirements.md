@@ -84,6 +84,14 @@ Requirements:
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.
 - Results should be limited to avoid rendering excessive rows.
+- The current native search behavior should preserve the practical legacy Flutter semantics:
+  single Latin-token searches use prefix matching, multi-token Latin searches use
+  ordered whole-token filtering after FTS recall, CJK content is segmented for
+  FTS phrase matching, and invalid FTS syntax returns no results instead of
+  crashing the app.
+- Search ranking, tokenization, query syntax, and CJK behavior remain expected
+  iteration areas. Future search-quality changes should update this section and
+  the database search tests before the implementation is treated as stable.
 
 ## 7. Search Results
 
