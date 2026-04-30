@@ -160,6 +160,8 @@ Early settings:
 - Trigger reindexing for all selected folders from the Settings toolbar.
 - Remove a selected folder through a confirmation dialog.
 - View indexing status.
+- Choose a persisted playback decode mode from `hardware`, `software`, and
+  `auto`.
 
 Future settings may include playback, database, logging, and privacy options.
 

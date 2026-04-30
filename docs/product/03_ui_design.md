@@ -188,6 +188,8 @@ Required elements:
 - Per-folder remove action.
 - Remove confirmation dialog explaining that local files will not be deleted.
 - Indexing status.
+- Decode Settings section with a native menu picker for `hardware`, `software`,
+  and `auto`.
 
 Settings should be functional and clear before they are visually refined.
 

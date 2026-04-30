@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import SubFinderXCore
+import SubFinderXPlayback
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
@@ -31,6 +32,8 @@ struct SettingsView: View {
             }
 
             statusView
+
+            decodeSettingsView
 
             if appState.selectedFolders.isEmpty {
                 EmptyStateView(
@@ -85,6 +88,30 @@ struct SettingsView: View {
             }
         } message: { folder in
             Text("Remove \"\(folder.lastPathComponent)\" from SubFinderX? This will not delete local files.")
+        }
+    }
+
+    private var decodeSettingsView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Decode Settings")
+                .font(.title3)
+                .fontWeight(.semibold)
+
+            HStack(spacing: 12) {
+                Text("Decoder")
+                    .font(.subheadline)
+
+                Spacer()
+
+                Picker("Decoder", selection: $appState.playbackDecodeMode) {
+                    ForEach(PlaybackDecodeMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 150)
+            }
         }
     }
 

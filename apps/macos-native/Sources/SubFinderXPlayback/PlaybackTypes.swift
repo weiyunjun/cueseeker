@@ -5,6 +5,20 @@ public enum PlaybackPropertyValue: Sendable, Equatable {
     case bool(Bool)
 }
 
+public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Equatable {
+    case hardware
+    case software
+    case auto
+
+    public var id: String {
+        rawValue
+    }
+
+    public var displayName: String {
+        rawValue
+    }
+}
+
 public struct PlaybackRequest: Equatable, Sendable {
     public let videoURL: URL
     public let startMilliseconds: Int

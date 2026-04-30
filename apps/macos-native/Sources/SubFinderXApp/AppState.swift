@@ -75,6 +75,7 @@ final class AppState: ObservableObject {
     private static let isSidebarVisibleKey = "isSidebarVisible"
     private static let isPlaybackInspectorVisibleKey = "isPlaybackInspectorVisible"
     private static let playbackInspectorWidthKey = "playbackInspectorWidth"
+    private static let playbackDecodeModeKey = "playbackDecodeMode"
 
     @Published var selectedSection: AppSection = .search
     @Published var selectedFolders: [URL] = []
@@ -90,6 +91,11 @@ final class AppState: ObservableObject {
     @Published var playbackInspectorWidth: Double = 520
     @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
+    @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
+        didSet {
+            userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
+        }
+    }
 
     let databaseURL: URL
     let playbackFullscreenManager = PlaybackFullscreenManager()
@@ -113,11 +119,13 @@ final class AppState: ObservableObject {
         userDefaults.register(defaults: [
             Self.isSidebarVisibleKey: true,
             Self.isPlaybackInspectorVisibleKey: false,
-            Self.playbackInspectorWidthKey: 520.0
+            Self.playbackInspectorWidthKey: 520.0,
+            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
         isSidebarVisible = userDefaults.bool(forKey: Self.isSidebarVisibleKey)
         isPlaybackInspectorVisible = userDefaults.bool(forKey: Self.isPlaybackInspectorVisibleKey)
         playbackInspectorWidth = userDefaults.double(forKey: Self.playbackInspectorWidthKey)
+        playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
 
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
@@ -653,6 +661,16 @@ final class AppState: ObservableObject {
         userDefaults
             .stringArray(forKey: selectedFolderPathsKey)?
             .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? []
+    }
+
+    private static func loadPlaybackDecodeMode(from userDefaults: UserDefaults) -> PlaybackDecodeMode {
+        guard let rawValue = userDefaults.string(forKey: playbackDecodeModeKey),
+              let mode = PlaybackDecodeMode(rawValue: rawValue)
+        else {
+            return .auto
+        }
+
+        return mode
     }
 
     private static func defaultDatabaseURL() -> URL {

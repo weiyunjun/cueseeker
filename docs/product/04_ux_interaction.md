@@ -197,5 +197,6 @@ The app should remember:
 - Last selected app section if practical.
 - Sidebar collapsed or expanded state.
 - Playback Inspector width and visibility.
+- Playback decode mode.
 
 The app should not surprise the user by losing local configuration after restart. The structural layout (Sidebar, Inspector) persistence is globally bound to the AppShell, natively supporting future modules like Favorites.

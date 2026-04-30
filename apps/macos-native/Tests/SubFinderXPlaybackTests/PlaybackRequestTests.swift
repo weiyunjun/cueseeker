@@ -12,6 +12,14 @@ func playbackRenderContainerViewInitializesWithoutAttachingBackendView() {
 }
 
 @Test
+func playbackDecodeModeRawValuesMatchSettingsMenuValues() {
+    #expect(PlaybackDecodeMode.allCases.map(\.rawValue) == ["hardware", "software", "auto"])
+    #expect(PlaybackDecodeMode.hardware.displayName == "hardware")
+    #expect(PlaybackDecodeMode.software.displayName == "software")
+    #expect(PlaybackDecodeMode.auto.displayName == "auto")
+}
+
+@Test
 func playbackRequestRejectsMissingVideoFile() throws {
     let missingVideo = FileManager.default.temporaryDirectory
         .appendingPathComponent("SubFinderXMissingVideo-\(UUID().uuidString)")

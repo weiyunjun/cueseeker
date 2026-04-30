@@ -102,3 +102,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
   outside the currently configured folders cannot appear in Search.
 - Documented the accepted Settings folder-management, scoped-search, and index
   reconciliation behavior across product and engineering docs.
+- Added a persisted Decode Settings picker for `hardware`, `software`, and
+  `auto` playback decode modes.
