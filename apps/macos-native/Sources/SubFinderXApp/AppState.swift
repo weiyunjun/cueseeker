@@ -31,15 +31,18 @@ enum AppSection: String, CaseIterable, Identifiable {
 enum IndexingStatus: Equatable {
     case idle
     case indexing(URL)
+    case indexingAll(currentFolder: URL, completedFolders: Int, totalFolders: Int)
     case completed(URL, SubtitleIndexingResult)
+    case completedAll(folderCount: Int, SubtitleIndexingResult)
     case failed(URL, String)
 
     var isIndexing: Bool {
-        if case .indexing = self {
+        switch self {
+        case .indexing, .indexingAll:
             return true
+        case .idle, .completed, .completedAll, .failed:
+            return false
         }
-
-        return false
     }
 }
 
@@ -146,6 +149,12 @@ final class AppState: ObservableObject {
         persistSelectedFolders()
     }
 
+    func removeFolder(_ folder: URL) {
+        let folder = folder.standardizedFileURL
+        selectedFolders.removeAll { $0 == folder }
+        persistSelectedFolders()
+    }
+
     func clearSearchFocus() {
         isSearchFocused = false
     }
@@ -221,6 +230,73 @@ final class AppState: ObservableObject {
 
                 indexingStatus = .failed(folder, Self.errorMessage(for: error))
             }
+        }
+    }
+
+    func indexAllFolders() {
+        let folders = selectedFolders
+        guard let firstFolder = folders.first else {
+            return
+        }
+
+        indexingTask?.cancel()
+        indexingStatus = .indexingAll(
+            currentFolder: firstFolder,
+            completedFolders: 0,
+            totalFolders: folders.count
+        )
+
+        let databaseURL = databaseURL
+        indexingTask = Task {
+            var aggregateResult: SubtitleIndexingResult?
+
+            for (index, folder) in folders.enumerated() {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                indexingStatus = .indexingAll(
+                    currentFolder: folder,
+                    completedFolders: index,
+                    totalFolders: folders.count
+                )
+
+                do {
+                    let result = try await Task.detached(priority: .userInitiated) {
+                        let database = try SubtitleDatabase(path: databaseURL)
+                        let indexer = SubtitleIndexer()
+                        return try indexer.index(folder: folder, into: database)
+                    }.value
+
+                    if var currentResult = aggregateResult {
+                        aggregate(result, into: &currentResult)
+                        aggregateResult = currentResult
+                    } else {
+                        aggregateResult = result
+                    }
+                } catch {
+                    guard !Task.isCancelled else {
+                        return
+                    }
+
+                    indexingStatus = .failed(folder, Self.errorMessage(for: error))
+                    return
+                }
+            }
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            guard let aggregateResult else {
+                return
+            }
+
+            indexingStatus = .completedAll(
+                folderCount: folders.count,
+                aggregateResult
+            )
+            refreshCurrentSearch()
         }
     }
 
@@ -450,6 +526,19 @@ final class AppState: ObservableObject {
         }
 
         updateSearchQuery(searchQuery)
+    }
+
+    private func aggregate(
+        _ result: SubtitleIndexingResult,
+        into aggregateResult: inout SubtitleIndexingResult
+    ) {
+        aggregateResult.scannedSubtitleFiles += result.scannedSubtitleFiles
+        aggregateResult.indexedSubtitleFiles += result.indexedSubtitleFiles
+        aggregateResult.indexedSubtitleEntries += result.indexedSubtitleEntries
+        aggregateResult.skippedUnchangedSubtitleFiles += result.skippedUnchangedSubtitleFiles
+        aggregateResult.skippedMissingVideo += result.skippedMissingVideo
+        aggregateResult.skippedUnreadableSubtitle += result.skippedUnreadableSubtitle
+        aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
     }
 
     private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {

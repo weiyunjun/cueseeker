@@ -4,6 +4,7 @@ import SubFinderXCore
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var folderPendingRemoval: URL?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -20,6 +21,13 @@ struct SettingsView: View {
                     Label("Add Folder", systemImage: "folder.badge.plus")
                 }
                 .disabled(appState.indexingStatus.isIndexing)
+
+                Button {
+                    appState.indexAllFolders()
+                } label: {
+                    Label("Index Now", systemImage: "arrow.clockwise")
+                }
+                .disabled(appState.selectedFolders.isEmpty || appState.indexingStatus.isIndexing)
             }
 
             statusView
@@ -47,15 +55,14 @@ struct SettingsView: View {
                             Spacer()
 
                             Button {
-                                appState.indexFolder(folder)
+                                folderPendingRemoval = folder
                             } label: {
-                                Label("Index Now", systemImage: "arrow.clockwise")
+                                Label("Remove", systemImage: "minus.circle")
                             }
                             .disabled(appState.indexingStatus.isIndexing)
                         }
                         .padding(.vertical, 4)
                     }
-                    .onDelete(perform: appState.removeFolders)
                 }
             }
 
@@ -64,6 +71,31 @@ struct SettingsView: View {
         .padding(.top, AppShellLayout.contentTopPadding)
         .padding([.horizontal, .bottom], 24)
         .navigationTitle("Settings")
+        .alert(
+            "Remove Folder?",
+            isPresented: removalConfirmationBinding,
+            presenting: folderPendingRemoval
+        ) { folder in
+            Button("Cancel", role: .cancel) {
+                folderPendingRemoval = nil
+            }
+            Button("Remove", role: .destructive) {
+                appState.removeFolder(folder)
+                folderPendingRemoval = nil
+            }
+        } message: { folder in
+            Text("Remove \"\(folder.lastPathComponent)\" from SubFinderX? This will not delete local files.")
+        }
+    }
+
+    private var removalConfirmationBinding: Binding<Bool> {
+        Binding {
+            folderPendingRemoval != nil
+        } set: { isPresented in
+            if !isPresented {
+                folderPendingRemoval = nil
+            }
+        }
     }
 
     private func chooseFolder() {
@@ -105,9 +137,30 @@ struct SettingsView: View {
                     Text("Indexing \(folder.lastPathComponent)...")
                         .font(.subheadline)
                 }
+            case .indexingAll(let folder, let completedFolders, let totalFolders):
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Indexing folder \(completedFolders + 1) of \(totalFolders): \(folder.lastPathComponent)...")
+                        .font(.subheadline)
+                }
             case .completed(let folder, let result):
                 VStack(alignment: .leading, spacing: 4) {
                     Label("Indexed \(folder.lastPathComponent)", systemImage: "checkmark.circle")
+                        .foregroundStyle(.green)
+                    Text(indexingSummary(result))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if !result.failedFiles.isEmpty {
+                        Text("\(result.failedFiles.count) file(s) failed. First: \(result.failedFiles[0].reason)")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .lineLimit(2)
+                    }
+                }
+            case .completedAll(let folderCount, let result):
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Indexed \(folderCount) folder(s)", systemImage: "checkmark.circle")
                         .foregroundStyle(.green)
                     Text(indexingSummary(result))
                         .font(.caption)

@@ -94,3 +94,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
   implementation, including Latin prefix matching, ordered multi-token
   filtering, CJK FTS segmentation, invalid-query handling, and migration of
   existing FTS rows to the updated indexed representation.
+- Refined Settings folder management with a global all-folder indexing action
+  and confirmed folder removal that does not delete local files.
