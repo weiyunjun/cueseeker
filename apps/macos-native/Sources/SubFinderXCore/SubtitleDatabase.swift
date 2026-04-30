@@ -432,6 +432,26 @@ public final class SubtitleDatabase {
     }
 
     public func removeStaleEntries(under folder: URL, keeping subtitleFiles: Set<String>) throws {
+        try removeIndexedData(
+            under: folder,
+            keeping: subtitleFiles,
+            removeSearchPath: false
+        )
+    }
+
+    public func removeIndexedFolder(_ folder: URL) throws {
+        try removeIndexedData(
+            under: folder,
+            keeping: [],
+            removeSearchPath: true
+        )
+    }
+
+    private func removeIndexedData(
+        under folder: URL,
+        keeping subtitleFiles: Set<String>,
+        removeSearchPath: Bool
+    ) throws {
         let folderPathPrefixes = Self.folderPathPrefixes(for: folder)
         let prefixCondition = folderPathPrefixes
             .map { _ in "substr(srt_path, 1, ?) = ?" }
@@ -490,6 +510,22 @@ public final class SubtitleDatabase {
                 subtitleFiles: subtitleFiles
             )
             try deleteFiles.run()
+
+            if removeSearchPath {
+                let searchPathVariants = Self.folderPathVariants(for: folder)
+                let searchPathPlaceholders = searchPathVariants.map { _ in "?" }.joined(separator: ", ")
+                let deleteSearchPath = try database.prepare(
+                    """
+                    DELETE FROM search_paths
+                    WHERE path IN (\(searchPathPlaceholders));
+                    """
+                )
+
+                for (offset, path) in searchPathVariants.enumerated() {
+                    try deleteSearchPath.bind(path, at: Int32(offset + 1))
+                }
+                try deleteSearchPath.run()
+            }
 
             try database.execute("COMMIT")
         } catch {
@@ -672,7 +708,7 @@ public final class SubtitleDatabase {
     }
 
     private static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = folder.path
+        var path = folder.standardizedFileURL.path
         if !path.hasSuffix("/") {
             path.append("/")
         }
@@ -686,5 +722,18 @@ public final class SubtitleDatabase {
         }
 
         return prefixes.sorted()
+    }
+
+    private static func folderPathVariants(for folder: URL) -> [String] {
+        let path = folder.standardizedFileURL.path
+        var paths = Set([path])
+
+        if path.hasPrefix("/var/") {
+            paths.insert("/private" + path)
+        } else if path.hasPrefix("/private/var/") {
+            paths.insert(String(path.dropFirst("/private".count)))
+        }
+
+        return paths.sorted()
     }
 }

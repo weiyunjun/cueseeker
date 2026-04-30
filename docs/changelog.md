@@ -96,3 +96,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
   existing FTS rows to the updated indexed representation.
 - Refined Settings folder management with a global all-folder indexing action
   and confirmed folder removal that does not delete local files.
+- Fixed folder removal so removing a configured folder also clears its indexed
+  subtitle rows, FTS data, and stored search path from the local database.

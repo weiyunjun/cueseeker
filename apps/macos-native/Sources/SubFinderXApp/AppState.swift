@@ -151,8 +151,18 @@ final class AppState: ObservableObject {
 
     func removeFolder(_ folder: URL) {
         let folder = folder.standardizedFileURL
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+            try database.removeIndexedFolder(folder)
+        } catch {
+            startupError = "Failed to remove folder index: \(Self.errorMessage(for: error))"
+            return
+        }
+
         selectedFolders.removeAll { $0 == folder }
         persistSelectedFolders()
+        refreshCurrentSearch(clearExistingResults: true)
     }
 
     func clearSearchFocus() {
@@ -520,9 +530,13 @@ final class AppState: ObservableObject {
         return false
     }
 
-    private func refreshCurrentSearch() {
+    private func refreshCurrentSearch(clearExistingResults: Bool = false) {
         guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
+        }
+
+        if clearExistingResults {
+            searchResults = []
         }
 
         updateSearchQuery(searchQuery)

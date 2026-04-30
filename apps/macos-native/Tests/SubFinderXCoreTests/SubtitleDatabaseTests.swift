@@ -133,6 +133,62 @@ func replacingEntriesRemovesStaleFTSRows() throws {
 }
 
 @Test
+func removingIndexedFolderDeletesIndexedRowsAndSearchPath() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let removedFolder = URL(fileURLWithPath: "/Media/Removed")
+    let keptFolder = URL(fileURLWithPath: "/Media/Kept")
+    let removedSearchPathID = try database.addSearchPath(removedFolder)
+    _ = try database.addSearchPath(keptFolder)
+
+    try database.replaceEntries(
+        subtitleFile: removedFolder.appendingPathComponent("Episode.srt"),
+        videoFile: removedFolder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Removed folder searchable text."
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: keptFolder.appendingPathComponent("Episode.srt"),
+        videoFile: keptFolder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "Kept folder searchable text."
+            )
+        ]
+    )
+
+    try database.removeIndexedFolder(removedFolder)
+
+    #expect(try database.search("Removed").isEmpty)
+    #expect(try database.search("Kept").count == 1)
+    #expect(try database.subtitleFiles().map(\.subtitlePath) == [
+        keptFolder.appendingPathComponent("Episode.srt").path
+    ])
+
+    let newRemovedSearchPathID = try database.addSearchPath(removedFolder)
+    #expect(newRemovedSearchPathID != removedSearchPathID)
+}
+
+@Test
 func emptySearchQueryReturnsNoResults() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
