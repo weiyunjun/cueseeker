@@ -5,6 +5,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class SFXNativePlaybackPlayer;
 
+typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
+    SFXNativePlaybackDecodeModeHardware = 0,
+    SFXNativePlaybackDecodeModeSoftware = 1,
+    SFXNativePlaybackDecodeModeAuto = 2
+};
+
 @protocol SFXNativePlaybackPlayerDelegate <NSObject>
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
                didUpdateTime:(double)time
@@ -24,6 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
 @property (nonatomic) float volume;
 @property (nonatomic) float playbackRate;
+@property (nonatomic) SFXNativePlaybackDecodeMode decodeMode;
 
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds

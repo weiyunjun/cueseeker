@@ -16,6 +16,7 @@
 #include <libavutil/mathematics.h>
 #include <libavutil/pixdesc.h>
 #include <libswresample/swresample.h>
+#include <libswscale/swscale.h>
 
 #include <math.h>
 #include <stdatomic.h>
@@ -39,6 +40,14 @@ static NSString *SFXFFmpegErrorString(int code) {
         return [NSString stringWithFormat:@"FFmpeg error %d", code];
     }
     return [NSString stringWithUTF8String:buffer];
+}
+
+static NSString *SFXPixelFormatName(enum AVPixelFormat pixelFormat) {
+    const char *name = av_get_pix_fmt_name(pixelFormat);
+    if (name == NULL) {
+        return [NSString stringWithFormat:@"pixel format %d", pixelFormat];
+    }
+    return [NSString stringWithUTF8String:name];
 }
 
 static NSError *SFXNativePlaybackError(NSInteger code, NSString *message) {
@@ -108,6 +117,25 @@ static const AVCodec *SFXFindVideoToolboxDecoder(
         *hardwareConfig = NULL;
     }
     return defaultDecoder;
+}
+
+static const AVCodec *SFXFindSoftwareVideoDecoder(enum AVCodecID codecID) {
+    switch (codecID) {
+    case AV_CODEC_ID_AV1: {
+        const AVCodec *decoder = avcodec_find_decoder_by_name("libdav1d");
+        return decoder != NULL ? decoder : avcodec_find_decoder(codecID);
+    }
+    case AV_CODEC_ID_VP9: {
+        const AVCodec *decoder = avcodec_find_decoder_by_name("vp9");
+        if (decoder != NULL) {
+            return decoder;
+        }
+        decoder = avcodec_find_decoder_by_name("libvpx-vp9");
+        return decoder != NULL ? decoder : avcodec_find_decoder(codecID);
+    }
+    default:
+        return avcodec_find_decoder(codecID);
+    }
 }
 
 static enum AVPixelFormat SFXChooseHardwareFormat(
@@ -271,9 +299,10 @@ static int SFXOutputChannelCount(int inputChannels) {
            startMilliseconds:(NSInteger)startMilliseconds
                        layer:(AVSampleBufferDisplayLayer *)displayLayer
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
-                       owner:(SFXNativePlaybackPlayer *)owner
+                      owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
                 playbackRate:(float)playbackRate
+                 decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
       flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
                        error:(NSError **)error;
 - (void)start;
@@ -303,7 +332,9 @@ static int SFXOutputChannelCount(int inputChannels) {
     AVFrame *_audioFrame;
     AVFrame *_convertedAudioFrame;
     struct SwrContext *_resampler;
+    struct SwsContext *_videoScaler;
     AVChannelLayout _outputLayout;
+    CVPixelBufferPoolRef _softwarePixelBufferPool;
 
     AVAudioEngine *_audioEngine;
     AVAudioPlayerNode *_audioPlayer;
@@ -317,6 +348,11 @@ static int SFXOutputChannelCount(int inputChannels) {
     int _resamplerInputSampleRate;
     int _resamplerInputChannels;
     enum AVSampleFormat _resamplerInputFormat;
+    int _videoScalerWidth;
+    int _videoScalerHeight;
+    enum AVPixelFormat _videoScalerInputFormat;
+    int _softwarePixelBufferWidth;
+    int _softwarePixelBufferHeight;
 
     double _seekSeconds;
     double _duration;
@@ -329,9 +365,11 @@ static int SFXOutputChannelCount(int inputChannels) {
     double _pauseStartedHostSeconds;
     float _volume;
     float _playbackRate;
+    SFXNativePlaybackDecodeMode _decodeMode;
 
     BOOL _flushDisplayBeforeStart;
     BOOL _flushDisplayOnFirstFrame;
+    BOOL _usingHardwareDecode;
     BOOL _audioClockInitialized;
     BOOL _audioPlayerStarted;
     BOOL _videoClockInitialized;
@@ -348,6 +386,7 @@ static int SFXOutputChannelCount(int inputChannels) {
                       owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
                 playbackRate:(float)playbackRate
+                 decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
       flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
                        error:(NSError **)error {
     self = [super init];
@@ -361,6 +400,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _owner = owner;
     _volume = volume;
     _playbackRate = SFXClampedPlaybackRate(playbackRate);
+    _decodeMode = decodeMode;
     _flushDisplayBeforeStart = flushDisplayBeforeStart;
     _flushDisplayOnFirstFrame = !flushDisplayBeforeStart;
     _seekSeconds = MAX(0, (double)startMilliseconds / 1000.0);
@@ -471,6 +511,51 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (BOOL)prepareVideoWithError:(NSError **)error {
+    switch (_decodeMode) {
+    case SFXNativePlaybackDecodeModeHardware:
+        return [self prepareHardwareVideoWithError:error];
+    case SFXNativePlaybackDecodeModeSoftware:
+        return [self prepareSoftwareVideoWithError:error];
+    case SFXNativePlaybackDecodeModeAuto: {
+        NSError *hardwareError = nil;
+        if ([self prepareHardwareVideoWithError:&hardwareError]) {
+            return YES;
+        }
+
+        [self resetVideoDecoderState];
+
+        NSError *softwareError = nil;
+        if ([self prepareSoftwareVideoWithError:&softwareError]) {
+            return YES;
+        }
+
+        if (error != NULL) {
+            NSString *hardwareMessage = hardwareError.localizedDescription ?: @"unknown hardware decoder error";
+            NSString *softwareMessage = softwareError.localizedDescription ?: @"unknown software decoder error";
+            *error = SFXNativePlaybackError(
+                27,
+                [NSString stringWithFormat:
+                    @"Auto video decoder failed. Hardware: %@ Software: %@",
+                    hardwareMessage,
+                    softwareMessage
+                ]
+            );
+        }
+        return NO;
+    }
+    }
+
+    return NO;
+}
+
+- (void)resetVideoDecoderState {
+    avcodec_free_context(&_videoCodecContext);
+    av_buffer_unref(&_hardwareDeviceContext);
+    SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
+    _usingHardwareDecode = NO;
+}
+
+- (BOOL)prepareHardwareVideoWithError:(NSError **)error {
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
     AVCodecParameters *parameters = videoStream->codecpar;
     const AVCodecHWConfig *hardwareConfig = NULL;
@@ -543,6 +628,56 @@ static int SFXOutputChannelCount(int inputChannels) {
         return NO;
     }
 
+    _usingHardwareDecode = YES;
+    return YES;
+}
+
+- (BOOL)prepareSoftwareVideoWithError:(NSError **)error {
+    AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
+    AVCodecParameters *parameters = videoStream->codecpar;
+    const AVCodec *decoder = SFXFindSoftwareVideoDecoder(parameters->codec_id);
+    if (decoder == NULL) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(
+                28,
+                [NSString stringWithFormat:
+                    @"No FFmpeg software video decoder found for %@.",
+                    [NSString stringWithUTF8String:avcodec_get_name(parameters->codec_id)]
+                ]
+            );
+        }
+        return NO;
+    }
+
+    _videoCodecContext = avcodec_alloc_context3(decoder);
+    if (_videoCodecContext == NULL) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(23, @"Could not allocate video decoder context.");
+        }
+        return NO;
+    }
+
+    int result = avcodec_parameters_to_context(_videoCodecContext, parameters);
+    if (result < 0) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(24, [NSString stringWithFormat:@"Video codec parameter copy failed: %@", SFXFFmpegErrorString(result)]);
+        }
+        return NO;
+    }
+
+    _videoCodecContext->thread_count = 0;
+    _videoCodecContext->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+
+    result = avcodec_open2(_videoCodecContext, decoder, NULL);
+    if (result < 0) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(26, [NSString stringWithFormat:@"Software video decoder open failed: %@", SFXFFmpegErrorString(result)]);
+        }
+        return NO;
+    }
+
+    _usingHardwareDecode = NO;
+    SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
     return YES;
 }
 
@@ -788,6 +923,198 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 }
 
+- (BOOL)ensureSoftwareVideoScalerForFrame:(AVFrame *)frame width:(int)width height:(int)height {
+    enum AVPixelFormat inputFormat = (enum AVPixelFormat)frame->format;
+    if (_videoScaler != NULL
+        && _videoScalerWidth == width
+        && _videoScalerHeight == height
+        && _videoScalerInputFormat == inputFormat) {
+        return YES;
+    }
+
+    sws_freeContext(_videoScaler);
+    _videoScaler = sws_getContext(
+        width,
+        height,
+        inputFormat,
+        width,
+        height,
+        AV_PIX_FMT_BGRA,
+        SWS_BILINEAR,
+        NULL,
+        NULL,
+        NULL
+    );
+
+    if (_videoScaler == NULL) {
+        _videoScalerWidth = 0;
+        _videoScalerHeight = 0;
+        _videoScalerInputFormat = AV_PIX_FMT_NONE;
+        return NO;
+    }
+
+    _videoScalerWidth = width;
+    _videoScalerHeight = height;
+    _videoScalerInputFormat = inputFormat;
+    return YES;
+}
+
+- (BOOL)ensureSoftwarePixelBufferPoolWithWidth:(int)width height:(int)height {
+    if (_softwarePixelBufferPool != NULL
+        && _softwarePixelBufferWidth == width
+        && _softwarePixelBufferHeight == height) {
+        return YES;
+    }
+
+    if (_softwarePixelBufferPool != NULL) {
+        CVPixelBufferPoolRelease(_softwarePixelBufferPool);
+        _softwarePixelBufferPool = NULL;
+    }
+
+    int pixelFormat = kCVPixelFormatType_32BGRA;
+    int bufferWidth = width;
+    int bufferHeight = height;
+    CFNumberRef pixelFormatNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pixelFormat);
+    CFNumberRef widthNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &bufferWidth);
+    CFNumberRef heightNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &bufferHeight);
+    CFDictionaryRef ioSurfaceProperties = CFDictionaryCreate(
+        kCFAllocatorDefault,
+        NULL,
+        NULL,
+        0,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks
+    );
+
+    if (pixelFormatNumber == NULL || widthNumber == NULL || heightNumber == NULL || ioSurfaceProperties == NULL) {
+        if (pixelFormatNumber != NULL) {
+            CFRelease(pixelFormatNumber);
+        }
+        if (widthNumber != NULL) {
+            CFRelease(widthNumber);
+        }
+        if (heightNumber != NULL) {
+            CFRelease(heightNumber);
+        }
+        if (ioSurfaceProperties != NULL) {
+            CFRelease(ioSurfaceProperties);
+        }
+        return NO;
+    }
+
+    const void *keys[] = {
+        kCVPixelBufferPixelFormatTypeKey,
+        kCVPixelBufferWidthKey,
+        kCVPixelBufferHeightKey,
+        kCVPixelBufferIOSurfacePropertiesKey
+    };
+    const void *values[] = {
+        pixelFormatNumber,
+        widthNumber,
+        heightNumber,
+        ioSurfaceProperties
+    };
+    CFDictionaryRef attributes = CFDictionaryCreate(
+        kCFAllocatorDefault,
+        keys,
+        values,
+        4,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks
+    );
+
+    CFRelease(pixelFormatNumber);
+    CFRelease(widthNumber);
+    CFRelease(heightNumber);
+    CFRelease(ioSurfaceProperties);
+
+    if (attributes == NULL) {
+        return NO;
+    }
+
+    CVReturn result = CVPixelBufferPoolCreate(
+        kCFAllocatorDefault,
+        NULL,
+        attributes,
+        &_softwarePixelBufferPool
+    );
+    CFRelease(attributes);
+
+    if (result != kCVReturnSuccess || _softwarePixelBufferPool == NULL) {
+        _softwarePixelBufferWidth = 0;
+        _softwarePixelBufferHeight = 0;
+        return NO;
+    }
+
+    _softwarePixelBufferWidth = width;
+    _softwarePixelBufferHeight = height;
+    return YES;
+}
+
+- (CVPixelBufferRef)copyPixelBufferForSoftwareFrame:(AVFrame *)frame {
+    int width = frame->width > 0 ? frame->width : _videoCodecContext->width;
+    int height = frame->height > 0 ? frame->height : _videoCodecContext->height;
+    enum AVPixelFormat inputFormat = (enum AVPixelFormat)frame->format;
+    if (width <= 0
+        || height <= 0
+        || inputFormat == AV_PIX_FMT_NONE
+        || av_pix_fmt_desc_get(inputFormat) == NULL) {
+        return NULL;
+    }
+
+    if (![self ensureSoftwareVideoScalerForFrame:frame width:width height:height]
+        || ![self ensureSoftwarePixelBufferPoolWithWidth:width height:height]) {
+        return NULL;
+    }
+
+    CVPixelBufferRef pixelBuffer = NULL;
+    CVReturn createResult = CVPixelBufferPoolCreatePixelBuffer(
+        kCFAllocatorDefault,
+        _softwarePixelBufferPool,
+        &pixelBuffer
+    );
+    if (createResult != kCVReturnSuccess || pixelBuffer == NULL) {
+        return NULL;
+    }
+
+    CVReturn lockResult = CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+    if (lockResult != kCVReturnSuccess) {
+        CVPixelBufferRelease(pixelBuffer);
+        return NULL;
+    }
+
+    uint8_t *destinationData[] = {
+        CVPixelBufferGetBaseAddress(pixelBuffer),
+        NULL,
+        NULL,
+        NULL
+    };
+    int destinationLinesize[] = {
+        (int)CVPixelBufferGetBytesPerRow(pixelBuffer),
+        0,
+        0,
+        0
+    };
+
+    int convertedHeight = sws_scale(
+        _videoScaler,
+        (const uint8_t * const *)frame->data,
+        frame->linesize,
+        0,
+        height,
+        destinationData,
+        destinationLinesize
+    );
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+
+    if (convertedHeight <= 0) {
+        CVPixelBufferRelease(pixelBuffer);
+        return NULL;
+    }
+
+    return pixelBuffer;
+}
+
 - (void)handleVideoPacket:(AVPacket *)packet {
     int result = avcodec_send_packet(_videoCodecContext, packet);
     if (result < 0) {
@@ -805,6 +1132,22 @@ static int SFXOutputChannelCount(int inputChannels) {
             [self paceVideoFrame:_videoFrame stream:videoStream];
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
             [self enqueuePixelBuffer:pixelBuffer presentationTime:SFXFramePresentationTime(_videoFrame, videoStream)];
+        } else if (!_usingHardwareDecode) {
+            [self paceVideoFrame:_videoFrame stream:videoStream];
+            CVPixelBufferRef pixelBuffer = [self copyPixelBufferForSoftwareFrame:_videoFrame];
+            if (pixelBuffer == NULL) {
+                NSString *formatName = SFXPixelFormatName((enum AVPixelFormat)_videoFrame->format);
+                [self notifyFailure:[NSString stringWithFormat:
+                    @"Software video frame conversion failed for %@.",
+                    formatName
+                ]];
+                atomic_store(&_cancelled, true);
+                av_frame_unref(_videoFrame);
+                break;
+            }
+
+            [self enqueuePixelBuffer:pixelBuffer presentationTime:SFXFramePresentationTime(_videoFrame, videoStream)];
+            CVPixelBufferRelease(pixelBuffer);
         }
 
         double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream);
@@ -1132,6 +1475,12 @@ static int SFXOutputChannelCount(int inputChannels) {
     });
 
     swr_free(&_resampler);
+    sws_freeContext(_videoScaler);
+    _videoScaler = NULL;
+    if (_softwarePixelBufferPool != NULL) {
+        CVPixelBufferPoolRelease(_softwarePixelBufferPool);
+        _softwarePixelBufferPool = NULL;
+    }
     av_channel_layout_uninit(&_outputLayout);
     av_frame_free(&_convertedAudioFrame);
     av_frame_free(&_audioFrame);
@@ -1156,6 +1505,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     NSString *_currentPath;
     float _volume;
     float _playbackRate;
+    SFXNativePlaybackDecodeMode _decodeMode;
 }
 
 - (instancetype)init {
@@ -1168,6 +1518,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     _volume = 1.0;
     _playbackRate = 1.0;
+    _decodeMode = SFXNativePlaybackDecodeModeAuto;
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
     return self;
 }
@@ -1200,6 +1551,10 @@ static int SFXOutputChannelCount(int inputChannels) {
     return _playbackRate;
 }
 
+- (SFXNativePlaybackDecodeMode)decodeMode {
+    return _decodeMode;
+}
+
 - (void)setVolume:(float)volume {
     _volume = fmaxf(0.0, fminf(volume, 1.0));
     [_session setVolume:_volume];
@@ -1208,6 +1563,19 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)setPlaybackRate:(float)playbackRate {
     _playbackRate = SFXClampedPlaybackRate(playbackRate);
     [_session setPlaybackRate:_playbackRate];
+}
+
+- (void)setDecodeMode:(SFXNativePlaybackDecodeMode)decodeMode {
+    switch (decodeMode) {
+    case SFXNativePlaybackDecodeModeHardware:
+    case SFXNativePlaybackDecodeModeSoftware:
+    case SFXNativePlaybackDecodeModeAuto:
+        _decodeMode = decodeMode;
+        break;
+    default:
+        _decodeMode = SFXNativePlaybackDecodeModeAuto;
+        break;
+    }
 }
 
 - (BOOL)openPath:(NSString *)path
@@ -1233,6 +1601,7 @@ flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
         owner:self
         volume:_volume
         playbackRate:_playbackRate
+        decodeMode:_decodeMode
         flushDisplayBeforeStart:flushDisplayBeforeStart
         error:error
     ];

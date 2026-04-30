@@ -95,9 +95,15 @@ Current decision:
 
 Current implementation:
 
-- The native backend uses FFmpeg demuxing, VideoToolbox hardware decode,
-  `AVSampleBufferDisplayLayer` display, FFmpeg audio decode, `swresample`
-  downmix or format conversion when needed, and `AVAudioEngine` output.
+- The native backend uses FFmpeg demuxing, a user-selectable decode mode
+  (`hardware`, `software`, or `auto`), `AVSampleBufferDisplayLayer` display,
+  FFmpeg audio decode, `swresample` downmix or format conversion when needed,
+  and `AVAudioEngine` output.
+- `hardware` requires VideoToolbox video decode.
+- `software` uses FFmpeg software video decode and currently converts decoded
+  frames to BGRA with `libswscale` before display.
+- `auto` should prefer VideoToolbox hardware decode and may fall back to
+  software video decode when hardware setup is unavailable.
 - The app uses a stable playback render container that hosts the native playback
   view in the Playback Inspector and Theater Mode fullscreen.
 - Native compatibility metadata should be selected from video-file metadata

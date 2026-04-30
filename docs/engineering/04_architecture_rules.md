@@ -165,7 +165,14 @@ Rules:
 - M1 playback must be embedded in the native app window.
 - The current playback route must always use the project-owned native backend.
 - The active native macOS app must not link against, initialize, or fall back to `libmpv`.
-- The native backend uses FFmpeg demuxing, VideoToolbox hardware decode, native display, FFmpeg audio decode, and `AVAudioEngine` output.
+- The native backend uses FFmpeg demuxing, user-selectable hardware, software,
+  or automatic video decode mode, native display, FFmpeg audio decode, and
+  `AVAudioEngine` output.
+- Hardware decode uses VideoToolbox.
+- Software decode uses FFmpeg software decoders and initially converts decoded
+  frames to BGRA with `libswscale` before display.
+- Automatic decode should prefer VideoToolbox and may fall back to software
+  decode when hardware setup is unavailable.
 - The app should query current-device VideoToolbox hardware decode support once at startup or before folder scanning, because codec support differs across Apple Silicon generations such as M1 and M4.
 - Folder scanning should perform fast media-file native compatibility inspection using only stream presence, codec names, and current-device hardware decode support. Scanning must not decode frames, start a player, or perform heavy disk reads for compatibility inspection.
 - The initial video codec candidates for fast native compatibility inspection are H.264, HEVC, VP9, and AV1, filtered by current-device VideoToolbox hardware decode support.
@@ -173,7 +180,7 @@ Rules:
 - Native compatibility metadata is a media-file property. It must not depend on `srt_path` as a unique key or on exact subtitle-to-video filename matching.
 - If a native media file fails during real playback, the app should surface the native failure and may update the media-file profile so the failure reason is available for diagnostics.
 - Full playback verification may still inspect actual decoder output when debugging the native backend, but that verification is not part of the fast folder-scan preselection path.
-- The native display path should move toward a shared Metal YUV renderer for both hardware `CVPixelBuffer` frames and future software-decoded FFmpeg `AVFrame` planes.
+- The native display path should move toward a shared Metal YUV renderer for both hardware `CVPixelBuffer` frames and software-decoded FFmpeg `AVFrame` planes.
 - Unsupported color layouts, bit depths, ranges, chroma layouts, or frame strides must produce explicit native failure reasons rather than silent incorrect rendering.
 - Native timestamp seek should first try the selected video stream and then fall back to a global seek before treating seek setup as a native failure.
 - Native seek state updates must not publish a transient `0` timestamp while a target seek is being prepared.

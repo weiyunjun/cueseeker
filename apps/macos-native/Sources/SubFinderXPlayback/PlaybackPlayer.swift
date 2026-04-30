@@ -16,6 +16,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public weak var delegate: PlaybackPlayerDelegate?
 
     public private(set) var currentVideoURL: URL?
+    public var decodeMode: PlaybackDecodeMode = .auto {
+        didSet {
+            nativePlayer.decodeMode = decodeMode.nativeDecodeMode
+        }
+    }
 
     @MainActor public lazy var renderView: NSView = PlaybackRenderContainerView()
 
@@ -23,6 +28,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         super.init()
         nativePlayer.delegate = self
         nativePlayer.volume = Float(storedVolume / 100)
+        nativePlayer.decodeMode = decodeMode.nativeDecodeMode
     }
 
     public func open(_ request: PlaybackRequest) throws {
@@ -144,6 +150,23 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         didFailWithMessage message: String
     ) {
         delegate?.player(self, didFailWithMessage: message)
+    }
+}
+
+private extension PlaybackDecodeMode {
+    var nativeDecodeMode: SFXNativePlaybackDecodeMode {
+        SFXNativePlaybackDecodeMode(rawValue: nativeRawValue)!
+    }
+
+    private var nativeRawValue: Int {
+        switch self {
+        case .hardware:
+            return 0
+        case .software:
+            return 1
+        case .auto:
+            return 2
+        }
     }
 }
 

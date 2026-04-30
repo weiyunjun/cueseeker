@@ -94,6 +94,7 @@ final class AppState: ObservableObject {
     @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
         didSet {
             userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
+            player?.decodeMode = playbackDecodeMode
         }
     }
 
@@ -133,6 +134,7 @@ final class AppState: ObservableObject {
             try database.migrate()
             try database.reconcileIndexedContent(activeFolders: selectedFolders)
             let player = PlaybackPlayer()
+            player.decodeMode = playbackDecodeMode
             self.player = player
             playbackViewModel = PlaybackViewModel(player: player)
         } catch {

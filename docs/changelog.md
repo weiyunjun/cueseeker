@@ -104,3 +104,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
   reconciliation behavior across product and engineering docs.
 - Added a persisted Decode Settings picker for `hardware`, `software`, and
   `auto` playback decode modes.
+- Connected Decode Settings to native playback, adding FFmpeg software video
+  decode with `libswscale` BGRA conversion while keeping VideoToolbox hardware
+  decode available.

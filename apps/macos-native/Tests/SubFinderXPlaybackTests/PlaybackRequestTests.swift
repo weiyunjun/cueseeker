@@ -20,6 +20,18 @@ func playbackDecodeModeRawValuesMatchSettingsMenuValues() {
 }
 
 @Test
+@MainActor
+func playbackPlayerStoresDecodeModeSetting() {
+    let player = PlaybackPlayer()
+
+    #expect(player.decodeMode == .auto)
+
+    player.decodeMode = .software
+
+    #expect(player.decodeMode == .software)
+}
+
+@Test
 func playbackRequestRejectsMissingVideoFile() throws {
     let missingVideo = FileManager.default.temporaryDirectory
         .appendingPathComponent("SubFinderXMissingVideo-\(UUID().uuidString)")

@@ -32,6 +32,7 @@ let package = Package(
                 .linkedLibrary("avcodec"),
                 .linkedLibrary("avutil"),
                 .linkedLibrary("swresample"),
+                .linkedLibrary("swscale"),
                 .linkedFramework("AppKit"),
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("VideoToolbox"),

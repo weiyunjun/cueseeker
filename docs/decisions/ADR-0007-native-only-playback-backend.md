@@ -31,7 +31,7 @@ The active app playback path is:
 
 ```text
 Open local media through FFmpeg
-Decode supported video through VideoToolbox hardware decode
+Decode supported video through the selected native decode mode
 Display through the native embedded playback surface
 Decode audio through FFmpeg
 Output audio through AVAudioEngine
@@ -45,13 +45,16 @@ Rules:
 - Native opening, demuxing, hardware decode, display, audio decode, audio
   output, seek, and playback-control failures must be surfaced as native
   playback errors.
+- The native backend may expose hardware, software, and automatic video decode
+  modes for compatibility and diagnostics while remaining a single native
+  backend.
 - Unsupported codecs, unsupported containers, missing hardware decode, audio
   output failures, and seek failures should be treated as compatibility defects
   or explicit unsupported-native cases, not as triggers for another backend.
 - The archived Flutter implementation may be consulted for comparison, but
   active native app code must not import or depend on it.
 - AV1 work should prioritize the hardware decode path on machines that support
-  it. Native software decode remains a future follow-up.
+  it, while software decode can be used for diagnostics and compatibility work.
 
 ## Rationale
 
