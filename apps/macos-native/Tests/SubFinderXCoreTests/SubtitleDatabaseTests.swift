@@ -189,6 +189,145 @@ func removingIndexedFolderDeletesIndexedRowsAndSearchPath() throws {
 }
 
 @Test
+func scopedSearchOnlyReturnsEntriesUnderActiveFolders() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let activeFolder = URL(fileURLWithPath: "/Media/Active")
+    let staleFolder = URL(fileURLWithPath: "/Media/Stale")
+    try database.replaceEntries(
+        subtitleFile: activeFolder.appendingPathComponent("Episode.srt"),
+        videoFile: activeFolder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Shared searchable text from active folder."
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: staleFolder.appendingPathComponent("Episode.srt"),
+        videoFile: staleFolder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "Shared searchable text from stale folder."
+            )
+        ]
+    )
+
+    #expect(try database.search("Shared").count == 2)
+    #expect(try database.search("Shared", under: [activeFolder]).map(\.subtitlePath) == [
+        activeFolder.appendingPathComponent("Episode.srt").path
+    ])
+    #expect(try database.search("Shared", under: []).isEmpty)
+}
+
+@Test
+func reconcileIndexedContentClearsAllDataWhenNoFoldersAreActive() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let folder = URL(fileURLWithPath: "/Media/Removed")
+    let searchPathID = try database.addSearchPath(folder)
+    try database.replaceEntries(
+        subtitleFile: folder.appendingPathComponent("Episode.srt"),
+        videoFile: folder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Temporary recovery searchable text."
+            )
+        ]
+    )
+
+    try database.reconcileIndexedContent(activeFolders: [])
+
+    #expect(try database.search("Temporary").isEmpty)
+    #expect(try database.subtitleFiles().isEmpty)
+
+    let newSearchPathID = try database.addSearchPath(folder)
+    #expect(newSearchPathID != searchPathID)
+}
+
+@Test
+func reconcileIndexedContentPrunesDataOutsideActiveFolders() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let activeFolder = URL(fileURLWithPath: "/Media/Active")
+    let staleFolder = URL(fileURLWithPath: "/Media/Stale")
+    _ = try database.addSearchPath(activeFolder)
+    let staleSearchPathID = try database.addSearchPath(staleFolder)
+    try database.replaceEntries(
+        subtitleFile: activeFolder.appendingPathComponent("Episode.srt"),
+        videoFile: activeFolder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Active folder searchable text."
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: staleFolder.appendingPathComponent("Episode.srt"),
+        videoFile: staleFolder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "Stale folder searchable text."
+            )
+        ]
+    )
+
+    try database.reconcileIndexedContent(activeFolders: [activeFolder])
+
+    #expect(try database.search("Active").count == 1)
+    #expect(try database.search("Stale").isEmpty)
+    #expect(try database.subtitleFiles().map(\.subtitlePath) == [
+        activeFolder.appendingPathComponent("Episode.srt").path
+    ])
+
+    let newStaleSearchPathID = try database.addSearchPath(staleFolder)
+    #expect(newStaleSearchPathID != staleSearchPathID)
+}
+
+@Test
 func emptySearchQueryReturnsNoResults() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

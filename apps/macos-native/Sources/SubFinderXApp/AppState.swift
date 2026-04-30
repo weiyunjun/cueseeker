@@ -123,6 +123,7 @@ final class AppState: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
+            try database.reconcileIndexedContent(activeFolders: selectedFolders)
             let player = PlaybackPlayer()
             self.player = player
             playbackViewModel = PlaybackViewModel(player: player)
@@ -145,8 +146,10 @@ final class AppState: ObservableObject {
     }
 
     func removeFolders(at offsets: IndexSet) {
-        selectedFolders.remove(atOffsets: offsets)
-        persistSelectedFolders()
+        let folders = offsets.map { selectedFolders[$0] }
+        for folder in folders {
+            removeFolder(folder)
+        }
     }
 
     func removeFolder(_ folder: URL) {
@@ -162,6 +165,7 @@ final class AppState: ObservableObject {
 
         selectedFolders.removeAll { $0 == folder }
         persistSelectedFolders()
+        clearSearchAndPlaybackState(under: folder)
         refreshCurrentSearch(clearExistingResults: true)
     }
 
@@ -321,6 +325,14 @@ final class AppState: ObservableObject {
             return
         }
 
+        let folders = selectedFolders
+        guard !folders.isEmpty else {
+            searchStatus = .completed
+            searchResults = []
+            selectedSearchResult = nil
+            return
+        }
+
         searchStatus = .searching
 
         let databaseURL = databaseURL
@@ -331,7 +343,7 @@ final class AppState: ObservableObject {
                 let results = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     try database.migrate()
-                    return try database.search(trimmedQuery)
+                    return try database.search(trimmedQuery, under: folders)
                 }.value
 
                 guard !Task.isCancelled else {
@@ -540,6 +552,50 @@ final class AppState: ObservableObject {
         }
 
         updateSearchQuery(searchQuery)
+    }
+
+    private func clearSearchAndPlaybackState(under folder: URL) {
+        searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
+
+        guard let selectedSearchResult,
+              Self.path(selectedSearchResult.subtitlePath, isUnder: folder)
+        else {
+            return
+        }
+
+        self.selectedSearchResult = nil
+        stopPlayback()
+    }
+
+    private static func path(_ path: String, isUnder folder: URL) -> Bool {
+        let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        return folderPathPrefixes(for: folder).contains { prefix in
+            standardizedPath.hasPrefix(prefix)
+        }
+    }
+
+    private static func folderPathPrefixes(for folder: URL) -> [String] {
+        var path = normalizedFolderPath(folder.standardizedFileURL.path)
+        if !path.hasSuffix("/") {
+            path.append("/")
+        }
+
+        var prefixes = Set([path])
+        if path.hasPrefix("/var/") {
+            prefixes.insert("/private" + path)
+        } else if path.hasPrefix("/private/var/") {
+            prefixes.insert(String(path.dropFirst("/private".count)))
+        }
+
+        return prefixes.sorted()
+    }
+
+    private static func normalizedFolderPath(_ path: String) -> String {
+        var path = path
+        while path.count > 1 && path.hasSuffix("/") {
+            path.removeLast()
+        }
+        return path
     }
 
     private func aggregate(

@@ -98,3 +98,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
   and confirmed folder removal that does not delete local files.
 - Fixed folder removal so removing a configured folder also clears its indexed
   subtitle rows, FTS data, and stored search path from the local database.
+- Added startup index reconciliation and scoped search so stale subtitle rows
+  outside the currently configured folders cannot appear in Search.

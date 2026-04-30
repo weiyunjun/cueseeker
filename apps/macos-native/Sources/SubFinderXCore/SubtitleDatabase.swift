@@ -214,25 +214,97 @@ public final class SubtitleDatabase {
         return files
     }
 
-    public func search(_ query: String, limit: Int = 50) throws -> [SubtitleSearchResult] {
+    public func reconcileIndexedContent(activeFolders folders: [URL]) throws {
+        let folders = folders.map(\.standardizedFileURL)
+        guard !folders.isEmpty else {
+            try clearIndexedContent()
+            return
+        }
+
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            let inactiveSubtitlePaths = try indexedSubtitlePaths()
+                .filter { !Self.path($0, isUnderAny: folders) }
+            for subtitlePath in inactiveSubtitlePaths {
+                try deleteIndexedSubtitlePath(subtitlePath)
+            }
+
+            let inactiveSearchPaths = try searchPaths()
+                .filter { !Self.folderPath($0, matchesAny: folders) }
+            for searchPath in inactiveSearchPaths {
+                try deleteSearchPath(searchPath)
+            }
+
+            try database.execute("COMMIT")
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func clearIndexedContent() throws {
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            try database.execute("DELETE FROM subtitle_entries_fts;")
+            try database.execute("DELETE FROM subtitle_entries;")
+            try database.execute("DELETE FROM subtitle_files;")
+            try database.execute("DELETE FROM search_paths;")
+            try database.execute("COMMIT")
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func search(
+        _ query: String,
+        limit: Int = 50,
+        under folders: [URL]? = nil
+    ) throws -> [SubtitleSearchResult] {
         guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
             return []
         }
 
+        let pathPrefixes: [String]?
+        if let folders {
+            let prefixes = Self.folderPathPrefixes(for: folders)
+            guard !prefixes.isEmpty else {
+                return []
+            }
+            pathPrefixes = prefixes
+        } else {
+            pathPrefixes = nil
+        }
+
         do {
+            let scopeCondition = pathPrefixes.map {
+                let conditions = $0.map { _ in "substr(e.srt_path, 1, ?) = ?" }
+                    .joined(separator: " OR ")
+                return "AND (\(conditions))"
+            } ?? ""
             let statement = try database.prepare(
                 """
                 SELECT e.id, e.srt_path, e.video_path, e.video_name, e.start_ms, e.end_ms, e.content
                 FROM subtitle_entries_fts f
                 JOIN subtitle_entries e ON e.id = f.subtitle_entry_id
                 WHERE subtitle_entries_fts MATCH ?
+                \(scopeCondition)
                 ORDER BY e.video_name ASC, e.start_ms ASC, e.id ASC
                 LIMIT ?;
                 """
             )
 
             try statement.bind(plan.ftsQuery, at: 1)
-            try statement.bind(plan.sqlLimit, at: 2)
+            var bindIndex: Int32 = 2
+            if let pathPrefixes {
+                for prefix in pathPrefixes {
+                    try statement.bind(prefix.count, at: bindIndex)
+                    bindIndex += 1
+                    try statement.bind(prefix, at: bindIndex)
+                    bindIndex += 1
+                }
+            }
+            try statement.bind(plan.sqlLimit, at: bindIndex)
 
             var results: [SubtitleSearchResult] = []
             while try statement.step() {
@@ -707,8 +779,79 @@ public final class SubtitleDatabase {
         }
     }
 
+    private func indexedSubtitlePaths() throws -> [String] {
+        let statement = try database.prepare(
+            """
+            SELECT srt_path FROM subtitle_entries
+            UNION
+            SELECT srt_path FROM subtitle_files
+            ORDER BY srt_path ASC;
+            """
+        )
+
+        var paths: [String] = []
+        while try statement.step() {
+            paths.append(statement.stringColumn(0))
+        }
+        return paths
+    }
+
+    private func searchPaths() throws -> [String] {
+        let statement = try database.prepare(
+            """
+            SELECT path
+            FROM search_paths
+            ORDER BY path ASC;
+            """
+        )
+
+        var paths: [String] = []
+        while try statement.step() {
+            paths.append(statement.stringColumn(0))
+        }
+        return paths
+    }
+
+    private func deleteIndexedSubtitlePath(_ subtitlePath: String) throws {
+        try deleteEntries(forSubtitlePath: subtitlePath)
+
+        let deleteFile = try database.prepare(
+            "DELETE FROM subtitle_files WHERE srt_path = ?;"
+        )
+        try deleteFile.bind(subtitlePath, at: 1)
+        try deleteFile.run()
+    }
+
+    private func deleteSearchPath(_ searchPath: String) throws {
+        let statement = try database.prepare(
+            "DELETE FROM search_paths WHERE path = ?;"
+        )
+        try statement.bind(searchPath, at: 1)
+        try statement.run()
+    }
+
+    private static func path(_ path: String, isUnderAny folders: [URL]) -> Bool {
+        let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        return folders.contains { folder in
+            folderPathPrefixes(for: folder).contains { prefix in
+                standardizedPath.hasPrefix(prefix)
+            }
+        }
+    }
+
+    private static func folderPath(_ path: String, matchesAny folders: [URL]) -> Bool {
+        let standardizedPath = normalizedFolderPath(URL(fileURLWithPath: path).standardizedFileURL.path)
+        return folders.contains { folder in
+            folderPathVariants(for: folder).contains(standardizedPath)
+        }
+    }
+
+    private static func folderPathPrefixes(for folders: [URL]) -> [String] {
+        Array(Set(folders.flatMap(folderPathPrefixes(for:)))).sorted()
+    }
+
     private static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = folder.standardizedFileURL.path
+        var path = normalizedFolderPath(folder.standardizedFileURL.path)
         if !path.hasSuffix("/") {
             path.append("/")
         }
@@ -725,7 +868,7 @@ public final class SubtitleDatabase {
     }
 
     private static func folderPathVariants(for folder: URL) -> [String] {
-        let path = folder.standardizedFileURL.path
+        let path = normalizedFolderPath(folder.standardizedFileURL.path)
         var paths = Set([path])
 
         if path.hasPrefix("/var/") {
@@ -735,5 +878,13 @@ public final class SubtitleDatabase {
         }
 
         return paths.sorted()
+    }
+
+    private static func normalizedFolderPath(_ path: String) -> String {
+        var path = path
+        while path.count > 1 && path.hasSuffix("/") {
+            path.removeLast()
+        }
+        return path
     }
 }
