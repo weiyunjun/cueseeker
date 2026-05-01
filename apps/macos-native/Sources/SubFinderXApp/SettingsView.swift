@@ -6,6 +6,7 @@ import SubFinderXPlayback
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var folderPendingRemoval: URL?
+    @State private var isChoosingFolder = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -21,7 +22,7 @@ struct SettingsView: View {
                 } label: {
                     Label("Add Folder", systemImage: "folder.badge.plus")
                 }
-                .disabled(appState.indexingStatus.isIndexing)
+                .disabled(appState.indexingStatus.isIndexing || isChoosingFolder)
 
                 Button {
                     appState.indexAllFolders()
@@ -103,14 +104,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Picker("Decoder", selection: $appState.playbackDecodeMode) {
-                    ForEach(PlaybackDecodeMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 150)
+                DecodeModeSegmentedControl(selection: $appState.playbackDecodeMode)
             }
         }
     }
@@ -126,6 +120,11 @@ struct SettingsView: View {
     }
 
     private func chooseFolder() {
+        guard !isChoosingFolder else {
+            return
+        }
+
+        isChoosingFolder = true
         let panel = NSOpenPanel()
         panel.title = "Choose Subtitle Folder"
         panel.canChooseFiles = false
@@ -133,11 +132,21 @@ struct SettingsView: View {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
 
-        guard panel.runModal() == .OK, let folder = panel.url else {
+        let completion: (NSApplication.ModalResponse) -> Void = { response in
+            isChoosingFolder = false
+            guard response == .OK, let folder = panel.url else {
+                return
+            }
+
+            appState.addFolder(folder)
+        }
+
+        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
+            panel.beginSheetModal(for: window, completionHandler: completion)
             return
         }
 
-        appState.addFolder(folder)
+        completion(panel.runModal())
     }
 
     @ViewBuilder
@@ -221,5 +230,42 @@ struct SettingsView: View {
             "\(result.skippedMissingVideo) missing videos",
             "\(result.skippedUnreadableSubtitle) unreadable"
         ].joined(separator: " · ")
+    }
+}
+
+private struct DecodeModeSegmentedControl: View {
+    @Binding var selection: PlaybackDecodeMode
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(PlaybackDecodeMode.allCases) { mode in
+                let isSelected = selection == mode
+
+                Button {
+                    selection = mode
+                } label: {
+                    Text(mode.displayName)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                        .frame(width: 72, height: 26)
+                        .foregroundStyle(isSelected ? Color.white : Color.primary)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(isSelected ? Color.accentColor : Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Decoder \(mode.displayName)")
+                .accessibilityValue(isSelected ? "Selected" : "Not selected")
+            }
+        }
+        .padding(3)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
     }
 }

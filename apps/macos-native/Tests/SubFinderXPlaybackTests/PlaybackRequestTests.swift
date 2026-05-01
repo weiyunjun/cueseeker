@@ -12,7 +12,7 @@ func playbackRenderContainerViewInitializesWithoutAttachingBackendView() {
 }
 
 @Test
-func playbackDecodeModeRawValuesMatchSettingsMenuValues() {
+func playbackDecodeModeRawValuesMatchSettingsControlValues() {
     #expect(PlaybackDecodeMode.allCases.map(\.rawValue) == ["hardware", "software", "auto"])
     #expect(PlaybackDecodeMode.hardware.displayName == "hardware")
     #expect(PlaybackDecodeMode.software.displayName == "software")

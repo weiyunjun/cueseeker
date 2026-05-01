@@ -110,3 +110,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Clarified that future Metal YUV playback work should first target
   software-decoded frame compatibility and leave the VideoToolbox hardware
   display path unchanged.
+- Reduced debug-run AppKit helper service pressure by mounting Settings only
+  when selected, replacing the Decode Settings menu picker with an app-drawn
+  segmented control, and presenting folder selection as a single window sheet.

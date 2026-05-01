@@ -186,13 +186,12 @@ struct ContentView: View {
                 .accessibilityHidden(appState.selectedSection != .search)
                 .zIndex(appState.selectedSection == .search ? 1 : 0)
 
-            SettingsView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(windowBackground)
-                .opacity(appState.selectedSection == .settings ? 1 : 0)
-                .allowsHitTesting(appState.selectedSection == .settings)
-                .accessibilityHidden(appState.selectedSection != .settings)
-                .zIndex(appState.selectedSection == .settings ? 1 : 0)
+            if appState.selectedSection == .settings {
+                SettingsView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(windowBackground)
+                    .zIndex(1)
+            }
         }
     }
 }
