@@ -4,7 +4,7 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines architecture rules for the native macOS rewrite of SubFinderX.
+This document defines architecture rules for the native macOS rewrite of CueSeeker.
 
 It is an engineering rule document, not a product requirements document. Product behavior belongs in `docs/product/`.
 

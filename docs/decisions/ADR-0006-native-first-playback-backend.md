@@ -2,7 +2,7 @@
 
 Status: Superseded by ADR-0007
 
-Superseded on 2026-04-29 by ADR-0007. SubFinderX now removes production
+Superseded on 2026-04-29 by ADR-0007. CueSeeker now removes production
 `libmpv` compatibility so native playback failures are exposed directly and the
 active app is forced through the project-owned native backend.
 
@@ -27,7 +27,7 @@ multi-channel audio, and batch candidate inspection.
 
 ## Decision
 
-SubFinderX will move to native-first playback for supported local files.
+CueSeeker will move to native-first playback for supported local files.
 
 The production app should try the native backend first and keep `libmpv` as a
 fallback backend.
@@ -52,7 +52,7 @@ Fallback rules:
 
 ## Rationale
 
-SubFinderX is a subtitle-search workflow tool, not a general-purpose media
+CueSeeker is a subtitle-search workflow tool, not a general-purpose media
 player. The default path should optimize the common local playback cases the app
 actually uses: open a matched file, seek to a subtitle timestamp, play or pause,
 and remain memory efficient during repeated result selection.
@@ -77,7 +77,7 @@ removing `libmpv`.
   work, not only probe work.
 
 These tradeoffs are acceptable because fallback remains available and the native
-path can now be tested in the actual SubFinderX workflow.
+path can now be tested in the actual CueSeeker workflow.
 
 ## Alternatives Considered
 

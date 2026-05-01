@@ -4,7 +4,7 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines testing expectations for the native macOS rewrite of SubFinderX.
+This document defines testing expectations for the native macOS rewrite of CueSeeker.
 
 It describes what must be verified before a milestone is considered complete. It does not define implementation code.
 

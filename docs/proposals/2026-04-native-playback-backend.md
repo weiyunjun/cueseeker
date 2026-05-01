@@ -29,7 +29,7 @@ Observed local comparisons showed:
 - Movist Pro playing the same file with a much lower memory footprint.
 - VLC and Infuse using substantially less memory than mpv-based playback.
 - IINA, which is mpv-based, showing memory usage in the same broad range as
-  the current SubFinderX playback direction.
+  the current CueSeeker playback direction.
 - Standalone mpv with hardware decoding enabled still retaining a high memory
   baseline compared with the lower-memory players.
 
@@ -64,7 +64,7 @@ native decoding and display components.
 - Support AV1 when the current Mac and macOS runtime report hardware decode
   support.
 - Keep playback local-only.
-- Preserve the current SubFinderX workflow:
+- Preserve the current CueSeeker workflow:
   search result selection, local video open, timestamp seek, play, pause, and
   embedded playback.
 - Keep mpv as a fallback backend for unsupported codecs, unsupported audio,
@@ -498,7 +498,7 @@ Seeking should:
 - Discard frames before the requested timestamp when necessary.
 - Resume synchronized playback from the target region.
 
-Exact frame-perfect seeking is not required for SubFinderX, but seeking must be
+Exact frame-perfect seeking is not required for CueSeeker, but seeking must be
 close enough for subtitle context review.
 
 ### Fallback

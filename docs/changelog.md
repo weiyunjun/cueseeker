@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Renamed the active project from `SubFinderX` to `CueSeeker`, recorded the
+  Chinese product name `字幕求索`, and kept the archived Flutter implementation
+  under its historical name for comparison.
 - Established project documentation governance.
 - Clarified when `docs/changelog.md` must be updated across documentation, Git workflow, and release rules.
 - Archived the legacy Flutter implementation under `archive/flutter/`.

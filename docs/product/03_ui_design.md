@@ -4,7 +4,7 @@ Status: Draft
 
 ## 1. Design Direction
 
-SubFinderX should feel like a focused native macOS desktop tool.
+CueSeeker should feel like a focused native macOS desktop tool.
 
 The interface should prioritize:
 

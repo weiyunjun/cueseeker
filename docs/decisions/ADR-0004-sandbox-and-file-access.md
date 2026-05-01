@@ -4,7 +4,7 @@ Status: Accepted
 
 ## Background
 
-SubFinderX must scan user-selected local subtitle folders and open matching local video files. Persistent local file access is central to the M1 workflow.
+CueSeeker must scan user-selected local subtitle folders and open matching local video files. Persistent local file access is central to the M1 workflow.
 
 The early native rewrite is a personal local macOS app. Public distribution, Mac App Store release, and enterprise deployment are out of scope.
 

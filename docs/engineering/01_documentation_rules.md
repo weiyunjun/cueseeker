@@ -4,7 +4,7 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines documentation rules for SubFinderX.
+This document defines documentation rules for CueSeeker.
 
 It expands the documentation governance rules from `docs/engineering/00_project_governance.md` and should be followed before implementation relies on product or engineering decisions.
 

@@ -6,7 +6,7 @@ Status: Accepted
 
 The current M1 native app flow opens a dedicated playback page when the user selects a subtitle search result.
 
-That approach gives the video more room, but it makes the primary workflow slower. SubFinderX is primarily a subtitle search and context-review tool. The user often needs to click multiple search results quickly, compare context, and move between nearby matches.
+That approach gives the video more room, but it makes the primary workflow slower. CueSeeker is primarily a subtitle search and context-review tool. The user often needs to click multiple search results quickly, compare context, and move between nearby matches.
 
 The legacy Flutter implementation kept search results visible while showing playback in an embedded right-side area. That interaction better supported result-to-result review, but it could make the video feel too small.
 

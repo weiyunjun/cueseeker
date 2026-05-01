@@ -4,7 +4,7 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines database engineering rules for the native macOS rewrite of SubFinderX.
+This document defines database engineering rules for the native macOS rewrite of CueSeeker.
 
 Product data facts belong in `docs/product/05_data_model.md`. This document defines how the database is managed, migrated, tested, and changed.
 

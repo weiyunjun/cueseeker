@@ -1,4 +1,4 @@
-# SubFinderX Project Governance and Workflow
+# CueSeeker Project Governance and Workflow
 
 ## 1. Document Status
 
@@ -10,7 +10,7 @@ This document defines how the project is managed. It is not a product requiremen
 
 ## 2. Governance Principles
 
-SubFinderX should be managed through explicit documents and small, reviewable implementation steps.
+CueSeeker should be managed through explicit documents and small, reviewable implementation steps.
 
 The project follows these principles:
 
@@ -316,7 +316,7 @@ The minimum supported macOS version may be raised before implementation if a doc
 Target structure after the native rewrite starts:
 
 ```text
-SubFinderX/
+CueSeeker/
   apps/
     macos-native/
   archive/

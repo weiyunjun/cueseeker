@@ -4,7 +4,7 @@ Status: Accepted
 
 ## Background
 
-SubFinderX is being rewritten as a native macOS application. Before M1 implementation starts, the project needs a stable app stack decision for UI, architecture, dependency management, database access, and platform baseline.
+CueSeeker is being rewritten as a native macOS application. Before M1 implementation starts, the project needs a stable app stack decision for UI, architecture, dependency management, database access, and platform baseline.
 
 The M1 goal is the native macOS minimal loop:
 

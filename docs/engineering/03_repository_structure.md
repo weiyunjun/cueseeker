@@ -4,7 +4,7 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines repository structure rules for SubFinderX.
+This document defines repository structure rules for CueSeeker.
 
 It separates active native macOS implementation, archived Flutter code, documentation, scripts, and future support files.
 
@@ -13,7 +13,7 @@ It separates active native macOS implementation, archived Flutter code, document
 The target repository structure is:
 
 ```text
-SubFinderX/
+CueSeeker/
   apps/
     macos-native/
   archive/

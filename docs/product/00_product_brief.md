@@ -4,7 +4,9 @@ Status: Draft
 
 ## 1. Product Summary
 
-SubFinderX is a personal macOS desktop app for searching subtitle text and jumping directly to the matching video timestamp.
+CueSeeker is a personal macOS desktop app for searching subtitle text and jumping directly to the matching video timestamp.
+
+The Chinese product name is `字幕求索`.
 
 The product is built around one core workflow:
 

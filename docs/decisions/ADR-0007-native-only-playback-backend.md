@@ -24,7 +24,7 @@ software decode can be addressed later after the hardware path is solid.
 
 ## Decision
 
-SubFinderX will remove production `libmpv` compatibility and force playback
+CueSeeker will remove production `libmpv` compatibility and force playback
 through the project-owned native backend.
 
 The active app playback path is:

@@ -4,7 +4,7 @@ Status: Accepted
 
 ## Background
 
-SubFinderX started as a Flutter implementation. The project direction has changed toward a focused personal macOS desktop app for local subtitle search and timestamp playback.
+CueSeeker started as a Flutter implementation. The project direction has changed toward a focused personal macOS desktop app for local subtitle search and timestamp playback.
 
 The current product direction prioritizes:
 
@@ -19,7 +19,7 @@ The legacy Flutter implementation has been preserved as a baseline and archived 
 
 ## Decision
 
-SubFinderX will be rewritten as a native macOS application.
+CueSeeker will be rewritten as a native macOS application.
 
 The active native implementation will live under:
 

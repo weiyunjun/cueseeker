@@ -4,7 +4,7 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines Git workflow rules for SubFinderX.
+This document defines Git workflow rules for CueSeeker.
 
 Git history should preserve meaningful project stages and make the native macOS rewrite reviewable.
 

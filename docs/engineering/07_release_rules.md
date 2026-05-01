@@ -4,7 +4,7 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines packaging and release rules for SubFinderX.
+This document defines packaging and release rules for CueSeeker.
 
 The early native macOS rewrite is a personal local tool first. Release discipline still matters because signing, sandboxing, file access, and database upgrades can affect user data.
 

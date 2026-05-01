@@ -12,7 +12,7 @@ playback failures surface through the native backend.
 
 ## Background
 
-Playback is central to the SubFinderX workflow:
+Playback is central to the CueSeeker workflow:
 
 ```text
 Click subtitle search result
@@ -27,7 +27,7 @@ The product's initial video matching requirements include common local video con
 
 ## Decision
 
-SubFinderX will use embedded `libmpv` as the target playback engine for the native macOS app.
+CueSeeker will use embedded `libmpv` as the target playback engine for the native macOS app.
 
 Playback integration rules:
 
