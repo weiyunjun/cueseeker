@@ -144,6 +144,15 @@ Local subtitle and video file access is a core product requirement.
 Rules:
 
 - Folder selection must use native macOS folder selection behavior.
+- Native file and Finder interactions may temporarily create AppKit,
+  QuickLook, or Finder-related helper services. This is an acceptable cost for
+  explicit low-frequency actions such as adding folders or future commands that
+  reveal the current video in Finder.
+- Helper-service optimization should focus on avoiding unnecessary helper
+  creation during app launch, Search, Settings navigation, and playback, and on
+  preventing helper-service accumulation after the app exits. The app should
+  not replace standard macOS file panels or force-terminate system helper
+  services only to reduce Activity Monitor process counts.
 - Persistent access to selected folders must be designed before relying on it across launches.
 - ADR-0004 disables App Sandbox for M1 local development and personal builds.
 - Security-scoped bookmark handling is not required for M1 while App Sandbox is disabled.

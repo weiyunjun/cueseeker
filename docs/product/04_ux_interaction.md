@@ -188,7 +188,25 @@ M2 keyboard shortcut model:
 - `Shift+,` and `Shift+.` should decrease or increase playback speed by 0.25x.
 - Playback shortcut commands should show lightweight feedback overlays for subtitle visibility, play or pause, relative seek, volume, and speed changes.
 
-## 9. Persistence
+## 9. File And Finder Interaction
+
+Native macOS file and Finder interactions are part of the expected product
+experience.
+
+Rules:
+
+- Adding subtitle folders should use the native folder picker.
+- Future file-location commands, such as revealing the current playback video
+  in Finder, may use native Finder or AppKit integration.
+- These explicit interactions may temporarily create Open and Save Panel,
+  QuickLook, Finder, or other system helper services.
+- Helper services should not be triggered by ordinary launch, Search,
+  Settings navigation, or playback when no file-system interaction is being
+  requested.
+- The app should not weaken native file-access behavior or force-terminate
+  system helper services only to reduce process count.
+
+## 10. Persistence
 
 The app should remember:
 

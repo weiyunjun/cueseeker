@@ -194,6 +194,12 @@ Required elements:
 
 Settings should be functional and clear before they are visually refined.
 
+The Add Folder action should continue to use the native macOS folder selection
+experience. It may temporarily create Open and Save Panel or QuickLook helper
+services while the panel is open. The UI should avoid unnecessary helper
+creation during normal Settings navigation, but it should not replace the
+native folder picker only to minimize process count.
+
 ## 8. Visual Style
 
 Initial visual style should be restrained.

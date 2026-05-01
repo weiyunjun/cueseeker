@@ -113,3 +113,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Reduced debug-run AppKit helper service pressure by mounting Settings only
   when selected, replacing the Decode Settings menu picker with an app-drawn
   segmented control, and presenting folder selection as a single window sheet.
+- Documented that native folder selection and future Finder interactions may
+  temporarily create AppKit, QuickLook, or Finder helper services, and that
+  optimization should avoid unnecessary helper creation without replacing
+  native macOS file-access behavior or force-terminating system services.
