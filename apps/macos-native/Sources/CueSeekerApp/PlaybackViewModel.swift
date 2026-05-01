@@ -1,5 +1,5 @@
 import SwiftUI
-import SubFinderXPlayback
+import CueSeekerPlayback
 
 enum PlaybackFeedbackPosition: Equatable {
     case center

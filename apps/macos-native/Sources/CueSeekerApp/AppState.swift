@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
-import SubFinderXCore
-import SubFinderXPlayback
+import CueSeekerCore
+import CueSeekerPlayback
 
 enum AppSection: String, CaseIterable, Identifiable {
     case search
@@ -683,7 +683,7 @@ final class AppState: ObservableObject {
 
         return baseDirectory
             .appendingPathComponent(ApplicationInfo.name, isDirectory: true)
-            .appendingPathComponent("SubFinderX.sqlite")
+            .appendingPathComponent("CueSeeker.sqlite")
     }
 
     private static func prepareDatabaseDirectory(for databaseURL: URL) throws {

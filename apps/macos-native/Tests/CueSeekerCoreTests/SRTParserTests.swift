@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import SubFinderXCore
+import CueSeekerCore
 
 @Test
 func parsesValidSubtitleBlocksAndSkipsMalformedBlocks() throws {

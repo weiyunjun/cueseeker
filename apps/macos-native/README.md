@@ -1,4 +1,4 @@
-# SubFinderX Native macOS
+# CueSeeker Native macOS
 
 This directory contains the active native macOS rewrite.
 
@@ -31,7 +31,7 @@ swift test
 ## Run
 
 ```bash
-swift run SubFinderX
+swift run CueSeeker
 ```
 
 The current target is a minimal native macOS M1 loop for local subtitle indexing,

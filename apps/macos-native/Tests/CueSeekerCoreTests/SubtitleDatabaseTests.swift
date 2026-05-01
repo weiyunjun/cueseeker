@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 import Testing
-import SubFinderXCore
+import CueSeekerCore
 
 @Test
 func migratesFreshDatabaseToCurrentSchemaVersion() throws {
@@ -26,7 +26,7 @@ func upsertsSearchPathAndReturnsStableID() throws {
     let database = try SubtitleDatabase(path: databaseURL)
     try database.migrate()
 
-    let folder = URL(fileURLWithPath: "/tmp/SubFinderX/Subtitles")
+    let folder = URL(fileURLWithPath: "/tmp/CueSeeker/Subtitles")
     let firstID = try database.addSearchPath(folder)
     let secondID = try database.addSearchPath(folder)
 
@@ -537,7 +537,7 @@ func migrationRebuildsLegacyFTSRowsWithCJKSegmentation() throws {
 
 private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
-        .appendingPathComponent("SubFinderXDatabaseTests-\(UUID().uuidString)")
+        .appendingPathComponent("CueSeekerDatabaseTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
 }
 

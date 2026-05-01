@@ -1,11 +1,11 @@
 import Foundation
 import Testing
-import SubFinderXCore
+import CueSeekerCore
 
 @Test
 func matchesSameDirectoryVideoByBaseName() throws {
     let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SubFinderXVideoMatcherTests-\(UUID().uuidString)")
+        .appendingPathComponent("CueSeekerVideoMatcherTests-\(UUID().uuidString)")
 
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     let subtitle = root.appendingPathComponent("Movie.srt")
@@ -25,7 +25,7 @@ func matchesSameDirectoryVideoByBaseName() throws {
 @Test
 func matchesVideoAfterSimpleLanguageSuffixRemoval() throws {
     let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SubFinderXVideoMatcherTests-\(UUID().uuidString)")
+        .appendingPathComponent("CueSeekerVideoMatcherTests-\(UUID().uuidString)")
 
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     let subtitle = root.appendingPathComponent("Movie.en.srt")
@@ -45,7 +45,7 @@ func matchesVideoAfterSimpleLanguageSuffixRemoval() throws {
 @Test
 func returnsNilWhenNoMatchingVideoExists() throws {
     let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SubFinderXVideoMatcherTests-\(UUID().uuidString)")
+        .appendingPathComponent("CueSeekerVideoMatcherTests-\(UUID().uuidString)")
 
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     let subtitle = root.appendingPathComponent("Movie.srt")

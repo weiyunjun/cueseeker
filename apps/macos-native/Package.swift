@@ -3,18 +3,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "SubFinderXNative",
+    name: "CueSeekerNative",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "SubFinderX", targets: ["SubFinderXApp"]),
+        .executable(name: "CueSeeker", targets: ["CueSeekerApp"]),
         .executable(name: "NativePlaybackProbe", targets: ["NativePlaybackProbe"])
     ],
     targets: [
         .target(
-            name: "SubFinderXCore",
-            path: "Sources/SubFinderXCore",
+            name: "CueSeekerCore",
+            path: "Sources/CueSeekerCore",
             linkerSettings: [
                 .linkedLibrary("sqlite3")
             ]
@@ -43,19 +43,19 @@ let package = Package(
             ]
         ),
         .target(
-            name: "SubFinderXPlayback",
+            name: "CueSeekerPlayback",
             dependencies: [
                 "CNativePlayback"
             ],
-            path: "Sources/SubFinderXPlayback"
+            path: "Sources/CueSeekerPlayback"
         ),
         .executableTarget(
-            name: "SubFinderXApp",
+            name: "CueSeekerApp",
             dependencies: [
-                "SubFinderXCore",
-                "SubFinderXPlayback"
+                "CueSeekerCore",
+                "CueSeekerPlayback"
             ],
-            path: "Sources/SubFinderXApp"
+            path: "Sources/CueSeekerApp"
         ),
         .executableTarget(
             name: "NativePlaybackProbe",
@@ -79,17 +79,17 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "SubFinderXCoreTests",
-            dependencies: ["SubFinderXCore"],
-            path: "Tests/SubFinderXCoreTests",
+            name: "CueSeekerCoreTests",
+            dependencies: ["CueSeekerCore"],
+            path: "Tests/CueSeekerCoreTests",
             resources: [
                 .process("Fixtures")
             ]
         ),
         .testTarget(
-            name: "SubFinderXPlaybackTests",
-            dependencies: ["SubFinderXPlayback"],
-            path: "Tests/SubFinderXPlaybackTests"
+            name: "CueSeekerPlaybackTests",
+            dependencies: ["CueSeekerPlayback"],
+            path: "Tests/CueSeekerPlaybackTests"
         )
     ]
 )

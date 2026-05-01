@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import SubFinderXPlayback
+@testable import CueSeekerPlayback
 
 @Test
 @MainActor
@@ -34,7 +34,7 @@ func playbackPlayerStoresDecodeModeSetting() {
 @Test
 func playbackRequestRejectsMissingVideoFile() throws {
     let missingVideo = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SubFinderXMissingVideo-\(UUID().uuidString)")
+        .appendingPathComponent("CueSeekerMissingVideo-\(UUID().uuidString)")
         .appendingPathExtension("mkv")
 
     #expect(throws: PlaybackError.missingVideoFile(missingVideo.path)) {
@@ -45,7 +45,7 @@ func playbackRequestRejectsMissingVideoFile() throws {
 @Test
 func playbackRequestClampsNegativeStartMilliseconds() throws {
     let videoURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SubFinderXPlaybackTests-\(UUID().uuidString)")
+        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")
         .appendingPathExtension("mp4")
     defer {
         try? FileManager.default.removeItem(at: videoURL)

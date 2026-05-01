@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
-import SubFinderXCore
-import SubFinderXPlayback
+import CueSeekerCore
+import CueSeekerPlayback
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
@@ -88,7 +88,7 @@ struct SettingsView: View {
                 folderPendingRemoval = nil
             }
         } message: { folder in
-            Text("Remove \"\(folder.lastPathComponent)\" from SubFinderX? This will not delete local files.")
+            Text("Remove \"\(folder.lastPathComponent)\" from CueSeeker? This will not delete local files.")
         }
     }
 

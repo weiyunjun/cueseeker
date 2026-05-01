@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import SubFinderXPlayback
+import CueSeekerPlayback
 
 struct PlaybackView: View {
     let player: PlaybackPlayer?

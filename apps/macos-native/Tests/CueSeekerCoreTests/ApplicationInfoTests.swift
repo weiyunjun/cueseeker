@@ -1,9 +1,9 @@
 import Testing
-import SubFinderXCore
+import CueSeekerCore
 
 @Test
 func applicationInfoDefinesNativeAppName() {
-    #expect(ApplicationInfo.name == "SubFinderX")
+    #expect(ApplicationInfo.name == "CueSeeker")
 }
 
 @Test

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
-import SubFinderXCore
+import CueSeekerCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {

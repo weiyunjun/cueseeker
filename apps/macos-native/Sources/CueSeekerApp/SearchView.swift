@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
-import SubFinderXCore
+import CueSeekerCore
 
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState

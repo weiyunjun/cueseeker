@@ -21,7 +21,7 @@
 #include <math.h>
 #include <stdatomic.h>
 
-NSString * const SFXNativePlaybackErrorDomain = @"SubFinderX.NativePlayback";
+NSString * const SFXNativePlaybackErrorDomain = @"CueSeeker.NativePlayback";
 
 static enum AVPixelFormat SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
 static const float SFXMinimumPlaybackRate = 0.5f;
@@ -407,7 +407,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _currentTime = _seekSeconds;
     _videoStreamIndex = -1;
     _audioStreamIndex = -1;
-    _decodeQueue = dispatch_queue_create("SubFinderX.NativePlayback.Decode", DISPATCH_QUEUE_SERIAL);
+    _decodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.Decode", DISPATCH_QUEUE_SERIAL);
     atomic_init(&_cancelled, false);
     atomic_init(&_paused, false);
     atomic_init(&_playing, false);

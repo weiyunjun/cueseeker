@@ -1,11 +1,11 @@
 import Foundation
 import Testing
-import SubFinderXCore
+import CueSeekerCore
 
 @Test
 func scansSRTFilesRecursivelyAndIgnoresOtherFiles() throws {
     let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SubFinderXScannerTests-\(UUID().uuidString)")
+        .appendingPathComponent("CueSeekerScannerTests-\(UUID().uuidString)")
     let nested = root.appendingPathComponent("Nested")
 
     try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import SubFinderXCore
+import CueSeekerCore
 
 @Test
 func indexesFolderIntoSQLiteSearchDatabase() throws {
@@ -192,7 +192,7 @@ private struct IndexingFixture {
 
     init() throws {
         root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SubFinderXIndexerTests-\(UUID().uuidString)")
+            .appendingPathComponent("CueSeekerIndexerTests-\(UUID().uuidString)")
         databaseURL = root.appendingPathComponent("index.sqlite")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
