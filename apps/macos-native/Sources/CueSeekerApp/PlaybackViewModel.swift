@@ -27,7 +27,6 @@ public final class PlaybackViewModel: ObservableObject {
     @Published public var currentTime: Double = 0 {
         didSet {
             refreshActiveSubtitleText()
-            onCurrentTimeChanged?(currentTime)
         }
     }
     @Published public var duration: Double = 0
@@ -36,7 +35,6 @@ public final class PlaybackViewModel: ObservableObject {
     @Published public var areSubtitlesVisible: Bool = true
     @Published public private(set) var activeSubtitleText: String?
     @Published var feedback: PlaybackFeedback?
-    var onCurrentTimeChanged: ((Double) -> Void)?
 
     private var feedbackClearTask: Task<Void, Never>?
     private var accumulatedForwardSeconds = 0

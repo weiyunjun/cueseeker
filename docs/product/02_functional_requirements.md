@@ -146,14 +146,6 @@ Requirements:
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
-- Provide a Continuous Playback switch in the Playback Inspector, defaulting off
-  for each app launch.
-- When Continuous Playback is enabled, play a configured subtitle span for the
-  selected search result, then advance to the next search result.
-- If playback has already moved beyond the configured span's final subtitle
-  cue, wait until the currently active subtitle cue ends before advancing.
-- Prepare the next continuous playback request and subtitle cue data when the
-  current span's final subtitle cue starts.
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 
@@ -170,10 +162,6 @@ Early settings:
 - View indexing status.
 - Choose a persisted playback decode mode from `hardware`, `software`, and
   `auto`.
-- Choose a persisted Continuous Playback sentence count from `1` through
-  `9999`.
-- Choose a persisted Continuous Playback preceding sentence count from `0`
-  through `10`.
 
 Future settings may include playback, database, logging, and privacy options.
 

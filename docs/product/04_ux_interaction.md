@@ -122,17 +122,6 @@ M2 playback interaction model:
 - Keyboard shortcuts in fullscreen should not reveal the playback operation controls.
 - The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
-- The Playback Inspector should expose a Continuous Playback switch above the
-  Start Time metadata field.
-- Continuous Playback should default off for each app launch and should be
-  toggled from the current playback context.
-- When Continuous Playback is enabled before selecting a result, playback should
-  start from the configured continuous span's first subtitle cue.
-- When Continuous Playback is enabled after playback has already passed the
-  configured span, the app should wait until the currently active subtitle cue
-  ends before advancing.
-- Continuous Playback should advance through the current search results in
-  result-list order.
 
 Current M2 implementation:
 
@@ -227,6 +216,5 @@ The app should remember:
 - Sidebar collapsed or expanded state.
 - Playback Inspector width and visibility.
 - Playback decode mode.
-- Continuous Playback sentence count and preceding sentence count.
 
 The app should not surprise the user by losing local configuration after restart. The structural layout (Sidebar, Inspector) persistence is globally bound to the AppShell, natively supporting future modules like Favorites.

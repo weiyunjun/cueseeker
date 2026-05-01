@@ -142,13 +142,6 @@ struct SearchView: View {
                                 .foregroundStyle(.red)
                         }
 
-                        ContinuousPlaybackToggle(
-                            isEnabled: Binding(
-                                get: { appState.isContinuousPlaybackEnabled },
-                                set: { appState.setContinuousPlaybackEnabled($0) }
-                            )
-                        )
-
                         MetadataField(
                             title: "Start Time",
                             value: formatTimestamp(result.startMilliseconds)
@@ -246,18 +239,6 @@ struct SearchView: View {
             max(width, SearchLayout.playbackInspectorMinimumWidth),
             Double(maxWidth)
         )
-    }
-}
-
-private struct ContinuousPlaybackToggle: View {
-    @Binding var isEnabled: Bool
-
-    var body: some View {
-        Toggle(isOn: $isEnabled) {
-            Label("Continuous Playback", systemImage: "play.rectangle.on.rectangle")
-                .font(.system(size: SearchTypography.metadataLabelSize, weight: .semibold))
-        }
-        .toggleStyle(.switch)
     }
 }
 

@@ -120,10 +120,3 @@ This changelog does not replace Git history. Git records concrete file changes. 
   temporarily create AppKit, QuickLook, or Finder helper services, and that
   optimization should avoid unnecessary helper creation without replacing
   native macOS file-access behavior or force-terminating system services.
-- Added Continuous Playback settings for subtitle span length and preceding
-  subtitle context, plus a Playback Inspector switch that defaults off.
-- Implemented Continuous Playback result advancement with subtitle-span boundary
-  handling and next-result request and subtitle cue preparation.
-- Fixed Continuous Playback span completion so normal result playback cuts at
-  the configured subtitle span end instead of extending through later subtitle
-  cues.
