@@ -79,7 +79,46 @@ Expected behavior:
 - Timeline seeking must not temporarily reset the displayed playback time to `0`.
 - The UI may show the requested target timestamp immediately while the backend completes the seek, then accept later backend time updates as confirmation or correction.
 
-## 5. Playback Engine Selection
+## 5. Continuous Playback
+
+Continuous Playback supports reviewing multiple subtitle cues from search
+results without manually selecting each result.
+
+Settings:
+
+- `Sentences` defaults to `1`, has a minimum of `1`, has a maximum of `9999`,
+  and represents the total subtitle cue count in a continuous playback span.
+- `Preceding Sentences` defaults to `0`, has a minimum of `0`, has a maximum of
+  `10`, and shifts the span start before the selected result when possible.
+- If `Preceding Sentences` is set to `n`, `Sentences` must be at least `n + 1`.
+- If `Sentences` is set to `n`, `Preceding Sentences` must be at most `n - 1`.
+
+Playback behavior:
+
+- The Playback Inspector exposes a Continuous Playback switch above Start Time.
+- The switch defaults off for each app launch.
+- When enabled, selecting a search result starts playback from the configured
+  span's first subtitle cue.
+- If there are fewer preceding subtitle cues than configured, the span starts
+  from the first subtitle cue.
+- If the configured sentence count extends beyond the subtitle file, the span
+  ends at the final subtitle cue.
+- After the span finishes, playback advances to the next search result in the
+  current result-list order.
+- If the current playback position has already passed the span's final subtitle
+  cue, the app waits until the currently active subtitle cue ends before
+  advancing.
+- When the final subtitle cue in the current span starts, the app should prepare
+  the next result's playback request and subtitle cue data before transition.
+
+Current preloading scope:
+
+- The app prepares the next `PlaybackRequest` and app-owned subtitle cue data.
+- Decode-level hidden preloading is not part of the current native playback
+  backend contract and should be addressed separately if a future implementation
+  adds a swappable prepared playback session.
+
+## 6. Playback Engine Selection
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`,
 which supersedes ADR-0006 and ADR-0003.
@@ -145,7 +184,7 @@ Evaluation criteria:
 - App signing and distribution impact.
 - Maintenance cost.
 
-## 6. Subtitle Rendering
+## 7. Subtitle Rendering
 
 The current native-first playback implementation supports app-owned subtitle
 overlay rendering for the selected indexed SRT file.
@@ -163,7 +202,7 @@ Rules:
 - Native playback does not need to decode embedded subtitle streams for M1.
 - The subtitle visibility control should show or hide the app-owned overlay.
 
-## 7. M2 Fullscreen Behavior
+## 8. M2 Fullscreen Behavior
 
 Playback fullscreen belongs to the playback interaction model.
 
@@ -193,7 +232,7 @@ Implementation constraints:
 - Playback fullscreen should use the singleton render container owned by the playback player.
 - The fullscreen overlay should reuse the same playback controls and feedback model as the Playback Inspector.
 
-## 8. M2 Playback Controls
+## 9. M2 Playback Controls
 
 Playback controls should be explicit and should avoid accidental video-surface commands.
 

@@ -36,6 +36,8 @@ struct SettingsView: View {
 
             decodeSettingsView
 
+            continuousPlaybackSettingsView
+
             if appState.selectedFolders.isEmpty {
                 EmptyStateView(
                     title: "No Subtitle Folders",
@@ -106,6 +108,32 @@ struct SettingsView: View {
 
                 DecodeModeSegmentedControl(selection: $appState.playbackDecodeMode)
             }
+        }
+    }
+
+    private var continuousPlaybackSettingsView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Continuous Playback")
+                .font(.title3)
+                .fontWeight(.semibold)
+
+            IntegerSettingRow(
+                title: "Sentences",
+                value: Binding(
+                    get: { appState.continuousPlaybackSentenceCount },
+                    set: { appState.setContinuousPlaybackSentenceCount($0) }
+                ),
+                range: ContinuousPlaybackSettings.minimumSentenceCount...ContinuousPlaybackSettings.maximumSentenceCount
+            )
+
+            IntegerSettingRow(
+                title: "Preceding Sentences",
+                value: Binding(
+                    get: { appState.continuousPlaybackPrecedingSentenceCount },
+                    set: { appState.setContinuousPlaybackPrecedingSentenceCount($0) }
+                ),
+                range: ContinuousPlaybackSettings.minimumPrecedingSentenceCount...ContinuousPlaybackSettings.maximumPrecedingSentenceCount
+            )
         }
     }
 
@@ -230,6 +258,33 @@ struct SettingsView: View {
             "\(result.skippedMissingVideo) missing videos",
             "\(result.skippedUnreadableSubtitle) unreadable"
         ].joined(separator: " · ")
+    }
+}
+
+private struct IntegerSettingRow: View {
+    let title: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.subheadline)
+
+            Spacer()
+
+            TextField(
+                title,
+                value: $value,
+                format: .number
+            )
+            .textFieldStyle(.roundedBorder)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 86)
+
+            Stepper(title, value: $value, in: range)
+                .labelsHidden()
+        }
     }
 }
 

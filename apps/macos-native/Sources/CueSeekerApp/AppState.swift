@@ -76,6 +76,8 @@ final class AppState: ObservableObject {
     private static let isPlaybackInspectorVisibleKey = "isPlaybackInspectorVisible"
     private static let playbackInspectorWidthKey = "playbackInspectorWidth"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
+    private static let continuousPlaybackSentenceCountKey = "continuousPlaybackSentenceCount"
+    private static let continuousPlaybackPrecedingSentenceCountKey = "continuousPlaybackPrecedingSentenceCount"
 
     @Published var selectedSection: AppSection = .search
     @Published var selectedFolders: [URL] = []
@@ -91,6 +93,17 @@ final class AppState: ObservableObject {
     @Published var playbackInspectorWidth: Double = 520
     @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
+    @Published private(set) var continuousPlaybackSettings = ContinuousPlaybackSettings()
+    @Published var isContinuousPlaybackEnabled = false {
+        didSet {
+            if isContinuousPlaybackEnabled {
+                refreshContinuousPlaybackRuntime()
+            } else {
+                continuousPlaybackRuntime = nil
+                continuousPlaybackPreparedItem = nil
+            }
+        }
+    }
     @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
         didSet {
             userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
@@ -103,11 +116,19 @@ final class AppState: ObservableObject {
     var playbackPlayer: PlaybackPlayer? {
         player
     }
+    var continuousPlaybackSentenceCount: Int {
+        continuousPlaybackSettings.sentenceCount
+    }
+    var continuousPlaybackPrecedingSentenceCount: Int {
+        continuousPlaybackSettings.precedingSentenceCount
+    }
 
     private let userDefaults: UserDefaults
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var continuousPlaybackRuntime: ContinuousPlaybackRuntime?
+    private var continuousPlaybackPreparedItem: PreparedContinuousPlaybackItem?
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -121,12 +142,16 @@ final class AppState: ObservableObject {
             Self.isSidebarVisibleKey: true,
             Self.isPlaybackInspectorVisibleKey: false,
             Self.playbackInspectorWidthKey: 520.0,
-            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
+            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
+            Self.continuousPlaybackSentenceCountKey: ContinuousPlaybackSettings.minimumSentenceCount,
+            Self.continuousPlaybackPrecedingSentenceCountKey: ContinuousPlaybackSettings.minimumPrecedingSentenceCount
         ])
         isSidebarVisible = userDefaults.bool(forKey: Self.isSidebarVisibleKey)
         isPlaybackInspectorVisible = userDefaults.bool(forKey: Self.isPlaybackInspectorVisibleKey)
         playbackInspectorWidth = userDefaults.double(forKey: Self.playbackInspectorWidthKey)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
+        continuousPlaybackSettings = Self.loadContinuousPlaybackSettings(from: userDefaults)
+        persistContinuousPlaybackSettings()
 
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
@@ -136,7 +161,11 @@ final class AppState: ObservableObject {
             let player = PlaybackPlayer()
             player.decodeMode = playbackDecodeMode
             self.player = player
-            playbackViewModel = PlaybackViewModel(player: player)
+            let playbackViewModel = PlaybackViewModel(player: player)
+            playbackViewModel.onCurrentTimeChanged = { [weak self] currentTime in
+                self?.handlePlaybackTimeChange(currentTime)
+            }
+            self.playbackViewModel = playbackViewModel
         } catch {
             startupError = Self.errorMessage(for: error)
         }
@@ -212,6 +241,22 @@ final class AppState: ObservableObject {
     func updatePlaybackInspectorWidth(_ width: Double) {
         playbackInspectorWidth = width
         userDefaults.set(width, forKey: Self.playbackInspectorWidthKey)
+    }
+
+    func setContinuousPlaybackSentenceCount(_ value: Int) {
+        updateContinuousPlaybackSettings(
+            continuousPlaybackSettings.updatingSentenceCount(value)
+        )
+    }
+
+    func setContinuousPlaybackPrecedingSentenceCount(_ value: Int) {
+        updateContinuousPlaybackSettings(
+            continuousPlaybackSettings.updatingPrecedingSentenceCount(value)
+        )
+    }
+
+    func setContinuousPlaybackEnabled(_ isEnabled: Bool) {
+        isContinuousPlaybackEnabled = isEnabled
     }
 
     func selectSection(_ section: AppSection) {
@@ -384,32 +429,39 @@ final class AppState: ObservableObject {
 
     func play(_ result: SubtitleSearchResult) {
         playbackStatus = .opening(result)
-        let subtitleCues = playbackSubtitleCues(for: result)
-        playbackViewModel?.setSubtitleCues(
-            subtitleCues,
-            currentTimeMilliseconds: result.startMilliseconds
-        )
+        play(result, preparedItem: nil)
+    }
 
+    private func play(
+        _ result: SubtitleSearchResult,
+        preparedItem: PreparedContinuousPlaybackItem?
+    ) {
         do {
-            let request = try PlaybackRequest(
-                videoURL: URL(fileURLWithPath: result.videoPath),
-                startMilliseconds: result.startMilliseconds
+            playbackStatus = .opening(result)
+            let playbackItem = try preparedItem?.playbackItem ?? makePlaybackItem(for: result)
+            continuousPlaybackRuntime = playbackItem.continuousRuntime
+            continuousPlaybackPreparedItem = nil
+            playbackViewModel?.setSubtitleCues(
+                playbackItem.subtitleCues,
+                currentTimeMilliseconds: playbackItem.request.startMilliseconds
             )
 
             guard let player else {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
-            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
-                try player.seek(toMilliseconds: request.startMilliseconds)
+            if player.currentVideoURL?.standardizedFileURL.path == playbackItem.request.videoURL.standardizedFileURL.path {
+                try player.seek(toMilliseconds: playbackItem.request.startMilliseconds)
             } else {
-                try player.open(request)
+                try player.open(playbackItem.request)
             }
 
             try player.setPaused(false)
             playbackStatus = .playing(result)
         } catch {
             playbackViewModel?.clearSubtitleCues()
+            continuousPlaybackRuntime = nil
+            continuousPlaybackPreparedItem = nil
             playbackStatus = .failed(Self.errorMessage(for: error))
         }
     }
@@ -526,6 +578,8 @@ final class AppState: ObservableObject {
             playbackFullscreenManager.exitFullscreen()
             try player?.stop()
             playbackViewModel?.clearSubtitleCues()
+            continuousPlaybackRuntime = nil
+            continuousPlaybackPreparedItem = nil
             playbackStatus = .idle
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -621,26 +675,64 @@ final class AppState: ObservableObject {
         aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
     }
 
-    private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
+    private func makePlaybackItem(for result: SubtitleSearchResult) throws -> PlaybackItem {
+        let entries = subtitleEntries(for: result)
+        let segment = isContinuousPlaybackEnabled
+            ? ContinuousPlaybackPlanner.segment(
+                forSelectedEntryID: result.entryID,
+                entries: entries,
+                settings: continuousPlaybackSettings
+            )
+            : nil
+        let request = try PlaybackRequest(
+            videoURL: URL(fileURLWithPath: result.videoPath),
+            startMilliseconds: segment?.startMilliseconds ?? result.startMilliseconds
+        )
+        let subtitleCues = playbackSubtitleCues(for: result, entries: entries)
+        let runtime = segment.map {
+            ContinuousPlaybackRuntime(
+                result: result,
+                entries: entries,
+                segment: $0,
+                didPrepareNextItem: false
+            )
+        }
+
+        return PlaybackItem(
+            result: result,
+            request: request,
+            subtitleCues: subtitleCues,
+            continuousRuntime: runtime
+        )
+    }
+
+    private func subtitleEntries(for result: SubtitleSearchResult) -> [SubtitleDatabaseEntry] {
         do {
             let database = try SubtitleDatabase(path: databaseURL)
             try database.migrate()
-            let entries = try database.entries(
+            return try database.entries(
                 forSubtitleFile: URL(fileURLWithPath: result.subtitlePath)
             )
-            let cues = entries.map {
-                PlaybackSubtitleCue(
-                    startMilliseconds: $0.startMilliseconds,
-                    endMilliseconds: $0.endMilliseconds,
-                    text: $0.content
-                )
-            }
-
-            if !cues.isEmpty {
-                return cues
-            }
         } catch {
             print("Failed to load playback subtitle track: \(error)")
+            return []
+        }
+    }
+
+    private func playbackSubtitleCues(
+        for result: SubtitleSearchResult,
+        entries: [SubtitleDatabaseEntry]
+    ) -> [PlaybackSubtitleCue] {
+        let cues = entries.map {
+            PlaybackSubtitleCue(
+                startMilliseconds: $0.startMilliseconds,
+                endMilliseconds: $0.endMilliseconds,
+                text: $0.content
+            )
+        }
+
+        if !cues.isEmpty {
+            return cues
         }
 
         return [
@@ -650,6 +742,135 @@ final class AppState: ObservableObject {
                 text: result.content
             )
         ]
+    }
+
+    private func updateContinuousPlaybackSettings(_ settings: ContinuousPlaybackSettings) {
+        guard settings != continuousPlaybackSettings else {
+            return
+        }
+
+        continuousPlaybackSettings = settings
+        persistContinuousPlaybackSettings()
+        if isContinuousPlaybackEnabled {
+            refreshContinuousPlaybackRuntime()
+        }
+    }
+
+    private func persistContinuousPlaybackSettings() {
+        userDefaults.set(
+            continuousPlaybackSettings.sentenceCount,
+            forKey: Self.continuousPlaybackSentenceCountKey
+        )
+        userDefaults.set(
+            continuousPlaybackSettings.precedingSentenceCount,
+            forKey: Self.continuousPlaybackPrecedingSentenceCountKey
+        )
+    }
+
+    private func refreshContinuousPlaybackRuntime() {
+        continuousPlaybackPreparedItem = nil
+
+        guard isContinuousPlaybackEnabled,
+              let selectedSearchResult
+        else {
+            continuousPlaybackRuntime = nil
+            return
+        }
+
+        let entries = subtitleEntries(for: selectedSearchResult)
+        guard let segment = ContinuousPlaybackPlanner.segment(
+            forSelectedEntryID: selectedSearchResult.entryID,
+            entries: entries,
+            settings: continuousPlaybackSettings
+        ) else {
+            continuousPlaybackRuntime = nil
+            return
+        }
+
+        continuousPlaybackRuntime = ContinuousPlaybackRuntime(
+            result: selectedSearchResult,
+            entries: entries,
+            segment: segment,
+            didPrepareNextItem: false
+        )
+    }
+
+    private func handlePlaybackTimeChange(_ currentTime: Double) {
+        guard isContinuousPlaybackEnabled,
+              playbackViewModel?.isPlaying == true,
+              var runtime = continuousPlaybackRuntime
+        else {
+            return
+        }
+
+        let currentMilliseconds = max(0, Int((currentTime * 1_000).rounded()))
+
+        if !runtime.didPrepareNextItem,
+           ContinuousPlaybackPlanner.shouldPrepareNextItem(
+               currentMilliseconds: currentMilliseconds,
+               segment: runtime.segment
+           ) {
+            runtime.didPrepareNextItem = true
+            continuousPlaybackRuntime = runtime
+            continuousPlaybackPreparedItem = preparedContinuousPlaybackItem(after: runtime.result)
+        }
+
+        let boundaryMilliseconds = ContinuousPlaybackPlanner.boundaryMilliseconds(
+            forCurrentMilliseconds: currentMilliseconds,
+            segment: runtime.segment,
+            entries: runtime.entries
+        )
+
+        guard currentMilliseconds >= boundaryMilliseconds else {
+            return
+        }
+
+        advanceContinuousPlayback(after: runtime.result)
+    }
+
+    private func preparedContinuousPlaybackItem(
+        after result: SubtitleSearchResult
+    ) -> PreparedContinuousPlaybackItem? {
+        guard let nextResult = nextContinuousPlaybackResult(after: result),
+              let playbackItem = try? makePlaybackItem(for: nextResult)
+        else {
+            return nil
+        }
+
+        return PreparedContinuousPlaybackItem(playbackItem: playbackItem)
+    }
+
+    private func advanceContinuousPlayback(after result: SubtitleSearchResult) {
+        guard let nextResult = nextContinuousPlaybackResult(after: result) else {
+            continuousPlaybackRuntime = nil
+            continuousPlaybackPreparedItem = nil
+            pausePlayback()
+            return
+        }
+
+        selectedSearchResult = nextResult
+        let preparedItem: PreparedContinuousPlaybackItem?
+        if continuousPlaybackPreparedItem?.playbackItem.result.entryID == nextResult.entryID {
+            preparedItem = continuousPlaybackPreparedItem
+        } else {
+            preparedItem = nil
+        }
+        play(nextResult, preparedItem: preparedItem)
+    }
+
+    private func nextContinuousPlaybackResult(
+        after result: SubtitleSearchResult
+    ) -> SubtitleSearchResult? {
+        guard let currentIndex = searchResults.firstIndex(where: { $0.entryID == result.entryID }) else {
+            return nil
+        }
+
+        let nextIndex = currentIndex + 1
+        guard searchResults.indices.contains(nextIndex) else {
+            return nil
+        }
+
+        return searchResults[nextIndex]
     }
 
     private func persistSelectedFolders() {
@@ -675,6 +896,13 @@ final class AppState: ObservableObject {
         return mode
     }
 
+    private static func loadContinuousPlaybackSettings(from userDefaults: UserDefaults) -> ContinuousPlaybackSettings {
+        ContinuousPlaybackSettings(
+            sentenceCount: userDefaults.integer(forKey: continuousPlaybackSentenceCountKey),
+            precedingSentenceCount: userDefaults.integer(forKey: continuousPlaybackPrecedingSentenceCountKey)
+        )
+    }
+
     private static func defaultDatabaseURL() -> URL {
         let baseDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -696,6 +924,24 @@ final class AppState: ObservableObject {
     private static func errorMessage(for error: Error) -> String {
         String(describing: error)
     }
+}
+
+private struct PlaybackItem {
+    let result: SubtitleSearchResult
+    let request: PlaybackRequest
+    let subtitleCues: [PlaybackSubtitleCue]
+    let continuousRuntime: ContinuousPlaybackRuntime?
+}
+
+private struct ContinuousPlaybackRuntime {
+    let result: SubtitleSearchResult
+    let entries: [SubtitleDatabaseEntry]
+    let segment: ContinuousPlaybackSegment
+    var didPrepareNextItem: Bool
+}
+
+private struct PreparedContinuousPlaybackItem {
+    let playbackItem: PlaybackItem
 }
 
 private extension NSView {
