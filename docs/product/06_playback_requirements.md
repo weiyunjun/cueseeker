@@ -96,24 +96,18 @@ Current decision:
 Current implementation:
 
 - The native backend uses FFmpeg demuxing, a user-selectable decode mode
-  (`hardware`, `software`, or `auto`), native display,
+  (`hardware`, `software`, or `auto`), `AVSampleBufferDisplayLayer` display,
   FFmpeg audio decode, `swresample` downmix or format conversion when needed,
   and `AVAudioEngine` output.
-- `hardware` requires VideoToolbox video decode and should present supported
-  hardware frames through the project-owned Metal YUV renderer.
+- `hardware` requires VideoToolbox video decode.
 - `software` uses FFmpeg software video decode and currently converts decoded
   frames to BGRA with `libswscale` before display.
 - `auto` should prefer VideoToolbox hardware decode and may fall back to
   software video decode when hardware setup is unavailable.
-- The app should expose only one hardware decode option. It should not keep a
-  long-lived user-facing switch between old and new hardware display paths.
-- The hardware display direction is VideoToolbox decode plus Metal YUV
-  rendering. If that direction regresses, the project should revert or revise
-  the implementation through Git rather than preserving competing hardware
-  paths in the product UI.
-- Future software Metal YUV work may share renderer code with the hardware path,
-  but software decode compatibility should remain independently testable from
-  hardware decode compatibility.
+- Future Metal YUV work should first target software-decoded frame
+  compatibility only. It must not change the VideoToolbox hardware decode
+  display path unless a separate implementation decision explicitly expands
+  that scope.
 - The app uses a stable playback render container that hosts the native playback
   view in the Playback Inspector and Theater Mode fullscreen.
 - Native compatibility metadata should be selected from video-file metadata

@@ -35,7 +35,6 @@ let package = Package(
                 .linkedLibrary("swscale"),
                 .linkedFramework("AppKit"),
                 .linkedFramework("AVFoundation"),
-                .linkedFramework("Metal"),
                 .linkedFramework("VideoToolbox"),
                 .linkedFramework("CoreMedia"),
                 .linkedFramework("CoreVideo"),

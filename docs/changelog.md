@@ -6,10 +6,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Accepted the hardware playback iteration direction: keep a single hardware
-  decode option while moving supported VideoToolbox frames to a project-owned
-  Metal YUV display path, with regressions handled through Git rather than
-  long-lived product UI switches.
 - Established project documentation governance.
 - Clarified when `docs/changelog.md` must be updated across documentation, Git workflow, and release rules.
 - Archived the legacy Flutter implementation under `archive/flutter/`.

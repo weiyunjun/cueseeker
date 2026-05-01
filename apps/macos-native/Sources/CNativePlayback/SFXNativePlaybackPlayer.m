@@ -3,7 +3,6 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
-#import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
 #import <dispatch/dispatch.h>
 
@@ -27,12 +26,6 @@ NSString * const SFXNativePlaybackErrorDomain = @"SubFinderX.NativePlayback";
 static enum AVPixelFormat SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
 static const float SFXMinimumPlaybackRate = 0.5f;
 static const float SFXMaximumPlaybackRate = 2.0f;
-
-typedef struct {
-    float yOffset;
-    float yScale;
-    float uvOffset;
-} SFXYUVUniforms;
 
 static float SFXClampedPlaybackRate(float playbackRate) {
     if (!isfinite(playbackRate)) {
@@ -261,21 +254,10 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @interface SFXNativePlaybackView : NSView
 @property (nonatomic, strong, readonly) AVSampleBufferDisplayLayer *displayLayer;
-- (BOOL)hasMetalYUVRenderer;
-- (void)setHardwareRenderingEnabled:(BOOL)enabled;
-- (BOOL)renderHardwarePixelBuffer:(CVPixelBufferRef)pixelBuffer errorMessage:(NSString **)errorMessage;
-- (void)enqueueSamplePixelBuffer:(CVPixelBufferRef)pixelBuffer presentationTime:(CMTime)presentationTime;
 @end
 
 @implementation SFXNativePlaybackView {
     AVSampleBufferDisplayLayer *_displayLayer;
-    CAMetalLayer *_metalLayer;
-    id<MTLDevice> _metalDevice;
-    id<MTLCommandQueue> _metalCommandQueue;
-    id<MTLRenderPipelineState> _metalPipelineState;
-    CVMetalTextureCacheRef _metalTextureCache;
-    NSString *_metalSetupError;
-    BOOL _hardwareRenderingEnabled;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -292,8 +274,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     _displayLayer.backgroundColor = NSColor.blackColor.CGColor;
     [self.layer addSublayer:_displayLayer];
 
-    [self configureMetalRenderer];
-
     return self;
 }
 
@@ -301,433 +281,13 @@ static int SFXOutputChannelCount(int inputChannels) {
     return _displayLayer;
 }
 
-- (BOOL)hasMetalYUVRenderer {
-    return _metalPipelineState != nil && _metalCommandQueue != nil && _metalTextureCache != NULL;
-}
-
-- (void)configureMetalRenderer {
-    _metalDevice = MTLCreateSystemDefaultDevice();
-    if (_metalDevice == nil) {
-        _metalSetupError = @"Metal device is unavailable.";
-        return;
-    }
-
-    _metalCommandQueue = [_metalDevice newCommandQueue];
-    if (_metalCommandQueue == nil) {
-        _metalSetupError = @"Metal command queue creation failed.";
-        return;
-    }
-
-    NSString *shaderSource =
-        @"#include <metal_stdlib>\n"
-        @"using namespace metal;\n"
-        @"struct VertexOut { float4 position [[position]]; float2 texCoord; };\n"
-        @"struct YUVUniforms { float yOffset; float yScale; float uvOffset; };\n"
-        @"vertex VertexOut vertex_main(uint vertexID [[vertex_id]]) {\n"
-        @"    float2 positions[4] = { float2(-1.0, -1.0), float2(1.0, -1.0), float2(-1.0, 1.0), float2(1.0, 1.0) };\n"
-        @"    float2 texCoords[4] = { float2(0.0, 1.0), float2(1.0, 1.0), float2(0.0, 0.0), float2(1.0, 0.0) };\n"
-        @"    VertexOut out;\n"
-        @"    out.position = float4(positions[vertexID], 0.0, 1.0);\n"
-        @"    out.texCoord = texCoords[vertexID];\n"
-        @"    return out;\n"
-        @"}\n"
-        @"fragment float4 fragment_main(VertexOut in [[stage_in]],\n"
-        @"                              texture2d<float, access::sample> yTexture [[texture(0)]],\n"
-        @"                              texture2d<float, access::sample> uvTexture [[texture(1)]],\n"
-        @"                              constant YUVUniforms &uniforms [[buffer(0)]]) {\n"
-        @"    constexpr sampler textureSampler(address::clamp_to_edge, filter::linear);\n"
-        @"    float y = yTexture.sample(textureSampler, in.texCoord).r;\n"
-        @"    float2 uv = uvTexture.sample(textureSampler, in.texCoord).rg;\n"
-        @"    y = clamp((y - uniforms.yOffset) * uniforms.yScale, 0.0, 1.0);\n"
-        @"    float cb = uv.x - uniforms.uvOffset;\n"
-        @"    float cr = uv.y - uniforms.uvOffset;\n"
-        @"    float3 rgb;\n"
-        @"    rgb.r = y + 1.5748 * cr;\n"
-        @"    rgb.g = y - 0.1873 * cb - 0.4681 * cr;\n"
-        @"    rgb.b = y + 1.8556 * cb;\n"
-        @"    return float4(saturate(rgb), 1.0);\n"
-        @"}\n";
-
-    NSError *libraryError = nil;
-    id<MTLLibrary> library = [_metalDevice newLibraryWithSource:shaderSource
-                                                        options:nil
-                                                          error:&libraryError];
-    if (library == nil) {
-        _metalSetupError = [NSString stringWithFormat:@"Metal shader compilation failed: %@", libraryError.localizedDescription];
-        return;
-    }
-
-    MTLRenderPipelineDescriptor *pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-    pipelineDescriptor.vertexFunction = [library newFunctionWithName:@"vertex_main"];
-    pipelineDescriptor.fragmentFunction = [library newFunctionWithName:@"fragment_main"];
-    pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-
-    NSError *pipelineError = nil;
-    _metalPipelineState = [_metalDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor
-                                                                       error:&pipelineError];
-    if (_metalPipelineState == nil) {
-        _metalSetupError = [NSString stringWithFormat:@"Metal pipeline creation failed: %@", pipelineError.localizedDescription];
-        return;
-    }
-
-    CVReturn cacheResult = CVMetalTextureCacheCreate(
-        kCFAllocatorDefault,
-        NULL,
-        _metalDevice,
-        NULL,
-        &_metalTextureCache
-    );
-    if (cacheResult != kCVReturnSuccess || _metalTextureCache == NULL) {
-        _metalSetupError = @"CVMetalTextureCache creation failed.";
-        return;
-    }
-
-    _metalLayer = [CAMetalLayer layer];
-    _metalLayer.device = _metalDevice;
-    _metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    _metalLayer.framebufferOnly = YES;
-    _metalLayer.opaque = YES;
-    _metalLayer.backgroundColor = NSColor.blackColor.CGColor;
-    _metalLayer.hidden = YES;
-    [self.layer addSublayer:_metalLayer];
-}
-
 - (void)layout {
     [super layout];
     _displayLayer.frame = self.bounds;
-    _metalLayer.frame = self.bounds;
-    [self updateMetalDrawableSize];
 }
 
 - (void)flush {
     [_displayLayer flushAndRemoveImage];
-    if (_hardwareRenderingEnabled) {
-        _metalLayer.hidden = YES;
-        _hardwareRenderingEnabled = NO;
-    }
-}
-
-- (void)setHardwareRenderingEnabled:(BOOL)enabled {
-    _hardwareRenderingEnabled = enabled;
-    _displayLayer.hidden = enabled;
-    _metalLayer.hidden = !enabled;
-    if (enabled) {
-        [_displayLayer flushAndRemoveImage];
-        [self updateMetalDrawableSize];
-    }
-}
-
-- (void)updateMetalDrawableSize {
-    if (_metalLayer == nil) {
-        return;
-    }
-
-    CGFloat scale = self.window.backingScaleFactor;
-    if (scale <= 0) {
-        scale = NSScreen.mainScreen.backingScaleFactor;
-    }
-    if (scale <= 0) {
-        scale = 1;
-    }
-
-    NSSize size = self.bounds.size;
-    _metalLayer.contentsScale = scale;
-    _metalLayer.drawableSize = CGSizeMake(
-        MAX(1, size.width * scale),
-        MAX(1, size.height * scale)
-    );
-}
-
-- (BOOL)metalFormatsForPixelBuffer:(CVPixelBufferRef)pixelBuffer
-                           yFormat:(MTLPixelFormat *)yFormat
-                          uvFormat:(MTLPixelFormat *)uvFormat
-                          uniforms:(SFXYUVUniforms *)uniforms
-                       errorMessage:(NSString **)errorMessage {
-    OSType pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
-    BOOL fullRange = NO;
-    BOOL tenBit = NO;
-
-    switch (pixelFormat) {
-    case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
-        fullRange = NO;
-        tenBit = NO;
-        break;
-    case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
-        fullRange = YES;
-        tenBit = NO;
-        break;
-    case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange:
-        fullRange = NO;
-        tenBit = YES;
-        break;
-    case kCVPixelFormatType_420YpCbCr10BiPlanarFullRange:
-        fullRange = YES;
-        tenBit = YES;
-        break;
-    default:
-        if (errorMessage != NULL) {
-            *errorMessage = [NSString stringWithFormat:
-                @"Unsupported Metal YUV hardware pixel format: 0x%08x.",
-                (unsigned int)pixelFormat
-            ];
-        }
-        return NO;
-    }
-
-    if (CVPixelBufferGetPlaneCount(pixelBuffer) < 2) {
-        if (errorMessage != NULL) {
-            *errorMessage = @"Metal YUV hardware rendering requires a bi-planar pixel buffer.";
-        }
-        return NO;
-    }
-
-    *yFormat = tenBit ? MTLPixelFormatR16Unorm : MTLPixelFormatR8Unorm;
-    *uvFormat = tenBit ? MTLPixelFormatRG16Unorm : MTLPixelFormatRG8Unorm;
-
-    if (fullRange) {
-        *uniforms = (SFXYUVUniforms){0.0f, 1.0f, tenBit ? (512.0f / 1023.0f) : 0.5f};
-    } else if (tenBit) {
-        *uniforms = (SFXYUVUniforms){64.0f / 1023.0f, 1023.0f / 876.0f, 512.0f / 1023.0f};
-    } else {
-        *uniforms = (SFXYUVUniforms){16.0f / 255.0f, 255.0f / 219.0f, 128.0f / 255.0f};
-    }
-
-    return YES;
-}
-
-- (BOOL)renderHardwarePixelBuffer:(CVPixelBufferRef)pixelBuffer errorMessage:(NSString **)errorMessage {
-    if (![NSThread isMainThread]) {
-        __block BOOL rendered = NO;
-        __block NSString *mainErrorMessage = nil;
-        CVPixelBufferRetain(pixelBuffer);
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            rendered = [self renderHardwarePixelBuffer:pixelBuffer errorMessage:&mainErrorMessage];
-        });
-        CVPixelBufferRelease(pixelBuffer);
-        if (!rendered && errorMessage != NULL) {
-            *errorMessage = mainErrorMessage;
-        }
-        return rendered;
-    }
-
-    if (![self hasMetalYUVRenderer]) {
-        if (errorMessage != NULL) {
-            *errorMessage = _metalSetupError ?: @"Metal YUV renderer is unavailable.";
-        }
-        return NO;
-    }
-
-    MTLPixelFormat yFormat = MTLPixelFormatInvalid;
-    MTLPixelFormat uvFormat = MTLPixelFormatInvalid;
-    SFXYUVUniforms uniforms = {0};
-    if (![self metalFormatsForPixelBuffer:pixelBuffer
-                                  yFormat:&yFormat
-                                 uvFormat:&uvFormat
-                                 uniforms:&uniforms
-                              errorMessage:errorMessage]) {
-        return NO;
-    }
-
-    [self setHardwareRenderingEnabled:YES];
-    [self updateMetalDrawableSize];
-
-    size_t width = CVPixelBufferGetWidth(pixelBuffer);
-    size_t height = CVPixelBufferGetHeight(pixelBuffer);
-    size_t uvWidth = CVPixelBufferGetWidthOfPlane(pixelBuffer, 1);
-    size_t uvHeight = CVPixelBufferGetHeightOfPlane(pixelBuffer, 1);
-    if (width == 0 || height == 0 || uvWidth == 0 || uvHeight == 0) {
-        if (errorMessage != NULL) {
-            *errorMessage = @"Metal YUV hardware rendering received an empty pixel buffer.";
-        }
-        return NO;
-    }
-
-    CVMetalTextureRef yTextureRef = NULL;
-    CVMetalTextureRef uvTextureRef = NULL;
-    CVReturn yResult = CVMetalTextureCacheCreateTextureFromImage(
-        kCFAllocatorDefault,
-        _metalTextureCache,
-        pixelBuffer,
-        NULL,
-        yFormat,
-        width,
-        height,
-        0,
-        &yTextureRef
-    );
-    CVReturn uvResult = CVMetalTextureCacheCreateTextureFromImage(
-        kCFAllocatorDefault,
-        _metalTextureCache,
-        pixelBuffer,
-        NULL,
-        uvFormat,
-        uvWidth,
-        uvHeight,
-        1,
-        &uvTextureRef
-    );
-    if (yResult != kCVReturnSuccess || uvResult != kCVReturnSuccess || yTextureRef == NULL || uvTextureRef == NULL) {
-        if (yTextureRef != NULL) {
-            CFRelease(yTextureRef);
-        }
-        if (uvTextureRef != NULL) {
-            CFRelease(uvTextureRef);
-        }
-        if (errorMessage != NULL) {
-            *errorMessage = @"CVMetalTexture creation failed for hardware frame.";
-        }
-        return NO;
-    }
-
-    id<MTLTexture> yTexture = CVMetalTextureGetTexture(yTextureRef);
-    id<MTLTexture> uvTexture = CVMetalTextureGetTexture(uvTextureRef);
-    id<CAMetalDrawable> drawable = [_metalLayer nextDrawable];
-    if (yTexture == nil || uvTexture == nil || drawable == nil) {
-        CFRelease(yTextureRef);
-        CFRelease(uvTextureRef);
-        if (errorMessage != NULL) {
-            *errorMessage = @"Metal drawable or texture acquisition failed for hardware frame.";
-        }
-        return NO;
-    }
-
-    MTLRenderPassDescriptor *passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-    passDescriptor.colorAttachments[0].texture = drawable.texture;
-    passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-    passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-    passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
-
-    id<MTLCommandBuffer> commandBuffer = [_metalCommandQueue commandBuffer];
-    id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:passDescriptor];
-    if (commandBuffer == nil || encoder == nil) {
-        CFRelease(yTextureRef);
-        CFRelease(uvTextureRef);
-        if (errorMessage != NULL) {
-            *errorMessage = @"Metal command encoding failed for hardware frame.";
-        }
-        return NO;
-    }
-
-    MTLViewport viewport = [self aspectFitViewportForPixelWidth:width pixelHeight:height];
-    [encoder setViewport:viewport];
-    [encoder setRenderPipelineState:_metalPipelineState];
-    [encoder setFragmentTexture:yTexture atIndex:0];
-    [encoder setFragmentTexture:uvTexture atIndex:1];
-    [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
-    [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
-    [encoder endEncoding];
-
-    CVPixelBufferRetain(pixelBuffer);
-    [commandBuffer presentDrawable:drawable];
-    [commandBuffer addCompletedHandler:^(__unused id<MTLCommandBuffer> completedBuffer) {
-        CFRelease(yTextureRef);
-        CFRelease(uvTextureRef);
-        CVPixelBufferRelease(pixelBuffer);
-    }];
-    [commandBuffer commit];
-    return YES;
-}
-
-- (MTLViewport)aspectFitViewportForPixelWidth:(size_t)pixelWidth pixelHeight:(size_t)pixelHeight {
-    CGSize drawableSize = _metalLayer.drawableSize;
-    double drawableWidth = drawableSize.width;
-    double drawableHeight = drawableSize.height;
-    if (drawableWidth <= 0 || drawableHeight <= 0 || pixelWidth == 0 || pixelHeight == 0) {
-        return (MTLViewport){0, 0, MAX(1, drawableWidth), MAX(1, drawableHeight), 0, 1};
-    }
-
-    double sourceAspect = (double)pixelWidth / (double)pixelHeight;
-    double drawableAspect = drawableWidth / drawableHeight;
-    double viewportWidth = drawableWidth;
-    double viewportHeight = drawableHeight;
-    double viewportX = 0;
-    double viewportY = 0;
-    if (drawableAspect > sourceAspect) {
-        viewportWidth = drawableHeight * sourceAspect;
-        viewportX = (drawableWidth - viewportWidth) / 2.0;
-    } else {
-        viewportHeight = drawableWidth / sourceAspect;
-        viewportY = (drawableHeight - viewportHeight) / 2.0;
-    }
-
-    return (MTLViewport){viewportX, viewportY, viewportWidth, viewportHeight, 0, 1};
-}
-
-- (CMSampleBufferRef)sampleBufferForPixelBuffer:(CVPixelBufferRef)pixelBuffer
-                               presentationTime:(CMTime)presentationTime {
-    CMVideoFormatDescriptionRef formatDescription = NULL;
-    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
-        kCFAllocatorDefault,
-        pixelBuffer,
-        &formatDescription
-    );
-    if (status != noErr || formatDescription == NULL) {
-        return NULL;
-    }
-
-    CMSampleTimingInfo timing = {
-        .duration = CMTimeMake(1, 60),
-        .presentationTimeStamp = presentationTime,
-        .decodeTimeStamp = kCMTimeInvalid
-    };
-    CMSampleBufferRef sampleBuffer = NULL;
-    status = CMSampleBufferCreateReadyWithImageBuffer(
-        kCFAllocatorDefault,
-        pixelBuffer,
-        formatDescription,
-        &timing,
-        &sampleBuffer
-    );
-    CFRelease(formatDescription);
-
-    if (status != noErr || sampleBuffer == NULL) {
-        return NULL;
-    }
-
-    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, true);
-    if (attachments != NULL && CFArrayGetCount(attachments) > 0) {
-        CFMutableDictionaryRef attachment = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
-        CFDictionarySetValue(attachment, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
-    }
-
-    return sampleBuffer;
-}
-
-- (void)enqueueSamplePixelBuffer:(CVPixelBufferRef)pixelBuffer presentationTime:(CMTime)presentationTime {
-    if (pixelBuffer == NULL || _displayLayer == nil) {
-        return;
-    }
-
-    if (![NSThread isMainThread]) {
-        CVPixelBufferRetain(pixelBuffer);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self enqueueSamplePixelBuffer:pixelBuffer presentationTime:presentationTime];
-            CVPixelBufferRelease(pixelBuffer);
-        });
-        return;
-    }
-
-    [self setHardwareRenderingEnabled:NO];
-
-    CVPixelBufferRetain(pixelBuffer);
-    AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
-    CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:pixelBuffer
-                                                     presentationTime:presentationTime];
-    if (sampleBuffer != NULL) {
-        if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-            [displayLayer flush];
-        }
-        [displayLayer enqueueSampleBuffer:sampleBuffer];
-        CFRelease(sampleBuffer);
-    }
-    CVPixelBufferRelease(pixelBuffer);
-}
-
-- (void)dealloc {
-    if (_metalTextureCache != NULL) {
-        CFRelease(_metalTextureCache);
-        _metalTextureCache = NULL;
-    }
 }
 
 @end
@@ -737,7 +297,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 @interface SFXNativePlaybackSession : NSObject
 - (instancetype)initWithPath:(NSString *)path
            startMilliseconds:(NSInteger)startMilliseconds
-                        view:(SFXNativePlaybackView *)playbackView
+                       layer:(AVSampleBufferDisplayLayer *)displayLayer
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
                       owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
@@ -758,7 +318,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @implementation SFXNativePlaybackSession {
     NSString *_path;
-    __weak SFXNativePlaybackView *_playbackView;
+    __weak AVSampleBufferDisplayLayer *_displayLayer;
     __weak id<SFXNativePlaybackPlayerDelegate> _delegate;
     __weak SFXNativePlaybackPlayer *_owner;
     dispatch_queue_t _decodeQueue;
@@ -821,7 +381,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 - (instancetype)initWithPath:(NSString *)path
            startMilliseconds:(NSInteger)startMilliseconds
-                        view:(SFXNativePlaybackView *)playbackView
+                       layer:(AVSampleBufferDisplayLayer *)displayLayer
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
                       owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
@@ -835,7 +395,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     _path = [path copy];
-    _playbackView = playbackView;
+    _displayLayer = displayLayer;
     _delegate = delegate;
     _owner = owner;
     _volume = volume;
@@ -943,7 +503,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     if (_flushDisplayBeforeStart) {
         SFXDispatchSyncOnMain(^{
-            [_playbackView flush];
+            [_displayLayer flushAndRemoveImage];
         });
     }
 
@@ -996,13 +556,6 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (BOOL)prepareHardwareVideoWithError:(NSError **)error {
-    if (![_playbackView hasMetalYUVRenderer]) {
-        if (error != NULL) {
-            *error = SFXNativePlaybackError(19, @"Metal YUV renderer is unavailable for hardware playback.");
-        }
-        return NO;
-    }
-
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
     AVCodecParameters *parameters = videoStream->codecpar;
     const AVCodecHWConfig *hardwareConfig = NULL;
@@ -1076,9 +629,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     _usingHardwareDecode = YES;
-    SFXDispatchSyncOnMain(^{
-        [_playbackView setHardwareRenderingEnabled:YES];
-    });
     return YES;
 }
 
@@ -1128,9 +678,6 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     _usingHardwareDecode = NO;
     SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
-    SFXDispatchSyncOnMain(^{
-        [_playbackView setHardwareRenderingEnabled:NO];
-    });
     return YES;
 }
 
@@ -1584,22 +1131,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         if (_videoFrame->format == SFXHardwarePixelFormat) {
             [self paceVideoFrame:_videoFrame stream:videoStream];
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
-            NSString *renderErrorMessage = nil;
-            if (![_playbackView renderHardwarePixelBuffer:pixelBuffer errorMessage:&renderErrorMessage]) {
-                [self notifyFailure:renderErrorMessage ?: @"Metal YUV hardware frame rendering failed."];
-                atomic_store(&_cancelled, true);
-                av_frame_unref(_videoFrame);
-                break;
-            }
-        } else if (_usingHardwareDecode) {
-            NSString *formatName = SFXPixelFormatName((enum AVPixelFormat)_videoFrame->format);
-            [self notifyFailure:[NSString stringWithFormat:
-                @"Hardware decoder returned unsupported frame format %@.",
-                formatName
-            ]];
-            atomic_store(&_cancelled, true);
-            av_frame_unref(_videoFrame);
-            break;
+            [self enqueuePixelBuffer:pixelBuffer presentationTime:SFXFramePresentationTime(_videoFrame, videoStream)];
         } else if (!_usingHardwareDecode) {
             [self paceVideoFrame:_videoFrame stream:videoStream];
             CVPixelBufferRef pixelBuffer = [self copyPixelBufferForSoftwareFrame:_videoFrame];
@@ -1682,19 +1214,67 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 }
 
+- (CMSampleBufferRef)sampleBufferForPixelBuffer:(CVPixelBufferRef)pixelBuffer
+                               presentationTime:(CMTime)presentationTime {
+    CMVideoFormatDescriptionRef formatDescription = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        &formatDescription
+    );
+    if (status != noErr || formatDescription == NULL) {
+        return NULL;
+    }
+
+    CMSampleTimingInfo timing = {
+        .duration = CMTimeMake(1, 60),
+        .presentationTimeStamp = presentationTime,
+        .decodeTimeStamp = kCMTimeInvalid
+    };
+    CMSampleBufferRef sampleBuffer = NULL;
+    status = CMSampleBufferCreateReadyWithImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        formatDescription,
+        &timing,
+        &sampleBuffer
+    );
+    CFRelease(formatDescription);
+
+    if (status != noErr || sampleBuffer == NULL) {
+        return NULL;
+    }
+
+    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, true);
+    if (attachments != NULL && CFArrayGetCount(attachments) > 0) {
+        CFMutableDictionaryRef attachment = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+        CFDictionarySetValue(attachment, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+    }
+
+    return sampleBuffer;
+}
+
 - (void)enqueuePixelBuffer:(CVPixelBufferRef)pixelBuffer presentationTime:(CMTime)presentationTime {
-    if (pixelBuffer == NULL || _playbackView == nil) {
+    if (pixelBuffer == NULL || _displayLayer == nil) {
         return;
     }
 
-    if (_flushDisplayOnFirstFrame) {
-        SFXDispatchSyncOnMain(^{
-            [_playbackView flush];
-        });
-        _flushDisplayOnFirstFrame = NO;
-    }
-
-    [_playbackView enqueueSamplePixelBuffer:pixelBuffer presentationTime:presentationTime];
+    CVPixelBufferRetain(pixelBuffer);
+    AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:pixelBuffer
+                                                         presentationTime:presentationTime];
+        if (sampleBuffer != NULL) {
+            if (_flushDisplayOnFirstFrame
+                || displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+                [displayLayer flush];
+                _flushDisplayOnFirstFrame = NO;
+            }
+            [displayLayer enqueueSampleBuffer:sampleBuffer];
+            CFRelease(sampleBuffer);
+        }
+        CVPixelBufferRelease(pixelBuffer);
+    });
 }
 
 - (int)audioFrameSampleRate:(const AVFrame *)frame {
@@ -2016,7 +1596,7 @@ flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
     SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
         initWithPath:path
         startMilliseconds:startMilliseconds
-        view:_nativeView
+        layer:_nativeView.displayLayer
         delegate:self.delegate
         owner:self
         volume:_volume

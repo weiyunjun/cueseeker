@@ -169,17 +169,13 @@ Rules:
   or automatic video decode mode, native display, FFmpeg audio decode, and
   `AVAudioEngine` output.
 - Hardware decode uses VideoToolbox.
-- Hardware display should use the project-owned Metal YUV renderer for supported
-  VideoToolbox `CVPixelBuffer` formats.
 - Software decode uses FFmpeg software decoders and initially converts decoded
   frames to BGRA with `libswscale` before display.
 - Automatic decode should prefer VideoToolbox and may fall back to software
   decode when hardware setup is unavailable.
-- The app should expose only one hardware decode option. Temporary development
-  switches may be used for diagnostics, but the product settings must not keep
-  competing hardware display paths.
-- If the Metal YUV hardware path regresses, revert or revise the implementation
-  through Git instead of keeping parallel hardware UI choices.
+- The next Metal YUV iteration should be scoped to software-decoded frame
+  compatibility. The VideoToolbox hardware decode display path must remain on
+  the existing hardware path unless a separate decision expands that scope.
 - The app should query current-device VideoToolbox hardware decode support once at startup or before folder scanning, because codec support differs across Apple Silicon generations such as M1 and M4.
 - Folder scanning should perform fast media-file native compatibility inspection using only stream presence, codec names, and current-device hardware decode support. Scanning must not decode frames, start a player, or perform heavy disk reads for compatibility inspection.
 - The initial video codec candidates for fast native compatibility inspection are H.264, HEVC, VP9, and AV1, filtered by current-device VideoToolbox hardware decode support.
