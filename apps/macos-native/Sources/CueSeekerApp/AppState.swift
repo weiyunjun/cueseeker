@@ -694,6 +694,7 @@ final class AppState: ObservableObject {
                 result: result,
                 entries: entries,
                 segment: $0,
+                boundaryMilliseconds: $0.endMilliseconds,
                 didPrepareNextItem: false
             )
         }
@@ -787,10 +788,20 @@ final class AppState: ObservableObject {
             return
         }
 
+        let currentPlaybackMilliseconds = max(
+            0,
+            Int(((playbackViewModel?.currentTime ?? 0) * 1_000).rounded())
+        )
+
         continuousPlaybackRuntime = ContinuousPlaybackRuntime(
             result: selectedSearchResult,
             entries: entries,
             segment: segment,
+            boundaryMilliseconds: ContinuousPlaybackPlanner.activationBoundaryMilliseconds(
+                forCurrentMilliseconds: currentPlaybackMilliseconds,
+                segment: segment,
+                entries: entries
+            ),
             didPrepareNextItem: false
         )
     }
@@ -815,13 +826,7 @@ final class AppState: ObservableObject {
             continuousPlaybackPreparedItem = preparedContinuousPlaybackItem(after: runtime.result)
         }
 
-        let boundaryMilliseconds = ContinuousPlaybackPlanner.boundaryMilliseconds(
-            forCurrentMilliseconds: currentMilliseconds,
-            segment: runtime.segment,
-            entries: runtime.entries
-        )
-
-        guard currentMilliseconds >= boundaryMilliseconds else {
+        guard currentMilliseconds >= runtime.boundaryMilliseconds else {
             return
         }
 
@@ -937,6 +942,7 @@ private struct ContinuousPlaybackRuntime {
     let result: SubtitleSearchResult
     let entries: [SubtitleDatabaseEntry]
     let segment: ContinuousPlaybackSegment
+    let boundaryMilliseconds: Int
     var didPrepareNextItem: Bool
 }
 

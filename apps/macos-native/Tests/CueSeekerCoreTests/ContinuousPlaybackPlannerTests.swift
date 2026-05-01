@@ -101,7 +101,7 @@ func continuousPlaybackSegmentCapsAtFinalCue() {
 }
 
 @Test
-func continuousPlaybackBoundaryWaitsForCurrentCueWhenProgressExceedsSegmentEnd() {
+func continuousPlaybackActivationBoundaryWaitsForCurrentCueWhenAlreadyPastSegmentEnd() {
     let entries = subtitleEntries(count: 5)
     let settings = ContinuousPlaybackSettings(sentenceCount: 1)
     let segment = ContinuousPlaybackPlanner.segment(
@@ -111,7 +111,7 @@ func continuousPlaybackBoundaryWaitsForCurrentCueWhenProgressExceedsSegmentEnd()
     )!
 
     #expect(
-        ContinuousPlaybackPlanner.boundaryMilliseconds(
+        ContinuousPlaybackPlanner.activationBoundaryMilliseconds(
             forCurrentMilliseconds: 2_100,
             segment: segment,
             entries: entries

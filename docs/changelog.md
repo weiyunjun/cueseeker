@@ -124,3 +124,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
   subtitle context, plus a Playback Inspector switch that defaults off.
 - Implemented Continuous Playback result advancement with subtitle-span boundary
   handling and next-result request and subtitle cue preparation.
+- Fixed Continuous Playback span completion so normal result playback cuts at
+  the configured subtitle span end instead of extending through later subtitle
+  cues.

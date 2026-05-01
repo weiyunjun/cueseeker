@@ -86,7 +86,7 @@ public enum ContinuousPlaybackPlanner {
         )
     }
 
-    public static func boundaryMilliseconds(
+    public static func activationBoundaryMilliseconds(
         forCurrentMilliseconds currentMilliseconds: Int,
         segment: ContinuousPlaybackSegment,
         entries: [SubtitleDatabaseEntry]
