@@ -196,8 +196,8 @@ Requirements:
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
-- Rendering the source ASS subtitle track during playback is not required for
-  the first M2 ASS implementation step.
+- The current M2 ASS implementation does not render the source ASS subtitle
+  track during playback.
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 

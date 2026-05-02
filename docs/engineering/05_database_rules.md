@@ -50,7 +50,11 @@ Recommended mechanism:
 
 - Use SQLite `PRAGMA user_version` or a dedicated metadata table.
 
-The final mechanism must be documented in the native database implementation notes when implementation begins.
+Current mechanism:
+
+- The native app uses SQLite `PRAGMA user_version`.
+- The current schema version is `3`.
+- Schema version `3` is the ASS cue model schema.
 
 ## 5. Migration Rules
 
@@ -69,7 +73,7 @@ Destructive migrations:
 
 - Dropping user-owned data requires an ADR.
 - Rebuilding derived index data is allowed when source subtitle files can recreate it.
-- Migrating from the M1 subtitle-entry model to the ASS cue model may preserve
+- Migrating from the M1 subtitle-entry model to the ASS cue model preserves
   durable user configuration while rebuilding derived subtitle index rows and
   FTS rows from source subtitle files.
 - Deleting stale index rows for missing source files is part of normal indexing behavior.

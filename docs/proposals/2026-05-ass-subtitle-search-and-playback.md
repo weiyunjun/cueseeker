@@ -2,6 +2,14 @@
 
 Status: Accepted
 
+Implementation status:
+
+- First implementation completed in M2.
+- Implemented `.ass` scanning, ASS dialogue parsing, cue group and cue line
+  indexing, grouped search result display, and click-to-playback behavior.
+- Source ASS subtitle rendering remains deferred.
+- Verified with `swift test --package-path apps/macos-native`, passing 43 tests.
+
 ## Background
 
 M1 is complete and accepted as the minimal native SRT search and playback loop.
@@ -145,8 +153,8 @@ Risks:
 
 Accepted for M2.
 
-The first implementation step should support ASS indexing, grouped cue search
-results, grouped result display, and click-to-playback behavior. Source ASS
-subtitle rendering is deferred. When source ASS rendering is implemented later,
-playback must render the source `.ass` file rather than reconstructing ASS
-visual behavior from database cue projections.
+The first implementation step supports ASS indexing, grouped cue search results,
+grouped result display, and click-to-playback behavior. Source ASS subtitle
+rendering is deferred. When source ASS rendering is implemented later, playback
+must render the source `.ass` file rather than reconstructing ASS visual
+behavior from database cue projections.

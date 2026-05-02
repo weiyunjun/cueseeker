@@ -154,9 +154,10 @@ Notes:
 - `subtitle_path` and timing fields are part of stable identity.
 - `search_content` is the aggregated searchable text from the group's cue lines.
 - Playback should resolve the target media file through the active subtitle-to-video match, not through subtitle path naming assumptions.
-- The current M1 schema may still use `srt_path`, `video_path`, and `video_name`
-  on subtitle rows until a documented migration introduces first-class video
-  files, match rows, cue groups, and cue lines.
+- The current native schema uses first-class subtitle files, video files,
+  subtitle-to-video matches, cue groups, and cue lines. The older M1
+  `srt_path`-centered subtitle-entry index is treated as rebuildable derived
+  data during migration.
 
 ## 8. Subtitle Cue Line
 
@@ -287,9 +288,16 @@ Schema versioning rules belong in:
 docs/engineering/05_database_rules.md
 ```
 
-The ASS cue model migration may preserve durable user configuration such as
-selected folders and playback settings while rebuilding derived subtitle index
-data from source subtitle files.
+Current native schema:
+
+- Schema version: `3`.
+- Uses SQLite `PRAGMA user_version`.
+- Version 3 introduces the ASS cue model with `subtitle_files`,
+  `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
+  `subtitle_cue_lines`, and cue-group FTS data.
+- The version 3 migration preserves durable configuration such as selected
+  folders and playback settings while rebuilding derived subtitle index data
+  from source subtitle files.
 
 ## 14. Flutter Data Compatibility
 

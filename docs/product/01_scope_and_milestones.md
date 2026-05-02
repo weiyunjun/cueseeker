@@ -100,6 +100,9 @@ Planning status:
 - Playback interaction work has started and currently includes video-level Theater Mode fullscreen, playback operation controls, keyboard shortcuts, and visible feedback overlays.
 - ASS subtitle search support is included in M2 planning as a search, indexing,
   playback-selection, and data-model migration feature.
+- The first ASS support implementation is complete in the native app: `.ass`
+  files are indexed, grouped cue search results are displayed, and selecting an
+  ASS result opens or updates playback at the cue group's `start_ms`.
 
 Goal:
 
@@ -117,10 +120,10 @@ Expected areas:
   Recent playback refinements align keyboard speed limits with playback controls, add the `1.75x` speed preset, use `5%` keyboard volume steps, keep timeline and volume hover states vertically stable, keep playback shortcuts active while read-only metadata text is selected, and suppress initial fullscreen hover events so controls and the cursor remain hidden immediately after entering fullscreen.
   Accepted interaction refinements also cover Theater Mode suspension during app deactivation, Cmd-Tab switcher visibility above playback fullscreen, Search field focus clearing for app-owned interactions, Search field focus preservation for system-level window or app switching, mouse-only fullscreen chrome reveal, and speed menu hover geometry that matches the speed button click area.
 - ASS subtitle search and grouped result support.
-  Add `.ass` scanning, ASS dialogue parsing, cue group and cue line indexing,
-  grouped search result display, and click-to-playback behavior for matched ASS
-  results. The first ASS step does not require rendering the source ASS subtitle
-  track during playback.
+  The native app now scans `.ass` files, parses ASS dialogue events, indexes cue
+  groups and cue lines, displays grouped search results, and supports
+  click-to-playback behavior for matched ASS results. Source ASS subtitle track
+  rendering remains deferred.
 - Window sizing and restoration regression verification.
   M1 already implemented launch maximization, AppShell layout persistence, titlebar/full-screen behavior, and Playback Inspector width and visibility persistence. M2 should verify these behaviors and fix concrete regressions rather than treating this as a new major feature area.
 - File and folder management with file-access persistence.

@@ -133,3 +133,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   configuration, rebuild derived subtitle index data, and enforce line-level
   search matching so query terms split only across different cue lines do not
   produce a grouped result.
+- Implemented the first M2 ASS subtitle support step: `.ass` scanning, ASS
+  dialogue parsing, cue group and cue line indexing, grouped search result
+  display, and click-to-playback behavior.
+- Migrated the native database to schema version 3 for the ASS cue model,
+  preserving selected-folder configuration while rebuilding derived subtitle
+  index data from source files.
+- Verified the ASS implementation with the Swift test suite passing 43 tests.

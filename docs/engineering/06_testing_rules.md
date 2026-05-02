@@ -267,8 +267,14 @@ A milestone is not complete until:
 
 ## 14. M2 ASS Subtitle Test Coverage
 
-The first M2 ASS implementation is not complete until ASS indexing, grouped
+The first M2 ASS implementation is complete only after ASS indexing, grouped
 search results, and click-to-playback behavior are verified.
+
+Current verification:
+
+- The Swift test suite passed with 43 tests using
+  `swift test --package-path apps/macos-native` after the first ASS
+  implementation.
 
 Required parser coverage:
 

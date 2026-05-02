@@ -109,8 +109,8 @@ Rules:
 
 - Source subtitle files remain the source of truth for indexed subtitle content.
 - The SQLite database is an indexed local cache plus local app state, not a replacement for the source files.
-- The first M2 ASS support step should add ASS indexing, grouped cue search
-  results, grouped result display, and click-to-playback behavior.
+- The current M2 ASS support step adds ASS indexing, grouped cue search results,
+  grouped result display, and click-to-playback behavior.
 - SRT blocks should map to cue groups with one cue line.
 - ASS `Dialogue` events should map to cue groups and cue lines.
 - ASS cue grouping must use exact subtitle file, `start_ms`, and `end_ms`
@@ -181,9 +181,9 @@ Rules:
 - Playback code must not assume remote streams, local HTTP proxying, cache layers, or advanced subtitle rendering.
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
-- The first M2 ASS support step must allow an ASS search result to open the
-  matched video and seek to the cue group's `start_ms` even before source ASS
-  subtitle rendering exists.
+- The current M2 ASS support step allows an ASS search result to open the
+  matched video and seek to the cue group's `start_ms` even though source ASS
+  subtitle rendering is not implemented yet.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned when source subtitle rendering is
   implemented.

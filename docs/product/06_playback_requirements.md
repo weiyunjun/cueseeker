@@ -168,9 +168,9 @@ Rules:
   search result.
 - For SRT-only playback, the app may display current subtitle text from the
   indexed cue data.
-- The first M2 ASS implementation step does not require source ASS subtitle
-  rendering during playback. ASS search result selection should still open the
-  matched video and seek to the cue group's `start_ms`.
+- The current M2 ASS implementation does not render the source ASS subtitle
+  track during playback. ASS search result selection still opens the matched
+  video and seeks to the cue group's `start_ms`.
 - When source ASS playback rendering is implemented, the player must render the
   source `.ass` file so fonts, positions, karaoke, signs, and other ASS behavior
   come from the original subtitle file rather than from the search database
