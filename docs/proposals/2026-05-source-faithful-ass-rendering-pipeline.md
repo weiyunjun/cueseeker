@@ -117,9 +117,12 @@ The long-term direction is a dedicated ASS rendering pipeline that can render
 source ASS events into an overlay bitmap, texture, layer, or equivalent native
 surface synchronized to the native playback clock.
 
-The preferred implementation path is to evaluate and integrate a dedicated ASS
-renderer such as `libass` before expanding the project-owned ASS Lite renderer
-into a custom full ASS renderer. A dependency decision must account for:
+ADR-0009 selects a dedicated source-faithful ASS renderer path with `libass` as
+the preferred renderer dependency to evaluate and integrate first. This replaces
+any plan that treats ASS Lite as the solution for complex ASS rendering. ASS
+Lite remains a simple readable-text fallback and diagnostic comparison path.
+
+The dependency decision must account for:
 
 - Packaging and notarization.
 - Font discovery and font fallback.
@@ -130,6 +133,17 @@ into a custom full ASS renderer. A dependency decision must account for:
 
 ASS Lite remains an interim fallback for simple text-only cases and for
 regression isolation.
+
+### Failure Visibility During Development
+
+Renderer failures should be explicit while the source-faithful path is being
+developed. Silent fallback from the source-faithful renderer to ASS Lite must
+not hide defects in dependency loading, font discovery, renderer preparation,
+timestamp rendering, or overlay compositing.
+
+Fallback may remain available as a deliberate diagnostic mode or simple ASS
+path, but complex ASS rendering bugs should surface as source-faithful renderer
+failures until they are fixed.
 
 ## Architecture
 
@@ -187,80 +201,108 @@ render timeline.
 
 ## Detailed Implementation Plan
 
-### Phase 0: Evidence And Guardrails
+### Phase 0: ADR, Dependency, And Evidence
 
-1. Add fixtures for complex real-world ASS patterns:
+1. Record the source-faithful renderer decision in an ADR before renderer
+   integration work begins.
+2. Treat `libass` as the preferred first renderer dependency to evaluate.
+3. Document dependency, packaging, signing, notarization, license, and font
+   discovery implications before a build containing the renderer is treated as
+   releasable.
+4. Add fixtures or repeatable local validation samples for complex real-world
+   ASS patterns:
    - `Effect=fx` events.
    - `\p1` vector drawing events.
    - `\clip(...)` text reveal events.
+   - `\pos(...)` and `\move(...)` placement.
+   - alpha, blur, border, fade, rotation, and transform overrides.
    - Repeated short-duration karaoke or visual-effect events.
    - Zero-duration or near-zero-duration events.
-2. Add timing instrumentation around:
+5. Add timing instrumentation around:
    - Search result click handling.
    - Video open and seek.
    - ASS source file read.
    - ASS parse or render preparation.
    - First subtitle frame presentation.
-3. Define performance budgets:
+6. Define performance budgets:
    - Search row selection should be visible within one UI frame.
    - Video open or seek should not wait for ASS preparation.
    - Subtitle preparation may complete later and catch up.
-4. Document fallback behavior for missing, unreadable, or unsupported subtitle
-   rendering.
+7. Document failure exposure behavior for missing, unreadable, unsupported, or
+   renderer-failed subtitle rendering. During source-faithful development,
+   failures should be visible instead of silently hidden by ASS Lite fallback.
 
-### Phase 1: Non-blocking ASS Preparation
+### Phase 1: Isolated Renderer Probe
+
+1. Add a minimal `CASSRendering` native bridge or equivalent isolated target.
+2. Build a renderer probe or test harness that accepts:
+   - source `.ass` URL,
+   - video frame size,
+   - playback timestamp,
+   - optional font directory inputs when needed.
+3. Make the probe produce an RGBA bitmap, alpha bitmap, texture-compatible
+   buffer, or equivalent renderer output.
+4. Validate the probe before UI integration against complex ASS samples:
+   - vector drawing must render as drawing, not text;
+   - clipping must affect output;
+   - special-position text must appear at source-specified coordinates;
+   - fades, alpha, blur, border, rotation, and transforms must be represented
+     by renderer output where the source uses them;
+   - dense short-duration effects must not require main-thread rendering work.
+5. Keep this phase out of the production playback UI until renderer output and
+   dependency behavior are understood.
+
+### Phase 2: Non-blocking Playback Contract
 
 1. Split search result selection from playback startup:
    - Update `selectedSearchResult` immediately.
    - Open the Playback Inspector immediately.
    - Schedule playback work after the UI state update is committed.
 2. Change playback startup so video open and seek do not synchronously call ASS
-   parsing.
-3. Introduce an async subtitle preparation task:
+   parser or renderer preparation.
+3. Introduce an async source-faithful subtitle preparation task:
    - Cancel stale tasks when another result is selected.
    - Reuse prepared subtitle state for the same file.
    - Attach output only if the selected result is still current.
-4. Keep playback running when subtitle preparation fails.
+4. Keep playback running when subtitle preparation fails, while surfacing the
+   renderer failure explicitly.
 5. Preserve SRT behavior and subtitle visibility controls.
 
-### Phase 2: Render Timeline And Cache
+### Phase 3: Render Coordinator, Timeline, And Cache
 
-1. Replace playback-only all-events text parsing with a source render timeline
-   model that preserves raw timed events.
-2. Build an active-time index so the renderer can query events by current time
+1. Introduce a real `ASSRenderCoordinator` for the source-faithful renderer.
+   This coordinator must not be a wrapper around ASS Lite.
+2. The coordinator owns:
+   - source file identity,
+   - renderer initialization,
+   - preparation cancellation,
+   - cache lookup and invalidation,
+   - renderer readiness and failure state,
+   - current-time catch-up.
+3. Replace playback-only all-events text parsing with source renderer state or
+   source render timeline data that preserves raw timed events.
+4. Build an active-time index so the renderer can query events by current time
    without scanning and sorting every dialogue on every frame.
-3. Use database cue timing to prioritize the selected time window and prefetch
+5. Use database cue timing to prioritize the selected time window and prefetch
    neighboring windows.
-4. Add a segmented preparation path that uses indexed cue-group timing to choose
+6. Add a segmented preparation path that uses indexed cue-group timing to choose
    the selected cue window and nearby deterministic windows, while retrieving
    the exact render payload from the source `.ass` file.
-5. Cache parsed timelines by source file identity and, for partial timelines, by
+7. Cache parsed timelines by source file identity and, for partial timelines, by
    the prepared time window.
-6. Keep search projection and render timeline separate in code and tests.
-
-### Phase 3: Dedicated ASS Renderer Evaluation
-
-1. Evaluate `libass` or an equivalent dedicated ASS renderer for:
-   - Static text styling.
-   - `\pos`, `\move`, `\clip`, `\p` vector drawing, blur, border, alpha,
-     karaoke, and transforms.
-   - Complex files with tens of thousands of events.
-   - Font discovery and fallback on macOS.
-   - Rendering to an alpha bitmap or texture suitable for native overlay
-     compositing.
-2. Document dependency, packaging, and signing implications before merging the
-   renderer.
-3. Build a renderer adapter behind a protocol so ASS Lite can remain as a
-   fallback during rollout.
+8. Keep search projection and render timeline separate in code and tests.
 
 ### Phase 4: Source-faithful Overlay Integration
 
-1. Attach renderer output to the existing playback render container.
-2. Drive subtitle frames from the native playback clock.
-3. Keep Theater Mode fullscreen and Playback Inspector using the same overlay
+1. Add a `SubtitleOverlayHost` capable of displaying renderer bitmap, texture,
+   layer, or equivalent alpha output.
+2. Attach renderer output to the existing playback render container.
+3. Drive subtitle frames from the native playback clock with sufficient cadence
+   for short-duration effects.
+4. Keep Theater Mode fullscreen and Playback Inspector using the same overlay
    host.
-4. Ensure subtitle visibility toggles renderer output without stopping video.
-5. Handle renderer readiness, failure, and catch-up states without blocking
+5. Ensure subtitle visibility toggles renderer output without stopping video.
+6. Handle renderer readiness, failure, and catch-up states without blocking
    playback controls.
 
 ### Phase 5: Search And Playback Regression Hardening
@@ -272,6 +314,8 @@ render timeline.
 4. Verify SRT indexing and playback do not regress.
 5. Add large-file performance regression tests or repeatable manual profiling
    scripts.
+6. Verify ASS Lite remains limited to simple text fallback behavior and is not
+   used to mask source-faithful renderer defects.
 
 ## Acceptance Criteria
 

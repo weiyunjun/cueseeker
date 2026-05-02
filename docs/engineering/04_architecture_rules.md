@@ -64,6 +64,9 @@ Accepted ADRs:
 - ADR-0002 selects Swift, SwiftUI, AppKit bridges, Swift Package Manager, SQLite with FTS5, and a project-owned persistence layer for M1.
 - ADR-0007 supersedes ADR-0006 and ADR-0003 and selects native-only playback.
 - ADR-0004 disables App Sandbox for M1 local development and personal builds.
+- ADR-0009 selects a dedicated source-faithful ASS rendering path, with
+  `libass` as the preferred renderer dependency to evaluate and integrate
+  before treating complex ASS playback as supported.
 
 ## 5. Module Boundaries
 

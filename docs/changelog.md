@@ -165,3 +165,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
   preparation hint, while the current ASS Lite fallback keeps full-source
   parsing and subtitle source loading runs asynchronously with stale-load
   cancellation.
+- Accepted ADR-0009 and clarified the source-faithful ASS rendering plan:
+  complex ASS playback should use a dedicated renderer path, preferably
+  `libass`, with ASS Lite limited to simple fallback or diagnostics and
+  renderer failures surfaced during development.
