@@ -120,3 +120,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   temporarily create AppKit, QuickLook, or Finder helper services, and that
   optimization should avoid unnecessary helper creation without replacing
   native macOS file-access behavior or force-terminating system services.
+- Added a one-shot initial software playback session recycle to reduce
+  first-session physical memory pressure on high-resolution software AV1
+  playback while preserving decoder parallelism and first-frame responsiveness.
+- Documented the accepted software playback memory-mitigation constraints and
+  unsandboxed verification requirements after user confirmation that the recycle
+  behavior is not perceptible in normal playback.

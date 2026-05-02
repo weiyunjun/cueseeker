@@ -102,6 +102,11 @@ Current implementation:
 - `hardware` requires VideoToolbox video decode.
 - `software` uses FFmpeg software video decode and currently converts decoded
   frames to BGRA with `libswscale` before display.
+- Software playback may internally recycle the first software decode session
+  after the first target frame is displayed when needed to reduce physical
+  memory pressure. This recycle must not visibly interrupt playback, must not
+  reset the displayed playback time to `0`, and must not noticeably increase the
+  click-to-first-frame delay.
 - `auto` should prefer VideoToolbox hardware decode and may fall back to
   software video decode when hardware setup is unavailable.
 - Future Metal YUV work should first target software-decoded frame

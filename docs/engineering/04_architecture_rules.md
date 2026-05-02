@@ -180,6 +180,14 @@ Rules:
 - Hardware decode uses VideoToolbox.
 - Software decode uses FFmpeg software decoders and initially converts decoded
   frames to BGRA with `libswscale` before display.
+- Software decode may automatically recycle the initial software playback
+  session once after the first target frame has been displayed. This is a
+  targeted mitigation for first-session dirty allocator pressure observed with
+  high-resolution software AV1 decode.
+- Automatic software session recycling must preserve the user's selected
+  software decoder parallelism, must not use Metal YUV as the primary mitigation
+  for this issue, must not recurse, and must not publish a transient pause or
+  `0` timestamp to the UI.
 - Automatic decode should prefer VideoToolbox and may fall back to software
   decode when hardware setup is unavailable.
 - The next Metal YUV iteration should be scoped to software-decoded frame

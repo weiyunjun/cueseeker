@@ -168,6 +168,13 @@ Rules:
 - Playback memory and performance measurements must run outside the execution
   sandbox because sandboxed runs can distort process memory observations.
   Sandboxed memory samples must not be used as authoritative playback evidence.
+- Software playback memory mitigation must be verified with unsandboxed
+  physical-footprint and RSS samples at roughly 50 ms resolution, click-to-first
+  target-frame timing, click-to-stable-playback timing, seek preroll behavior,
+  and a manual check for visible frame jumps or audible restarts.
+- A software playback memory fix is not acceptable if it materially increases
+  click-to-first-frame latency, reduces decoder parallelism as its primary
+  strategy, or masks the issue only by changing the measurement method.
 - Playback engine-specific behavior must be documented after the engine is selected.
 - Final playback engine verification criteria must be updated after the playback ADR is accepted.
 
