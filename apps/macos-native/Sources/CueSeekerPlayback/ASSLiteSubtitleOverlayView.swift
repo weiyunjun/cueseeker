@@ -2,8 +2,6 @@ import AppKit
 
 @MainActor
 final class ASSLiteSubtitleOverlayView: NSView {
-    private let displayStyle = ASSLiteDisplayStyle.default
-
     var script: ASSLiteScript? {
         didSet {
             needsDisplay = true
@@ -92,20 +90,15 @@ final class ASSLiteSubtitleOverlayView: NSView {
         let marginV = CGFloat((dialogue.marginV ?? style.marginV) * scaleY)
         let maxWidth = max(videoRect.width - marginL - marginR, 24)
         let backingScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-        let font = displayStyle.font(scaledBy: CGFloat(scaleY))
-        let exteriorPadding = displayStyle.exteriorPadding(backingScale: backingScale)
-        let textWidth = max(maxWidth - (exteriorPadding * 2), 24)
+        let renderStyle = ASSLiteResolvedRenderStyle(style: style, scaleX: scaleX, scaleY: scaleY)
+        let exteriorPadding = renderStyle.exteriorPadding
+        let textWidth = max((maxWidth - (exteriorPadding * 2)) / renderStyle.horizontalScale, 24)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = horizontalTextAlignment(for: alignment)
         paragraphStyle.lineBreakMode = .byWordWrapping
-        paragraphStyle.lineSpacing = displayStyle.lineSpacing
+        paragraphStyle.lineSpacing = 0
 
-        let fillAttributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: displayStyle.textColor,
-            .shadow: displayStyle.shadow(backingScale: backingScale),
-            .paragraphStyle: paragraphStyle
-        ]
+        let fillAttributes = textAttributes(color: renderStyle.primaryColor, renderStyle: renderStyle, paragraphStyle: paragraphStyle)
         let attributedText = NSAttributedString(string: dialogue.text, attributes: fillAttributes)
         let measuredRect = attributedText.boundingRect(
             with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),
@@ -130,7 +123,7 @@ final class ASSLiteSubtitleOverlayView: NSView {
             dialogue.text,
             in: drawRect,
             paragraphStyle: paragraphStyle,
-            font: font,
+            renderStyle: renderStyle,
             backingScale: backingScale
         )
     }
@@ -139,35 +132,133 @@ final class ASSLiteSubtitleOverlayView: NSView {
         _ text: String,
         in rect: CGRect,
         paragraphStyle: NSParagraphStyle,
-        font: NSFont,
+        renderStyle: ASSLiteResolvedRenderStyle,
         backingScale: CGFloat
     ) {
-        if displayStyle.outlineWidthPixels > 0 {
-            let outlineAttributes: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: displayStyle.outlineColor,
-                .paragraphStyle: paragraphStyle
-            ]
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            return
+        }
+
+        context.saveGState()
+        if renderStyle.angle != 0 {
+            context.translateBy(x: rect.midX, y: rect.midY)
+            context.rotate(by: renderStyle.angle * .pi / 180)
+            context.translateBy(x: -rect.midX, y: -rect.midY)
+        }
+
+        if renderStyle.borderStyle == 3 {
+            drawOpaqueBox(in: rect, renderStyle: renderStyle)
+        } else if renderStyle.shadowOffset.width != 0 || renderStyle.shadowOffset.height != 0 {
+            let shadowAttributes = textAttributes(color: renderStyle.backColor, renderStyle: renderStyle, paragraphStyle: paragraphStyle)
+            let shadowText = NSAttributedString(string: text, attributes: shadowAttributes)
+            draw(
+                shadowText,
+                in: rect,
+                offset: renderStyle.shadowOffset,
+                horizontalScale: renderStyle.horizontalScale
+            )
+        }
+
+        if renderStyle.borderStyle != 3, renderStyle.outlineWidth > 0 {
+            let outlineAttributes = textAttributes(color: renderStyle.outlineColor, renderStyle: renderStyle, paragraphStyle: paragraphStyle)
             let outlineText = NSAttributedString(string: text, attributes: outlineAttributes)
 
-            for offset in displayStyle.outlineOffsets(backingScale: backingScale) {
-                outlineText.draw(
-                    with: rect.offsetBy(dx: offset.width, dy: offset.height),
-                    options: [.usesLineFragmentOrigin, .usesFontLeading]
+            for offset in outlineOffsets(width: renderStyle.outlineWidth, backingScale: backingScale) {
+                draw(
+                    outlineText,
+                    in: rect,
+                    offset: offset,
+                    horizontalScale: renderStyle.horizontalScale
                 )
             }
         }
 
-        let fillAttributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: displayStyle.textColor,
-            .shadow: displayStyle.shadow(backingScale: backingScale),
+        let fillAttributes = textAttributes(color: renderStyle.primaryColor, renderStyle: renderStyle, paragraphStyle: paragraphStyle)
+        let fillText = NSAttributedString(string: text, attributes: fillAttributes)
+        draw(
+            fillText,
+            in: rect,
+            offset: .zero,
+            horizontalScale: renderStyle.horizontalScale
+        )
+
+        context.restoreGState()
+    }
+
+    private func textAttributes(
+        color: NSColor,
+        renderStyle: ASSLiteResolvedRenderStyle,
+        paragraphStyle: NSParagraphStyle
+    ) -> [NSAttributedString.Key: Any] {
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: renderStyle.font,
+            .foregroundColor: color,
             .paragraphStyle: paragraphStyle
         ]
-        NSAttributedString(string: text, attributes: fillAttributes).draw(
-            with: rect,
+
+        if renderStyle.spacing != 0 {
+            attributes[.kern] = renderStyle.spacing
+        }
+
+        if renderStyle.isUnderline {
+            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+        }
+
+        if renderStyle.isStrikeOut {
+            attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+        }
+
+        return attributes
+    }
+
+    private func draw(
+        _ text: NSAttributedString,
+        in rect: CGRect,
+        offset: CGSize,
+        horizontalScale: CGFloat
+    ) {
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            return
+        }
+
+        let scale = max(horizontalScale, 0.1)
+        context.saveGState()
+        context.translateBy(x: rect.minX + offset.width, y: rect.minY + offset.height)
+        context.scaleBy(x: scale, y: 1)
+        text.draw(
+            with: CGRect(x: 0, y: 0, width: rect.width / scale, height: rect.height),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
+        context.restoreGState()
+    }
+
+    private func drawOpaqueBox(in rect: CGRect, renderStyle: ASSLiteResolvedRenderStyle) {
+        let boxRect = rect.insetBy(dx: -renderStyle.outlineWidth, dy: -renderStyle.outlineWidth)
+        renderStyle.backColor.setFill()
+        NSBezierPath(rect: boxRect).fill()
+    }
+
+    private func outlineOffsets(width: CGFloat, backingScale: CGFloat) -> [CGSize] {
+        guard width > 0 else {
+            return []
+        }
+
+        let scale = max(backingScale, 1)
+        let steps = max(1, Int(ceil(width * scale)))
+
+        return (1...steps).flatMap { step in
+            let radius = CGFloat(step) / scale
+            return [
+                CGSize(width: -radius, height: -radius),
+                CGSize(width: 0, height: -radius),
+                CGSize(width: radius, height: -radius),
+                CGSize(width: -radius, height: 0),
+                CGSize(width: radius, height: 0),
+                CGSize(width: -radius, height: radius),
+                CGSize(width: 0, height: radius),
+                CGSize(width: radius, height: radius)
+            ]
+        }
     }
 
     private func displayedVideoRect(in bounds: CGRect) -> CGRect {
@@ -225,74 +316,68 @@ final class ASSLiteSubtitleOverlayView: NSView {
 
         return min(max(y, videoRect.minY), max(videoRect.minY, videoRect.maxY - textHeight))
     }
-
 }
 
-private struct ASSLiteDisplayStyle {
-    var baseFontSize: CGFloat
-    var minimumFontSize: CGFloat
-    var textColor: NSColor
+private struct ASSLiteResolvedRenderStyle {
+    var font: NSFont
+    var primaryColor: NSColor
     var outlineColor: NSColor
-    var outlineWidthPixels: CGFloat
-    var shadowColor: NSColor
-    var shadowRadiusPixels: CGFloat
-    var shadowOffsetPixels: CGSize
-    var boxEnabled: Bool
-    var lineSpacing: CGFloat
+    var backColor: NSColor
+    var isUnderline: Bool
+    var isStrikeOut: Bool
+    var horizontalScale: CGFloat
+    var spacing: CGFloat
+    var angle: CGFloat
+    var borderStyle: Int
+    var outlineWidth: CGFloat
+    var shadowOffset: CGSize
 
-    static let `default` = ASSLiteDisplayStyle(
-        baseFontSize: 44,
-        minimumFontSize: 14,
-        textColor: .white,
-        outlineColor: .black,
-        outlineWidthPixels: 1,
-        shadowColor: .black,
-        shadowRadiusPixels: 2,
-        shadowOffsetPixels: CGSize(width: 3, height: 3),
-        boxEnabled: false,
-        lineSpacing: 0
-    )
-
-    func font(scaledBy scaleY: CGFloat) -> NSFont {
-        NSFont.systemFont(
-            ofSize: max(baseFontSize * scaleY, minimumFontSize),
-            weight: .regular
-        )
+    var exteriorPadding: CGFloat {
+        let shadowPadding = max(abs(shadowOffset.width), abs(shadowOffset.height))
+        return ceil(max(outlineWidth, shadowPadding))
     }
 
-    func shadow(backingScale: CGFloat) -> NSShadow {
-        let shadow = NSShadow()
-        shadow.shadowColor = shadowColor
-        shadow.shadowBlurRadius = shadowRadiusPixels / max(backingScale, 1)
-        shadow.shadowOffset = CGSize(
-            width: shadowOffsetPixels.width / max(backingScale, 1),
-            height: shadowOffsetPixels.height / max(backingScale, 1)
-        )
-        return shadow
-    }
+    init(style: ASSLiteStyle, scaleX: Double, scaleY: Double) {
+        let xScale = CGFloat(scaleX)
+        let yScale = CGFloat(scaleY)
+        let verticalScale = max(CGFloat(style.scaleY) / 100, 0.1)
+        let fontSize = max(CGFloat(style.fontSize) * yScale * verticalScale, 8)
+        let baseFont = NSFont(name: style.fontName, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+        var resolvedFont = baseFont
 
-    func exteriorPadding(backingScale: CGFloat) -> CGFloat {
-        let scale = max(backingScale, 1)
-        let outlinePadding = min(max(outlineWidthPixels, 0), 2) / scale
-        let shadowPadding = (max(shadowRadiusPixels, 0) + max(abs(shadowOffsetPixels.width), abs(shadowOffsetPixels.height))) / scale
-        return ceil(max(outlinePadding, shadowPadding))
-    }
-
-    func outlineOffsets(backingScale: CGFloat) -> [CGSize] {
-        let offset = min(max(outlineWidthPixels, 0), 2) / max(backingScale, 1)
-        guard offset > 0 else {
-            return []
+        if style.isBold {
+            resolvedFont = NSFontManager.shared.convert(resolvedFont, toHaveTrait: .boldFontMask)
         }
 
-        return [
-            CGSize(width: -offset, height: -offset),
-            CGSize(width: 0, height: -offset),
-            CGSize(width: offset, height: -offset),
-            CGSize(width: -offset, height: 0),
-            CGSize(width: offset, height: 0),
-            CGSize(width: -offset, height: offset),
-            CGSize(width: 0, height: offset),
-            CGSize(width: offset, height: offset)
-        ]
+        if style.isItalic {
+            resolvedFont = NSFontManager.shared.convert(resolvedFont, toHaveTrait: .italicFontMask)
+        }
+
+        font = resolvedFont
+        primaryColor = NSColor(assLiteColor: style.primaryColor)
+        outlineColor = NSColor(assLiteColor: style.outlineColor)
+        backColor = NSColor(assLiteColor: style.backColor)
+        isUnderline = style.isUnderline
+        isStrikeOut = style.isStrikeOut
+        horizontalScale = max(CGFloat(style.scaleX) / 100, 0.1)
+        spacing = CGFloat(style.spacing) * xScale
+        angle = CGFloat(style.angle)
+        borderStyle = style.borderStyle
+        outlineWidth = max(CGFloat(style.outline) * yScale, 0)
+        shadowOffset = CGSize(
+            width: max(CGFloat(style.shadow), 0) * xScale,
+            height: max(CGFloat(style.shadow), 0) * yScale
+        )
+    }
+}
+
+private extension NSColor {
+    convenience init(assLiteColor color: ASSLiteColor) {
+        self.init(
+            calibratedRed: color.red,
+            green: color.green,
+            blue: color.blue,
+            alpha: color.alpha
+        )
     }
 }

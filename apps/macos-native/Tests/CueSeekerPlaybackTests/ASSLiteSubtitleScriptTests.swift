@@ -25,6 +25,7 @@ func assLiteParserReadsScriptStylesAndDialogues() {
     #expect(script.styles["Dial_EN"]?.fontSize == 54)
     #expect(script.styles["Dial_EN"]?.isBold == true)
     #expect(script.styles["Dial_EN"]?.isItalic == false)
+    #expect(script.styles["Dial_EN"]?.borderStyle == 1)
     #expect(script.styles["Dial_EN"]?.alignment == 2)
     #expect(script.styles["Dial_EN"]?.marginV == 42)
     #expect(script.styles["Dial_EN"]?.outline == 3)
@@ -37,6 +38,44 @@ func assLiteParserReadsScriptStylesAndDialogues() {
     #expect(script.dialogues[0].styleName == "Dial_EN")
     #expect(script.dialogues[0].alignmentOverride == 8)
     #expect(script.dialogues[0].text == "Hello\nworld")
+}
+
+@Test
+func assLiteParserReadsV4StyleRenderingFields() {
+    let contents = """
+    [V4 Styles]
+    Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+    Style: Dial_CH,FZCuYuan-M03,70,&H14FFFFFF,&H000000FF,&H14211711,&H00000000,0,-1,1,0,90,95,1.5,12,1,2.8,3,8,10,20,56,1
+    """
+
+    let style = ASSLiteParser.parse(contents).styles["Dial_CH"]
+
+    #expect(style?.fontName == "FZCuYuan-M03")
+    #expect(style?.fontSize == 70)
+    #expect(style?.primaryColor.red == 1)
+    #expect(style?.primaryColor.green == 1)
+    #expect(style?.primaryColor.blue == 1)
+    #expect(style?.primaryColor.alpha == 1 - (20.0 / 255.0))
+    #expect(style?.outlineColor.red == 17.0 / 255.0)
+    #expect(style?.outlineColor.green == 23.0 / 255.0)
+    #expect(style?.outlineColor.blue == 33.0 / 255.0)
+    #expect(style?.outlineColor.alpha == 1 - (20.0 / 255.0))
+    #expect(style?.isBold == false)
+    #expect(style?.isItalic == true)
+    #expect(style?.isUnderline == true)
+    #expect(style?.isStrikeOut == false)
+    #expect(style?.scaleX == 90)
+    #expect(style?.scaleY == 95)
+    #expect(style?.spacing == 1.5)
+    #expect(style?.angle == 12)
+    #expect(style?.borderStyle == 1)
+    #expect(style?.outline == 2.8)
+    #expect(style?.shadow == 3)
+    #expect(style?.alignment == 8)
+    #expect(style?.marginL == 10)
+    #expect(style?.marginR == 20)
+    #expect(style?.marginV == 56)
+    #expect(style?.encoding == 1)
 }
 
 @Test

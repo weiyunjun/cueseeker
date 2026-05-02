@@ -24,32 +24,50 @@ struct ASSLiteStyle: Equatable, Sendable {
     var fontName: String
     var fontSize: Double
     var primaryColor: ASSLiteColor
+    var secondaryColor: ASSLiteColor
     var outlineColor: ASSLiteColor
     var backColor: ASSLiteColor
     var isBold: Bool
     var isItalic: Bool
+    var isUnderline: Bool
+    var isStrikeOut: Bool
+    var scaleX: Double
+    var scaleY: Double
+    var spacing: Double
+    var angle: Double
+    var borderStyle: Int
     var alignment: Int
     var marginL: Double
     var marginR: Double
     var marginV: Double
     var outline: Double
     var shadow: Double
+    var encoding: Int?
 
     static let fallback = ASSLiteStyle(
         name: "Default",
         fontName: "Arial",
         fontSize: 48,
         primaryColor: ASSLiteColor(red: 1, green: 1, blue: 1, alpha: 1),
+        secondaryColor: ASSLiteColor(red: 0, green: 0, blue: 1, alpha: 1),
         outlineColor: ASSLiteColor(red: 0, green: 0, blue: 0, alpha: 1),
         backColor: ASSLiteColor(red: 0, green: 0, blue: 0, alpha: 0.75),
         isBold: false,
         isItalic: false,
+        isUnderline: false,
+        isStrikeOut: false,
+        scaleX: 100,
+        scaleY: 100,
+        spacing: 0,
+        angle: 0,
+        borderStyle: 1,
         alignment: 2,
         marginL: 20,
         marginR: 20,
         marginV: 20,
         outline: 2,
-        shadow: 0
+        shadow: 0,
+        encoding: nil
     )
 }
 
@@ -171,7 +189,7 @@ enum ASSLiteParser {
             }
 
             if line.hasPrefix("[") && line.hasSuffix("]") {
-                section = Section(rawValue: line.lowercased()) ?? .unknown
+                section = Section(rawValue: line.lowercased())
                 return
             }
 
@@ -232,16 +250,25 @@ enum ASSLiteParser {
                 fontName: ASSLiteParser.value(named: "fontname", fields: fields, format: styleFormat) ?? fallback.fontName,
                 fontSize: ASSLiteParser.doubleValue(named: "fontsize", fields: fields, format: styleFormat) ?? fallback.fontSize,
                 primaryColor: ASSLiteParser.colorValue(named: "primarycolour", fields: fields, format: styleFormat) ?? fallback.primaryColor,
+                secondaryColor: ASSLiteParser.colorValue(named: "secondarycolour", fields: fields, format: styleFormat) ?? fallback.secondaryColor,
                 outlineColor: ASSLiteParser.colorValue(named: "outlinecolour", fields: fields, format: styleFormat) ?? fallback.outlineColor,
                 backColor: ASSLiteParser.colorValue(named: "backcolour", fields: fields, format: styleFormat) ?? fallback.backColor,
                 isBold: ASSLiteParser.boolValue(named: "bold", fields: fields, format: styleFormat),
                 isItalic: ASSLiteParser.boolValue(named: "italic", fields: fields, format: styleFormat),
+                isUnderline: ASSLiteParser.boolValue(named: "underline", fields: fields, format: styleFormat),
+                isStrikeOut: ASSLiteParser.boolValue(named: "strikeout", fields: fields, format: styleFormat),
+                scaleX: ASSLiteParser.doubleValue(named: "scalex", fields: fields, format: styleFormat) ?? fallback.scaleX,
+                scaleY: ASSLiteParser.doubleValue(named: "scaley", fields: fields, format: styleFormat) ?? fallback.scaleY,
+                spacing: ASSLiteParser.doubleValue(named: "spacing", fields: fields, format: styleFormat) ?? fallback.spacing,
+                angle: ASSLiteParser.doubleValue(named: "angle", fields: fields, format: styleFormat) ?? fallback.angle,
+                borderStyle: ASSLiteParser.intValue(named: "borderstyle", fields: fields, format: styleFormat) ?? fallback.borderStyle,
                 alignment: ASSLiteParser.intValue(named: "alignment", fields: fields, format: styleFormat) ?? fallback.alignment,
                 marginL: ASSLiteParser.doubleValue(named: "marginl", fields: fields, format: styleFormat) ?? fallback.marginL,
                 marginR: ASSLiteParser.doubleValue(named: "marginr", fields: fields, format: styleFormat) ?? fallback.marginR,
                 marginV: ASSLiteParser.doubleValue(named: "marginv", fields: fields, format: styleFormat) ?? fallback.marginV,
                 outline: ASSLiteParser.doubleValue(named: "outline", fields: fields, format: styleFormat) ?? fallback.outline,
-                shadow: ASSLiteParser.doubleValue(named: "shadow", fields: fields, format: styleFormat) ?? fallback.shadow
+                shadow: ASSLiteParser.doubleValue(named: "shadow", fields: fields, format: styleFormat) ?? fallback.shadow,
+                encoding: ASSLiteParser.intValue(named: "encoding", fields: fields, format: styleFormat)
             )
 
             styles[name] = style
@@ -294,11 +321,24 @@ enum ASSLiteParser {
         }
     }
 
-    private enum Section: String {
-        case scriptInfo = "[script info]"
-        case styles = "[v4+ styles]"
-        case events = "[events]"
+    private enum Section {
+        case scriptInfo
+        case styles
+        case events
         case unknown
+
+        init(rawValue: String) {
+            switch rawValue {
+            case "[script info]":
+                self = .scriptInfo
+            case "[v4+ styles]", "[v4 styles]":
+                self = .styles
+            case "[events]":
+                self = .events
+            default:
+                self = .unknown
+            }
+        }
     }
 
     private static let defaultStyleFormat = [
