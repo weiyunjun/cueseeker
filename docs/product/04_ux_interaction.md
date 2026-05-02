@@ -62,6 +62,9 @@ When the user selects a result:
 - If the same video is already open, the app should seek instead of reopening when practical.
 - If the video file is missing, the app should show a clear error.
 - Selecting a different result should switch video or seek within the current video and auto-play.
+- Selecting a grouped ASS cue result should use the cue group's `start_ms` as
+  the playback target. The first M2 ASS implementation does not require source
+  ASS subtitle rendering during playback.
 
 ## 5. Visual Feedback and Hover
 

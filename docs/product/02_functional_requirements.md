@@ -18,12 +18,14 @@ Requirements:
 
 ## 2. Subtitle Scanning
 
-The app must scan selected local folders for `.srt` files.
+The app must scan selected local folders for supported external subtitle files.
 
 Requirements:
 
 - Recursive folder scanning.
-- Ignore non-`.srt` files.
+- Support `.srt` files.
+- Support `.ass` files.
+- Ignore unsupported subtitle and media-adjacent files.
 - Avoid following symlink loops.
 - Report indexing progress.
 - Skip files that cannot be read.
@@ -31,16 +33,44 @@ Requirements:
 
 ## 3. Subtitle Parsing
 
-The app must parse standard `.srt` subtitle files.
+The app must parse supported external subtitle files into a normalized searchable
+cue model.
 
 Requirements:
 
-- Parse subtitle sequence number when present.
 - Parse start and end timecodes.
 - Convert start and end timecodes to milliseconds.
-- Preserve subtitle text content.
-- Support multi-line subtitle entries.
-- Ignore malformed blocks without stopping the entire indexing run.
+- Preserve clean, searchable subtitle text content.
+- Support multi-line subtitle text.
+- Ignore malformed blocks or events without stopping the entire indexing run.
+- Preserve enough source identity to map each searchable cue back to the source
+  subtitle file and matched video file.
+
+SRT parsing requirements:
+
+- Parse subtitle sequence number when present.
+- Treat each valid SRT block as one cue group with one cue line.
+
+ASS parsing requirements:
+
+- Parse `[Events]` `Dialogue` events according to the active `[Events]`
+  `Format:` field mapping.
+- Do not parse `Comment` events as searchable subtitles.
+- Treat every `Dialogue` style as searchable unless a later product rule
+  explicitly excludes it.
+- Clean ASS text for search by removing override tags such as `{...}` and by
+  normalizing ASS line breaks such as `\N`.
+- Preserve each `Dialogue` event's start and end time after conversion to
+  milliseconds.
+- Group `Dialogue` events with the same subtitle file, exact start time, and
+  exact end time into one cue group.
+- Do not group near-equal ASS timestamps by tolerance in the first
+  implementation.
+- Keep all lines inside a cue group. Do not deduplicate same-looking text during
+  indexing.
+- Derive a stable display order for cue lines from ASS layout information when
+  possible, including style alignment, margins, inline alignment overrides,
+  explicit positions, and source event order.
 
 ## 4. Video Matching
 
@@ -50,7 +80,8 @@ Initial matching rule:
 
 - Match by basename.
 - Support common video extensions.
-- Support simple language suffix removal, such as matching `Movie.en.srt` to `Movie.mp4`.
+- Support simple language suffix removal, such as matching `Movie.en.srt` or
+  `Movie.scjp.ass` to `Movie.mp4`.
 
 Initial video extensions:
 
@@ -62,7 +93,8 @@ Initial video extensions:
 
 ## 5. Indexing
 
-The app must write parsed subtitle entries to a local SQLite database with FTS5 search support.
+The app must write parsed subtitle cue groups and cue lines to a local SQLite
+database with FTS5 search support.
 
 Requirements:
 
@@ -70,7 +102,8 @@ Requirements:
 - Store video path.
 - Store subtitle path.
 - Store start and end timestamps.
-- Store searchable text content.
+- Store searchable text content for each cue group.
+- Store the ordered cue lines that belong to each cue group.
 - Support incremental indexing based on file metadata.
 - Remove stale entries when source subtitle files no longer exist.
 - Remove derived index rows when a selected folder is removed.
@@ -94,6 +127,12 @@ Requirements:
 - Search results must be scoped to the currently selected subtitle folders.
 - Stale index rows outside the currently selected folders must not appear in
   Search.
+- Search should return cue groups, not individual ASS lines, so a bilingual or
+  multi-layer ASS moment appears as one result.
+- If a query matches any line in a cue group, the result should display the
+  whole cue group.
+- A cue group must not match only because query terms are split across different
+  cue lines. At least one cue line must satisfy the query semantics.
 - The current native search behavior should preserve the practical legacy Flutter semantics:
   single Latin-token searches use prefix matching, multi-token Latin searches use
   ordered whole-token filtering after FTS recall, CJK content is segmented for
@@ -113,6 +152,15 @@ Current M1 result rows display:
 - Highlighted query matches.
 - Subtitle file name.
 
+For grouped subtitle results:
+
+- Display all cue lines in the matched cue group.
+- Order cue lines by their derived display order so the result approximates the
+  subtitle's on-video vertical arrangement.
+- Do not hide or deduplicate cue lines at result-render time unless a later
+  product rule explicitly defines that behavior.
+- Do not impose a fixed product-level line count cap on displayed cue lines.
+
 Clicking a result must open or update the Playback Inspector and trigger playback for the matching video at the subtitle start timestamp.
 
 The Playback Inspector displays additional context:
@@ -130,6 +178,8 @@ Requirements:
 
 - Open the matched local video file.
 - Seek to the subtitle start timestamp.
+- For ASS search results, opening the matched video and seeking to the cue group
+  start timestamp is required before source ASS subtitle rendering exists.
 - Render video inside the native app window.
 - Allow play and pause.
 - Toggle play/pause by clicking the video surface.
@@ -146,6 +196,8 @@ Requirements:
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
+- Rendering the source ASS subtitle track during playback is not required for
+  the first M2 ASS implementation step.
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 

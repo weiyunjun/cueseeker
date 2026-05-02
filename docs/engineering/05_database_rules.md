@@ -69,6 +69,9 @@ Destructive migrations:
 
 - Dropping user-owned data requires an ADR.
 - Rebuilding derived index data is allowed when source subtitle files can recreate it.
+- Migrating from the M1 subtitle-entry model to the ASS cue model may preserve
+  durable user configuration while rebuilding derived subtitle index rows and
+  FTS rows from source subtitle files.
 - Deleting stale index rows for missing source files is part of normal indexing behavior.
 - Any migration that cannot preserve favorites or other durable user state requires explicit review.
 
@@ -107,7 +110,8 @@ Expected early entities:
 - Video files.
 - Subtitle files.
 - Subtitle-to-video matches.
-- Subtitle entries.
+- Subtitle cue groups.
+- Subtitle cue lines.
 - Index metadata.
 - FTS data.
 
@@ -119,10 +123,18 @@ Rules:
 
 - Row IDs may be used internally but must not be the only stable identity for future favorites.
 - Native playback compatibility metadata is owned by the media file, not by
-  subtitle entries or subtitle file paths.
+  subtitle cue groups, cue lines, or subtitle file paths.
 - Subtitle-to-video matching must be represented separately enough that exact basename matching can later be replaced or supplemented by fuzzy or manual matching.
 - Subtitle identity should preserve source subtitle path and timing information.
-- Indexed subtitle rows must keep enough metadata to open the matched video at `start_ms`.
+- SRT blocks should map to cue groups with one cue line.
+- ASS `Dialogue` events should map to cue lines inside cue groups.
+- ASS cue groups must use exact subtitle file, `start_ms`, and `end_ms`
+  equality. The first ASS implementation must not use timestamp tolerance
+  grouping.
+- Cue lines must preserve source order and enough layout projection metadata to
+  derive stable display order when possible.
+- Indexed cue group rows must keep enough metadata to open the matched video at
+  `start_ms`.
 - Index metadata must allow incremental indexing based on source file metadata.
 
 ## 9. Media Native Compatibility Profile Rules
@@ -176,9 +188,10 @@ Full-text search must use SQLite FTS5.
 
 Rules:
 
-- FTS rows must be linked deterministically to subtitle entries.
-- Searchable subtitle content must be indexed consistently with the stored subtitle entry.
-- Updating or deleting subtitle entries must keep FTS data consistent.
+- FTS rows must be linked deterministically to subtitle cue groups.
+- Searchable subtitle content must be indexed consistently with the stored cue
+  group and cue lines.
+- Updating or deleting cue groups or cue lines must keep FTS data consistent.
 - FTS table rebuild behavior must be documented before relying on it for recovery.
 - CJK search behavior must preserve at least the practical behavior of the archived Flutter implementation.
 
@@ -191,6 +204,12 @@ Search ranking and query syntax:
   database rows still exist.
 - Invalid query syntax must not crash the app.
 - Query limits must prevent excessive result rendering.
+- Search must return cue groups, not individual ASS cue lines.
+- A cue group must not match only because query terms are split across different
+  cue lines. If group-level FTS recall is used, line-level filtering must enforce
+  the final match semantics before results are returned.
+- When any cue line in a group matches, result loading should include all cue
+  lines for that group.
 
 ## 13. Indexing Consistency
 
@@ -198,9 +217,10 @@ Indexing must keep database state aligned with selected folders.
 
 Rules:
 
-- Reindexing a changed subtitle file must replace stale entries for that file.
-- Removing a selected folder must remove derived subtitle rows, FTS rows,
-  subtitle-file metadata, and stored search-path rows for that folder.
+- Reindexing a changed subtitle file must replace stale cue groups and cue lines
+  for that file.
+- Removing a selected folder must remove derived subtitle cue groups, cue lines,
+  FTS rows, subtitle-file metadata, and stored search-path rows for that folder.
 - App startup must reconcile indexed content against the currently selected
   folders so stale rows from previously removed folders cannot remain visible.
 - If no folders are currently selected, derived subtitle index data should be

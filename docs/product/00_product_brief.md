@@ -65,7 +65,7 @@ The following are intentionally not early priorities:
 The first usable native version is successful when:
 
 - The user can select a local subtitle folder.
-- The app indexes `.srt` files from that folder.
+- The app indexes supported external subtitle files from that folder.
 - The app can search indexed subtitle text.
 - Search results show enough context to identify the match.
 - Clicking a result opens the matching local video.

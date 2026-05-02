@@ -81,6 +81,10 @@ Accepted M1 implementation summary:
 Known post-M1 follow-up areas:
 
 - Search ranking, query semantics, CJK behavior, and other search-quality improvements require dedicated post-M1 design work and should not block M1 acceptance.
+- ASS subtitle indexing, grouped cue search results, and ASS result click-to-play
+  behavior are M2 feature work. M1 remains accepted as the minimal SRT loop.
+  Source ASS playback rendering is deferred beyond the first ASS implementation
+  step.
 - Keyboard shortcuts, playback interaction refinement, native menu behavior, file and folder management, file-access persistence, error presentation, settings refinement, and packaging preparation belong to M2.
 - Window sizing and restoration were substantially completed during M1 and should be treated as M2 regression-verification areas unless concrete defects are found.
 - The native-only playback integration requires focused app-level regression
@@ -94,6 +98,8 @@ Planning status:
 - Started on 2026-04-28 after the M1 native macOS minimal local loop was accepted.
 - M2 scope is being refined from broad macOS polish into reviewable interaction, file-management, error, settings, and packaging work.
 - Playback interaction work has started and currently includes video-level Theater Mode fullscreen, playback operation controls, keyboard shortcuts, and visible feedback overlays.
+- ASS subtitle search support is included in M2 planning as a search, indexing,
+  playback-selection, and data-model migration feature.
 
 Goal:
 
@@ -110,6 +116,11 @@ Expected areas:
   Current implementation includes an app-drawn upward playback speed menu, hover-based speed preset selection, subtitle visibility toggle, video-surface-only play/pause tapping, playback operation-zone click isolation, Theater Mode fullscreen, keyboard shortcuts, and transient feedback overlays.
   Recent playback refinements align keyboard speed limits with playback controls, add the `1.75x` speed preset, use `5%` keyboard volume steps, keep timeline and volume hover states vertically stable, keep playback shortcuts active while read-only metadata text is selected, and suppress initial fullscreen hover events so controls and the cursor remain hidden immediately after entering fullscreen.
   Accepted interaction refinements also cover Theater Mode suspension during app deactivation, Cmd-Tab switcher visibility above playback fullscreen, Search field focus clearing for app-owned interactions, Search field focus preservation for system-level window or app switching, mouse-only fullscreen chrome reveal, and speed menu hover geometry that matches the speed button click area.
+- ASS subtitle search and grouped result support.
+  Add `.ass` scanning, ASS dialogue parsing, cue group and cue line indexing,
+  grouped search result display, and click-to-playback behavior for matched ASS
+  results. The first ASS step does not require rendering the source ASS subtitle
+  track during playback.
 - Window sizing and restoration regression verification.
   M1 already implemented launch maximization, AppShell layout persistence, titlebar/full-screen behavior, and Playback Inspector width and visibility persistence. M2 should verify these behaviors and fix concrete regressions rather than treating this as a new major feature area.
 - File and folder management with file-access persistence.

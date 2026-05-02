@@ -199,6 +199,10 @@ Required fixture categories:
 
 - Valid English `.srt`.
 - Valid CJK `.srt`.
+- Valid `.ass`.
+- ASS file with multiple `Dialogue` events sharing exact timing.
+- ASS file with near-equal `Dialogue` timings that must not be grouped.
+- ASS file with `Comment` events that must not be indexed.
 - Multi-line subtitle entries.
 - Missing sequence numbers if supported by parser behavior.
 - Malformed blocks.
@@ -260,3 +264,49 @@ A milestone is not complete until:
 - Test gaps are listed explicitly.
 - Database migrations, if any, have fresh-create and migrate-path verification.
 - Playback behavior, if included in the milestone, has been verified against the selected playback strategy.
+
+## 14. M2 ASS Subtitle Test Coverage
+
+The first M2 ASS implementation is not complete until ASS indexing, grouped
+search results, and click-to-playback behavior are verified.
+
+Required parser coverage:
+
+- ASS `[Events]` `Format:` field mapping.
+- `Dialogue` event parsing with non-default field order.
+- `Comment` events excluded from searchable subtitles.
+- Override-tag removal for documented `{...}` cases.
+- ASS line-break normalization for documented `\N` cases.
+- Exact-time cue grouping by subtitle file, `start_ms`, and `end_ms`.
+- Near-equal ASS timestamps not grouped by tolerance.
+- Cue lines preserved without deduplication.
+- Stable display-order fallback to source event order when layout projection is
+  unavailable.
+
+Required database and search coverage:
+
+- Fresh schema creation for cue groups and cue lines.
+- Migration from the previous supported schema version.
+- Migration preserves durable configuration and rebuilds derived subtitle index
+  data.
+- FTS rows link to cue groups.
+- Search returns cue groups, not individual ASS cue lines.
+- A query that matches one cue line returns the full cue group.
+- Query terms split only across different cue lines do not produce a result.
+- Search results remain scoped to currently selected folders.
+
+Required integration coverage:
+
+- Index a fixture folder containing `.srt` and `.ass` files.
+- Match language-suffix ASS files such as `Movie.scjp.ass` to `Movie.mp4`.
+- Reindex after an ASS file changes and rebuild its cue groups and cue lines.
+- Remove a configured folder and verify ASS-derived rows no longer appear in
+  search results.
+- Select an ASS search result and resolve it to matched video path plus
+  `start_ms`.
+
+Playback verification for the first ASS step:
+
+- Clicking an ASS search result opens or updates the Playback Inspector.
+- Playback opens the matched video and seeks to the cue group's `start_ms`.
+- Source ASS subtitle rendering is not required for this first ASS step.

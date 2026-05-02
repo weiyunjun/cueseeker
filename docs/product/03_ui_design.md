@@ -108,6 +108,11 @@ Current M1 row content:
 - Query match highlighting.
 - Subtitle file name.
 
+Grouped cue result rows should display every cue line in the matched group,
+ordered by derived display order when available. Grouped rows may use dynamic
+height and must not deduplicate same-looking cue lines or impose a fixed
+product-level line count cap.
+
 Rows should have stable height or predictable dynamic height. Long subtitle text should not break the layout.
 
 The row should remain fully clickable. Video file name and timestamp are not currently shown in the search result row.

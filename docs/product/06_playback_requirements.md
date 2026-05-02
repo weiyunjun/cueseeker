@@ -65,6 +65,7 @@ Example:
 ```text
 Movie.srt -> Movie.mp4
 Movie.en.srt -> Movie.mp4
+Movie.scjp.ass -> Movie.mp4
 ```
 
 ## 4. Timestamp Behavior
@@ -159,14 +160,37 @@ Future versions may need:
 
 - Highlight current subtitle.
 - Support text selection or learning interactions.
+- Render source ASS subtitles during playback.
 
 Rules:
 
-- Playback should display the current subtitle text from the indexed SRT file
-  associated with the selected search result.
-- The overlay is owned by the app playback UI, not by the native media decoder.
+- Playback should load the source subtitle file associated with the selected
+  search result.
+- For SRT-only playback, the app may display current subtitle text from the
+  indexed cue data.
+- The first M2 ASS implementation step does not require source ASS subtitle
+  rendering during playback. ASS search result selection should still open the
+  matched video and seek to the cue group's `start_ms`.
+- When source ASS playback rendering is implemented, the player must render the
+  source `.ass` file so fonts, positions, karaoke, signs, and other ASS behavior
+  come from the original subtitle file rather than from the search database
+  projection.
+- Search result previews are database-owned cue group projections. Playback
+  subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.
 - The subtitle visibility control should show or hide the app-owned overlay.
+- When ASS rendering is implemented, the subtitle visibility control should show
+  or hide the loaded external subtitle track.
+
+Grouped search result behavior:
+
+- Clicking a grouped subtitle result should open the matched video file, load
+  the matched source subtitle file, and seek to the cue group's `start_ms`.
+- The playback target is the cue group start time even when the displayed search
+  preview contains several ASS lines.
+- If the source subtitle file changes, reindexing should rebuild the cue groups
+  and refresh the subtitle-to-video mapping before later search results are
+  used for playback.
 
 ## 7. M2 Fullscreen Behavior
 

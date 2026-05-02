@@ -126,3 +126,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Documented the accepted software playback memory-mitigation constraints and
   unsandboxed verification requirements after user confirmation that the recycle
   behavior is not perceptible in normal playback.
+- Accepted M2 ASS subtitle support planning for `.ass` indexing, grouped cue
+  search results, grouped result display, and click-to-playback behavior while
+  deferring source ASS subtitle rendering.
+- Documented the ASS cue-model migration direction: preserve durable user
+  configuration, rebuild derived subtitle index data, and enforce line-level
+  search matching so query terms split only across different cue lines do not
+  produce a grouped result.
