@@ -76,6 +76,7 @@ final class AppState: ObservableObject {
     private static let isPlaybackInspectorVisibleKey = "isPlaybackInspectorVisible"
     private static let playbackInspectorWidthKey = "playbackInspectorWidth"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
+    private static let assSubtitlePreparationCueLimit = 8
 
     @Published var selectedSection: AppSection = .search
     @Published var selectedFolders: [URL] = []
@@ -665,8 +666,47 @@ final class AppState: ObservableObject {
 
         return PlaybackSubtitleSource(
             url: URL(fileURLWithPath: result.subtitlePath),
-            format: .ass
+            format: .ass,
+            timeWindow: playbackSubtitleTimeWindow(for: result)
         )
+    }
+
+    private func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {
+        let fallback = PlaybackSubtitleTimeWindow(
+            startMilliseconds: result.startMilliseconds,
+            endMilliseconds: result.endMilliseconds
+        )
+
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+            let timings = try database.cueTimings(
+                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+                startingAtMilliseconds: result.startMilliseconds,
+                limit: Self.assSubtitlePreparationCueLimit
+            )
+
+            guard !timings.isEmpty else {
+                return fallback
+            }
+
+            let startMilliseconds = min(
+                fallback.startMilliseconds,
+                timings.map(\.startMilliseconds).min() ?? fallback.startMilliseconds
+            )
+            let endMilliseconds = max(
+                fallback.endMilliseconds,
+                timings.map(\.endMilliseconds).max() ?? fallback.endMilliseconds
+            )
+
+            return PlaybackSubtitleTimeWindow(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds
+            )
+        } catch {
+            print("Failed to load ASS subtitle preparation window: \(error)")
+            return fallback
+        }
     }
 
     private func persistSelectedFolders() {

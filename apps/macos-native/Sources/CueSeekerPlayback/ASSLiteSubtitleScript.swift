@@ -149,13 +149,14 @@ struct ASSLiteColor: Equatable, Sendable {
 }
 
 enum ASSLiteParser {
-    static func parse(_ contents: String) -> ASSLiteScript {
-        var parser = Parser(contents: contents)
+    static func parse(_ contents: String, timeWindow: PlaybackSubtitleTimeWindow? = nil) -> ASSLiteScript {
+        var parser = Parser(contents: contents, timeWindow: timeWindow)
         return parser.parse()
     }
 
     private struct Parser {
         var contents: String
+        var timeWindow: PlaybackSubtitleTimeWindow?
         var section: Section = .unknown
         var playResX: Double?
         var playResY: Double?
@@ -296,6 +297,14 @@ enum ASSLiteParser {
                   endMilliseconds >= startMilliseconds,
                   let rawText = ASSLiteParser.value(named: "text", fields: fields, format: eventFormat)
             else {
+                return
+            }
+
+            if let timeWindow,
+               !timeWindow.overlaps(
+                   startMilliseconds: startMilliseconds,
+                   endMilliseconds: endMilliseconds
+               ) {
                 return
             }
 

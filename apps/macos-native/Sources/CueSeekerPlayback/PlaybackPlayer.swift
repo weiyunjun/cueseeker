@@ -13,6 +13,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var storedVolume: Double = 100
     private var storedSpeed: Double = 1.0
     private var subtitlesVisible = true
+    private var activeSubtitleSource: PlaybackSubtitleSource?
+    private var subtitleLoadTask: Task<Void, Never>?
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -65,6 +67,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     public func loadSubtitleSource(_ source: PlaybackSubtitleSource?) {
+        subtitleLoadTask?.cancel()
+        activeSubtitleSource = source
+
         guard let source, source.format == .ass else {
             Task { @MainActor in
                 (self.renderView as? PlaybackRenderContainerView)?.clearASSSubtitleScript()
@@ -72,26 +77,51 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             return
         }
 
-        do {
-            let contents = try String(contentsOf: source.url, encoding: .utf8)
-            let script = ASSLiteParser.parse(contents)
-            let currentMilliseconds = max(0, Int((nativePlayer.currentTime * 1_000).rounded(.down)))
-            Task { @MainActor in
-                guard let container = self.renderView as? PlaybackRenderContainerView else {
-                    return
-                }
+        Task { @MainActor in
+            (self.renderView as? PlaybackRenderContainerView)?.clearASSSubtitleScript()
+        }
 
-                container.setASSSubtitleScript(script)
-                container.setASSSubtitleTime(milliseconds: currentMilliseconds)
-                container.setSubtitlesVisible(self.subtitlesVisible)
-                container.setVideoSize(self.currentNativeVideoSize())
-            }
-        } catch {
-            print("Failed to load ASS subtitle source: \(error)")
-            Task { @MainActor in
-                (self.renderView as? PlaybackRenderContainerView)?.clearASSSubtitleScript()
+        subtitleLoadTask = Task(priority: .userInitiated) { [weak self] in
+            do {
+                let contents = try String(contentsOf: source.url, encoding: .utf8)
+                try Task.checkCancellation()
+                let script = ASSLiteParser.parse(contents, timeWindow: source.timeWindow)
+                try Task.checkCancellation()
+
+                await MainActor.run { [weak self] in
+                    guard let self,
+                          self.activeSubtitleSource == source,
+                          let container = self.renderView as? PlaybackRenderContainerView
+                    else {
+                        return
+                    }
+
+                    let currentMilliseconds = max(0, Int((self.nativePlayer.currentTime * 1_000).rounded(.down)))
+                    container.setASSSubtitleScript(script)
+                    container.setASSSubtitleTime(milliseconds: currentMilliseconds)
+                    container.setSubtitlesVisible(self.subtitlesVisible)
+                    container.setVideoSize(self.currentNativeVideoSize())
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                print("Failed to load ASS subtitle source: \(error)")
+                await MainActor.run { [weak self] in
+                    guard let self,
+                          self.activeSubtitleSource == source,
+                          let container = self.renderView as? PlaybackRenderContainerView
+                    else {
+                        return
+                    }
+
+                    container.clearASSSubtitleScript()
+                }
             }
         }
+    }
+
+    deinit {
+        subtitleLoadTask?.cancel()
     }
 
     public func setSubtitlesVisible(_ isVisible: Bool) {

@@ -113,6 +113,34 @@ func assLiteParserSortsActiveDialoguesByLayerAndSourceOrder() {
 }
 
 @Test
+func assLiteParserKeepsOnlyDialoguesOverlappingTimeWindow() {
+    let contents = """
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: Default,Helvetica,48
+
+    [Events]
+    Format: Layer, Start, End, Style, Text
+    Dialogue: 0,0:00:01.00,0:00:02.00,Default,Before
+    Dialogue: 0,0:00:02.00,0:00:03.00,Default,Inside
+    Dialogue: 0,0:00:04.50,0:00:07.00,Default,Overlapping
+    Dialogue: 0,0:00:05.00,0:00:05.00,Default,Zero duration
+    Dialogue: 0,0:00:08.00,0:00:09.00,Default,After
+    """
+
+    let script = ASSLiteParser.parse(
+        contents,
+        timeWindow: PlaybackSubtitleTimeWindow(
+            startMilliseconds: 2_000,
+            endMilliseconds: 5_000
+        )
+    )
+
+    #expect(script.styles["Default"]?.fontName == "Helvetica")
+    #expect(script.dialogues.map(\.text) == ["Inside", "Overlapping", "Zero duration"])
+}
+
+@Test
 func assLiteColorParsesASSBGRAlphaFormat() {
     let color = ASSLiteColor(assText: "&H80402010")
 

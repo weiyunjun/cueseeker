@@ -26,10 +26,40 @@ public enum PlaybackSubtitleSourceFormat: String, Sendable, Equatable {
 public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let url: URL
     public let format: PlaybackSubtitleSourceFormat
+    public let timeWindow: PlaybackSubtitleTimeWindow?
 
-    public init(url: URL, format: PlaybackSubtitleSourceFormat) {
+    public init(
+        url: URL,
+        format: PlaybackSubtitleSourceFormat,
+        timeWindow: PlaybackSubtitleTimeWindow? = nil
+    ) {
         self.url = url
         self.format = format
+        self.timeWindow = timeWindow
+    }
+}
+
+public struct PlaybackSubtitleTimeWindow: Equatable, Sendable {
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+
+    public init(startMilliseconds: Int, endMilliseconds: Int) {
+        let startMilliseconds = max(0, startMilliseconds)
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = max(startMilliseconds, endMilliseconds)
+    }
+
+    public func overlaps(startMilliseconds: Int, endMilliseconds: Int) -> Bool {
+        let cueStartMilliseconds = max(0, startMilliseconds)
+        let cueEndMilliseconds = max(cueStartMilliseconds, endMilliseconds)
+
+        if cueStartMilliseconds == cueEndMilliseconds {
+            return cueStartMilliseconds >= self.startMilliseconds
+                && cueStartMilliseconds <= self.endMilliseconds
+        }
+
+        return cueStartMilliseconds < self.endMilliseconds
+            && cueEndMilliseconds > self.startMilliseconds
     }
 }
 

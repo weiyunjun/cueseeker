@@ -607,10 +607,79 @@ func searchesCueGroupsAndRejectsCrossLineOnlyMatches() throws {
     #expect(try database.search("alpha beta").isEmpty)
 }
 
+@Test
+func returnsCueTimingsForWindowedASSPreparation() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Windowed.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Windowed.mkv")
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [
+            testCueGroup(startMilliseconds: 1_000, endMilliseconds: 1_500, content: "before", eventIndex: 0),
+            testCueGroup(startMilliseconds: 2_000, endMilliseconds: 2_500, content: "selected", eventIndex: 1),
+            testCueGroup(startMilliseconds: 4_000, endMilliseconds: 4_500, content: "next", eventIndex: 2),
+            testCueGroup(startMilliseconds: 7_000, endMilliseconds: 7_500, content: "outside limit", eventIndex: 3)
+        ]
+    )
+
+    let timings = try database.cueTimings(
+        forSubtitleFile: subtitleFile,
+        startingAtMilliseconds: 2_000,
+        limit: 2
+    )
+
+    #expect(timings == [
+        SubtitleCueTiming(startMilliseconds: 2_000, endMilliseconds: 2_500),
+        SubtitleCueTiming(startMilliseconds: 4_000, endMilliseconds: 4_500)
+    ])
+}
+
 private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerDatabaseTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
+}
+
+private func testCueGroup(
+    startMilliseconds: Int,
+    endMilliseconds: Int,
+    content: String,
+    eventIndex: Int
+) -> SubtitleCueGroup {
+    SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "\(startMilliseconds)",
+        endTimecode: "\(endMilliseconds)",
+        startMilliseconds: startMilliseconds,
+        endMilliseconds: endMilliseconds,
+        searchContent: content,
+        cueLines: [
+            SubtitleCueLine(
+                eventIndex: eventIndex,
+                sourceFormat: .ass,
+                sourceStyle: nil,
+                sourceLayer: nil,
+                startTimecode: "\(startMilliseconds)",
+                endTimecode: "\(endMilliseconds)",
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds,
+                content: content,
+                displayX: nil,
+                displayY: nil,
+                displayOrder: 0
+            )
+        ]
+    )
 }
 
 private func createLegacyVersionOneDatabase(at url: URL) throws {

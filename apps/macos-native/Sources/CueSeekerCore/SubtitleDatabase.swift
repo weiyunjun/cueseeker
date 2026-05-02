@@ -26,6 +26,16 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let cueLines: [String]
 }
 
+public struct SubtitleCueTiming: Equatable, Sendable {
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+
+    public init(startMilliseconds: Int, endMilliseconds: Int) {
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = endMilliseconds
+    }
+}
+
 public struct SubtitleFileMetadata: Equatable, Sendable {
     public let subtitlePath: String
     public let subtitleFormat: SubtitleFormat
@@ -273,6 +283,45 @@ public final class SubtitleDatabase {
         }
 
         return entries
+    }
+
+    public func cueTimings(
+        forSubtitleFile subtitleFile: URL,
+        startingAtMilliseconds startMilliseconds: Int,
+        limit: Int
+    ) throws -> [SubtitleCueTiming] {
+        let limit = min(max(0, limit), 100)
+        guard limit > 0 else {
+            return []
+        }
+
+        let statement = try database.prepare(
+            """
+            SELECT g.start_ms, g.end_ms
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND g.start_ms >= ?
+            ORDER BY g.start_ms ASC, g.id ASC
+            LIMIT ?;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(max(0, startMilliseconds), at: 2)
+        try statement.bind(limit, at: 3)
+
+        var timings: [SubtitleCueTiming] = []
+        while try statement.step() {
+            timings.append(
+                SubtitleCueTiming(
+                    startMilliseconds: statement.intColumn(0),
+                    endMilliseconds: statement.intColumn(1)
+                )
+            )
+        }
+
+        return timings
     }
 
     public func subtitleFiles() throws -> [SubtitleFileMetadata] {

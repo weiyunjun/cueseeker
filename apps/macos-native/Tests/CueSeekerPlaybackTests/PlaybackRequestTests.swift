@@ -82,6 +82,48 @@ func playbackRequestStoresASSSubtitleSource() throws {
 }
 
 @Test
+func playbackRequestStoresASSSubtitleTimeWindow() throws {
+    let videoURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")
+        .appendingPathExtension("mp4")
+    defer {
+        try? FileManager.default.removeItem(at: videoURL)
+    }
+
+    try Data().write(to: videoURL)
+
+    let subtitleURL = videoURL.deletingPathExtension().appendingPathExtension("ass")
+    let timeWindow = PlaybackSubtitleTimeWindow(
+        startMilliseconds: 1_000,
+        endMilliseconds: 9_000
+    )
+    let request = try PlaybackRequest(
+        videoURL: videoURL,
+        startMilliseconds: 1_000,
+        subtitleSource: PlaybackSubtitleSource(
+            url: subtitleURL,
+            format: .ass,
+            timeWindow: timeWindow
+        )
+    )
+
+    #expect(request.subtitleSource?.timeWindow == timeWindow)
+}
+
+@Test
+func playbackSubtitleTimeWindowDetectsOverlappingCues() {
+    let timeWindow = PlaybackSubtitleTimeWindow(
+        startMilliseconds: 2_000,
+        endMilliseconds: 5_000
+    )
+
+    #expect(!timeWindow.overlaps(startMilliseconds: 1_000, endMilliseconds: 2_000))
+    #expect(timeWindow.overlaps(startMilliseconds: 1_500, endMilliseconds: 2_500))
+    #expect(timeWindow.overlaps(startMilliseconds: 5_000, endMilliseconds: 5_000))
+    #expect(!timeWindow.overlaps(startMilliseconds: 5_001, endMilliseconds: 6_000))
+}
+
+@Test
 func playbackSubtitleTrackSelectsCueForCurrentTime() {
     let track = PlaybackSubtitleTrack(cues: [
         PlaybackSubtitleCue(startMilliseconds: 1_000, endMilliseconds: 2_500, text: "First line"),
