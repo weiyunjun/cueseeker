@@ -292,10 +292,14 @@ private struct SearchResultRow: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(highlightedContent(result.content, query: query, isSelected: isSelected))
-                    .font(.system(size: SearchTypography.bodySize))
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                        Text(highlightedContent(line, query: query, isSelected: isSelected))
+                            .font(.system(size: SearchTypography.bodySize))
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
 
                 Text(URL(fileURLWithPath: result.subtitlePath).lastPathComponent)
                     .font(.system(size: SearchTypography.detailSize))
@@ -319,6 +323,13 @@ private struct SearchResultRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+
+    private var displayLines: [String] {
+        let lines = result.cueLines
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return lines.isEmpty ? [result.content] : lines
     }
 }
 

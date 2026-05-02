@@ -622,6 +622,10 @@ final class AppState: ObservableObject {
     }
 
     private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
+        guard result.subtitleFormat == .srt else {
+            return []
+        }
+
         do {
             let database = try SubtitleDatabase(path: databaseURL)
             try database.migrate()

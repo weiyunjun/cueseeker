@@ -32,7 +32,7 @@ public struct SubtitleIndexer {
         _ = try database.addSearchPath(folder)
 
         var result = SubtitleIndexingResult()
-        let subtitleFiles = scanner.scanSRTFiles(in: folder)
+        let subtitleFiles = scanner.scanSubtitleFiles(in: folder)
         result.scannedSubtitleFiles = subtitleFiles.count
 
         let existingFiles = Dictionary(
@@ -72,19 +72,30 @@ public struct SubtitleIndexer {
                 continue
             }
 
-            let entries = SRTParser.parse(contents)
+            guard let format = SubtitleFormat(fileExtension: subtitleFile.pathExtension) else {
+                continue
+            }
 
-            try database.replaceEntries(
+            let cueGroups: [SubtitleCueGroup]
+            switch format {
+            case .srt:
+                cueGroups = SRTParser.parseCueGroups(contents)
+            case .ass:
+                cueGroups = ASSParser.parseCueGroups(contents)
+            }
+
+            try database.replaceCueGroups(
                 subtitleFile: subtitleFile,
                 videoFile: videoFile,
-                entries: entries,
+                format: format,
+                cueGroups: cueGroups,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt
             )
 
             keptSubtitlePaths.insert(subtitleFile.path)
             result.indexedSubtitleFiles += 1
-            result.indexedSubtitleEntries += entries.count
+            result.indexedSubtitleEntries += cueGroups.count
         }
 
         try database.removeStaleEntries(under: folder, keeping: keptSubtitlePaths)
@@ -107,5 +118,18 @@ public struct SubtitleIndexer {
         }
 
         return abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001
+    }
+}
+
+private extension SubtitleFormat {
+    init?(fileExtension: String) {
+        switch fileExtension.lowercased() {
+        case "srt":
+            self = .srt
+        case "ass":
+            self = .ass
+        default:
+            return nil
+        }
     }
 }

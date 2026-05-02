@@ -3,7 +3,7 @@ import Testing
 import CueSeekerCore
 
 @Test
-func scansSRTFilesRecursivelyAndIgnoresOtherFiles() throws {
+func scansSupportedSubtitleFilesRecursivelyAndIgnoresOtherFiles() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerScannerTests-\(UUID().uuidString)")
     let nested = root.appendingPathComponent("Nested")
@@ -11,6 +11,7 @@ func scansSRTFilesRecursivelyAndIgnoresOtherFiles() throws {
     try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
     try "one".write(to: root.appendingPathComponent("Movie.srt"), atomically: true, encoding: .utf8)
     try "two".write(to: nested.appendingPathComponent("Episode.SRT"), atomically: true, encoding: .utf8)
+    try "three".write(to: nested.appendingPathComponent("Episode.ass"), atomically: true, encoding: .utf8)
     try "ignore".write(to: root.appendingPathComponent("Movie.txt"), atomically: true, encoding: .utf8)
 
     defer {
@@ -18,8 +19,8 @@ func scansSRTFilesRecursivelyAndIgnoresOtherFiles() throws {
     }
 
     let scanner = SubtitleFileScanner()
-    let results = scanner.scanSRTFiles(in: root)
+    let results = scanner.scanSubtitleFiles(in: root)
 
-    #expect(results.map(\.lastPathComponent) == ["Movie.srt", "Episode.SRT"])
+    #expect(results.map(\.lastPathComponent) == ["Movie.srt", "Episode.SRT", "Episode.ass"])
+    #expect(scanner.scanSRTFiles(in: root).map(\.lastPathComponent) == ["Movie.srt", "Episode.SRT"])
 }
-

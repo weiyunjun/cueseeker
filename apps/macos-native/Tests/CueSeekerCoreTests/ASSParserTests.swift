@@ -1,0 +1,62 @@
+import Testing
+import CueSeekerCore
+
+@Test
+func parsesASSDialogueEventsIntoExactTimeCueGroups() {
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Alignment, MarginL, MarginR, MarginV
+    Style: Top,8,20,20,40
+    Style: Bottom,2,20,20,30
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,{\\an2}Hello\\Nworld
+    Comment: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,Not indexed
+    Dialogue: 1,0:00:01.00,0:00:03.00,Top,,0,0,0,,{\\an8}こんにちは
+    Dialogue: 0,0:00:01.01,0:00:03.00,Bottom,,0,0,0,,Near timestamp
+    """
+
+    let groups = ASSParser.parseCueGroups(contents)
+
+    #expect(groups.count == 2)
+    #expect(groups[0].startMilliseconds == 1_000)
+    #expect(groups[0].endMilliseconds == 3_000)
+    #expect(groups[0].cueLines.map(\.content) == ["こんにちは", "Hello\nworld"])
+    #expect(groups[0].cueLines.map(\.sourceStyle) == ["Top", "Bottom"])
+    #expect(groups[0].cueLines.map(\.sourceLayer) == [1, 0])
+    #expect(groups[0].searchContent == "こんにちは\nHello\nworld")
+
+    #expect(groups[1].startMilliseconds == 1_010)
+    #expect(groups[1].cueLines.map(\.content) == ["Near timestamp"])
+}
+
+@Test
+func parsesASSDialogueWithNonDefaultEventFieldOrderAndCommasInText() {
+    let contents = """
+    [Events]
+    Format: End, Start, Style, Layer, Text
+    Dialogue: 0:00:05.50,0:00:04.25,Default,3,Hello, with comma
+    """
+
+    let groups = ASSParser.parseCueGroups(contents)
+
+    #expect(groups.count == 1)
+    #expect(groups[0].startMilliseconds == 4_250)
+    #expect(groups[0].endMilliseconds == 5_500)
+    #expect(groups[0].cueLines[0].content == "Hello, with comma")
+    #expect(groups[0].cueLines[0].sourceLayer == 3)
+}
+
+@Test
+func rejectsInvalidASSTimecodes() {
+    #expect(ASSParser.milliseconds(from: "0:00:00.00") == 0)
+    #expect(ASSParser.milliseconds(from: "1:02:03.45") == 3_723_450)
+    #expect(ASSParser.milliseconds(from: "0:60:00.00") == nil)
+    #expect(ASSParser.milliseconds(from: "0:00:60.00") == nil)
+    #expect(ASSParser.milliseconds(from: "bad") == nil)
+}

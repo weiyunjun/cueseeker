@@ -5,6 +5,12 @@ public enum SRTParser {
         splitBlocks(contents).compactMap(parseBlock)
     }
 
+    public static func parseCueGroups(_ contents: String) -> [SubtitleCueGroup] {
+        parse(contents).enumerated().map { index, entry in
+            entry.cueGroup(eventIndex: index)
+        }
+    }
+
     public static func milliseconds(from timecode: String) -> Int? {
         let trimmed = timecode.trimmingCharacters(in: .whitespacesAndNewlines)
         let hourParts = trimmed.split(separator: ":", omittingEmptySubsequences: false)

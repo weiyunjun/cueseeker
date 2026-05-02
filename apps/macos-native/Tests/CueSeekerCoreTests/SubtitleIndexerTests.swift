@@ -186,6 +186,51 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
     #expect(searchResults[0].content == "Stable searchable text.")
 }
 
+@Test
+func indexesASSFilesAsGroupedCueResults() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    try fixture.writeSubtitle(
+        name: "Movie.scjp.ass",
+        contents: """
+        [Script Info]
+        PlayResX: 1920
+        PlayResY: 1080
+
+        [V4+ Styles]
+        Format: Name, Alignment, MarginL, MarginR, MarginV
+        Style: Top,8,20,20,40
+        Style: Bottom,2,20,20,30
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,English line
+        Dialogue: 0,0:00:01.00,0:00:03.00,Top,,0,0,0,,日本語ライン
+        Dialogue: 0,0:00:04.00,0:00:06.00,Bottom,,0,0,0,,Another line
+        """
+    )
+    try fixture.writeVideo(name: "Movie.mkv")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let result = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(result.scannedSubtitleFiles == 1)
+    #expect(result.indexedSubtitleFiles == 1)
+    #expect(result.indexedSubtitleEntries == 2)
+
+    let searchResults = try database.search("English")
+    #expect(searchResults.count == 1)
+    #expect(searchResults[0].subtitleFormat == .ass)
+    #expect(searchResults[0].videoName == "Movie.mkv")
+    #expect(searchResults[0].cueLines == ["日本語ライン", "English line"])
+    #expect(searchResults[0].startMilliseconds == 1_000)
+}
+
 private struct IndexingFixture {
     let root: URL
     let databaseURL: URL

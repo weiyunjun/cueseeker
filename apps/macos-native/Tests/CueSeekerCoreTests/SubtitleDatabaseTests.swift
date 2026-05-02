@@ -520,7 +520,7 @@ func invalidExplicitFTSQueryReturnsNoResults() throws {
 }
 
 @Test
-func migrationRebuildsLegacyFTSRowsWithCJKSegmentation() throws {
+func migrationPreservesSearchPathsAndClearsLegacyDerivedIndex() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -532,7 +532,79 @@ func migrationRebuildsLegacyFTSRowsWithCJKSegmentation() throws {
     try database.migrate()
 
     #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-    #expect(try database.search("好世").map(\.content) == ["你好世界"])
+    #expect(try database.search("好世").isEmpty)
+
+    let searchPathID = try database.addSearchPath(URL(fileURLWithPath: "/Media"))
+    let sameSearchPathID = try database.addSearchPath(URL(fileURLWithPath: "/Media"))
+    #expect(searchPathID == sameSearchPathID)
+}
+
+@Test
+func searchesCueGroupsAndRejectsCrossLineOnlyMatches() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Movie.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Movie.mkv")
+    let cueGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "alpha\nbeta",
+        cueLines: [
+            SubtitleCueLine(
+                eventIndex: 0,
+                sourceFormat: .ass,
+                sourceStyle: "Top",
+                sourceLayer: 0,
+                startTimecode: "0:00:01.00",
+                endTimecode: "0:00:03.00",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "alpha",
+                displayX: nil,
+                displayY: 10,
+                displayOrder: 0
+            ),
+            SubtitleCueLine(
+                eventIndex: 1,
+                sourceFormat: .ass,
+                sourceStyle: "Bottom",
+                sourceLayer: 1,
+                startTimecode: "0:00:01.00",
+                endTimecode: "0:00:03.00",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "beta",
+                displayX: nil,
+                displayY: 900,
+                displayOrder: 1
+            )
+        ]
+    )
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [cueGroup]
+    )
+
+    let alphaResults = try database.search("alpha")
+    #expect(alphaResults.count == 1)
+    #expect(alphaResults[0].subtitleFormat == .ass)
+    #expect(alphaResults[0].cueLines == ["alpha", "beta"])
+    #expect(alphaResults[0].videoPath == videoFile.path)
+    #expect(alphaResults[0].startMilliseconds == 1_000)
+
+    #expect(try database.search("alpha beta").isEmpty)
 }
 
 private func temporaryDatabaseURL() -> URL {
@@ -569,6 +641,14 @@ private func createLegacyVersionOneDatabase(at url: URL) throws {
             content TEXT NOT NULL
         );
 
+        CREATE TABLE search_paths (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL DEFAULT 'local',
+            path TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
         CREATE VIRTUAL TABLE subtitle_entries_fts USING fts5(
             content,
             subtitle_entry_id UNINDEXED
@@ -599,6 +679,9 @@ private func createLegacyVersionOneDatabase(at url: URL) throws {
 
         INSERT INTO subtitle_entries_fts(content, subtitle_entry_id)
         VALUES ('你好世界', 1);
+
+        INSERT INTO search_paths(type, path, created_at, updated_at)
+        VALUES ('local', '/Media', '2026-05-02T00:00:00Z', '2026-05-02T00:00:00Z');
 
         PRAGMA user_version = 1;
         """

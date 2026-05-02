@@ -1,6 +1,8 @@
 import Foundation
 
 public struct SubtitleFileScanner {
+    public static let supportedSubtitleExtensions: Set<String> = ["srt", "ass"]
+
     private let fileManager: FileManager
 
     public init(fileManager: FileManager = .default) {
@@ -8,6 +10,10 @@ public struct SubtitleFileScanner {
     }
 
     public func scanSRTFiles(in folder: URL) -> [URL] {
+        scanSubtitleFiles(in: folder).filter { $0.pathExtension.lowercased() == "srt" }
+    }
+
+    public func scanSubtitleFiles(in folder: URL) -> [URL] {
         let resourceKeys: [URLResourceKey] = [
             .isRegularFileKey,
             .isDirectoryKey,
@@ -38,7 +44,7 @@ public struct SubtitleFileScanner {
             }
 
             guard values.isRegularFile == true,
-                  fileURL.pathExtension.lowercased() == "srt"
+                  Self.supportedSubtitleExtensions.contains(fileURL.pathExtension.lowercased())
             else {
                 continue
             }
