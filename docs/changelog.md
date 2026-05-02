@@ -149,3 +149,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Refined first-pass ASS Lite visual scope so source ASS files provide timing,
   text, line breaks, and basic placement while CueSeeker owns the default
   readable subtitle display style.
+- Restored the ASS Lite visual direction so `[V4+ Styles]` and `[V4 Styles]`
+  source style fields drive first-pass subtitle rendering while CueSeeker avoids
+  platform text-stroke rendering for outlines.

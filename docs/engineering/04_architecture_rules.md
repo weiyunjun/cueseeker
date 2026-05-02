@@ -190,18 +190,20 @@ Rules:
 - The ASS Lite renderer must be separate from the SQLite search layer and should
   parse the source `.ass` file for playback.
 - The first ASS Lite subset should cover active dialogue timing, `\N` line
-  breaks, basic alignment and margins, inline `\an1` through `\an9` alignment
-  overrides, simultaneous active dialogue events, and video-rectangle mapping.
-- The first ASS Lite visual style must be app-owned through a renderer display
-  style, not directly controlled by source ASS font, color, outline, shadow, or
-  boxed-background fields.
-- ASS Lite outline drawing should use conservative multi-pass filled text
-  offsets around the glyphs before drawing the filled foreground text. Platform
-  attributed text stroke must not be used as a direct ASS outline substitute.
+  breaks, source style font, font size, colors, bold, italic, underline,
+  strikeout, scale, spacing, border style, outline, shadow, basic alignment and
+  margins, inline `\an1` through `\an9` alignment overrides, simultaneous
+  active dialogue events, and video-rectangle mapping.
+- ASS `Style:` rows in `[V4+ Styles]` or `[V4 Styles]` are source visual style
+  inputs for playback rendering.
+- ASS Lite outline drawing should use source-colored multi-pass filled text
+  offsets around the glyphs before drawing the source primary foreground text.
+  Platform attributed text stroke must not be used as a direct ASS outline
+  substitute.
 - Advanced ASS behavior such as `\pos`, `\move`, fade, karaoke, clip, vector
-  drawing, rich inline style overrides, faithful ASS visual style restoration,
-  embedded fonts, and embedded subtitle streams is deferred until explicitly
-  accepted.
+  drawing, rich inline style overrides, full VSFilter or libass-compatible
+  visual behavior, embedded fonts, and embedded subtitle streams is deferred
+  until explicitly accepted.
 - Selecting or bundling a dedicated external ASS renderer dependency must be
   documented before implementation because it can affect native dependencies,
   packaging, signing, and font behavior.

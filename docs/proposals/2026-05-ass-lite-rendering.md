@@ -25,7 +25,7 @@ of adopting an external ASS rendering library in the first rendering step.
   renderer.
 - Avoid adding an external ASS rendering dependency in the first implementation.
 - Support the common static subtitle cases needed for language learning:
-  dialogue text, bilingual lines, basic placement, app-owned display style, and
+  dialogue text, bilingual lines, ASS source styles, basic placement, and
   subtitle visibility toggling.
 - Keep the implementation incremental and reviewable.
 
@@ -36,7 +36,8 @@ of adopting an external ASS rendering library in the first rendering step.
 - Embedded subtitle stream decoding.
 - MKV font attachment extraction.
 - Advanced ASS animation support in the first implementation.
-- Faithful restoration of ASS visual styling in the first implementation.
+- Full VSFilter or libass-compatible restoration of every ASS visual behavior
+  in the first implementation.
 - Turning CueSeeker into a full media player.
 
 ## Current Implementation Scope
@@ -47,6 +48,7 @@ The first ASS Lite rendering step should support:
 - Parsing the ASS sections needed for rendering:
   - `[Script Info]`
   - `[V4+ Styles]`
+  - `[V4 Styles]`
   - `[Events]`
 - Parsing `PlayResX` and `PlayResY` when present.
 - Parsing `Style:` rows for commonly used style fields:
@@ -54,19 +56,27 @@ The first ASS Lite rendering step should support:
   - `Fontname`
   - `Fontsize`
   - `PrimaryColour`
+  - `SecondaryColour`
   - `OutlineColour`
   - `BackColour`
   - `Bold`
   - `Italic`
+  - `Underline`
+  - `StrikeOut`
+  - `ScaleX`
+  - `ScaleY`
+  - `Spacing`
+  - `Angle`
+  - `BorderStyle`
   - `Alignment`
   - `MarginL`
   - `MarginR`
   - `MarginV`
   - `Outline`
   - `Shadow`
-  These fields are parsed as source metadata for placement and future
-  compatibility work. They must not be treated as the final visual style for the
-  first implementation.
+  - `Encoding`
+  These fields are the source visual style for the first implementation where
+  the native renderer supports them.
 - Parsing `Dialogue:` rows according to the active `[Events] Format:` mapping.
 - Showing active dialogue events based on playback time.
 - Supporting ASS `\N` line breaks.
@@ -74,16 +84,14 @@ The first ASS Lite rendering step should support:
   - Strip unsupported override tags.
   - Support inline alignment overrides from `\an1` through `\an9`.
 - Supporting basic static placement from style alignment and margins.
-- Rendering text with a CueSeeker-owned default ASS Lite display style:
-  - System regular font with normal platform fallback for CJK text.
-  - White fill text.
-  - Small black outline no wider than 1-2 display pixels.
-  - Soft black shadow with a small offset.
-  - No subtitle box by default.
-  - No extra line spacing by default.
-- Avoiding direct use of ASS `Fontname`, `Fontsize`, `PrimaryColour`,
-  `OutlineColour`, `BackColour`, `Outline`, and `Shadow` as the first
-  implementation's final visual style.
+- Rendering text from the selected ASS style's font, font size, primary color,
+  outline color, background or shadow color, bold, italic, underline,
+  strikeout, scale, spacing, border style, outline, and shadow values where
+  supported.
+- Falling back to platform fonts only when the named ASS font is unavailable,
+  while preserving the rest of the ASS style semantics.
+- Avoiding AppKit attributed text stroke attributes as a direct substitute for
+  ASS outline rendering.
 - Rendering multiple active dialogue events at the same timestamp.
 - Ordering simultaneous events by layer and source order.
 - Mapping ASS script coordinates into the actual displayed video rectangle, not
@@ -101,8 +109,8 @@ Future ASS rendering iterations may add:
 - Karaoke tags such as `\k`, `\K`, `\kf`, and `\ko`.
 - Rich inline style overrides for font size, color, outline, shadow, bold,
   italic, and spacing.
-- Faithful ASS style restoration for source fonts, source colors, source
-  outline, source shadow, border style, and boxed backgrounds.
+- More exact ASS style restoration for source fonts, transforms, border style,
+  boxed backgrounds, and renderer-specific edge cases.
 - Rotation, transform, scaling, blur, border, and alpha overrides.
 - `\clip` and `\iclip`.
 - ASS vector drawing events.
@@ -199,9 +207,8 @@ Mitigations:
 - Add fixtures that capture both supported and intentionally unsupported cases.
 - Keep unsupported tags visible in test coverage as graceful degradation cases.
 - Implement video-rectangle mapping before fine-tuning style fidelity.
-- Keep first-pass visual styling app-owned and conservative, using filled text,
-  a small multi-pass outline, and a subtle shadow instead of platform stroke
-  attributes.
+- Keep first-pass visual styling source-owned, but implement ASS outline with
+  filled multi-pass offset drawing instead of platform stroke attributes.
 - Add future support only after each tag or behavior has a clear acceptance
   rule.
 
@@ -216,15 +223,15 @@ Mitigations:
 2. Rendering model design
    - Define `ASSLiteScript`, `ASSLiteStyle`, `ASSLiteDialogue`, and
      `ASSLiteOverride` models.
-   - Define `ASSLiteDisplayStyle` as the app-owned visual style for first-pass
-     rendering.
+   - Define `ASSLiteStyle` as the source visual style selected by each
+     `Dialogue` row.
    - Define unsupported-tag behavior as explicit graceful degradation.
    - Define render-time inputs: subtitle file URL, current playback time, video
      display rectangle, visibility state, and backing scale.
 
 3. Playback ASS parser
    - Parse `[Script Info]` for `PlayResX` and `PlayResY`.
-   - Parse `[V4+ Styles]` `Format:` and `Style:` rows.
+   - Parse `[V4+ Styles]` and `[V4 Styles]` `Format:` and `Style:` rows.
    - Parse `[Events]` `Format:` and `Dialogue:` rows.
    - Convert timecodes to milliseconds.
    - Preserve source order and layer.
@@ -261,10 +268,9 @@ Mitigations:
 8. Text rendering
    - Render active dialogue events using AppKit, Core Text, SwiftUI, or CALayer
      primitives selected during implementation.
-   - Apply the app-owned ASS Lite display style for font, fill, outline,
-     shadow, optional box, and line spacing.
-   - Use parsed ASS style only for basic alignment and margins in the first
-     implementation.
+   - Apply parsed ASS style for font, size, fill color, outline color, shadow
+     color, bold, italic, underline, strikeout, scale, spacing, border style,
+     outline, shadow, alignment, and margins where supported.
    - Draw outline with small offset fill passes around the text, then draw
      filled text normally; do not use platform text stroke attributes for the
      first implementation.
@@ -302,8 +308,8 @@ Mitigations:
 - ASS search results load their source `.ass` file for playback rendering.
 - Basic ASS dialogue text appears over the video surface at the active playback
   time.
-- App-owned display style, alignment, margins, and `\N` line breaks are
-  reflected closely enough for subtitle context review.
+- ASS source style, alignment, margins, and `\N` line breaks are reflected
+  closely enough for subtitle context review.
 - CJK subtitles render as normal filled readable subtitle text, not hollow
   stroke-heavy glyphs.
 - Multiple active dialogue events can appear together.
@@ -320,6 +326,7 @@ Mitigations:
 Accepted.
 
 The first step is a project-owned ASS Lite renderer with a documented subset of
-ASS behavior, app-owned default display style, and no external ASS rendering
-dependency. Future ASS visual style restoration should be added incrementally
-only after each feature has clear product value and acceptance criteria.
+ASS behavior, source-style-driven visual rendering, and no external ASS
+rendering dependency. Future compatibility improvements should be added
+incrementally only after each feature has clear product value and acceptance
+criteria.

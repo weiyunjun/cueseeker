@@ -325,8 +325,8 @@ Lite subset is verified.
 Required parser and model coverage:
 
 - `[Script Info]` `PlayResX` and `PlayResY` parsing.
-- `[V4+ Styles]` `Format:` and `Style:` parsing for the documented style
-  fields.
+- `[V4+ Styles]` and `[V4 Styles]` `Format:` and `Style:` parsing for the
+  documented style fields.
 - `[Events]` `Format:` and `Dialogue:` parsing for playback rendering.
 - ASS timecode conversion to milliseconds.
 - ASS `\N` line-break normalization for rendering.
@@ -338,8 +338,9 @@ Required rendering and playback checks:
 
 - ASS search results load the source `.ass` file for playback rendering.
 - Basic dialogue appears over the video surface at the active playback time.
-- The app-owned default display style, alignment, margins, and simultaneous
-  dialogue events are visible closely enough for subtitle context review.
+- Source style color, font, size, outline, shadow, alignment, margins, and
+  simultaneous dialogue events are visible closely enough for subtitle context
+  review.
 - CJK subtitle text remains filled and readable, not hollow or stroke-heavy.
 - The ASS Lite overlay maps to the displayed video rectangle rather than the
   full black playback container.
