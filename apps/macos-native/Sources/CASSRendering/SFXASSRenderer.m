@@ -106,6 +106,37 @@ static NSInteger SFXCompositeASSImages(
     return imageCount;
 }
 
+static BOOL SFXASSValidateSourcePath(NSString *path, NSError **error) {
+    if (path.length == 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"ASS source path is required.");
+        return NO;
+    }
+
+    BOOL isDirectory = NO;
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory] || isDirectory) {
+        NSString *message = [NSString stringWithFormat:@"ASS source file does not exist: %@", path];
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
+        return NO;
+    }
+
+    return YES;
+}
+
+static BOOL SFXASSValidateFrameSize(NSInteger frameWidth, NSInteger frameHeight, NSError **error) {
+    if (frameWidth <= 0 || frameHeight <= 0 || frameWidth > INT_MAX || frameHeight > INT_MAX) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Frame width and height must be positive Int32 values.");
+        return NO;
+    }
+
+    NSInteger stride = frameWidth * 4;
+    if (frameHeight > NSIntegerMax / stride) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Frame dimensions are too large.");
+        return NO;
+    }
+
+    return YES;
+}
+
 @implementation SFXASSRenderOutput
 
 - (instancetype)initWithRGBAData:(NSData *)rgbaData
@@ -193,6 +224,128 @@ static NSInteger SFXCompositeASSImages(
 
 @end
 
+@implementation SFXASSRendererSession {
+    ASS_Library *_library;
+    ASS_Renderer *_renderer;
+    ASS_Track *_track;
+}
+
+- (nullable instancetype)initWithASSFileAtPath:(NSString *)path
+                                    frameWidth:(NSInteger)frameWidth
+                                   frameHeight:(NSInteger)frameHeight
+                                fontsDirectory:(nullable NSString *)fontsDirectory
+                                         error:(NSError **)error {
+    if (!SFXASSValidateSourcePath(path, error) || !SFXASSValidateFrameSize(frameWidth, frameHeight, error)) {
+        return nil;
+    }
+
+    self = [super init];
+    if (self == nil) {
+        return nil;
+    }
+
+    _sourcePath = [path copy];
+    _frameWidth = frameWidth;
+    _frameHeight = frameHeight;
+
+    _library = ass_library_init();
+    if (_library == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass failed to initialize.");
+        return nil;
+    }
+
+    ass_set_message_cb(_library, SFXASSMessageCallback, NULL);
+    ass_set_extract_fonts(_library, 1);
+    if (fontsDirectory.length > 0) {
+        BOOL fontsIsDirectory = NO;
+        if (![[NSFileManager defaultManager] fileExistsAtPath:fontsDirectory isDirectory:&fontsIsDirectory] || !fontsIsDirectory) {
+            NSString *message = [NSString stringWithFormat:@"Font directory does not exist: %@", fontsDirectory];
+            SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
+            [self cleanup];
+            return nil;
+        }
+        ass_set_fonts_dir(_library, [fontsDirectory fileSystemRepresentation]);
+    }
+
+    _renderer = ass_renderer_init(_library);
+    if (_renderer == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass renderer failed to initialize.");
+        [self cleanup];
+        return nil;
+    }
+
+    ass_set_frame_size(_renderer, (int)frameWidth, (int)frameHeight);
+    ass_set_storage_size(_renderer, (int)frameWidth, (int)frameHeight);
+    ass_set_fonts(_renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
+
+    _track = ass_read_file(_library, [path fileSystemRepresentation], NULL);
+    if (_track == NULL) {
+        NSString *message = [NSString stringWithFormat:@"libass could not load ASS source file: %@", path];
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
+        [self cleanup];
+        return nil;
+    }
+
+    return self;
+}
+
+- (nullable SFXASSRenderOutput *)renderFrameAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
+                                                              error:(NSError **)error {
+    if (timestampMilliseconds < 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Timestamp must be non-negative.");
+        return nil;
+    }
+    if (_renderer == NULL || _track == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"libass renderer session is not initialized.");
+        return nil;
+    }
+
+    NSInteger stride = self.frameWidth * 4;
+    NSMutableData *rgbaData = [NSMutableData dataWithLength:(NSUInteger)(stride * self.frameHeight)];
+    if (rgbaData == nil) {
+        SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"Could not allocate ASS render output buffer.");
+        return nil;
+    }
+
+    int detectChange = 0;
+    ASS_Image *images = ass_render_frame(_renderer, _track, (long long)timestampMilliseconds, &detectChange);
+    NSInteger imageCount = SFXCompositeASSImages(
+        images,
+        (uint8_t *)rgbaData.mutableBytes,
+        self.frameWidth,
+        self.frameHeight,
+        stride
+    );
+
+    return [[SFXASSRenderOutput alloc] initWithRGBAData:rgbaData
+                                                  width:self.frameWidth
+                                                 height:self.frameHeight
+                                                 stride:stride
+                                             imageCount:imageCount
+                                                changed:detectChange != 0];
+}
+
+- (void)dealloc {
+    [self cleanup];
+}
+
+- (void)cleanup {
+    if (_track != NULL) {
+        ass_free_track(_track);
+        _track = NULL;
+    }
+    if (_renderer != NULL) {
+        ass_renderer_done(_renderer);
+        _renderer = NULL;
+    }
+    if (_library != NULL) {
+        ass_library_done(_library);
+        _library = NULL;
+    }
+}
+
+@end
+
 @implementation SFXASSRenderer
 
 + (NSString *)libassVersionString {
@@ -209,97 +362,16 @@ static NSInteger SFXCompositeASSImages(
                                timestampMilliseconds:(NSInteger)timestampMilliseconds
                                       fontsDirectory:(nullable NSString *)fontsDirectory
                                                error:(NSError **)error {
-    if (path.length == 0) {
-        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"ASS source path is required.");
-        return nil;
-    }
-    if (frameWidth <= 0 || frameHeight <= 0 || frameWidth > INT_MAX || frameHeight > INT_MAX) {
-        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Frame width and height must be positive Int32 values.");
-        return nil;
-    }
-    if (timestampMilliseconds < 0) {
-        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Timestamp must be non-negative.");
+    SFXASSRendererSession *session = [[SFXASSRendererSession alloc] initWithASSFileAtPath:path
+                                                                               frameWidth:frameWidth
+                                                                              frameHeight:frameHeight
+                                                                           fontsDirectory:fontsDirectory
+                                                                                    error:error];
+    if (session == nil) {
         return nil;
     }
 
-    BOOL isDirectory = NO;
-    if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory] || isDirectory) {
-        NSString *message = [NSString stringWithFormat:@"ASS source file does not exist: %@", path];
-        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
-        return nil;
-    }
-
-    NSInteger stride = frameWidth * 4;
-    if (frameHeight > NSIntegerMax / stride) {
-        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Frame dimensions are too large.");
-        return nil;
-    }
-
-    NSMutableData *rgbaData = [NSMutableData dataWithLength:(NSUInteger)(stride * frameHeight)];
-    if (rgbaData == nil) {
-        SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"Could not allocate ASS render output buffer.");
-        return nil;
-    }
-
-    ASS_Library *library = ass_library_init();
-    if (library == NULL) {
-        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass failed to initialize.");
-        return nil;
-    }
-
-    ass_set_message_cb(library, SFXASSMessageCallback, NULL);
-    ass_set_extract_fonts(library, 1);
-    if (fontsDirectory.length > 0) {
-        BOOL fontsIsDirectory = NO;
-        if (![[NSFileManager defaultManager] fileExistsAtPath:fontsDirectory isDirectory:&fontsIsDirectory] || !fontsIsDirectory) {
-            ass_library_done(library);
-            NSString *message = [NSString stringWithFormat:@"Font directory does not exist: %@", fontsDirectory];
-            SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
-            return nil;
-        }
-        ass_set_fonts_dir(library, [fontsDirectory fileSystemRepresentation]);
-    }
-
-    ASS_Renderer *renderer = ass_renderer_init(library);
-    if (renderer == NULL) {
-        ass_library_done(library);
-        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass renderer failed to initialize.");
-        return nil;
-    }
-
-    ass_set_frame_size(renderer, (int)frameWidth, (int)frameHeight);
-    ass_set_storage_size(renderer, (int)frameWidth, (int)frameHeight);
-    ass_set_fonts(renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
-
-    ASS_Track *track = ass_read_file(library, [path fileSystemRepresentation], NULL);
-    if (track == NULL) {
-        ass_renderer_done(renderer);
-        ass_library_done(library);
-        NSString *message = [NSString stringWithFormat:@"libass could not load ASS source file: %@", path];
-        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
-        return nil;
-    }
-
-    int detectChange = 0;
-    ASS_Image *images = ass_render_frame(renderer, track, (long long)timestampMilliseconds, &detectChange);
-    NSInteger imageCount = SFXCompositeASSImages(
-        images,
-        (uint8_t *)rgbaData.mutableBytes,
-        frameWidth,
-        frameHeight,
-        stride
-    );
-
-    ass_free_track(track);
-    ass_renderer_done(renderer);
-    ass_library_done(library);
-
-    return [[SFXASSRenderOutput alloc] initWithRGBAData:rgbaData
-                                                  width:frameWidth
-                                                 height:frameHeight
-                                                 stride:stride
-                                             imageCount:imageCount
-                                                changed:detectChange != 0];
+    return [session renderFrameAtTimestampMilliseconds:timestampMilliseconds error:error];
 }
 
 @end

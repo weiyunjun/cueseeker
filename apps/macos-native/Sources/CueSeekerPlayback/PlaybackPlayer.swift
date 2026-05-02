@@ -15,6 +15,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var subtitlesVisible = true
     private var activeSubtitleSource: PlaybackSubtitleSource?
     private var subtitleLoadTask: Task<Void, Never>?
+    private var subtitleRenderTickTask: Task<Void, Never>?
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -71,60 +72,42 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         activeSubtitleSource = source
 
         guard let source, source.format == .ass else {
+            stopASSSubtitleRenderTicks()
             Task { @MainActor in
-                (self.renderView as? PlaybackRenderContainerView)?.clearASSSubtitleScript()
+                guard let container = self.renderView as? PlaybackRenderContainerView else {
+                    return
+                }
+
+                container.clearASSSubtitleScript()
+                container.clearSourceFaithfulASSSubtitleSource()
             }
             return
         }
 
         Task { @MainActor in
-            (self.renderView as? PlaybackRenderContainerView)?.clearASSSubtitleScript()
-        }
-
-        subtitleLoadTask = Task(priority: .userInitiated) { [weak self] in
-            do {
-                let contents = try String(contentsOf: source.url, encoding: .utf8)
-                try Task.checkCancellation()
-                // ASS Lite remains a full-source fallback. The timing window is a
-                // future source-faithful renderer preparation hint, not a clipping
-                // rule for the current overlay.
-                let script = ASSLiteSubtitlePreparation.fallbackScript(contents, source: source)
-                try Task.checkCancellation()
-
-                await MainActor.run { [weak self] in
-                    guard let self,
-                          self.activeSubtitleSource == source,
-                          let container = self.renderView as? PlaybackRenderContainerView
-                    else {
-                        return
-                    }
-
-                    let currentMilliseconds = max(0, Int((self.nativePlayer.currentTime * 1_000).rounded(.down)))
-                    container.setASSSubtitleScript(script)
-                    container.setASSSubtitleTime(milliseconds: currentMilliseconds)
-                    container.setSubtitlesVisible(self.subtitlesVisible)
-                    container.setVideoSize(self.currentNativeVideoSize())
-                }
-            } catch is CancellationError {
+            guard self.activeSubtitleSource == source,
+                  let container = self.renderView as? PlaybackRenderContainerView
+            else {
                 return
-            } catch {
-                print("Failed to load ASS subtitle source: \(error)")
-                await MainActor.run { [weak self] in
-                    guard let self,
-                          self.activeSubtitleSource == source,
-                          let container = self.renderView as? PlaybackRenderContainerView
-                    else {
-                        return
-                    }
-
-                    container.clearASSSubtitleScript()
-                }
             }
+
+            let currentMilliseconds = max(0, Int((self.nativePlayer.currentTime * 1_000).rounded(.down)))
+            container.assRenderingFailureHandler = { [weak self] message in
+                guard let self else { return }
+                self.delegate?.player(self, didFailWithMessage: message)
+            }
+            container.clearASSSubtitleScript()
+            container.setVideoSize(self.currentNativeVideoSize())
+            container.setSourceFaithfulASSSubtitleSource(source)
+            container.setASSSubtitleTime(milliseconds: currentMilliseconds)
+            container.setSubtitlesVisible(self.subtitlesVisible)
         }
+        startASSSubtitleRenderTicks()
     }
 
     deinit {
         subtitleLoadTask?.cancel()
+        subtitleRenderTickTask?.cancel()
     }
 
     public func setSubtitlesVisible(_ isVisible: Bool) {
@@ -213,6 +196,26 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
     }
 
+    private func startASSSubtitleRenderTicks() {
+        subtitleRenderTickTask?.cancel()
+        subtitleRenderTickTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self else {
+                    return
+                }
+
+                let milliseconds = max(0, Int((self.nativePlayer.currentTime * 1_000).rounded(.down)))
+                (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: milliseconds)
+                try? await Task.sleep(nanoseconds: 33_000_000)
+            }
+        }
+    }
+
+    private func stopASSSubtitleRenderTicks() {
+        subtitleRenderTickTask?.cancel()
+        subtitleRenderTickTask = nil
+    }
+
     private func emitInitialNativeState() {
         delegate?.player(self, didChangeProperty: "duration", value: .double(nativePlayer.duration))
         delegate?.player(self, didChangeProperty: "pause", value: .bool(false))
@@ -267,7 +270,13 @@ private extension PlaybackDecodeMode {
 @MainActor
 public final class PlaybackRenderContainerView: NSView {
     private weak var attachedView: NSView?
-    private var assOverlayView: ASSLiteSubtitleOverlayView?
+    private var assLiteOverlayView: ASSLiteSubtitleOverlayView?
+    private var sourceFaithfulASSOverlayView: SourceFaithfulASSSubtitleOverlayView?
+    private var currentASSSubtitleTimeMilliseconds = 0
+    private var currentSubtitlesVisible = true
+    private var currentVideoSize: CGSize?
+
+    var assRenderingFailureHandler: ((String) -> Void)?
 
     init() {
         super.init(frame: .zero)
@@ -289,56 +298,120 @@ public final class PlaybackRenderContainerView: NSView {
         attachedView = view
         view.removeFromSuperview()
         addSubview(view)
-        ensureASSOverlayView()
+        ensureASSOverlaysStayAboveAttachedView()
         needsLayout = true
     }
 
     public override func layout() {
         super.layout()
         attachedView?.frame = bounds
-        assOverlayView?.frame = bounds
+        assLiteOverlayView?.frame = bounds
+        sourceFaithfulASSOverlayView?.frame = bounds
     }
 
     func setASSSubtitleScript(_ script: ASSLiteScript) {
-        ensureASSOverlayView()
-        assOverlayView?.script = script
+        ensureASSLiteOverlayView()
+        assLiteOverlayView?.script = script
+        assLiteOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+        assLiteOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
+        assLiteOverlayView?.videoSize = currentVideoSize
     }
 
     func clearASSSubtitleScript() {
-        assOverlayView?.script = nil
+        assLiteOverlayView?.script = nil
+    }
+
+    func setSourceFaithfulASSSubtitleSource(_ source: PlaybackSubtitleSource) {
+        ensureSourceFaithfulASSOverlayView()
+        sourceFaithfulASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+        sourceFaithfulASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
+        sourceFaithfulASSOverlayView?.videoSize = currentVideoSize
+        sourceFaithfulASSOverlayView?.setSource(source)
+    }
+
+    func clearSourceFaithfulASSSubtitleSource() {
+        sourceFaithfulASSOverlayView?.setSource(nil)
     }
 
     func setASSSubtitleTime(milliseconds: Int) {
-        assOverlayView?.currentTimeMilliseconds = milliseconds
+        currentASSSubtitleTimeMilliseconds = milliseconds
+        assLiteOverlayView?.currentTimeMilliseconds = milliseconds
+        sourceFaithfulASSOverlayView?.currentTimeMilliseconds = milliseconds
     }
 
     func setSubtitlesVisible(_ isVisible: Bool) {
-        ensureASSOverlayView()
-        assOverlayView?.areSubtitlesVisible = isVisible
+        currentSubtitlesVisible = isVisible
+        assLiteOverlayView?.areSubtitlesVisible = isVisible
+        sourceFaithfulASSOverlayView?.areSubtitlesVisible = isVisible
     }
 
     func setVideoSize(_ videoSize: CGSize?) {
-        ensureASSOverlayView()
-        assOverlayView?.videoSize = videoSize
+        currentVideoSize = videoSize
+        assLiteOverlayView?.videoSize = videoSize
+        sourceFaithfulASSOverlayView?.videoSize = videoSize
     }
 
-    private func ensureASSOverlayView() {
-        if assOverlayView == nil {
-            assOverlayView = ASSLiteSubtitleOverlayView(frame: bounds)
+    private func ensureASSLiteOverlayView() {
+        if assLiteOverlayView == nil {
+            assLiteOverlayView = ASSLiteSubtitleOverlayView(frame: bounds)
         }
 
-        guard let assOverlayView else {
+        guard let assLiteOverlayView else {
             return
         }
 
-        if assOverlayView.superview !== self {
-            addSubview(assOverlayView)
+        if assLiteOverlayView.superview !== self {
+            addSubview(assLiteOverlayView)
         }
 
-        assOverlayView.frame = bounds
+        assLiteOverlayView.frame = bounds
 
         if let attachedView {
-            addSubview(assOverlayView, positioned: .above, relativeTo: attachedView)
+            addSubview(assLiteOverlayView, positioned: .above, relativeTo: attachedView)
+        }
+
+        assLiteOverlayView.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+        assLiteOverlayView.areSubtitlesVisible = currentSubtitlesVisible
+        assLiteOverlayView.videoSize = currentVideoSize
+    }
+
+    private func ensureSourceFaithfulASSOverlayView() {
+        if sourceFaithfulASSOverlayView == nil {
+            sourceFaithfulASSOverlayView = SourceFaithfulASSSubtitleOverlayView(frame: bounds)
+            sourceFaithfulASSOverlayView?.onRenderingFailure = { [weak self] message in
+                self?.assRenderingFailureHandler?(message)
+            }
+        }
+
+        guard let sourceFaithfulASSOverlayView else {
+            return
+        }
+
+        if sourceFaithfulASSOverlayView.superview !== self {
+            addSubview(sourceFaithfulASSOverlayView)
+        }
+
+        sourceFaithfulASSOverlayView.frame = bounds
+
+        if let attachedView {
+            addSubview(sourceFaithfulASSOverlayView, positioned: .above, relativeTo: attachedView)
+        }
+
+        sourceFaithfulASSOverlayView.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+        sourceFaithfulASSOverlayView.areSubtitlesVisible = currentSubtitlesVisible
+        sourceFaithfulASSOverlayView.videoSize = currentVideoSize
+    }
+
+    private func ensureASSOverlaysStayAboveAttachedView() {
+        guard let attachedView else {
+            return
+        }
+
+        if let assLiteOverlayView, assLiteOverlayView.superview === self {
+            addSubview(assLiteOverlayView, positioned: .above, relativeTo: attachedView)
+        }
+        if let sourceFaithfulASSOverlayView, sourceFaithfulASSOverlayView.superview === self {
+            addSubview(sourceFaithfulASSOverlayView, positioned: .above, relativeTo: attachedView)
         }
     }
 }

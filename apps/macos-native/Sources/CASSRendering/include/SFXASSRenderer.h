@@ -27,6 +27,26 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 
 @end
 
+@interface SFXASSRendererSession : NSObject
+
+@property (nonatomic, copy, readonly) NSString *sourcePath;
+@property (nonatomic, readonly) NSInteger frameWidth;
+@property (nonatomic, readonly) NSInteger frameHeight;
+
+- (instancetype)init NS_UNAVAILABLE;
+- (nullable instancetype)initWithASSFileAtPath:(NSString *)path
+                                    frameWidth:(NSInteger)frameWidth
+                                   frameHeight:(NSInteger)frameHeight
+                                fontsDirectory:(nullable NSString *)fontsDirectory
+                                         error:(NSError **)error
+    NS_SWIFT_NAME(init(assFileAtPath:frameWidth:frameHeight:fontsDirectory:));
+
+- (nullable SFXASSRenderOutput *)renderFrameAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
+                                                              error:(NSError **)error
+    NS_SWIFT_NAME(renderFrame(atTimestampMilliseconds:));
+
+@end
+
 @interface SFXASSRenderer : NSObject
 
 + (NSString *)libassVersionString;

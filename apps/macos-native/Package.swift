@@ -61,7 +61,8 @@ let package = Package(
         .target(
             name: "CueSeekerPlayback",
             dependencies: [
-                "CNativePlayback"
+                "CNativePlayback",
+                "CASSRendering"
             ],
             path: "Sources/CueSeekerPlayback"
         ),

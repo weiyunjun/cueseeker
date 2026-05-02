@@ -55,6 +55,24 @@ final class CASSRenderingProbeTests: XCTestCase {
         XCTAssertGreaterThan(zeroDurationTimestampOutput.imageCount, 0)
     }
 
+    func testRendererSessionReusesLoadedASSFileAcrossTimestamps() throws {
+        let fixtureURL = try XCTUnwrap(Bundle.module.url(forResource: "complex-effects", withExtension: "ass"))
+        let session = try SFXASSRendererSession(
+            assFileAtPath: fixtureURL.path,
+            frameWidth: 640,
+            frameHeight: 360,
+            fontsDirectory: nil
+        )
+
+        let firstFrame = try session.renderFrame(atTimestampMilliseconds: 1_220)
+        let secondFrame = try session.renderFrame(atTimestampMilliseconds: 1_500)
+
+        XCTAssertEqual(firstFrame.width, 640)
+        XCTAssertEqual(secondFrame.height, 360)
+        XCTAssertGreaterThan(firstFrame.imageCount, 0)
+        XCTAssertGreaterThan(secondFrame.imageCount, 0)
+    }
+
     private func nonTransparentPixelCount(in data: Data) -> Int {
         var count = 0
         var index = 3

@@ -172,3 +172,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added an isolated `CASSRendering` libass bridge and `ASSRenderingProbe`
   executable to render source `.ass` files into diagnostic RGBA/PNG output
   before any playback UI integration.
+- Routed ASS playback subtitles through the libass-backed source-faithful
+  overlay path in the native playback render container, keeping ASS Lite out of
+  the active ASS playback path so renderer failures surface during development.
