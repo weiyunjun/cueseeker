@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CueSeekerPlayback
 
@@ -138,6 +139,29 @@ func assLiteParserKeepsOnlyDialoguesOverlappingTimeWindow() {
 
     #expect(script.styles["Default"]?.fontName == "Helvetica")
     #expect(script.dialogues.map(\.text) == ["Inside", "Overlapping", "Zero duration"])
+}
+
+@Test
+func assLiteFallbackPreparationIgnoresPreparationWindow() {
+    let contents = """
+    [Events]
+    Format: Layer, Start, End, Style, Text
+    Dialogue: 0,0:00:01.00,0:00:02.00,Default,Before
+    Dialogue: 0,0:00:04.00,0:00:05.00,Default,Inside
+    Dialogue: 0,0:00:08.00,0:00:09.00,Default,After
+    """
+    let source = PlaybackSubtitleSource(
+        url: URL(fileURLWithPath: "/tmp/Movie.ass"),
+        format: .ass,
+        preparationTimeWindow: PlaybackSubtitleTimeWindow(
+            startMilliseconds: 4_000,
+            endMilliseconds: 5_000
+        )
+    )
+
+    let script = ASSLiteSubtitlePreparation.fallbackScript(contents, source: source)
+
+    #expect(script.dialogues.map(\.text) == ["Before", "Inside", "After"])
 }
 
 @Test

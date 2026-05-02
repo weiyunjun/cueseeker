@@ -26,16 +26,16 @@ public enum PlaybackSubtitleSourceFormat: String, Sendable, Equatable {
 public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let url: URL
     public let format: PlaybackSubtitleSourceFormat
-    public let timeWindow: PlaybackSubtitleTimeWindow?
+    public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
 
     public init(
         url: URL,
         format: PlaybackSubtitleSourceFormat,
-        timeWindow: PlaybackSubtitleTimeWindow? = nil
+        preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil
     ) {
         self.url = url
         self.format = format
-        self.timeWindow = timeWindow
+        self.preparationTimeWindow = preparationTimeWindow
     }
 }
 

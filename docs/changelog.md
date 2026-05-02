@@ -161,6 +161,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
   source `.ass` file remains required for exact formatting and visual-effect
   payloads.
 - Implemented the first windowed ASS render-preparation path: ASS playback
-  sources now carry an indexed cue timing window, ASS Lite parsing keeps only
-  source dialogues that overlap that window, and subtitle source loading runs
-  asynchronously with stale-load cancellation.
+  sources now carry an indexed cue timing window as a future renderer
+  preparation hint, while the current ASS Lite fallback keeps full-source
+  parsing and subtitle source loading runs asynchronously with stale-load
+  cancellation.

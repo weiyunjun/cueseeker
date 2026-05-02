@@ -507,3 +507,9 @@ enum ASSLiteParser {
         return Int(overrideText[alignmentRange])
     }
 }
+
+enum ASSLiteSubtitlePreparation {
+    static func fallbackScript(_ contents: String, source _: PlaybackSubtitleSource) -> ASSLiteScript {
+        ASSLiteParser.parse(contents)
+    }
+}

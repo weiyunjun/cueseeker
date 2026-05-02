@@ -85,7 +85,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             do {
                 let contents = try String(contentsOf: source.url, encoding: .utf8)
                 try Task.checkCancellation()
-                let script = ASSLiteParser.parse(contents, timeWindow: source.timeWindow)
+                // ASS Lite remains a full-source fallback. The timing window is a
+                // future source-faithful renderer preparation hint, not a clipping
+                // rule for the current overlay.
+                let script = ASSLiteSubtitlePreparation.fallbackScript(contents, source: source)
                 try Task.checkCancellation()
 
                 await MainActor.run { [weak self] in

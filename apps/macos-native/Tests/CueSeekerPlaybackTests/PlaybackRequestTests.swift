@@ -103,11 +103,11 @@ func playbackRequestStoresASSSubtitleTimeWindow() throws {
         subtitleSource: PlaybackSubtitleSource(
             url: subtitleURL,
             format: .ass,
-            timeWindow: timeWindow
+            preparationTimeWindow: timeWindow
         )
     )
 
-    #expect(request.subtitleSource?.timeWindow == timeWindow)
+    #expect(request.subtitleSource?.preparationTimeWindow == timeWindow)
 }
 
 @Test
