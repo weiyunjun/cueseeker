@@ -338,8 +338,9 @@ Required rendering and playback checks:
 
 - ASS search results load the source `.ass` file for playback rendering.
 - Basic dialogue appears over the video surface at the active playback time.
-- Basic style, alignment, margins, and simultaneous dialogue events are visible
-  closely enough for subtitle context review.
+- The app-owned default display style, alignment, margins, and simultaneous
+  dialogue events are visible closely enough for subtitle context review.
+- CJK subtitle text remains filled and readable, not hollow or stroke-heavy.
 - The ASS Lite overlay maps to the displayed video rectangle rather than the
   full black playback container.
 - The existing subtitle button and `C` shortcut show and hide ASS Lite

@@ -25,8 +25,8 @@ of adopting an external ASS rendering library in the first rendering step.
   renderer.
 - Avoid adding an external ASS rendering dependency in the first implementation.
 - Support the common static subtitle cases needed for language learning:
-  dialogue text, bilingual lines, basic style, basic placement, and subtitle
-  visibility toggling.
+  dialogue text, bilingual lines, basic placement, app-owned display style, and
+  subtitle visibility toggling.
 - Keep the implementation incremental and reviewable.
 
 ## Non-goals
@@ -36,6 +36,7 @@ of adopting an external ASS rendering library in the first rendering step.
 - Embedded subtitle stream decoding.
 - MKV font attachment extraction.
 - Advanced ASS animation support in the first implementation.
+- Faithful restoration of ASS visual styling in the first implementation.
 - Turning CueSeeker into a full media player.
 
 ## Current Implementation Scope
@@ -63,6 +64,9 @@ The first ASS Lite rendering step should support:
   - `MarginV`
   - `Outline`
   - `Shadow`
+  These fields are parsed as source metadata for placement and future
+  compatibility work. They must not be treated as the final visual style for the
+  first implementation.
 - Parsing `Dialogue:` rows according to the active `[Events] Format:` mapping.
 - Showing active dialogue events based on playback time.
 - Supporting ASS `\N` line breaks.
@@ -70,6 +74,16 @@ The first ASS Lite rendering step should support:
   - Strip unsupported override tags.
   - Support inline alignment overrides from `\an1` through `\an9`.
 - Supporting basic static placement from style alignment and margins.
+- Rendering text with a CueSeeker-owned default ASS Lite display style:
+  - System regular font with normal platform fallback for CJK text.
+  - White fill text.
+  - Small black outline no wider than 1-2 display pixels.
+  - Soft black shadow with a small offset.
+  - No subtitle box by default.
+  - No extra line spacing by default.
+- Avoiding direct use of ASS `Fontname`, `Fontsize`, `PrimaryColour`,
+  `OutlineColour`, `BackColour`, `Outline`, and `Shadow` as the first
+  implementation's final visual style.
 - Rendering multiple active dialogue events at the same timestamp.
 - Ordering simultaneous events by layer and source order.
 - Mapping ASS script coordinates into the actual displayed video rectangle, not
@@ -87,6 +101,8 @@ Future ASS rendering iterations may add:
 - Karaoke tags such as `\k`, `\K`, `\kf`, and `\ko`.
 - Rich inline style overrides for font size, color, outline, shadow, bold,
   italic, and spacing.
+- Faithful ASS style restoration for source fonts, source colors, source
+  outline, source shadow, border style, and boxed backgrounds.
 - Rotation, transform, scaling, blur, border, and alpha overrides.
 - `\clip` and `\iclip`.
 - ASS vector drawing events.
@@ -170,6 +186,8 @@ Risks:
   assumptions that the first renderer intentionally ignores.
 - AppKit, Core Text, SwiftUI, or CALayer text rendering may differ from common
   ASS renderers.
+- Mapping large ASS outline values directly into platform attributed text can
+  produce hollow or decorative CJK glyphs instead of normal readable subtitles.
 - The current playback time delegate updates at a coarse cadence. Static
   dialogue display may be acceptable, but future animation support will need a
   higher-frequency rendering clock.
@@ -181,6 +199,9 @@ Mitigations:
 - Add fixtures that capture both supported and intentionally unsupported cases.
 - Keep unsupported tags visible in test coverage as graceful degradation cases.
 - Implement video-rectangle mapping before fine-tuning style fidelity.
+- Keep first-pass visual styling app-owned and conservative, using filled text,
+  a small multi-pass outline, and a subtle shadow instead of platform stroke
+  attributes.
 - Add future support only after each tag or behavior has a clear acceptance
   rule.
 
@@ -195,6 +216,8 @@ Mitigations:
 2. Rendering model design
    - Define `ASSLiteScript`, `ASSLiteStyle`, `ASSLiteDialogue`, and
      `ASSLiteOverride` models.
+   - Define `ASSLiteDisplayStyle` as the app-owned visual style for first-pass
+     rendering.
    - Define unsupported-tag behavior as explicit graceful degradation.
    - Define render-time inputs: subtitle file URL, current playback time, video
      display rectangle, visibility state, and backing scale.
@@ -238,8 +261,13 @@ Mitigations:
 8. Text rendering
    - Render active dialogue events using AppKit, Core Text, SwiftUI, or CALayer
      primitives selected during implementation.
-   - Apply basic font, size, bold, italic, primary color, outline color, shadow,
-     alignment, and margins.
+   - Apply the app-owned ASS Lite display style for font, fill, outline,
+     shadow, optional box, and line spacing.
+   - Use parsed ASS style only for basic alignment and margins in the first
+     implementation.
+   - Draw outline with small offset fill passes around the text, then draw
+     filled text normally; do not use platform text stroke attributes for the
+     first implementation.
    - Stack simultaneous events by layer and source order.
 
 9. Playback clock integration
@@ -274,8 +302,10 @@ Mitigations:
 - ASS search results load their source `.ass` file for playback rendering.
 - Basic ASS dialogue text appears over the video surface at the active playback
   time.
-- Basic styles, alignment, margins, and `\N` line breaks are reflected closely
-  enough for subtitle context review.
+- App-owned display style, alignment, margins, and `\N` line breaks are
+  reflected closely enough for subtitle context review.
+- CJK subtitles render as normal filled readable subtitle text, not hollow
+  stroke-heavy glyphs.
 - Multiple active dialogue events can appear together.
 - Unsupported override tags do not break rendering of visible text.
 - The overlay follows both Playback Inspector and Theater Mode fullscreen.
@@ -290,6 +320,6 @@ Mitigations:
 Accepted.
 
 The first step is a project-owned ASS Lite renderer with a documented subset of
-ASS behavior and no external ASS rendering dependency. Future support should be
-added incrementally only after each feature has clear product value and
-acceptance criteria.
+ASS behavior, app-owned default display style, and no external ASS rendering
+dependency. Future ASS visual style restoration should be added incrementally
+only after each feature has clear product value and acceptance criteria.

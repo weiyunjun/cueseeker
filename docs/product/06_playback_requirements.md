@@ -160,7 +160,7 @@ Future versions may need:
 
 - Highlight current subtitle.
 - Support text selection or learning interactions.
-- More complete ASS rendering beyond the ASS Lite subset.
+- More complete ASS visual style restoration beyond the ASS Lite subset.
 
 Rules:
 
@@ -173,12 +173,18 @@ Rules:
 - ASS Lite must render from the source `.ass` file associated with the selected
   search result, not from the search database projection.
 - The initial ASS Lite subset should support active dialogue timing, `\N` line
-  breaks, basic style fields, basic alignment and margins, inline `\an1`
-  through `\an9` alignment overrides, simultaneous active dialogue events, and
-  video-rectangle mapping.
+  breaks, basic alignment and margins, inline `\an1` through `\an9` alignment
+  overrides, simultaneous active dialogue events, and video-rectangle mapping.
+- ASS Lite visual styling is owned by CueSeeker for the first implementation:
+  system regular font with platform fallback, white filled text, small black
+  outline, subtle black shadow, no default box, and no extra line spacing.
+- ASS `Fontname`, `Fontsize`, `PrimaryColour`, `OutlineColour`, `BackColour`,
+  `Outline`, and `Shadow` should be parsed as source metadata only. They must
+  not directly control the first implementation's final subtitle appearance.
 - Advanced ASS features such as `\pos`, `\move`, fade, karaoke, clip, vector
-  drawing, rich inline style overrides, embedded fonts, and embedded subtitle
-  streams are deferred until they have explicit acceptance criteria.
+  drawing, rich inline style overrides, faithful ASS visual style restoration,
+  embedded fonts, and embedded subtitle streams are deferred until they have
+  explicit acceptance criteria.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.

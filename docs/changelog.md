@@ -146,3 +146,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Implemented the first ASS Lite source subtitle rendering path with playback
   source loading, basic ASS parsing, a native overlay in the playback render
   container, subtitle visibility integration, and 48 passing Swift tests.
+- Refined first-pass ASS Lite visual scope so source ASS files provide timing,
+  text, line breaks, and basic placement while CueSeeker owns the default
+  readable subtitle display style.
