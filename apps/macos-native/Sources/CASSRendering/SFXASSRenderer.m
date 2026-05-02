@@ -1,0 +1,305 @@
+#import "SFXASSRenderer.h"
+
+#import <CoreGraphics/CoreGraphics.h>
+#import <ImageIO/ImageIO.h>
+
+#include <ass/ass.h>
+#include <limits.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+
+NSString * const SFXASSRenderingErrorDomain = @"CueSeeker.ASSRendering";
+
+@interface SFXASSRenderOutput ()
+
+- (instancetype)initWithRGBAData:(NSData *)rgbaData
+                           width:(NSInteger)width
+                          height:(NSInteger)height
+                          stride:(NSInteger)stride
+                      imageCount:(NSInteger)imageCount
+                         changed:(BOOL)changed NS_DESIGNATED_INITIALIZER;
+
+@end
+
+static NSError *SFXASSRenderingError(SFXASSRenderingErrorCode code, NSString *message) {
+    return [NSError errorWithDomain:SFXASSRenderingErrorDomain
+                               code:code
+                           userInfo:@{NSLocalizedDescriptionKey: message}];
+}
+
+static void SFXASSSetError(NSError **error, SFXASSRenderingErrorCode code, NSString *message) {
+    if (error != NULL) {
+        *error = SFXASSRenderingError(code, message);
+    }
+}
+
+static void SFXASSMessageCallback(int level, const char *format, va_list args, void *data) {
+    (void)data;
+
+    if (level > 5 || format == NULL) {
+        return;
+    }
+
+    char buffer[2048] = {0};
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    fprintf(stderr, "libass[%d]: %s\n", level, buffer);
+}
+
+static NSInteger SFXCompositeASSImages(
+    ASS_Image *images,
+    uint8_t *destination,
+    NSInteger frameWidth,
+    NSInteger frameHeight,
+    NSInteger destinationStride
+) {
+    NSInteger imageCount = 0;
+
+    for (ASS_Image *image = images; image != NULL; image = image->next) {
+        if (image->w <= 0 || image->h <= 0 || image->bitmap == NULL) {
+            continue;
+        }
+
+        imageCount += 1;
+
+        int sourceRed = (int)((image->color >> 24) & 0xff);
+        int sourceGreen = (int)((image->color >> 16) & 0xff);
+        int sourceBlue = (int)((image->color >> 8) & 0xff);
+        int sourceOpacity = 255 - (int)(image->color & 0xff);
+
+        if (sourceOpacity <= 0) {
+            continue;
+        }
+
+        for (int y = 0; y < image->h; y++) {
+            NSInteger destinationY = (NSInteger)image->dst_y + y;
+            if (destinationY < 0 || destinationY >= frameHeight) {
+                continue;
+            }
+
+            uint8_t *sourceRow = image->bitmap + ((NSInteger)y * image->stride);
+            uint8_t *destinationRow = destination + (destinationY * destinationStride);
+
+            for (int x = 0; x < image->w; x++) {
+                NSInteger destinationX = (NSInteger)image->dst_x + x;
+                if (destinationX < 0 || destinationX >= frameWidth) {
+                    continue;
+                }
+
+                int mask = sourceRow[x];
+                int sourceAlpha = (mask * sourceOpacity + 127) / 255;
+                if (sourceAlpha <= 0) {
+                    continue;
+                }
+
+                uint8_t *pixel = destinationRow + (destinationX * 4);
+                int inverseAlpha = 255 - sourceAlpha;
+
+                pixel[0] = (uint8_t)((sourceRed * sourceAlpha + pixel[0] * inverseAlpha + 127) / 255);
+                pixel[1] = (uint8_t)((sourceGreen * sourceAlpha + pixel[1] * inverseAlpha + 127) / 255);
+                pixel[2] = (uint8_t)((sourceBlue * sourceAlpha + pixel[2] * inverseAlpha + 127) / 255);
+                pixel[3] = (uint8_t)(sourceAlpha + (pixel[3] * inverseAlpha + 127) / 255);
+            }
+        }
+    }
+
+    return imageCount;
+}
+
+@implementation SFXASSRenderOutput
+
+- (instancetype)initWithRGBAData:(NSData *)rgbaData
+                           width:(NSInteger)width
+                          height:(NSInteger)height
+                          stride:(NSInteger)stride
+                      imageCount:(NSInteger)imageCount
+                         changed:(BOOL)changed {
+    self = [super init];
+    if (self == nil) {
+        return nil;
+    }
+
+    _rgbaData = [rgbaData copy];
+    _width = width;
+    _height = height;
+    _stride = stride;
+    _imageCount = imageCount;
+    _changed = changed;
+    return self;
+}
+
+- (BOOL)writePNGToPath:(NSString *)path error:(NSError **)error {
+    if (path.length == 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"PNG output path is required.");
+        return NO;
+    }
+
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)self.rgbaData);
+    if (provider == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorPNGWriteFailed, @"Could not create a PNG data provider.");
+        return NO;
+    }
+
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    if (colorSpace == NULL) {
+        CGDataProviderRelease(provider);
+        SFXASSSetError(error, SFXASSRenderingErrorPNGWriteFailed, @"Could not create a PNG color space.");
+        return NO;
+    }
+
+    CGImageRef image = CGImageCreate(
+        (size_t)self.width,
+        (size_t)self.height,
+        8,
+        32,
+        (size_t)self.stride,
+        colorSpace,
+        kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast,
+        provider,
+        NULL,
+        false,
+        kCGRenderingIntentDefault
+    );
+
+    CGColorSpaceRelease(colorSpace);
+    CGDataProviderRelease(provider);
+
+    if (image == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorPNGWriteFailed, @"Could not create a PNG image.");
+        return NO;
+    }
+
+    NSURL *url = [NSURL fileURLWithPath:path];
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)url, CFSTR("public.png"), 1, NULL);
+    if (destination == NULL) {
+        CGImageRelease(image);
+        SFXASSSetError(error, SFXASSRenderingErrorPNGWriteFailed, @"Could not create a PNG destination.");
+        return NO;
+    }
+
+    CGImageDestinationAddImage(destination, image, NULL);
+    BOOL success = CGImageDestinationFinalize(destination);
+
+    CFRelease(destination);
+    CGImageRelease(image);
+
+    if (!success) {
+        SFXASSSetError(error, SFXASSRenderingErrorPNGWriteFailed, @"Could not finalize the PNG file.");
+        return NO;
+    }
+
+    return YES;
+}
+
+@end
+
+@implementation SFXASSRenderer
+
++ (NSString *)libassVersionString {
+    int version = ass_library_version();
+    int major = (version >> 28) & 0x0f;
+    int minor = (version >> 20) & 0xff;
+    int patch = (version >> 12) & 0xff;
+    return [NSString stringWithFormat:@"%x.%x.%x", major, minor, patch];
+}
+
++ (nullable SFXASSRenderOutput *)renderASSFileAtPath:(NSString *)path
+                                          frameWidth:(NSInteger)frameWidth
+                                         frameHeight:(NSInteger)frameHeight
+                               timestampMilliseconds:(NSInteger)timestampMilliseconds
+                                      fontsDirectory:(nullable NSString *)fontsDirectory
+                                               error:(NSError **)error {
+    if (path.length == 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"ASS source path is required.");
+        return nil;
+    }
+    if (frameWidth <= 0 || frameHeight <= 0 || frameWidth > INT_MAX || frameHeight > INT_MAX) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Frame width and height must be positive Int32 values.");
+        return nil;
+    }
+    if (timestampMilliseconds < 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Timestamp must be non-negative.");
+        return nil;
+    }
+
+    BOOL isDirectory = NO;
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory] || isDirectory) {
+        NSString *message = [NSString stringWithFormat:@"ASS source file does not exist: %@", path];
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
+        return nil;
+    }
+
+    NSInteger stride = frameWidth * 4;
+    if (frameHeight > NSIntegerMax / stride) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Frame dimensions are too large.");
+        return nil;
+    }
+
+    NSMutableData *rgbaData = [NSMutableData dataWithLength:(NSUInteger)(stride * frameHeight)];
+    if (rgbaData == nil) {
+        SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"Could not allocate ASS render output buffer.");
+        return nil;
+    }
+
+    ASS_Library *library = ass_library_init();
+    if (library == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass failed to initialize.");
+        return nil;
+    }
+
+    ass_set_message_cb(library, SFXASSMessageCallback, NULL);
+    ass_set_extract_fonts(library, 1);
+    if (fontsDirectory.length > 0) {
+        BOOL fontsIsDirectory = NO;
+        if (![[NSFileManager defaultManager] fileExistsAtPath:fontsDirectory isDirectory:&fontsIsDirectory] || !fontsIsDirectory) {
+            ass_library_done(library);
+            NSString *message = [NSString stringWithFormat:@"Font directory does not exist: %@", fontsDirectory];
+            SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
+            return nil;
+        }
+        ass_set_fonts_dir(library, [fontsDirectory fileSystemRepresentation]);
+    }
+
+    ASS_Renderer *renderer = ass_renderer_init(library);
+    if (renderer == NULL) {
+        ass_library_done(library);
+        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass renderer failed to initialize.");
+        return nil;
+    }
+
+    ass_set_frame_size(renderer, (int)frameWidth, (int)frameHeight);
+    ass_set_storage_size(renderer, (int)frameWidth, (int)frameHeight);
+    ass_set_fonts(renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
+
+    ASS_Track *track = ass_read_file(library, [path fileSystemRepresentation], NULL);
+    if (track == NULL) {
+        ass_renderer_done(renderer);
+        ass_library_done(library);
+        NSString *message = [NSString stringWithFormat:@"libass could not load ASS source file: %@", path];
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
+        return nil;
+    }
+
+    int detectChange = 0;
+    ASS_Image *images = ass_render_frame(renderer, track, (long long)timestampMilliseconds, &detectChange);
+    NSInteger imageCount = SFXCompositeASSImages(
+        images,
+        (uint8_t *)rgbaData.mutableBytes,
+        frameWidth,
+        frameHeight,
+        stride
+    );
+
+    ass_free_track(track);
+    ass_renderer_done(renderer);
+    ass_library_done(library);
+
+    return [[SFXASSRenderOutput alloc] initWithRGBAData:rgbaData
+                                                  width:frameWidth
+                                                 height:frameHeight
+                                                 stride:stride
+                                             imageCount:imageCount
+                                                changed:detectChange != 0];
+}
+
+@end

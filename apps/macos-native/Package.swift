@@ -9,7 +9,8 @@ let package = Package(
     ],
     products: [
         .executable(name: "CueSeeker", targets: ["CueSeekerApp"]),
-        .executable(name: "NativePlaybackProbe", targets: ["NativePlaybackProbe"])
+        .executable(name: "NativePlaybackProbe", targets: ["NativePlaybackProbe"]),
+        .executable(name: "ASSRenderingProbe", targets: ["ASSRenderingProbe"])
     ],
     targets: [
         .target(
@@ -40,6 +41,21 @@ let package = Package(
                 .linkedFramework("CoreVideo"),
                 .linkedFramework("CoreFoundation"),
                 .linkedFramework("QuartzCore")
+            ]
+        ),
+        .target(
+            name: "CASSRendering",
+            path: "Sources/CASSRendering",
+            publicHeadersPath: "include",
+            cSettings: [
+                .unsafeFlags(["-I", "/opt/homebrew/include"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-L", "/opt/homebrew/lib"]),
+                .linkedLibrary("ass"),
+                .linkedFramework("CoreGraphics"),
+                .linkedFramework("Foundation"),
+                .linkedFramework("ImageIO")
             ]
         ),
         .target(
@@ -78,6 +94,13 @@ let package = Package(
                 .linkedFramework("QuartzCore")
             ]
         ),
+        .executableTarget(
+            name: "ASSRenderingProbe",
+            dependencies: [
+                "CASSRendering"
+            ],
+            path: "Sources/ASSRenderingProbe"
+        ),
         .testTarget(
             name: "CueSeekerCoreTests",
             dependencies: ["CueSeekerCore"],
@@ -90,6 +113,14 @@ let package = Package(
             name: "CueSeekerPlaybackTests",
             dependencies: ["CueSeekerPlayback"],
             path: "Tests/CueSeekerPlaybackTests"
+        ),
+        .testTarget(
+            name: "CASSRenderingTests",
+            dependencies: ["CASSRendering"],
+            path: "Tests/CASSRenderingTests",
+            resources: [
+                .process("Fixtures")
+            ]
         )
     ]
 )

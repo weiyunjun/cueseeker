@@ -169,3 +169,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
   complex ASS playback should use a dedicated renderer path, preferably
   `libass`, with ASS Lite limited to simple fallback or diagnostics and
   renderer failures surfaced during development.
+- Added an isolated `CASSRendering` libass bridge and `ASSRenderingProbe`
+  executable to render source `.ass` files into diagnostic RGBA/PNG output
+  before any playback UI integration.
