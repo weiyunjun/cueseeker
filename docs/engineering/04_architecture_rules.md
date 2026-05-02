@@ -182,28 +182,25 @@ Rules:
   layers, or complete ASS subtitle renderer compatibility.
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
-- Source ASS playback rendering should use the accepted project-owned ASS Lite
-  subset before any external ASS renderer is introduced.
+- ASS Lite is an interim source text overlay and fallback. Source-faithful ASS
+  playback rendering should follow the accepted pipeline in
+  `docs/proposals/2026-05-source-faithful-ass-rendering-pipeline.md`.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - The database cue projection must not be treated as a replacement ASS renderer.
-- The ASS Lite renderer must be separate from the SQLite search layer and should
-  parse the source `.ass` file for playback.
-- The first ASS Lite subset should cover active dialogue timing, `\N` line
-  breaks, source style font, font size, colors, bold, italic, underline,
-  strikeout, scale, spacing, border style, outline, shadow, basic alignment and
-  margins, inline `\an1` through `\an9` alignment overrides, simultaneous
-  active dialogue events, and video-rectangle mapping.
-- ASS `Style:` rows in `[V4+ Styles]` or `[V4 Styles]` are source visual style
-  inputs for playback rendering.
-- ASS Lite outline drawing should use source-colored multi-pass filled text
-  offsets around the glyphs before drawing the source primary foreground text.
-  Platform attributed text stroke must not be used as a direct ASS outline
-  substitute.
-- Advanced ASS behavior such as `\pos`, `\move`, fade, karaoke, clip, vector
-  drawing, rich inline style overrides, full VSFilter or libass-compatible
-  visual behavior, embedded fonts, and embedded subtitle streams is deferred
-  until explicitly accepted.
+- Search projection may omit non-searchable visual-effect details from FTS, but
+  playback rendering must preserve timed source ASS events, including
+  `Effect=fx`, `\p` vector drawing, clipping, karaoke, blur, alpha, transforms,
+  and short-duration effects.
+- ASS parsing and renderer preparation must not run synchronously on the search
+  result click path.
+- Video open, video seek, selected-row UI state, and playback controls must not
+  wait for ASS parsing or rendering.
+- ASS rendering should be coordinated through an asynchronous render coordinator
+  with cancellation and cache invalidation keyed by source file identity.
+- The dedicated ASS renderer must be separate from the SQLite search layer and
+  from the native video decoder. It should receive playback clock updates and
+  present overlay output through the playback render container.
 - Selecting or bundling a dedicated external ASS renderer dependency must be
   documented before implementation because it can affect native dependencies,
   packaging, signing, and font behavior.

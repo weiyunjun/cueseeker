@@ -319,8 +319,8 @@ Playback verification for the first ASS step:
 
 ## 15. ASS Lite Rendering Test Coverage
 
-The first source ASS rendering implementation is complete only after the ASS
-Lite subset is verified.
+ASS Lite remains an interim text fallback. It is complete only after the ASS Lite
+subset is verified.
 
 Required parser and model coverage:
 
@@ -352,3 +352,49 @@ Required rendering and playback checks:
 
 Known deferred behavior should remain documented when tests cover graceful
 degradation cases.
+
+## 16. Source-faithful ASS Rendering Pipeline Coverage
+
+The source-faithful ASS rendering pipeline is complete only after search,
+playback startup, render preparation, and complex ASS rendering behavior are
+verified separately.
+
+Required search projection coverage:
+
+- Real dialogue and lyric text remains searchable.
+- Vector drawing path commands such as `m ... b ...` are not returned as search
+  result text.
+- Repeated visual-effect fragments do not create duplicate user-facing search
+  results unless they contain distinct readable subtitle text.
+- Cue group timing remains stable and can be used as the playback seek target.
+
+Required render timeline coverage:
+
+- Timed `Dialogue` events are preserved for playback rendering even when they
+  use `Effect=fx`.
+- `\p` vector drawing events remain in the render timeline.
+- `\clip`, `\iclip`, `\pos`, `\move`, blur, alpha, border, scale, and karaoke
+  metadata remain available to the renderer.
+- Short-duration and zero-duration events do not corrupt timeline indexing or
+  cancellation behavior.
+- Cache invalidation uses source subtitle path, file size, modified time, and
+  renderer version.
+
+Required non-blocking playback checks:
+
+- Selecting a large ASS search result updates the selected row before ASS source
+  parsing finishes.
+- Opening or seeking video does not wait for ASS parsing or renderer
+  initialization.
+- Stale ASS preparation tasks are cancelled when another result is selected.
+- Subtitle rendering can attach later and catch up to the current playback time.
+- ASS rendering failure does not stop video playback or playback controls.
+
+Required renderer checks:
+
+- Complex ASS fixtures with vector drawing, clipping, and karaoke-like repeated
+  effect events render without treating drawing commands as text.
+- Playback Inspector and Theater Mode fullscreen use the same renderer output
+  lifecycle.
+- Subtitle visibility toggles renderer output without stopping the video.
+- SRT playback subtitle behavior does not regress.

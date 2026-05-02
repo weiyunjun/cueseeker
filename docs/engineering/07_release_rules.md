@@ -77,11 +77,13 @@ Rules:
 - ADR-0007 removes production `libmpv` compatibility. Release packaging should
   account for FFmpeg libraries and required non-system FFmpeg dependencies, but
   should not include `libmpv` unless a future ADR reintroduces it.
-- The first source ASS subtitle rendering step uses a project-owned ASS Lite
-  renderer and should not add an external ASS rendering dependency.
-- Future external ASS rendering, font, or text-shaping dependencies must be
-  reviewed for packaging, signing, and notarization impact before a build that
-  includes those dependencies is treated as releasable.
+- ASS Lite is an interim text fallback. Source-faithful ASS rendering may add a
+  dedicated ASS renderer dependency only after packaging, signing, font, and
+  notarization impact are documented.
+- Builds that include a dedicated ASS renderer must document bundled libraries,
+  license obligations, font discovery behavior, and renderer cache locations
+  before they are treated as releasable.
+- ASS rendering failures must not block video playback in release builds.
 
 ## 7. Sandboxing and Entitlements
 

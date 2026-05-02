@@ -160,7 +160,7 @@ Future versions may need:
 
 - Highlight current subtitle.
 - Support text selection or learning interactions.
-- More complete ASS rendering beyond the ASS Lite subset.
+- Source-faithful ASS rendering beyond the ASS Lite fallback.
 
 Rules:
 
@@ -168,39 +168,33 @@ Rules:
   search result.
 - For SRT-only playback, the app may display current subtitle text from the
   indexed cue data.
-- ASS playback should use the project-owned ASS Lite renderer for the first
-  source ASS rendering step.
-- ASS Lite must render from the source `.ass` file associated with the selected
-  search result, not from the search database projection.
-- The initial ASS Lite subset should support active dialogue timing, `\N` line
-  breaks, source style font, font size, primary color, outline color,
-  background or shadow color, bold, italic, underline, strikeout, scale,
-  spacing, border style, outline, shadow, basic alignment and margins, inline
-  `\an1` through `\an9` alignment overrides, simultaneous active dialogue
-  events, and video-rectangle mapping.
-- ASS `Style:` rows in `[V4+ Styles]` or `[V4 Styles]` are the source of truth
-  for first-pass visual styling. If an ASS font is unavailable on the current
-  Mac, the renderer may fall back to a platform font while preserving the
-  remaining style semantics.
-- ASS outline must not be implemented with platform attributed text stroke when
-  that produces hollow or decorative CJK glyphs. The native renderer should draw
-  source-colored outline with filled offset passes before drawing the source
-  primary text color.
-- Advanced ASS features such as `\pos`, `\move`, fade, karaoke, clip, vector
-  drawing, rich inline style overrides, full VSFilter or libass-compatible
-  visual behavior, embedded fonts, and embedded subtitle streams are deferred
-  until they have explicit acceptance criteria.
+- ASS Lite is an interim text overlay and fallback. The long-term ASS playback
+  direction is the accepted source-faithful ASS rendering pipeline documented in
+  `docs/proposals/2026-05-source-faithful-ass-rendering-pipeline.md`.
+- ASS playback rendering must use the source `.ass` file, or a cache generated
+  from that exact source file identity, not the database search projection.
+- Search results should expose readable dialogue or lyric text. Playback
+  rendering must preserve timed source ASS events, including `Effect=fx`,
+  vector drawing, clipping, karaoke, blur, alpha, transforms, and short-duration
+  effects.
+- Search result selection, Playback Inspector visibility, video open, video
+  seek, and playback controls must not wait for ASS parsing or rendering.
+- ASS subtitle preparation should be asynchronous, cancellable, and cached by
+  source file identity.
+- The renderer may fall back to ASS Lite when the source-faithful renderer is
+  unavailable, but fallback must not block video playback.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.
 - The subtitle visibility control should show or hide the app-owned overlay.
-- For ASS Lite rendering, the subtitle visibility control should show or hide
-  the source ASS overlay.
+- For ASS rendering, the subtitle visibility control should show or hide the
+  source ASS overlay without stopping video playback.
 
 Grouped search result behavior:
 
-- Clicking a grouped subtitle result should open the matched video file, load
-  the matched source subtitle file, and seek to the cue group's `start_ms`.
+- Clicking a grouped subtitle result should select the row, open or seek the
+  matched video file, and begin asynchronous source subtitle preparation for the
+  matched source subtitle file.
 - The playback target is the cue group start time even when the displayed search
   preview contains several ASS lines.
 - If the source subtitle file changes, reindexing should rebuild the cue groups

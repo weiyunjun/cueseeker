@@ -178,10 +178,13 @@ Requirements:
 
 - Open the matched local video file.
 - Seek to the subtitle start timestamp.
-- For ASS search results, load the source `.ass` file into the ASS Lite renderer
-  and seek to the cue group start timestamp.
+- For ASS search results, seek to the cue group start timestamp immediately and
+  prepare source ASS rendering asynchronously.
 - Render video inside the native app window.
-- Render source ASS subtitles through the documented ASS Lite subset.
+- Render source ASS subtitles through the accepted source-faithful rendering
+  pipeline, with ASS Lite available only as an interim fallback.
+- Keep video playback responsive when ASS parsing or rendering is slow,
+  unsupported, or fails.
 - Allow play and pause.
 - Toggle play/pause by clicking the video surface.
 - Keep clicks in the playback operation controls from falling through to video-surface play or pause.
@@ -197,10 +200,9 @@ Requirements:
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
-- The ASS Lite renderer should support active dialogue timing, `\N` line breaks,
-  basic style, basic alignment and margins, inline `\an1` through `\an9`
-  alignment overrides, simultaneous active dialogue events, and video-rectangle
-  mapping. More advanced ASS behavior is deferred until explicitly accepted.
+- ASS playback rendering should preserve timed source ASS events, including
+  visual effects and vector drawing events. Search results should still expose
+  readable dialogue or lyric text rather than raw effect commands.
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 

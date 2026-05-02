@@ -2,6 +2,15 @@
 
 Status: Accepted
 
+Follow-up direction:
+
+- This proposal records the accepted and implemented interim ASS Lite rendering
+  step.
+- Complex ASS playback now follows
+  `docs/proposals/2026-05-source-faithful-ass-rendering-pipeline.md`.
+- ASS Lite remains useful as a simple text fallback and regression isolation
+  layer, but it is not the endpoint for source-faithful ASS playback rendering.
+
 ## Background
 
 CueSeeker already supports `.ass` subtitle scanning, indexing, grouped search

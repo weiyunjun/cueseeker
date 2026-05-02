@@ -196,6 +196,10 @@ Notes:
   several `Dialogue` events with the same text and timing, all of them should be
   retained until a future explicit product rule defines a safe display-only
   folding behavior.
+- The database cue projection is not the playback render timeline. It may omit
+  raw override tags and non-searchable visual-effect details from FTS-oriented
+  fields, while source ASS playback rendering must preserve timed source events
+  through the source file or a dedicated render cache.
 
 ## 9. ASS Layout Projection
 

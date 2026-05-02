@@ -152,3 +152,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Restored the ASS Lite visual direction so `[V4+ Styles]` and `[V4 Styles]`
   source style fields drive first-pass subtitle rendering while CueSeeker avoids
   platform text-stroke rendering for outlines.
+- Accepted the source-faithful ASS playback rendering pipeline direction:
+  search remains a readable-text projection, playback preserves timed source ASS
+  events, and ASS parsing or rendering must not block row selection or video
+  playback.
