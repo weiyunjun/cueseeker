@@ -316,3 +316,37 @@ Playback verification for the first ASS step:
 - Clicking an ASS search result opens or updates the Playback Inspector.
 - Playback opens the matched video and seeks to the cue group's `start_ms`.
 - Source ASS subtitle rendering is not required for this first ASS step.
+
+## 15. ASS Lite Rendering Test Coverage
+
+The first source ASS rendering implementation is complete only after the ASS
+Lite subset is verified.
+
+Required parser and model coverage:
+
+- `[Script Info]` `PlayResX` and `PlayResY` parsing.
+- `[V4+ Styles]` `Format:` and `Style:` parsing for the documented style
+  fields.
+- `[Events]` `Format:` and `Dialogue:` parsing for playback rendering.
+- ASS timecode conversion to milliseconds.
+- ASS `\N` line-break normalization for rendering.
+- Inline `\an1` through `\an9` alignment override parsing.
+- Unsupported override tags stripped without dropping visible text.
+- Multiple active dialogue events preserved with layer and source order.
+
+Required rendering and playback checks:
+
+- ASS search results load the source `.ass` file for playback rendering.
+- Basic dialogue appears over the video surface at the active playback time.
+- Basic style, alignment, margins, and simultaneous dialogue events are visible
+  closely enough for subtitle context review.
+- The ASS Lite overlay maps to the displayed video rectangle rather than the
+  full black playback container.
+- The existing subtitle button and `C` shortcut show and hide ASS Lite
+  subtitles.
+- The overlay follows both Playback Inspector and Theater Mode fullscreen.
+- Missing or unreadable subtitle files do not prevent video playback.
+- SRT playback subtitle behavior does not regress.
+
+Known deferred behavior should remain documented when tests cover graceful
+degradation cases.

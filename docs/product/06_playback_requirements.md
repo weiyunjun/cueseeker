@@ -160,7 +160,7 @@ Future versions may need:
 
 - Highlight current subtitle.
 - Support text selection or learning interactions.
-- Render source ASS subtitles during playback.
+- More complete ASS rendering beyond the ASS Lite subset.
 
 Rules:
 
@@ -168,19 +168,23 @@ Rules:
   search result.
 - For SRT-only playback, the app may display current subtitle text from the
   indexed cue data.
-- The current M2 ASS implementation does not render the source ASS subtitle
-  track during playback. ASS search result selection still opens the matched
-  video and seeks to the cue group's `start_ms`.
-- When source ASS playback rendering is implemented, the player must render the
-  source `.ass` file so fonts, positions, karaoke, signs, and other ASS behavior
-  come from the original subtitle file rather than from the search database
-  projection.
+- ASS playback should use the project-owned ASS Lite renderer for the first
+  source ASS rendering step.
+- ASS Lite must render from the source `.ass` file associated with the selected
+  search result, not from the search database projection.
+- The initial ASS Lite subset should support active dialogue timing, `\N` line
+  breaks, basic style fields, basic alignment and margins, inline `\an1`
+  through `\an9` alignment overrides, simultaneous active dialogue events, and
+  video-rectangle mapping.
+- Advanced ASS features such as `\pos`, `\move`, fade, karaoke, clip, vector
+  drawing, rich inline style overrides, embedded fonts, and embedded subtitle
+  streams are deferred until they have explicit acceptance criteria.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.
 - The subtitle visibility control should show or hide the app-owned overlay.
-- When ASS rendering is implemented, the subtitle visibility control should show
-  or hide the loaded external subtitle track.
+- For ASS Lite rendering, the subtitle visibility control should show or hide
+  the source ASS overlay.
 
 Grouped search result behavior:
 

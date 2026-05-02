@@ -178,20 +178,27 @@ Rules:
 
 - M1 requires local file playback and timestamp seek only.
 - ADR-0007 selects native-only playback.
-- Playback code must not assume remote streams, local HTTP proxying, cache layers, or advanced subtitle rendering.
+- Playback code must not assume remote streams, local HTTP proxying, cache
+  layers, or complete ASS subtitle renderer compatibility.
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
-- The current M2 ASS support step allows an ASS search result to open the
-  matched video and seek to the cue group's `start_ms` even though source ASS
-  subtitle rendering is not implemented yet.
+- Source ASS playback rendering should use the accepted project-owned ASS Lite
+  subset before any external ASS renderer is introduced.
 - Search result previews are database-owned cue group projections. Playback
-  subtitle rendering is source-file-owned when source subtitle rendering is
-  implemented.
+  subtitle rendering is source-file-owned.
 - The database cue projection must not be treated as a replacement ASS renderer.
-- Source ASS subtitle rendering is deferred beyond the first ASS support step.
-- Selecting or bundling a dedicated ASS renderer dependency must be documented
-  before implementation because it can affect native dependencies, packaging,
-  signing, and font behavior.
+- The ASS Lite renderer must be separate from the SQLite search layer and should
+  parse the source `.ass` file for playback.
+- The first ASS Lite subset should cover active dialogue timing, `\N` line
+  breaks, basic styles, basic alignment and margins, inline `\an1` through
+  `\an9` alignment overrides, simultaneous active dialogue events, and
+  video-rectangle mapping.
+- Advanced ASS behavior such as `\pos`, `\move`, fade, karaoke, clip, vector
+  drawing, rich inline style overrides, embedded fonts, and embedded subtitle
+  streams is deferred until explicitly accepted.
+- Selecting or bundling a dedicated external ASS renderer dependency must be
+  documented before implementation because it can affect native dependencies,
+  packaging, signing, and font behavior.
 - The current playback route must always use the project-owned native backend.
 - The active native macOS app must not link against, initialize, or fall back to `libmpv`.
 - The native backend uses FFmpeg demuxing, user-selectable hardware, software,

@@ -178,9 +178,10 @@ Requirements:
 
 - Open the matched local video file.
 - Seek to the subtitle start timestamp.
-- For ASS search results, opening the matched video and seeking to the cue group
-  start timestamp is required before source ASS subtitle rendering exists.
+- For ASS search results, load the source `.ass` file into the ASS Lite renderer
+  and seek to the cue group start timestamp.
 - Render video inside the native app window.
+- Render source ASS subtitles through the documented ASS Lite subset.
 - Allow play and pause.
 - Toggle play/pause by clicking the video surface.
 - Keep clicks in the playback operation controls from falling through to video-surface play or pause.
@@ -196,8 +197,10 @@ Requirements:
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
-- The current M2 ASS implementation does not render the source ASS subtitle
-  track during playback.
+- The ASS Lite renderer should support active dialogue timing, `\N` line breaks,
+  basic style, basic alignment and margins, inline `\an1` through `\an9`
+  alignment overrides, simultaneous active dialogue events, and video-rectangle
+  mapping. More advanced ASS behavior is deferred until explicitly accepted.
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 

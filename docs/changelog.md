@@ -140,3 +140,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
   preserving selected-folder configuration while rebuilding derived subtitle
   index data from source files.
 - Verified the ASS implementation with the Swift test suite passing 43 tests.
+- Accepted the ASS Lite source subtitle rendering direction for the first
+  playback rendering step, keeping rendering source-file-owned while avoiding an
+  external ASS rendering dependency.

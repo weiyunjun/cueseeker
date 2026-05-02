@@ -1,6 +1,6 @@
 # ASS Lite Source Subtitle Rendering
 
-Status: Draft
+Status: Accepted
 
 ## Background
 
@@ -287,9 +287,9 @@ Mitigations:
 
 ## Decision
 
-Pending review.
+Accepted.
 
-The proposed first step is a project-owned ASS Lite renderer with a documented
-subset of ASS behavior and no external ASS rendering dependency. Future support
-should be added incrementally only after each feature has clear product value and
+The first step is a project-owned ASS Lite renderer with a documented subset of
+ASS behavior and no external ASS rendering dependency. Future support should be
+added incrementally only after each feature has clear product value and
 acceptance criteria.

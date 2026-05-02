@@ -83,8 +83,7 @@ Known post-M1 follow-up areas:
 - Search ranking, query semantics, CJK behavior, and other search-quality improvements require dedicated post-M1 design work and should not block M1 acceptance.
 - ASS subtitle indexing, grouped cue search results, and ASS result click-to-play
   behavior are M2 feature work. M1 remains accepted as the minimal SRT loop.
-  Source ASS playback rendering is deferred beyond the first ASS implementation
-  step.
+  Source ASS playback rendering should start with the accepted ASS Lite subset.
 - Keyboard shortcuts, playback interaction refinement, native menu behavior, file and folder management, file-access persistence, error presentation, settings refinement, and packaging preparation belong to M2.
 - Window sizing and restoration were substantially completed during M1 and should be treated as M2 regression-verification areas unless concrete defects are found.
 - The native-only playback integration requires focused app-level regression
@@ -122,8 +121,9 @@ Expected areas:
 - ASS subtitle search and grouped result support.
   The native app now scans `.ass` files, parses ASS dialogue events, indexes cue
   groups and cue lines, displays grouped search results, and supports
-  click-to-playback behavior for matched ASS results. Source ASS subtitle track
-  rendering remains deferred.
+  click-to-playback behavior for matched ASS results. Source ASS subtitle
+  rendering should use the accepted project-owned ASS Lite subset before any
+  external renderer or broader compatibility work is considered.
 - Window sizing and restoration regression verification.
   M1 already implemented launch maximization, AppShell layout persistence, titlebar/full-screen behavior, and Playback Inspector width and visibility persistence. M2 should verify these behaviors and fix concrete regressions rather than treating this as a new major feature area.
 - File and folder management with file-access persistence.
