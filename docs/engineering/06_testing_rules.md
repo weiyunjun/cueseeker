@@ -165,6 +165,9 @@ Rules:
 
 - Frame-perfect seek accuracy is not required for M1.
 - Seek must be close enough for subtitle context review.
+- Playback memory and performance measurements must run outside the execution
+  sandbox because sandboxed runs can distort process memory observations.
+  Sandboxed memory samples must not be used as authoritative playback evidence.
 - Playback engine-specific behavior must be documented after the engine is selected.
 - Final playback engine verification criteria must be updated after the playback ADR is accepted.
 
