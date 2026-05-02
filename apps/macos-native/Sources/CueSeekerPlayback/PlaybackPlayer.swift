@@ -12,6 +12,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var currentRequest: PlaybackRequest?
     private var storedVolume: Double = 100
     private var storedSpeed: Double = 1.0
+    private var subtitlesVisible = true
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -39,6 +40,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             startMilliseconds: request.startMilliseconds
         )
         currentVideoURL = request.videoURL.standardizedFileURL
+        loadSubtitleSource(request.subtitleSource)
         Task { @MainActor in
             self.attachActiveRenderView()
         }
@@ -47,6 +49,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     public func seek(toMilliseconds milliseconds: Int) throws {
         try nativePlayer.seek(toMilliseconds: max(0, milliseconds))
+        updateASSSubtitleTime(milliseconds: max(0, milliseconds))
     }
 
     public func setPaused(_ isPaused: Bool) throws {
@@ -57,7 +60,45 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         nativePlayer.stop()
         currentRequest = nil
         currentVideoURL = nil
+        loadSubtitleSource(nil)
         emitPauseState(isPaused: true)
+    }
+
+    public func loadSubtitleSource(_ source: PlaybackSubtitleSource?) {
+        guard let source, source.format == .ass else {
+            Task { @MainActor in
+                (self.renderView as? PlaybackRenderContainerView)?.clearASSSubtitleScript()
+            }
+            return
+        }
+
+        do {
+            let contents = try String(contentsOf: source.url, encoding: .utf8)
+            let script = ASSLiteParser.parse(contents)
+            let currentMilliseconds = max(0, Int((nativePlayer.currentTime * 1_000).rounded(.down)))
+            Task { @MainActor in
+                guard let container = self.renderView as? PlaybackRenderContainerView else {
+                    return
+                }
+
+                container.setASSSubtitleScript(script)
+                container.setASSSubtitleTime(milliseconds: currentMilliseconds)
+                container.setSubtitlesVisible(self.subtitlesVisible)
+                container.setVideoSize(self.currentNativeVideoSize())
+            }
+        } catch {
+            print("Failed to load ASS subtitle source: \(error)")
+            Task { @MainActor in
+                (self.renderView as? PlaybackRenderContainerView)?.clearASSSubtitleScript()
+            }
+        }
+    }
+
+    public func setSubtitlesVisible(_ isVisible: Bool) {
+        subtitlesVisible = isVisible
+        Task { @MainActor in
+            (self.renderView as? PlaybackRenderContainerView)?.setSubtitlesVisible(isVisible)
+        }
     }
 
     public func getDoubleProperty(_ name: String) throws -> Double {
@@ -91,11 +132,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     public func setStringProperty(_ name: String, value: String) throws {
-        // Native playback does not render embedded subtitles in the first app integration.
-        // The command is accepted so the existing subtitle toggle UI remains usable.
         if name != "sid" {
             throw PlaybackError.nativePropertyUnsupported(name: name)
         }
+
+        setSubtitlesVisible(value != "no")
     }
 
     public func getBoolProperty(_ name: String) throws -> Bool {
@@ -119,6 +160,24 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
 
         container.attach(nativePlayer.view)
+        container.setVideoSize(currentNativeVideoSize())
+        container.setSubtitlesVisible(subtitlesVisible)
+    }
+
+    @MainActor private func currentNativeVideoSize() -> CGSize? {
+        let width = nativePlayer.videoWidth
+        let height = nativePlayer.videoHeight
+        guard width > 0, height > 0 else {
+            return nil
+        }
+
+        return CGSize(width: width, height: height)
+    }
+
+    private func updateASSSubtitleTime(milliseconds: Int) {
+        Task { @MainActor in
+            (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: milliseconds)
+        }
     }
 
     private func emitInitialNativeState() {
@@ -143,6 +202,8 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
         delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
+        let milliseconds = max(0, Int((time * 1_000).rounded(.down)))
+        updateASSSubtitleTime(milliseconds: milliseconds)
     }
 
     public func nativePlaybackPlayer(
@@ -173,6 +234,7 @@ private extension PlaybackDecodeMode {
 @MainActor
 public final class PlaybackRenderContainerView: NSView {
     private weak var attachedView: NSView?
+    private var assOverlayView: ASSLiteSubtitleOverlayView?
 
     init() {
         super.init(frame: .zero)
@@ -194,11 +256,56 @@ public final class PlaybackRenderContainerView: NSView {
         attachedView = view
         view.removeFromSuperview()
         addSubview(view)
+        ensureASSOverlayView()
         needsLayout = true
     }
 
     public override func layout() {
         super.layout()
         attachedView?.frame = bounds
+        assOverlayView?.frame = bounds
+    }
+
+    func setASSSubtitleScript(_ script: ASSLiteScript) {
+        ensureASSOverlayView()
+        assOverlayView?.script = script
+    }
+
+    func clearASSSubtitleScript() {
+        assOverlayView?.script = nil
+    }
+
+    func setASSSubtitleTime(milliseconds: Int) {
+        assOverlayView?.currentTimeMilliseconds = milliseconds
+    }
+
+    func setSubtitlesVisible(_ isVisible: Bool) {
+        ensureASSOverlayView()
+        assOverlayView?.areSubtitlesVisible = isVisible
+    }
+
+    func setVideoSize(_ videoSize: CGSize?) {
+        ensureASSOverlayView()
+        assOverlayView?.videoSize = videoSize
+    }
+
+    private func ensureASSOverlayView() {
+        if assOverlayView == nil {
+            assOverlayView = ASSLiteSubtitleOverlayView(frame: bounds)
+        }
+
+        guard let assOverlayView else {
+            return
+        }
+
+        if assOverlayView.superview !== self {
+            addSubview(assOverlayView)
+        }
+
+        assOverlayView.frame = bounds
+
+        if let attachedView {
+            addSubview(assOverlayView, positioned: .above, relativeTo: attachedView)
+        }
     }
 }

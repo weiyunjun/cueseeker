@@ -19,11 +19,30 @@ public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Eq
     }
 }
 
+public enum PlaybackSubtitleSourceFormat: String, Sendable, Equatable {
+    case ass
+}
+
+public struct PlaybackSubtitleSource: Equatable, Sendable {
+    public let url: URL
+    public let format: PlaybackSubtitleSourceFormat
+
+    public init(url: URL, format: PlaybackSubtitleSourceFormat) {
+        self.url = url
+        self.format = format
+    }
+}
+
 public struct PlaybackRequest: Equatable, Sendable {
     public let videoURL: URL
     public let startMilliseconds: Int
+    public let subtitleSource: PlaybackSubtitleSource?
 
-    public init(videoURL: URL, startMilliseconds: Int) throws {
+    public init(
+        videoURL: URL,
+        startMilliseconds: Int,
+        subtitleSource: PlaybackSubtitleSource? = nil
+    ) throws {
         guard videoURL.isFileURL else {
             throw PlaybackError.invalidVideoURL(videoURL.absoluteString)
         }
@@ -34,6 +53,7 @@ public struct PlaybackRequest: Equatable, Sendable {
 
         self.videoURL = videoURL
         self.startMilliseconds = max(0, startMilliseconds)
+        self.subtitleSource = subtitleSource
     }
 }
 

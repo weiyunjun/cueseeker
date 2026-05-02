@@ -158,6 +158,7 @@ public final class PlaybackViewModel: ObservableObject {
         let newValue = !areSubtitlesVisible
 
         areSubtitlesVisible = newValue
+        player.setSubtitlesVisible(newValue)
         refreshActiveSubtitleText()
         showSubtitleFeedback(isVisible: newValue)
     }

@@ -60,6 +60,28 @@ func playbackRequestClampsNegativeStartMilliseconds() throws {
 }
 
 @Test
+func playbackRequestStoresASSSubtitleSource() throws {
+    let videoURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")
+        .appendingPathExtension("mp4")
+    defer {
+        try? FileManager.default.removeItem(at: videoURL)
+    }
+
+    try Data().write(to: videoURL)
+
+    let subtitleURL = videoURL.deletingPathExtension().appendingPathExtension("ass")
+    let request = try PlaybackRequest(
+        videoURL: videoURL,
+        startMilliseconds: 1_000,
+        subtitleSource: PlaybackSubtitleSource(url: subtitleURL, format: .ass)
+    )
+
+    #expect(request.subtitleSource?.url == subtitleURL)
+    #expect(request.subtitleSource?.format == .ass)
+}
+
+@Test
 func playbackSubtitleTrackSelectsCueForCurrentTime() {
     let track = PlaybackSubtitleTrack(cues: [
         PlaybackSubtitleCue(startMilliseconds: 1_000, endMilliseconds: 2_500, text: "First line"),

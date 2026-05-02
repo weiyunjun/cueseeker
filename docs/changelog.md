@@ -143,3 +143,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Accepted the ASS Lite source subtitle rendering direction for the first
   playback rendering step, keeping rendering source-file-owned while avoiding an
   external ASS rendering dependency.
+- Implemented the first ASS Lite source subtitle rendering path with playback
+  source loading, basic ASS parsing, a native overlay in the playback render
+  container, subtitle visibility integration, and 48 passing Swift tests.

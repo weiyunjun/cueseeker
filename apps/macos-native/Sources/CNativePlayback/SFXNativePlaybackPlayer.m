@@ -319,6 +319,8 @@ static int SFXOutputChannelCount(int inputChannels) {
 @property (nonatomic, copy, readonly) NSString *path;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
+@property (nonatomic, readonly) NSInteger videoWidth;
+@property (nonatomic, readonly) NSInteger videoHeight;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
 @end
 
@@ -444,6 +446,14 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 - (double)duration {
     return _duration;
+}
+
+- (NSInteger)videoWidth {
+    return _videoCodecContext != NULL ? _videoCodecContext->width : 0;
+}
+
+- (NSInteger)videoHeight {
+    return _videoCodecContext != NULL ? _videoCodecContext->height : 0;
 }
 
 - (BOOL)isPlaying {
@@ -1593,6 +1603,14 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (double)duration {
     return _session.duration;
+}
+
+- (NSInteger)videoWidth {
+    return _session.videoWidth;
+}
+
+- (NSInteger)videoHeight {
+    return _session.videoHeight;
 }
 
 - (BOOL)isPlaying {

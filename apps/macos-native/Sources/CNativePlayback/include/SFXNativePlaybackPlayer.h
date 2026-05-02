@@ -27,6 +27,8 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 @property (nonatomic, copy, readonly, nullable) NSString *currentPath;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
+@property (nonatomic, readonly) NSInteger videoWidth;
+@property (nonatomic, readonly) NSInteger videoHeight;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
 @property (nonatomic) float volume;
 @property (nonatomic) float playbackRate;

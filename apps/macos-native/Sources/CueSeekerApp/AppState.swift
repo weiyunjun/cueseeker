@@ -393,7 +393,8 @@ final class AppState: ObservableObject {
         do {
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: result.videoPath),
-                startMilliseconds: result.startMilliseconds
+                startMilliseconds: result.startMilliseconds,
+                subtitleSource: playbackSubtitleSource(for: result)
             )
 
             guard let player else {
@@ -401,6 +402,7 @@ final class AppState: ObservableObject {
             }
 
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+                player.loadSubtitleSource(request.subtitleSource)
                 try player.seek(toMilliseconds: request.startMilliseconds)
             } else {
                 try player.open(request)
@@ -654,6 +656,17 @@ final class AppState: ObservableObject {
                 text: result.content
             )
         ]
+    }
+
+    private func playbackSubtitleSource(for result: SubtitleSearchResult) -> PlaybackSubtitleSource? {
+        guard result.subtitleFormat == .ass else {
+            return nil
+        }
+
+        return PlaybackSubtitleSource(
+            url: URL(fileURLWithPath: result.subtitlePath),
+            format: .ass
+        )
     }
 
     private func persistSelectedFolders() {
