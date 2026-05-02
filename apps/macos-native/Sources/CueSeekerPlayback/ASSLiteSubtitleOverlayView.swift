@@ -2,6 +2,8 @@ import AppKit
 
 @MainActor
 final class ASSLiteSubtitleOverlayView: NSView {
+    private let displayStyle = ASSLiteDisplayStyle.default
+
     var script: ASSLiteScript? {
         didSet {
             needsDisplay = true
@@ -89,37 +91,27 @@ final class ASSLiteSubtitleOverlayView: NSView {
         let marginR = CGFloat((dialogue.marginR ?? style.marginR) * scaleX)
         let marginV = CGFloat((dialogue.marginV ?? style.marginV) * scaleY)
         let maxWidth = max(videoRect.width - marginL - marginR, 24)
-        let fontSize = max(style.fontSize * scaleY, 8)
-        let font = resolvedFont(style: style, size: fontSize)
+        let backingScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        let font = displayStyle.font(scaledBy: CGFloat(scaleY))
+        let exteriorPadding = displayStyle.exteriorPadding(backingScale: backingScale)
+        let textWidth = max(maxWidth - (exteriorPadding * 2), 24)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = horizontalTextAlignment(for: alignment)
         paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = displayStyle.lineSpacing
 
-        var attributes: [NSAttributedString.Key: Any] = [
+        let fillAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor(assLiteColor: style.primaryColor),
+            .foregroundColor: displayStyle.textColor,
+            .shadow: displayStyle.shadow(backingScale: backingScale),
             .paragraphStyle: paragraphStyle
         ]
-
-        if style.outline > 0 {
-            attributes[.strokeColor] = NSColor(assLiteColor: style.outlineColor)
-            attributes[.strokeWidth] = -max(1.5, style.outline * scaleY * 2)
-        }
-
-        if style.shadow > 0 {
-            let shadow = NSShadow()
-            shadow.shadowColor = NSColor(assLiteColor: style.backColor)
-            shadow.shadowBlurRadius = max(0, style.shadow * scaleY)
-            shadow.shadowOffset = CGSize(width: style.shadow * scaleX, height: style.shadow * scaleY)
-            attributes[.shadow] = shadow
-        }
-
-        let attributedText = NSAttributedString(string: dialogue.text, attributes: attributes)
+        let attributedText = NSAttributedString(string: dialogue.text, attributes: fillAttributes)
         let measuredRect = attributedText.boundingRect(
-            with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
+            with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
-        let textHeight = ceil(measuredRect.height)
+        let textHeight = ceil(measuredRect.height) + (exteriorPadding * 2)
         let y = verticalOrigin(
             for: alignment,
             textHeight: textHeight,
@@ -132,10 +124,48 @@ final class ASSLiteSubtitleOverlayView: NSView {
             y: y,
             width: maxWidth,
             height: textHeight
-        )
+        ).insetBy(dx: exteriorPadding, dy: exteriorPadding)
 
-        attributedText.draw(
-            with: drawRect,
+        drawText(
+            dialogue.text,
+            in: drawRect,
+            paragraphStyle: paragraphStyle,
+            font: font,
+            backingScale: backingScale
+        )
+    }
+
+    private func drawText(
+        _ text: String,
+        in rect: CGRect,
+        paragraphStyle: NSParagraphStyle,
+        font: NSFont,
+        backingScale: CGFloat
+    ) {
+        if displayStyle.outlineWidthPixels > 0 {
+            let outlineAttributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: displayStyle.outlineColor,
+                .paragraphStyle: paragraphStyle
+            ]
+            let outlineText = NSAttributedString(string: text, attributes: outlineAttributes)
+
+            for offset in displayStyle.outlineOffsets(backingScale: backingScale) {
+                outlineText.draw(
+                    with: rect.offsetBy(dx: offset.width, dy: offset.height),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading]
+                )
+            }
+        }
+
+        let fillAttributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: displayStyle.textColor,
+            .shadow: displayStyle.shadow(backingScale: backingScale),
+            .paragraphStyle: paragraphStyle
+        ]
+        NSAttributedString(string: text, attributes: fillAttributes).draw(
+            with: rect,
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
     }
@@ -196,29 +226,73 @@ final class ASSLiteSubtitleOverlayView: NSView {
         return min(max(y, videoRect.minY), max(videoRect.minY, videoRect.maxY - textHeight))
     }
 
-    private func resolvedFont(style: ASSLiteStyle, size: Double) -> NSFont {
-        let baseFont = NSFont(name: style.fontName, size: size) ?? NSFont.systemFont(ofSize: size)
-        var font = baseFont
-
-        if style.isBold {
-            font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
-        }
-
-        if style.isItalic {
-            font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
-        }
-
-        return font
-    }
 }
 
-private extension NSColor {
-    convenience init(assLiteColor color: ASSLiteColor) {
-        self.init(
-            calibratedRed: color.red,
-            green: color.green,
-            blue: color.blue,
-            alpha: color.alpha
+private struct ASSLiteDisplayStyle {
+    var baseFontSize: CGFloat
+    var minimumFontSize: CGFloat
+    var textColor: NSColor
+    var outlineColor: NSColor
+    var outlineWidthPixels: CGFloat
+    var shadowColor: NSColor
+    var shadowRadiusPixels: CGFloat
+    var shadowOffsetPixels: CGSize
+    var boxEnabled: Bool
+    var lineSpacing: CGFloat
+
+    static let `default` = ASSLiteDisplayStyle(
+        baseFontSize: 44,
+        minimumFontSize: 14,
+        textColor: .white,
+        outlineColor: .black,
+        outlineWidthPixels: 1,
+        shadowColor: .black,
+        shadowRadiusPixels: 2,
+        shadowOffsetPixels: CGSize(width: 3, height: 3),
+        boxEnabled: false,
+        lineSpacing: 0
+    )
+
+    func font(scaledBy scaleY: CGFloat) -> NSFont {
+        NSFont.systemFont(
+            ofSize: max(baseFontSize * scaleY, minimumFontSize),
+            weight: .regular
         )
+    }
+
+    func shadow(backingScale: CGFloat) -> NSShadow {
+        let shadow = NSShadow()
+        shadow.shadowColor = shadowColor
+        shadow.shadowBlurRadius = shadowRadiusPixels / max(backingScale, 1)
+        shadow.shadowOffset = CGSize(
+            width: shadowOffsetPixels.width / max(backingScale, 1),
+            height: shadowOffsetPixels.height / max(backingScale, 1)
+        )
+        return shadow
+    }
+
+    func exteriorPadding(backingScale: CGFloat) -> CGFloat {
+        let scale = max(backingScale, 1)
+        let outlinePadding = min(max(outlineWidthPixels, 0), 2) / scale
+        let shadowPadding = (max(shadowRadiusPixels, 0) + max(abs(shadowOffsetPixels.width), abs(shadowOffsetPixels.height))) / scale
+        return ceil(max(outlinePadding, shadowPadding))
+    }
+
+    func outlineOffsets(backingScale: CGFloat) -> [CGSize] {
+        let offset = min(max(outlineWidthPixels, 0), 2) / max(backingScale, 1)
+        guard offset > 0 else {
+            return []
+        }
+
+        return [
+            CGSize(width: -offset, height: -offset),
+            CGSize(width: 0, height: -offset),
+            CGSize(width: offset, height: -offset),
+            CGSize(width: -offset, height: 0),
+            CGSize(width: offset, height: 0),
+            CGSize(width: -offset, height: offset),
+            CGSize(width: 0, height: offset),
+            CGSize(width: offset, height: offset)
+        ]
     }
 }
