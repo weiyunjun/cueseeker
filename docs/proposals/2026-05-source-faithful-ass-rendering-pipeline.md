@@ -38,6 +38,9 @@ pipeline is required.
   seek never wait for ASS parsing or ASS rendering to finish.
 - Use the database cue timing to optimize playback startup, prefetching, and
   renderer catch-up without treating database rows as a replacement renderer.
+- Enable future time-windowed ASS preparation so large source files can load the
+  selected cue window and nearby deterministic cue windows before falling back
+  to full-file preparation.
 - Move toward a renderer that can display complex ASS effects comparably to
   established players such as Movist Pro.
 - Keep the implementation staged, measurable, and reversible.
@@ -75,6 +78,18 @@ should use this information to:
 - Decide the initial subtitle time window to prioritize.
 - Prefetch nearby render events after playback starts.
 - Keep the UI and video path responsive even when the source file is large.
+
+The database cue timings are derived from the same source ASS events used for
+rendering. For a selected ASS cue, the selected cue time and the next nearby cue
+times can therefore be determined from indexed cue-group timing. The source
+`.ass` file is still required to retrieve the exact render payload for those
+times, including styles, override tags, vector drawing data, `Effect` fields,
+and other formatting or visual-effect details.
+
+This timing relationship allows a future segmented preparation path: load or
+parse the source ASS data for the selected time window and nearby deterministic
+windows first, then expand or fall back to full-file preparation only when the
+renderer, cache state, or source format requires it.
 
 Database cue data must not be used to recreate full ASS visuals. It is a timing
 and search guide, not a renderer.
@@ -122,11 +137,14 @@ Expected components:
 
 - `SearchProjectionStore`: the existing SQLite search database and FTS index.
 - `ASSRenderTimeline`: source-derived render events preserving timing, layer,
-  style, raw override tags, drawing data, and event order.
+  style, raw override tags, drawing data, and event order. The timeline may be
+  prepared for the full source file or for a bounded playback time window.
 - `ASSRenderCache`: an in-memory and optional persistent cache keyed by subtitle
-  path, file size, modified time, and renderer version.
+  path, file size, modified time, renderer version, and time window when a
+  partial timeline is cached.
 - `ASSRenderCoordinator`: orchestrates async source loading, cache lookup,
-  renderer preparation, cancellation, and current-time catch-up.
+  window selection, renderer preparation, cancellation, and current-time
+  catch-up.
 - `ASSRenderer`: dedicated source-faithful renderer that receives current time
   and returns composited subtitle output.
 - `SubtitleOverlayHost`: native overlay surface attached to the playback render
@@ -213,8 +231,12 @@ render timeline.
    without scanning and sorting every dialogue on every frame.
 3. Use database cue timing to prioritize the selected time window and prefetch
    neighboring windows.
-4. Cache parsed timelines by source file identity.
-5. Keep search projection and render timeline separate in code and tests.
+4. Add a segmented preparation path that uses indexed cue-group timing to choose
+   the selected cue window and nearby deterministic windows, while retrieving
+   the exact render payload from the source `.ass` file.
+5. Cache parsed timelines by source file identity and, for partial timelines, by
+   the prepared time window.
+6. Keep search projection and render timeline separate in code and tests.
 
 ### Phase 3: Dedicated ASS Renderer Evaluation
 
@@ -277,6 +299,8 @@ render timeline.
   frame throttling or cache policy.
 - The render timeline cache must be invalidated reliably when source subtitle
   files change.
+- Segmented loading must not lose source events whose exact render behavior
+  extends beyond the selected cue's simple timing window.
 - Maintaining both ASS Lite fallback and source-faithful renderer paths can
   increase complexity unless ownership boundaries stay explicit.
 

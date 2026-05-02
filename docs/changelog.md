@@ -156,3 +156,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
   search remains a readable-text projection, playback preserves timed source ASS
   events, and ASS parsing or rendering must not block row selection or video
   playback.
+- Clarified the planned ASS render-preparation optimization: database cue timing
+  can identify the selected and nearby deterministic time windows, while the
+  source `.ass` file remains required for exact formatting and visual-effect
+  payloads.

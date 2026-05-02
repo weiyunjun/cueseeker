@@ -379,6 +379,11 @@ Required render timeline coverage:
   cancellation behavior.
 - Cache invalidation uses source subtitle path, file size, modified time, and
   renderer version.
+- Time-windowed preparation uses indexed cue-group timing to choose the selected
+  cue window and nearby deterministic windows while still retrieving exact
+  render payload from the source `.ass` file.
+- Partial timeline caches are keyed by both source file identity and prepared
+  time window, and they invalidate when the source subtitle file changes.
 
 Required non-blocking playback checks:
 

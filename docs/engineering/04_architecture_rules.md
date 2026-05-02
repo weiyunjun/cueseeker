@@ -198,6 +198,14 @@ Rules:
   wait for ASS parsing or rendering.
 - ASS rendering should be coordinated through an asynchronous render coordinator
   with cancellation and cache invalidation keyed by source file identity.
+- Database cue timing is consistent with the source ASS event timing and may be
+  used to identify the selected cue window and nearby cue windows before ASS
+  render preparation finishes.
+- Source ASS lookup remains required for exact render payload, including style,
+  override-tag, vector drawing, `Effect`, and other formatting details.
+- Time-windowed or segmented ASS preparation is the preferred future
+  optimization for large ASS files. Full-file preparation may remain a fallback,
+  but it should not be the only long-term render preparation path.
 - The dedicated ASS renderer must be separate from the SQLite search layer and
   from the native video decoder. It should receive playback clock updates and
   present overlay output through the playback render container.
