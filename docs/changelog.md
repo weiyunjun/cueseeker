@@ -191,3 +191,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
   comparison path so ordinary bilingual subtitles no longer render oversized.
 - Added Phase 1.1 font fallback parity planning for native ASS ordinary dialogue
   alignment before accepting further font-size calibration.
+- Documented the validated legacy `libass` memory optimization directions:
+  layer-contents presentation, cropped subtitle bitmap presentation, and
+  lifecycle-safe clear or stop recovery work.

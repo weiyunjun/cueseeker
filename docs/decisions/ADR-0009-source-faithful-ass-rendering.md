@@ -104,6 +104,11 @@ clock integration that later native phases can extend.
 - ASS Lite, native `v0`, and any legacy `libass` path must have explicit
   ownership boundaries so fallback behavior does not obscure the native
   renderer's state.
+- Legacy `libass` memory work must distinguish validated optimization
+  directions from unvalidated ideas. The accepted legacy optimization evidence
+  currently covers layer-contents presentation, cropped subtitle bitmap
+  presentation, and the lifecycle-safe subset of explicit clear or stop
+  recovery. Other optimization ideas need fresh measurement before adoption.
 - If the legacy `libass` path is included in a release build, it still affects
   dependency bundling, signing, notarization, and license review.
 

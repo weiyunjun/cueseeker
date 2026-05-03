@@ -191,6 +191,34 @@ subtitle bitmap expansion in the playback path. Native renderer work should
 focus on the `v0` text core first and then expand ASS feature coverage in later
 phases.
 
+Verified legacy `libass` optimization directions:
+
+- H4, playback overlay presentation through layer contents, is a validated
+  `libass` optimization direction. The useful part is to move legacy ASS output
+  presentation away from repeated AppKit draw-time image construction and toward
+  a retained layer-backed subtitle output. This is a legacy `libass`
+  presentation optimization, not evidence that AppKit text drawing can match ASS
+  visual behavior.
+- H3, cropped subtitle bitmap presentation, is a validated `libass`
+  optimization direction. The useful part is to carry only the visible subtitle
+  bitmap bounds through playback presentation instead of retaining a full-frame
+  transparent subtitle image. Earlier measurements showed this direction can
+  reduce simple ASS physical-footprint delta into the low tens of megabytes and
+  keep complex ASS substantially below the previous full-frame style cost.
+- H7, explicit clear, stop, and teardown recovery, is a partially validated
+  `libass` optimization direction. The useful part is to reduce retained ASS
+  presentation state after subtitle clearing or playback stop. The known risk is
+  lifecycle correctness: teardown crash or leak behavior must be fixed before
+  this direction is accepted as complete.
+
+Non-validated or rejected legacy optimization directions should not be treated as
+accepted just because they appear in the high-level optimization list above.
+In particular, detect-change throttling, tick-frequency changes, generic buffer
+reuse, and generic texture upload need fresh evidence in the current codebase
+before they can be treated as useful. The committed optimization direction for
+legacy `libass` should therefore start from H4, H3, and the lifecycle-safe subset
+of H7.
+
 ### Native Subtitle Engine Direction
 
 CueSeeker will introduce a project-owned native subtitle engine alongside the
