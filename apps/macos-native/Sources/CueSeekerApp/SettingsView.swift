@@ -106,6 +106,24 @@ struct SettingsView: View {
 
                 DecodeModeSegmentedControl(selection: $appState.playbackDecodeMode)
             }
+
+            HStack(spacing: 12) {
+                Text("ASS Renderer")
+                    .font(.subheadline)
+
+                Spacer()
+
+                Picker("", selection: $appState.assSubtitleRenderingMode) {
+                    ForEach(ASSSubtitleRenderingMode.allCases) { mode in
+                        Text(mode.displayName)
+                            .tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 150)
+                .accessibilityLabel("ASS Renderer")
+            }
         }
     }
 

@@ -19,6 +19,24 @@ public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Eq
     }
 }
 
+public enum ASSSubtitleRenderingMode: String, CaseIterable, Identifiable, Sendable, Equatable {
+    case fullFrameRGBA
+    case sparseImages
+
+    public var id: String {
+        rawValue
+    }
+
+    public var displayName: String {
+        switch self {
+        case .fullFrameRGBA:
+            "Full Frame"
+        case .sparseImages:
+            "Sparse Images"
+        }
+    }
+}
+
 public enum PlaybackSubtitleSourceFormat: String, Sendable, Equatable {
     case ass
 }

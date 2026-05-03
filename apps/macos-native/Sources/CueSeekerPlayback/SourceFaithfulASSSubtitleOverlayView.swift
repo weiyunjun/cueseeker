@@ -3,13 +3,42 @@ import CASSRendering
 import CoreGraphics
 import Foundation
 
-private struct ASSBitmapFrame: @unchecked Sendable {
+private struct ASSImageTile: @unchecked Sendable {
     let rgbaData: Data
     let width: Int
     let height: Int
     let stride: Int
-    let imageCount: Int
+    let destinationX: Int
+    let destinationY: Int
+}
+
+private struct ASSSparseFrame: @unchecked Sendable {
+    let tiles: [ASSImageTile]
+    let frameWidth: Int
+    let frameHeight: Int
     let timestampMilliseconds: Int
+}
+
+private struct ASSFullFrame: @unchecked Sendable {
+    let rgbaData: Data
+    let width: Int
+    let height: Int
+    let stride: Int
+    let timestampMilliseconds: Int
+}
+
+private enum ASSRenderedFrame: @unchecked Sendable {
+    case fullFrame(ASSFullFrame)
+    case sparse(ASSSparseFrame)
+
+    var timestampMilliseconds: Int {
+        switch self {
+        case .fullFrame(let frame):
+            frame.timestampMilliseconds
+        case .sparse(let frame):
+            frame.timestampMilliseconds
+        }
+    }
 }
 
 private struct ASSRenderWorkerError: Error, Sendable {
@@ -59,7 +88,8 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     func render(
         generation expectedGeneration: UUID,
         timestampMilliseconds: Int,
-        completion: @escaping @Sendable (UUID, Result<ASSBitmapFrame, ASSRenderWorkerError>) -> Void
+        renderingMode: ASSSubtitleRenderingMode,
+        completion: @escaping @Sendable (UUID, Result<ASSRenderedFrame, ASSRenderWorkerError>) -> Void
     ) {
         queue.async {
             guard let session = self.session else {
@@ -71,16 +101,27 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             }
 
             do {
-                let output = try session.renderFrame(atTimestampMilliseconds: timestampMilliseconds)
-                let frame = ASSBitmapFrame(
-                    rgbaData: output.rgbaData,
-                    width: output.width,
-                    height: output.height,
-                    stride: output.stride,
-                    imageCount: output.imageCount,
-                    timestampMilliseconds: timestampMilliseconds
-                )
-                completion(expectedGeneration, .success(frame))
+                switch renderingMode {
+                case .fullFrameRGBA:
+                    let output = try session.renderFrame(atTimestampMilliseconds: timestampMilliseconds)
+                    let frame = ASSFullFrame(
+                        rgbaData: output.rgbaData,
+                        width: output.width,
+                        height: output.height,
+                        stride: output.stride,
+                        timestampMilliseconds: timestampMilliseconds
+                    )
+                    completion(expectedGeneration, .success(.fullFrame(frame)))
+                case .sparseImages:
+                    let output = try session.renderImages(atTimestampMilliseconds: timestampMilliseconds)
+                    let frame = ASSSparseFrame(
+                        tiles: output.images.compactMap(Self.makeTile(from:)),
+                        frameWidth: output.frameWidth,
+                        frameHeight: output.frameHeight,
+                        timestampMilliseconds: timestampMilliseconds
+                    )
+                    completion(expectedGeneration, .success(.sparse(frame)))
+                }
             } catch {
                 completion(
                     expectedGeneration,
@@ -88,6 +129,68 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 )
             }
         }
+    }
+
+    private static func makeTile(from image: SFXASSImage) -> ASSImageTile? {
+        let width = image.width
+        let height = image.height
+        let sourceStride = image.stride
+        guard width > 0, height > 0, sourceStride > 0 else {
+            return nil
+        }
+
+        let color = image.color
+        let sourceRed = Int((color >> 24) & 0xff)
+        let sourceGreen = Int((color >> 16) & 0xff)
+        let sourceBlue = Int((color >> 8) & 0xff)
+        let sourceOpacity = 255 - Int(color & 0xff)
+        guard sourceOpacity > 0 else {
+            return nil
+        }
+
+        let destinationStride = width * 4
+        let maskData = image.bitmapData as Data
+        var rgbaData = Data(count: destinationStride * height)
+
+        rgbaData.withUnsafeMutableBytes { rgbaBuffer in
+            guard let rgbaBase = rgbaBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                return
+            }
+
+            maskData.withUnsafeBytes { maskBuffer in
+                guard let maskBase = maskBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                    return
+                }
+
+                for y in 0..<height {
+                    let sourceRow = maskBase + (y * sourceStride)
+                    let destinationRow = rgbaBase + (y * destinationStride)
+
+                    for x in 0..<width {
+                        let mask = Int(sourceRow[x])
+                        let sourceAlpha = (mask * sourceOpacity + 127) / 255
+                        if sourceAlpha <= 0 {
+                            continue
+                        }
+
+                        let pixel = destinationRow + (x * 4)
+                        pixel[0] = UInt8((sourceRed * sourceAlpha + 127) / 255)
+                        pixel[1] = UInt8((sourceGreen * sourceAlpha + 127) / 255)
+                        pixel[2] = UInt8((sourceBlue * sourceAlpha + 127) / 255)
+                        pixel[3] = UInt8(sourceAlpha)
+                    }
+                }
+            }
+        }
+
+        return ASSImageTile(
+            rgbaData: rgbaData,
+            width: width,
+            height: height,
+            stride: destinationStride,
+            destinationX: image.destinationX,
+            destinationY: image.destinationY
+        )
     }
 }
 
@@ -121,6 +224,17 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
     }
 
+    var renderingMode: ASSSubtitleRenderingMode = .sparseImages {
+        didSet {
+            if oldValue != renderingMode {
+                renderedTimestampMilliseconds = nil
+                renderedFrame = nil
+                requestRender(force: true)
+                needsDisplay = true
+            }
+        }
+    }
+
     var onRenderingFailure: ((String) -> Void)?
 
     private let rendererWorker = SourceFaithfulASSRendererWorker()
@@ -130,8 +244,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var isRenderInFlight = false
     private var pendingTimestampMilliseconds: Int?
     private var renderedTimestampMilliseconds: Int?
-    private var renderedImage: CGImage?
-    private var renderedImageCount = 0
+    private var renderedFrame: ASSRenderedFrame?
     private var failureMessage: String?
 
     override var isFlipped: Bool {
@@ -160,8 +273,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         isRenderInFlight = false
         pendingTimestampMilliseconds = nil
         renderedTimestampMilliseconds = nil
-        renderedImage = nil
-        renderedImageCount = 0
+        renderedFrame = nil
         failureMessage = nil
 
         guard source != nil else {
@@ -182,7 +294,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             return
         }
 
-        if let renderedImage {
+        if let renderedFrame {
             let videoRect = displayedVideoRect(in: bounds)
             guard videoRect.width > 1, videoRect.height > 1 else {
                 return
@@ -195,13 +307,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             context.saveGState()
             context.translateBy(x: 0, y: bounds.height)
             context.scaleBy(x: 1, y: -1)
-            let drawRect = CGRect(
-                x: videoRect.minX,
-                y: bounds.height - videoRect.maxY,
-                width: videoRect.width,
-                height: videoRect.height
-            )
-            context.draw(renderedImage, in: drawRect)
+            draw(renderedFrame: renderedFrame, in: videoRect, using: context)
             context.restoreGState()
         }
 
@@ -225,8 +331,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         isRenderInFlight = false
         pendingTimestampMilliseconds = nil
         renderedTimestampMilliseconds = nil
-        renderedImage = nil
-        renderedImageCount = 0
+        renderedFrame = nil
         failureMessage = nil
         needsDisplay = true
 
@@ -247,7 +352,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     self.requestRender(force: true)
                 case .failure(let error):
                     self.isRendererReady = false
-                    self.renderedImage = nil
+                    self.renderedFrame = nil
                     self.failureMessage = error.message
                     self.onRenderingFailure?(error.message)
                     self.needsDisplay = true
@@ -286,7 +391,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         rendererWorker.render(
             generation: generation,
-            timestampMilliseconds: timestampMilliseconds
+            timestampMilliseconds: timestampMilliseconds,
+            renderingMode: renderingMode
         ) { [weak self] returnedGeneration, result in
             DispatchQueue.main.async(execute: {
                 guard let self, self.generation == returnedGeneration else {
@@ -298,12 +404,11 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 switch result {
                 case .success(let frame):
                     self.renderedTimestampMilliseconds = frame.timestampMilliseconds
-                    self.renderedImageCount = frame.imageCount
-                    self.renderedImage = self.makeImage(from: frame)
+                    self.renderedFrame = frame
                     self.failureMessage = nil
                     self.needsDisplay = true
                 case .failure(let error):
-                    self.renderedImage = nil
+                    self.renderedFrame = nil
                     self.failureMessage = error.message
                     self.onRenderingFailure?(error.message)
                     self.needsDisplay = true
@@ -316,7 +421,53 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
     }
 
-    private func makeImage(from frame: ASSBitmapFrame) -> CGImage? {
+    private func draw(renderedFrame: ASSRenderedFrame, in videoRect: CGRect, using context: CGContext) {
+        switch renderedFrame {
+        case .fullFrame(let frame):
+            draw(fullFrame: frame, in: videoRect, using: context)
+        case .sparse(let frame):
+            draw(sparseFrame: frame, in: videoRect, using: context)
+        }
+    }
+
+    private func draw(fullFrame frame: ASSFullFrame, in videoRect: CGRect, using context: CGContext) {
+        guard let image = makeImage(from: frame) else {
+            return
+        }
+
+        let drawRect = CGRect(
+            x: videoRect.minX,
+            y: bounds.height - videoRect.maxY,
+            width: videoRect.width,
+            height: videoRect.height
+        )
+        context.draw(image, in: drawRect)
+    }
+
+    private func draw(sparseFrame frame: ASSSparseFrame, in videoRect: CGRect, using context: CGContext) {
+        guard frame.frameWidth > 0, frame.frameHeight > 0 else {
+            return
+        }
+
+        let scaleX = videoRect.width / CGFloat(frame.frameWidth)
+        let scaleY = videoRect.height / CGFloat(frame.frameHeight)
+
+        for tile in frame.tiles {
+            guard let tileImage = makeImage(from: tile) else {
+                continue
+            }
+
+            let drawRect = CGRect(
+                x: videoRect.minX + (CGFloat(tile.destinationX) * scaleX),
+                y: bounds.height - videoRect.minY - (CGFloat(tile.destinationY + tile.height) * scaleY),
+                width: CGFloat(tile.width) * scaleX,
+                height: CGFloat(tile.height) * scaleY
+            )
+            context.draw(tileImage, in: drawRect)
+        }
+    }
+
+    private func makeImage(from frame: ASSFullFrame) -> CGImage? {
         guard let provider = CGDataProvider(data: frame.rgbaData as CFData) else {
             failureMessage = "ASS renderer produced bitmap data that could not be displayed."
             return nil
@@ -329,6 +480,28 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             bitsPerComponent: 8,
             bitsPerPixel: 32,
             bytesPerRow: frame.stride,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
+        )
+    }
+
+    private func makeImage(from tile: ASSImageTile) -> CGImage? {
+        guard let provider = CGDataProvider(data: tile.rgbaData as CFData) else {
+            failureMessage = "ASS renderer produced image data that could not be displayed."
+            return nil
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        return CGImage(
+            width: tile.width,
+            height: tile.height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: tile.stride,
             space: colorSpace,
             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
             provider: provider,
