@@ -161,6 +161,7 @@ Future versions may need:
 - Highlight current subtitle.
 - Support text selection or learning interactions.
 - Source-faithful ASS rendering beyond the ASS Lite fallback.
+- Optional danmaku playback as a separate overlay domain from subtitles.
 
 Rules:
 
@@ -196,6 +197,18 @@ Rules:
 - The subtitle visibility control should show or hide the app-owned overlay.
 - For ASS rendering, the subtitle visibility control should show or hide the
   source ASS overlay without stopping video playback.
+- Long-term danmaku support, if accepted later, should use a separate track and
+  renderer from subtitle rendering. Subtitle tracks should preserve source
+  subtitle semantics. Danmaku tracks should prioritize high-throughput moving
+  text, density control, filtering, lane assignment, speed, opacity, outline,
+  and independent visibility.
+- ASS files may be classified as danmaku candidates through syntax and timeline
+  heuristics such as high dialogue-event density, heavy overlap, short text
+  events, scrolling `\move` patterns, top or bottom fixed comment positions,
+  repeated lane-like vertical coordinates, and danmaku-oriented style or effect
+  names. The product may use a binary subtitle-versus-danmaku classification in
+  practice, but the classifier should remain diagnosable when a file is
+  ambiguous.
 
 Grouped search result behavior:
 

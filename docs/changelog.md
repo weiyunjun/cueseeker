@@ -198,3 +198,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
   real-sample exploration process: Phase 2 analyzes and implements coverage
   from real subtitle samples, Phase 3 defines compromise or unsupported-behavior
   policy, and Phase 4 focuses on performance, memory, and long-run stability.
+- Documented long-term danmaku playback as a possible separate overlay track
+  and renderer from subtitles, with ASS syntax and timeline heuristics used for
+  practical subtitle-versus-danmaku classification.

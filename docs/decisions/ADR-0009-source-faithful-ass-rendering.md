@@ -69,6 +69,10 @@ Rules:
 - Native `v0` is not complete until ordinary dialogue visual alignment is
   credible for subtitle-context review, including source style sizing and the
   leading static size overrides documented in the implementation plan.
+- Long-term danmaku support, if accepted later, should be modeled as a separate
+  playback overlay track and renderer from source-faithful subtitle rendering.
+  ASS syntax and timeline heuristics may classify an ASS file as danmaku, but
+  danmaku lane scheduling is not part of native `v0` subtitle rendering.
 - The native app must not reintroduce `libmpv` as a playback backend to get ASS
   rendering behavior.
 

@@ -348,10 +348,13 @@ cache policy, allocation reduction, renderer invalidation, subtitle visibility
 toggle behavior, long-run playback memory, fullscreen behavior, and automated
 benchmark coverage.
 
-Danmaku-specific optimization remains outside these high-level phases unless a
-later discussion explicitly folds it into the native ASS renderer plan. If it is
-added, it should be scoped from real samples and the same evidence-first
-process, not from assumed lane or batching rules.
+Danmaku-specific playback remains outside these native ASS subtitle phases
+unless a later discussion explicitly folds it into the playback roadmap. If it
+is added, it should be treated as a separate overlay domain from subtitles, with
+its own track model, visibility control, lane assignment, density controls, and
+high-throughput renderer. ASS files may still be classified as danmaku inputs
+through syntax and timeline heuristics, but danmaku rendering should not force
+the subtitle renderer to become a lane scheduler.
 
 ### Failure Visibility During Development
 
