@@ -19,6 +19,18 @@ private struct ASSSparseFrame: @unchecked Sendable {
     let timestampMilliseconds: Int
 }
 
+private struct ASSDirtyRectFrame: @unchecked Sendable {
+    let rgbaData: Data
+    let width: Int
+    let height: Int
+    let stride: Int
+    let originX: Int
+    let originY: Int
+    let frameWidth: Int
+    let frameHeight: Int
+    let timestampMilliseconds: Int
+}
+
 private struct ASSFullFrame: @unchecked Sendable {
     let rgbaData: Data
     let width: Int
@@ -30,12 +42,15 @@ private struct ASSFullFrame: @unchecked Sendable {
 private enum ASSRenderedFrame: @unchecked Sendable {
     case fullFrame(ASSFullFrame)
     case sparse(ASSSparseFrame)
+    case dirtyRect(ASSDirtyRectFrame)
 
     var timestampMilliseconds: Int {
         switch self {
         case .fullFrame(let frame):
             frame.timestampMilliseconds
         case .sparse(let frame):
+            frame.timestampMilliseconds
+        case .dirtyRect(let frame):
             frame.timestampMilliseconds
         }
     }
@@ -121,6 +136,13 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                         timestampMilliseconds: timestampMilliseconds
                     )
                     completion(expectedGeneration, .success(.sparse(frame)))
+                case .dirtyRectSurface:
+                    let output = try session.renderImages(atTimestampMilliseconds: timestampMilliseconds)
+                    let frame = Self.makeDirtyRectFrame(
+                        from: output,
+                        timestampMilliseconds: timestampMilliseconds
+                    )
+                    completion(expectedGeneration, .success(.dirtyRect(frame)))
                 }
             } catch {
                 completion(
@@ -191,6 +213,150 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             destinationX: image.destinationX,
             destinationY: image.destinationY
         )
+    }
+
+    private static func makeDirtyRectFrame(
+        from output: SFXASSImageRenderOutput,
+        timestampMilliseconds: Int
+    ) -> ASSDirtyRectFrame {
+        let frameWidth = output.frameWidth
+        let frameHeight = output.frameHeight
+        guard frameWidth > 0, frameHeight > 0 else {
+            return ASSDirtyRectFrame(
+                rgbaData: Data(),
+                width: 0,
+                height: 0,
+                stride: 0,
+                originX: 0,
+                originY: 0,
+                frameWidth: frameWidth,
+                frameHeight: frameHeight,
+                timestampMilliseconds: timestampMilliseconds
+            )
+        }
+
+        var minX = frameWidth
+        var minY = frameHeight
+        var maxX = 0
+        var maxY = 0
+        let images = output.images.filter { image in
+            let width = image.width
+            let height = image.height
+            let sourceOpacity = 255 - Int(image.color & 0xff)
+            guard width > 0, height > 0, image.stride > 0, sourceOpacity > 0 else {
+                return false
+            }
+
+            let clippedMinX = max(0, image.destinationX)
+            let clippedMinY = max(0, image.destinationY)
+            let clippedMaxX = min(frameWidth, image.destinationX + width)
+            let clippedMaxY = min(frameHeight, image.destinationY + height)
+            guard clippedMinX < clippedMaxX, clippedMinY < clippedMaxY else {
+                return false
+            }
+
+            minX = min(minX, clippedMinX)
+            minY = min(minY, clippedMinY)
+            maxX = max(maxX, clippedMaxX)
+            maxY = max(maxY, clippedMaxY)
+            return true
+        }
+
+        guard !images.isEmpty, minX < maxX, minY < maxY else {
+            return ASSDirtyRectFrame(
+                rgbaData: Data(),
+                width: 0,
+                height: 0,
+                stride: 0,
+                originX: 0,
+                originY: 0,
+                frameWidth: frameWidth,
+                frameHeight: frameHeight,
+                timestampMilliseconds: timestampMilliseconds
+            )
+        }
+
+        let width = maxX - minX
+        let height = maxY - minY
+        let stride = width * 4
+        var rgbaData = Data(count: stride * height)
+
+        rgbaData.withUnsafeMutableBytes { rgbaBuffer in
+            guard let rgbaBase = rgbaBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                return
+            }
+
+            for image in images {
+                composite(image: image, into: rgbaBase, dirtyMinX: minX, dirtyMinY: minY, dirtyWidth: width, dirtyHeight: height, dirtyStride: stride)
+            }
+        }
+
+        return ASSDirtyRectFrame(
+            rgbaData: rgbaData,
+            width: width,
+            height: height,
+            stride: stride,
+            originX: minX,
+            originY: minY,
+            frameWidth: frameWidth,
+            frameHeight: frameHeight,
+            timestampMilliseconds: timestampMilliseconds
+        )
+    }
+
+    private static func composite(
+        image: SFXASSImage,
+        into destination: UnsafeMutablePointer<UInt8>,
+        dirtyMinX: Int,
+        dirtyMinY: Int,
+        dirtyWidth: Int,
+        dirtyHeight: Int,
+        dirtyStride: Int
+    ) {
+        let sourceRed = Int((image.color >> 24) & 0xff)
+        let sourceGreen = Int((image.color >> 16) & 0xff)
+        let sourceBlue = Int((image.color >> 8) & 0xff)
+        let sourceOpacity = 255 - Int(image.color & 0xff)
+        guard sourceOpacity > 0 else {
+            return
+        }
+
+        let maskData = image.bitmapData as Data
+        maskData.withUnsafeBytes { maskBuffer in
+            guard let maskBase = maskBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                return
+            }
+
+            let startX = max(0, dirtyMinX - image.destinationX)
+            let startY = max(0, dirtyMinY - image.destinationY)
+            let endX = min(image.width, dirtyMinX + dirtyWidth - image.destinationX)
+            let endY = min(image.height, dirtyMinY + dirtyHeight - image.destinationY)
+            guard startX < endX, startY < endY else {
+                return
+            }
+
+            for sourceY in startY..<endY {
+                let destinationY = image.destinationY + sourceY - dirtyMinY
+                let sourceRow = maskBase + (sourceY * image.stride)
+                let destinationRow = destination + (destinationY * dirtyStride)
+
+                for sourceX in startX..<endX {
+                    let destinationX = image.destinationX + sourceX - dirtyMinX
+                    let mask = Int(sourceRow[sourceX])
+                    let sourceAlpha = (mask * sourceOpacity + 127) / 255
+                    if sourceAlpha <= 0 {
+                        continue
+                    }
+
+                    let pixel = destinationRow + (destinationX * 4)
+                    let inverseAlpha = 255 - sourceAlpha
+                    pixel[0] = UInt8((sourceRed * sourceAlpha + Int(pixel[0]) * inverseAlpha + 127) / 255)
+                    pixel[1] = UInt8((sourceGreen * sourceAlpha + Int(pixel[1]) * inverseAlpha + 127) / 255)
+                    pixel[2] = UInt8((sourceBlue * sourceAlpha + Int(pixel[2]) * inverseAlpha + 127) / 255)
+                    pixel[3] = UInt8(sourceAlpha + (Int(pixel[3]) * inverseAlpha + 127) / 255)
+                }
+            }
+        }
     }
 }
 
@@ -427,6 +593,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             draw(fullFrame: frame, in: videoRect, using: context)
         case .sparse(let frame):
             draw(sparseFrame: frame, in: videoRect, using: context)
+        case .dirtyRect(let frame):
+            draw(dirtyRectFrame: frame, in: videoRect, using: context)
         }
     }
 
@@ -440,6 +608,26 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             y: bounds.height - videoRect.maxY,
             width: videoRect.width,
             height: videoRect.height
+        )
+        context.draw(image, in: drawRect)
+    }
+
+    private func draw(dirtyRectFrame frame: ASSDirtyRectFrame, in videoRect: CGRect, using context: CGContext) {
+        guard frame.frameWidth > 0, frame.frameHeight > 0, frame.width > 0, frame.height > 0 else {
+            return
+        }
+
+        guard let image = makeImage(from: frame) else {
+            return
+        }
+
+        let scaleX = videoRect.width / CGFloat(frame.frameWidth)
+        let scaleY = videoRect.height / CGFloat(frame.frameHeight)
+        let drawRect = CGRect(
+            x: videoRect.minX + (CGFloat(frame.originX) * scaleX),
+            y: bounds.height - videoRect.minY - (CGFloat(frame.originY + frame.height) * scaleY),
+            width: CGFloat(frame.width) * scaleX,
+            height: CGFloat(frame.height) * scaleY
         )
         context.draw(image, in: drawRect)
     }
@@ -470,6 +658,28 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private func makeImage(from frame: ASSFullFrame) -> CGImage? {
         guard let provider = CGDataProvider(data: frame.rgbaData as CFData) else {
             failureMessage = "ASS renderer produced bitmap data that could not be displayed."
+            return nil
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        return CGImage(
+            width: frame.width,
+            height: frame.height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: frame.stride,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
+        )
+    }
+
+    private func makeImage(from frame: ASSDirtyRectFrame) -> CGImage? {
+        guard let provider = CGDataProvider(data: frame.rgbaData as CFData) else {
+            failureMessage = "ASS renderer produced dirty-rect data that could not be displayed."
             return nil
         }
 
