@@ -178,6 +178,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     var areSubtitlesVisible: Bool = true {
         didSet {
             if oldValue != areSubtitlesVisible {
+                subtitleContainerLayer.isHidden = !areSubtitlesVisible
                 if areSubtitlesVisible {
                     requestRender(force: true)
                 }
@@ -225,6 +226,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var renderedTimestampMilliseconds: Int?
     private var renderedFrame: ASSRenderedFrame?
     private var failureMessage: String?
+    private let subtitleContainerLayer = CALayer()
+    private var subtitleTileLayers: [(tile: ASSImageTile, layer: CALayer)] = []
 
     override var isFlipped: Bool {
         true
@@ -234,6 +237,17 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        subtitleContainerLayer.frame = bounds
+        subtitleContainerLayer.isGeometryFlipped = true
+        subtitleContainerLayer.masksToBounds = false
+        subtitleContainerLayer.actions = [
+            "contents": NSNull(),
+            "position": NSNull(),
+            "bounds": NSNull(),
+            "frame": NSNull(),
+            "sublayers": NSNull()
+        ]
+        layer?.addSublayer(subtitleContainerLayer)
         postsFrameChangedNotifications = true
     }
 
@@ -248,6 +262,14 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+
+    override func layout() {
+        super.layout()
+        subtitleContainerLayer.frame = bounds
+        if let renderedFrame {
+            updatePresentationLayout(for: renderedFrame)
+        }
     }
 
     func setSource(_ source: PlaybackSubtitleSource?) {
@@ -271,27 +293,6 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-
-        guard areSubtitlesVisible else {
-            return
-        }
-
-        if let renderedFrame {
-            let videoRect = displayedVideoRect(in: bounds)
-            guard videoRect.width > 1, videoRect.height > 1 else {
-                return
-            }
-
-            guard let context = NSGraphicsContext.current?.cgContext else {
-                return
-            }
-
-            context.saveGState()
-            context.translateBy(x: 0, y: bounds.height)
-            context.scaleBy(x: 1, y: -1)
-            draw(renderedFrame: renderedFrame, in: videoRect, using: context)
-            context.restoreGState()
-        }
 
         if let failureMessage {
             drawFailure(message: failureMessage)
@@ -403,7 +404,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         switch frame {
         case .sparse:
             renderedFrame = frame
-            needsDisplay = true
+            updatePresentation(for: frame)
         }
     }
 
@@ -414,36 +415,81 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         renderedTimestampMilliseconds = nil
         renderedFrame = nil
         failureMessage = nil
+        clearSubtitleLayers()
     }
 
-    private func draw(renderedFrame: ASSRenderedFrame, in videoRect: CGRect, using context: CGContext) {
+    private func updatePresentation(for renderedFrame: ASSRenderedFrame) {
         switch renderedFrame {
         case .sparse(let frame):
-            draw(sparseFrame: frame, in: videoRect, using: context)
+            updatePresentation(for: frame)
         }
     }
 
-    private func draw(sparseFrame frame: ASSSparseFrame, in videoRect: CGRect, using context: CGContext) {
+    private func updatePresentation(for frame: ASSSparseFrame) {
+        clearSubtitleLayers()
         guard frame.frameWidth > 0, frame.frameHeight > 0 else {
             return
         }
 
-        let scaleX = videoRect.width / CGFloat(frame.frameWidth)
-        let scaleY = videoRect.height / CGFloat(frame.frameHeight)
+        subtitleContainerLayer.isHidden = !areSubtitlesVisible
 
         for tile in frame.tiles {
             guard let tileImage = makeImage(from: tile) else {
                 continue
             }
 
-            let drawRect = CGRect(
+            let tileLayer = CALayer()
+            tileLayer.contents = tileImage
+            tileLayer.contentsGravity = .resize
+            tileLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+            tileLayer.magnificationFilter = .linear
+            tileLayer.minificationFilter = .linear
+            tileLayer.actions = [
+                "contents": NSNull(),
+                "position": NSNull(),
+                "bounds": NSNull(),
+                "frame": NSNull()
+            ]
+            subtitleContainerLayer.addSublayer(tileLayer)
+            subtitleTileLayers.append((tile: tile, layer: tileLayer))
+        }
+
+        updatePresentationLayout(for: .sparse(frame))
+    }
+
+    private func updatePresentationLayout(for renderedFrame: ASSRenderedFrame) {
+        switch renderedFrame {
+        case .sparse(let frame):
+            updatePresentationLayout(for: frame)
+        }
+    }
+
+    private func updatePresentationLayout(for frame: ASSSparseFrame) {
+        guard frame.frameWidth > 0, frame.frameHeight > 0 else {
+            return
+        }
+
+        let videoRect = displayedVideoRect(in: bounds)
+        guard videoRect.width > 1, videoRect.height > 1 else {
+            return
+        }
+
+        let scaleX = videoRect.width / CGFloat(frame.frameWidth)
+        let scaleY = videoRect.height / CGFloat(frame.frameHeight)
+
+        for (tile, tileLayer) in subtitleTileLayers {
+            tileLayer.frame = CGRect(
                 x: videoRect.minX + (CGFloat(tile.destinationX) * scaleX),
-                y: bounds.height - videoRect.minY - (CGFloat(tile.destinationY + tile.height) * scaleY),
+                y: videoRect.minY + (CGFloat(tile.destinationY) * scaleY),
                 width: CGFloat(tile.width) * scaleX,
                 height: CGFloat(tile.height) * scaleY
             )
-            context.draw(tileImage, in: drawRect)
         }
+    }
+
+    private func clearSubtitleLayers() {
+        subtitleTileLayers.forEach { $0.layer.removeFromSuperlayer() }
+        subtitleTileLayers.removeAll(keepingCapacity: true)
     }
 
     private func makeImage(from tile: ASSImageTile) -> CGImage? {
