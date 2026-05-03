@@ -48,6 +48,7 @@ enum NativeASSSubtitleRenderer {
         guard let renderStyle = NativeASSResolvedRenderStyle(
             style: cue.style,
             styleOverride: cue.event.styleOverride,
+            text: cue.text,
             scaleX: scaleX,
             scaleY: scaleY
         ) else {
@@ -72,7 +73,7 @@ enum NativeASSSubtitleRenderer {
         let attributedText = NSAttributedString(string: cue.text, attributes: fillAttributes)
         let measuredRect = attributedText.boundingRect(
             with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
+            options: NativeASSTextLayout.drawingOptions
         )
         let surfaceSize = CGSize(
             width: min(max(ceil(measuredRect.width * horizontalScale) + (renderStyle.exteriorPadding * 2), 1), maxWidth),
@@ -320,7 +321,7 @@ enum NativeASSSubtitleRenderer {
         context.scaleBy(x: horizontalScale, y: 1)
         text.draw(
             with: CGRect(x: 0, y: 0, width: rect.width / horizontalScale, height: rect.height),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
+            options: NativeASSTextLayout.drawingOptions
         )
         context.restoreGState()
     }
@@ -363,7 +364,13 @@ private struct NativeASSResolvedRenderStyle {
         return ceil(max(outlineWidth, shadowPadding))
     }
 
-    init?(style: NativeASSStyle, styleOverride: NativeASSStyleOverride, scaleX: Double, scaleY: Double) {
+    init?(
+        style: NativeASSStyle,
+        styleOverride: NativeASSStyleOverride,
+        text: String,
+        scaleX: Double,
+        scaleY: Double
+    ) {
         let xScale = CGFloat(scaleX)
         let yScale = CGFloat(scaleY)
         let sourceFontSize = styleOverride.fontSize ?? style.fontSize
@@ -371,7 +378,10 @@ private struct NativeASSResolvedRenderStyle {
         let sourceScaleY = styleOverride.scaleY ?? style.scaleY
         let verticalScale = CGFloat(sourceScaleY) / 100
         let horizontalScale = CGFloat(sourceScaleX) / 100
-        let fontSize = CGFloat(sourceFontSize) * yScale * verticalScale
+        let fontSize = CGFloat(sourceFontSize)
+            * yScale
+            * verticalScale
+            * NativeASSFontCalibration.pointSizeScale(for: text)
         guard fontSize > 0, horizontalScale > 0 else {
             return nil
         }
@@ -396,6 +406,39 @@ private struct NativeASSResolvedRenderStyle {
             width: max(CGFloat(style.shadow), 0) * xScale,
             height: max(CGFloat(style.shadow), 0) * yScale
         )
+    }
+}
+
+private enum NativeASSTextLayout {
+    static let drawingOptions: NSString.DrawingOptions = [.usesLineFragmentOrigin]
+}
+
+private enum NativeASSFontCalibration {
+    // AppKit renders CJK fallback glyphs larger than ASS renderers for the same script Fontsize.
+    static let cjkPointSizeScale: CGFloat = 0.8
+
+    static func pointSizeScale(for text: String) -> CGFloat {
+        containsCJKScript(text) ? cjkPointSizeScale : 1
+    }
+
+    private static func containsCJKScript(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x1100...0x11FF,
+                 0x2E80...0x303F,
+                 0x3040...0x30FF,
+                 0x3130...0x318F,
+                 0x31F0...0x31FF,
+                 0x3400...0x4DBF,
+                 0x4E00...0x9FFF,
+                 0xAC00...0xD7AF,
+                 0xF900...0xFAFF,
+                 0xFF00...0xFFEF:
+                return true
+            default:
+                return false
+            }
+        }
     }
 }
 

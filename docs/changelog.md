@@ -187,3 +187,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
   ASS support discussion.
 - Fixed native ASS ordinary dialogue sizing so small source font sizes and scale
   values are no longer enlarged by hard-coded renderer minimums.
+- Calibrated native ASS `v0` CJK dialogue font sizing against the legacy ASS
+  comparison path so ordinary bilingual subtitles no longer render oversized.

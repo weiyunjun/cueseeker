@@ -238,6 +238,41 @@ func nativeASSRendererAppliesLeadingStaticSizeOverrides() {
 
 @Test
 @MainActor
+func nativeASSRendererCalibratesCJKDialogueFontSize() {
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, Bold, Alignment, MarginL, MarginR, MarginV, Outline, Shadow
+    Style: Default,Helvetica,54,-1,2,36,36,42,3,0
+
+    [Events]
+    Format: Start, End, Style, Text
+    Dialogue: 0:00:01.00,0:00:03.00,Default,怎么湿成这样 你没事吧\\Nびしょぬれじゃない　大丈夫
+    """
+    let document = NativeASSParser.parse(contents)
+
+    let surface = NativeASSSubtitleRenderer.renderSurfaces(
+        document: document,
+        atMilliseconds: 1_500,
+        containerBounds: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+        videoSize: CGSize(width: 1920, height: 1080),
+        backingScale: 2
+    ).first
+
+    #expect(surface != nil)
+    guard let surface else {
+        return
+    }
+
+    #expect(surface.frame.width < 640)
+    #expect(surface.frame.height < 125)
+}
+
+@Test
+@MainActor
 func nativeASSRendererDoesNotClampSmallScriptFontSizesToEightPoints() {
     let contents = """
     [Script Info]
