@@ -194,3 +194,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Documented the validated legacy `libass` memory optimization directions:
   layer-contents presentation, cropped subtitle bitmap presentation, and
   lifecycle-safe clear or stop recovery work.
+- Reframed later native ASS rendering phases as a flexible, user-led
+  real-sample exploration process: Phase 2 analyzes and implements coverage
+  from real subtitle samples, Phase 3 defines compromise or unsupported-behavior
+  policy, and Phase 4 focuses on performance, memory, and long-run stability.

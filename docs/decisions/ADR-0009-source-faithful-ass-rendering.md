@@ -24,8 +24,9 @@ authority.
 
 The same proposal now defines a project-owned native subtitle engine direction.
 The first detailed phase is `v0` native text rendering for ordinary ASS
-dialogue. Later native phases will expand feature coverage and routing rules as
-they are designed.
+dialogue. Later native phases remain high-level and flexible because real ASS
+coverage must be driven by user-provided samples, analysis scripts, visual
+comparison, and user review rather than by a fixed static-versus-complex split.
 
 ## Decision
 
@@ -94,7 +95,8 @@ clock integration that later native phases can extend.
 
 - A project-owned native renderer is a larger implementation effort than
   relying on `libass` as the final renderer.
-- Full visual compatibility with complex ASS files will arrive in phases.
+- Full visual compatibility with complex ASS files will arrive through a long
+  sample-driven exploration process rather than a fixed up-front tag checklist.
 - Font discovery, fallback, and style interpretation must be tested carefully
   on macOS.
 - Renderer output must be composited into the existing playback render
@@ -167,9 +169,15 @@ and expands in later phases toward complete source-faithful ASS rendering.
    and `\fscy` size overrides against `legacy libass` and a reference player.
    Phase 1.1 must first document and verify native font fallback parity before
    further font-size calibration is accepted.
-9. Treat Phase 2 expanded static ASS support as a separate future discussion
-   before implementation, even though the source-faithful proposal now scopes
-   that discussion more concretely.
+9. Treat Phase 2 as a user-led, real-sample ASS coverage exploration phase. The
+   user provides representative samples, the AI analyzes their ASS syntax and
+   rendering features, each feature is translated into human-readable behavior,
+   and implementation scope is decided per cycle from that evidence.
+10. Treat Phase 3 as the point where behavior not precisely solved in Phase 2
+    receives an explicit compromise, omission, diagnostic, or temporary legacy
+    routing policy.
+11. Treat Phase 4 as performance, memory, and long-run stability work after the
+    major visual behavior questions are understood.
 
 ## Verification Plan
 

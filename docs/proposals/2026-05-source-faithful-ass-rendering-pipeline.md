@@ -321,22 +321,37 @@ The first native engine version is acceptable only if:
 
 #### Later Phases, High-Level Only
 
-Phase 2: expand static ASS support. Candidate areas include more override tags,
-more exact alignment and margin behavior, positioned signs such as `\pos`, and
-multiple simultaneous active events.
+Later phases are deliberately flexible because ASS compatibility is an
+exploratory renderer project, not a fixed feature checklist. The detailed scope
+of each phase must be decided when that phase starts, based on real subtitle
+samples, renderer diagnostics, visual comparison results, and user review.
 
-Phase 3: optimize the native text renderer after `v0` is stable. Candidate
-areas include better surface caching, layout caching, allocation reduction, and
-object reuse.
+Phase 2: real-sample ASS coverage exploration. The user provides representative
+real-world ASS samples. The AI adds or runs analysis scripts that identify the
+ASS syntax, style fields, effects, timing patterns, and rendering features used
+by those samples. Each discovered feature must then be translated into
+human-readable behavior before implementation scope is accepted. Phase 2 may
+iterate many times across different samples. Its goal is to decide and
+implement as many known rendering behaviors as practical, rather than splitting
+the work into a separate static phase and a later complex phase.
 
-Phase 4: define complex ASS routing. The app should decide which source files
-or events stay on the native path, which degrade gracefully, and which continue
-to use a legacy renderer during the transition.
+Phase 3: compromise and unsupported-behavior policy. After Phase 2 has exposed
+features that native rendering cannot reproduce accurately enough, Phase 3
+defines how to handle them. Candidate outcomes include approximate rendering,
+explicit omission, diagnostic warnings, user-visible unsupported states, or
+temporary legacy renderer routing. Phase 3 should avoid silent degradation that
+makes renderer defects look correct.
 
-Phase 5: add danmaku-specific optimization only after ordinary subtitle
-rendering is stable. Danmaku work may include ASS danmaku classification, lane
-assignment, density controls, batching, and GPU-oriented rendering, but those
-details should be designed later.
+Phase 4: performance, memory, and long-run stability. Only after the major
+rendering behavior questions are understood should native ASS work focus on
+cache policy, allocation reduction, renderer invalidation, subtitle visibility
+toggle behavior, long-run playback memory, fullscreen behavior, and automated
+benchmark coverage.
+
+Danmaku-specific optimization remains outside these high-level phases unless a
+later discussion explicitly folds it into the native ASS renderer plan. If it is
+added, it should be scoped from real samples and the same evidence-first
+process, not from assumed lane or batching rules.
 
 ### Failure Visibility During Development
 
@@ -561,68 +576,125 @@ Acceptance checks:
 - Phase 1 font-size or placement calibration must not be accepted until this
   font fallback evidence is available for the samples being compared.
 
-### Native Phase 2: Expanded Static ASS Support
+### Native Phase 2: Real-Sample ASS Coverage Exploration
 
-Phase 2 should be discussed and accepted separately before implementation starts.
-The purpose of this section is to make the next discussion concrete, not to
-authorize Phase 2 work as part of Phase 1.
+Phase 2 is a long, user-led technical exploration phase. It replaces the earlier
+idea of first expanding only static ASS support and leaving complex behavior to
+a later routing phase.
 
-Goal:
+Phase 2 must remain flexible. The project cannot know the exact implementation
+order before real subtitle samples are analyzed, and the phase may need many
+analysis and implementation cycles before the user considers coverage good
+enough.
 
-- Expand native rendering from cue-level ordinary dialogue styling to common
-  static ASS features used by dialogue, signs, titles, and simple bilingual
-  layouts.
+Process:
 
-Candidate Phase 2 scope:
+1. The user provides one or more real ASS samples and the relevant video context
+   when visual comparison is needed.
+2. The AI runs or extends scripts that inspect the sample and output
+   machine-readable feature inventories when practical.
+3. The feature inventory identifies used syntax and behavior such as style
+   fields, override tags, line-level tags, drawing mode, vector drawing
+   commands, clip shapes, positioning, movement, transforms, fade, karaoke,
+   scroll or banner effects, layer usage, short-duration event density, font
+   requests, and embedded or external font expectations.
+4. The AI translates each discovered feature into human-readable rendering
+   behavior so the user can decide whether native rendering should attempt to
+   reproduce it in the current cycle.
+5. Implementation scope is decided from the sample evidence, not from a fixed
+   static-versus-complex split.
+6. The selected behavior is implemented and compared against `legacy libass`
+   and reference-player output where useful.
+7. The cycle repeats with new samples until the user decides the native renderer
+   coverage is sufficient to move on.
 
-- Represent a dialogue line as styled text runs instead of a single cue-level
-  style.
-- Support inline static style overrides beyond the Phase 1 leading-size subset,
-  including font size, font face, color, alpha, bold, italic, outline, shadow,
-  spacing, and resets where the behavior is documented.
-- Support static positioning and placement cases such as `\pos` when they can be
-  mapped reliably into the displayed video rectangle.
-- Improve line wrapping, line spacing, margins, and alignment behavior for
-  common real-world ASS files.
-- Improve font fallback diagnostics and document any user-configurable font
-  discovery before implementation depends on it.
-- Preserve multiple simultaneous static dialogue or sign events without
-  introducing danmaku lane assignment.
+Phase 2 goals:
 
-Phase 2 non-goals unless explicitly accepted later:
+- Discover what real subtitle files actually use before locking the renderer
+  roadmap.
+- Cover as many known rendering issues as practical within native ownership.
+- Keep source ASS rendering failures visible during development.
+- Build parser, model, renderer, diagnostics, and comparison tooling that can
+  evolve as samples reveal new behavior.
+- Avoid treating static and complex ASS as separate chronological phases when a
+  real file may mix ordinary dialogue, signs, vector drawings, clipping,
+  animation, and dense effects in the same timeline.
 
-- `\move`, animation, karaoke, clipping, vector drawing, rotation, complex
-  transforms, blur-heavy effects, and dense short-duration `Effect=fx` events.
-- Matching every renderer-specific edge case from `libass`, VSFilter, or Movist
-  Pro.
-- Replacing visual manual acceptance with automated tests alone.
-- Optimizing caches or GPU batching before static visual behavior is stable.
+Phase 2 non-goals:
+
+- Guarantee full `libass`, VSFilter, Movist Pro, or renderer-specific edge-case
+  parity before the phase starts.
+- Freeze a complete tag support matrix before samples have been analyzed.
+- Treat automated analysis as a substitute for user review and visual
+  acceptance.
+- Optimize memory or renderer throughput before major visual behavior questions
+  are understood, except where a performance issue blocks the exploration.
 
 Expected Phase 2 deliverables:
 
-- A written scope decision for the exact static tags and behaviors selected.
-- Parser and renderer tests for selected static overrides.
-- Manual comparison notes against `legacy libass` and at least one external
-  reference player for representative ordinary dialogue and static sign samples.
-- Updated failure and fallback behavior for unsupported static features.
+- Sample analysis scripts or script extensions that can be reused across real
+  ASS files.
+- Machine-readable feature inventories for user-provided samples when
+  practical.
+- Human-readable explanations of discovered ASS behavior and its expected visual
+  effect.
+- Per-cycle scope decisions that say which features will be reproduced now,
+  deferred, approximated, or left unsupported for later review.
+- Parser, model, renderer, diagnostic, and comparison improvements driven by
+  accepted sample evidence.
+- Manual comparison notes against `legacy libass` and reference-player output
+  for representative samples.
 
-### Later Native Phases
+### Native Phase 3: Compromise And Unsupported-Behavior Policy
 
-Later native phases remain high-level until each phase starts.
+Phase 3 starts after Phase 2 has identified renderer behaviors that cannot be
+reproduced precisely enough with the accepted native approach.
 
-Phase 3 should optimize the native text renderer after static visual behavior is
-stable. Candidate areas include surface caching, layout caching, allocation
-reduction, object reuse, and render invalidation policy.
+Goal:
 
-Phase 4 should define complex ASS routing away from legacy renderers. Candidate
-areas include source-file or event classification, explicit unsupported-feature
-states, diagnostic fallback behavior, and rules for gradually reducing legacy
-renderer reliance.
+- Decide how CueSeeker should handle known ASS behavior that native rendering
+  cannot accurately reproduce or should not attempt to reproduce.
 
-Phase 5 should address danmaku and dense effects only after ordinary dialogue
-and static ASS support are stable. Candidate areas include danmaku
-classification, lane assignment, density controls, batching, and GPU-oriented
-rendering.
+Candidate Phase 3 outcomes:
+
+- Approximate rendering with documented visual limitations.
+- Explicit omission for effects that are not useful enough for the product
+  goal.
+- User-visible unsupported-feature states during development.
+- Diagnostic warnings that identify the unsupported source feature and event.
+- Temporary legacy renderer routing for specific files, events, or user-selected
+  compatibility mode.
+- Policy for whether some dense effects, captions, or decorative typesetting
+  are out of scope for the native default path.
+
+Phase 3 must not silently hide complex ASS renderer failures behind fallback.
+If behavior is approximated, omitted, or routed to a legacy renderer, that must
+be an explicit policy decision based on Phase 2 evidence.
+
+### Native Phase 4: Performance, Memory, And Long-Run Stability
+
+Phase 4 starts after the major visual behavior and compromise-policy questions
+are understood well enough to make performance work meaningful.
+
+Goal:
+
+- Make the accepted native ASS renderer behavior stable during real playback,
+  seeking, subtitle visibility toggling, and fullscreen usage.
+
+Candidate Phase 4 scope:
+
+- Renderer cache policy and invalidation.
+- Surface, layout, glyph, and raster cache behavior.
+- Allocation reduction and object reuse where measurements support it.
+- Long-run playback memory measurement.
+- Subtitle hide/show and renderer teardown recovery.
+- Theater Mode and Playback Inspector overlay stability.
+- Automated benchmark and regression coverage for representative samples.
+- JSON or JSONL diagnostics for performance and memory investigations.
+
+Phase 4 evidence should follow the project memory-testing rules: authoritative
+playback memory measurements must run outside the sandbox and should compare
+relative RSS and physical-footprint deltas against no-subtitle baselines.
 
 ## Acceptance Criteria
 
