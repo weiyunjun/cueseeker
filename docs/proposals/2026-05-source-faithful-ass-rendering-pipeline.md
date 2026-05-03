@@ -471,6 +471,68 @@ Phase 1 is complete only when ordinary dialogue sizing and placement are close
 enough for manual subtitle-context review, and the known remaining visual gaps
 are clearly deferred to Phase 2 or later.
 
+#### Phase 1.1 Font Fallback Parity
+
+Phase 1.1 is part of Phase 1 ordinary dialogue alignment. It exists because
+native `v0` can parse the source style name and `Fontname` while still choosing
+a different fallback face from the legacy comparison renderer when the requested
+font is unavailable. That difference changes text metrics before any `Fontsize`
+calibration can be trusted.
+
+Goal:
+
+- Make native ordinary dialogue use a documented, diagnosable font selection
+  path that can be compared against the legacy `libass` path before further
+  size or placement tuning.
+
+Reference behavior to capture:
+
+- The current legacy comparison path initializes `libass` with font extraction
+  enabled, an optional configured fonts directory, CoreText/autodetected system
+  font lookup on macOS, and default fallback family `Helvetica`.
+- `libass` font selection is not a single fallback rule. It depends on the
+  requested ASS family name, bold and italic attributes, available embedded or
+  configured fonts, the active platform font provider, default fallback family,
+  and glyph coverage fallback when a selected face lacks a glyph.
+- Phase 1.1 must capture `libass` `fontselect` diagnostics for representative
+  Phase 1 samples instead of inferring the selected face from the ASS style
+  alone.
+
+Implementation scope:
+
+- Introduce a native font resolution layer for ordinary dialogue styles rather
+  than resolving fonts inline inside text rendering.
+- Preserve the source ASS font request, style name, bold and italic flags, and
+  selected native font face in diagnostics.
+- Match installed-font lookup by considering family names, display names,
+  PostScript names, localized names where available, and bold or italic trait
+  conversion.
+- Match the configured legacy fallback family when the requested ASS font cannot
+  be found. For the current legacy bridge this fallback family is `Helvetica`,
+  not the platform default system font.
+- Keep embedded `[Fonts]`, same-directory fonts, and media-container attachment
+  fonts explicitly tracked. If they are not implemented in Phase 1.1, native
+  diagnostics must report that they were unavailable rather than silently using a
+  different fallback.
+- Record per-glyph fallback as a separate behavior from whole-style fallback.
+  Native `v0` may continue to rely on AppKit/CoreText glyph fallback for
+  ordinary dialogue, but Phase 1.1 must not hide cases where `libass` selects a
+  different fallback face for missing glyphs.
+
+Acceptance checks:
+
+- For a missing source font such as `方正准圆_GBK` in an ordinary dialogue style,
+  native diagnostics identify that the requested face was unavailable and show
+  the selected fallback face.
+- For the same file, timestamp, and style, the native selected fallback family
+  matches the legacy comparison path when both paths have access to the same font
+  sources.
+- The comparison harness records the source style, requested font, native
+  resolved font, legacy `fontselect` line, and whether the difference is caused
+  by unavailable embedded or external fonts.
+- Phase 1 font-size or placement calibration must not be accepted until this
+  font fallback evidence is available for the samples being compared.
+
 ### Native Phase 2: Expanded Static ASS Support
 
 Phase 2 should be discussed and accepted separately before implementation starts.

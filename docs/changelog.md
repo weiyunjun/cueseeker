@@ -189,3 +189,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
   values are no longer enlarged by hard-coded renderer minimums.
 - Calibrated native ASS `v0` CJK dialogue font sizing against the legacy ASS
   comparison path so ordinary bilingual subtitles no longer render oversized.
+- Added Phase 1.1 font fallback parity planning for native ASS ordinary dialogue
+  alignment before accepting further font-size calibration.

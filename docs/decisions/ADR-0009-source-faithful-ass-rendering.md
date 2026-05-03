@@ -160,6 +160,8 @@ and expands in later phases toward complete source-faithful ASS rendering.
 8. Complete ordinary dialogue visual alignment inside Phase 1 by verifying ASS
    script-coordinate mapping, source style sizing, and leading `\fs`, `\fscx`,
    and `\fscy` size overrides against `legacy libass` and a reference player.
+   Phase 1.1 must first document and verify native font fallback parity before
+   further font-size calibration is accepted.
 9. Treat Phase 2 expanded static ASS support as a separate future discussion
    before implementation, even though the source-faithful proposal now scopes
    that discussion more concretely.
