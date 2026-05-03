@@ -20,23 +20,14 @@ public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Eq
 }
 
 public enum ASSSubtitleRenderingMode: String, CaseIterable, Identifiable, Sendable, Equatable {
-    case fullFrameRGBA
-    case sparseImages
-    case sparseImagesChangeReuse
+    case legacy
 
     public var id: String {
         rawValue
     }
 
     public var displayName: String {
-        switch self {
-        case .fullFrameRGBA:
-            "v0 Full Frame"
-        case .sparseImages:
-            "v01 Sparse Images"
-        case .sparseImagesChangeReuse:
-            "v015 Change Reuse"
-        }
+        "legacy"
     }
 }
 

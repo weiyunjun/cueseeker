@@ -17,25 +17,13 @@ private struct ASSSparseFrame: @unchecked Sendable {
     let frameWidth: Int
     let frameHeight: Int
     let timestampMilliseconds: Int
-    let changed: Bool
-}
-
-private struct ASSFullFrame: @unchecked Sendable {
-    let rgbaData: Data
-    let width: Int
-    let height: Int
-    let stride: Int
-    let timestampMilliseconds: Int
 }
 
 private enum ASSRenderedFrame: @unchecked Sendable {
-    case fullFrame(ASSFullFrame)
     case sparse(ASSSparseFrame)
 
     var timestampMilliseconds: Int {
         switch self {
-        case .fullFrame(let frame):
-            frame.timestampMilliseconds
         case .sparse(let frame):
             frame.timestampMilliseconds
         }
@@ -102,38 +90,14 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             }
 
             do {
-                switch renderingMode {
-                case .fullFrameRGBA:
-                    let output = try session.renderFrame(atTimestampMilliseconds: timestampMilliseconds)
-                    let frame = ASSFullFrame(
-                        rgbaData: output.rgbaData,
-                        width: output.width,
-                        height: output.height,
-                        stride: output.stride,
-                        timestampMilliseconds: timestampMilliseconds
-                    )
-                    completion(expectedGeneration, .success(.fullFrame(frame)))
-                case .sparseImages:
-                    let output = try session.renderImages(atTimestampMilliseconds: timestampMilliseconds)
-                    let frame = ASSSparseFrame(
-                        tiles: output.images.compactMap(Self.makeTile(from:)),
-                        frameWidth: output.frameWidth,
-                        frameHeight: output.frameHeight,
-                        timestampMilliseconds: timestampMilliseconds,
-                        changed: true
-                    )
-                    completion(expectedGeneration, .success(.sparse(frame)))
-                case .sparseImagesChangeReuse:
-                    let output = try session.renderImages(atTimestampMilliseconds: timestampMilliseconds)
-                    let frame = ASSSparseFrame(
-                        tiles: output.images.compactMap(Self.makeTile(from:)),
-                        frameWidth: output.frameWidth,
-                        frameHeight: output.frameHeight,
-                        timestampMilliseconds: timestampMilliseconds,
-                        changed: output.changed
-                    )
-                    completion(expectedGeneration, .success(.sparse(frame)))
-                }
+                let output = try session.renderImages(atTimestampMilliseconds: timestampMilliseconds)
+                let frame = ASSSparseFrame(
+                    tiles: output.images.compactMap(Self.makeTile(from:)),
+                    frameWidth: output.frameWidth,
+                    frameHeight: output.frameHeight,
+                    timestampMilliseconds: timestampMilliseconds
+                )
+                completion(expectedGeneration, .success(.sparse(frame)))
             } catch {
                 completion(
                     expectedGeneration,
@@ -237,7 +201,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
     }
 
-    var renderingMode: ASSSubtitleRenderingMode = .sparseImages {
+    var renderingMode: ASSSubtitleRenderingMode = .legacy {
         didSet {
             if oldValue != renderingMode {
                 renderedTimestampMilliseconds = nil
@@ -435,11 +399,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private func apply(_ frame: ASSRenderedFrame) {
         switch frame {
-        case .sparse(let sparseFrame) where renderingMode == .sparseImagesChangeReuse
-            && !sparseFrame.changed
-            && renderedFrame != nil:
-            needsDisplay = true
-        case .fullFrame, .sparse:
+        case .sparse:
             renderedFrame = frame
             needsDisplay = true
         }
@@ -447,25 +407,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private func draw(renderedFrame: ASSRenderedFrame, in videoRect: CGRect, using context: CGContext) {
         switch renderedFrame {
-        case .fullFrame(let frame):
-            draw(fullFrame: frame, in: videoRect, using: context)
         case .sparse(let frame):
             draw(sparseFrame: frame, in: videoRect, using: context)
         }
-    }
-
-    private func draw(fullFrame frame: ASSFullFrame, in videoRect: CGRect, using context: CGContext) {
-        guard let image = makeImage(from: frame) else {
-            return
-        }
-
-        let drawRect = CGRect(
-            x: videoRect.minX,
-            y: bounds.height - videoRect.maxY,
-            width: videoRect.width,
-            height: videoRect.height
-        )
-        context.draw(image, in: drawRect)
     }
 
     private func draw(sparseFrame frame: ASSSparseFrame, in videoRect: CGRect, using context: CGContext) {
@@ -489,28 +433,6 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             )
             context.draw(tileImage, in: drawRect)
         }
-    }
-
-    private func makeImage(from frame: ASSFullFrame) -> CGImage? {
-        guard let provider = CGDataProvider(data: frame.rgbaData as CFData) else {
-            failureMessage = "ASS renderer produced bitmap data that could not be displayed."
-            return nil
-        }
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        return CGImage(
-            width: frame.width,
-            height: frame.height,
-            bitsPerComponent: 8,
-            bitsPerPixel: 32,
-            bytesPerRow: frame.stride,
-            space: colorSpace,
-            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
-            provider: provider,
-            decode: nil,
-            shouldInterpolate: true,
-            intent: .defaultIntent
-        )
     }
 
     private func makeImage(from tile: ASSImageTile) -> CGImage? {

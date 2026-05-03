@@ -186,6 +186,123 @@ bitmap expansion in the playback path before considering a change of ASS
 semantic renderer. `libass` remains the selected renderer direction; the likely
 optimization gap is how CueSeeker consumes and presents its output.
 
+### Native Subtitle Engine Direction
+
+CueSeeker may introduce a project-owned native subtitle engine alongside the
+current `libass`-backed legacy renderer. The version name `legacy` refers to the
+current `libass` sparse-image playback path. Native engine versions start at
+`v0`; this version sequence is independent from Git commit versions.
+
+This section intentionally documents only the first phase in detail. Later
+phases are high-level placeholders and must be refined when work on each phase
+actually begins.
+
+#### Phase 1 Detailed Plan: `v0` Native Text Core
+
+The first native engine version should focus on ordinary subtitle rendering, not
+danmaku-specific behavior. Its goal is to establish a small, testable, native
+pipeline that can render common ASS dialogue with lower memory overhead than a
+full ASS renderer path.
+
+The minimal pipeline is:
+
+```text
+ASS source file
+Parse source sections into a native model
+Select active events for the playback timestamp
+Lay out styled text
+Produce small subtitle surfaces sized to text bounds
+Composite those surfaces over the displayed video rectangle
+```
+
+Input scope:
+
+- `[Script Info]`, including `PlayResX` and `PlayResY` when present.
+- `[V4+ Styles]` style rows and their active `Format:` mapping.
+- `[Events]` dialogue rows and their active `Format:` mapping.
+- Dialogue start time, end time, layer, style, margins, and text.
+
+First-phase non-goals:
+
+- ASS danmaku lane assignment or collision handling.
+- `\move`, animation, karaoke, `\clip`, `\iclip`, vector drawing, rotation,
+  complex transforms, and blur.
+- Full VSFilter or `libass` visual compatibility.
+- Replacing the legacy renderer for complex ASS files.
+
+The parser should not render directly. It should produce a normalized model so
+future renderers can share the same source interpretation:
+
+```text
+NativeASSDocument
+NativeASSStyle
+NativeASSEvent
+NativeASSCue
+```
+
+The first native style model should preserve:
+
+- Style name.
+- Font name and font size.
+- Primary text color.
+- Outline color and basic outline width.
+- Shadow color and basic shadow offset.
+- Bold and italic flags.
+- Alignment and margins.
+- Event start, end, layer, source order, raw text, cleaned text, and `\N` line
+  breaks.
+
+First-phase rendering should support:
+
+- Selecting active events by playback timestamp.
+- Ordering simultaneous events by layer and source order.
+- Handling `\N` line breaks.
+- Stripping unsupported override tags instead of rendering tag text.
+- Applying style font, size, color, basic outline, basic shadow, alignment, and
+  margins.
+- Mapping ASS script coordinates into the displayed video rectangle, not the
+  whole black playback container.
+- Producing one small subtitle surface per active cue or cue group, bounded by
+  the text layout, instead of allocating a full-video-frame transparent bitmap.
+
+First-phase cache behavior should stay conservative:
+
+- Cache only current and recently used subtitle surfaces.
+- Use a cache key based on text, style identity, and a coarse render scale.
+- Clear native subtitle surfaces when the source file, video size, renderer
+  mode, or relevant style state changes.
+- Avoid complex LRU caches, glyph atlases, Metal texture atlases, or object
+  pools until the basic native pipeline proves stable.
+
+The first native engine version is acceptable only if:
+
+- Common ASS dialogue appears correctly enough for subtitle-context review.
+- Simple bilingual or multi-line subtitles remain readable.
+- Playback, seek, subtitle visibility toggling, and fullscreen remain stable.
+- Memory use is meaningfully lower than the legacy full-frame style of ASS
+  presentation for ordinary subtitles.
+- Unsupported complex ASS features fail by omission or fallback, not by showing
+  raw override syntax as user-visible subtitle text.
+
+#### Later Phases, High-Level Only
+
+Phase 2: expand static ASS support. Candidate areas include more override tags,
+more exact alignment and margin behavior, positioned signs such as `\pos`, and
+multiple simultaneous active events.
+
+Phase 3: optimize the native text renderer after `v0` is stable. Candidate
+areas include better surface caching, layout caching, allocation reduction, and
+object reuse.
+
+Phase 4: define complex ASS routing. The app should decide which source files
+or events stay on the native path, which degrade gracefully, and which continue
+to use the legacy `libass` path.
+
+Phase 5: add danmaku-specific optimization only after ordinary subtitle
+rendering is stable. Danmaku work may include ASS danmaku classification, lane
+assignment, density controls, batching, and GPU-oriented rendering, but those
+details should be designed later.
+
 ### Failure Visibility During Development
 
 Renderer failures should be explicit while the source-faithful path is being
