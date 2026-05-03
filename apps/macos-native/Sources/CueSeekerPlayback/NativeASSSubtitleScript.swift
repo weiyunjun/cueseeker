@@ -80,6 +80,27 @@ struct NativeASSEvent: Equatable, Sendable {
 struct NativeASSCue: Equatable, Sendable {
     var event: NativeASSEvent
     var style: NativeASSStyle
+
+    var text: String {
+        event.cleanedText
+    }
+
+    var effectiveAlignment: Int {
+        let alignment = event.alignmentOverride ?? style.alignment
+        return (1...9).contains(alignment) ? alignment : NativeASSStyle.fallback.alignment
+    }
+
+    var marginL: Double {
+        event.marginL ?? style.marginL
+    }
+
+    var marginR: Double {
+        event.marginR ?? style.marginR
+    }
+
+    var marginV: Double {
+        event.marginV ?? style.marginV
+    }
 }
 
 struct NativeASSColor: Equatable, Sendable {
@@ -441,6 +462,7 @@ enum NativeASSParser {
         var overrideText = ""
         var alignmentOverride: Int?
         var isInsideOverride = false
+        var isInsideDrawingMode = false
 
         for character in rawText {
             if character == "{" {
@@ -450,9 +472,14 @@ enum NativeASSParser {
                 if alignmentOverride == nil {
                     alignmentOverride = inlineAlignment(in: overrideText)
                 }
+                if let drawingMode = inlineDrawingMode(in: overrideText) {
+                    isInsideDrawingMode = drawingMode > 0
+                }
                 isInsideOverride = false
             } else if isInsideOverride {
                 overrideText.append(character)
+            } else if isInsideDrawingMode {
+                continue
             } else {
                 visibleText.append(character)
             }
@@ -480,5 +507,21 @@ enum NativeASSParser {
         }
 
         return Int(overrideText[alignmentRange])
+    }
+
+    private static func inlineDrawingMode(in overrideText: String) -> Int? {
+        guard let regex = try? NSRegularExpression(pattern: #"\\p([0-9]+)"#) else {
+            return nil
+        }
+
+        let range = NSRange(overrideText.startIndex..<overrideText.endIndex, in: overrideText)
+        let matches = regex.matches(in: overrideText, range: range)
+        guard let match = matches.last,
+              let drawingModeRange = Range(match.range(at: 1), in: overrideText)
+        else {
+            return nil
+        }
+
+        return Int(overrideText[drawingModeRange])
     }
 }

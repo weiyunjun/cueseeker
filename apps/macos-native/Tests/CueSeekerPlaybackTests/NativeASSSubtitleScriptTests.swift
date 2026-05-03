@@ -77,3 +77,50 @@ func nativeASSParserReadsNonDefaultFormatsAndCommasInText() {
     #expect(document.events[0].styleName == "Dial_CH")
     #expect(document.events[0].cleanedText == "One, two, three")
 }
+
+@Test
+func nativeASSDocumentSelectsActiveCuesByTimeLayerAndSourceOrder() {
+    let contents = """
+    [V4+ Styles]
+    Format: Name, Alignment, MarginL, MarginR, MarginV
+    Style: Default,2,20,30,40
+    Style: Top,8,100,110,120
+
+    [Events]
+    Format: Layer, Start, End, Style, MarginL, MarginR, MarginV, Text
+    Dialogue: 2,0:00:01.00,0:00:03.00,Top,0,0,0,Layer two
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,0,0,0,Layer zero first
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,12,13,14,{\\an7}Layer zero second
+    Dialogue: 9,0:00:04.00,0:00:05.00,Default,0,0,0,Inactive
+    """
+
+    let activeCues = NativeASSParser.parse(contents).activeCues(atMilliseconds: 1_500)
+
+    #expect(activeCues.map(\.text) == ["Layer zero first", "Layer zero second", "Layer two"])
+    #expect(activeCues.map(\.event.layer) == [0, 0, 2])
+    #expect(activeCues[0].effectiveAlignment == 2)
+    #expect(activeCues[1].effectiveAlignment == 7)
+    #expect(activeCues[2].effectiveAlignment == 8)
+    #expect(activeCues[0].marginL == 20)
+    #expect(activeCues[1].marginL == 12)
+    #expect(activeCues[1].marginR == 13)
+    #expect(activeCues[1].marginV == 14)
+    #expect(activeCues[2].marginV == 120)
+}
+
+@Test
+func nativeASSParserStripsUnsupportedOverrideTagsFromVisibleText() {
+    let contents = """
+    [Events]
+    Format: Start, End, Text
+    Dialogue: 0:00:01.00,0:00:03.00,{\\pos(100,200)\\blur4}Hello\\N{\\move(0,0,10,10)}world{\\p1}m 0 0 l 10 10{\\p0}\\h!
+    """
+
+    let event = NativeASSParser.parse(contents).events.first
+
+    #expect(event?.rawText.contains("\\pos") == true)
+    #expect(event?.rawText.contains("\\p1") == true)
+    #expect(event?.cleanedText == "Hello\nworld !")
+    #expect(event?.cleanedText.contains("\\pos") == false)
+    #expect(event?.cleanedText.contains("m 0 0") == false)
+}
