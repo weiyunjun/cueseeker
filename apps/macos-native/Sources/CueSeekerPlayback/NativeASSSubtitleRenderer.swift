@@ -45,12 +45,14 @@ enum NativeASSSubtitleRenderer {
         scaleY: Double,
         backingScale: CGFloat
     ) -> NativeASSSubtitleSurface? {
-        let renderStyle = NativeASSResolvedRenderStyle(
+        guard let renderStyle = NativeASSResolvedRenderStyle(
             style: cue.style,
             styleOverride: cue.event.styleOverride,
             scaleX: scaleX,
             scaleY: scaleY
-        )
+        ) else {
+            return nil
+        }
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = horizontalTextAlignment(for: cue.effectiveAlignment)
         paragraphStyle.lineBreakMode = .byWordWrapping
@@ -309,12 +311,15 @@ enum NativeASSSubtitleRenderer {
         horizontalScale: CGFloat,
         context: CGContext
     ) {
-        let scale = max(horizontalScale, 0.1)
+        guard horizontalScale > 0 else {
+            return
+        }
+
         context.saveGState()
         context.translateBy(x: rect.minX + offset.width, y: rect.minY + offset.height)
-        context.scaleBy(x: scale, y: 1)
+        context.scaleBy(x: horizontalScale, y: 1)
         text.draw(
-            with: CGRect(x: 0, y: 0, width: rect.width / scale, height: rect.height),
+            with: CGRect(x: 0, y: 0, width: rect.width / horizontalScale, height: rect.height),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
         context.restoreGState()
@@ -358,14 +363,18 @@ private struct NativeASSResolvedRenderStyle {
         return ceil(max(outlineWidth, shadowPadding))
     }
 
-    init(style: NativeASSStyle, styleOverride: NativeASSStyleOverride, scaleX: Double, scaleY: Double) {
+    init?(style: NativeASSStyle, styleOverride: NativeASSStyleOverride, scaleX: Double, scaleY: Double) {
         let xScale = CGFloat(scaleX)
         let yScale = CGFloat(scaleY)
         let sourceFontSize = styleOverride.fontSize ?? style.fontSize
         let sourceScaleX = styleOverride.scaleX ?? style.scaleX
         let sourceScaleY = styleOverride.scaleY ?? style.scaleY
-        let verticalScale = max(CGFloat(sourceScaleY) / 100, 0.1)
-        let fontSize = max(CGFloat(sourceFontSize) * yScale * verticalScale, 8)
+        let verticalScale = CGFloat(sourceScaleY) / 100
+        let horizontalScale = CGFloat(sourceScaleX) / 100
+        let fontSize = CGFloat(sourceFontSize) * yScale * verticalScale
+        guard fontSize > 0, horizontalScale > 0 else {
+            return nil
+        }
         let baseFont = NSFont(name: style.fontName, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
         var resolvedFont = baseFont
 
@@ -381,7 +390,7 @@ private struct NativeASSResolvedRenderStyle {
         primaryColor = NSColor(nativeASSColor: style.primaryColor)
         outlineColor = NSColor(nativeASSColor: style.outlineColor)
         shadowColor = NSColor(nativeASSColor: style.shadowColor)
-        horizontalScale = max(CGFloat(sourceScaleX) / 100, 0.1)
+        self.horizontalScale = horizontalScale
         outlineWidth = max(CGFloat(style.outline) * yScale, 0)
         shadowOffset = CGSize(
             width: max(CGFloat(style.shadow), 0) * xScale,

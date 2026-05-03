@@ -90,7 +90,9 @@ final class ASSLiteSubtitleOverlayView: NSView {
         let marginV = CGFloat((dialogue.marginV ?? style.marginV) * scaleY)
         let maxWidth = max(videoRect.width - marginL - marginR, 24)
         let backingScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-        let renderStyle = ASSLiteResolvedRenderStyle(style: style, scaleX: scaleX, scaleY: scaleY)
+        guard let renderStyle = ASSLiteResolvedRenderStyle(style: style, scaleX: scaleX, scaleY: scaleY) else {
+            return
+        }
         let exteriorPadding = renderStyle.exteriorPadding
         let textWidth = max((maxWidth - (exteriorPadding * 2)) / renderStyle.horizontalScale, 24)
         let paragraphStyle = NSMutableParagraphStyle()
@@ -221,12 +223,15 @@ final class ASSLiteSubtitleOverlayView: NSView {
             return
         }
 
-        let scale = max(horizontalScale, 0.1)
+        guard horizontalScale > 0 else {
+            return
+        }
+
         context.saveGState()
         context.translateBy(x: rect.minX + offset.width, y: rect.minY + offset.height)
-        context.scaleBy(x: scale, y: 1)
+        context.scaleBy(x: horizontalScale, y: 1)
         text.draw(
-            with: CGRect(x: 0, y: 0, width: rect.width / scale, height: rect.height),
+            with: CGRect(x: 0, y: 0, width: rect.width / horizontalScale, height: rect.height),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
         context.restoreGState()
@@ -337,11 +342,15 @@ private struct ASSLiteResolvedRenderStyle {
         return ceil(max(outlineWidth, shadowPadding))
     }
 
-    init(style: ASSLiteStyle, scaleX: Double, scaleY: Double) {
+    init?(style: ASSLiteStyle, scaleX: Double, scaleY: Double) {
         let xScale = CGFloat(scaleX)
         let yScale = CGFloat(scaleY)
-        let verticalScale = max(CGFloat(style.scaleY) / 100, 0.1)
-        let fontSize = max(CGFloat(style.fontSize) * yScale * verticalScale, 8)
+        let verticalScale = CGFloat(style.scaleY) / 100
+        let horizontalScale = CGFloat(style.scaleX) / 100
+        let fontSize = CGFloat(style.fontSize) * yScale * verticalScale
+        guard fontSize > 0, horizontalScale > 0 else {
+            return nil
+        }
         let baseFont = NSFont(name: style.fontName, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
         var resolvedFont = baseFont
 
@@ -359,7 +368,7 @@ private struct ASSLiteResolvedRenderStyle {
         backColor = NSColor(assLiteColor: style.backColor)
         isUnderline = style.isUnderline
         isStrikeOut = style.isStrikeOut
-        horizontalScale = max(CGFloat(style.scaleX) / 100, 0.1)
+        self.horizontalScale = horizontalScale
         spacing = CGFloat(style.spacing) * xScale
         angle = CGFloat(style.angle)
         borderStyle = style.borderStyle

@@ -235,3 +235,90 @@ func nativeASSRendererAppliesLeadingStaticSizeOverrides() {
     #expect(overrideSurface.frame.height < defaultSurface.frame.height * 0.7)
     #expect(overrideSurface.frame.width < defaultSurface.frame.width * 0.7)
 }
+
+@Test
+@MainActor
+func nativeASSRendererDoesNotClampSmallScriptFontSizesToEightPoints() {
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, Alignment, MarginL, MarginR, MarginV
+    Style: Small,Helvetica,24,2,24,24,30
+    Style: Large,Helvetica,48,2,24,24,30
+
+    [Events]
+    Format: Start, End, Style, Text
+    Dialogue: 0:00:01.00,0:00:02.00,Small,Visual size sample
+    Dialogue: 0:00:03.00,0:00:04.00,Large,Visual size sample
+    """
+    let document = NativeASSParser.parse(contents)
+
+    let smallSurface = NativeASSSubtitleRenderer.renderSurfaces(
+        document: document,
+        atMilliseconds: 1_500,
+        containerBounds: CGRect(x: 0, y: 0, width: 320, height: 180),
+        videoSize: CGSize(width: 1920, height: 1080),
+        backingScale: 2
+    ).first
+    let largeSurface = NativeASSSubtitleRenderer.renderSurfaces(
+        document: document,
+        atMilliseconds: 3_500,
+        containerBounds: CGRect(x: 0, y: 0, width: 320, height: 180),
+        videoSize: CGSize(width: 1920, height: 1080),
+        backingScale: 2
+    ).first
+
+    #expect(smallSurface != nil)
+    #expect(largeSurface != nil)
+    guard let smallSurface, let largeSurface else {
+        return
+    }
+
+    #expect(smallSurface.frame.height < largeSurface.frame.height * 0.8)
+}
+
+@Test
+@MainActor
+func nativeASSRendererDoesNotClampTinyScaleOverridesToTenPercent() {
+    let contents = """
+    [Script Info]
+    PlayResX: 640
+    PlayResY: 360
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, Alignment, MarginL, MarginR, MarginV
+    Style: Default,Helvetica,100,2,24,24,30
+
+    [Events]
+    Format: Start, End, Style, Text
+    Dialogue: 0:00:01.00,0:00:02.00,Default,{\\fscy5}Visual size sample
+    Dialogue: 0:00:03.00,0:00:04.00,Default,{\\fscy10}Visual size sample
+    """
+    let document = NativeASSParser.parse(contents)
+
+    let tinyScaleSurface = NativeASSSubtitleRenderer.renderSurfaces(
+        document: document,
+        atMilliseconds: 1_500,
+        containerBounds: CGRect(x: 0, y: 0, width: 640, height: 360),
+        videoSize: CGSize(width: 640, height: 360),
+        backingScale: 2
+    ).first
+    let tenPercentSurface = NativeASSSubtitleRenderer.renderSurfaces(
+        document: document,
+        atMilliseconds: 3_500,
+        containerBounds: CGRect(x: 0, y: 0, width: 640, height: 360),
+        videoSize: CGSize(width: 640, height: 360),
+        backingScale: 2
+    ).first
+
+    #expect(tinyScaleSurface != nil)
+    #expect(tenPercentSurface != nil)
+    guard let tinyScaleSurface, let tenPercentSurface else {
+        return
+    }
+
+    #expect(tinyScaleSurface.frame.height < tenPercentSurface.frame.height * 0.75)
+}

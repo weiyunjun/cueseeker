@@ -185,3 +185,5 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Refined the native ASS rendering plan by making ordinary dialogue visual
   alignment part of Phase 1 and scoping Phase 2 as a separate expanded static
   ASS support discussion.
+- Fixed native ASS ordinary dialogue sizing so small source font sizes and scale
+  values are no longer enlarged by hard-coded renderer minimums.
