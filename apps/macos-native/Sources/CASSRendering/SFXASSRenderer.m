@@ -440,6 +440,10 @@ static BOOL SFXASSValidateFrameSize(NSInteger frameWidth, NSInteger frameHeight,
     [self cleanup];
 }
 
+- (void)close {
+    [self cleanup];
+}
+
 - (void)cleanup {
     if (_track != NULL) {
         ass_free_track(_track);

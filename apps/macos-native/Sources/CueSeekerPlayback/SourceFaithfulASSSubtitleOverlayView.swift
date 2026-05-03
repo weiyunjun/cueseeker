@@ -68,9 +68,11 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         return nextGeneration
     }
 
-    func clear() {
+    func clear(completion: (@Sendable () -> Void)? = nil) {
         queue.async {
+            self.session?.close()
             self.session = nil
+            completion?()
         }
     }
 
@@ -240,22 +242,25 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         nil
     }
 
+    deinit {
+        rendererWorker.clear()
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
 
     func setSource(_ source: PlaybackSubtitleSource?) {
         self.source = source
-        isRendererReady = false
-        isRenderInFlight = false
-        pendingTimestampMilliseconds = nil
-        renderedTimestampMilliseconds = nil
-        renderedFrame = nil
-        failureMessage = nil
+        clearPresentationState()
 
         guard source != nil else {
             generation = nil
-            rendererWorker.clear()
+            rendererWorker.clear { [weak self] in
+                DispatchQueue.main.async {
+                    self?.needsDisplay = true
+                }
+            }
             needsDisplay = true
             return
         }
@@ -305,10 +310,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
 
         isRendererReady = false
-        isRenderInFlight = false
-        pendingTimestampMilliseconds = nil
-        renderedTimestampMilliseconds = nil
-        renderedFrame = nil
+        clearPresentationState()
         failureMessage = nil
         needsDisplay = true
 
@@ -384,7 +386,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     self.apply(frame)
                     self.failureMessage = nil
                 case .failure(let error):
-                    self.renderedFrame = nil
+                    self.clearPresentationState()
                     self.failureMessage = error.message
                     self.onRenderingFailure?(error.message)
                     self.needsDisplay = true
@@ -403,6 +405,15 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             renderedFrame = frame
             needsDisplay = true
         }
+    }
+
+    private func clearPresentationState() {
+        isRendererReady = false
+        isRenderInFlight = false
+        pendingTimestampMilliseconds = nil
+        renderedTimestampMilliseconds = nil
+        renderedFrame = nil
+        failureMessage = nil
     }
 
     private func draw(renderedFrame: ASSRenderedFrame, in videoRect: CGRect, using context: CGContext) {

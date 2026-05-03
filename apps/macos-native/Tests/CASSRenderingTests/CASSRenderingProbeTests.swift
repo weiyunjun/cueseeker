@@ -73,6 +73,25 @@ final class CASSRenderingProbeTests: XCTestCase {
         XCTAssertGreaterThan(secondFrame.imageCount, 0)
     }
 
+    func testRendererSessionCloseIsIdempotentAndPreventsFurtherRendering() throws {
+        let fixtureURL = try XCTUnwrap(Bundle.module.url(forResource: "complex-effects", withExtension: "ass"))
+        let session = try SFXASSRendererSession(
+            assFileAtPath: fixtureURL.path,
+            frameWidth: 640,
+            frameHeight: 360,
+            fontsDirectory: nil
+        )
+
+        session.close()
+        session.close()
+
+        XCTAssertThrowsError(try session.renderImages(atTimestampMilliseconds: 1_500)) { error in
+            let nsError = error as NSError
+            XCTAssertEqual(nsError.domain, SFXASSRenderingErrorDomain)
+            XCTAssertEqual(nsError.code, SFXASSRenderingErrorCode.renderFailed.rawValue)
+        }
+    }
+
     private func nonTransparentPixelCount(in data: Data) -> Int {
         var count = 0
         var index = 3

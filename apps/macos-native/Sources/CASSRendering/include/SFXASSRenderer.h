@@ -75,6 +75,8 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
                                                                     error:(NSError **)error
     NS_SWIFT_NAME(renderImages(atTimestampMilliseconds:));
 
+- (void)close;
+
 @end
 
 @interface SFXASSRenderer : NSObject
