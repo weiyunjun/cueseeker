@@ -22,7 +22,7 @@ public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Eq
 public enum ASSSubtitleRenderingMode: String, CaseIterable, Identifiable, Sendable, Equatable {
     case fullFrameRGBA
     case sparseImages
-    case sparseImagesCachedSurfaces
+    case sparseImagesLayerSurfaces
 
     public var id: String {
         rawValue
@@ -34,8 +34,8 @@ public enum ASSSubtitleRenderingMode: String, CaseIterable, Identifiable, Sendab
             "v0 Full Frame"
         case .sparseImages:
             "v01 Sparse Images"
-        case .sparseImagesCachedSurfaces:
-            "v013 Cached Surfaces"
+        case .sparseImagesLayerSurfaces:
+            "v014 Layer Surfaces"
         }
     }
 }

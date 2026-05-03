@@ -19,7 +19,7 @@ private struct ASSSparseFrame: @unchecked Sendable {
     let timestampMilliseconds: Int
 }
 
-private struct ASSCachedImageTile: @unchecked Sendable {
+private struct ASSLayerImageTile: @unchecked Sendable {
     let image: CGImage
     let width: Int
     let height: Int
@@ -27,8 +27,8 @@ private struct ASSCachedImageTile: @unchecked Sendable {
     let destinationY: Int
 }
 
-private struct ASSCachedSparseFrame: @unchecked Sendable {
-    let tiles: [ASSCachedImageTile]
+private struct ASSLayerSparseFrame: @unchecked Sendable {
+    let tiles: [ASSLayerImageTile]
     let frameWidth: Int
     let frameHeight: Int
     let timestampMilliseconds: Int
@@ -45,7 +45,7 @@ private struct ASSFullFrame: @unchecked Sendable {
 private enum ASSRenderedFrame: @unchecked Sendable {
     case fullFrame(ASSFullFrame)
     case sparse(ASSSparseFrame)
-    case cachedSparse(ASSCachedSparseFrame)
+    case layerSparse(ASSLayerSparseFrame)
 
     var timestampMilliseconds: Int {
         switch self {
@@ -53,7 +53,7 @@ private enum ASSRenderedFrame: @unchecked Sendable {
             frame.timestampMilliseconds
         case .sparse(let frame):
             frame.timestampMilliseconds
-        case .cachedSparse(let frame):
+        case .layerSparse(let frame):
             frame.timestampMilliseconds
         }
     }
@@ -139,7 +139,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                         timestampMilliseconds: timestampMilliseconds
                     )
                     completion(expectedGeneration, .success(.sparse(frame)))
-                case .sparseImagesCachedSurfaces:
+                case .sparseImagesLayerSurfaces:
                     let output = try session.renderImages(atTimestampMilliseconds: timestampMilliseconds)
                     let sparseFrame = ASSSparseFrame(
                         tiles: output.images.compactMap(Self.makeTile(from:)),
@@ -147,8 +147,8 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                         frameHeight: output.frameHeight,
                         timestampMilliseconds: timestampMilliseconds
                     )
-                    let cachedFrame = Self.makeCachedSparseFrame(from: sparseFrame)
-                    completion(expectedGeneration, .success(.cachedSparse(cachedFrame)))
+                    let layerFrame = Self.makeLayerSparseFrame(from: sparseFrame)
+                    completion(expectedGeneration, .success(.layerSparse(layerFrame)))
                 }
             } catch {
                 completion(
@@ -221,17 +221,17 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         )
     }
 
-    private static func makeCachedSparseFrame(from frame: ASSSparseFrame) -> ASSCachedSparseFrame {
-        let cachedTiles = frame.tiles.compactMap(Self.makeCachedTile(from:))
-        return ASSCachedSparseFrame(
-            tiles: cachedTiles,
+    private static func makeLayerSparseFrame(from frame: ASSSparseFrame) -> ASSLayerSparseFrame {
+        let layerTiles = frame.tiles.compactMap(Self.makeLayerTile(from:))
+        return ASSLayerSparseFrame(
+            tiles: layerTiles,
             frameWidth: frame.frameWidth,
             frameHeight: frame.frameHeight,
             timestampMilliseconds: frame.timestampMilliseconds
         )
     }
 
-    private static func makeCachedTile(from tile: ASSImageTile) -> ASSCachedImageTile? {
+    private static func makeLayerTile(from tile: ASSImageTile) -> ASSLayerImageTile? {
         guard let provider = CGDataProvider(data: tile.rgbaData as CFData) else {
             return nil
         }
@@ -253,7 +253,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             return nil
         }
 
-        return ASSCachedImageTile(
+        return ASSLayerImageTile(
             image: image,
             width: tile.width,
             height: tile.height,
@@ -268,6 +268,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     var areSubtitlesVisible: Bool = true {
         didSet {
             if oldValue != areSubtitlesVisible {
+                tileContainerLayer?.isHidden = !areSubtitlesVisible
                 if areSubtitlesVisible {
                     requestRender(force: true)
                 }
@@ -298,6 +299,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             if oldValue != renderingMode {
                 renderedTimestampMilliseconds = nil
                 renderedFrame = nil
+                clearTileLayers()
                 requestRender(force: true)
                 needsDisplay = true
             }
@@ -314,6 +316,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var pendingTimestampMilliseconds: Int?
     private var renderedTimestampMilliseconds: Int?
     private var renderedFrame: ASSRenderedFrame?
+    private var layerSparseFrame: ASSLayerSparseFrame?
+    private var tileContainerLayer: CALayer?
+    private var tileLayers: [CALayer] = []
     private var failureMessage: String?
 
     override var isFlipped: Bool {
@@ -343,6 +348,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         pendingTimestampMilliseconds = nil
         renderedTimestampMilliseconds = nil
         renderedFrame = nil
+        clearTileLayers()
         failureMessage = nil
 
         guard source != nil else {
@@ -354,6 +360,12 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         reloadRendererIfPossible()
         needsDisplay = true
+    }
+
+    override func layout() {
+        super.layout()
+        tileContainerLayer?.frame = bounds
+        layoutTileLayers()
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -401,6 +413,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         pendingTimestampMilliseconds = nil
         renderedTimestampMilliseconds = nil
         renderedFrame = nil
+        clearTileLayers()
         failureMessage = nil
         needsDisplay = true
 
@@ -422,6 +435,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 case .failure(let error):
                     self.isRendererReady = false
                     self.renderedFrame = nil
+                    self.clearTileLayers()
                     self.failureMessage = error.message
                     self.onRenderingFailure?(error.message)
                     self.needsDisplay = true
@@ -473,11 +487,11 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 switch result {
                 case .success(let frame):
                     self.renderedTimestampMilliseconds = frame.timestampMilliseconds
-                    self.renderedFrame = frame
+                    self.apply(frame)
                     self.failureMessage = nil
-                    self.needsDisplay = true
                 case .failure(let error):
                     self.renderedFrame = nil
+                    self.clearTileLayers()
                     self.failureMessage = error.message
                     self.onRenderingFailure?(error.message)
                     self.needsDisplay = true
@@ -490,14 +504,27 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
     }
 
+    private func apply(_ frame: ASSRenderedFrame) {
+        switch frame {
+        case .layerSparse(let layerFrame):
+            renderedFrame = nil
+            applyLayerFrame(layerFrame)
+            needsDisplay = true
+        case .fullFrame, .sparse:
+            clearTileLayers()
+            renderedFrame = frame
+            needsDisplay = true
+        }
+    }
+
     private func draw(renderedFrame: ASSRenderedFrame, in videoRect: CGRect, using context: CGContext) {
         switch renderedFrame {
         case .fullFrame(let frame):
             draw(fullFrame: frame, in: videoRect, using: context)
         case .sparse(let frame):
             draw(sparseFrame: frame, in: videoRect, using: context)
-        case .cachedSparse(let frame):
-            draw(cachedSparseFrame: frame, in: videoRect, using: context)
+        case .layerSparse:
+            break
         }
     }
 
@@ -538,23 +565,92 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
     }
 
-    private func draw(cachedSparseFrame frame: ASSCachedSparseFrame, in videoRect: CGRect, using context: CGContext) {
-        guard frame.frameWidth > 0, frame.frameHeight > 0 else {
+    private func applyLayerFrame(_ frame: ASSLayerSparseFrame) {
+        layerSparseFrame = frame
+        let containerLayer = ensureTileContainerLayer()
+        containerLayer.isHidden = !areSubtitlesVisible
+
+        while tileLayers.count < frame.tiles.count {
+            let tileLayer = CALayer()
+            tileLayer.contentsGravity = .resize
+            tileLayer.magnificationFilter = .linear
+            tileLayer.minificationFilter = .linear
+            tileLayer.isGeometryFlipped = true
+            tileLayers.append(tileLayer)
+            containerLayer.addSublayer(tileLayer)
+        }
+
+        for (index, tileLayer) in tileLayers.enumerated() {
+            if index < frame.tiles.count {
+                tileLayer.contents = frame.tiles[index].image
+                tileLayer.isHidden = false
+            } else {
+                tileLayer.contents = nil
+                tileLayer.isHidden = true
+            }
+        }
+
+        layoutTileLayers()
+    }
+
+    private func ensureTileContainerLayer() -> CALayer {
+        if let tileContainerLayer {
+            return tileContainerLayer
+        }
+
+        let containerLayer = CALayer()
+        containerLayer.frame = bounds
+        containerLayer.masksToBounds = false
+        containerLayer.isGeometryFlipped = true
+        containerLayer.isHidden = !areSubtitlesVisible
+        layer?.addSublayer(containerLayer)
+        tileContainerLayer = containerLayer
+        return containerLayer
+    }
+
+    private func layoutTileLayers() {
+        guard let frame = layerSparseFrame,
+              frame.frameWidth > 0,
+              frame.frameHeight > 0
+        else {
+            return
+        }
+
+        let videoRect = displayedVideoRect(in: bounds)
+        guard videoRect.width > 1, videoRect.height > 1 else {
             return
         }
 
         let scaleX = videoRect.width / CGFloat(frame.frameWidth)
         let scaleY = videoRect.height / CGFloat(frame.frameHeight)
 
-        for tile in frame.tiles {
-            let drawRect = CGRect(
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (index, tileLayer) in tileLayers.enumerated() {
+            guard index < frame.tiles.count else {
+                tileLayer.isHidden = true
+                continue
+            }
+
+            let tile = frame.tiles[index]
+            tileLayer.frame = CGRect(
                 x: videoRect.minX + (CGFloat(tile.destinationX) * scaleX),
-                y: bounds.height - videoRect.minY - (CGFloat(tile.destinationY + tile.height) * scaleY),
+                y: videoRect.minY + (CGFloat(tile.destinationY) * scaleY),
                 width: CGFloat(tile.width) * scaleX,
                 height: CGFloat(tile.height) * scaleY
             )
-            context.draw(tile.image, in: drawRect)
         }
+        CATransaction.commit()
+    }
+
+    private func clearTileLayers() {
+        layerSparseFrame = nil
+        tileLayers.forEach { layer in
+            layer.removeFromSuperlayer()
+        }
+        tileLayers.removeAll()
+        tileContainerLayer?.removeFromSuperlayer()
+        tileContainerLayer = nil
     }
 
     private func makeImage(from frame: ASSFullFrame) -> CGImage? {
