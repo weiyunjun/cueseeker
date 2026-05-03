@@ -149,6 +149,18 @@ func sourceFaithfulASSSubtitleLayoutMapsLibassTopOriginToLayerBottomOrigin() {
 }
 
 @Test
+func playbackSubtitleDisplayLinkCanStartAndStopRepeatedly() {
+    let displayLink = PlaybackSubtitleDisplayLink {}
+
+    displayLink.start()
+    displayLink.start()
+    displayLink.stop()
+    displayLink.stop()
+
+    #expect(Bool(true))
+}
+
+@Test
 @MainActor
 func playbackPlayerStoresDecodeModeSetting() {
     let player = PlaybackPlayer()

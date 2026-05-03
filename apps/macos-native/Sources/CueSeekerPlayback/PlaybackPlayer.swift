@@ -1,10 +1,53 @@
 import AppKit
 import CNativePlayback
+import CoreVideo
 import Foundation
 
 public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?)
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String)
+}
+
+final class PlaybackSubtitleDisplayLink: @unchecked Sendable {
+    private let onTick: @Sendable () -> Void
+    private var displayLink: CVDisplayLink?
+
+    init(onTick: @escaping @Sendable () -> Void) {
+        self.onTick = onTick
+    }
+
+    func start() {
+        stop()
+
+        var nextDisplayLink: CVDisplayLink?
+        guard CVDisplayLinkCreateWithActiveCGDisplays(&nextDisplayLink) == kCVReturnSuccess,
+              let nextDisplayLink
+        else {
+            return
+        }
+
+        CVDisplayLinkSetOutputHandler(nextDisplayLink) { [weak self] _, _, _, _, _ in
+            self?.onTick()
+            return kCVReturnSuccess
+        }
+        guard CVDisplayLinkStart(nextDisplayLink) == kCVReturnSuccess else {
+            CVDisplayLinkStop(nextDisplayLink)
+            return
+        }
+
+        displayLink = nextDisplayLink
+    }
+
+    func stop() {
+        if let displayLink {
+            CVDisplayLinkStop(displayLink)
+        }
+        displayLink = nil
+    }
+
+    deinit {
+        stop()
+    }
 }
 
 public final class PlaybackPlayer: NSObject, @unchecked Sendable {
@@ -15,7 +58,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var subtitlesVisible = true
     private var activeSubtitleSource: PlaybackSubtitleSource?
     private var subtitleLoadTask: Task<Void, Never>?
-    private var subtitleRenderTickTask: Task<Void, Never>?
+    private var subtitleRenderDisplayLink: PlaybackSubtitleDisplayLink?
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -115,7 +158,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     deinit {
         subtitleLoadTask?.cancel()
-        subtitleRenderTickTask?.cancel()
+        subtitleRenderDisplayLink?.stop()
     }
 
     public func setSubtitlesVisible(_ isVisible: Bool) {
@@ -206,23 +249,27 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     private func startASSSubtitleRenderTicks() {
-        subtitleRenderTickTask?.cancel()
-        subtitleRenderTickTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                guard let self else {
+        subtitleRenderDisplayLink?.stop()
+        let displayLink = PlaybackSubtitleDisplayLink { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.activeSubtitleSource?.format == .ass,
+                      let container = self.renderView as? PlaybackRenderContainerView
+                else {
                     return
                 }
 
                 let milliseconds = max(0, Int((self.nativePlayer.currentTime * 1_000).rounded(.down)))
-                (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: milliseconds)
-                try? await Task.sleep(nanoseconds: 33_000_000)
+                container.setASSSubtitleTime(milliseconds: milliseconds)
             }
         }
+        subtitleRenderDisplayLink = displayLink
+        displayLink.start()
     }
 
     private func stopASSSubtitleRenderTicks() {
-        subtitleRenderTickTask?.cancel()
-        subtitleRenderTickTask = nil
+        subtitleRenderDisplayLink?.stop()
+        subtitleRenderDisplayLink = nil
     }
 
     private func emitInitialNativeState() {
@@ -247,8 +294,6 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
         delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
-        let milliseconds = max(0, Int((time * 1_000).rounded(.down)))
-        updateASSSubtitleTime(milliseconds: milliseconds)
     }
 
     public func nativePlaybackPlayer(
