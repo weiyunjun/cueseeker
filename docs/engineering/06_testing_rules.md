@@ -175,6 +175,13 @@ Rules:
 - A software playback memory fix is not acceptable if it materially increases
   click-to-first-frame latency, reduces decoder parallelism as its primary
   strategy, or masks the issue only by changing the measurement method.
+- Playback read-ahead changes must be checked against local files, mounted NAS
+  paths, and representative network-jitter conditions using the same playback
+  policy. Verification should confirm that audio, video, and subtitles pause as
+  a unit when reads stall, rather than allowing audio to run ahead.
+- Playback read-ahead verification should record startup latency, queued packet
+  cap behavior, seek/session replacement cleanup, and whether rebuffer events
+  become fewer or shorter under network read pressure.
 - ASS subtitle rendering memory work must be judged primarily through
   end-to-end playback acceptance, not isolated renderer probes alone. The core
   acceptance question is whether the user-visible memory drop is meaningful

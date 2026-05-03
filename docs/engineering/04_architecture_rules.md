@@ -227,6 +227,22 @@ Rules:
 - The native backend uses FFmpeg demuxing, user-selectable hardware, software,
   or automatic video decode mode, native display, FFmpeg audio decode, and
   `AVAudioEngine` output.
+- The native backend must use the same bounded read-ahead behavior for all
+  path-based media sources. Local files, mounted NAS volumes, and future
+  WebDAV-style file access must not be split into separate playback quality
+  classes just because macOS presents mounted network storage as a local path.
+- Native read-ahead is session-scoped and must be cleared on open, close, and
+  seek/session replacement. It must not copy or stage whole media files into a
+  temporary local directory.
+- Native read-ahead should queue compressed FFmpeg packets, not decoded video
+  frames or decoded audio frames, unless a later design explicitly changes the
+  memory model.
+- Native read-ahead starts playback after a 0.5 second packet waterline when
+  available, targets 10 seconds of queued packet media time during steady
+  playback, and caps queued compressed packet data at 64 MB.
+- Native read-ahead should remain a simple fixed-watermark policy until field
+  evidence justifies adaptive behavior. It must not automatically raise startup
+  waterlines after repeated rebuffer events without a documented design update.
 - Hardware decode uses VideoToolbox.
 - Software decode uses FFmpeg software decoders and initially converts decoded
   frames to BGRA with `libswscale` before display.

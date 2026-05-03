@@ -18,8 +18,10 @@
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 
+#include <float.h>
 #include <math.h>
 #include <stdatomic.h>
+#include <stdlib.h>
 
 NSString * const SFXNativePlaybackErrorDomain = @"CueSeeker.NativePlayback";
 
@@ -28,6 +30,24 @@ static const float SFXMinimumPlaybackRate = 0.5f;
 static const float SFXMaximumPlaybackRate = 2.0f;
 static const double SFXVideoStarvationThresholdSeconds = 0.12;
 static const double SFXVideoStarvationWatchdogIntervalSeconds = 0.05;
+static const double SFXReadAheadStartupSeconds = 0.5;
+static const double SFXReadAheadTargetSeconds = 10.0;
+static const size_t SFXReadAheadMaxBytes = 64 * 1024 * 1024;
+
+typedef struct SFXQueuedPacket {
+    AVPacket *packet;
+    size_t bytes;
+    double mediaSeconds;
+    struct SFXQueuedPacket *next;
+} SFXQueuedPacket;
+
+static void SFXFreeQueuedPacket(SFXQueuedPacket *queuedPacket) {
+    if (queuedPacket == NULL) {
+        return;
+    }
+    av_packet_free(&queuedPacket->packet);
+    free(queuedPacket);
+}
 
 static float SFXClampedPlaybackRate(float playbackRate) {
     if (!isfinite(playbackRate)) {
@@ -167,6 +187,14 @@ static double SFXFramePlaybackSeconds(const AVFrame *frame, AVStream *stream) {
         return -1;
     }
     return av_q2d(stream->time_base) * frame->best_effort_timestamp - SFXStreamStartSeconds(stream);
+}
+
+static double SFXPacketPlaybackSeconds(const AVPacket *packet, AVStream *stream) {
+    int64_t timestamp = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
+    if (timestamp == AV_NOPTS_VALUE) {
+        return -1;
+    }
+    return av_q2d(stream->time_base) * timestamp - SFXStreamStartSeconds(stream);
 }
 
 static int64_t SFXSeekTimestamp(double seconds, AVStream *stream) {
@@ -332,8 +360,16 @@ static int SFXOutputChannelCount(int inputChannels) {
     __weak id<SFXNativePlaybackPlayerDelegate> _delegate;
     __weak SFXNativePlaybackPlayer *_owner;
     dispatch_queue_t _decodeQueue;
+    dispatch_queue_t _demuxQueue;
     dispatch_queue_t _starvationQueue;
     dispatch_source_t _starvationTimer;
+    NSCondition *_packetQueueCondition;
+    SFXQueuedPacket *_packetQueueHead;
+    SFXQueuedPacket *_packetQueueTail;
+    size_t _packetQueueBytes;
+    int _packetQueueCount;
+    BOOL _packetQueueEOF;
+    BOOL _packetQueueDemuxStarted;
 
     AVFormatContext *_formatContext;
     AVCodecContext *_videoCodecContext;
@@ -428,7 +464,9 @@ static int SFXOutputChannelCount(int inputChannels) {
     _videoStreamIndex = -1;
     _audioStreamIndex = -1;
     _decodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.Decode", DISPATCH_QUEUE_SERIAL);
+    _demuxQueue = dispatch_queue_create("CueSeeker.NativePlayback.Demux", DISPATCH_QUEUE_SERIAL);
     _starvationQueue = dispatch_queue_create("CueSeeker.NativePlayback.Starvation", DISPATCH_QUEUE_SERIAL);
+    _packetQueueCondition = [[NSCondition alloc] init];
     atomic_init(&_cancelled, false);
     atomic_init(&_finishingForAutomaticRecycle, false);
     atomic_init(&_paused, false);
@@ -808,6 +846,9 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)stopAndWait {
     atomic_store(&_cancelled, true);
     atomic_store(&_paused, false);
+    [_packetQueueCondition lock];
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
 
     if (_decodeQueue != NULL) {
         dispatch_sync(_decodeQueue, ^{});
@@ -887,12 +928,262 @@ static int SFXOutputChannelCount(int inputChannels) {
     return firstMediaSeconds + (elapsedHostSeconds * _playbackRate);
 }
 
+- (void)startPacketReadAhead {
+    [_packetQueueCondition lock];
+    if (_packetQueueDemuxStarted) {
+        [_packetQueueCondition unlock];
+        return;
+    }
+    _packetQueueDemuxStarted = YES;
+    [_packetQueueCondition unlock];
+
+    dispatch_async(_demuxQueue, ^{
+        @autoreleasepool {
+            [self demuxLoop];
+        }
+    });
+}
+
+- (void)stopPacketReadAheadAndClear {
+    [_packetQueueCondition lock];
+    _packetQueueEOF = YES;
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+
+    if (_demuxQueue != NULL && _packetQueueDemuxStarted) {
+        dispatch_sync(_demuxQueue, ^{});
+    }
+
+    [_packetQueueCondition lock];
+    [self clearPacketQueueLocked];
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+}
+
+- (BOOL)isPacketQueueAtHighWaterLocked {
+    if (_packetQueueBytes >= SFXReadAheadMaxBytes) {
+        return YES;
+    }
+    return [self packetQueueBufferedSecondsLocked] >= SFXReadAheadTargetSeconds;
+}
+
+- (double)packetQueueBufferedSecondsLocked {
+    double earliestSeconds = DBL_MAX;
+    double latestSeconds = -DBL_MAX;
+    BOOL hasTimestamp = NO;
+
+    for (SFXQueuedPacket *node = _packetQueueHead; node != NULL; node = node->next) {
+        if (!isfinite(node->mediaSeconds) || node->mediaSeconds < 0) {
+            continue;
+        }
+        earliestSeconds = fmin(earliestSeconds, node->mediaSeconds);
+        latestSeconds = fmax(latestSeconds, node->mediaSeconds);
+        hasTimestamp = YES;
+    }
+
+    if (!hasTimestamp) {
+        return 0;
+    }
+    return fmax(0, latestSeconds - earliestSeconds);
+}
+
+- (void)clearPacketQueueLocked {
+    SFXQueuedPacket *node = _packetQueueHead;
+    while (node != NULL) {
+        SFXQueuedPacket *next = node->next;
+        SFXFreeQueuedPacket(node);
+        node = next;
+    }
+    _packetQueueHead = NULL;
+    _packetQueueTail = NULL;
+    _packetQueueBytes = 0;
+    _packetQueueCount = 0;
+}
+
+- (size_t)packetMemoryBytes:(const AVPacket *)packet {
+    if (packet == NULL) {
+        return 0;
+    }
+
+    size_t bytes = packet->size > 0 ? (size_t)packet->size : 0;
+    for (int index = 0; index < packet->side_data_elems; index++) {
+        bytes += packet->side_data[index].size;
+    }
+    return bytes;
+}
+
+- (void)demuxLoop {
+    while (!atomic_load(&_cancelled) && !atomic_load(&_finishingForAutomaticRecycle)) {
+        [_packetQueueCondition lock];
+        while (!atomic_load(&_cancelled)
+               && !atomic_load(&_finishingForAutomaticRecycle)
+               && !_packetQueueEOF
+               && [self isPacketQueueAtHighWaterLocked]) {
+            [_packetQueueCondition wait];
+        }
+        BOOL shouldStop = atomic_load(&_cancelled)
+            || atomic_load(&_finishingForAutomaticRecycle)
+            || _packetQueueEOF;
+        [_packetQueueCondition unlock];
+        if (shouldStop) {
+            break;
+        }
+
+        int result = av_read_frame(_formatContext, _packet);
+        if (result < 0) {
+            [_packetQueueCondition lock];
+            _packetQueueEOF = YES;
+            [_packetQueueCondition broadcast];
+            [_packetQueueCondition unlock];
+            break;
+        }
+
+        BOOL relevantPacket = _packet->stream_index == _videoStreamIndex
+            || (_packet->stream_index == _audioStreamIndex && _audioCodecContext != NULL);
+        if (!relevantPacket) {
+            av_packet_unref(_packet);
+            continue;
+        }
+
+        AVPacket *packetCopy = av_packet_alloc();
+        if (packetCopy == NULL) {
+            av_packet_unref(_packet);
+            [self notifyFailure:@"Could not allocate native playback read-ahead packet."];
+            atomic_store(&_cancelled, true);
+            [_packetQueueCondition lock];
+            _packetQueueEOF = YES;
+            [_packetQueueCondition broadcast];
+            [_packetQueueCondition unlock];
+            break;
+        }
+
+        result = av_packet_ref(packetCopy, _packet);
+        av_packet_unref(_packet);
+        if (result < 0) {
+            av_packet_free(&packetCopy);
+            [self notifyFailure:[NSString stringWithFormat:
+                @"Native playback read-ahead packet copy failed: %@",
+                SFXFFmpegErrorString(result)
+            ]];
+            atomic_store(&_cancelled, true);
+            [_packetQueueCondition lock];
+            _packetQueueEOF = YES;
+            [_packetQueueCondition broadcast];
+            [_packetQueueCondition unlock];
+            break;
+        }
+
+        SFXQueuedPacket *queuedPacket = (SFXQueuedPacket *)calloc(1, sizeof(SFXQueuedPacket));
+        if (queuedPacket == NULL) {
+            av_packet_free(&packetCopy);
+            [self notifyFailure:@"Could not allocate native playback read-ahead queue node."];
+            atomic_store(&_cancelled, true);
+            [_packetQueueCondition lock];
+            _packetQueueEOF = YES;
+            [_packetQueueCondition broadcast];
+            [_packetQueueCondition unlock];
+            break;
+        }
+
+        AVStream *stream = _formatContext->streams[packetCopy->stream_index];
+        queuedPacket->packet = packetCopy;
+        queuedPacket->bytes = [self packetMemoryBytes:packetCopy];
+        queuedPacket->mediaSeconds = SFXPacketPlaybackSeconds(packetCopy, stream);
+
+        [_packetQueueCondition lock];
+        if (atomic_load(&_cancelled) || atomic_load(&_finishingForAutomaticRecycle) || _packetQueueEOF) {
+            [_packetQueueCondition unlock];
+            SFXFreeQueuedPacket(queuedPacket);
+            break;
+        }
+
+        if (_packetQueueTail != NULL) {
+            _packetQueueTail->next = queuedPacket;
+        } else {
+            _packetQueueHead = queuedPacket;
+        }
+        _packetQueueTail = queuedPacket;
+        _packetQueueBytes += queuedPacket->bytes;
+        _packetQueueCount += 1;
+        [_packetQueueCondition broadcast];
+        [_packetQueueCondition unlock];
+    }
+}
+
+- (void)waitUntilPacketQueueHasStartupWaterline {
+    [_packetQueueCondition lock];
+    while (!atomic_load(&_cancelled)
+           && !atomic_load(&_finishingForAutomaticRecycle)
+           && !_packetQueueEOF
+           && _packetQueueBytes < SFXReadAheadMaxBytes
+           && [self packetQueueBufferedSecondsLocked] < SFXReadAheadStartupSeconds) {
+        [_packetQueueCondition wait];
+    }
+
+    double bufferedSeconds = [self packetQueueBufferedSecondsLocked];
+    size_t queuedBytes = _packetQueueBytes;
+    BOOL shouldLog = !atomic_load(&_cancelled)
+        && !atomic_load(&_finishingForAutomaticRecycle)
+        && _packetQueueHead != NULL;
+    [_packetQueueCondition unlock];
+
+    if (shouldLog) {
+        printf(
+            "Native playback read-ahead: startup buffered=%.3fs bytes=%zu target=%.3fs cap=%zu\n",
+            bufferedSeconds,
+            queuedBytes,
+            SFXReadAheadTargetSeconds,
+            SFXReadAheadMaxBytes
+        );
+    }
+}
+
+- (SFXQueuedPacket *)dequeuePacket {
+    [_packetQueueCondition lock];
+    while (!atomic_load(&_cancelled)
+           && !atomic_load(&_finishingForAutomaticRecycle)
+           && !_packetQueueEOF
+           && _packetQueueHead == NULL) {
+        [_packetQueueCondition wait];
+    }
+
+    if (atomic_load(&_cancelled) || atomic_load(&_finishingForAutomaticRecycle)) {
+        [_packetQueueCondition unlock];
+        return NULL;
+    }
+
+    SFXQueuedPacket *queuedPacket = _packetQueueHead;
+    if (queuedPacket == NULL) {
+        [_packetQueueCondition unlock];
+        return NULL;
+    }
+
+    _packetQueueHead = queuedPacket->next;
+    if (_packetQueueHead == NULL) {
+        _packetQueueTail = NULL;
+    }
+    queuedPacket->next = NULL;
+    if (_packetQueueBytes >= queuedPacket->bytes) {
+        _packetQueueBytes -= queuedPacket->bytes;
+    } else {
+        _packetQueueBytes = 0;
+    }
+    if (_packetQueueCount > 0) {
+        _packetQueueCount -= 1;
+    }
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+    return queuedPacket;
+}
+
 - (void)decodeLoop {
     atomic_store(&_playing, true);
     @synchronized (self) {
         _lastVideoOutputHostSeconds = CACurrentMediaTime();
     }
     [self notifyTimeIfNeeded:YES];
+    [self startPacketReadAhead];
+    [self waitUntilPacketQueueHasStartupWaterline];
 
     while (!atomic_load(&_cancelled) && !atomic_load(&_finishingForAutomaticRecycle)) {
         [self waitWhilePausedIfNeeded];
@@ -900,22 +1191,23 @@ static int SFXOutputChannelCount(int inputChannels) {
             break;
         }
 
-        int result = av_read_frame(_formatContext, _packet);
-        if (result < 0) {
+        SFXQueuedPacket *queuedPacket = [self dequeuePacket];
+        if (queuedPacket == NULL) {
             break;
         }
 
-        if (_packet->stream_index == _audioStreamIndex && _audioCodecContext != NULL) {
-            [self handleAudioPacket:_packet];
-            av_packet_unref(_packet);
+        AVPacket *packet = queuedPacket->packet;
+        if (packet->stream_index == _audioStreamIndex && _audioCodecContext != NULL) {
+            [self handleAudioPacket:packet];
+            SFXFreeQueuedPacket(queuedPacket);
             continue;
         }
 
-        if (_packet->stream_index == _videoStreamIndex) {
-            [self handleVideoPacket:_packet];
+        if (packet->stream_index == _videoStreamIndex) {
+            [self handleVideoPacket:packet];
         }
 
-        av_packet_unref(_packet);
+        SFXFreeQueuedPacket(queuedPacket);
     }
 
     BOOL cancelled = atomic_load(&_cancelled);
@@ -1668,6 +1960,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (void)teardown {
     [self stopStarvationWatchdog];
+    [self stopPacketReadAheadAndClear];
 
     AVAudioPlayerNode *audioPlayer = _audioPlayer;
     AVAudioEngine *audioEngine = _audioEngine;

@@ -9,6 +9,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added a native playback rebuffer gate that pauses audio output when video
   frame delivery stalls, so NAS or network read jitter produces a unified
   playback pause instead of allowing audio to run ahead of video and subtitles.
+- Added bounded native playback packet read-ahead for path-based media, using a
+  0.5 second startup waterline, 10 second steady read-ahead target, and 64 MB
+  compressed-packet cap to absorb local, NAS, and future WebDAV-style read
+  jitter without staging whole files.
 - Renamed the active project from `SubFinderX` to `CueSeeker`, recorded the
   Chinese product name `字幕求索`, and kept the archived Flutter implementation
   under its historical name for comparison.
