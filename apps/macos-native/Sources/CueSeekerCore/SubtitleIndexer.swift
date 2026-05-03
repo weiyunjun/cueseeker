@@ -51,7 +51,14 @@ public struct SubtitleIndexer {
             let modifiedAt = attributes?[.modificationDate] as? Date
 
             if let metadata = existingFiles[subtitleFile.path],
-               isUnchanged(metadata: metadata, videoFile: videoFile, fileSize: fileSize, modifiedAt: modifiedAt)
+               try isUnchanged(
+                    metadata: metadata,
+                    videoFile: videoFile,
+                    subtitleFile: subtitleFile,
+                    database: database,
+                    fileSize: fileSize,
+                    modifiedAt: modifiedAt
+               )
             {
                 keptSubtitlePaths.insert(subtitleFile.path)
                 result.skippedUnchangedSubtitleFiles += 1
@@ -77,11 +84,15 @@ public struct SubtitleIndexer {
             }
 
             let cueGroups: [SubtitleCueGroup]
+            var assRenderSegments: [ASSRenderSegmentPayload] = []
             switch format {
             case .srt:
                 cueGroups = SRTParser.parseCueGroups(contents)
             case .ass:
                 cueGroups = ASSParser.parseCueGroups(contents)
+                if ASSRenderSegmenter.shouldSegment(format: format, fileSize: fileSize) {
+                    assRenderSegments = ASSRenderSegmenter.renderSegments(from: contents)
+                }
             }
 
             try database.replaceCueGroups(
@@ -89,6 +100,7 @@ public struct SubtitleIndexer {
                 videoFile: videoFile,
                 format: format,
                 cueGroups: cueGroups,
+                assRenderSegments: assRenderSegments,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt
             )
@@ -106,9 +118,11 @@ public struct SubtitleIndexer {
     private func isUnchanged(
         metadata: SubtitleFileMetadata,
         videoFile: URL,
+        subtitleFile: URL,
+        database: SubtitleDatabase,
         fileSize: Int64?,
         modifiedAt: Date?
-    ) -> Bool {
+    ) throws -> Bool {
         guard metadata.videoPath == videoFile.path,
               metadata.fileSize == fileSize,
               let existingModifiedAt = metadata.modifiedAt,
@@ -117,7 +131,15 @@ public struct SubtitleIndexer {
             return false
         }
 
-        return abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001
+        guard abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001 else {
+            return false
+        }
+
+        if ASSRenderSegmenter.shouldSegment(format: metadata.subtitleFormat, fileSize: fileSize) {
+            return try database.hasASSRenderSegments(forSubtitleFile: subtitleFile)
+        }
+
+        return true
     }
 }
 

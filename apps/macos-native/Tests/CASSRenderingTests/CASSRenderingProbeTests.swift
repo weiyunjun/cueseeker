@@ -94,6 +94,24 @@ final class CASSRenderingProbeTests: XCTestCase {
         XCTAssertGreaterThan(nonTransparentPixelCount(in: output.rgbaData), 0)
     }
 
+    func testRendererSessionCanLoadASSFromMemory() throws {
+        let fixtureURL = try XCTUnwrap(Bundle.module.url(forResource: "complex-effects", withExtension: "ass"))
+        let script = try String(contentsOf: fixtureURL)
+        let session = try SFXASSRendererSession(
+            assScript: script,
+            sourceIdentifier: "complex-effects-memory",
+            frameWidth: 640,
+            frameHeight: 360,
+            fontsDirectory: nil
+        )
+
+        let output = try session.renderCroppedImage(atTimestampMilliseconds: 1_500)
+
+        XCTAssertGreaterThan(output.imageCount, 0)
+        XCTAssertGreaterThan(output.width, 0)
+        XCTAssertGreaterThan(nonTransparentPixelCount(in: output.rgbaData), 0)
+    }
+
     func testRendererSessionCloseIsIdempotentAndPreventsFurtherRendering() throws {
         let fixtureURL = try XCTUnwrap(Bundle.module.url(forResource: "complex-effects", withExtension: "ass"))
         let session = try SFXASSRendererSession(

@@ -231,6 +231,37 @@ func indexesASSFilesAsGroupedCueResults() throws {
     #expect(searchResults[0].startMilliseconds == 1_000)
 }
 
+@Test
+func assRenderSegmenterBuildsWindowedScriptsWithOverlappingEvents() throws {
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: Default,Arial,48
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:25.00,0:00:35.00,Default,,0,0,0,fx,{\\blur2}overlap
+    Dialogue: 0,0:01:05.00,0:01:06.00,Default,,0,0,0,,late
+    """
+
+    let segments = ASSRenderSegmenter.renderSegments(from: contents)
+
+    #expect(segments.count == 3)
+    #expect(segments[0].startMilliseconds == 0)
+    #expect(segments[0].endMilliseconds == 30_000)
+    #expect(segments[0].eventCount == 1)
+    #expect(segments[0].scriptText.contains("overlap"))
+    #expect(segments[1].eventCount == 1)
+    #expect(segments[1].scriptText.contains("overlap"))
+    #expect(segments[2].eventCount == 1)
+    #expect(segments[2].scriptText.contains("late"))
+    #expect(segments[2].scriptText.contains("[V4+ Styles]"))
+}
+
 private struct IndexingFixture {
     let root: URL
     let databaseURL: URL

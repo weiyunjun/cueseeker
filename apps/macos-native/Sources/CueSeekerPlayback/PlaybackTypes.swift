@@ -45,15 +45,18 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let url: URL
     public let format: PlaybackSubtitleSourceFormat
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
+    public let renderCacheDatabaseURL: URL?
 
     public init(
         url: URL,
         format: PlaybackSubtitleSourceFormat,
-        preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil
+        preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
+        renderCacheDatabaseURL: URL? = nil
     ) {
         self.url = url
         self.format = format
         self.preparationTimeWindow = preparationTimeWindow
+        self.renderCacheDatabaseURL = renderCacheDatabaseURL
     }
 }
 

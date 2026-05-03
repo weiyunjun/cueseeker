@@ -84,6 +84,14 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
                                          error:(NSError **)error
     NS_SWIFT_NAME(init(assFileAtPath:frameWidth:frameHeight:fontsDirectory:));
 
+- (nullable instancetype)initWithASSScript:(NSString *)script
+                          sourceIdentifier:(NSString *)sourceIdentifier
+                                frameWidth:(NSInteger)frameWidth
+                               frameHeight:(NSInteger)frameHeight
+                            fontsDirectory:(nullable NSString *)fontsDirectory
+                                     error:(NSError **)error
+    NS_SWIFT_NAME(init(assScript:sourceIdentifier:frameWidth:frameHeight:fontsDirectory:));
+
 - (nullable SFXASSRenderOutput *)renderFrameAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
                                                               error:(NSError **)error
     NS_SWIFT_NAME(renderFrame(atTimestampMilliseconds:));

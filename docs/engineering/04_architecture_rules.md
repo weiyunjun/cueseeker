@@ -216,6 +216,16 @@ Rules:
 - Time-windowed or segmented ASS preparation is the preferred future
   optimization for large ASS files. Full-file preparation may remain a fallback,
   but it should not be the only long-term render preparation path.
+- Large ASS render segmentation must be done during indexing, not on the
+  result-selection or playback-render path. The playback path may query a
+  precomputed render segment by source identity and timestamp.
+- Large ASS render segments stored in SQLite must preserve complete render
+  context for the segment: script metadata, styles, event format, original event
+  timestamps, original event text, layer values, and source order for every
+  event overlapping that segment.
+- Large ASS render segments are a derived cache. They must be rebuilt when the
+  source subtitle file size or modified time changes, and stale segment rows
+  must be removed with the owning subtitle file.
 - The dedicated ASS renderer must be separate from the SQLite search layer and
   from the native video decoder. It should receive playback clock updates and
   present overlay output through the playback render container.

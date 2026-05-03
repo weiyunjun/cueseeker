@@ -1,5 +1,6 @@
 import AppKit
 import CASSRendering
+import CueSeekerCore
 import CoreGraphics
 import Foundation
 
@@ -62,27 +63,37 @@ private struct ASSRenderWorkerError: Error, Sendable {
 private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private let queue = DispatchQueue(label: "CueSeeker.SourceFaithfulASSRenderer")
     private var session: SFXASSRendererSession?
+    private var sourcePath: String?
+    private var renderCacheDatabaseURL: URL?
+    private var frameWidth = 0
+    private var frameHeight = 0
+    private var activeRenderSegmentWindow: PlaybackSubtitleTimeWindow?
 
     func load(
-        sourceURL: URL,
+        source: PlaybackSubtitleSource,
         frameWidth: Int,
         frameHeight: Int,
+        initialTimestampMilliseconds: Int,
         completion: @escaping @Sendable (UUID, Result<Void, ASSRenderWorkerError>) -> Void
     ) -> UUID {
         let nextGeneration = UUID()
 
-        queue.async { [sourcePath = sourceURL.path] in
+        queue.async { [sourcePath = source.url.path, renderCacheDatabaseURL = source.renderCacheDatabaseURL] in
             do {
-                let nextSession = try SFXASSRendererSession(
-                    assFileAtPath: sourcePath,
-                    frameWidth: frameWidth,
-                    frameHeight: frameHeight,
-                    fontsDirectory: nil
-                )
+                self.session?.close()
+                self.session = nil
+                self.sourcePath = sourcePath
+                self.renderCacheDatabaseURL = renderCacheDatabaseURL
+                self.frameWidth = frameWidth
+                self.frameHeight = frameHeight
+                self.activeRenderSegmentWindow = nil
+
+                let nextSession = try self.makeSession(containing: initialTimestampMilliseconds)
                 self.session = nextSession
                 completion(nextGeneration, .success(()))
             } catch {
                 self.session = nil
+                self.activeRenderSegmentWindow = nil
                 completion(
                     nextGeneration,
                     .failure(ASSRenderWorkerError(message: "ASS renderer failed to load source: \(error.localizedDescription)"))
@@ -97,6 +108,11 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         queue.async {
             self.session?.close()
             self.session = nil
+            self.sourcePath = nil
+            self.renderCacheDatabaseURL = nil
+            self.frameWidth = 0
+            self.frameHeight = 0
+            self.activeRenderSegmentWindow = nil
             completion?()
         }
     }
@@ -108,15 +124,16 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         completion: @escaping @Sendable (UUID, Result<ASSRenderedFrame, ASSRenderWorkerError>) -> Void
     ) {
         queue.async {
-            guard let session = self.session else {
-                completion(
-                    expectedGeneration,
-                    .failure(ASSRenderWorkerError(message: "ASS renderer session is not ready."))
-                )
-                return
-            }
-
             do {
+                try self.ensureSessionCovers(timestampMilliseconds: timestampMilliseconds)
+                guard let session = self.session else {
+                    completion(
+                        expectedGeneration,
+                        .failure(ASSRenderWorkerError(message: "ASS renderer session is not ready."))
+                    )
+                    return
+                }
+
                 let output = try session.renderCroppedImage(atTimestampMilliseconds: timestampMilliseconds)
                 let frame = ASSSparseFrame(
                     surface: Self.makeSurface(from: output),
@@ -132,6 +149,65 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 )
             }
         }
+    }
+
+    private func ensureSessionCovers(timestampMilliseconds: Int) throws {
+        if let activeRenderSegmentWindow,
+           timestampMilliseconds >= activeRenderSegmentWindow.startMilliseconds,
+           timestampMilliseconds < activeRenderSegmentWindow.endMilliseconds {
+            return
+        }
+
+        if activeRenderSegmentWindow == nil, session != nil {
+            return
+        }
+
+        session?.close()
+        session = try makeSession(containing: timestampMilliseconds)
+    }
+
+    private func makeSession(containing timestampMilliseconds: Int) throws -> SFXASSRendererSession {
+        guard let sourcePath, frameWidth > 0, frameHeight > 0 else {
+            throw ASSRenderWorkerError(message: "ASS renderer source is not ready.")
+        }
+
+        if let segment = try indexedRenderSegment(containing: timestampMilliseconds) {
+            activeRenderSegmentWindow = PlaybackSubtitleTimeWindow(
+                startMilliseconds: segment.startMilliseconds,
+                endMilliseconds: segment.endMilliseconds
+            )
+            print(
+                "libass indexed segment: window=\(segment.startMilliseconds)-\(segment.endMilliseconds)ms events=\(segment.eventCount) bytes=\(segment.byteCount)"
+            )
+            return try SFXASSRendererSession(
+                assScript: segment.scriptText,
+                sourceIdentifier: "\(sourcePath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)",
+                frameWidth: frameWidth,
+                frameHeight: frameHeight,
+                fontsDirectory: nil
+            )
+        }
+
+        activeRenderSegmentWindow = nil
+        return try SFXASSRendererSession(
+            assFileAtPath: sourcePath,
+            frameWidth: frameWidth,
+            frameHeight: frameHeight,
+            fontsDirectory: nil
+        )
+    }
+
+    private func indexedRenderSegment(containing timestampMilliseconds: Int) throws -> ASSRenderSegment? {
+        guard let renderCacheDatabaseURL, let sourcePath else {
+            return nil
+        }
+
+        let database = try SubtitleDatabase(path: renderCacheDatabaseURL)
+        try database.migrate()
+        return try database.assRenderSegment(
+            forSubtitleFile: URL(fileURLWithPath: sourcePath),
+            atMilliseconds: timestampMilliseconds
+        )
     }
 
     private static func makeSurface(from output: SFXASSCroppedRenderOutput) -> ASSCroppedSurface? {
@@ -297,9 +373,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         needsDisplay = true
 
         let loadGeneration = rendererWorker.load(
-            sourceURL: source.url,
+            source: source,
             frameWidth: renderSize.width,
-            frameHeight: renderSize.height
+            frameHeight: renderSize.height,
+            initialTimestampMilliseconds: currentTimeMilliseconds
         ) { [weak self] returnedGeneration, result in
             DispatchQueue.main.async(execute: {
                 guard let self, self.generation == returnedGeneration else {

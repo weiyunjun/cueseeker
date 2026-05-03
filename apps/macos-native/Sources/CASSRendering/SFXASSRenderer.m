@@ -305,6 +305,18 @@ static BOOL SFXASSValidateFrameSize(NSInteger frameWidth, NSInteger frameHeight,
     return YES;
 }
 
+static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, NSError **error) {
+    if (script.length == 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"ASS script text is required.");
+        return NO;
+    }
+    if (sourceIdentifier.length == 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"ASS source identifier is required.");
+        return NO;
+    }
+    return YES;
+}
+
 @implementation SFXASSRenderOutput
 
 - (instancetype)initWithRGBAData:(NSData *)rgbaData
@@ -527,6 +539,74 @@ static BOOL SFXASSValidateFrameSize(NSInteger frameWidth, NSInteger frameHeight,
     _track = ass_read_file(_library, [path fileSystemRepresentation], NULL);
     if (_track == NULL) {
         NSString *message = [NSString stringWithFormat:@"libass could not load ASS source file: %@", path];
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
+        [self cleanup];
+        return nil;
+    }
+
+    return self;
+}
+
+- (nullable instancetype)initWithASSScript:(NSString *)script
+                          sourceIdentifier:(NSString *)sourceIdentifier
+                                frameWidth:(NSInteger)frameWidth
+                               frameHeight:(NSInteger)frameHeight
+                            fontsDirectory:(nullable NSString *)fontsDirectory
+                                     error:(NSError **)error {
+    if (!SFXASSValidateScript(script, sourceIdentifier, error)
+        || !SFXASSValidateFrameSize(frameWidth, frameHeight, error)) {
+        return nil;
+    }
+
+    self = [super init];
+    if (self == nil) {
+        return nil;
+    }
+
+    _sourcePath = [sourceIdentifier copy];
+    _frameWidth = frameWidth;
+    _frameHeight = frameHeight;
+
+    _library = ass_library_init();
+    if (_library == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass failed to initialize.");
+        return nil;
+    }
+
+    ass_set_message_cb(_library, SFXASSMessageCallback, NULL);
+    ass_set_extract_fonts(_library, 1);
+    if (fontsDirectory.length > 0) {
+        BOOL fontsIsDirectory = NO;
+        if (![[NSFileManager defaultManager] fileExistsAtPath:fontsDirectory isDirectory:&fontsIsDirectory] || !fontsIsDirectory) {
+            NSString *message = [NSString stringWithFormat:@"Font directory does not exist: %@", fontsDirectory];
+            SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
+            [self cleanup];
+            return nil;
+        }
+        ass_set_fonts_dir(_library, [fontsDirectory fileSystemRepresentation]);
+    }
+
+    _renderer = ass_renderer_init(_library);
+    if (_renderer == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass renderer failed to initialize.");
+        [self cleanup];
+        return nil;
+    }
+
+    ass_set_frame_size(_renderer, (int)frameWidth, (int)frameHeight);
+    ass_set_storage_size(_renderer, (int)frameWidth, (int)frameHeight);
+    ass_set_fonts(_renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
+
+    NSMutableData *scriptData = [[script dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
+    if (scriptData == nil || scriptData.length == 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, @"Could not encode ASS script text.");
+        [self cleanup];
+        return nil;
+    }
+
+    _track = ass_read_memory(_library, (char *)scriptData.mutableBytes, scriptData.length, NULL);
+    if (_track == NULL) {
+        NSString *message = [NSString stringWithFormat:@"libass could not load ASS script: %@", sourceIdentifier];
         SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
         [self cleanup];
         return nil;

@@ -46,8 +46,17 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
     public let indexedAt: String
 }
 
+public struct ASSRenderSegment: Equatable, Sendable {
+    public let subtitlePath: String
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+    public let scriptText: String
+    public let eventCount: Int
+    public let byteCount: Int
+}
+
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 3
+    public static let currentSchemaVersion: Int = 4
 
     private let database: SQLiteDatabase
 
@@ -159,6 +168,22 @@ public final class SubtitleDatabase {
                 content,
                 cue_group_id UNINDEXED
             );
+
+            CREATE TABLE IF NOT EXISTS ass_render_segments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subtitle_file_id INTEGER NOT NULL,
+                segment_index INTEGER NOT NULL,
+                start_ms INTEGER NOT NULL,
+                end_ms INTEGER NOT NULL,
+                event_count INTEGER NOT NULL,
+                byte_count INTEGER NOT NULL,
+                script_text TEXT NOT NULL,
+                UNIQUE(subtitle_file_id, segment_index),
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ass_render_segments_lookup
+                ON ass_render_segments(subtitle_file_id, start_ms, end_ms);
             """
         )
 
@@ -224,6 +249,7 @@ public final class SubtitleDatabase {
         videoFile: URL,
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
+        assRenderSegments: [ASSRenderSegmentPayload] = [],
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil
     ) throws {
@@ -240,6 +266,10 @@ public final class SubtitleDatabase {
             )
             let videoFileID = try upsertVideoFile(videoFile)
             try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
+
+            for segment in assRenderSegments {
+                try insertASSRenderSegment(subtitleFileID: subtitleFileID, segment: segment)
+            }
 
             for group in cueGroups {
                 let cueGroupID = try insertCueGroup(
@@ -324,6 +354,58 @@ public final class SubtitleDatabase {
         return timings
     }
 
+    public func hasASSRenderSegments(forSubtitleFile subtitleFile: URL) throws -> Bool {
+        let statement = try database.prepare(
+            """
+            SELECT 1
+            FROM ass_render_segments s
+            JOIN subtitle_files sf ON sf.id = s.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        return try statement.step()
+    }
+
+    public func assRenderSegment(
+        forSubtitleFile subtitleFile: URL,
+        atMilliseconds milliseconds: Int
+    ) throws -> ASSRenderSegment? {
+        let timestamp = max(0, milliseconds)
+        let statement = try database.prepare(
+            """
+            SELECT sf.subtitle_path, s.start_ms, s.end_ms, s.script_text,
+                   s.event_count, s.byte_count
+            FROM ass_render_segments s
+            JOIN subtitle_files sf ON sf.id = s.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND s.start_ms <= ?
+              AND s.end_ms > ?
+            ORDER BY s.start_ms DESC, s.segment_index DESC
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(timestamp, at: 2)
+        try statement.bind(timestamp, at: 3)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return ASSRenderSegment(
+            subtitlePath: statement.stringColumn(0),
+            startMilliseconds: statement.intColumn(1),
+            endMilliseconds: statement.intColumn(2),
+            scriptText: statement.stringColumn(3),
+            eventCount: statement.intColumn(4),
+            byteCount: statement.intColumn(5)
+        )
+    }
+
     public func subtitleFiles() throws -> [SubtitleFileMetadata] {
         let statement = try database.prepare(
             """
@@ -387,6 +469,7 @@ public final class SubtitleDatabase {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
+            try database.execute("DELETE FROM ass_render_segments;")
             try database.execute("DELETE FROM subtitle_files;")
             try database.execute("DELETE FROM video_files;")
             try database.execute("DELETE FROM search_paths;")
@@ -770,6 +853,23 @@ public final class SubtitleDatabase {
 
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
+            let deleteASSRenderSegments = try database.prepare(
+                """
+                DELETE FROM ass_render_segments
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteASSRenderSegments,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteASSRenderSegments.run()
+
             let deleteFTS = try database.prepare(
                 """
                 DELETE FROM subtitle_cue_groups_fts
@@ -1032,6 +1132,35 @@ public final class SubtitleDatabase {
         try statement.run()
     }
 
+    private func insertASSRenderSegment(
+        subtitleFileID: Int64,
+        segment: ASSRenderSegmentPayload
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO ass_render_segments(
+                subtitle_file_id,
+                segment_index,
+                start_ms,
+                end_ms,
+                event_count,
+                byte_count,
+                script_text
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?);
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(segment.segmentIndex, at: 2)
+        try statement.bind(segment.startMilliseconds, at: 3)
+        try statement.bind(segment.endMilliseconds, at: 4)
+        try statement.bind(segment.eventCount, at: 5)
+        try statement.bind(segment.byteCount, at: 6)
+        try statement.bind(segment.scriptText, at: 7)
+        try statement.run()
+    }
+
     private func insertFTSRow(cueGroupID: Int64, content: String) throws {
         let statement = try database.prepare(
             """
@@ -1083,6 +1212,19 @@ public final class SubtitleDatabase {
     }
 
     private func deleteIndexedSubtitlePath(_ subtitlePath: String) throws {
+        let deleteASSRenderSegments = try database.prepare(
+            """
+            DELETE FROM ass_render_segments
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteASSRenderSegments.bind(subtitlePath, at: 1)
+        try deleteASSRenderSegments.run()
+
         let deleteFTS = try database.prepare(
             """
             DELETE FROM subtitle_cue_groups_fts
@@ -1121,6 +1263,7 @@ public final class SubtitleDatabase {
             DROP TABLE IF EXISTS subtitle_cue_groups_fts;
             DROP TABLE IF EXISTS subtitle_cue_lines;
             DROP TABLE IF EXISTS subtitle_cue_groups;
+            DROP TABLE IF EXISTS ass_render_segments;
             DROP TABLE IF EXISTS subtitle_video_matches;
             DROP TABLE IF EXISTS video_files;
             DROP TABLE IF EXISTS subtitle_entries_fts;

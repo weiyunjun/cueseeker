@@ -427,6 +427,10 @@ Required render timeline coverage:
   render payload from the source `.ass` file.
 - Partial timeline caches are keyed by both source file identity and prepared
   time window, and they invalidate when the source subtitle file changes.
+- Large ASS render-segment caches must be verified at the indexing and playback
+  boundary: indexing stores segment scripts, unchanged reindex skips only when
+  those segments exist, and legacy `libass` can load the segment from memory for
+  the current timestamp.
 
 Required non-blocking playback checks:
 
