@@ -134,6 +134,58 @@ The dependency decision must account for:
 ASS Lite remains an interim fallback for simple text-only cases and for
 regression isolation.
 
+### Playback Renderer Optimization Direction
+
+The source-faithful renderer should preserve the sparse shape of `libass`
+output instead of treating every subtitle update as a full-video-frame image.
+The current isolated renderer probe may produce full RGBA frames because that
+is convenient for PNG validation, but production playback should not assume
+that full-frame bitmap output is the final architecture.
+
+The optimization direction is:
+
+```text
+libass ASS_Image list
+Process actual subtitle images or dirty rectangles only
+Reuse subtitle buffers or upload subtitle output to a texture
+Update renderer output only when libass reports a visual change or the subtitle
+event timeline requires it
+Reuse the previous subtitle surface while video frames continue to advance
+```
+
+Implementation notes:
+
+- `libass` returns an `ASS_Image` linked list from `ass_render_frame`. Each
+  image already carries bitmap, size, destination position, color, and alpha
+  information for the visible subtitle output. The playback path should prefer
+  this sparse image list over immediately expanding it into a full
+  `videoWidth * videoHeight * 4` RGBA buffer.
+- Dirty-rectangle rendering should bound CPU work and memory to the actual
+  subtitle area. A single dialogue line on a 1080p or 4K video should not force
+  allocation and compositing of a transparent full-frame subtitle bitmap.
+- Subtitle buffers should be reused across frames when the render dimensions
+  remain compatible. Reuse should reduce large transient allocations, Swift
+  `Data` copies, `CGImage` churn, autorelease pressure, and Core Animation
+  backing-store growth.
+- Texture-backed subtitle presentation is preferred for the production overlay
+  if it proves practical. A texture or layer surface can be updated by region
+  and composited over the video by the native graphics stack, avoiding repeated
+  full-frame `CGImage` creation.
+- `ass_render_frame` provides a change signal through its `detect_change`
+  output. For static ASS dialogue, playback should keep presenting the previous
+  subtitle surface when visual output has not changed. Animated ASS features
+  such as karaoke, fades, moves, transforms, and dense effects may still update
+  frequently, but they should not require full-frame allocation as the default
+  cost model.
+- Video frame refresh and subtitle surface refresh are separate lifecycles. The
+  video may continue advancing while the subtitle overlay reuses the most recent
+  valid surface until the subtitle renderer produces a changed one.
+
+Memory optimization work should first focus on avoiding full-frame subtitle
+bitmap expansion in the playback path before considering a change of ASS
+semantic renderer. `libass` remains the selected renderer direction; the likely
+optimization gap is how CueSeeker consumes and presents its output.
+
 ### Failure Visibility During Development
 
 Renderer failures should be explicit while the source-faithful path is being

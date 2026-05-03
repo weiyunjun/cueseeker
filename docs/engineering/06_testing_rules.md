@@ -175,6 +175,20 @@ Rules:
 - A software playback memory fix is not acceptable if it materially increases
   click-to-first-frame latency, reduces decoder parallelism as its primary
   strategy, or masks the issue only by changing the measurement method.
+- ASS subtitle rendering memory work must be judged primarily through
+  end-to-end playback acceptance, not isolated renderer probes alone. The core
+  acceptance question is whether the user-visible memory drop is meaningful
+  while playback, seeking, subtitle visibility toggling, and Theater Mode remain
+  stable.
+- ASS renderer measurements should compare the same video across no subtitles,
+  SRT subtitles, simple ASS subtitles, and complex ASS subtitles. Useful
+  observation points include process memory after open, after steady playback,
+  after repeated seeks, after subtitle hide/show toggles, after fullscreen
+  transitions, and after closing playback.
+- Numeric memory samples are supporting evidence for ASS renderer changes, but
+  they do not replace perceptual acceptance. A change should not be accepted if
+  memory appears lower only in a narrow sample while visible playback behavior,
+  subtitle fidelity, responsiveness, or lifecycle stability regresses.
 - Playback engine-specific behavior must be documented after the engine is selected.
 - Final playback engine verification criteria must be updated after the playback ADR is accepted.
 
