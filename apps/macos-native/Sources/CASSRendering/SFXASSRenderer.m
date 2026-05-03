@@ -43,6 +43,21 @@ NSString * const SFXASSRenderingErrorDomain = @"CueSeeker.ASSRendering";
 
 @end
 
+@interface SFXASSCroppedRenderOutput ()
+
+- (instancetype)initWithRGBAData:(NSData *)rgbaData
+                            width:(NSInteger)width
+                           height:(NSInteger)height
+                           stride:(NSInteger)stride
+                     destinationX:(NSInteger)destinationX
+                     destinationY:(NSInteger)destinationY
+                       frameWidth:(NSInteger)frameWidth
+                      frameHeight:(NSInteger)frameHeight
+                       imageCount:(NSInteger)imageCount
+                          changed:(BOOL)changed NS_DESIGNATED_INITIALIZER;
+
+@end
+
 static NSError *SFXASSRenderingError(SFXASSRenderingErrorCode code, NSString *message) {
     return [NSError errorWithDomain:SFXASSRenderingErrorDomain
                                code:code
@@ -148,6 +163,115 @@ static NSArray<SFXASSImage *> *SFXCopyASSImages(ASS_Image *images) {
     }
 
     return copiedImages;
+}
+
+static BOOL SFXASSVisibleBounds(
+    ASS_Image *images,
+    NSInteger frameWidth,
+    NSInteger frameHeight,
+    NSInteger *minX,
+    NSInteger *minY,
+    NSInteger *maxX,
+    NSInteger *maxY,
+    NSInteger *imageCount
+) {
+    NSInteger nextMinX = frameWidth;
+    NSInteger nextMinY = frameHeight;
+    NSInteger nextMaxX = 0;
+    NSInteger nextMaxY = 0;
+    NSInteger nextImageCount = 0;
+
+    for (ASS_Image *image = images; image != NULL; image = image->next) {
+        if (image->w <= 0 || image->h <= 0 || image->bitmap == NULL || image->stride <= 0) {
+            continue;
+        }
+
+        int sourceOpacity = 255 - (int)(image->color & 0xff);
+        if (sourceOpacity <= 0) {
+            continue;
+        }
+
+        NSInteger imageMinX = MAX((NSInteger)image->dst_x, 0);
+        NSInteger imageMinY = MAX((NSInteger)image->dst_y, 0);
+        NSInteger imageMaxX = MIN((NSInteger)image->dst_x + image->w, frameWidth);
+        NSInteger imageMaxY = MIN((NSInteger)image->dst_y + image->h, frameHeight);
+        if (imageMinX >= imageMaxX || imageMinY >= imageMaxY) {
+            continue;
+        }
+
+        nextMinX = MIN(nextMinX, imageMinX);
+        nextMinY = MIN(nextMinY, imageMinY);
+        nextMaxX = MAX(nextMaxX, imageMaxX);
+        nextMaxY = MAX(nextMaxY, imageMaxY);
+        nextImageCount += 1;
+    }
+
+    if (nextImageCount == 0) {
+        return NO;
+    }
+
+    *minX = nextMinX;
+    *minY = nextMinY;
+    *maxX = nextMaxX;
+    *maxY = nextMaxY;
+    *imageCount = nextImageCount;
+    return YES;
+}
+
+static void SFXCompositeASSImagesIntoCrop(
+    ASS_Image *images,
+    uint8_t *destination,
+    NSInteger cropMinX,
+    NSInteger cropMinY,
+    NSInteger cropMaxX,
+    NSInteger cropMaxY,
+    NSInteger destinationStride
+) {
+    for (ASS_Image *image = images; image != NULL; image = image->next) {
+        if (image->w <= 0 || image->h <= 0 || image->bitmap == NULL || image->stride <= 0) {
+            continue;
+        }
+
+        int sourceRed = (int)((image->color >> 24) & 0xff);
+        int sourceGreen = (int)((image->color >> 16) & 0xff);
+        int sourceBlue = (int)((image->color >> 8) & 0xff);
+        int sourceOpacity = 255 - (int)(image->color & 0xff);
+
+        if (sourceOpacity <= 0) {
+            continue;
+        }
+
+        NSInteger imageMinX = MAX((NSInteger)image->dst_x, cropMinX);
+        NSInteger imageMinY = MAX((NSInteger)image->dst_y, cropMinY);
+        NSInteger imageMaxX = MIN((NSInteger)image->dst_x + image->w, cropMaxX);
+        NSInteger imageMaxY = MIN((NSInteger)image->dst_y + image->h, cropMaxY);
+        if (imageMinX >= imageMaxX || imageMinY >= imageMaxY) {
+            continue;
+        }
+
+        for (NSInteger destinationY = imageMinY; destinationY < imageMaxY; destinationY++) {
+            NSInteger sourceY = destinationY - image->dst_y;
+            uint8_t *sourceRow = image->bitmap + (sourceY * image->stride);
+            uint8_t *destinationRow = destination + ((destinationY - cropMinY) * destinationStride);
+
+            for (NSInteger destinationX = imageMinX; destinationX < imageMaxX; destinationX++) {
+                NSInteger sourceX = destinationX - image->dst_x;
+                int mask = sourceRow[sourceX];
+                int sourceAlpha = (mask * sourceOpacity + 127) / 255;
+                if (sourceAlpha <= 0) {
+                    continue;
+                }
+
+                uint8_t *pixel = destinationRow + ((destinationX - cropMinX) * 4);
+                int inverseAlpha = 255 - sourceAlpha;
+
+                pixel[0] = (uint8_t)((sourceRed * sourceAlpha + pixel[0] * inverseAlpha + 127) / 255);
+                pixel[1] = (uint8_t)((sourceGreen * sourceAlpha + pixel[1] * inverseAlpha + 127) / 255);
+                pixel[2] = (uint8_t)((sourceBlue * sourceAlpha + pixel[2] * inverseAlpha + 127) / 255);
+                pixel[3] = (uint8_t)(sourceAlpha + (pixel[3] * inverseAlpha + 127) / 255);
+            }
+        }
+    }
 }
 
 static BOOL SFXASSValidateSourcePath(NSString *path, NSError **error) {
@@ -314,6 +438,38 @@ static BOOL SFXASSValidateFrameSize(NSInteger frameWidth, NSInteger frameHeight,
 
 @end
 
+@implementation SFXASSCroppedRenderOutput
+
+- (instancetype)initWithRGBAData:(NSData *)rgbaData
+                            width:(NSInteger)width
+                           height:(NSInteger)height
+                           stride:(NSInteger)stride
+                     destinationX:(NSInteger)destinationX
+                     destinationY:(NSInteger)destinationY
+                       frameWidth:(NSInteger)frameWidth
+                      frameHeight:(NSInteger)frameHeight
+                       imageCount:(NSInteger)imageCount
+                          changed:(BOOL)changed {
+    self = [super init];
+    if (self == nil) {
+        return nil;
+    }
+
+    _rgbaData = [rgbaData copy];
+    _width = width;
+    _height = height;
+    _stride = stride;
+    _destinationX = destinationX;
+    _destinationY = destinationY;
+    _frameWidth = frameWidth;
+    _frameHeight = frameHeight;
+    _imageCount = imageCount;
+    _changed = changed;
+    return self;
+}
+
+@end
+
 @implementation SFXASSRendererSession {
     ASS_Library *_library;
     ASS_Renderer *_renderer;
@@ -434,6 +590,85 @@ static BOOL SFXASSValidateFrameSize(NSInteger frameWidth, NSInteger frameHeight,
                                                 frameWidth:self.frameWidth
                                                frameHeight:self.frameHeight
                                                    changed:detectChange != 0];
+}
+
+- (nullable SFXASSCroppedRenderOutput *)renderCroppedImageAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
+                                                                            error:(NSError **)error {
+    if (timestampMilliseconds < 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Timestamp must be non-negative.");
+        return nil;
+    }
+    if (_renderer == NULL || _track == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"libass renderer session is not initialized.");
+        return nil;
+    }
+
+    int detectChange = 0;
+    ASS_Image *images = ass_render_frame(_renderer, _track, (long long)timestampMilliseconds, &detectChange);
+
+    NSInteger minX = 0;
+    NSInteger minY = 0;
+    NSInteger maxX = 0;
+    NSInteger maxY = 0;
+    NSInteger imageCount = 0;
+    BOOL hasVisibleBounds = SFXASSVisibleBounds(
+        images,
+        self.frameWidth,
+        self.frameHeight,
+        &minX,
+        &minY,
+        &maxX,
+        &maxY,
+        &imageCount
+    );
+
+    if (!hasVisibleBounds) {
+        return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:[NSData data]
+                                                             width:0
+                                                            height:0
+                                                            stride:0
+                                                      destinationX:0
+                                                      destinationY:0
+                                                        frameWidth:self.frameWidth
+                                                       frameHeight:self.frameHeight
+                                                        imageCount:0
+                                                           changed:detectChange != 0];
+    }
+
+    NSInteger cropWidth = maxX - minX;
+    NSInteger cropHeight = maxY - minY;
+    NSInteger stride = cropWidth * 4;
+    if (cropWidth <= 0 || cropHeight <= 0 || cropHeight > NSIntegerMax / stride) {
+        SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"Computed ASS cropped output dimensions are invalid.");
+        return nil;
+    }
+
+    NSMutableData *rgbaData = [NSMutableData dataWithLength:(NSUInteger)(stride * cropHeight)];
+    if (rgbaData == nil) {
+        SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"Could not allocate ASS cropped render output buffer.");
+        return nil;
+    }
+
+    SFXCompositeASSImagesIntoCrop(
+        images,
+        (uint8_t *)rgbaData.mutableBytes,
+        minX,
+        minY,
+        maxX,
+        maxY,
+        stride
+    );
+
+    return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:rgbaData
+                                                         width:cropWidth
+                                                        height:cropHeight
+                                                        stride:stride
+                                                  destinationX:minX
+                                                  destinationY:minY
+                                                    frameWidth:self.frameWidth
+                                                   frameHeight:self.frameHeight
+                                                    imageCount:imageCount
+                                                       changed:detectChange != 0];
 }
 
 - (void)dealloc {

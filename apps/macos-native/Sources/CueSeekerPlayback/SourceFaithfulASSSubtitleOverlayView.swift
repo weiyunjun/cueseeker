@@ -3,7 +3,7 @@ import CASSRendering
 import CoreGraphics
 import Foundation
 
-private struct ASSImageTile: @unchecked Sendable {
+private struct ASSCroppedSurface: @unchecked Sendable {
     let rgbaData: Data
     let width: Int
     let height: Int
@@ -13,7 +13,7 @@ private struct ASSImageTile: @unchecked Sendable {
 }
 
 private struct ASSSparseFrame: @unchecked Sendable {
-    let tiles: [ASSImageTile]
+    let surface: ASSCroppedSurface?
     let frameWidth: Int
     let frameHeight: Int
     let timestampMilliseconds: Int
@@ -92,9 +92,9 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             }
 
             do {
-                let output = try session.renderImages(atTimestampMilliseconds: timestampMilliseconds)
+                let output = try session.renderCroppedImage(atTimestampMilliseconds: timestampMilliseconds)
                 let frame = ASSSparseFrame(
-                    tiles: output.images.compactMap(Self.makeTile(from:)),
+                    surface: Self.makeSurface(from: output),
                     frameWidth: output.frameWidth,
                     frameHeight: output.frameHeight,
                     timestampMilliseconds: timestampMilliseconds
@@ -109,65 +109,21 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
     }
 
-    private static func makeTile(from image: SFXASSImage) -> ASSImageTile? {
-        let width = image.width
-        let height = image.height
-        let sourceStride = image.stride
-        guard width > 0, height > 0, sourceStride > 0 else {
+    private static func makeSurface(from output: SFXASSCroppedRenderOutput) -> ASSCroppedSurface? {
+        let width = output.width
+        let height = output.height
+        let stride = output.stride
+        guard width > 0, height > 0, stride > 0, output.rgbaData.count > 0 else {
             return nil
         }
 
-        let color = image.color
-        let sourceRed = Int((color >> 24) & 0xff)
-        let sourceGreen = Int((color >> 16) & 0xff)
-        let sourceBlue = Int((color >> 8) & 0xff)
-        let sourceOpacity = 255 - Int(color & 0xff)
-        guard sourceOpacity > 0 else {
-            return nil
-        }
-
-        let destinationStride = width * 4
-        let maskData = image.bitmapData as Data
-        var rgbaData = Data(count: destinationStride * height)
-
-        rgbaData.withUnsafeMutableBytes { rgbaBuffer in
-            guard let rgbaBase = rgbaBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
-                return
-            }
-
-            maskData.withUnsafeBytes { maskBuffer in
-                guard let maskBase = maskBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
-                    return
-                }
-
-                for y in 0..<height {
-                    let sourceRow = maskBase + (y * sourceStride)
-                    let destinationRow = rgbaBase + (y * destinationStride)
-
-                    for x in 0..<width {
-                        let mask = Int(sourceRow[x])
-                        let sourceAlpha = (mask * sourceOpacity + 127) / 255
-                        if sourceAlpha <= 0 {
-                            continue
-                        }
-
-                        let pixel = destinationRow + (x * 4)
-                        pixel[0] = UInt8((sourceRed * sourceAlpha + 127) / 255)
-                        pixel[1] = UInt8((sourceGreen * sourceAlpha + 127) / 255)
-                        pixel[2] = UInt8((sourceBlue * sourceAlpha + 127) / 255)
-                        pixel[3] = UInt8(sourceAlpha)
-                    }
-                }
-            }
-        }
-
-        return ASSImageTile(
-            rgbaData: rgbaData,
+        return ASSCroppedSurface(
+            rgbaData: output.rgbaData as Data,
             width: width,
             height: height,
-            stride: destinationStride,
-            destinationX: image.destinationX,
-            destinationY: image.destinationY
+            stride: stride,
+            destinationX: output.destinationX,
+            destinationY: output.destinationY
         )
     }
 
@@ -227,7 +183,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var renderedFrame: ASSRenderedFrame?
     private var failureMessage: String?
     private let subtitleContainerLayer = CALayer()
-    private var subtitleTileLayers: [(tile: ASSImageTile, layer: CALayer)] = []
+    private var subtitleSurfaceLayer: CALayer?
 
     override var isFlipped: Bool {
         true
@@ -433,26 +389,26 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         subtitleContainerLayer.isHidden = !areSubtitlesVisible
 
-        for tile in frame.tiles {
-            guard let tileImage = makeImage(from: tile) else {
-                continue
-            }
-
-            let tileLayer = CALayer()
-            tileLayer.contents = tileImage
-            tileLayer.contentsGravity = .resize
-            tileLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-            tileLayer.magnificationFilter = .linear
-            tileLayer.minificationFilter = .linear
-            tileLayer.actions = [
-                "contents": NSNull(),
-                "position": NSNull(),
-                "bounds": NSNull(),
-                "frame": NSNull()
-            ]
-            subtitleContainerLayer.addSublayer(tileLayer)
-            subtitleTileLayers.append((tile: tile, layer: tileLayer))
+        guard let surface = frame.surface,
+              let surfaceImage = makeImage(from: surface)
+        else {
+            return
         }
+
+        let surfaceLayer = CALayer()
+        surfaceLayer.contents = surfaceImage
+        surfaceLayer.contentsGravity = .resize
+        surfaceLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        surfaceLayer.magnificationFilter = .linear
+        surfaceLayer.minificationFilter = .linear
+        surfaceLayer.actions = [
+            "contents": NSNull(),
+            "position": NSNull(),
+            "bounds": NSNull(),
+            "frame": NSNull()
+        ]
+        subtitleContainerLayer.addSublayer(surfaceLayer)
+        subtitleSurfaceLayer = surfaceLayer
 
         updatePresentationLayout(for: .sparse(frame))
     }
@@ -477,34 +433,34 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         let scaleX = videoRect.width / CGFloat(frame.frameWidth)
         let scaleY = videoRect.height / CGFloat(frame.frameHeight)
 
-        for (tile, tileLayer) in subtitleTileLayers {
-            tileLayer.frame = CGRect(
-                x: videoRect.minX + (CGFloat(tile.destinationX) * scaleX),
-                y: videoRect.minY + (CGFloat(tile.destinationY) * scaleY),
-                width: CGFloat(tile.width) * scaleX,
-                height: CGFloat(tile.height) * scaleY
+        if let surface = frame.surface, let subtitleSurfaceLayer {
+            subtitleSurfaceLayer.frame = CGRect(
+                x: videoRect.minX + (CGFloat(surface.destinationX) * scaleX),
+                y: videoRect.minY + (CGFloat(surface.destinationY) * scaleY),
+                width: CGFloat(surface.width) * scaleX,
+                height: CGFloat(surface.height) * scaleY
             )
         }
     }
 
     private func clearSubtitleLayers() {
-        subtitleTileLayers.forEach { $0.layer.removeFromSuperlayer() }
-        subtitleTileLayers.removeAll(keepingCapacity: true)
+        subtitleSurfaceLayer?.removeFromSuperlayer()
+        subtitleSurfaceLayer = nil
     }
 
-    private func makeImage(from tile: ASSImageTile) -> CGImage? {
-        guard let provider = CGDataProvider(data: tile.rgbaData as CFData) else {
+    private func makeImage(from surface: ASSCroppedSurface) -> CGImage? {
+        guard let provider = CGDataProvider(data: surface.rgbaData as CFData) else {
             failureMessage = "ASS renderer produced image data that could not be displayed."
             return nil
         }
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         return CGImage(
-            width: tile.width,
-            height: tile.height,
+            width: surface.width,
+            height: surface.height,
             bitsPerComponent: 8,
             bitsPerPixel: 32,
-            bytesPerRow: tile.stride,
+            bytesPerRow: surface.stride,
             space: colorSpace,
             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
             provider: provider,

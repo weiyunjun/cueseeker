@@ -53,6 +53,23 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 
 @end
 
+@interface SFXASSCroppedRenderOutput : NSObject
+
+@property (nonatomic, copy, readonly) NSData *rgbaData;
+@property (nonatomic, readonly) NSInteger width;
+@property (nonatomic, readonly) NSInteger height;
+@property (nonatomic, readonly) NSInteger stride;
+@property (nonatomic, readonly) NSInteger destinationX;
+@property (nonatomic, readonly) NSInteger destinationY;
+@property (nonatomic, readonly) NSInteger frameWidth;
+@property (nonatomic, readonly) NSInteger frameHeight;
+@property (nonatomic, readonly) NSInteger imageCount;
+@property (nonatomic, readonly) BOOL changed;
+
+- (instancetype)init NS_UNAVAILABLE;
+
+@end
+
 @interface SFXASSRendererSession : NSObject
 
 @property (nonatomic, copy, readonly) NSString *sourcePath;
@@ -74,6 +91,10 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 - (nullable SFXASSImageRenderOutput *)renderImagesAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
                                                                     error:(NSError **)error
     NS_SWIFT_NAME(renderImages(atTimestampMilliseconds:));
+
+- (nullable SFXASSCroppedRenderOutput *)renderCroppedImageAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
+                                                                            error:(NSError **)error
+    NS_SWIFT_NAME(renderCroppedImage(atTimestampMilliseconds:));
 
 - (void)close;
 

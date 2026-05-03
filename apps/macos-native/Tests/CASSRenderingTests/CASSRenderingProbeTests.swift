@@ -73,6 +73,27 @@ final class CASSRenderingProbeTests: XCTestCase {
         XCTAssertGreaterThan(secondFrame.imageCount, 0)
     }
 
+    func testRendererSessionProducesCroppedOutput() throws {
+        let fixtureURL = try XCTUnwrap(Bundle.module.url(forResource: "complex-effects", withExtension: "ass"))
+        let session = try SFXASSRendererSession(
+            assFileAtPath: fixtureURL.path,
+            frameWidth: 640,
+            frameHeight: 360,
+            fontsDirectory: nil
+        )
+
+        let output = try session.renderCroppedImage(atTimestampMilliseconds: 1_500)
+
+        XCTAssertGreaterThan(output.imageCount, 0)
+        XCTAssertGreaterThan(output.width, 0)
+        XCTAssertGreaterThan(output.height, 0)
+        XCTAssertLessThanOrEqual(output.width, output.frameWidth)
+        XCTAssertLessThanOrEqual(output.height, output.frameHeight)
+        XCTAssertEqual(output.stride, output.width * 4)
+        XCTAssertEqual(output.rgbaData.count, output.stride * output.height)
+        XCTAssertGreaterThan(nonTransparentPixelCount(in: output.rgbaData), 0)
+    }
+
     func testRendererSessionCloseIsIdempotentAndPreventsFurtherRendering() throws {
         let fixtureURL = try XCTUnwrap(Bundle.module.url(forResource: "complex-effects", withExtension: "ass"))
         let session = try SFXASSRendererSession(
