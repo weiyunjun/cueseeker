@@ -195,6 +195,16 @@ Rules:
 - The `libass` ASS renderer path remains available through Settings as a
   long-term selectable reference and compatibility option. Native ASS rendering
   remains the default direction for new project-owned renderer work.
+- ASS renderer clock updates should come from one render-oriented timing source
+  per active renderer. UI playback-time notifications and subtitle render-clock
+  updates must not both independently drive ASS overlay rendering.
+- Dynamic ASS features such as `\move`, transforms, blur, karaoke, and dense
+  effects should be coordinated through a display-refresh-oriented render clock
+  when practical. The legacy `libass` path currently uses a `CVDisplayLink`-based
+  subtitle clock for this purpose; native renderer work may reuse this direction.
+- ASS overlay presentation should preserve source renderer coordinates and map
+  them deliberately into the displayed video rectangle, not the full playback
+  container.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - The database cue projection must not be treated as a replacement ASS renderer.

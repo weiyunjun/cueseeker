@@ -196,6 +196,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
   lifecycle-safe clear or stop recovery work.
 - Clarified that the `libass` ASS renderer is a long-term selectable reference
   and compatibility option rather than only a temporary transition path.
+- Implemented the first retained legacy `libass` optimization pass: explicit
+  renderer-session teardown, retained layer-backed subtitle presentation,
+  cropped subtitle-surface output, corrected layer-coordinate mapping, and a
+  single `CVDisplayLink`-driven ASS subtitle render clock.
+- Documented the remaining dynamic ASS jitter limitation for complex `libass`
+  samples using motion, transforms, blur, or dense effects. The current behavior
+  is acceptable for Phase 1, and the single render-clock direction may be reused
+  by later native ASS renderer work.
 - Reframed later native ASS rendering phases as a flexible, user-led
   real-sample exploration process: Phase 2 analyzes and implements coverage
   from real subtitle samples, Phase 3 defines compromise or unsupported-behavior

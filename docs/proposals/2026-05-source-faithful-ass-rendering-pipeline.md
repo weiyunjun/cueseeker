@@ -210,6 +210,11 @@ Verified legacy `libass` optimization directions:
   presentation state after subtitle clearing or playback stop. The known risk is
   lifecycle correctness: teardown crash or leak behavior must be fixed before
   this direction is accepted as complete.
+- Subtitle clock consolidation is a validated legacy `libass` stabilization
+  direction. The useful part is to avoid driving ASS rendering from multiple
+  asynchronous playback time sources. Playback should keep UI progress updates
+  separate from subtitle render-clock updates, and the subtitle renderer should
+  receive timing from one display-refresh-oriented source.
 
 Non-validated or rejected legacy optimization directions should not be treated as
 accepted just because they appear in the high-level optimization list above.
@@ -218,6 +223,38 @@ reuse, and generic texture upload need fresh evidence in the current codebase
 before they can be treated as useful. The committed optimization direction for
 legacy `libass` should therefore start from H4, H3, and the lifecycle-safe subset
 of H7.
+
+Current legacy `libass` implementation state:
+
+- H7 has a first lifecycle-safe implementation: the bridge exposes explicit
+  idempotent renderer-session close behavior, and playback clears retained ASS
+  presentation state when the subtitle source is removed, playback stops, or
+  renderer state is reset.
+- H4 has a first implementation: legacy ASS playback presentation uses retained
+  layer contents instead of rebuilding subtitle images during AppKit draw calls.
+- H3 has a first implementation: the bridge composites libass output into a
+  cropped subtitle surface instead of carrying a full-video transparent subtitle
+  bitmap through playback presentation.
+- The cropped surface keeps libass top-origin coordinates and maps them into
+  the playback layer coordinate space when presenting over the displayed video
+  rectangle.
+- Legacy ASS render timing is now driven from a single `CVDisplayLink`-based
+  subtitle clock. Native playback time delegate updates still drive UI progress
+  state, but they no longer directly trigger ASS overlay rendering.
+
+Known remaining legacy `libass` limitations:
+
+- Complex animated ASS such as `\move` combined with rotation, shearing, blur,
+  and dense effects may still show some visible jitter. This is acceptable for
+  the current Phase 1 native `v0` acceptance bar, but it should remain tracked
+  for later native renderer timing and presentation work.
+- The display-link subtitle clock reduces irregular timing caused by dual time
+  sources, but it does not make ASS rendering frame-perfect with the native video
+  presentation pipeline.
+- The native ASS renderer may reuse the same high-level timing lesson: it should
+  avoid multiple subtitle render-clock sources and should prefer a single
+  display-refresh-oriented render coordinator when dynamic ASS features are
+  implemented.
 
 ### Native Subtitle Engine Direction
 
