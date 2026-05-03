@@ -281,6 +281,7 @@ public final class PlaybackRenderContainerView: NSView {
     private weak var attachedView: NSView?
     private var assLiteOverlayView: ASSLiteSubtitleOverlayView?
     private var sourceFaithfulASSOverlayView: SourceFaithfulASSSubtitleOverlayView?
+    private var nativeASSOverlayView: NativeASSSubtitleOverlayView?
     private var currentASSSubtitleTimeMilliseconds = 0
     private var currentSubtitlesVisible = true
     private var currentVideoSize: CGSize?
@@ -317,6 +318,7 @@ public final class PlaybackRenderContainerView: NSView {
         attachedView?.frame = bounds
         assLiteOverlayView?.frame = bounds
         sourceFaithfulASSOverlayView?.frame = bounds
+        nativeASSOverlayView?.frame = bounds
     }
 
     func setASSSubtitleScript(_ script: ASSLiteScript) {
@@ -343,16 +345,30 @@ public final class PlaybackRenderContainerView: NSView {
         sourceFaithfulASSOverlayView?.setSource(nil)
     }
 
+    func setNativeASSSubtitleSource(_ source: PlaybackSubtitleSource) {
+        ensureNativeASSOverlayView()
+        nativeASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+        nativeASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
+        nativeASSOverlayView?.videoSize = currentVideoSize
+        nativeASSOverlayView?.setSource(source)
+    }
+
+    func clearNativeASSSubtitleSource() {
+        nativeASSOverlayView?.setSource(nil)
+    }
+
     func setASSSubtitleTime(milliseconds: Int) {
         currentASSSubtitleTimeMilliseconds = milliseconds
         assLiteOverlayView?.currentTimeMilliseconds = milliseconds
         sourceFaithfulASSOverlayView?.currentTimeMilliseconds = milliseconds
+        nativeASSOverlayView?.currentTimeMilliseconds = milliseconds
     }
 
     func setSubtitlesVisible(_ isVisible: Bool) {
         currentSubtitlesVisible = isVisible
         assLiteOverlayView?.areSubtitlesVisible = isVisible
         sourceFaithfulASSOverlayView?.areSubtitlesVisible = isVisible
+        nativeASSOverlayView?.areSubtitlesVisible = isVisible
     }
 
     func setASSSubtitleRenderingMode(_ mode: ASSSubtitleRenderingMode) {
@@ -364,6 +380,7 @@ public final class PlaybackRenderContainerView: NSView {
         currentVideoSize = videoSize
         assLiteOverlayView?.videoSize = videoSize
         sourceFaithfulASSOverlayView?.videoSize = videoSize
+        nativeASSOverlayView?.videoSize = videoSize
     }
 
     private func ensureASSLiteOverlayView() {
@@ -418,6 +435,33 @@ public final class PlaybackRenderContainerView: NSView {
         sourceFaithfulASSOverlayView.renderingMode = currentASSSubtitleRenderingMode
     }
 
+    private func ensureNativeASSOverlayView() {
+        if nativeASSOverlayView == nil {
+            nativeASSOverlayView = NativeASSSubtitleOverlayView(frame: bounds)
+            nativeASSOverlayView?.onRenderingFailure = { [weak self] message in
+                self?.assRenderingFailureHandler?(message)
+            }
+        }
+
+        guard let nativeASSOverlayView else {
+            return
+        }
+
+        if nativeASSOverlayView.superview !== self {
+            addSubview(nativeASSOverlayView)
+        }
+
+        nativeASSOverlayView.frame = bounds
+
+        if let attachedView {
+            addSubview(nativeASSOverlayView, positioned: .above, relativeTo: attachedView)
+        }
+
+        nativeASSOverlayView.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+        nativeASSOverlayView.areSubtitlesVisible = currentSubtitlesVisible
+        nativeASSOverlayView.videoSize = currentVideoSize
+    }
+
     private func ensureASSOverlaysStayAboveAttachedView() {
         guard let attachedView else {
             return
@@ -428,6 +472,9 @@ public final class PlaybackRenderContainerView: NSView {
         }
         if let sourceFaithfulASSOverlayView, sourceFaithfulASSOverlayView.superview === self {
             addSubview(sourceFaithfulASSOverlayView, positioned: .above, relativeTo: attachedView)
+        }
+        if let nativeASSOverlayView, nativeASSOverlayView.superview === self {
+            addSubview(nativeASSOverlayView, positioned: .above, relativeTo: attachedView)
         }
     }
 }

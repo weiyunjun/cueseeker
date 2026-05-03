@@ -48,6 +48,41 @@ func playbackRenderContainerUsesSourceFaithfulOverlayForASSSource() async throws
 }
 
 @Test
+@MainActor
+func playbackRenderContainerCanAttachNativeASSOverlay() async throws {
+    let view = PlaybackRenderContainerView()
+    let subtitleURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerNativeASSOverlay-\(UUID().uuidString)")
+        .appendingPathExtension("ass")
+    defer {
+        try? FileManager.default.removeItem(at: subtitleURL)
+    }
+
+    try """
+    [Script Info]
+    PlayResX: 640
+    PlayResY: 360
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: Default, Helvetica, 32
+
+    [Events]
+    Format: Start, End, Style, Text
+    Dialogue: 0:00:00.00,0:00:02.00,Default,Hello
+    """.write(to: subtitleURL, atomically: true, encoding: .utf8)
+
+    view.setVideoSize(CGSize(width: 640, height: 360))
+    view.setNativeASSSubtitleSource(
+        PlaybackSubtitleSource(url: subtitleURL, format: .ass)
+    )
+
+    #expect(view.subviews.contains { String(describing: type(of: $0)).contains("NativeASSSubtitleOverlayView") })
+    #expect(!view.subviews.contains { String(describing: type(of: $0)).contains("ASSLiteSubtitleOverlayView") })
+    try await Task.sleep(nanoseconds: 100_000_000)
+}
+
+@Test
 func playbackDecodeModeRawValuesMatchSettingsControlValues() {
     #expect(PlaybackDecodeMode.allCases.map(\.rawValue) == ["hardware", "software", "auto"])
     #expect(PlaybackDecodeMode.hardware.displayName == "hardware")
