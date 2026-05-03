@@ -172,6 +172,9 @@ Rules:
   direction is the accepted source-faithful ASS rendering pipeline documented in
   `docs/proposals/2026-05-source-faithful-ass-rendering-pipeline.md` and
   ADR-0009.
+- The current transition keeps renderer selection available in Settings. Native
+  mode is the default direction for new ASS rendering work, and the final
+  product direction is native-only ASS rendering.
 - ASS playback rendering must use the source `.ass` file, or a cache generated
   from that exact source file identity, not the database search projection.
 - Search results should expose readable dialogue or lyric text. Playback
@@ -185,7 +188,8 @@ Rules:
 - The renderer may fall back to ASS Lite when the source-faithful renderer is
   unavailable, but fallback must not block video playback.
 - During source-faithful renderer development, complex ASS rendering failures
-  should be surfaced explicitly instead of being silently hidden by ASS Lite.
+  should be surfaced explicitly instead of being silently hidden by ASS Lite or
+  a legacy renderer path.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.

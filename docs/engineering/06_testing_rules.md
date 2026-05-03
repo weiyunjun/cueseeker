@@ -373,6 +373,26 @@ The source-faithful ASS rendering pipeline is complete only after search,
 playback startup, render preparation, and complex ASS rendering behavior are
 verified separately.
 
+Native ASS renderer visual acceptance is primarily user manual testing. Real
+ASS subtitle files may have tens of thousands of events and complex visual
+behavior, so automated checks may support parser, model, cancellation,
+non-blocking, and regression coverage, but they do not approve native subtitle
+visual quality by themselves.
+
+Required native `v0` manual checks:
+
+- Common ASS dialogue appears correctly enough for subtitle-context review.
+- Simple bilingual or multi-line subtitles remain readable.
+- Unsupported override tags are stripped or omitted instead of shown as raw
+  subtitle text.
+- Subtitle output maps to the displayed video rectangle.
+- Playback, seek, subtitle visibility toggling, Playback Inspector, and Theater
+  Mode remain stable.
+- Search result selection and video open or seek do not wait for native ASS
+  parsing or rendering.
+- Memory behavior for ordinary dialogue is directionally better than full-frame
+  subtitle presentation.
+
 Required search projection coverage:
 
 - Real dialogue and lyric text remains searchable.

@@ -113,16 +113,20 @@ must not block row selection or video controls.
 
 ### Renderer Direction
 
-The long-term direction is a dedicated ASS rendering pipeline that can render
-source ASS events into an overlay bitmap, texture, layer, or equivalent native
-surface synchronized to the native playback clock.
+The long-term direction is a project-owned native ASS rendering pipeline that
+can render source ASS events into overlay surfaces synchronized to the native
+playback clock.
 
-ADR-0009 selects a dedicated source-faithful ASS renderer path with `libass` as
-the preferred renderer dependency to evaluate and integrate first. This replaces
-any plan that treats ASS Lite as the solution for complex ASS rendering. ASS
-Lite remains a simple readable-text fallback and diagnostic comparison path.
+ADR-0009 selects native `v0` as the first renderer phase and a fully native ASS
+rendering pipeline as the final direction. This replaces any plan that treats
+ASS Lite or a `libass`-backed renderer as the final solution for complex ASS
+rendering. ASS Lite remains a simple readable-text fallback and diagnostic
+comparison path. The existing `libass` path may remain selectable during the
+transition for comparison or fallback, but new design discussion defaults to the
+native renderer.
 
-The dependency decision must account for:
+If a build includes a non-system legacy ASS renderer dependency, that decision
+must account for:
 
 - Packaging and notarization.
 - Font discovery and font fallback.
@@ -134,13 +138,14 @@ The dependency decision must account for:
 ASS Lite remains an interim fallback for simple text-only cases and for
 regression isolation.
 
-### Playback Renderer Optimization Direction
+### Legacy Renderer Optimization Context
 
-The source-faithful renderer should preserve the sparse shape of `libass`
+The current legacy `libass` path should preserve the sparse shape of `libass`
 output instead of treating every subtitle update as a full-video-frame image.
-The current isolated renderer probe may produce full RGBA frames because that
-is convenient for PNG validation, but production playback should not assume
-that full-frame bitmap output is the final architecture.
+This section is transition guidance for the legacy path, not the primary native
+`v0` renderer plan. A diagnostic renderer probe may produce full RGBA frames
+because that is convenient for PNG validation, but production playback should
+not assume that full-frame bitmap output is the final architecture.
 
 The optimization direction is:
 
@@ -181,17 +186,19 @@ Implementation notes:
   video may continue advancing while the subtitle overlay reuses the most recent
   valid surface until the subtitle renderer produces a changed one.
 
-Memory optimization work should first focus on avoiding full-frame subtitle
-bitmap expansion in the playback path before considering a change of ASS
-semantic renderer. `libass` remains the selected renderer direction; the likely
-optimization gap is how CueSeeker consumes and presents its output.
+Legacy renderer memory optimization should focus on avoiding full-frame
+subtitle bitmap expansion in the playback path. Native renderer work should
+focus on the `v0` text core first and then expand ASS feature coverage in later
+phases.
 
 ### Native Subtitle Engine Direction
 
-CueSeeker may introduce a project-owned native subtitle engine alongside the
-current `libass`-backed legacy renderer. The version name `legacy` refers to the
-current `libass` sparse-image playback path. Native engine versions start at
-`v0`; this version sequence is independent from Git commit versions.
+CueSeeker will introduce a project-owned native subtitle engine alongside the
+current selectable legacy renderer paths. The version name `legacy` refers to
+non-native transition renderers such as the current `libass` sparse-image
+playback path. Native engine versions start at `v0`; this version sequence is
+independent from Git commit versions. The final product direction is native
+only.
 
 This section intentionally documents only the first phase in detail. Later
 phases are high-level placeholders and must be refined when work on each phase
@@ -296,7 +303,7 @@ object reuse.
 
 Phase 4: define complex ASS routing. The app should decide which source files
 or events stay on the native path, which degrade gracefully, and which continue
-to use the legacy `libass` path.
+to use a legacy renderer during the transition.
 
 Phase 5: add danmaku-specific optimization only after ordinary subtitle
 rendering is stable. Danmaku work may include ASS danmaku classification, lane
@@ -370,121 +377,58 @@ render timeline.
 
 ## Detailed Implementation Plan
 
-### Phase 0: ADR, Dependency, And Evidence
+### Native Phase 0: Routing, Evidence, And Baseline
 
-1. Record the source-faithful renderer decision in an ADR before renderer
-   integration work begins.
-2. Treat `libass` as the preferred first renderer dependency to evaluate.
-3. Document dependency, packaging, signing, notarization, license, and font
-   discovery implications before a build containing the renderer is treated as
-   releasable.
-4. Add fixtures or repeatable local validation samples for complex real-world
-   ASS patterns:
-   - `Effect=fx` events.
-   - `\p1` vector drawing events.
-   - `\clip(...)` text reveal events.
-   - `\pos(...)` and `\move(...)` placement.
-   - alpha, blur, border, fade, rotation, and transform overrides.
-   - Repeated short-duration karaoke or visual-effect events.
-   - Zero-duration or near-zero-duration events.
-5. Add timing instrumentation around:
+1. Keep ADR-0009 aligned with the native renderer direction.
+2. Treat native mode as the default discussion and implementation path.
+3. Keep current Settings-based renderer selection available during the
+   transition.
+4. Document dependency, packaging, signing, notarization, license, and font
+   discovery implications before any build containing a non-system legacy
+   renderer dependency is treated as releasable.
+5. Keep timing instrumentation or repeatable observation points around:
    - Search result click handling.
    - Video open and seek.
    - ASS source file read.
-   - ASS parse or render preparation.
-   - First subtitle frame presentation.
-6. Define performance budgets:
+   - Native ASS parse or render preparation.
+   - First subtitle surface presentation.
+6. Preserve the non-blocking contract:
    - Search row selection should be visible within one UI frame.
    - Video open or seek should not wait for ASS preparation.
    - Subtitle preparation may complete later and catch up.
 7. Document failure exposure behavior for missing, unreadable, unsupported, or
-   renderer-failed subtitle rendering. During source-faithful development,
-   failures should be visible instead of silently hidden by ASS Lite fallback.
+   renderer-failed subtitle rendering. During native renderer development,
+   failures should be visible instead of silently hidden by fallback behavior.
 
-### Phase 1: Isolated Renderer Probe
+### Native Phase 1: `v0` Native Text Core
 
-1. Add a minimal `CASSRendering` native bridge or equivalent isolated target.
-2. Build a renderer probe or test harness that accepts:
-   - source `.ass` URL,
-   - video frame size,
-   - playback timestamp,
-   - optional font directory inputs when needed.
-3. Make the probe produce an RGBA bitmap, alpha bitmap, texture-compatible
-   buffer, or equivalent renderer output.
-4. Validate the probe before UI integration against complex ASS samples:
-   - vector drawing must render as drawing, not text;
-   - clipping must affect output;
-   - special-position text must appear at source-specified coordinates;
-   - fades, alpha, blur, border, rotation, and transforms must be represented
-     by renderer output where the source uses them;
-   - dense short-duration effects must not require main-thread rendering work.
-5. Keep this phase out of the production playback UI until renderer output and
-   dependency behavior are understood.
+1. Implement the native source parser and normalized model:
+   - `NativeASSDocument`
+   - `NativeASSStyle`
+   - `NativeASSEvent`
+   - `NativeASSCue`
+2. Parse `[Script Info]`, `[V4+ Styles]`, `[V4 Styles]`, and `[Events]` using
+   each section's active `Format:` mapping.
+3. Preserve the first-phase style and event fields listed in the native `v0`
+   plan above.
+4. Select active events by playback timestamp and order simultaneous events by
+   layer and source order.
+5. Apply ordinary dialogue styling, `\N` line breaks, alignment, margins, basic
+   outline, and basic shadow.
+6. Strip unsupported override tags instead of rendering tag syntax as visible
+   text.
+7. Produce small subtitle surfaces sized to text bounds and composite them over
+   the displayed video rectangle.
+8. Keep playback running when native subtitle rendering fails, while surfacing
+   the renderer state explicitly.
+9. Preserve SRT behavior and subtitle visibility controls.
+10. Use user manual playback testing as the authority for visual acceptance.
 
-### Phase 2: Non-blocking Playback Contract
+### Later Native Phases
 
-1. Split search result selection from playback startup:
-   - Update `selectedSearchResult` immediately.
-   - Open the Playback Inspector immediately.
-   - Schedule playback work after the UI state update is committed.
-2. Change playback startup so video open and seek do not synchronously call ASS
-   parser or renderer preparation.
-3. Introduce an async source-faithful subtitle preparation task:
-   - Cancel stale tasks when another result is selected.
-   - Reuse prepared subtitle state for the same file.
-   - Attach output only if the selected result is still current.
-4. Keep playback running when subtitle preparation fails, while surfacing the
-   renderer failure explicitly.
-5. Preserve SRT behavior and subtitle visibility controls.
-
-### Phase 3: Render Coordinator, Timeline, And Cache
-
-1. Introduce a real `ASSRenderCoordinator` for the source-faithful renderer.
-   This coordinator must not be a wrapper around ASS Lite.
-2. The coordinator owns:
-   - source file identity,
-   - renderer initialization,
-   - preparation cancellation,
-   - cache lookup and invalidation,
-   - renderer readiness and failure state,
-   - current-time catch-up.
-3. Replace playback-only all-events text parsing with source renderer state or
-   source render timeline data that preserves raw timed events.
-4. Build an active-time index so the renderer can query events by current time
-   without scanning and sorting every dialogue on every frame.
-5. Use database cue timing to prioritize the selected time window and prefetch
-   neighboring windows.
-6. Add a segmented preparation path that uses indexed cue-group timing to choose
-   the selected cue window and nearby deterministic windows, while retrieving
-   the exact render payload from the source `.ass` file.
-7. Cache parsed timelines by source file identity and, for partial timelines, by
-   the prepared time window.
-8. Keep search projection and render timeline separate in code and tests.
-
-### Phase 4: Source-faithful Overlay Integration
-
-1. Add a `SubtitleOverlayHost` capable of displaying renderer bitmap, texture,
-   layer, or equivalent alpha output.
-2. Attach renderer output to the existing playback render container.
-3. Drive subtitle frames from the native playback clock with sufficient cadence
-   for short-duration effects.
-4. Keep Theater Mode fullscreen and Playback Inspector using the same overlay
-   host.
-5. Ensure subtitle visibility toggles renderer output without stopping video.
-6. Handle renderer readiness, failure, and catch-up states without blocking
-   playback controls.
-
-### Phase 5: Search And Playback Regression Hardening
-
-1. Verify search results still return real dialogue and lyric text.
-2. Verify complex ASS visual-effect events are not exposed as meaningless
-   search text.
-3. Verify complex timed events remain available to playback rendering.
-4. Verify SRT indexing and playback do not regress.
-5. Add large-file performance regression tests or repeatable manual profiling
-   scripts.
-6. Verify ASS Lite remains limited to simple text fallback behavior and is not
-   used to mask source-faithful renderer defects.
+Later native phases remain high-level until each phase starts. Candidate areas
+include expanded static ASS support, native text renderer optimization, complex
+ASS routing away from legacy renderers, and danmaku-specific optimization.
 
 ## Acceptance Criteria
 
@@ -492,37 +436,41 @@ render timeline.
   subtitle files.
 - Video open, seek, pause, play, and fullscreen controls do not wait for ASS
   parsing or rendering.
+- Native `v0` renders ordinary ASS dialogue well enough for subtitle-context
+  review during user manual testing.
+- Simple bilingual or multi-line ASS subtitles remain readable.
+- Unsupported override tags are omitted or stripped instead of appearing as raw
+  subtitle text.
+- Native subtitle output maps to the displayed video rectangle.
+- Missing or failed native ASS rendering does not prevent video playback.
+- Memory behavior for ordinary dialogue is directionally better than full-frame
+  subtitle presentation.
 - Search results show readable dialogue or lyric text, not vector path commands.
-- Playback rendering uses source ASS timing and does not discard timed effect
-  events because they are complex.
-- Complex ASS files with many `Effect=fx`, `\p`, and `\clip` events can play
-  without blocking the main UI thread.
-- The renderer can show complex effects when the dedicated renderer is enabled.
-- Missing or failed ASS rendering does not prevent video playback.
-- The distinction between search projection and render timeline is covered by
-  tests and documentation.
+- The distinction between search projection, native render state, and legacy
+  renderer paths is covered by documentation.
 
 ## Risks
 
-- A dedicated ASS renderer may add native dependencies that affect packaging,
-  signing, and notarization.
+- A fully native ASS renderer is a large implementation effort and may require
+  several phases before complex files match user expectations.
 - Font behavior may differ from users' reference players unless font discovery
-  is handled carefully.
+  and fallback are handled carefully.
 - Rendering every complex ASS effect can be CPU or GPU intensive and may need
   frame throttling or cache policy.
 - The render timeline cache must be invalidated reliably when source subtitle
   files change.
 - Segmented loading must not lose source events whose exact render behavior
   extends beyond the selected cue's simple timing window.
-- Maintaining both ASS Lite fallback and source-faithful renderer paths can
-  increase complexity unless ownership boundaries stay explicit.
+- Maintaining ASS Lite, native, and legacy renderer paths during the transition
+  can increase complexity unless ownership boundaries stay explicit.
 
 ## Decision
 
 Accepted.
 
-CueSeeker will move ASS playback from the current ASS Lite text overlay toward a
-source-faithful, non-blocking ASS rendering pipeline. Search projection remains
-optimized for readable text search. Playback rendering remains source-file-owned
-and must preserve timed ASS events. Video playback and UI selection must not be
-blocked by ASS parsing or rendering.
+CueSeeker will move ASS playback from the current ASS Lite text overlay and
+legacy renderer paths toward a fully native, source-file-owned ASS rendering
+pipeline. The first detailed implementation phase is native `v0` text rendering
+for ordinary ASS dialogue. Search projection remains optimized for readable
+text search. Video playback and UI selection must not be blocked by ASS parsing
+or rendering.

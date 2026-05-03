@@ -175,3 +175,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Routed ASS playback subtitles through the libass-backed source-faithful
   overlay path in the native playback render container, keeping ASS Lite out of
   the active ASS playback path so renderer failures surface during development.
+- Updated ADR-0009 to make native `v0` the first ASS renderer phase and a fully
+  project-owned native ASS rendering pipeline the final direction, with legacy
+  renderer paths retained only as transitional selectable options.
