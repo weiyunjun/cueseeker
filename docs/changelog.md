@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a native playback rebuffer gate that pauses audio output when video
+  frame delivery stalls, so NAS or network read jitter produces a unified
+  playback pause instead of allowing audio to run ahead of video and subtitles.
 - Renamed the active project from `SubFinderX` to `CueSeeker`, recorded the
   Chinese product name `字幕求索`, and kept the archived Flutter implementation
   under its historical name for comparison.

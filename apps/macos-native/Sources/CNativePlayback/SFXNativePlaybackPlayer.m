@@ -26,6 +26,8 @@ NSString * const SFXNativePlaybackErrorDomain = @"CueSeeker.NativePlayback";
 static enum AVPixelFormat SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
 static const float SFXMinimumPlaybackRate = 0.5f;
 static const float SFXMaximumPlaybackRate = 2.0f;
+static const double SFXVideoStarvationThresholdSeconds = 0.12;
+static const double SFXVideoStarvationWatchdogIntervalSeconds = 0.05;
 
 static float SFXClampedPlaybackRate(float playbackRate) {
     if (!isfinite(playbackRate)) {
@@ -330,6 +332,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     __weak id<SFXNativePlaybackPlayerDelegate> _delegate;
     __weak SFXNativePlaybackPlayer *_owner;
     dispatch_queue_t _decodeQueue;
+    dispatch_queue_t _starvationQueue;
+    dispatch_source_t _starvationTimer;
 
     AVFormatContext *_formatContext;
     AVCodecContext *_videoCodecContext;
@@ -370,6 +374,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     double _videoFirstMediaSeconds;
     double _videoStartHostSeconds;
     double _lastDelegateUpdateHostSeconds;
+    double _lastVideoOutputHostSeconds;
+    double _rebufferStartedHostSeconds;
     double _pauseStartedHostSeconds;
     float _volume;
     float _playbackRate;
@@ -383,6 +389,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     BOOL _audioClockInitialized;
     BOOL _audioPlayerStarted;
     BOOL _videoClockInitialized;
+    BOOL _isRebuffering;
     BOOL _isPausedInsideLoop;
     atomic_bool _cancelled;
     atomic_bool _finishingForAutomaticRecycle;
@@ -421,6 +428,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _videoStreamIndex = -1;
     _audioStreamIndex = -1;
     _decodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.Decode", DISPATCH_QUEUE_SERIAL);
+    _starvationQueue = dispatch_queue_create("CueSeeker.NativePlayback.Starvation", DISPATCH_QUEUE_SERIAL);
     atomic_init(&_cancelled, false);
     atomic_init(&_finishingForAutomaticRecycle, false);
     atomic_init(&_paused, false);
@@ -788,6 +796,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (void)start {
+    [self startStarvationWatchdog];
     dispatch_async(_decodeQueue, ^{
         @autoreleasepool {
             [self decodeLoop];
@@ -810,10 +819,14 @@ static int SFXOutputChannelCount(int inputChannels) {
     atomic_store(&_playing, !paused);
 
     AVAudioPlayerNode *audioPlayer = _audioPlayer;
+    BOOL shouldPlayAudio = NO;
+    @synchronized (self) {
+        shouldPlayAudio = !paused && audioPlayer != nil && _audioPlayerStarted && !_isRebuffering;
+    }
     dispatch_async(dispatch_get_main_queue(), ^{
         if (paused) {
             [audioPlayer pause];
-        } else if (audioPlayer != nil && _audioPlayerStarted) {
+        } else if (shouldPlayAudio) {
             [audioPlayer play];
         }
     });
@@ -876,6 +889,9 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 - (void)decodeLoop {
     atomic_store(&_playing, true);
+    @synchronized (self) {
+        _lastVideoOutputHostSeconds = CACurrentMediaTime();
+    }
     [self notifyTimeIfNeeded:YES];
 
     while (!atomic_load(&_cancelled) && !atomic_load(&_finishingForAutomaticRecycle)) {
@@ -921,7 +937,8 @@ static int SFXOutputChannelCount(int inputChannels) {
             }
 
             AVAudioPlayerNode *audioPlayer = _audioPlayer;
-            if (_audioPlayerStarted) {
+            BOOL shouldPlayAudio = _audioPlayerStarted && !_isRebuffering;
+            if (shouldPlayAudio) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [audioPlayer play];
                 });
@@ -944,6 +961,118 @@ static int SFXOutputChannelCount(int inputChannels) {
     while (atomic_load(&_paused) && !atomic_load(&_cancelled)) {
         usleep(20 * 1000);
     }
+}
+
+- (void)startStarvationWatchdog {
+    [self stopStarvationWatchdog];
+
+    dispatch_source_t timer = dispatch_source_create(
+        DISPATCH_SOURCE_TYPE_TIMER,
+        0,
+        0,
+        _starvationQueue
+    );
+    if (timer == NULL) {
+        return;
+    }
+
+    uint64_t intervalNanoseconds = (uint64_t)(SFXVideoStarvationWatchdogIntervalSeconds * NSEC_PER_SEC);
+    dispatch_source_set_timer(
+        timer,
+        dispatch_time(DISPATCH_TIME_NOW, intervalNanoseconds),
+        intervalNanoseconds,
+        (uint64_t)(0.01 * NSEC_PER_SEC)
+    );
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_source_set_event_handler(timer, ^{
+        [weakSelf checkVideoStarvation];
+    });
+
+    _starvationTimer = timer;
+    dispatch_resume(timer);
+}
+
+- (void)stopStarvationWatchdog {
+    if (_starvationTimer != NULL) {
+        dispatch_source_cancel(_starvationTimer);
+        _starvationTimer = NULL;
+    }
+}
+
+- (void)checkVideoStarvation {
+    if (atomic_load(&_cancelled)
+        || atomic_load(&_paused)
+        || atomic_load(&_finishingForAutomaticRecycle)) {
+        return;
+    }
+
+    double now = CACurrentMediaTime();
+    BOOL shouldPauseAudio = NO;
+    double starvationSeconds = 0;
+    @synchronized (self) {
+        if (_isRebuffering
+            || !_audioPlayerStarted
+            || !_audioClockInitialized
+            || _lastVideoOutputHostSeconds <= 0) {
+            return;
+        }
+
+        starvationSeconds = now - _lastVideoOutputHostSeconds;
+        if (starvationSeconds < SFXVideoStarvationThresholdSeconds) {
+            return;
+        }
+
+        _isRebuffering = YES;
+        _rebufferStartedHostSeconds = now;
+        shouldPauseAudio = YES;
+    }
+
+    if (shouldPauseAudio) {
+        AVAudioPlayerNode *audioPlayer = _audioPlayer;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [audioPlayer pause];
+        });
+        printf(
+            "Native playback rebuffer: state=start starvation=%.3fs threshold=%.3fs\n",
+            starvationSeconds,
+            SFXVideoStarvationThresholdSeconds
+        );
+    }
+}
+
+- (void)resumeFromRebufferIfNeededAtHostSeconds:(double)hostSeconds {
+    BOOL shouldResumeAudio = NO;
+    double rebufferDuration = 0;
+    @synchronized (self) {
+        if (!_isRebuffering) {
+            return;
+        }
+
+        rebufferDuration = fmax(0, hostSeconds - _rebufferStartedHostSeconds);
+        if (_audioClockInitialized) {
+            _audioStartHostSeconds += rebufferDuration;
+        }
+        if (_videoClockInitialized) {
+            _videoStartHostSeconds += rebufferDuration;
+        }
+        _isRebuffering = NO;
+        _rebufferStartedHostSeconds = 0;
+        _lastVideoOutputHostSeconds = hostSeconds;
+        shouldResumeAudio = _audioPlayerStarted && !atomic_load(&_paused);
+    }
+
+    if (shouldResumeAudio) {
+        AVAudioPlayerNode *audioPlayer = _audioPlayer;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [audioPlayer play];
+        });
+    }
+
+    printf(
+        "Native playback rebuffer: state=end duration=%.3fs\n",
+        rebufferDuration
+    );
 }
 
 - (BOOL)ensureSoftwareVideoScalerForFrame:(AVFrame *)frame width:(int)width height:(int)height {
@@ -1226,6 +1355,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     double now = CACurrentMediaTime();
+    [self resumeFromRebufferIfNeededAtHostSeconds:now];
+
     double targetHostSeconds = 0;
     @synchronized (self) {
         double rate = fmax((double)_playbackRate, 0.001);
@@ -1245,6 +1376,10 @@ static int SFXOutputChannelCount(int inputChannels) {
     if (waitSeconds > 0) {
         double cappedWait = waitSeconds > 0.25 ? 0.25 : waitSeconds;
         usleep((useconds_t)(cappedWait * 1000000.0));
+    }
+
+    @synchronized (self) {
+        _lastVideoOutputHostSeconds = CACurrentMediaTime();
     }
 }
 
@@ -1532,6 +1667,8 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 }
 
 - (void)teardown {
+    [self stopStarvationWatchdog];
+
     AVAudioPlayerNode *audioPlayer = _audioPlayer;
     AVAudioEngine *audioEngine = _audioEngine;
     dispatch_async(dispatch_get_main_queue(), ^{
