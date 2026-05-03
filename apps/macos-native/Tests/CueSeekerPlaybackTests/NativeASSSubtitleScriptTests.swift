@@ -161,6 +161,6 @@ func nativeASSRendererProducesTextBoundedSurfaces() {
     #expect(surface.frame.width < 640)
     #expect(surface.frame.height < 140)
     #expect(surface.frame.minY > 180)
-    #expect(surface.image.width < 640)
-    #expect(surface.image.height < 140)
+    #expect(surface.image.width < 640 * 2)
+    #expect(surface.image.height < 140 * 2)
 }

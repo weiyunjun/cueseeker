@@ -34,6 +34,8 @@ struct NativeASSStyle: Equatable, Sendable {
     var shadowColor: NativeASSColor
     var isBold: Bool
     var isItalic: Bool
+    var scaleX: Double
+    var scaleY: Double
     var alignment: Int
     var marginL: Double
     var marginR: Double
@@ -50,6 +52,8 @@ struct NativeASSStyle: Equatable, Sendable {
         shadowColor: NativeASSColor(red: 0, green: 0, blue: 0, alpha: 0.75),
         isBold: false,
         isItalic: false,
+        scaleX: 100,
+        scaleY: 100,
         alignment: 2,
         marginL: 20,
         marginR: 20,
@@ -269,6 +273,8 @@ enum NativeASSParser {
                 shadowColor: NativeASSParser.colorValue(named: "backcolour", fields: fields, format: styleFormat) ?? fallback.shadowColor,
                 isBold: NativeASSParser.boolValue(named: "bold", fields: fields, format: styleFormat),
                 isItalic: NativeASSParser.boolValue(named: "italic", fields: fields, format: styleFormat),
+                scaleX: NativeASSParser.doubleValue(named: "scalex", fields: fields, format: styleFormat) ?? fallback.scaleX,
+                scaleY: NativeASSParser.doubleValue(named: "scaley", fields: fields, format: styleFormat) ?? fallback.scaleY,
                 alignment: NativeASSParser.intValue(named: "alignment", fields: fields, format: styleFormat) ?? fallback.alignment,
                 marginL: NativeASSParser.doubleValue(named: "marginl", fields: fields, format: styleFormat) ?? fallback.marginL,
                 marginR: NativeASSParser.doubleValue(named: "marginr", fields: fields, format: styleFormat) ?? fallback.marginR,

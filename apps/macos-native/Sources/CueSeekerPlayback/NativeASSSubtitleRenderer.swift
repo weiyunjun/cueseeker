@@ -59,7 +59,8 @@ enum NativeASSSubtitleRenderer {
         let marginR = CGFloat(cue.marginR * scaleX)
         let marginV = CGFloat(cue.marginV * scaleY)
         let maxWidth = max(videoRect.width - marginL - marginR, 24)
-        let textWidth = max(maxWidth - (renderStyle.exteriorPadding * 2), 24)
+        let horizontalScale = renderStyle.horizontalScale
+        let textWidth = max((maxWidth - (renderStyle.exteriorPadding * 2)) / horizontalScale, 24)
         let fillAttributes = textAttributes(
             color: renderStyle.primaryColor,
             renderStyle: renderStyle,
@@ -71,7 +72,7 @@ enum NativeASSSubtitleRenderer {
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
         let surfaceSize = CGSize(
-            width: min(max(ceil(measuredRect.width) + (renderStyle.exteriorPadding * 2), 1), maxWidth),
+            width: min(max(ceil(measuredRect.width * horizontalScale) + (renderStyle.exteriorPadding * 2), 1), maxWidth),
             height: max(ceil(measuredRect.height) + (renderStyle.exteriorPadding * 2), 1)
         )
         guard surfaceSize.width > 0, surfaceSize.height > 0 else {
@@ -139,7 +140,7 @@ enum NativeASSSubtitleRenderer {
             return nil
         }
 
-        bitmap.size = size
+        bitmap.size = CGSize(width: pixelsWide, height: pixelsHigh)
 
         NSGraphicsContext.saveGraphicsState()
         defer {
@@ -162,6 +163,7 @@ enum NativeASSSubtitleRenderer {
             width: max(size.width - (renderStyle.exteriorPadding * 2), 1),
             height: max(size.height - (renderStyle.exteriorPadding * 2), 1)
         )
+        let hScale = renderStyle.horizontalScale
 
         if renderStyle.shadowOffset.width != 0 || renderStyle.shadowOffset.height != 0 {
             let shadowText = NSAttributedString(
@@ -172,12 +174,12 @@ enum NativeASSSubtitleRenderer {
                     paragraphStyle: paragraphStyle
                 )
             )
-            shadowText.draw(
-                with: drawRect.offsetBy(
-                    dx: renderStyle.shadowOffset.width,
-                    dy: renderStyle.shadowOffset.height
-                ),
-                options: [.usesLineFragmentOrigin, .usesFontLeading]
+            drawScaled(
+                shadowText,
+                in: drawRect,
+                offset: renderStyle.shadowOffset,
+                horizontalScale: hScale,
+                context: graphicsContext.cgContext
             )
         }
 
@@ -192,9 +194,12 @@ enum NativeASSSubtitleRenderer {
             )
 
             for offset in outlineOffsets(width: renderStyle.outlineWidth, backingScale: backingScale) {
-                outlineText.draw(
-                    with: drawRect.offsetBy(dx: offset.width, dy: offset.height),
-                    options: [.usesLineFragmentOrigin, .usesFontLeading]
+                drawScaled(
+                    outlineText,
+                    in: drawRect,
+                    offset: offset,
+                    horizontalScale: hScale,
+                    context: graphicsContext.cgContext
                 )
             }
         }
@@ -207,7 +212,13 @@ enum NativeASSSubtitleRenderer {
                 paragraphStyle: paragraphStyle
             )
         )
-        fillText.draw(with: drawRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+        drawScaled(
+            fillText,
+            in: drawRect,
+            offset: .zero,
+            horizontalScale: hScale,
+            context: graphicsContext.cgContext
+        )
 
         return bitmap.cgImage
     }
@@ -290,6 +301,24 @@ enum NativeASSSubtitleRenderer {
         ]
     }
 
+    private static func drawScaled(
+        _ text: NSAttributedString,
+        in rect: CGRect,
+        offset: CGSize,
+        horizontalScale: CGFloat,
+        context: CGContext
+    ) {
+        let scale = max(horizontalScale, 0.1)
+        context.saveGState()
+        context.translateBy(x: rect.minX + offset.width, y: rect.minY + offset.height)
+        context.scaleBy(x: scale, y: 1)
+        text.draw(
+            with: CGRect(x: 0, y: 0, width: rect.width / scale, height: rect.height),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        context.restoreGState()
+    }
+
     private static func outlineOffsets(width: CGFloat, backingScale: CGFloat) -> [CGSize] {
         guard width > 0 else {
             return []
@@ -321,6 +350,7 @@ private struct NativeASSResolvedRenderStyle {
     var shadowColor: NSColor
     var outlineWidth: CGFloat
     var shadowOffset: CGSize
+    var horizontalScale: CGFloat
 
     var exteriorPadding: CGFloat {
         let shadowPadding = max(abs(shadowOffset.width), abs(shadowOffset.height))
@@ -330,7 +360,8 @@ private struct NativeASSResolvedRenderStyle {
     init(style: NativeASSStyle, scaleX: Double, scaleY: Double) {
         let xScale = CGFloat(scaleX)
         let yScale = CGFloat(scaleY)
-        let fontSize = max(CGFloat(style.fontSize) * yScale, 8)
+        let verticalScale = max(CGFloat(style.scaleY) / 100, 0.1)
+        let fontSize = max(CGFloat(style.fontSize) * yScale * verticalScale, 8)
         let baseFont = NSFont(name: style.fontName, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
         var resolvedFont = baseFont
 
@@ -346,6 +377,7 @@ private struct NativeASSResolvedRenderStyle {
         primaryColor = NSColor(nativeASSColor: style.primaryColor)
         outlineColor = NSColor(nativeASSColor: style.outlineColor)
         shadowColor = NSColor(nativeASSColor: style.shadowColor)
+        horizontalScale = max(CGFloat(style.scaleX) / 100, 0.1)
         outlineWidth = max(CGFloat(style.outline) * yScale, 0)
         shadowOffset = CGSize(
             width: max(CGFloat(style.shadow), 0) * xScale,
