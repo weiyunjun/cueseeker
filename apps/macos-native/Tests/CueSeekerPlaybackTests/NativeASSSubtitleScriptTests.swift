@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import Testing
 @testable import CueSeekerPlayback
 
@@ -123,4 +124,43 @@ func nativeASSParserStripsUnsupportedOverrideTagsFromVisibleText() {
     #expect(event?.cleanedText == "Hello\nworld !")
     #expect(event?.cleanedText.contains("\\pos") == false)
     #expect(event?.cleanedText.contains("m 0 0") == false)
+}
+
+@Test
+@MainActor
+func nativeASSRendererProducesTextBoundedSurfaces() {
+    let contents = """
+    [Script Info]
+    PlayResX: 640
+    PlayResY: 360
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Alignment, MarginL, MarginR, MarginV, Outline, Shadow
+    Style: Default,Helvetica,32,&H00FFFFFF,&H00000000,&H80000000,2,24,24,30,2,1
+
+    [Events]
+    Format: Start, End, Style, Text
+    Dialogue: 0:00:01.00,0:00:03.00,Default,Hello\\Nworld
+    """
+    let document = NativeASSParser.parse(contents)
+
+    let surfaces = NativeASSSubtitleRenderer.renderSurfaces(
+        document: document,
+        atMilliseconds: 1_500,
+        containerBounds: CGRect(x: 0, y: 0, width: 640, height: 360),
+        videoSize: CGSize(width: 640, height: 360),
+        backingScale: 2
+    )
+
+    #expect(surfaces.count == 1)
+    guard let surface = surfaces.first else {
+        return
+    }
+
+    #expect(surface.text == "Hello\nworld")
+    #expect(surface.frame.width < 640)
+    #expect(surface.frame.height < 140)
+    #expect(surface.frame.minY > 180)
+    #expect(surface.image.width < 640)
+    #expect(surface.image.height < 140)
 }
