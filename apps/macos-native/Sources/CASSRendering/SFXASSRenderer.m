@@ -486,6 +486,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     ASS_Library *_library;
     ASS_Renderer *_renderer;
     ASS_Track *_track;
+    BOOL _hasRenderedCroppedFrame;
 }
 
 - (nullable instancetype)initWithASSFileAtPath:(NSString *)path
@@ -685,6 +686,22 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
 
     int detectChange = 0;
     ASS_Image *images = ass_render_frame(_renderer, _track, (long long)timestampMilliseconds, &detectChange);
+    BOOL changed = detectChange != 0 || !_hasRenderedCroppedFrame;
+
+    if (!changed) {
+        return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:[NSData data]
+                                                            width:0
+                                                           height:0
+                                                           stride:0
+                                                     destinationX:0
+                                                     destinationY:0
+                                                       frameWidth:self.frameWidth
+                                                      frameHeight:self.frameHeight
+                                                      imageCount:0
+                                                         changed:NO];
+    }
+
+    _hasRenderedCroppedFrame = YES;
 
     NSInteger minX = 0;
     NSInteger minY = 0;
@@ -712,7 +729,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                                                         frameWidth:self.frameWidth
                                                        frameHeight:self.frameHeight
                                                         imageCount:0
-                                                           changed:detectChange != 0];
+                                                           changed:YES];
     }
 
     NSInteger cropWidth = maxX - minX;
@@ -748,7 +765,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                                                     frameWidth:self.frameWidth
                                                    frameHeight:self.frameHeight
                                                     imageCount:imageCount
-                                                       changed:detectChange != 0];
+                                                       changed:YES];
 }
 
 - (void)dealloc {

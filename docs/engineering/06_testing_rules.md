@@ -436,6 +436,10 @@ Required render timeline coverage:
   boundary: indexing stores segment scripts, unchanged reindex skips only when
   those segments exist, and legacy `libass` can load the segment from memory for
   the current timestamp.
+- Legacy `libass` unchanged-frame reuse must be tested with a static ASS sample:
+  the first cropped render should produce a visible payload, and a subsequent
+  unchanged timestamp in the same static interval should return no cropped
+  payload so the playback overlay can reuse the existing layer contents.
 - Complexity-aware ASS segmentation tests must cover the 256 KB activation
   threshold, low-complexity widening, and dense effect regions shrinking to
   shorter windows without dropping overlapping source events.

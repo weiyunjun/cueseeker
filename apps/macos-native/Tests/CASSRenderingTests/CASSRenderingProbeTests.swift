@@ -94,6 +94,41 @@ final class CASSRenderingProbeTests: XCTestCase {
         XCTAssertGreaterThan(nonTransparentPixelCount(in: output.rgbaData), 0)
     }
 
+    func testRendererSessionSkipsCroppedPayloadWhenStaticFrameIsUnchanged() throws {
+        let script = """
+        [Script Info]
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default, Helvetica, 32, &H00FFFFFF, &H000000FF, &H80000000, &H40000000, 0, 0, 0, 0, 100, 100, 0, 0, 1, 2, 1, 2, 20, 20, 20, 1
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,Static subtitle
+        """
+        let session = try SFXASSRendererSession(
+            assScript: script,
+            sourceIdentifier: "static-subtitle",
+            frameWidth: 640,
+            frameHeight: 360,
+            fontsDirectory: nil
+        )
+
+        let firstOutput = try session.renderCroppedImage(atTimestampMilliseconds: 1_500)
+        let unchangedOutput = try session.renderCroppedImage(atTimestampMilliseconds: 1_533)
+
+        XCTAssertTrue(firstOutput.changed)
+        XCTAssertGreaterThan(firstOutput.imageCount, 0)
+        XCTAssertGreaterThan(firstOutput.rgbaData.count, 0)
+        XCTAssertFalse(unchangedOutput.changed)
+        XCTAssertEqual(unchangedOutput.imageCount, 0)
+        XCTAssertEqual(unchangedOutput.width, 0)
+        XCTAssertEqual(unchangedOutput.height, 0)
+        XCTAssertEqual(unchangedOutput.rgbaData.count, 0)
+    }
+
     func testRendererSessionCanLoadASSFromMemory() throws {
         let fixtureURL = try XCTUnwrap(Bundle.module.url(forResource: "complex-effects", withExtension: "ass"))
         let script = try String(contentsOf: fixtureURL)

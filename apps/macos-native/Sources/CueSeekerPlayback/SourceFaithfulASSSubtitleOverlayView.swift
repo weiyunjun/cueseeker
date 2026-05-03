@@ -47,11 +47,14 @@ enum SourceFaithfulASSSubtitleLayout {
 
 private enum ASSRenderedFrame: @unchecked Sendable {
     case sparse(ASSSparseFrame)
+    case unchanged(timestampMilliseconds: Int)
 
     var timestampMilliseconds: Int {
         switch self {
         case .sparse(let frame):
             frame.timestampMilliseconds
+        case .unchanged(let timestampMilliseconds):
+            timestampMilliseconds
         }
     }
 }
@@ -135,6 +138,11 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 }
 
                 let output = try session.renderCroppedImage(atTimestampMilliseconds: timestampMilliseconds)
+                guard output.changed else {
+                    completion(expectedGeneration, .success(.unchanged(timestampMilliseconds: timestampMilliseconds)))
+                    return
+                }
+
                 let frame = ASSSparseFrame(
                     surface: Self.makeSurface(from: output),
                     frameWidth: output.frameWidth,
@@ -463,6 +471,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         case .sparse:
             renderedFrame = frame
             updatePresentation(for: frame)
+        case .unchanged:
+            break
         }
     }
 
@@ -480,6 +490,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         switch renderedFrame {
         case .sparse(let frame):
             updatePresentation(for: frame)
+        case .unchanged:
+            break
         }
     }
 
@@ -519,6 +531,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         switch renderedFrame {
         case .sparse(let frame):
             updatePresentationLayout(for: frame)
+        case .unchanged:
+            break
         }
     }
 

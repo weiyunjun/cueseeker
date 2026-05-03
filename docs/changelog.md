@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Reduced legacy `libass` CPU work for static ASS subtitles by reusing the
+  previous cropped subtitle frame when libass reports no visual change, avoiding
+  repeated RGBA compositing, `CGImage` creation, and layer replacement on every
+  playback tick.
 - Added an indexed render-segment cache for large ASS subtitles: indexing now
   stores source-faithful ASS fragments in SQLite for `legacy libass`, using a
   256 KB threshold and complexity-aware 5-60 second windows so playback can load

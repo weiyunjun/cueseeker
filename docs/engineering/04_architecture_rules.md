@@ -208,6 +208,10 @@ Rules:
   wait for ASS parsing or rendering.
 - ASS rendering should be coordinated through an asynchronous render coordinator
   with cancellation and cache invalidation keyed by source file identity.
+- Source-faithful ASS rendering must avoid rebuilding presentation payloads when
+  the renderer reports an unchanged visual frame. Static subtitle intervals
+  should reuse the previous cropped subtitle surface and layer contents instead
+  of repeatedly compositing RGBA data or replacing `CALayer.contents`.
 - Database cue timing is consistent with the source ASS event timing and may be
   used to identify the selected cue window and nearby cue windows before ASS
   render preparation finishes.
