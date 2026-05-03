@@ -19,6 +19,31 @@ private struct ASSSparseFrame: @unchecked Sendable {
     let timestampMilliseconds: Int
 }
 
+enum SourceFaithfulASSSubtitleLayout {
+    static func surfaceFrame(
+        destinationX: Int,
+        destinationY: Int,
+        width: Int,
+        height: Int,
+        frameWidth: Int,
+        frameHeight: Int,
+        videoRect: CGRect
+    ) -> CGRect? {
+        guard frameWidth > 0, frameHeight > 0, width > 0, height > 0 else {
+            return nil
+        }
+
+        let scaleX = videoRect.width / CGFloat(frameWidth)
+        let scaleY = videoRect.height / CGFloat(frameHeight)
+        return CGRect(
+            x: videoRect.minX + (CGFloat(destinationX) * scaleX),
+            y: videoRect.maxY - (CGFloat(destinationY + height) * scaleY),
+            width: CGFloat(width) * scaleX,
+            height: CGFloat(height) * scaleY
+        )
+    }
+}
+
 private enum ASSRenderedFrame: @unchecked Sendable {
     case sparse(ASSSparseFrame)
 
@@ -430,16 +455,16 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             return
         }
 
-        let scaleX = videoRect.width / CGFloat(frame.frameWidth)
-        let scaleY = videoRect.height / CGFloat(frame.frameHeight)
-
         if let surface = frame.surface, let subtitleSurfaceLayer {
-            subtitleSurfaceLayer.frame = CGRect(
-                x: videoRect.minX + (CGFloat(surface.destinationX) * scaleX),
-                y: videoRect.minY + (CGFloat(surface.destinationY) * scaleY),
-                width: CGFloat(surface.width) * scaleX,
-                height: CGFloat(surface.height) * scaleY
-            )
+            subtitleSurfaceLayer.frame = SourceFaithfulASSSubtitleLayout.surfaceFrame(
+                destinationX: surface.destinationX,
+                destinationY: surface.destinationY,
+                width: surface.width,
+                height: surface.height,
+                frameWidth: frame.frameWidth,
+                frameHeight: frame.frameHeight,
+                videoRect: videoRect
+            ) ?? .zero
         }
     }
 

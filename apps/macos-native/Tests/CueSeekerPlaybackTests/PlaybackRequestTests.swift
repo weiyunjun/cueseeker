@@ -134,6 +134,21 @@ func assSubtitleRenderingModeRawValuesMatchSettingsControlValues() {
 }
 
 @Test
+func sourceFaithfulASSSubtitleLayoutMapsLibassTopOriginToLayerBottomOrigin() {
+    let frame = SourceFaithfulASSSubtitleLayout.surfaceFrame(
+        destinationX: 120,
+        destinationY: 300,
+        width: 200,
+        height: 40,
+        frameWidth: 640,
+        frameHeight: 360,
+        videoRect: CGRect(x: 10, y: 20, width: 640, height: 360)
+    )
+
+    #expect(frame == CGRect(x: 130, y: 40, width: 200, height: 40))
+}
+
+@Test
 @MainActor
 func playbackPlayerStoresDecodeModeSetting() {
     let player = PlaybackPlayer()
