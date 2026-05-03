@@ -30,7 +30,7 @@ static const float SFXMinimumPlaybackRate = 0.5f;
 static const float SFXMaximumPlaybackRate = 2.0f;
 static const double SFXVideoStarvationThresholdSeconds = 0.12;
 static const double SFXVideoStarvationWatchdogIntervalSeconds = 0.05;
-static const double SFXReadAheadStartupSeconds = 0.5;
+static const double SFXReadAheadStartupSeconds = 0.0;
 static const double SFXReadAheadTargetSeconds = 10.0;
 static const size_t SFXReadAheadMaxBytes = 64 * 1024 * 1024;
 

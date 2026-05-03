@@ -268,8 +268,8 @@ Rules:
 - Native read-ahead should queue compressed FFmpeg packets, not decoded video
   frames or decoded audio frames, unless a later design explicitly changes the
   memory model.
-- Native read-ahead starts playback after a 0.5 second packet waterline when
-  available, targets 10 seconds of queued packet media time during steady
+- Native read-ahead starts playback immediately with a 0 second startup packet
+  waterline, targets 10 seconds of queued packet media time during steady
   playback, and caps queued compressed packet data at 64 MB.
 - Native read-ahead should remain a simple fixed-watermark policy until field
   evidence justifies adaptive behavior. It must not automatically raise startup
