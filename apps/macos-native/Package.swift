@@ -10,7 +10,8 @@ let package = Package(
     products: [
         .executable(name: "CueSeeker", targets: ["CueSeekerApp"]),
         .executable(name: "NativePlaybackProbe", targets: ["NativePlaybackProbe"]),
-        .executable(name: "ASSRenderingProbe", targets: ["ASSRenderingProbe"])
+        .executable(name: "ASSRenderingProbe", targets: ["ASSRenderingProbe"]),
+        .executable(name: "PlaybackSyncProbe", targets: ["PlaybackSyncProbe"])
     ],
     targets: [
         .target(
@@ -101,6 +102,18 @@ let package = Package(
                 "CASSRendering"
             ],
             path: "Sources/ASSRenderingProbe"
+        ),
+        .executableTarget(
+            name: "PlaybackSyncProbe",
+            dependencies: [
+                "CueSeekerCore",
+                "CueSeekerPlayback"
+            ],
+            path: "Sources/PlaybackSyncProbe",
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("QuartzCore")
+            ]
         ),
         .testTarget(
             name: "CueSeekerCoreTests",
