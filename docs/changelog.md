@@ -7,9 +7,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 ## Unreleased
 
 - Added an indexed render-segment cache for large ASS subtitles: indexing now
-  stores 30 second source-faithful ASS fragments in SQLite for `legacy libass`,
-  so playback can load the current fragment without rereading and splitting the
-  full source file on result selection.
+  stores source-faithful ASS fragments in SQLite for `legacy libass`, using a
+  256 KB threshold and complexity-aware 5-60 second windows so playback can load
+  the current fragment without rereading and splitting the full source file on
+  result selection.
 - Added a native playback rebuffer gate that pauses audio output when video
   frame delivery stalls, so NAS or network read jitter produces a unified
   playback pause instead of allowing audio to run ahead of video and subtitles.

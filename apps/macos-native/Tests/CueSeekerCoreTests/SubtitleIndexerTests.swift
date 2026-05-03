@@ -250,16 +250,50 @@ func assRenderSegmenterBuildsWindowedScriptsWithOverlappingEvents() throws {
 
     let segments = ASSRenderSegmenter.renderSegments(from: contents)
 
-    #expect(segments.count == 3)
+    #expect(segments.count == 2)
     #expect(segments[0].startMilliseconds == 0)
-    #expect(segments[0].endMilliseconds == 30_000)
+    #expect(segments[0].endMilliseconds == 60_000)
     #expect(segments[0].eventCount == 1)
     #expect(segments[0].scriptText.contains("overlap"))
     #expect(segments[1].eventCount == 1)
-    #expect(segments[1].scriptText.contains("overlap"))
-    #expect(segments[2].eventCount == 1)
-    #expect(segments[2].scriptText.contains("late"))
-    #expect(segments[2].scriptText.contains("[V4+ Styles]"))
+    #expect(segments[1].scriptText.contains("late"))
+    #expect(segments[1].scriptText.contains("[V4+ Styles]"))
+}
+
+@Test
+func assRenderSegmenterUsesComplexityBudgetForDenseEffects() throws {
+    let denseLines = (0..<1_600)
+        .map { index in
+            "Dialogue: 0,0:01:25.00,0:02:55.00,Default,,0,0,0,,{\\p1\\clip(m 0 0 l 80 0 80 20 0 20)\\t(0,1000,\\blur8\\alpha&H80&)}m 0 0 l 80 0 80 20 0 20 dense-\(index)"
+        }
+        .joined(separator: "\n")
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: Default,Arial,48
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:05.00,0:00:06.00,Default,,0,0,0,,plain
+    \(denseLines)
+    Dialogue: 0,0:03:05.00,0:03:06.00,Default,,0,0,0,,late
+    """
+
+    let segments = ASSRenderSegmenter.renderSegments(from: contents)
+
+    #expect(ASSRenderSegmenter.shouldSegment(format: .ass, fileSize: 256 * 1024))
+    #expect(!ASSRenderSegmenter.shouldSegment(format: .ass, fileSize: 256 * 1024 - 1))
+    #expect(!ASSRenderSegmenter.shouldSegment(format: .srt, fileSize: 512 * 1024))
+    #expect(segments.first?.startMilliseconds == 0)
+    #expect(segments.first?.endMilliseconds == 60_000)
+    #expect(segments.contains { $0.startMilliseconds == 85_000 && $0.endMilliseconds == 90_000 })
+    #expect(segments.contains { $0.startMilliseconds == 170_000 && $0.endMilliseconds == 175_000 })
+    #expect(segments.first { $0.startMilliseconds == 85_000 }?.scriptText.contains("dense-0") == true)
+    #expect(segments.last?.scriptText.contains("late") == true)
 }
 
 private struct IndexingFixture {

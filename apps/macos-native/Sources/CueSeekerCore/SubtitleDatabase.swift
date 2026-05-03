@@ -56,7 +56,7 @@ public struct ASSRenderSegment: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 4
+    public static let currentSchemaVersion: Int = 5
 
     private let database: SQLiteDatabase
 
@@ -173,6 +173,7 @@ public final class SubtitleDatabase {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 subtitle_file_id INTEGER NOT NULL,
                 segment_index INTEGER NOT NULL,
+                algorithm_version INTEGER NOT NULL DEFAULT 0,
                 start_ms INTEGER NOT NULL,
                 end_ms INTEGER NOT NULL,
                 event_count INTEGER NOT NULL,
@@ -186,6 +187,15 @@ public final class SubtitleDatabase {
                 ON ass_render_segments(subtitle_file_id, start_ms, end_ms);
             """
         )
+
+        if previousVersion >= 4 && previousVersion < 5 {
+            try database.execute(
+                """
+                ALTER TABLE ass_render_segments
+                ADD COLUMN algorithm_version INTEGER NOT NULL DEFAULT 0;
+                """
+            )
+        }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
     }
@@ -361,11 +371,13 @@ public final class SubtitleDatabase {
             FROM ass_render_segments s
             JOIN subtitle_files sf ON sf.id = s.subtitle_file_id
             WHERE sf.subtitle_path = ?
+              AND s.algorithm_version = ?
             LIMIT 1;
             """
         )
 
         try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
         return try statement.step()
     }
 
@@ -381,6 +393,7 @@ public final class SubtitleDatabase {
             FROM ass_render_segments s
             JOIN subtitle_files sf ON sf.id = s.subtitle_file_id
             WHERE sf.subtitle_path = ?
+              AND s.algorithm_version = ?
               AND s.start_ms <= ?
               AND s.end_ms > ?
             ORDER BY s.start_ms DESC, s.segment_index DESC
@@ -389,8 +402,9 @@ public final class SubtitleDatabase {
         )
 
         try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(timestamp, at: 2)
+        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
         try statement.bind(timestamp, at: 3)
+        try statement.bind(timestamp, at: 4)
 
         guard try statement.step() else {
             return nil
@@ -1141,23 +1155,25 @@ public final class SubtitleDatabase {
             INSERT INTO ass_render_segments(
                 subtitle_file_id,
                 segment_index,
+                algorithm_version,
                 start_ms,
                 end_ms,
                 event_count,
                 byte_count,
                 script_text
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
             """
         )
 
         try statement.bind(subtitleFileID, at: 1)
         try statement.bind(segment.segmentIndex, at: 2)
-        try statement.bind(segment.startMilliseconds, at: 3)
-        try statement.bind(segment.endMilliseconds, at: 4)
-        try statement.bind(segment.eventCount, at: 5)
-        try statement.bind(segment.byteCount, at: 6)
-        try statement.bind(segment.scriptText, at: 7)
+        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 3)
+        try statement.bind(segment.startMilliseconds, at: 4)
+        try statement.bind(segment.endMilliseconds, at: 5)
+        try statement.bind(segment.eventCount, at: 6)
+        try statement.bind(segment.byteCount, at: 7)
+        try statement.bind(segment.scriptText, at: 8)
         try statement.run()
     }
 

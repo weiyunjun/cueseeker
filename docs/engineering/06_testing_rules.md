@@ -431,6 +431,12 @@ Required render timeline coverage:
   boundary: indexing stores segment scripts, unchanged reindex skips only when
   those segments exist, and legacy `libass` can load the segment from memory for
   the current timestamp.
+- Complexity-aware ASS segmentation tests must cover the 256 KB activation
+  threshold, low-complexity widening, and dense effect regions shrinking to
+  shorter windows without dropping overlapping source events.
+- ASS render-segment cache migration tests must verify that older segmentation
+  algorithm versions are ignored for unchanged source files and rebuilt on the
+  next indexing pass.
 
 Required non-blocking playback checks:
 

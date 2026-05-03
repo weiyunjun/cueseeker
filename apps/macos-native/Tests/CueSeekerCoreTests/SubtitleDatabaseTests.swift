@@ -132,6 +132,24 @@ func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
 }
 
 @Test
+func migrationInvalidatesOldASSRenderSegmentAlgorithmVersion() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/OldEffects.ass")
+    try createVersionFourDatabaseWithASSRenderSegments(at: databaseURL, subtitlePath: subtitleFile.path)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+    #expect(!(try database.hasASSRenderSegments(forSubtitleFile: subtitleFile)))
+    #expect(try database.assRenderSegment(forSubtitleFile: subtitleFile, atMilliseconds: 1_000) == nil)
+}
+
+@Test
 func replacingEntriesRemovesStaleFTSRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -802,6 +820,61 @@ private func createLegacyVersionOneDatabase(at url: URL) throws {
         VALUES ('local', '/Media', '2026-05-02T00:00:00Z', '2026-05-02T00:00:00Z');
 
         PRAGMA user_version = 1;
+        """
+    )
+}
+
+private func createVersionFourDatabaseWithASSRenderSegments(at url: URL, subtitlePath: String) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(
+        database,
+        """
+        CREATE TABLE subtitle_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_path TEXT NOT NULL UNIQUE,
+            format TEXT NOT NULL,
+            file_size INTEGER,
+            modified_at REAL,
+            indexed_at TEXT NOT NULL
+        );
+
+        CREATE TABLE ass_render_segments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER NOT NULL,
+            segment_index INTEGER NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            event_count INTEGER NOT NULL,
+            byte_count INTEGER NOT NULL,
+            script_text TEXT NOT NULL,
+            UNIQUE(subtitle_file_id, segment_index)
+        );
+
+        INSERT INTO subtitle_files(subtitle_path, format, file_size, modified_at, indexed_at)
+        VALUES ('\(subtitlePath)', 'ass', 4096, 0, '2026-05-03T00:00:00Z');
+
+        INSERT INTO ass_render_segments(
+            subtitle_file_id,
+            segment_index,
+            start_ms,
+            end_ms,
+            event_count,
+            byte_count,
+            script_text
+        )
+        VALUES (1, 0, 0, 30000, 1, 32, '[Script Info]\n[Events]\n');
+
+        PRAGMA user_version = 4;
         """
     )
 }

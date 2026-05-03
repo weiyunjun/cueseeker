@@ -219,6 +219,11 @@ Rules:
 - Large ASS render segmentation must be done during indexing, not on the
   result-selection or playback-render path. The playback path may query a
   precomputed render segment by source identity and timestamp.
+- ASS render segmentation should be enabled for `.ass` files at or above
+  256 KB. Segments should use complexity-aware windows: low-complexity regions
+  may be widened up to 60 seconds, while dense effect regions should shrink
+  toward 5-10 second windows according to dialogue count, byte count, override
+  tags, animation, vector drawing, clipping, and peak active render cost.
 - Large ASS render segments stored in SQLite must preserve complete render
   context for the segment: script metadata, styles, event format, original event
   timestamps, original event text, layer values, and source order for every
@@ -226,6 +231,9 @@ Rules:
 - Large ASS render segments are a derived cache. They must be rebuilt when the
   source subtitle file size or modified time changes, and stale segment rows
   must be removed with the owning subtitle file.
+- The ASS render-segment cache must carry an algorithm version so segmentation
+  strategy changes invalidate older derived rows instead of reusing stale
+  windows for unchanged subtitle files.
 - The dedicated ASS renderer must be separate from the SQLite search layer and
   from the native video decoder. It should receive playback clock updates and
   present overlay output through the playback render container.
