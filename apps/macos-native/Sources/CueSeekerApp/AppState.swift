@@ -99,7 +99,7 @@ final class AppState: ObservableObject {
             player?.decodeMode = playbackDecodeMode
         }
     }
-    @Published var assSubtitleRenderingMode: ASSSubtitleRenderingMode = .legacy {
+    @Published var assSubtitleRenderingMode: ASSSubtitleRenderingMode = .native {
         didSet {
             userDefaults.set(assSubtitleRenderingMode.rawValue, forKey: Self.assSubtitleRenderingModeKey)
             player?.assSubtitleRenderingMode = assSubtitleRenderingMode
@@ -130,7 +130,7 @@ final class AppState: ObservableObject {
             Self.isPlaybackInspectorVisibleKey: false,
             Self.playbackInspectorWidthKey: 520.0,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
-            Self.assSubtitleRenderingModeKey: ASSSubtitleRenderingMode.legacy.rawValue
+            Self.assSubtitleRenderingModeKey: ASSSubtitleRenderingMode.native.rawValue
         ])
         isSidebarVisible = userDefaults.bool(forKey: Self.isSidebarVisibleKey)
         isPlaybackInspectorVisible = userDefaults.bool(forKey: Self.isPlaybackInspectorVisibleKey)
@@ -746,7 +746,7 @@ final class AppState: ObservableObject {
         guard let rawValue = userDefaults.string(forKey: assSubtitleRenderingModeKey),
               let mode = ASSSubtitleRenderingMode(rawValue: rawValue)
         else {
-            return .legacy
+            return .native
         }
 
         return mode

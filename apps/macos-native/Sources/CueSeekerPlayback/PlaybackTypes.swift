@@ -20,6 +20,7 @@ public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Eq
 }
 
 public enum ASSSubtitleRenderingMode: String, CaseIterable, Identifiable, Sendable, Equatable {
+    case native
     case legacy
 
     public var id: String {
@@ -27,7 +28,12 @@ public enum ASSSubtitleRenderingMode: String, CaseIterable, Identifiable, Sendab
     }
 
     public var displayName: String {
-        "legacy"
+        switch self {
+        case .native:
+            "native v0"
+        case .legacy:
+            "legacy libass"
+        }
     }
 }
 

@@ -25,7 +25,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             nativePlayer.decodeMode = decodeMode.nativeDecodeMode
         }
     }
-    public var assSubtitleRenderingMode: ASSSubtitleRenderingMode = .legacy {
+    public var assSubtitleRenderingMode: ASSSubtitleRenderingMode = .native {
         didSet {
             Task { @MainActor in
                 (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleRenderingMode(self.assSubtitleRenderingMode)
@@ -282,10 +282,11 @@ public final class PlaybackRenderContainerView: NSView {
     private var assLiteOverlayView: ASSLiteSubtitleOverlayView?
     private var sourceFaithfulASSOverlayView: SourceFaithfulASSSubtitleOverlayView?
     private var nativeASSOverlayView: NativeASSSubtitleOverlayView?
+    private var currentASSSubtitleSource: PlaybackSubtitleSource?
     private var currentASSSubtitleTimeMilliseconds = 0
     private var currentSubtitlesVisible = true
     private var currentVideoSize: CGSize?
-    private var currentASSSubtitleRenderingMode: ASSSubtitleRenderingMode = .legacy
+    private var currentASSSubtitleRenderingMode: ASSSubtitleRenderingMode = .native
 
     var assRenderingFailureHandler: ((String) -> Void)?
 
@@ -334,15 +335,14 @@ public final class PlaybackRenderContainerView: NSView {
     }
 
     func setSourceFaithfulASSSubtitleSource(_ source: PlaybackSubtitleSource) {
-        ensureSourceFaithfulASSOverlayView()
-        sourceFaithfulASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
-        sourceFaithfulASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
-        sourceFaithfulASSOverlayView?.videoSize = currentVideoSize
-        sourceFaithfulASSOverlayView?.setSource(source)
+        currentASSSubtitleSource = source
+        applyASSSubtitleSource()
     }
 
     func clearSourceFaithfulASSSubtitleSource() {
+        currentASSSubtitleSource = nil
         sourceFaithfulASSOverlayView?.setSource(nil)
+        nativeASSOverlayView?.setSource(nil)
     }
 
     func setNativeASSSubtitleSource(_ source: PlaybackSubtitleSource) {
@@ -374,6 +374,7 @@ public final class PlaybackRenderContainerView: NSView {
     func setASSSubtitleRenderingMode(_ mode: ASSSubtitleRenderingMode) {
         currentASSSubtitleRenderingMode = mode
         sourceFaithfulASSOverlayView?.renderingMode = mode
+        applyASSSubtitleSource()
     }
 
     func setVideoSize(_ videoSize: CGSize?) {
@@ -460,6 +461,30 @@ public final class PlaybackRenderContainerView: NSView {
         nativeASSOverlayView.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
         nativeASSOverlayView.areSubtitlesVisible = currentSubtitlesVisible
         nativeASSOverlayView.videoSize = currentVideoSize
+    }
+
+    private func applyASSSubtitleSource() {
+        guard let currentASSSubtitleSource else {
+            return
+        }
+
+        switch currentASSSubtitleRenderingMode {
+        case .native:
+            sourceFaithfulASSOverlayView?.setSource(nil)
+            ensureNativeASSOverlayView()
+            nativeASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+            nativeASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
+            nativeASSOverlayView?.videoSize = currentVideoSize
+            nativeASSOverlayView?.setSource(currentASSSubtitleSource)
+        case .legacy:
+            nativeASSOverlayView?.setSource(nil)
+            ensureSourceFaithfulASSOverlayView()
+            sourceFaithfulASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+            sourceFaithfulASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
+            sourceFaithfulASSOverlayView?.videoSize = currentVideoSize
+            sourceFaithfulASSOverlayView?.renderingMode = currentASSSubtitleRenderingMode
+            sourceFaithfulASSOverlayView?.setSource(currentASSSubtitleSource)
+        }
     }
 
     private func ensureASSOverlaysStayAboveAttachedView() {
