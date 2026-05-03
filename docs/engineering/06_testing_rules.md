@@ -189,14 +189,6 @@ Rules:
   they do not replace perceptual acceptance. A change should not be accepted if
   memory appears lower only in a narrow sample while visible playback behavior,
   subtitle fidelity, responsiveness, or lifecycle stability regresses.
-- ASS renderer timing changes must be checked with dynamic source ASS samples,
-  especially events using `\move`, rotation, shearing, blur, transforms, karaoke,
-  or dense effects. The acceptance question is whether visible motion is stable
-  enough for subtitle-context review, not whether all renderer jitter is
-  eliminated.
-- When changing ASS render clocks, verify that UI playback-time updates do not
-  also independently drive subtitle rendering. A single display-refresh-oriented
-  subtitle clock should own render timing for the active ASS renderer.
 - Playback engine-specific behavior must be documented after the engine is selected.
 - Final playback engine verification criteria must be updated after the playback ADR is accepted.
 
@@ -448,7 +440,4 @@ Required renderer checks:
 - Playback Inspector and Theater Mode fullscreen use the same renderer output
   lifecycle.
 - Subtitle visibility toggles renderer output without stopping the video.
-- Dynamic ASS motion driven by the legacy `libass` path is visibly stable enough
-  for the current acceptance phase, while known residual jitter remains
-  documented for later native renderer timing work.
 - SRT playback subtitle behavior does not regress.
