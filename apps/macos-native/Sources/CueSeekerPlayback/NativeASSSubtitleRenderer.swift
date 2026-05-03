@@ -121,8 +121,9 @@ enum NativeASSSubtitleRenderer {
         paragraphStyle: NSParagraphStyle,
         backingScale: CGFloat
     ) -> CGImage? {
-        let pixelsWide = max(Int(ceil(size.width)), 1)
-        let pixelsHigh = max(Int(ceil(size.height)), 1)
+        let scale = max(backingScale, 1)
+        let pixelsWide = max(Int(ceil(size.width * scale)), 1)
+        let pixelsHigh = max(Int(ceil(size.height * scale)), 1)
         guard let bitmap = NSBitmapImageRep(
             bitmapDataPlanes: nil,
             pixelsWide: pixelsWide,
@@ -138,7 +139,7 @@ enum NativeASSSubtitleRenderer {
             return nil
         }
 
-        bitmap.size = CGSize(width: pixelsWide, height: pixelsHigh)
+        bitmap.size = size
 
         NSGraphicsContext.saveGraphicsState()
         defer {
@@ -149,6 +150,8 @@ enum NativeASSSubtitleRenderer {
             return nil
         }
         NSGraphicsContext.current = graphicsContext
+
+        graphicsContext.cgContext.scaleBy(x: scale, y: scale)
 
         NSColor.clear.setFill()
         CGRect(origin: .zero, size: size).fill()
