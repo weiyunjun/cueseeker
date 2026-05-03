@@ -178,3 +178,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Updated ADR-0009 to make native `v0` the first ASS renderer phase and a fully
   project-owned native ASS rendering pipeline the final direction, with legacy
   renderer paths retained only as transitional selectable options.
+- Implemented the native ASS `v0` manual-acceptance path: native parsing,
+  active cue selection, tag stripping, text-bounded subtitle surfaces, playback
+  overlay routing, and Settings renderer selection with native mode as the
+  default and legacy libass retained as a transition option.
