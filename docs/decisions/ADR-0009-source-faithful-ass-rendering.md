@@ -65,6 +65,9 @@ Rules:
   renderer preparation.
 - The first native implementation step is `v0` native text rendering for common
   ASS dialogue, not danmaku-specific behavior or full VSFilter compatibility.
+- Native `v0` is not complete until ordinary dialogue visual alignment is
+  credible for subtitle-context review, including source style sizing and the
+  leading static size overrides documented in the implementation plan.
 - The native app must not reintroduce `libmpv` as a playback backend to get ASS
   rendering behavior.
 
@@ -154,7 +157,12 @@ and expands in later phases toward complete source-faithful ASS rendering.
    video seek, and playback controls independent from ASS parsing and rendering.
 7. Keep current renderer selection behavior available during the transition, but
    design new renderer work around native mode.
-8. Define later native phases only when their implementation starts.
+8. Complete ordinary dialogue visual alignment inside Phase 1 by verifying ASS
+   script-coordinate mapping, source style sizing, and leading `\fs`, `\fscx`,
+   and `\fscy` size overrides against `legacy libass` and a reference player.
+9. Treat Phase 2 expanded static ASS support as a separate future discussion
+   before implementation, even though the source-faithful proposal now scopes
+   that discussion more concretely.
 
 ## Verification Plan
 
@@ -165,6 +173,10 @@ by isolated automated tests alone.
 Required `v0` manual acceptance before the native renderer is considered usable:
 
 - Common ASS dialogue appears correctly enough for subtitle-context review.
+- Ordinary dialogue size and placement are close enough to `legacy libass` and a
+  reference player for common static dialogue samples.
+- Leading `\fs`, `\fscx`, and `\fscy` overrides affect native `v0` ordinary
+  dialogue sizing.
 - Simple bilingual or multi-line subtitles remain readable.
 - Unsupported override tags are stripped or omitted rather than shown as raw
   subtitle text.

@@ -382,6 +382,8 @@ visual quality by themselves.
 Required native `v0` manual checks:
 
 - Common ASS dialogue appears correctly enough for subtitle-context review.
+- Ordinary dialogue size and placement are close enough to `legacy libass` and a
+  reference player for common static dialogue samples.
 - Simple bilingual or multi-line subtitles remain readable.
 - Unsupported override tags are stripped or omitted instead of shown as raw
   subtitle text.
@@ -431,6 +433,8 @@ Required non-blocking playback checks:
 
 Required renderer checks:
 
+- Leading `\fs`, `\fscx`, and `\fscy` size overrides affect ordinary dialogue
+  sizing in native `v0`.
 - Complex ASS fixtures with vector drawing, clipping, and karaoke-like repeated
   effect events render without treating drawing commands as text.
 - Playback Inspector and Theater Mode fullscreen use the same renderer output

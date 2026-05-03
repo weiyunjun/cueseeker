@@ -127,6 +127,33 @@ func nativeASSParserStripsUnsupportedOverrideTagsFromVisibleText() {
 }
 
 @Test
+func nativeASSParserReadsLeadingStaticSizeOverrides() {
+    let contents = """
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, ScaleX, ScaleY
+    Style: Default,Helvetica,48,100,100
+
+    [Events]
+    Format: Start, End, Style, Text
+    Dialogue: 0:00:01.00,0:00:03.00,Default,{\\an2\\FS24\\fscx80\\FSCY75}Hello
+    Dialogue: 0:00:04.00,0:00:05.00,Default,Hello {\\fs12}world
+    """
+
+    let events = NativeASSParser.parse(contents).events
+
+    #expect(events[0].cleanedText == "Hello")
+    #expect(events[0].alignmentOverride == 2)
+    #expect(events[0].styleOverride.fontSize == 24)
+    #expect(events[0].styleOverride.scaleX == 80)
+    #expect(events[0].styleOverride.scaleY == 75)
+
+    #expect(events[1].cleanedText == "Hello world")
+    #expect(events[1].styleOverride.fontSize == nil)
+    #expect(events[1].styleOverride.scaleX == nil)
+    #expect(events[1].styleOverride.scaleY == nil)
+}
+
+@Test
 @MainActor
 func nativeASSRendererProducesTextBoundedSurfaces() {
     let contents = """
@@ -163,4 +190,48 @@ func nativeASSRendererProducesTextBoundedSurfaces() {
     #expect(surface.frame.minY > 180)
     #expect(surface.image.width < 640 * 2)
     #expect(surface.image.height < 140 * 2)
+}
+
+@Test
+@MainActor
+func nativeASSRendererAppliesLeadingStaticSizeOverrides() {
+    let contents = """
+    [Script Info]
+    PlayResX: 640
+    PlayResY: 360
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, ScaleX, ScaleY, Alignment, MarginL, MarginR, MarginV
+    Style: Default,Helvetica,40,100,100,2,24,24,30
+
+    [Events]
+    Format: Start, End, Style, Text
+    Dialogue: 0:00:01.00,0:00:02.00,Default,Visual size sample
+    Dialogue: 0:00:03.00,0:00:04.00,Default,{\\fs20\\fscx70\\fscy70}Visual size sample
+    """
+    let document = NativeASSParser.parse(contents)
+
+    let defaultSurface = NativeASSSubtitleRenderer.renderSurfaces(
+        document: document,
+        atMilliseconds: 1_500,
+        containerBounds: CGRect(x: 0, y: 0, width: 640, height: 360),
+        videoSize: CGSize(width: 640, height: 360),
+        backingScale: 2
+    ).first
+    let overrideSurface = NativeASSSubtitleRenderer.renderSurfaces(
+        document: document,
+        atMilliseconds: 3_500,
+        containerBounds: CGRect(x: 0, y: 0, width: 640, height: 360),
+        videoSize: CGSize(width: 640, height: 360),
+        backingScale: 2
+    ).first
+
+    #expect(defaultSurface != nil)
+    #expect(overrideSurface != nil)
+    guard let defaultSurface, let overrideSurface else {
+        return
+    }
+
+    #expect(overrideSurface.frame.height < defaultSurface.frame.height * 0.7)
+    #expect(overrideSurface.frame.width < defaultSurface.frame.width * 0.7)
 }

@@ -422,13 +422,117 @@ render timeline.
 8. Keep playback running when native subtitle rendering fails, while surfacing
    the renderer state explicitly.
 9. Preserve SRT behavior and subtitle visibility controls.
-10. Use user manual playback testing as the authority for visual acceptance.
+10. Complete ordinary dialogue visual alignment before treating Phase 1 as
+    complete.
+11. Use user manual playback testing as the authority for visual acceptance.
+
+#### Phase 1 Ordinary Dialogue Visual Alignment
+
+This alignment step is part of Phase 1, not Phase 2. It exists because the
+native `v0` text core can parse and draw ordinary dialogue while still producing
+visibly different subtitle size or placement from reference players.
+
+Goal:
+
+- Make ordinary, static ASS dialogue look credible against `legacy libass` and
+  reference players such as Movist Pro for subtitle-context review.
+
+Required Phase 1 alignment scope:
+
+- Respect `PlayResX` and `PlayResY` when mapping ASS script coordinates into the
+  displayed video rectangle.
+- Keep backing scale as a bitmap sharpness concern only; it must not change ASS
+  script-coordinate font size.
+- Apply source style `Fontsize`, `ScaleX`, `ScaleY`, margins, basic outline, and
+  basic shadow consistently with the displayed video rectangle.
+- Support dialogue-level leading static size overrides that affect ordinary
+  subtitle size:
+  - `\fs`
+  - `\fscx`
+  - `\fscy`
+- Treat those leading overrides as cue-level style adjustments in Phase 1. Rich
+  per-run style changes inside a dialogue line belong to Phase 2.
+- Keep unsupported override tags stripped or omitted instead of showing raw ASS
+  syntax.
+- Preserve the non-blocking playback contract while native ASS source loading
+  and subtitle surface rendering catch up asynchronously.
+
+Phase 1 alignment non-goals:
+
+- Full `libass`, VSFilter, or Movist Pro visual parity.
+- Rich inline style runs where only part of a dialogue line changes size, font,
+  color, or other style fields.
+- Static sign positioning through `\pos`.
+- Animation, karaoke, clipping, vector drawing, transforms, blur, or dense
+  effects.
+- Font attachment extraction or same-directory font discovery.
+
+Phase 1 is complete only when ordinary dialogue sizing and placement are close
+enough for manual subtitle-context review, and the known remaining visual gaps
+are clearly deferred to Phase 2 or later.
+
+### Native Phase 2: Expanded Static ASS Support
+
+Phase 2 should be discussed and accepted separately before implementation starts.
+The purpose of this section is to make the next discussion concrete, not to
+authorize Phase 2 work as part of Phase 1.
+
+Goal:
+
+- Expand native rendering from cue-level ordinary dialogue styling to common
+  static ASS features used by dialogue, signs, titles, and simple bilingual
+  layouts.
+
+Candidate Phase 2 scope:
+
+- Represent a dialogue line as styled text runs instead of a single cue-level
+  style.
+- Support inline static style overrides beyond the Phase 1 leading-size subset,
+  including font size, font face, color, alpha, bold, italic, outline, shadow,
+  spacing, and resets where the behavior is documented.
+- Support static positioning and placement cases such as `\pos` when they can be
+  mapped reliably into the displayed video rectangle.
+- Improve line wrapping, line spacing, margins, and alignment behavior for
+  common real-world ASS files.
+- Improve font fallback diagnostics and document any user-configurable font
+  discovery before implementation depends on it.
+- Preserve multiple simultaneous static dialogue or sign events without
+  introducing danmaku lane assignment.
+
+Phase 2 non-goals unless explicitly accepted later:
+
+- `\move`, animation, karaoke, clipping, vector drawing, rotation, complex
+  transforms, blur-heavy effects, and dense short-duration `Effect=fx` events.
+- Matching every renderer-specific edge case from `libass`, VSFilter, or Movist
+  Pro.
+- Replacing visual manual acceptance with automated tests alone.
+- Optimizing caches or GPU batching before static visual behavior is stable.
+
+Expected Phase 2 deliverables:
+
+- A written scope decision for the exact static tags and behaviors selected.
+- Parser and renderer tests for selected static overrides.
+- Manual comparison notes against `legacy libass` and at least one external
+  reference player for representative ordinary dialogue and static sign samples.
+- Updated failure and fallback behavior for unsupported static features.
 
 ### Later Native Phases
 
-Later native phases remain high-level until each phase starts. Candidate areas
-include expanded static ASS support, native text renderer optimization, complex
-ASS routing away from legacy renderers, and danmaku-specific optimization.
+Later native phases remain high-level until each phase starts.
+
+Phase 3 should optimize the native text renderer after static visual behavior is
+stable. Candidate areas include surface caching, layout caching, allocation
+reduction, object reuse, and render invalidation policy.
+
+Phase 4 should define complex ASS routing away from legacy renderers. Candidate
+areas include source-file or event classification, explicit unsupported-feature
+states, diagnostic fallback behavior, and rules for gradually reducing legacy
+renderer reliance.
+
+Phase 5 should address danmaku and dense effects only after ordinary dialogue
+and static ASS support are stable. Candidate areas include danmaku
+classification, lane assignment, density controls, batching, and GPU-oriented
+rendering.
 
 ## Acceptance Criteria
 
@@ -438,6 +542,10 @@ ASS routing away from legacy renderers, and danmaku-specific optimization.
   parsing or rendering.
 - Native `v0` renders ordinary ASS dialogue well enough for subtitle-context
   review during user manual testing.
+- Native `v0` ordinary dialogue size and placement are aligned closely enough
+  with `legacy libass` and a reference player for common static dialogue.
+- Leading `\fs`, `\fscx`, and `\fscy` overrides affect native `v0` ordinary
+  dialogue sizing instead of being silently ignored.
 - Simple bilingual or multi-line ASS subtitles remain readable.
 - Unsupported override tags are omitted or stripped instead of appearing as raw
   subtitle text.

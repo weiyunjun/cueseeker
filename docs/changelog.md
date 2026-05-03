@@ -182,3 +182,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
   active cue selection, tag stripping, text-bounded subtitle surfaces, playback
   overlay routing, and Settings renderer selection with native mode as the
   default and legacy libass retained as a transition option.
+- Refined the native ASS rendering plan by making ordinary dialogue visual
+  alignment part of Phase 1 and scoping Phase 2 as a separate expanded static
+  ASS support discussion.

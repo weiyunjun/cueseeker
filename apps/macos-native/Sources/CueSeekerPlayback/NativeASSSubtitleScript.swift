@@ -63,6 +63,24 @@ struct NativeASSStyle: Equatable, Sendable {
     )
 }
 
+struct NativeASSStyleOverride: Equatable, Sendable {
+    var fontSize: Double?
+    var scaleX: Double?
+    var scaleY: Double?
+
+    mutating func apply(_ other: NativeASSStyleOverride) {
+        if let fontSize = other.fontSize {
+            self.fontSize = fontSize
+        }
+        if let scaleX = other.scaleX {
+            self.scaleX = scaleX
+        }
+        if let scaleY = other.scaleY {
+            self.scaleY = scaleY
+        }
+    }
+}
+
 struct NativeASSEvent: Equatable, Sendable {
     var layer: Int
     var sourceOrder: Int
@@ -73,6 +91,7 @@ struct NativeASSEvent: Equatable, Sendable {
     var marginR: Double?
     var marginV: Double?
     var alignmentOverride: Int?
+    var styleOverride: NativeASSStyleOverride
     var rawText: String
     var cleanedText: String
 
@@ -325,6 +344,7 @@ enum NativeASSParser {
                     marginR: NativeASSParser.positiveEventMargin(named: "marginr", fields: fields, format: eventFormat),
                     marginV: NativeASSParser.positiveEventMargin(named: "marginv", fields: fields, format: eventFormat),
                     alignmentOverride: parsedText.alignmentOverride,
+                    styleOverride: parsedText.styleOverride,
                     rawText: rawText,
                     cleanedText: parsedText.text
                 )
@@ -463,12 +483,18 @@ enum NativeASSParser {
         return (((hours * 60) + minutes) * 60 + seconds) * 1_000 + milliseconds
     }
 
-    private static func parseVisibleText(_ rawText: String) -> (text: String, alignmentOverride: Int?) {
+    private static func parseVisibleText(_ rawText: String) -> (
+        text: String,
+        alignmentOverride: Int?,
+        styleOverride: NativeASSStyleOverride
+    ) {
         var visibleText = ""
         var overrideText = ""
         var alignmentOverride: Int?
+        var styleOverride = NativeASSStyleOverride()
         var isInsideOverride = false
         var isInsideDrawingMode = false
+        var hasSeenVisibleText = false
 
         for character in rawText {
             if character == "{" {
@@ -477,6 +503,9 @@ enum NativeASSParser {
             } else if character == "}" {
                 if alignmentOverride == nil {
                     alignmentOverride = inlineAlignment(in: overrideText)
+                }
+                if !hasSeenVisibleText {
+                    styleOverride.apply(inlineStyleOverride(in: overrideText))
                 }
                 if let drawingMode = inlineDrawingMode(in: overrideText) {
                     isInsideDrawingMode = drawingMode > 0
@@ -488,6 +517,9 @@ enum NativeASSParser {
                 continue
             } else {
                 visibleText.append(character)
+                if !character.isWhitespace {
+                    hasSeenVisibleText = true
+                }
             }
         }
 
@@ -497,7 +529,7 @@ enum NativeASSParser {
             .replacingOccurrences(of: "\\h", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return (normalizedText, alignmentOverride)
+        return (normalizedText, alignmentOverride, styleOverride)
     }
 
     private static func inlineAlignment(in overrideText: String) -> Int? {
@@ -529,5 +561,47 @@ enum NativeASSParser {
         }
 
         return Int(overrideText[drawingModeRange])
+    }
+
+    private static func inlineStyleOverride(in overrideText: String) -> NativeASSStyleOverride {
+        var styleOverride = NativeASSStyleOverride()
+
+        styleOverride.fontSize = lastPositiveDoubleOverride(
+            in: overrideText,
+            pattern: #"\\fs(?!c)([0-9]+(?:\.[0-9]+)?)"#
+        )
+        styleOverride.scaleX = lastPositiveDoubleOverride(
+            in: overrideText,
+            pattern: #"\\fscx([0-9]+(?:\.[0-9]+)?)"#
+        )
+        styleOverride.scaleY = lastPositiveDoubleOverride(
+            in: overrideText,
+            pattern: #"\\fscy([0-9]+(?:\.[0-9]+)?)"#
+        )
+
+        return styleOverride
+    }
+
+    private static func lastPositiveDoubleOverride(in text: String, pattern: String) -> Double? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex
+            .matches(in: text, range: range)
+            .compactMap { match -> Double? in
+                guard let valueRange = Range(match.range(at: 1), in: text) else {
+                    return nil
+                }
+
+                let value = Double(text[valueRange])
+                guard let value, value > 0 else {
+                    return nil
+                }
+
+                return value
+            }
+            .last
     }
 }

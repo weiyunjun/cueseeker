@@ -47,6 +47,7 @@ enum NativeASSSubtitleRenderer {
     ) -> NativeASSSubtitleSurface? {
         let renderStyle = NativeASSResolvedRenderStyle(
             style: cue.style,
+            styleOverride: cue.event.styleOverride,
             scaleX: scaleX,
             scaleY: scaleY
         )
@@ -357,11 +358,14 @@ private struct NativeASSResolvedRenderStyle {
         return ceil(max(outlineWidth, shadowPadding))
     }
 
-    init(style: NativeASSStyle, scaleX: Double, scaleY: Double) {
+    init(style: NativeASSStyle, styleOverride: NativeASSStyleOverride, scaleX: Double, scaleY: Double) {
         let xScale = CGFloat(scaleX)
         let yScale = CGFloat(scaleY)
-        let verticalScale = max(CGFloat(style.scaleY) / 100, 0.1)
-        let fontSize = max(CGFloat(style.fontSize) * yScale * verticalScale, 8)
+        let sourceFontSize = styleOverride.fontSize ?? style.fontSize
+        let sourceScaleX = styleOverride.scaleX ?? style.scaleX
+        let sourceScaleY = styleOverride.scaleY ?? style.scaleY
+        let verticalScale = max(CGFloat(sourceScaleY) / 100, 0.1)
+        let fontSize = max(CGFloat(sourceFontSize) * yScale * verticalScale, 8)
         let baseFont = NSFont(name: style.fontName, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
         var resolvedFont = baseFont
 
@@ -377,7 +381,7 @@ private struct NativeASSResolvedRenderStyle {
         primaryColor = NSColor(nativeASSColor: style.primaryColor)
         outlineColor = NSColor(nativeASSColor: style.outlineColor)
         shadowColor = NSColor(nativeASSColor: style.shadowColor)
-        horizontalScale = max(CGFloat(style.scaleX) / 100, 0.1)
+        horizontalScale = max(CGFloat(sourceScaleX) / 100, 0.1)
         outlineWidth = max(CGFloat(style.outline) * yScale, 0)
         shadowOffset = CGSize(
             width: max(CGFloat(style.shadow), 0) * xScale,
