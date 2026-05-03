@@ -34,10 +34,11 @@ CueSeeker will implement ASS playback through a project-owned native subtitle
 rendering pipeline.
 
 The immediate implementation direction is native `v0`: a small, testable native
-text core for ordinary ASS dialogue. The long-term product direction is a fully
-self-owned native ASS rendering pipeline. Non-native renderer paths may remain
-available during the transition for comparison, diagnostics, or user-selectable
-fallback, but they are not the final architecture.
+text core for ordinary ASS dialogue. The long-term product direction includes a
+fully self-owned native ASS rendering pipeline and a maintained `libass`-backed
+renderer option. The `libass` path remains a durable user-selectable comparison,
+diagnostic, and compatibility renderer, and its output is an important reference
+for native renderer evaluation.
 
 The production direction is:
 
@@ -54,10 +55,12 @@ Rules:
 
 - ASS Lite remains a simple readable-text fallback and regression-isolation
   path. It must not be treated as the fix for complex ASS effects.
-- A `libass`-backed path may remain as a legacy selectable renderer while the
-  native engine matures, but new design discussion and implementation should
-  default to the native renderer path.
-- The final target is to keep only the native ASS rendering pipeline.
+- A `libass`-backed path remains a selectable renderer option while the native
+  engine matures and after native coverage improves. New native renderer design
+  should still default to the native renderer path.
+- The final target is to maintain native ASS rendering as the default project-owned
+  renderer while keeping `libass` available as a long-term selectable reference
+  and compatibility option.
 - Complex ASS playback must use source ASS data, not database cue projection.
 - Renderer failures must be exposed as explicit subtitle-rendering failures
   during native renderer development. Silent fallback to ASS Lite or to a
@@ -118,9 +121,10 @@ clock integration that later native phases can extend.
 - If the legacy `libass` path is included in a release build, it still affects
   dependency bundling, signing, notarization, and license review.
 
-These tradeoffs are acceptable because the final product goal is a native
-renderer owned by CueSeeker, with legacy renderer paths removed once the native
-pipeline is sufficient.
+These tradeoffs are acceptable because the product goal is a native renderer
+owned by CueSeeker, with `libass` retained as a long-term selectable reference
+and compatibility path rather than removed solely because native coverage
+improves.
 
 ## Alternatives Considered
 
@@ -141,11 +145,11 @@ style state, drawing commands, or timed effects to reconstruct source visuals.
 This is rejected. ADR-0007 selected native-only playback. ASS rendering work
 must not reintroduce MPV as a production playback fallback.
 
-### Keep `libass` As The Final Renderer
+### Make `libass` The Only Renderer
 
-This is rejected as the final architecture. A `libass`-backed path may remain
-temporarily selectable for diagnostics, comparison, or fallback while the native
-engine matures, but it is not the long-term renderer direction.
+This is rejected. A `libass`-backed path remains a long-term selectable renderer
+for diagnostics, comparison, and compatibility, but it must not replace the
+project-owned native renderer direction.
 
 ### Build A Project-Owned Native Renderer
 

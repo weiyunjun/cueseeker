@@ -64,10 +64,10 @@ Accepted ADRs:
 - ADR-0002 selects Swift, SwiftUI, AppKit bridges, Swift Package Manager, SQLite with FTS5, and a project-owned persistence layer for M1.
 - ADR-0007 supersedes ADR-0006 and ADR-0003 and selects native-only playback.
 - ADR-0004 disables App Sandbox for M1 local development and personal builds.
-- ADR-0009 selects native `v0` as the first ASS renderer phase and a fully
-  project-owned native ASS rendering pipeline as the final direction. Legacy
-  renderer paths may remain selectable during the transition, but new renderer
-  work should default to native mode.
+- ADR-0009 selects native `v0` as the first ASS renderer phase and a
+  project-owned native ASS rendering pipeline as the default direction. The
+  `libass` renderer remains a long-term selectable reference and compatibility
+  option, while new native renderer work should default to native mode.
 
 ## 5. Module Boundaries
 
@@ -192,8 +192,9 @@ Rules:
 - The native ASS renderer is the default direction for new subtitle rendering
   work. The first native phase is `v0` ordinary ASS dialogue rendering; later
   phases should be designed only when their implementation starts.
-- Legacy ASS renderer paths may remain available through Settings during the
-  transition, but the final target is native-only ASS rendering.
+- The `libass` ASS renderer path remains available through Settings as a
+  long-term selectable reference and compatibility option. Native ASS rendering
+  remains the default direction for new project-owned renderer work.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - The database cue projection must not be treated as a replacement ASS renderer.

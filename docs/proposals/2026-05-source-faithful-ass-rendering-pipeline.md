@@ -117,13 +117,13 @@ The long-term direction is a project-owned native ASS rendering pipeline that
 can render source ASS events into overlay surfaces synchronized to the native
 playback clock.
 
-ADR-0009 selects native `v0` as the first renderer phase and a fully native ASS
-rendering pipeline as the final direction. This replaces any plan that treats
-ASS Lite or a `libass`-backed renderer as the final solution for complex ASS
-rendering. ASS Lite remains a simple readable-text fallback and diagnostic
-comparison path. The existing `libass` path may remain selectable during the
-transition for comparison or fallback, but new design discussion defaults to the
-native renderer.
+ADR-0009 selects native `v0` as the first renderer phase and a project-owned
+native ASS rendering pipeline as the default direction. This replaces any plan
+that treats ASS Lite as the final solution for complex ASS rendering. ASS Lite
+remains a simple readable-text fallback and diagnostic comparison path. The
+existing `libass` path remains a long-term selectable renderer for comparison,
+fallback, compatibility, and native-renderer reference output, while new native
+design discussion defaults to the native renderer.
 
 If a build includes a non-system legacy ASS renderer dependency, that decision
 must account for:
@@ -142,7 +142,7 @@ regression isolation.
 
 The current legacy `libass` path should preserve the sparse shape of `libass`
 output instead of treating every subtitle update as a full-video-frame image.
-This section is transition guidance for the legacy path, not the primary native
+This section is guidance for the retained legacy path, not the primary native
 `v0` renderer plan. A diagnostic renderer probe may produce full RGBA frames
 because that is convenient for PNG validation, but production playback should
 not assume that full-frame bitmap output is the final architecture.
@@ -223,10 +223,11 @@ of H7.
 
 CueSeeker will introduce a project-owned native subtitle engine alongside the
 current selectable legacy renderer paths. The version name `legacy` refers to
-non-native transition renderers such as the current `libass` sparse-image
+non-native retained renderers such as the current `libass` sparse-image
 playback path. Native engine versions start at `v0`; this version sequence is
-independent from Git commit versions. The final product direction is native
-only.
+independent from Git commit versions. The default product direction is native
+rendering, with `libass` retained as a long-term selectable reference and
+compatibility option.
 
 This section intentionally documents only the first phase in detail. Later
 phases are high-level placeholders and must be refined when work on each phase
