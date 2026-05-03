@@ -224,6 +224,15 @@ Rules:
   may be widened up to 60 seconds, while dense effect regions should shrink
   toward 5-10 second windows according to dialogue count, byte count, override
   tags, animation, vector drawing, clipping, and peak active render cost.
+- Complexity-aware segmentation must be a conservative source-preserving
+  optimization. The segmenter may change only which overlapping source events
+  are packaged into each indexed render script; it must not rewrite event
+  timing, style names, override tags, drawing commands, layer values, margins,
+  or source order to reduce cost.
+- The segmentation budget should optimize for stable playback memory and
+  click-to-subtitle latency, not for the smallest possible number of database
+  rows. Small ASS files below the threshold should keep the full-file path to
+  avoid segment-switch overhead and lost renderer cache locality.
 - Large ASS render segments stored in SQLite must preserve complete render
   context for the segment: script metadata, styles, event format, original event
   timestamps, original event text, layer values, and source order for every

@@ -192,6 +192,11 @@ Rules:
   observation points include process memory after open, after steady playback,
   after repeated seeks, after subtitle hide/show toggles, after fullscreen
   transitions, and after closing playback.
+- Complex ASS segmentation acceptance should record private resident memory
+  before the dense effect section, at peak playback, and after leaving the dense
+  section for at least two minutes. Private resident memory is the primary
+  process-owned metric; real resident memory is useful context but includes
+  shared framework, font, video, and graphics pages.
 - Numeric memory samples are supporting evidence for ASS renderer changes, but
   they do not replace perceptual acceptance. A change should not be accepted if
   memory appears lower only in a narrow sample while visible playback behavior,
@@ -434,6 +439,9 @@ Required render timeline coverage:
 - Complexity-aware ASS segmentation tests must cover the 256 KB activation
   threshold, low-complexity widening, and dense effect regions shrinking to
   shorter windows without dropping overlapping source events.
+- Regression checks for the segmenter should include a real complex ASS sample
+  with a dense effect section followed by ordinary dialogue, verifying that the
+  indexed windows shrink only around the dense section and widen again after it.
 - ASS render-segment cache migration tests must verify that older segmentation
   algorithm versions are ignored for unchanged source files and rebuilt on the
   next indexing pass.

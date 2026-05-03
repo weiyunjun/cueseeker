@@ -10,7 +10,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   stores source-faithful ASS fragments in SQLite for `legacy libass`, using a
   256 KB threshold and complexity-aware 5-60 second windows so playback can load
   the current fragment without rereading and splitting the full source file on
-  result selection.
+  result selection. Dense effect sections are split into shorter windows while
+  simple regions remain wider, keeping complex ASS playback memory steadier
+  without applying the overhead to small ordinary ASS files.
 - Added a native playback rebuffer gate that pauses audio output when video
   frame delivery stalls, so NAS or network read jitter produces a unified
   playback pause instead of allowing audio to run ahead of video and subtitles.
