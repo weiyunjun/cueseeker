@@ -4,7 +4,7 @@ set -euo pipefail
 readonly INTERVAL_SECONDS=5
 readonly APPS=("CueSeeker" "Movist Pro")
 
-printf "timestamp\tapp\tpid\treal(MEM)\tprivate(RPRVT)\n"
+printf "timestamp\tapp\tpid\treal(RSIZE)\tprivate(RPRVT)\n"
 
 while true; do
   timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
@@ -21,7 +21,7 @@ while true; do
       [[ -n "${pid}" ]] || continue
 
       line="$(
-        top -l 1 -pid "${pid}" -stats pid,mem,rprvt,command 2>/dev/null \
+        top -r -l 1 -pid "${pid}" -stats pid,rsize,rprvt,command 2>/dev/null \
           | awk -v pid="${pid}" '$1 == pid { print; exit }' \
           || true
       )"
