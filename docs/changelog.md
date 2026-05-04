@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented remote warm-session constraints: warm-up is bounded by distinct
+  videos rather than result rows, centrally scheduled across search and future
+  favorites, limited by provider politeness rules, memory-first by default, and
+  allowed to persist only stable metadata or explicitly bounded future range
+  cache data rather than tokens, signed URLs, provider headers, or whole videos.
 - Implemented same-media in-session native seek: progress-bar seeks and
   same-video result jumps now avoid reopening the media URL, reset demux,
   decoder, audio clock, and read-ahead state inside the active playback session,

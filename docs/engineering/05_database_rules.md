@@ -140,6 +140,17 @@ Rules:
   path. A raw HTTP playback URL is not stable identity.
 - AList `raw_url` values returned by `/api/fs/get` are transient playback
   outputs and must not be stored as durable media-file identity.
+- Durable remote playback acceleration data should be justified by measurable
+  remote-only cost compared with local files. Suitable durable data may include
+  stable media identity, media stream metadata, duration, codec information,
+  seekability, and future bounded container seek-index summaries.
+- Provider-issued session material is not durable acceleration data. AList
+  tokens, signed `raw_url` values, provider playback headers, and Basic auth
+  headers must remain memory-only or Keychain-owned according to their security
+  role.
+- Byte-range media caches may be considered only with an explicit bounded cache
+  policy covering size, expiry, source metadata validation, deletion, and user
+  controls. They must not silently become whole-video temporary downloads.
 - Native playback compatibility metadata is owned by the media file, not by
   subtitle cue groups, cue lines, or subtitle file paths.
 - Subtitle-to-video matching must be represented separately enough that exact basename matching can later be replaced or supplemented by fuzzy or manual matching.

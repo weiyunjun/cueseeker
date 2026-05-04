@@ -380,6 +380,28 @@ Rules:
   remote byte-range reads are in progress. The UI may optimistically show the
   requested target and should coalesce repeated seek requests so only the latest
   pending target runs after any active seek finishes.
+- Remote warm-up must be centrally scheduled rather than owned by individual
+  surfaces such as search results, favorites, or future recommendation lists.
+  Features should publish prioritized media candidates; one warm-up coordinator
+  should apply global limits, cancellation, and provider politeness rules.
+- Remote warm-up priority is based on distinct stable media identity plus an
+  optional warm point. For ordered result lists, the initial warm point should be
+  the first result for that video in the current ordering. If sorting or filters
+  change, stale warm candidates should be cancelled or reprioritized.
+- Warm-up must have explicit levels. Light warm-up may resolve provider playback
+  material and prepare native open or probe state. Medium warm-up may seek to the
+  warm point and decode enough to make first-frame readiness cheaper. Heavy
+  warm-up may retain compressed packets near the warm point only after a
+  separate documented resource policy.
+- Warm sessions may hold memory-only FFmpeg format state, decoder state, proxy
+  target state, and a bounded amount of compressed packet data. They must not
+  persist provider tokens, provider headers, signed playback URLs, or whole-video
+  temporary files to disk.
+- Warm-up resource limits must be global, not per result row. A list with 50
+  results must not trigger 50 remote opens. The first implementation should cap
+  warm sessions to a small number of distinct videos, use serial remote warm-up
+  concurrency, and record diagnostics for provider API calls and remote range
+  reads caused by warm-up.
 - Native read-ahead should queue compressed FFmpeg packets, not decoded video
   frames or decoded audio frames, unless a later design explicitly changes the
   memory model.

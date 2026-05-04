@@ -250,6 +250,20 @@ Requirements:
   packet read-ahead behavior as local and mounted-NAS playback.
 - Remote playback errors should clearly distinguish source configuration,
   authentication, provider resolution, and media open failures when practical.
+- Remote playback may use opportunistic warm sessions after result lists are
+  materialized, such as search results and future favorites, to reduce cold-open
+  latency for likely next selections.
+- Warm-up must be bounded by distinct media files, not by result row count. A
+  result list with many cue rows from the same video should warm the video once;
+  a result list with many distinct videos must be limited by a small configurable
+  cap.
+- The initial warm-up policy should prepare only the first few prioritized
+  distinct videos, run at most one remote warm-up at a time, cancel obsolete
+  work when the result list changes, and use the first result for each video in
+  the current ordering as that video's initial warm point.
+- Warm-up must remain an acceleration path. It must not download whole remote
+  videos, must not prevent normal click-to-playback if warm-up is incomplete,
+  and must release inactive warm sessions after a short idle lifetime.
 
 ## 10. Settings
 
