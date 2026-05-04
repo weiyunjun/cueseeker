@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the first read-only WebDAV/AList media-source path in the native
+  app: users can add an AList WebDAV source, store credentials in Keychain,
+  index remote subtitles, search remote cues, resolve AList playback through
+  `/api/fs/get`, and pass remote HTTP headers into the native FFmpeg backend.
 - Accepted the first WebDAV/AList remote media-source plan: WebDAV will provide
   read-only remote listing and subtitle reads, while AList sources will resolve
   playable signed URLs through `/api/fs/get`; whole-video temporary download

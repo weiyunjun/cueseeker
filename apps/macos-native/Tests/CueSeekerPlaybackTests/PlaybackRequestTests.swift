@@ -172,6 +172,31 @@ func playbackRequestRejectsMissingVideoFile() throws {
 }
 
 @Test
+func playbackRequestAllowsHTTPVideoURLAndStoresHeaders() throws {
+    let videoURL = try #require(URL(string: "https://example.test/media/Episode%2001.mkv?sign=abc"))
+    let request = try PlaybackRequest(
+        videoURL: videoURL,
+        httpHeaders: ["Authorization": "Bearer token"],
+        startMilliseconds: 1_500
+    )
+
+    #expect(request.videoURL == videoURL)
+    #expect(request.httpHeaders == ["Authorization": "Bearer token"])
+    #expect(request.nativeMediaPath == videoURL.absoluteString)
+    #expect(request.mediaIdentifier == videoURL.absoluteString)
+    #expect(request.startMilliseconds == 1_500)
+}
+
+@Test
+func playbackRequestRejectsUnsupportedRemoteScheme() {
+    let videoURL = URL(string: "ftp://example.test/media.mkv")!
+
+    #expect(throws: PlaybackError.invalidVideoURL(videoURL.absoluteString)) {
+        _ = try PlaybackRequest(videoURL: videoURL, startMilliseconds: 0)
+    }
+}
+
+@Test
 func playbackRequestClampsNegativeStartMilliseconds() throws {
     let videoURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")

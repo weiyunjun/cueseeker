@@ -31,16 +31,19 @@ enum AppSection: String, CaseIterable, Identifiable {
 enum IndexingStatus: Equatable {
     case idle
     case indexing(URL)
+    case indexingRemote(String)
     case indexingAll(currentFolder: URL, completedFolders: Int, totalFolders: Int)
     case completed(URL, SubtitleIndexingResult)
+    case completedRemote(String, SubtitleIndexingResult)
     case completedAll(folderCount: Int, SubtitleIndexingResult)
     case failed(URL, String)
+    case failedRemote(String, String)
 
     var isIndexing: Bool {
         switch self {
-        case .indexing, .indexingAll:
+        case .indexing, .indexingRemote, .indexingAll:
             return true
-        case .idle, .completed, .completedAll, .failed:
+        case .idle, .completed, .completedRemote, .completedAll, .failed, .failedRemote:
             return false
         }
     }
@@ -81,6 +84,7 @@ final class AppState: ObservableObject {
 
     @Published var selectedSection: AppSection = .search
     @Published var selectedFolders: [URL] = []
+    @Published var remoteSources: [StoredMediaSource] = []
     @Published var indexingStatus: IndexingStatus = .idle
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
@@ -113,6 +117,7 @@ final class AppState: ObservableObject {
     }
 
     private let userDefaults: UserDefaults
+    private let credentialStore = RemoteCredentialStore()
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
@@ -142,7 +147,11 @@ final class AppState: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
-            try database.reconcileIndexedContent(activeFolders: selectedFolders)
+            remoteSources = try database.remoteMediaSources()
+            try database.reconcileIndexedContent(
+                activeFolders: selectedFolders,
+                activeRemoteSourceIDs: remoteSources.map(\.id)
+            )
             let player = PlaybackPlayer()
             player.decodeMode = playbackDecodeMode
             player.assSubtitleRenderingMode = assSubtitleRenderingMode
@@ -188,6 +197,91 @@ final class AppState: ObservableObject {
         persistSelectedFolders()
         clearSearchAndPlaybackState(under: folder)
         refreshCurrentSearch(clearExistingResults: true)
+    }
+
+    func addAListRemoteSource(
+        displayName: String,
+        rootURLString: String,
+        username: String,
+        password: String
+    ) {
+        let trimmedURL = rootURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let rootURL = URL(string: trimmedURL) else {
+            startupError = "Invalid WebDAV URL."
+            return
+        }
+
+        let credentialRef = UUID().uuidString
+        do {
+            try credentialStore.save(
+                RemoteMediaSourceCredentials(username: username, password: password),
+                credentialRef: credentialRef
+            )
+
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+            let sourceID = try database.addRemoteMediaSource(
+                provider: .alist,
+                rootURL: rootURL,
+                displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? rootURL.host ?? trimmedURL,
+                credentialRef: credentialRef
+            )
+            remoteSources = try database.remoteMediaSources()
+
+            guard let source = remoteSources.first(where: { $0.id == sourceID }) else {
+                return
+            }
+            indexRemoteSource(source)
+        } catch {
+            credentialStore.delete(credentialRef: credentialRef)
+            startupError = "Failed to add remote source: \(Self.errorMessage(for: error))"
+        }
+    }
+
+    func removeRemoteSource(_ source: StoredMediaSource) {
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+            try database.removeIndexedRemoteSource(id: source.id)
+            credentialStore.delete(credentialRef: source.credentialRef)
+            remoteSources = try database.remoteMediaSources()
+            clearSearchAndPlaybackState(sourceID: source.id)
+            refreshCurrentSearch(clearExistingResults: true)
+        } catch {
+            startupError = "Failed to remove remote source: \(Self.errorMessage(for: error))"
+        }
+    }
+
+    func indexRemoteSource(_ source: StoredMediaSource) {
+        indexingTask?.cancel()
+        indexingStatus = .indexingRemote(source.displayName)
+
+        let databaseURL = databaseURL
+        let credentialStore = credentialStore
+        indexingTask = Task {
+            do {
+                let credentials = try credentialStore.load(credentialRef: source.credentialRef)
+                let configuration = try Self.remoteConfiguration(source: source, credentials: credentials)
+                let result = try await Task.detached(priority: .userInitiated) {
+                    let database = try SubtitleDatabase(path: databaseURL)
+                    let indexer = RemoteSubtitleIndexer()
+                    return try await indexer.index(source: configuration, into: database)
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                indexingStatus = .completedRemote(source.displayName, result)
+                refreshCurrentSearch()
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                indexingStatus = .failedRemote(source.displayName, Self.errorMessage(for: error))
+            }
+        }
     }
 
     func clearSearchFocus() {
@@ -347,7 +441,8 @@ final class AppState: ObservableObject {
         }
 
         let folders = selectedFolders
-        guard !folders.isEmpty else {
+        let remoteSourceIDs = remoteSources.map(\.id)
+        guard !folders.isEmpty || !remoteSourceIDs.isEmpty else {
             searchStatus = .completed
             searchResults = []
             selectedSearchResult = nil
@@ -364,7 +459,11 @@ final class AppState: ObservableObject {
                 let results = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     try database.migrate()
-                    return try database.search(trimmedQuery, under: folders)
+                    return try database.search(
+                        trimmedQuery,
+                        under: folders,
+                        remoteSourceIDs: remoteSourceIDs
+                    )
                 }.value
 
                 guard !Task.isCancelled else {
@@ -397,6 +496,12 @@ final class AppState: ObservableObject {
     }
 
     func play(_ result: SubtitleSearchResult) {
+        Task {
+            await playResolved(result)
+        }
+    }
+
+    private func playResolved(_ result: SubtitleSearchResult) async {
         playbackStatus = .opening(result)
         let subtitleCues = playbackSubtitleCues(for: result)
         playbackViewModel?.setSubtitleCues(
@@ -405,17 +510,13 @@ final class AppState: ObservableObject {
         )
 
         do {
-            let request = try PlaybackRequest(
-                videoURL: URL(fileURLWithPath: result.videoPath),
-                startMilliseconds: result.startMilliseconds,
-                subtitleSource: playbackSubtitleSource(for: result)
-            )
+            let request = try await playbackRequest(for: result)
 
             guard let player else {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
-            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+            if player.currentMediaIdentifier == request.mediaIdentifier {
                 player.loadSubtitleSource(request.subtitleSource)
                 try player.seek(toMilliseconds: request.startMilliseconds)
             } else {
@@ -593,6 +694,21 @@ final class AppState: ObservableObject {
         stopPlayback()
     }
 
+    private func clearSearchAndPlaybackState(sourceID: Int64) {
+        searchResults.removeAll { result in
+            result.subtitleSourceID == sourceID || result.videoSourceID == sourceID
+        }
+
+        guard let selectedSearchResult,
+              selectedSearchResult.subtitleSourceID == sourceID || selectedSearchResult.videoSourceID == sourceID
+        else {
+            return
+        }
+
+        self.selectedSearchResult = nil
+        stopPlayback()
+    }
+
     private static func path(_ path: String, isUnder folder: URL) -> Bool {
         let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
         return folderPathPrefixes(for: folder).contains { prefix in
@@ -637,6 +753,53 @@ final class AppState: ObservableObject {
         aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
     }
 
+    private func playbackRequest(for result: SubtitleSearchResult) async throws -> PlaybackRequest {
+        let subtitleSource = try await playbackSubtitleSource(for: result)
+
+        guard let sourceID = result.videoSourceID else {
+            return try PlaybackRequest(
+                videoURL: URL(fileURLWithPath: result.videoPath),
+                startMilliseconds: result.startMilliseconds,
+                subtitleSource: subtitleSource
+            )
+        }
+
+        guard let source = remoteSources.first(where: { $0.id == sourceID }) else {
+            throw RemotePlaybackError.remoteSourceUnavailable
+        }
+        let credentials = try credentialStore.load(credentialRef: source.credentialRef)
+        let configuration = try Self.remoteConfiguration(source: source, credentials: credentials)
+
+        let resolved: ResolvedRemoteMedia
+        switch source.provider {
+        case .alist:
+            guard let relativePath = result.videoSourceRelativePath else {
+                throw RemotePlaybackError.remoteRelativePathMissing
+            }
+            resolved = try await AListResolver().resolve(
+                source: configuration,
+                sourceRelativePath: relativePath
+            )
+        case .genericWebDAV:
+            guard let url = URL(string: result.videoPath) else {
+                throw RemotePlaybackError.invalidRemoteURL
+            }
+            resolved = ResolvedRemoteMedia(
+                url: url,
+                headers: Self.basicAuthHeaders(credentials: credentials)
+            )
+        case .local:
+            throw RemotePlaybackError.remoteSourceUnavailable
+        }
+
+        return try PlaybackRequest(
+            videoURL: resolved.url,
+            httpHeaders: resolved.headers,
+            startMilliseconds: result.startMilliseconds,
+            subtitleSource: subtitleSource
+        )
+    }
+
     private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
         guard result.subtitleFormat == .srt else {
             return []
@@ -646,7 +809,7 @@ final class AppState: ObservableObject {
             let database = try SubtitleDatabase(path: databaseURL)
             try database.migrate()
             let entries = try database.entries(
-                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath)
+                forSubtitlePath: result.subtitlePath
             )
             let cues = entries.map {
                 PlaybackSubtitleCue(
@@ -672,16 +835,24 @@ final class AppState: ObservableObject {
         ]
     }
 
-    private func playbackSubtitleSource(for result: SubtitleSearchResult) -> PlaybackSubtitleSource? {
+    private func playbackSubtitleSource(for result: SubtitleSearchResult) async throws -> PlaybackSubtitleSource? {
         guard result.subtitleFormat == .ass else {
             return nil
         }
 
+        let subtitleURL: URL
+        if result.subtitleSourceID != nil {
+            subtitleURL = try await cachedRemoteSubtitleURL(for: result)
+        } else {
+            subtitleURL = URL(fileURLWithPath: result.subtitlePath)
+        }
+
         return PlaybackSubtitleSource(
-            url: URL(fileURLWithPath: result.subtitlePath),
+            url: subtitleURL,
             format: .ass,
             preparationTimeWindow: playbackSubtitleTimeWindow(for: result),
-            renderCacheDatabaseURL: databaseURL
+            renderCacheDatabaseURL: databaseURL,
+            renderCacheSubtitlePath: result.subtitlePath
         )
     }
 
@@ -695,7 +866,7 @@ final class AppState: ObservableObject {
             let database = try SubtitleDatabase(path: databaseURL)
             try database.migrate()
             let timings = try database.cueTimings(
-                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+                forSubtitlePath: result.subtitlePath,
                 startingAtMilliseconds: result.startMilliseconds,
                 limit: Self.assSubtitlePreparationCueLimit
             )
@@ -721,6 +892,81 @@ final class AppState: ObservableObject {
             print("Failed to load ASS subtitle preparation window: \(error)")
             return fallback
         }
+    }
+
+    private func cachedRemoteSubtitleURL(for result: SubtitleSearchResult) async throws -> URL {
+        guard let sourceID = result.subtitleSourceID,
+              let relativePath = result.subtitleSourceRelativePath,
+              let source = remoteSources.first(where: { $0.id == sourceID })
+        else {
+            throw RemotePlaybackError.remoteRelativePathMissing
+        }
+
+        let credentials = try credentialStore.load(credentialRef: source.credentialRef)
+        let rootURL = try Self.remoteRootURL(source.path)
+        let client = try WebDAVClient(rootURL: rootURL, credentials: credentials)
+        let data = try await client.downloadData(relativePath: relativePath)
+        let cacheURL = try remoteSubtitleCacheURL(
+            sourceID: sourceID,
+            relativePath: relativePath,
+            pathExtension: URL(fileURLWithPath: relativePath).pathExtension.nilIfEmpty ?? "ass"
+        )
+        try FileManager.default.createDirectory(
+            at: cacheURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: cacheURL, options: .atomic)
+        return cacheURL
+    }
+
+    private func remoteSubtitleCacheURL(
+        sourceID: Int64,
+        relativePath: String,
+        pathExtension: String
+    ) throws -> URL {
+        let cacheRoot = databaseURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("RemoteSubtitleCache", isDirectory: true)
+            .appendingPathComponent(String(sourceID), isDirectory: true)
+        let fileName = Data(relativePath.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "=", with: "")
+        return cacheRoot
+            .appendingPathComponent(fileName)
+            .appendingPathExtension(pathExtension)
+    }
+
+    private static func remoteConfiguration(
+        source: StoredMediaSource,
+        credentials: RemoteMediaSourceCredentials
+    ) throws -> RemoteMediaSourceConfiguration {
+        RemoteMediaSourceConfiguration(
+            id: source.id,
+            provider: source.provider,
+            displayName: source.displayName,
+            rootURL: try remoteRootURL(source.path),
+            credentialRef: source.credentialRef,
+            credentials: credentials
+        )
+    }
+
+    private static func remoteRootURL(_ value: String) throws -> URL {
+        guard let url = URL(string: value) else {
+            throw RemotePlaybackError.invalidRemoteURL
+        }
+        return url
+    }
+
+    private static func basicAuthHeaders(credentials: RemoteMediaSourceCredentials) -> [String: String] {
+        guard !credentials.username.isEmpty || !credentials.password.isEmpty else {
+            return [:]
+        }
+
+        let userPassword = "\(credentials.username):\(credentials.password)"
+        let encoded = Data(userPassword.utf8).base64EncodedString()
+        return ["Authorization": "Basic \(encoded)"]
     }
 
     private func persistSelectedFolders() {
@@ -802,5 +1048,28 @@ private extension NSView {
         }
 
         return false
+    }
+}
+
+private enum RemotePlaybackError: Error, CustomStringConvertible {
+    case remoteSourceUnavailable
+    case remoteRelativePathMissing
+    case invalidRemoteURL
+
+    var description: String {
+        switch self {
+        case .remoteSourceUnavailable:
+            "Remote media source is unavailable."
+        case .remoteRelativePathMissing:
+            "Remote media relative path is missing."
+        case .invalidRemoteURL:
+            "Remote media URL is invalid."
+        }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

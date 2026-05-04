@@ -334,7 +334,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `3`.
+- Schema version: `6`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -342,6 +342,15 @@ Current native schema:
 - The version 3 migration preserves durable configuration such as selected
   folders and playback settings while rebuilding derived subtitle index data
   from source subtitle files.
+- Version 6 extends selected media sources, subtitle files, and video files with
+  read-only remote WebDAV identity:
+  `search_paths.provider`, `search_paths.display_name`,
+  `search_paths.credential_ref`, `subtitle_files.source_id`,
+  `subtitle_files.source_relative_path`, `video_files.source_id`, and
+  `video_files.source_relative_path`.
+- Version 6 stores durable remote identity only. Passwords, Basic auth headers,
+  AList JWT tokens, AList `raw_url` values, and provider-signed playback URLs
+  are not database data.
 
 ## 14. Flutter Data Compatibility
 

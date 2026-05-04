@@ -16,9 +16,13 @@ public struct SubtitleDatabaseEntry: Equatable, Sendable {
 
 public struct SubtitleSearchResult: Equatable, Sendable {
     public let entryID: Int64
+    public let subtitleSourceID: Int64?
     public let subtitlePath: String
+    public let subtitleSourceRelativePath: String?
     public let subtitleFormat: SubtitleFormat
+    public let videoSourceID: Int64?
     public let videoPath: String
+    public let videoSourceRelativePath: String?
     public let videoName: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
@@ -37,9 +41,13 @@ public struct SubtitleCueTiming: Equatable, Sendable {
 }
 
 public struct SubtitleFileMetadata: Equatable, Sendable {
+    public let sourceID: Int64?
     public let subtitlePath: String
+    public let sourceRelativePath: String?
     public let subtitleFormat: SubtitleFormat
     public let videoPath: String?
+    public let videoSourceID: Int64?
+    public let videoSourceRelativePath: String?
     public let videoName: String?
     public let fileSize: Int64?
     public let modifiedAt: Date?
@@ -56,7 +64,7 @@ public struct ASSRenderSegment: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 5
+    public static let currentSchemaVersion: Int = 6
 
     private let database: SQLiteDatabase
 
@@ -73,6 +81,9 @@ public final class SubtitleDatabase {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 type TEXT NOT NULL DEFAULT 'local',
                 path TEXT NOT NULL UNIQUE,
+                provider TEXT NOT NULL DEFAULT 'local',
+                display_name TEXT,
+                credential_ref TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -87,16 +98,21 @@ public final class SubtitleDatabase {
             """
             CREATE TABLE IF NOT EXISTS subtitle_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_id INTEGER,
                 subtitle_path TEXT NOT NULL UNIQUE,
+                source_relative_path TEXT,
                 format TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
-                indexed_at TEXT NOT NULL
+                indexed_at TEXT NOT NULL,
+                FOREIGN KEY(source_id) REFERENCES search_paths(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS video_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_id INTEGER,
                 path TEXT NOT NULL UNIQUE,
+                source_relative_path TEXT,
                 video_name TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
@@ -107,7 +123,8 @@ public final class SubtitleDatabase {
                 native_audio_candidate INTEGER,
                 native_compatibility_reason TEXT,
                 native_failure_reason TEXT,
-                compatibility_evaluated_at TEXT
+                compatibility_evaluated_at TEXT,
+                FOREIGN KEY(source_id) REFERENCES search_paths(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS subtitle_video_matches (
@@ -197,6 +214,20 @@ public final class SubtitleDatabase {
             )
         }
 
+        if previousVersion > 0 && previousVersion < 6 {
+            try migrateToVersionSix()
+        }
+
+        try database.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_subtitle_files_source_id
+                ON subtitle_files(source_id);
+
+            CREATE INDEX IF NOT EXISTS idx_video_files_source_id
+                ON video_files(source_id);
+            """
+        )
+
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
     }
 
@@ -211,22 +242,97 @@ public final class SubtitleDatabase {
 
     @discardableResult
     public func addSearchPath(_ folder: URL, type: String = "local") throws -> Int64 {
+        try addMediaSource(
+            type: MediaSourceType(rawValue: type) ?? .local,
+            provider: .local,
+            path: folder.path,
+            displayName: folder.lastPathComponent,
+            credentialRef: nil
+        )
+    }
+
+    @discardableResult
+    public func addRemoteMediaSource(
+        provider: MediaSourceProvider,
+        rootURL: URL,
+        displayName: String,
+        credentialRef: String?
+    ) throws -> Int64 {
+        try addMediaSource(
+            type: .webdav,
+            provider: provider,
+            path: Self.normalizedRemoteRootURLString(rootURL),
+            displayName: displayName,
+            credentialRef: credentialRef
+        )
+    }
+
+    public func remoteMediaSources() throws -> [StoredMediaSource] {
+        let statement = try database.prepare(
+            """
+            SELECT id, type, provider, path, display_name, credential_ref
+            FROM search_paths
+            WHERE type = 'webdav'
+            ORDER BY display_name COLLATE NOCASE ASC, path ASC;
+            """
+        )
+
+        var sources: [StoredMediaSource] = []
+        while try statement.step() {
+            sources.append(Self.storedMediaSource(from: statement))
+        }
+        return sources
+    }
+
+    public func mediaSource(id: Int64) throws -> StoredMediaSource? {
+        let statement = try database.prepare(
+            """
+            SELECT id, type, provider, path, display_name, credential_ref
+            FROM search_paths
+            WHERE id = ?;
+            """
+        )
+
+        try statement.bind(id, at: 1)
+        guard try statement.step() else {
+            return nil
+        }
+        return Self.storedMediaSource(from: statement)
+    }
+
+    private func addMediaSource(
+        type: MediaSourceType,
+        provider: MediaSourceProvider,
+        path: String,
+        displayName: String,
+        credentialRef: String?
+    ) throws -> Int64 {
         let now = ISO8601DateFormatter().string(from: Date())
         let statement = try database.prepare(
             """
-            INSERT INTO search_paths(type, path, created_at, updated_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO search_paths(type, path, provider, display_name, credential_ref, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
                 type = excluded.type,
+                provider = excluded.provider,
+                display_name = excluded.display_name,
+                credential_ref = excluded.credential_ref,
                 updated_at = excluded.updated_at
             RETURNING id;
             """
         )
 
-        try statement.bind(type, at: 1)
-        try statement.bind(folder.path, at: 2)
-        try statement.bind(now, at: 3)
-        try statement.bind(now, at: 4)
+        try statement.bind(type.rawValue, at: 1)
+        try statement.bind(path, at: 2)
+        try statement.bind(provider.rawValue, at: 3)
+        try statement.bind(displayName, at: 4)
+        if let credentialRef {
+            try statement.bind(credentialRef, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
+        }
+        try statement.bind(now, at: 6)
+        try statement.bind(now, at: 7)
 
         guard try statement.step() else {
             return database.lastInsertRowID()
@@ -263,18 +369,62 @@ public final class SubtitleDatabase {
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil
     ) throws {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: videoFile.path)
+        let videoFileSize = (attributes?[.size] as? NSNumber)?.int64Value
+        let videoModifiedAt = attributes?[.modificationDate] as? Date
+        try replaceCueGroups(
+            subtitlePath: subtitleFile.path,
+            videoPath: videoFile.path,
+            videoName: videoFile.lastPathComponent,
+            format: format,
+            cueGroups: cueGroups,
+            assRenderSegments: assRenderSegments,
+            sourceID: nil,
+            subtitleRelativePath: nil,
+            videoRelativePath: nil,
+            fileSize: fileSize,
+            modifiedAt: modifiedAt,
+            videoFileSize: videoFileSize,
+            videoModifiedAt: videoModifiedAt
+        )
+    }
+
+    public func replaceCueGroups(
+        subtitlePath: String,
+        videoPath: String,
+        videoName: String,
+        format: SubtitleFormat,
+        cueGroups: [SubtitleCueGroup],
+        assRenderSegments: [ASSRenderSegmentPayload] = [],
+        sourceID: Int64? = nil,
+        subtitleRelativePath: String? = nil,
+        videoRelativePath: String? = nil,
+        fileSize: Int64? = nil,
+        modifiedAt: Date? = nil,
+        videoFileSize: Int64? = nil,
+        videoModifiedAt: Date? = nil
+    ) throws {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
 
         do {
-            try deleteIndexedSubtitlePath(subtitleFile.path)
+            try deleteIndexedSubtitlePath(subtitlePath)
 
             let subtitleFileID = try upsertSubtitleFile(
-                subtitleFile: subtitleFile,
+                subtitlePath: subtitlePath,
+                sourceID: sourceID,
+                sourceRelativePath: subtitleRelativePath,
                 format: format,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt
             )
-            let videoFileID = try upsertVideoFile(videoFile)
+            let videoFileID = try upsertVideoFile(
+                videoPath: videoPath,
+                videoName: videoName,
+                sourceID: sourceID,
+                sourceRelativePath: videoRelativePath,
+                fileSize: videoFileSize,
+                modifiedAt: videoModifiedAt
+            )
             try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
 
             for segment in assRenderSegments {
@@ -284,7 +434,7 @@ public final class SubtitleDatabase {
             for group in cueGroups {
                 let cueGroupID = try insertCueGroup(
                     subtitleFileID: subtitleFileID,
-                    subtitleFile: subtitleFile,
+                    subtitlePath: subtitlePath,
                     group: group
                 )
                 for line in group.cueLines {
@@ -302,6 +452,10 @@ public final class SubtitleDatabase {
     }
 
     public func entries(forSubtitleFile subtitleFile: URL) throws -> [SubtitleDatabaseEntry] {
+        try entries(forSubtitlePath: subtitleFile.path)
+    }
+
+    public func entries(forSubtitlePath subtitlePath: String) throws -> [SubtitleDatabaseEntry] {
         let statement = try database.prepare(
             """
             SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
@@ -315,7 +469,7 @@ public final class SubtitleDatabase {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitlePath, at: 1)
 
         var entries: [SubtitleDatabaseEntry] = []
         while try statement.step() {
@@ -327,6 +481,18 @@ public final class SubtitleDatabase {
 
     public func cueTimings(
         forSubtitleFile subtitleFile: URL,
+        startingAtMilliseconds startMilliseconds: Int,
+        limit: Int
+    ) throws -> [SubtitleCueTiming] {
+        try cueTimings(
+            forSubtitlePath: subtitleFile.path,
+            startingAtMilliseconds: startMilliseconds,
+            limit: limit
+        )
+    }
+
+    public func cueTimings(
+        forSubtitlePath subtitlePath: String,
         startingAtMilliseconds startMilliseconds: Int,
         limit: Int
     ) throws -> [SubtitleCueTiming] {
@@ -347,7 +513,7 @@ public final class SubtitleDatabase {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitlePath, at: 1)
         try statement.bind(max(0, startMilliseconds), at: 2)
         try statement.bind(limit, at: 3)
 
@@ -365,6 +531,10 @@ public final class SubtitleDatabase {
     }
 
     public func hasASSRenderSegments(forSubtitleFile subtitleFile: URL) throws -> Bool {
+        try hasASSRenderSegments(forSubtitlePath: subtitleFile.path)
+    }
+
+    public func hasASSRenderSegments(forSubtitlePath subtitlePath: String) throws -> Bool {
         let statement = try database.prepare(
             """
             SELECT 1
@@ -376,13 +546,23 @@ public final class SubtitleDatabase {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitlePath, at: 1)
         try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
         return try statement.step()
     }
 
     public func assRenderSegment(
         forSubtitleFile subtitleFile: URL,
+        atMilliseconds milliseconds: Int
+    ) throws -> ASSRenderSegment? {
+        try assRenderSegment(
+            forSubtitlePath: subtitleFile.path,
+            atMilliseconds: milliseconds
+        )
+    }
+
+    public func assRenderSegment(
+        forSubtitlePath subtitlePath: String,
         atMilliseconds milliseconds: Int
     ) throws -> ASSRenderSegment? {
         let timestamp = max(0, milliseconds)
@@ -401,7 +581,7 @@ public final class SubtitleDatabase {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitlePath, at: 1)
         try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
         try statement.bind(timestamp, at: 3)
         try statement.bind(timestamp, at: 4)
@@ -420,29 +600,40 @@ public final class SubtitleDatabase {
         )
     }
 
-    public func subtitleFiles() throws -> [SubtitleFileMetadata] {
+    public func subtitleFiles(sourceID: Int64? = nil) throws -> [SubtitleFileMetadata] {
+        let sourceCondition = sourceID == nil ? "" : "WHERE sf.source_id = ?"
         let statement = try database.prepare(
             """
-            SELECT sf.subtitle_path, sf.format, vf.path, vf.video_name,
+            SELECT sf.source_id, sf.subtitle_path, sf.source_relative_path,
+                   sf.format, vf.source_id, vf.path, vf.source_relative_path, vf.video_name,
                    sf.file_size, sf.modified_at, sf.indexed_at
             FROM subtitle_files sf
             LEFT JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             LEFT JOIN video_files vf ON vf.id = m.video_file_id
+            \(sourceCondition)
             ORDER BY sf.subtitle_path ASC;
             """
         )
+
+        if let sourceID {
+            try statement.bind(sourceID, at: 1)
+        }
 
         var files: [SubtitleFileMetadata] = []
         while try statement.step() {
             files.append(
                 SubtitleFileMetadata(
-                    subtitlePath: statement.stringColumn(0),
-                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(1)) ?? .srt,
-                    videoPath: statement.nullableStringColumn(2),
-                    videoName: statement.nullableStringColumn(3),
-                    fileSize: statement.nullableInt64Column(4),
-                    modifiedAt: statement.nullableDoubleColumn(5).map(Date.init(timeIntervalSince1970:)),
-                    indexedAt: statement.stringColumn(6)
+                    sourceID: statement.nullableInt64Column(0),
+                    subtitlePath: statement.stringColumn(1),
+                    sourceRelativePath: statement.nullableStringColumn(2),
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt,
+                    videoPath: statement.nullableStringColumn(5),
+                    videoSourceID: statement.nullableInt64Column(4),
+                    videoSourceRelativePath: statement.nullableStringColumn(6),
+                    videoName: statement.nullableStringColumn(7),
+                    fileSize: statement.nullableInt64Column(8),
+                    modifiedAt: statement.nullableDoubleColumn(9).map(Date.init(timeIntervalSince1970:)),
+                    indexedAt: statement.stringColumn(10)
                 )
             )
         }
@@ -451,8 +642,15 @@ public final class SubtitleDatabase {
     }
 
     public func reconcileIndexedContent(activeFolders folders: [URL]) throws {
+        try reconcileIndexedContent(activeFolders: folders, activeRemoteSourceIDs: [])
+    }
+
+    public func reconcileIndexedContent(
+        activeFolders folders: [URL],
+        activeRemoteSourceIDs remoteSourceIDs: [Int64]
+    ) throws {
         let folders = folders.map(\.standardizedFileURL)
-        guard !folders.isEmpty else {
+        guard !folders.isEmpty || !remoteSourceIDs.isEmpty else {
             try clearIndexedContent()
             return
         }
@@ -460,15 +658,29 @@ public final class SubtitleDatabase {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             let inactiveSubtitlePaths = try indexedSubtitlePaths()
-                .filter { !Self.path($0, isUnderAny: folders) }
+                .filter { subtitlePath in
+                    if Self.path(subtitlePath, isUnderAny: folders) {
+                        return false
+                    }
+                    return true
+                }
             for subtitlePath in inactiveSubtitlePaths {
-                try deleteIndexedSubtitlePath(subtitlePath)
+                if try subtitleSourceID(forSubtitlePath: subtitlePath).map(remoteSourceIDs.contains) != true {
+                    try deleteIndexedSubtitlePath(subtitlePath)
+                }
             }
 
-            let inactiveSearchPaths = try searchPaths()
-                .filter { !Self.folderPath($0, matchesAny: folders) }
+            let inactiveSearchPaths = try searchPathRecords()
+                .filter { record in
+                    switch record.type {
+                    case .local:
+                        return !Self.folderPath(record.path, matchesAny: folders)
+                    case .webdav:
+                        return !remoteSourceIDs.contains(record.id)
+                    }
+                }
             for searchPath in inactiveSearchPaths {
-                try deleteSearchPath(searchPath)
+                try deleteSearchPath(searchPath.path)
             }
 
             try deleteOrphanedVideoFiles()
@@ -497,7 +709,8 @@ public final class SubtitleDatabase {
     public func search(
         _ query: String,
         limit: Int = 50,
-        under folders: [URL]? = nil
+        under folders: [URL]? = nil,
+        remoteSourceIDs: [Int64] = []
     ) throws -> [SubtitleSearchResult] {
         guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
             return []
@@ -506,7 +719,7 @@ public final class SubtitleDatabase {
         let pathPrefixes: [String]?
         if let folders {
             let prefixes = Self.folderPathPrefixes(for: folders)
-            guard !prefixes.isEmpty else {
+            guard !prefixes.isEmpty || !remoteSourceIDs.isEmpty else {
                 return []
             }
             pathPrefixes = prefixes
@@ -515,14 +728,22 @@ public final class SubtitleDatabase {
         }
 
         do {
-            let scopeCondition = pathPrefixes.map {
-                let conditions = $0.map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
-                    .joined(separator: " OR ")
-                return "AND (\(conditions))"
-            } ?? ""
+            var scopeParts: [String] = []
+            if let pathPrefixes, !pathPrefixes.isEmpty {
+                scopeParts.append(
+                    pathPrefixes.map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
+                        .joined(separator: " OR ")
+                )
+            }
+            if !remoteSourceIDs.isEmpty {
+                let placeholders = remoteSourceIDs.map { _ in "?" }.joined(separator: ", ")
+                scopeParts.append("sf.source_id IN (\(placeholders))")
+            }
+            let scopeCondition = scopeParts.isEmpty ? "" : "AND (\(scopeParts.joined(separator: " OR ")))"
             let statement = try database.prepare(
                 """
-                SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                SELECT g.id, sf.source_id, sf.subtitle_path, sf.source_relative_path,
+                       sf.format, vf.source_id, vf.path, vf.source_relative_path, vf.video_name,
                        g.start_ms, g.end_ms, g.search_content
                 FROM subtitle_cue_groups_fts f
                 JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
@@ -546,6 +767,10 @@ public final class SubtitleDatabase {
                     bindIndex += 1
                 }
             }
+            for sourceID in remoteSourceIDs {
+                try statement.bind(sourceID, at: bindIndex)
+                bindIndex += 1
+            }
             try statement.bind(plan.sqlLimit, at: bindIndex)
 
             var candidates: [SearchCandidate] = []
@@ -553,13 +778,17 @@ public final class SubtitleDatabase {
                 candidates.append(
                     SearchCandidate(
                         cueGroupID: statement.int64Column(0),
-                        subtitlePath: statement.stringColumn(1),
-                        subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
-                        videoPath: statement.stringColumn(3),
-                        videoName: statement.stringColumn(4),
-                        startMilliseconds: statement.intColumn(5),
-                        endMilliseconds: statement.intColumn(6),
-                        searchContent: statement.stringColumn(7)
+                        subtitleSourceID: statement.nullableInt64Column(1),
+                        subtitlePath: statement.stringColumn(2),
+                        subtitleSourceRelativePath: statement.nullableStringColumn(3),
+                        subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(4)) ?? .srt,
+                        videoSourceID: statement.nullableInt64Column(5),
+                        videoPath: statement.stringColumn(6),
+                        videoSourceRelativePath: statement.nullableStringColumn(7),
+                        videoName: statement.stringColumn(8),
+                        startMilliseconds: statement.intColumn(9),
+                        endMilliseconds: statement.intColumn(10),
+                        searchContent: statement.stringColumn(11)
                     )
                 )
             }
@@ -577,9 +806,13 @@ public final class SubtitleDatabase {
                 results.append(
                     SubtitleSearchResult(
                         entryID: candidate.cueGroupID,
+                        subtitleSourceID: candidate.subtitleSourceID,
                         subtitlePath: candidate.subtitlePath,
+                        subtitleSourceRelativePath: candidate.subtitleSourceRelativePath,
                         subtitleFormat: candidate.subtitleFormat,
+                        videoSourceID: candidate.videoSourceID,
                         videoPath: candidate.videoPath,
+                        videoSourceRelativePath: candidate.videoSourceRelativePath,
                         videoName: candidate.videoName,
                         startMilliseconds: candidate.startMilliseconds,
                         endMilliseconds: candidate.endMilliseconds,
@@ -607,6 +840,14 @@ public final class SubtitleDatabase {
         )
     }
 
+    public func removeStaleEntries(sourceID: Int64, keeping subtitleFiles: Set<String>) throws {
+        try removeIndexedData(
+            sourceID: sourceID,
+            keeping: subtitleFiles,
+            removeSearchPath: false
+        )
+    }
+
     public func removeIndexedFolder(_ folder: URL) throws {
         try removeIndexedData(
             under: folder,
@@ -615,11 +856,23 @@ public final class SubtitleDatabase {
         )
     }
 
+    public func removeIndexedRemoteSource(id sourceID: Int64) throws {
+        try removeIndexedData(
+            sourceID: sourceID,
+            keeping: [],
+            removeSearchPath: true
+        )
+    }
+
     private struct SearchCandidate {
         let cueGroupID: Int64
+        let subtitleSourceID: Int64?
         let subtitlePath: String
+        let subtitleSourceRelativePath: String?
         let subtitleFormat: SubtitleFormat
+        let videoSourceID: Int64?
         let videoPath: String
+        let videoSourceRelativePath: String?
         let videoName: String
         let startMilliseconds: Int
         let endMilliseconds: Int
@@ -943,17 +1196,103 @@ public final class SubtitleDatabase {
         }
     }
 
+    private func removeIndexedData(
+        sourceID: Int64,
+        keeping subtitleFiles: Set<String>,
+        removeSearchPath: Bool
+    ) throws {
+        let keepCondition: String
+        let keepPlaceholders: String
+
+        if subtitleFiles.isEmpty {
+            keepCondition = ""
+            keepPlaceholders = ""
+        } else {
+            keepPlaceholders = subtitleFiles.map { _ in "?" }.joined(separator: ", ")
+            keepCondition = "AND sf.subtitle_path NOT IN (\(keepPlaceholders))"
+        }
+
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            let deleteASSRenderSegments = try database.prepare(
+                """
+                DELETE FROM ass_render_segments
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE sf.source_id = ? \(keepCondition)
+                );
+                """
+            )
+            try bindSourceEntryParameters(statement: deleteASSRenderSegments, sourceID: sourceID, subtitleFiles: subtitleFiles)
+            try deleteASSRenderSegments.run()
+
+            let deleteFTS = try database.prepare(
+                """
+                DELETE FROM subtitle_cue_groups_fts
+                WHERE cue_group_id IN (
+                    SELECT g.id
+                    FROM subtitle_cue_groups g
+                    JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                    WHERE sf.source_id = ? \(keepCondition)
+                );
+                """
+            )
+            try bindSourceEntryParameters(statement: deleteFTS, sourceID: sourceID, subtitleFiles: subtitleFiles)
+            try deleteFTS.run()
+
+            let deleteFiles = try database.prepare(
+                """
+                DELETE FROM subtitle_files
+                WHERE id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE sf.source_id = ? \(keepCondition)
+                );
+                """
+            )
+            try bindSourceEntryParameters(statement: deleteFiles, sourceID: sourceID, subtitleFiles: subtitleFiles)
+            try deleteFiles.run()
+
+            if removeSearchPath {
+                let deleteSearchPath = try database.prepare(
+                    "DELETE FROM search_paths WHERE id = ?;"
+                )
+                try deleteSearchPath.bind(sourceID, at: 1)
+                try deleteSearchPath.run()
+            }
+
+            try deleteOrphanedVideoFiles()
+            try database.execute("COMMIT")
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
+    }
+
     private func upsertSubtitleFile(
-        subtitleFile: URL,
+        subtitlePath: String,
+        sourceID: Int64?,
+        sourceRelativePath: String?,
         format: SubtitleFormat,
         fileSize: Int64?,
         modifiedAt: Date?
     ) throws -> Int64 {
         let statement = try database.prepare(
             """
-            INSERT INTO subtitle_files(subtitle_path, format, file_size, modified_at, indexed_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO subtitle_files(
+                source_id,
+                subtitle_path,
+                source_relative_path,
+                format,
+                file_size,
+                modified_at,
+                indexed_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(subtitle_path) DO UPDATE SET
+                source_id = excluded.source_id,
+                source_relative_path = excluded.source_relative_path,
                 format = excluded.format,
                 file_size = excluded.file_size,
                 modified_at = excluded.modified_at,
@@ -962,21 +1301,31 @@ public final class SubtitleDatabase {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(format.rawValue, at: 2)
-        if let fileSize {
-            try statement.bind(fileSize, at: 3)
+        if let sourceID {
+            try statement.bind(sourceID, at: 1)
+        } else {
+            try statement.bindNull(at: 1)
+        }
+        try statement.bind(subtitlePath, at: 2)
+        if let sourceRelativePath {
+            try statement.bind(sourceRelativePath, at: 3)
         } else {
             try statement.bindNull(at: 3)
         }
-
-        if let modifiedAt {
-            try statement.bind(modifiedAt.timeIntervalSince1970, at: 4)
+        try statement.bind(format.rawValue, at: 4)
+        if let fileSize {
+            try statement.bind(fileSize, at: 5)
         } else {
-            try statement.bindNull(at: 4)
+            try statement.bindNull(at: 5)
         }
 
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 5)
+        if let modifiedAt {
+            try statement.bind(modifiedAt.timeIntervalSince1970, at: 6)
+        } else {
+            try statement.bindNull(at: 6)
+        }
+
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 7)
 
         guard try statement.step() else {
             return database.lastInsertRowID()
@@ -985,15 +1334,21 @@ public final class SubtitleDatabase {
         return statement.int64Column(0)
     }
 
-    private func upsertVideoFile(_ videoFile: URL) throws -> Int64 {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: videoFile.path)
-        let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
-        let modifiedAt = attributes?[.modificationDate] as? Date
+    private func upsertVideoFile(
+        videoPath: String,
+        videoName: String,
+        sourceID: Int64?,
+        sourceRelativePath: String?,
+        fileSize: Int64?,
+        modifiedAt: Date?
+    ) throws -> Int64 {
         let statement = try database.prepare(
             """
-            INSERT INTO video_files(path, video_name, file_size, modified_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO video_files(source_id, path, source_relative_path, video_name, file_size, modified_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
+                source_id = excluded.source_id,
+                source_relative_path = excluded.source_relative_path,
                 video_name = excluded.video_name,
                 file_size = excluded.file_size,
                 modified_at = excluded.modified_at
@@ -1001,18 +1356,28 @@ public final class SubtitleDatabase {
             """
         )
 
-        try statement.bind(videoFile.path, at: 1)
-        try statement.bind(videoFile.lastPathComponent, at: 2)
-        if let fileSize {
-            try statement.bind(fileSize, at: 3)
+        if let sourceID {
+            try statement.bind(sourceID, at: 1)
+        } else {
+            try statement.bindNull(at: 1)
+        }
+        try statement.bind(videoPath, at: 2)
+        if let sourceRelativePath {
+            try statement.bind(sourceRelativePath, at: 3)
         } else {
             try statement.bindNull(at: 3)
         }
+        try statement.bind(videoName, at: 4)
+        if let fileSize {
+            try statement.bind(fileSize, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
+        }
 
         if let modifiedAt {
-            try statement.bind(modifiedAt.timeIntervalSince1970, at: 4)
+            try statement.bind(modifiedAt.timeIntervalSince1970, at: 6)
         } else {
-            try statement.bindNull(at: 4)
+            try statement.bindNull(at: 6)
         }
 
         guard try statement.step() else {
@@ -1056,7 +1421,7 @@ public final class SubtitleDatabase {
 
     private func insertCueGroup(
         subtitleFileID: Int64,
-        subtitleFile: URL,
+        subtitlePath: String,
         group: SubtitleCueGroup
     ) throws -> Int64 {
         let statement = try database.prepare(
@@ -1076,7 +1441,7 @@ public final class SubtitleDatabase {
         )
 
         try statement.bind(subtitleFileID, at: 1)
-        try statement.bind(subtitleFile.path, at: 2)
+        try statement.bind(subtitlePath, at: 2)
         if let sequenceNumber = group.sequenceNumber {
             try statement.bind(sequenceNumber, at: 3)
         } else {
@@ -1323,6 +1688,17 @@ public final class SubtitleDatabase {
         }
     }
 
+    private func bindSourceEntryParameters(
+        statement: SQLiteStatement,
+        sourceID: Int64,
+        subtitleFiles: Set<String>
+    ) throws {
+        try statement.bind(sourceID, at: 1)
+        for (offset, path) in subtitleFiles.sorted().enumerated() {
+            try statement.bind(path, at: Int32(offset + 2))
+        }
+    }
+
     private func indexedSubtitlePaths() throws -> [String] {
         let statement = try database.prepare(
             """
@@ -1355,12 +1731,154 @@ public final class SubtitleDatabase {
         return paths
     }
 
+    private struct SearchPathRecord {
+        let id: Int64
+        let type: MediaSourceType
+        let path: String
+    }
+
+    private func searchPathRecords() throws -> [SearchPathRecord] {
+        let statement = try database.prepare(
+            """
+            SELECT id, type, path
+            FROM search_paths
+            ORDER BY path ASC;
+            """
+        )
+
+        var records: [SearchPathRecord] = []
+        while try statement.step() {
+            records.append(
+                SearchPathRecord(
+                    id: statement.int64Column(0),
+                    type: MediaSourceType(rawValue: statement.stringColumn(1)) ?? .local,
+                    path: statement.stringColumn(2)
+                )
+            )
+        }
+        return records
+    }
+
+    private func subtitleSourceID(forSubtitlePath subtitlePath: String) throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT source_id
+            FROM subtitle_files
+            WHERE subtitle_path = ?;
+            """
+        )
+        try statement.bind(subtitlePath, at: 1)
+        guard try statement.step() else {
+            return nil
+        }
+        return statement.nullableInt64Column(0)
+    }
+
     private func deleteSearchPath(_ searchPath: String) throws {
         let statement = try database.prepare(
             "DELETE FROM search_paths WHERE path = ?;"
         )
         try statement.bind(searchPath, at: 1)
         try statement.run()
+    }
+
+    private func migrateToVersionSix() throws {
+        try addColumnIfNeeded(
+            table: "search_paths",
+            column: "provider",
+            definition: "provider TEXT NOT NULL DEFAULT 'local'"
+        )
+        try addColumnIfNeeded(
+            table: "search_paths",
+            column: "display_name",
+            definition: "display_name TEXT"
+        )
+        try addColumnIfNeeded(
+            table: "search_paths",
+            column: "credential_ref",
+            definition: "credential_ref TEXT"
+        )
+        try addColumnIfNeeded(
+            table: "subtitle_files",
+            column: "source_id",
+            definition: "source_id INTEGER"
+        )
+        try addColumnIfNeeded(
+            table: "subtitle_files",
+            column: "source_relative_path",
+            definition: "source_relative_path TEXT"
+        )
+        try addColumnIfNeeded(
+            table: "video_files",
+            column: "source_id",
+            definition: "source_id INTEGER"
+        )
+        try addColumnIfNeeded(
+            table: "video_files",
+            column: "source_relative_path",
+            definition: "source_relative_path TEXT"
+        )
+        try database.execute(
+            """
+            UPDATE search_paths
+            SET provider = 'local'
+            WHERE provider IS NULL OR provider = '';
+
+            UPDATE search_paths
+            SET display_name = path
+            WHERE display_name IS NULL OR display_name = '';
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_files_source_id
+                ON subtitle_files(source_id);
+
+            CREATE INDEX IF NOT EXISTS idx_video_files_source_id
+                ON video_files(source_id);
+            """
+        )
+    }
+
+    private func addColumnIfNeeded(
+        table: String,
+        column: String,
+        definition: String
+    ) throws {
+        guard !(try self.table(table, hasColumn: column)) else {
+            return
+        }
+        try database.execute("ALTER TABLE \(table) ADD COLUMN \(definition);")
+    }
+
+    private func table(_ table: String, hasColumn column: String) throws -> Bool {
+        let statement = try database.prepare("PRAGMA table_info(\(table));")
+        while try statement.step() {
+            if statement.stringColumn(1) == column {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func storedMediaSource(from statement: SQLiteStatement) -> StoredMediaSource {
+        let type = MediaSourceType(rawValue: statement.stringColumn(1)) ?? .local
+        let provider = MediaSourceProvider(rawValue: statement.stringColumn(2)) ?? .local
+        let path = statement.stringColumn(3)
+        let displayName = statement.nullableStringColumn(4) ?? path
+        return StoredMediaSource(
+            id: statement.int64Column(0),
+            type: type,
+            provider: provider,
+            path: path,
+            displayName: displayName,
+            credentialRef: statement.nullableStringColumn(5)
+        )
+    }
+
+    private static func normalizedRemoteRootURLString(_ url: URL) -> String {
+        var value = url.absoluteString
+        while value.count > 1 && value.hasSuffix("/") {
+            value.removeLast()
+        }
+        return value
     }
 
     private static func path(_ path: String, isUnderAny folders: [URL]) -> Bool {

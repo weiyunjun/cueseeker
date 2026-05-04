@@ -37,6 +37,10 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
            error:(NSError **)error;
+- (BOOL)openMediaURL:(NSString *)mediaURL
+             headers:(nullable NSDictionary<NSString *, NSString *> *)headers
+   startMilliseconds:(NSInteger)startMilliseconds
+              error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error;
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error;
 - (void)stop;

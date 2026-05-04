@@ -60,8 +60,11 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `3`.
+- The current schema version is `6`.
 - Schema version `3` is the ASS cue model schema.
+- Schema version `6` adds read-only WebDAV media-source identity and
+  source-relative subtitle/video paths. It does not store passwords, tokens,
+  Basic auth headers, provider playback headers, or signed playback URLs.
 
 ## 5. Migration Rules
 

@@ -20,6 +20,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public weak var delegate: PlaybackPlayerDelegate?
 
     public private(set) var currentVideoURL: URL?
+    public private(set) var currentMediaIdentifier: String?
     public var decodeMode: PlaybackDecodeMode = .auto {
         didSet {
             nativePlayer.decodeMode = decodeMode.nativeDecodeMode
@@ -45,11 +46,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public func open(_ request: PlaybackRequest) throws {
         currentRequest = request
         nativePlayer.playbackRate = Float(storedSpeed)
-        try nativePlayer.openPath(
-            request.videoURL.path,
+        try nativePlayer.openMediaURL(
+            request.nativeMediaPath,
+            headers: request.httpHeaders,
             startMilliseconds: request.startMilliseconds
         )
-        currentVideoURL = request.videoURL.standardizedFileURL
+        currentVideoURL = request.videoURL.isFileURL ? request.videoURL.standardizedFileURL : request.videoURL
+        currentMediaIdentifier = request.mediaIdentifier
         loadSubtitleSource(request.subtitleSource)
         Task { @MainActor in
             self.attachActiveRenderView()
@@ -70,6 +73,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         nativePlayer.stop()
         currentRequest = nil
         currentVideoURL = nil
+        currentMediaIdentifier = nil
         loadSubtitleSource(nil)
         emitPauseState(isPaused: true)
     }

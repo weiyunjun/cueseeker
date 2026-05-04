@@ -35,16 +35,18 @@ The project is a personal tool first.
 
 ## 4. Remote Feature Non-Goals
 
-The early native rewrite will not implement:
+The accepted first remote-source step is read-only WebDAV with AList playback
+resolution. Beyond that scoped step, the early native rewrite will not
+implement:
 
-- Remote subtitle indexing.
-- Remote video playback.
-- WebDAV integration.
-- AList integration.
+- WebDAV write support.
+- A general AList replacement.
+- Whole-video temporary download fallback for remote playback.
 - Cloud sync.
 - Remote cache management.
 
-These may be reconsidered only after the local-first workflow is stable.
+These may be reconsidered only after the local-first and read-only remote
+workflows are stable.
 
 ## 5. Media Product Non-Goals
 
@@ -81,4 +83,3 @@ The early rewrite will not implement:
 - Complex animated visual treatments.
 
 These should be reconsidered only after playback architecture is stable.
-

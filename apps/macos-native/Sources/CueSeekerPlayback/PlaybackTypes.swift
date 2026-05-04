@@ -46,17 +46,20 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let format: PlaybackSubtitleSourceFormat
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
     public let renderCacheDatabaseURL: URL?
+    public let renderCacheSubtitlePath: String?
 
     public init(
         url: URL,
         format: PlaybackSubtitleSourceFormat,
         preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
-        renderCacheDatabaseURL: URL? = nil
+        renderCacheDatabaseURL: URL? = nil,
+        renderCacheSubtitlePath: String? = nil
     ) {
         self.url = url
         self.format = format
         self.preparationTimeWindow = preparationTimeWindow
         self.renderCacheDatabaseURL = renderCacheDatabaseURL
+        self.renderCacheSubtitlePath = renderCacheSubtitlePath
     }
 }
 
@@ -86,25 +89,36 @@ public struct PlaybackSubtitleTimeWindow: Equatable, Sendable {
 
 public struct PlaybackRequest: Equatable, Sendable {
     public let videoURL: URL
+    public let httpHeaders: [String: String]
     public let startMilliseconds: Int
     public let subtitleSource: PlaybackSubtitleSource?
 
     public init(
         videoURL: URL,
+        httpHeaders: [String: String] = [:],
         startMilliseconds: Int,
         subtitleSource: PlaybackSubtitleSource? = nil
     ) throws {
-        guard videoURL.isFileURL else {
+        guard videoURL.isFileURL || videoURL.isHTTPURL else {
             throw PlaybackError.invalidVideoURL(videoURL.absoluteString)
         }
 
-        guard FileManager.default.fileExists(atPath: videoURL.path) else {
+        if videoURL.isFileURL && !FileManager.default.fileExists(atPath: videoURL.path) {
             throw PlaybackError.missingVideoFile(videoURL.path)
         }
 
         self.videoURL = videoURL
+        self.httpHeaders = httpHeaders
         self.startMilliseconds = max(0, startMilliseconds)
         self.subtitleSource = subtitleSource
+    }
+
+    public var nativeMediaPath: String {
+        videoURL.isFileURL ? videoURL.path : videoURL.absoluteString
+    }
+
+    public var mediaIdentifier: String {
+        nativeMediaPath
     }
 }
 
@@ -125,5 +139,14 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
         case .nativePropertyUnsupported(let name):
             "Native playback property is unsupported: \(name)"
         }
+    }
+}
+
+private extension URL {
+    var isHTTPURL: Bool {
+        guard let scheme else {
+            return false
+        }
+        return ["http", "https"].contains(scheme.lowercased())
     }
 }

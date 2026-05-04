@@ -67,6 +67,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private let queue = DispatchQueue(label: "CueSeeker.SourceFaithfulASSRenderer")
     private var session: SFXASSRendererSession?
     private var sourcePath: String?
+    private var renderCacheSubtitlePath: String?
     private var renderCacheDatabaseURL: URL?
     private var frameWidth = 0
     private var frameHeight = 0
@@ -81,17 +82,23 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     ) -> UUID {
         let nextGeneration = UUID()
 
-        queue.async { [sourcePath = source.url.path, renderCacheDatabaseURL = source.renderCacheDatabaseURL] in
+        queue.async {
+            let sourcePath = source.url.path
+            let renderCacheSubtitlePath = source.renderCacheSubtitlePath ?? sourcePath
             do {
                 self.session?.close()
                 self.session = nil
                 self.sourcePath = sourcePath
-                self.renderCacheDatabaseURL = renderCacheDatabaseURL
+                self.renderCacheSubtitlePath = renderCacheSubtitlePath
+                self.renderCacheDatabaseURL = source.renderCacheDatabaseURL
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
                 self.activeRenderSegmentWindow = nil
 
-                let nextSession = try self.makeSession(containing: initialTimestampMilliseconds)
+                let nextSession = try self.makeSession(
+                    containing: initialTimestampMilliseconds,
+                    renderCacheSubtitlePath: renderCacheSubtitlePath
+                )
                 self.session = nextSession
                 completion(nextGeneration, .success(()))
             } catch {
@@ -112,6 +119,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             self.session?.close()
             self.session = nil
             self.sourcePath = nil
+            self.renderCacheSubtitlePath = nil
             self.renderCacheDatabaseURL = nil
             self.frameWidth = 0
             self.frameHeight = 0
@@ -171,15 +179,24 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
 
         session?.close()
-        session = try makeSession(containing: timestampMilliseconds)
+        session = try makeSession(
+            containing: timestampMilliseconds,
+            renderCacheSubtitlePath: renderCacheSubtitlePath
+        )
     }
 
-    private func makeSession(containing timestampMilliseconds: Int) throws -> SFXASSRendererSession {
+    private func makeSession(
+        containing timestampMilliseconds: Int,
+        renderCacheSubtitlePath: String?
+    ) throws -> SFXASSRendererSession {
         guard let sourcePath, frameWidth > 0, frameHeight > 0 else {
             throw ASSRenderWorkerError(message: "ASS renderer source is not ready.")
         }
 
-        if let segment = try indexedRenderSegment(containing: timestampMilliseconds) {
+        if let segment = try indexedRenderSegment(
+            containing: timestampMilliseconds,
+            renderCacheSubtitlePath: renderCacheSubtitlePath ?? sourcePath
+        ) {
             activeRenderSegmentWindow = PlaybackSubtitleTimeWindow(
                 startMilliseconds: segment.startMilliseconds,
                 endMilliseconds: segment.endMilliseconds
@@ -205,15 +222,18 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         )
     }
 
-    private func indexedRenderSegment(containing timestampMilliseconds: Int) throws -> ASSRenderSegment? {
-        guard let renderCacheDatabaseURL, let sourcePath else {
+    private func indexedRenderSegment(
+        containing timestampMilliseconds: Int,
+        renderCacheSubtitlePath: String
+    ) throws -> ASSRenderSegment? {
+        guard let renderCacheDatabaseURL else {
             return nil
         }
 
         let database = try SubtitleDatabase(path: renderCacheDatabaseURL)
         try database.migrate()
         return try database.assRenderSegment(
-            forSubtitleFile: URL(fileURLWithPath: sourcePath),
+            forSubtitlePath: renderCacheSubtitlePath,
             atMilliseconds: timestampMilliseconds
         )
     }

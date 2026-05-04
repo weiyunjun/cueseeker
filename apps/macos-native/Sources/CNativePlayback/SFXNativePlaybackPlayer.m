@@ -78,6 +78,29 @@ static NSError *SFXNativePlaybackError(NSInteger code, NSString *message) {
                            userInfo:@{NSLocalizedDescriptionKey: message}];
 }
 
+static NSString *SFXNativePlaybackHeaderLines(NSDictionary<NSString *, NSString *> *headers) {
+    if (headers.count == 0) {
+        return @"";
+    }
+
+    NSMutableString *lines = [NSMutableString string];
+    NSArray<NSString *> *keys = [[headers allKeys] sortedArrayUsingSelector:@selector(compare:)];
+    for (NSString *key in keys) {
+        NSString *value = headers[key];
+        if (key.length == 0 || value.length == 0) {
+            continue;
+        }
+        if ([key rangeOfString:@"\r"].location != NSNotFound
+            || [key rangeOfString:@"\n"].location != NSNotFound
+            || [value rangeOfString:@"\r"].location != NSNotFound
+            || [value rangeOfString:@"\n"].location != NSNotFound) {
+            continue;
+        }
+        [lines appendFormat:@"%@: %@\r\n", key, value];
+    }
+    return [lines copy];
+}
+
 static void SFXDispatchSyncOnMain(dispatch_block_t block) {
     if ([NSThread isMainThread]) {
         block();
@@ -331,6 +354,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @interface SFXNativePlaybackSession : NSObject
 - (instancetype)initWithPath:(NSString *)path
+                     headers:(nullable NSDictionary<NSString *, NSString *> *)headers
            startMilliseconds:(NSInteger)startMilliseconds
                        layer:(AVSampleBufferDisplayLayer *)displayLayer
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
@@ -356,6 +380,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @implementation SFXNativePlaybackSession {
     NSString *_path;
+    NSDictionary<NSString *, NSString *> *_headers;
     __weak AVSampleBufferDisplayLayer *_displayLayer;
     __weak id<SFXNativePlaybackPlayerDelegate> _delegate;
     __weak SFXNativePlaybackPlayer *_owner;
@@ -434,6 +459,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (instancetype)initWithPath:(NSString *)path
+                     headers:(nullable NSDictionary<NSString *, NSString *> *)headers
            startMilliseconds:(NSInteger)startMilliseconds
                        layer:(AVSampleBufferDisplayLayer *)displayLayer
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
@@ -450,6 +476,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     _path = [path copy];
+    _headers = [headers copy] ?: @{};
     _displayLayer = displayLayer;
     _delegate = delegate;
     _owner = owner;
@@ -507,7 +534,19 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (BOOL)prepareWithError:(NSError **)error {
-    int result = avformat_open_input(&_formatContext, _path.UTF8String, NULL, NULL);
+    AVDictionary *options = NULL;
+    NSString *headerLines = SFXNativePlaybackHeaderLines(_headers);
+    if (headerLines.length > 0) {
+        av_dict_set(&options, "headers", headerLines.UTF8String, 0);
+    }
+    if ([_path hasPrefix:@"http://"] || [_path hasPrefix:@"https://"]) {
+        av_dict_set(&options, "reconnect", "1", 0);
+        av_dict_set(&options, "reconnect_streamed", "1", 0);
+        av_dict_set(&options, "reconnect_delay_max", "2", 0);
+    }
+
+    int result = avformat_open_input(&_formatContext, _path.UTF8String, NULL, &options);
+    av_dict_free(&options);
     if (result < 0) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(10, [NSString stringWithFormat:@"avformat_open_input failed: %@", SFXFFmpegErrorString(result)]);
@@ -1998,6 +2037,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     SFXNativePlaybackView *_nativeView;
     SFXNativePlaybackSession *_session;
     NSString *_currentPath;
+    NSDictionary<NSString *, NSString *> *_currentHeaders;
     float _volume;
     float _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
@@ -2085,8 +2125,19 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
            error:(NSError **)error {
-    return [self openPath:path
+    return [self openMediaURL:path
+                      headers:nil
+            startMilliseconds:startMilliseconds
+                       error:error];
+}
+
+- (BOOL)openMediaURL:(NSString *)mediaURL
+             headers:(nullable NSDictionary<NSString *, NSString *> *)headers
+   startMilliseconds:(NSInteger)startMilliseconds
+              error:(NSError **)error {
+    return [self openPath:mediaURL
         startMilliseconds:startMilliseconds
+                  headers:headers
        flushDisplayBeforeStart:NO
  allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
                     error:error];
@@ -2094,6 +2145,7 @@ startMilliseconds:(NSInteger)startMilliseconds
 
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
+         headers:(nullable NSDictionary<NSString *, NSString *> *)headers
 flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
 allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
            error:(NSError **)error {
@@ -2101,6 +2153,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
         initWithPath:path
+        headers:headers
         startMilliseconds:startMilliseconds
         layer:_nativeView.displayLayer
         delegate:self.delegate
@@ -2118,6 +2171,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     _session = session;
     _currentPath = [path copy];
+    _currentHeaders = [headers copy] ?: @{};
     [_session start];
     return YES;
 }
@@ -2132,6 +2186,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     return [self openPath:_currentPath
         startMilliseconds:milliseconds
+                  headers:_currentHeaders
        flushDisplayBeforeStart:NO
  allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
                     error:error];
@@ -2146,9 +2201,11 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
         _didRecycleInitialSoftwareSession = YES;
         NSString *path = [_currentPath copy];
+        NSDictionary<NSString *, NSString *> *headers = [_currentHeaders copy];
         NSError *error = nil;
         BOOL opened = [self openPath:path
                    startMilliseconds:MAX(0, milliseconds)
+                             headers:headers
               flushDisplayBeforeStart:NO
         allowAutomaticSoftwareRecycle:NO
                               error:&error];
@@ -2179,6 +2236,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     [_session stopAndWait];
     _session = nil;
     _currentPath = nil;
+    _currentHeaders = nil;
     if (flushDisplay) {
         [_nativeView flush];
     }
