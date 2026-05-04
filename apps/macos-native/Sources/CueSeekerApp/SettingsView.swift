@@ -6,18 +6,12 @@ import CueSeekerPlayback
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var folderPendingRemoval: URL?
-    @State private var remoteSourcePendingRemoval: StoredMediaSource?
     @State private var isChoosingFolder = false
-    @State private var isShowingRemoteSourceSheet = false
-    @State private var remoteDisplayName = ""
-    @State private var remoteRootURL = ""
-    @State private var remoteUsername = ""
-    @State private var remotePassword = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Media Sources")
+                Text("Subtitle Folders")
                     .font(.title2)
                     .fontWeight(.semibold)
 
@@ -31,13 +25,6 @@ struct SettingsView: View {
                 .disabled(appState.indexingStatus.isIndexing || isChoosingFolder)
 
                 Button {
-                    isShowingRemoteSourceSheet = true
-                } label: {
-                    Label("Add WebDAV", systemImage: "network")
-                }
-                .disabled(appState.indexingStatus.isIndexing)
-
-                Button {
                     appState.indexAllFolders()
                 } label: {
                     Label("Index Now", systemImage: "arrow.clockwise")
@@ -49,23 +36,36 @@ struct SettingsView: View {
 
             decodeSettingsView
 
-            if appState.selectedFolders.isEmpty && appState.remoteSources.isEmpty {
+            if appState.selectedFolders.isEmpty {
                 EmptyStateView(
-                    title: "No Media Sources",
+                    title: "No Subtitle Folders",
                     systemImage: "folder",
-                    message: "Choose a local folder or add an AList WebDAV source."
+                    message: "Choose a local folder containing .srt files."
                 )
             } else {
                 List {
-                    if !appState.selectedFolders.isEmpty {
-                        Section("Local Folders") {
-                            localFoldersList
+                    ForEach(appState.selectedFolders, id: \.self) { folder in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(folder.lastPathComponent)
+                                    .font(.headline)
+                                Text(folder.path)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                folderPendingRemoval = folder
+                            } label: {
+                                Label("Remove", systemImage: "minus.circle")
+                            }
+                            .disabled(appState.indexingStatus.isIndexing)
                         }
-                    }
-                    if !appState.remoteSources.isEmpty {
-                        Section("Remote WebDAV") {
-                            remoteSourcesList
-                        }
+                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -75,9 +75,6 @@ struct SettingsView: View {
         .padding(.top, AppShellLayout.contentTopPadding)
         .padding([.horizontal, .bottom], 24)
         .navigationTitle("Settings")
-        .sheet(isPresented: $isShowingRemoteSourceSheet) {
-            remoteSourceSheet
-        }
         .alert(
             "Remove Folder?",
             isPresented: removalConfirmationBinding,
@@ -93,124 +90,6 @@ struct SettingsView: View {
         } message: { folder in
             Text("Remove \"\(folder.lastPathComponent)\" from CueSeeker? This will not delete local files.")
         }
-        .alert(
-            "Remove Remote Source?",
-            isPresented: remoteRemovalConfirmationBinding,
-            presenting: remoteSourcePendingRemoval
-        ) { source in
-            Button("Cancel", role: .cancel) {
-                remoteSourcePendingRemoval = nil
-            }
-            Button("Remove", role: .destructive) {
-                appState.removeRemoteSource(source)
-                remoteSourcePendingRemoval = nil
-            }
-        } message: { source in
-            Text("Remove \"\(source.displayName)\" from CueSeeker? This will not modify remote files.")
-        }
-    }
-
-    @ViewBuilder
-    private var localFoldersList: some View {
-        ForEach(appState.selectedFolders, id: \.self) { folder in
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(folder.lastPathComponent)
-                        .font(.headline)
-                    Text(folder.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                Spacer()
-
-                Button {
-                    folderPendingRemoval = folder
-                } label: {
-                    Label("Remove", systemImage: "minus.circle")
-                }
-                .disabled(appState.indexingStatus.isIndexing)
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    @ViewBuilder
-    private var remoteSourcesList: some View {
-        ForEach(appState.remoteSources) { source in
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(source.displayName)
-                        .font(.headline)
-                    Text(source.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                Spacer()
-
-                Button {
-                    appState.indexRemoteSource(source)
-                } label: {
-                    Label("Index", systemImage: "arrow.clockwise")
-                }
-                .disabled(appState.indexingStatus.isIndexing)
-
-                Button {
-                    remoteSourcePendingRemoval = source
-                } label: {
-                    Label("Remove", systemImage: "minus.circle")
-                }
-                .disabled(appState.indexingStatus.isIndexing)
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    private var remoteSourceSheet: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Add AList WebDAV Source")
-                .font(.title3)
-                .fontWeight(.semibold)
-
-            TextField("Display Name", text: $remoteDisplayName)
-            TextField("WebDAV Root URL", text: $remoteRootURL)
-            TextField("Username", text: $remoteUsername)
-            SecureField("Password", text: $remotePassword)
-
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    resetRemoteSourceForm()
-                    isShowingRemoteSourceSheet = false
-                }
-                Button("Add") {
-                    appState.addAListRemoteSource(
-                        displayName: remoteDisplayName,
-                        rootURLString: remoteRootURL,
-                        username: remoteUsername,
-                        password: remotePassword
-                    )
-                    resetRemoteSourceForm()
-                    isShowingRemoteSourceSheet = false
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(remoteRootURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }
-        .padding(20)
-        .frame(width: 460)
-    }
-
-    private func resetRemoteSourceForm() {
-        remoteDisplayName = ""
-        remoteRootURL = ""
-        remoteUsername = ""
-        remotePassword = ""
     }
 
     private var decodeSettingsView: some View {
@@ -254,16 +133,6 @@ struct SettingsView: View {
         } set: { isPresented in
             if !isPresented {
                 folderPendingRemoval = nil
-            }
-        }
-    }
-
-    private var remoteRemovalConfirmationBinding: Binding<Bool> {
-        Binding {
-            remoteSourcePendingRemoval != nil
-        } set: { isPresented in
-            if !isPresented {
-                remoteSourcePendingRemoval = nil
             }
         }
     }
@@ -322,36 +191,6 @@ struct SettingsView: View {
                     Text("Indexing \(folder.lastPathComponent)...")
                         .font(.subheadline)
                 }
-            case .validatingRemote(let name, let detail):
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Validating \(name)...")
-                            .font(.subheadline)
-                        if let detail {
-                            Text(detail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                    }
-                }
-            case .indexingRemote(let name, let detail):
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Indexing \(name)...")
-                            .font(.subheadline)
-                        if let detail {
-                            Text(detail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                    }
-                }
             case .indexingAll(let folder, let completedFolders, let totalFolders):
                 HStack(spacing: 8) {
                     ProgressView()
@@ -362,20 +201,6 @@ struct SettingsView: View {
             case .completed(let folder, let result):
                 VStack(alignment: .leading, spacing: 4) {
                     Label("Indexed \(folder.lastPathComponent)", systemImage: "checkmark.circle")
-                        .foregroundStyle(.green)
-                    Text(indexingSummary(result))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if !result.failedFiles.isEmpty {
-                        Text("\(result.failedFiles.count) file(s) failed. First: \(result.failedFiles[0].reason)")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .lineLimit(2)
-                    }
-                }
-            case .completedRemote(let name, let result):
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Indexed \(name)", systemImage: "checkmark.circle")
                         .foregroundStyle(.green)
                     Text(indexingSummary(result))
                         .font(.caption)
@@ -404,15 +229,6 @@ struct SettingsView: View {
             case .failed(let folder, let message):
                 VStack(alignment: .leading, spacing: 4) {
                     Label("Failed to index \(folder.lastPathComponent)", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            case .failedRemote(let name, let message):
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Failed to index \(name)", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.red)
                     Text(message)
                         .font(.caption)

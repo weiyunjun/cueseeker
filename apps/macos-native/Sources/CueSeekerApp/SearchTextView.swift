@@ -5,8 +5,6 @@ struct SearchTextView: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
     @Binding var isFocused: Bool
-    var onSubmit: () -> Void
-    var onCancel: () -> Void
 
     func makeNSView(context: Context) -> CustomTextView {
         let textView = CustomTextView()
@@ -68,14 +66,8 @@ struct SearchTextView: NSViewRepresentable {
         }
         
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            if commandSelector == #selector(NSResponder.insertNewline(_:))
-                || commandSelector == #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:))
-            {
-                parent.onSubmit()
-                return true
-            }
-            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-                parent.onCancel()
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                // Prevent newlines
                 return true
             }
             return false

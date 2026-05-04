@@ -44,28 +44,19 @@ public enum PlaybackSubtitleSourceFormat: String, Sendable, Equatable {
 public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let url: URL
     public let format: PlaybackSubtitleSourceFormat
-    public let inlineASSScript: String?
-    public let sourceIdentifier: String?
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
     public let renderCacheDatabaseURL: URL?
-    public let renderCacheSubtitlePath: String?
 
     public init(
         url: URL,
         format: PlaybackSubtitleSourceFormat,
-        inlineASSScript: String? = nil,
-        sourceIdentifier: String? = nil,
         preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
-        renderCacheDatabaseURL: URL? = nil,
-        renderCacheSubtitlePath: String? = nil
+        renderCacheDatabaseURL: URL? = nil
     ) {
         self.url = url
         self.format = format
-        self.inlineASSScript = inlineASSScript
-        self.sourceIdentifier = sourceIdentifier
         self.preparationTimeWindow = preparationTimeWindow
         self.renderCacheDatabaseURL = renderCacheDatabaseURL
-        self.renderCacheSubtitlePath = renderCacheSubtitlePath
     }
 }
 
@@ -95,35 +86,25 @@ public struct PlaybackSubtitleTimeWindow: Equatable, Sendable {
 
 public struct PlaybackRequest: Equatable, Sendable {
     public let videoURL: URL
-    public let httpHeaders: [String: String]
     public let startMilliseconds: Int
     public let subtitleSource: PlaybackSubtitleSource?
-    public let mediaIdentifier: String
 
     public init(
         videoURL: URL,
-        httpHeaders: [String: String] = [:],
         startMilliseconds: Int,
-        subtitleSource: PlaybackSubtitleSource? = nil,
-        mediaIdentifier: String? = nil
+        subtitleSource: PlaybackSubtitleSource? = nil
     ) throws {
-        guard videoURL.isFileURL || videoURL.isHTTPURL else {
+        guard videoURL.isFileURL else {
             throw PlaybackError.invalidVideoURL(videoURL.absoluteString)
         }
 
-        if videoURL.isFileURL && !FileManager.default.fileExists(atPath: videoURL.path) {
+        guard FileManager.default.fileExists(atPath: videoURL.path) else {
             throw PlaybackError.missingVideoFile(videoURL.path)
         }
 
         self.videoURL = videoURL
-        self.httpHeaders = httpHeaders
         self.startMilliseconds = max(0, startMilliseconds)
         self.subtitleSource = subtitleSource
-        self.mediaIdentifier = mediaIdentifier ?? (videoURL.isFileURL ? videoURL.path : videoURL.absoluteString)
-    }
-
-    public var nativeMediaPath: String {
-        videoURL.isFileURL ? videoURL.path : videoURL.absoluteString
     }
 }
 
@@ -144,14 +125,5 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
         case .nativePropertyUnsupported(let name):
             "Native playback property is unsupported: \(name)"
         }
-    }
-}
-
-private extension URL {
-    var isHTTPURL: Bool {
-        guard let scheme else {
-            return false
-        }
-        return ["http", "https"].contains(scheme.lowercased())
     }
 }

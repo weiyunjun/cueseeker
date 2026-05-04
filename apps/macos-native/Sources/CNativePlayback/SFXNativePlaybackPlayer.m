@@ -78,29 +78,6 @@ static NSError *SFXNativePlaybackError(NSInteger code, NSString *message) {
                            userInfo:@{NSLocalizedDescriptionKey: message}];
 }
 
-static NSString *SFXNativePlaybackHeaderLines(NSDictionary<NSString *, NSString *> *headers) {
-    if (headers.count == 0) {
-        return @"";
-    }
-
-    NSMutableString *lines = [NSMutableString string];
-    NSArray<NSString *> *keys = [[headers allKeys] sortedArrayUsingSelector:@selector(compare:)];
-    for (NSString *key in keys) {
-        NSString *value = headers[key];
-        if (key.length == 0 || value.length == 0) {
-            continue;
-        }
-        if ([key rangeOfString:@"\r"].location != NSNotFound
-            || [key rangeOfString:@"\n"].location != NSNotFound
-            || [value rangeOfString:@"\r"].location != NSNotFound
-            || [value rangeOfString:@"\n"].location != NSNotFound) {
-            continue;
-        }
-        [lines appendFormat:@"%@: %@\r\n", key, value];
-    }
-    return [lines copy];
-}
-
 static void SFXDispatchSyncOnMain(dispatch_block_t block) {
     if ([NSThread isMainThread]) {
         block();
@@ -354,7 +331,6 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @interface SFXNativePlaybackSession : NSObject
 - (instancetype)initWithPath:(NSString *)path
-                     headers:(nullable NSDictionary<NSString *, NSString *> *)headers
            startMilliseconds:(NSInteger)startMilliseconds
                        layer:(AVSampleBufferDisplayLayer *)displayLayer
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
@@ -370,7 +346,6 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)setPaused:(BOOL)paused;
 - (void)setVolume:(float)volume;
 - (void)setPlaybackRate:(float)playbackRate;
-- (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error;
 @property (nonatomic, copy, readonly) NSString *path;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
@@ -381,7 +356,6 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @implementation SFXNativePlaybackSession {
     NSString *_path;
-    NSDictionary<NSString *, NSString *> *_headers;
     __weak AVSampleBufferDisplayLayer *_displayLayer;
     __weak id<SFXNativePlaybackPlayerDelegate> _delegate;
     __weak SFXNativePlaybackPlayer *_owner;
@@ -396,14 +370,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     int _packetQueueCount;
     BOOL _packetQueueEOF;
     BOOL _packetQueueDemuxStarted;
-    BOOL _decodeLoopFinished;
-    BOOL _seekRequestPending;
-    BOOL _seekResultReady;
-    BOOL _seekResultSucceeded;
-    NSUInteger _seekRequestID;
-    NSUInteger _seekResultID;
-    double _pendingSeekSeconds;
-    NSString *_seekResultMessage;
 
     AVFormatContext *_formatContext;
     AVCodecContext *_videoCodecContext;
@@ -468,7 +434,6 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (instancetype)initWithPath:(NSString *)path
-                     headers:(nullable NSDictionary<NSString *, NSString *> *)headers
            startMilliseconds:(NSInteger)startMilliseconds
                        layer:(AVSampleBufferDisplayLayer *)displayLayer
                     delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
@@ -485,7 +450,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     _path = [path copy];
-    _headers = [headers copy] ?: @{};
     _displayLayer = displayLayer;
     _delegate = delegate;
     _owner = owner;
@@ -543,19 +507,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (BOOL)prepareWithError:(NSError **)error {
-    AVDictionary *options = NULL;
-    NSString *headerLines = SFXNativePlaybackHeaderLines(_headers);
-    if (headerLines.length > 0) {
-        av_dict_set(&options, "headers", headerLines.UTF8String, 0);
-    }
-    if ([_path hasPrefix:@"http://"] || [_path hasPrefix:@"https://"]) {
-        av_dict_set(&options, "reconnect", "1", 0);
-        av_dict_set(&options, "reconnect_streamed", "1", 0);
-        av_dict_set(&options, "reconnect_delay_max", "2", 0);
-    }
-
-    int result = avformat_open_input(&_formatContext, _path.UTF8String, NULL, &options);
-    av_dict_free(&options);
+    int result = avformat_open_input(&_formatContext, _path.UTF8String, NULL, NULL);
     if (result < 0) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(10, [NSString stringWithFormat:@"avformat_open_input failed: %@", SFXFFmpegErrorString(result)]);
@@ -949,140 +901,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     });
 }
 
-- (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error {
-    double targetSeconds = MAX(0, (double)milliseconds / 1000.0);
-
-    [_packetQueueCondition lock];
-    if (atomic_load(&_cancelled) || atomic_load(&_finishingForAutomaticRecycle)) {
-        [_packetQueueCondition unlock];
-        if (error != NULL) {
-            *error = SFXNativePlaybackError(40, @"Native playback session is not seekable.");
-        }
-        return NO;
-    }
-    if (_decodeLoopFinished) {
-        [_packetQueueCondition unlock];
-        if (error != NULL) {
-            *error = SFXNativePlaybackError(40, @"Native playback session has already finished.");
-        }
-        return NO;
-    }
-
-    NSUInteger requestID = _seekRequestID + 1;
-    _seekRequestID = requestID;
-    _pendingSeekSeconds = targetSeconds;
-    _seekRequestPending = YES;
-    _seekResultReady = NO;
-    _seekResultSucceeded = NO;
-    _seekResultID = requestID;
-    _seekResultMessage = nil;
-    [_packetQueueCondition broadcast];
-
-    while (!atomic_load(&_cancelled)
-           && !atomic_load(&_finishingForAutomaticRecycle)
-           && (!_seekResultReady || _seekResultID != requestID)) {
-        [_packetQueueCondition wait];
-    }
-
-    BOOL succeeded = _seekResultReady && _seekResultID == requestID && _seekResultSucceeded;
-    NSString *message = [_seekResultMessage copy];
-    [_packetQueueCondition unlock];
-
-    if (!succeeded && error != NULL) {
-        *error = SFXNativePlaybackError(
-            41,
-            message ?: @"Native playback seek did not complete."
-        );
-    }
-    return succeeded;
-}
-
-- (BOOL)performPendingSeekIfNeeded {
-    [_packetQueueCondition lock];
-    if (!_seekRequestPending) {
-        [_packetQueueCondition unlock];
-        return NO;
-    }
-
-    NSUInteger requestID = _seekRequestID;
-    double targetSeconds = _pendingSeekSeconds;
-    _seekRequestPending = NO;
-    [_packetQueueCondition unlock];
-
-    NSError *seekError = nil;
-    BOOL succeeded = [self performSeekToSeconds:targetSeconds error:&seekError];
-    NSString *message = seekError.localizedDescription;
-
-    [_packetQueueCondition lock];
-    _seekResultID = requestID;
-    _seekResultReady = YES;
-    _seekResultSucceeded = succeeded;
-    _seekResultMessage = [message copy];
-    [_packetQueueCondition broadcast];
-    [_packetQueueCondition unlock];
-
-    if (!succeeded) {
-        [self notifyFailure:message ?: @"Native playback seek failed."];
-    }
-    return YES;
-}
-
-- (BOOL)performSeekToSeconds:(double)targetSeconds error:(NSError **)error {
-    [self stopPacketReadAheadForSeekAndClear];
-
-    av_packet_unref(_packet);
-    av_frame_unref(_videoFrame);
-    if (_audioFrame != NULL) {
-        av_frame_unref(_audioFrame);
-    }
-    if (_convertedAudioFrame != NULL) {
-        av_frame_unref(_convertedAudioFrame);
-    }
-
-    BOOL succeeded = SFXSeekToStartPosition(_formatContext, _videoStreamIndex, targetSeconds, error);
-    if (!succeeded) {
-        [self startPacketReadAhead];
-        return NO;
-    }
-
-    avformat_flush(_formatContext);
-    avcodec_flush_buffers(_videoCodecContext);
-    if (_audioCodecContext != NULL) {
-        avcodec_flush_buffers(_audioCodecContext);
-    }
-    swr_free(&_resampler);
-    _resamplerInputSampleRate = 0;
-    _resamplerInputChannels = 0;
-    _resamplerInputFormat = AV_SAMPLE_FMT_NONE;
-
-    AVAudioPlayerNode *audioPlayer = _audioPlayer;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [audioPlayer stop];
-    });
-
-    double now = CACurrentMediaTime();
-    @synchronized (self) {
-        _seekSeconds = targetSeconds;
-        _currentTime = targetSeconds;
-        _audioClockInitialized = NO;
-        _audioPlayerStarted = NO;
-        _videoClockInitialized = NO;
-        _isRebuffering = NO;
-        _rebufferStartedHostSeconds = 0;
-        _lastVideoOutputHostSeconds = now;
-        _audioFirstMediaSeconds = 0;
-        _audioStartHostSeconds = 0;
-        _videoFirstMediaSeconds = 0;
-        _videoStartHostSeconds = 0;
-    }
-    _flushDisplayOnFirstFrame = YES;
-
-    [self notifyTimeIfNeeded:YES];
-    [self startPacketReadAhead];
-    [self waitUntilPacketQueueHasStartupWaterline];
-    return YES;
-}
-
 - (void)rebasePlaybackClocksLockedAtHostSeconds:(double)hostSeconds {
     if (_audioClockInitialized) {
         _audioFirstMediaSeconds = [self mediaSecondsForClockLockedWithFirstMediaSeconds:_audioFirstMediaSeconds
@@ -1140,31 +958,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     [self clearPacketQueueLocked];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
-}
-
-- (void)stopPacketReadAheadForSeekAndClear {
-    [_packetQueueCondition lock];
-    _packetQueueEOF = YES;
-    [_packetQueueCondition broadcast];
-    [_packetQueueCondition unlock];
-
-    if (_demuxQueue != NULL && _packetQueueDemuxStarted) {
-        dispatch_sync(_demuxQueue, ^{});
-    }
-
-    [_packetQueueCondition lock];
-    [self clearPacketQueueLocked];
-    _packetQueueEOF = NO;
-    _packetQueueDemuxStarted = NO;
-    [_packetQueueCondition broadcast];
-    [_packetQueueCondition unlock];
-}
-
-- (BOOL)hasPendingSeekRequest {
-    [_packetQueueCondition lock];
-    BOOL pending = _seekRequestPending;
-    [_packetQueueCondition unlock];
-    return pending;
 }
 
 - (BOOL)isPacketQueueAtHighWaterLocked {
@@ -1350,7 +1143,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     while (!atomic_load(&_cancelled)
            && !atomic_load(&_finishingForAutomaticRecycle)
            && !_packetQueueEOF
-           && !_seekRequestPending
            && _packetQueueHead == NULL) {
         [_packetQueueCondition wait];
     }
@@ -1394,23 +1186,13 @@ static int SFXOutputChannelCount(int inputChannels) {
     [self waitUntilPacketQueueHasStartupWaterline];
 
     while (!atomic_load(&_cancelled) && !atomic_load(&_finishingForAutomaticRecycle)) {
-        if ([self performPendingSeekIfNeeded]) {
-            continue;
-        }
-
         [self waitWhilePausedIfNeeded];
         if (atomic_load(&_cancelled)) {
             break;
         }
-        if ([self hasPendingSeekRequest]) {
-            continue;
-        }
 
         SFXQueuedPacket *queuedPacket = [self dequeuePacket];
         if (queuedPacket == NULL) {
-            if ([self hasPendingSeekRequest]) {
-                continue;
-            }
             break;
         }
 
@@ -1431,17 +1213,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     BOOL cancelled = atomic_load(&_cancelled);
     BOOL finishingForAutomaticRecycle = atomic_load(&_finishingForAutomaticRecycle);
     atomic_store(&_playing, false);
-    [_packetQueueCondition lock];
-    _decodeLoopFinished = YES;
-    if (_seekRequestPending) {
-        _seekRequestPending = NO;
-        _seekResultReady = YES;
-        _seekResultSucceeded = NO;
-        _seekResultID = _seekRequestID;
-        _seekResultMessage = @"Native playback finished before seek could run.";
-    }
-    [_packetQueueCondition broadcast];
-    [_packetQueueCondition unlock];
     if (!cancelled && !finishingForAutomaticRecycle) {
         [self notifyTimeIfNeeded:YES];
     }
@@ -1479,9 +1250,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         });
     }
 
-    while (atomic_load(&_paused)
-           && !atomic_load(&_cancelled)
-           && ![self hasPendingSeekRequest]) {
+    while (atomic_load(&_paused) && !atomic_load(&_cancelled)) {
         usleep(20 * 1000);
     }
 }
@@ -2154,12 +1923,9 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
         _audioPlayerStarted = YES;
         AVAudioPlayerNode *audioPlayer = _audioPlayer;
-        BOOL shouldPlayAudio = !atomic_load(&_paused) && !_isRebuffering;
-        if (shouldPlayAudio) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [audioPlayer play];
-            });
-        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [audioPlayer play];
+        });
     }
 }
 
@@ -2232,7 +1998,6 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     SFXNativePlaybackView *_nativeView;
     SFXNativePlaybackSession *_session;
     NSString *_currentPath;
-    NSDictionary<NSString *, NSString *> *_currentHeaders;
     float _volume;
     float _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
@@ -2320,19 +2085,8 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
            error:(NSError **)error {
-    return [self openMediaURL:path
-                      headers:nil
-            startMilliseconds:startMilliseconds
-                       error:error];
-}
-
-- (BOOL)openMediaURL:(NSString *)mediaURL
-             headers:(nullable NSDictionary<NSString *, NSString *> *)headers
-   startMilliseconds:(NSInteger)startMilliseconds
-              error:(NSError **)error {
-    return [self openPath:mediaURL
+    return [self openPath:path
         startMilliseconds:startMilliseconds
-                  headers:headers
        flushDisplayBeforeStart:NO
  allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
                     error:error];
@@ -2340,7 +2094,6 @@ startMilliseconds:(NSInteger)startMilliseconds
 
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
-         headers:(nullable NSDictionary<NSString *, NSString *> *)headers
 flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
 allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
            error:(NSError **)error {
@@ -2348,7 +2101,6 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
         initWithPath:path
-        headers:headers
         startMilliseconds:startMilliseconds
         layer:_nativeView.displayLayer
         delegate:self.delegate
@@ -2366,20 +2118,23 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     _session = session;
     _currentPath = [path copy];
-    _currentHeaders = [headers copy] ?: @{};
     [_session start];
     return YES;
 }
 
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error {
-    if (_session == nil || _currentPath == nil) {
+    if (_currentPath == nil) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(40, @"Native playback has no current file to seek.");
         }
         return NO;
     }
 
-    return [_session seekToMilliseconds:milliseconds error:error];
+    return [self openPath:_currentPath
+        startMilliseconds:milliseconds
+       flushDisplayBeforeStart:NO
+ allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
+                    error:error];
 }
 
 - (void)requestAutomaticSoftwareRecycleForSession:(SFXNativePlaybackSession *)session
@@ -2391,11 +2146,9 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
         _didRecycleInitialSoftwareSession = YES;
         NSString *path = [_currentPath copy];
-        NSDictionary<NSString *, NSString *> *headers = [_currentHeaders copy];
         NSError *error = nil;
         BOOL opened = [self openPath:path
                    startMilliseconds:MAX(0, milliseconds)
-                             headers:headers
               flushDisplayBeforeStart:NO
         allowAutomaticSoftwareRecycle:NO
                               error:&error];
@@ -2426,7 +2179,6 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     [_session stopAndWait];
     _session = nil;
     _currentPath = nil;
-    _currentHeaders = nil;
     if (flushDisplay) {
         [_nativeView flush];
     }

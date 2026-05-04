@@ -182,23 +182,6 @@ Rules:
 - Playback read-ahead verification should record startup latency, queued packet
   cap behavior, seek/session replacement cleanup, and whether rebuffer events
   become fewer or shorter under network read pressure.
-- Same-media seek verification must confirm that timeline clicks and same-video
-  search-result jumps do not reopen the media URL, do not rebuild the playback
-  session, and do not block the main UI thread while the native backend waits on
-  remote byte-range reads.
-- Repeated seek verification should include quick successive targets and should
-  confirm that the app coalesces pending UI seek requests to the latest target
-  instead of executing every intermediate target after the user has moved on.
-- Remote warm-up verification should report the number of result rows, distinct
-  videos, warm candidates accepted, warm candidates skipped by policy, provider
-  API calls, proxy or remote range requests, warm-up duration, memory footprint,
-  and click-to-first-frame latency for warm hits and misses.
-- Warm-up tests must include result lists where many rows map to few videos and
-  where many rows map to many distinct videos. The expected behavior is bounded
-  distinct-video warm-up, not one warm-up per result row.
-- Provider politeness checks should verify serial remote warm-up by default,
-  cancellation when a search or favorites list changes, and no durable logging
-  or storage of signed URLs, provider headers, or tokens.
 - ASS subtitle rendering memory work must be judged primarily through
   end-to-end playback acceptance, not isolated renderer probes alone. The core
   acceptance question is whether the user-visible memory drop is meaningful

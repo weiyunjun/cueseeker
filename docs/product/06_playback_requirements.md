@@ -11,7 +11,7 @@ The primary playback action is:
 ```text
 Click subtitle search result
 Open or update Playback Inspector
-Open matching local or resolved remote video inside the app
+Open matching local video inside the app
 Seek to subtitle start timestamp
 Play or pause as needed
 ```
@@ -50,66 +50,7 @@ Out of scope for M1:
 - Media library management.
 - External player windows as the primary playback experience.
 
-## 3. Remote Playback Scope
-
-Remote playback is accepted after the local native playback path. It must extend
-the existing playback model rather than introduce a second production playback
-engine.
-
-Required:
-
-- Use the project-owned native FFmpeg backend for remote media after provider
-  resolution.
-- Support read-only WebDAV as the first remote source type.
-- Support AList as the first provider-specific resolver on top of WebDAV.
-- Use WebDAV for AList directory listing and subtitle reads.
-- Resolve AList playback URLs through AList API login and `/api/fs/get`.
-- Pass resolved playback URLs and provider headers to the native backend only
-  near media open time.
-- Require seekable byte-range behavior for remote playback.
-- Reuse indexed local ASS playback cache for remote ASS results. Normal playback
-  must not re-download a remote ASS file that has already been indexed and
-  cached.
-- Cache AList tokens and signed playback URLs in memory so repeated clicks and
-  unchanged links avoid avoidable login and `/api/fs/get` latency.
-- Surface clear errors when a provider can list files but cannot provide a
-  playable ranged media URL.
-- Display remote search results with decoded subtitle or video filenames, not
-  encoded transport URLs.
-- Use short local cache filenames for downloaded remote subtitle files.
-
-Out of scope:
-
-- Whole remote video download into a local temporary file as a playback fallback.
-- Treating AList `/api/auth/login` or `/api/fs/get` as generic WebDAV behavior.
-- Storing provider-signed playback URLs as durable media identity.
-- Storing passwords, tokens, Basic auth headers, signed URLs, or provider
-  playback headers in SQLite.
-- Playback-time remote ASS downloading as the normal path for an already indexed
-  source.
-
-Notes:
-
-- AList WebDAV `/dav/...` media URLs are not assumed to be directly playable.
-  Manual validation showed an AList BaiduNetdisk `/dav/...` media URL could
-  list and return size metadata but fail ranged playback after provider
-  redirect with `403 Forbidden`.
-- The matching `/api/fs/get` `raw_url` for the same media returned valid ranged
-  responses and could be opened and seeked by FFmpeg.
-- Generic WebDAV sources may use direct WebDAV media URLs only when range
-  requests and FFmpeg probing succeed against that server.
-- Remote playback uses a local loopback stream proxy as the compatibility layer
-  for provider headers, redirects, non-ASCII paths, and byte-range forwarding.
-  It must stream requests through to the provider and must not download whole
-  videos before playback.
-- Locally mounted WebDAV/NAS paths may be preferred only when CueSeeker can
-  match the remote source-relative path to a selected local root and confirm the
-  file exists.
-- Signed AList `raw_url` values are transient, but valid in-memory cached links
-  should be reused until expiry, authentication or range failure, or a changed
-  provider result.
-
-## 4. Video Matching Dependency
+## 3. Video Matching Dependency
 
 Playback depends on subtitle-to-video matching.
 
@@ -127,7 +68,7 @@ Movie.en.srt -> Movie.mp4
 Movie.scjp.ass -> Movie.mp4
 ```
 
-## 5. Timestamp Behavior
+## 4. Timestamp Behavior
 
 The app should seek to `start_ms`.
 
@@ -139,7 +80,7 @@ Expected behavior:
 - Timeline seeking must not temporarily reset the displayed playback time to `0`.
 - The UI may show the requested target timestamp immediately while the backend completes the seek, then accept later backend time updates as confirmation or correction.
 
-## 6. Playback Engine Selection
+## 5. Playback Engine Selection
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`,
 which supersedes ADR-0006 and ADR-0003.
@@ -152,10 +93,6 @@ Current decision:
   native macOS app.
 - Surface native opening, demuxing, hardware decode, display, audio decode,
   audio output, seek, and playback-control failures directly.
-- Remote media sources must not introduce a second production playback engine.
-  Provider resolution may produce a URL and request headers before
-  `avformat_open_input`, but demuxing, decode, output, seeking, and controls
-  remain owned by the native backend.
 
 Current implementation:
 
@@ -214,7 +151,7 @@ Evaluation criteria:
 - App signing and distribution impact.
 - Maintenance cost.
 
-## 7. Subtitle Rendering
+## 6. Subtitle Rendering
 
 The current native-first playback implementation supports app-owned subtitle
 overlay rendering for the selected indexed SRT file.
@@ -241,9 +178,6 @@ Rules:
   product direction is native-only ASS rendering.
 - ASS playback rendering must use the source `.ass` file, or a cache generated
   from that exact source file identity, not the database search projection.
-- All indexed ASS files should have an app-owned local playback cache. Small ASS
-  files may keep a full-source cached payload; large ASS files should use
-  indexed render segments.
 - Search results should expose readable dialogue or lyric text. Playback
   rendering must preserve timed source ASS events, including `Effect=fx`,
   vector drawing, clipping, karaoke, blur, alpha, transforms, and short-duration
@@ -252,9 +186,6 @@ Rules:
   seek, and playback controls must not wait for ASS parsing or rendering.
 - ASS subtitle preparation should be asynchronous, cancellable, and cached by
   source file identity.
-- ASS playback caches must be reconciled with selected folders, remote sources,
-  source-relative paths, file metadata, and cache algorithm versions so removed
-  or changed sources do not leave stale playback payloads.
 - The renderer may fall back to ASS Lite when the source-faithful renderer is
   unavailable, but fallback must not block video playback.
 - During source-faithful renderer development, complex ASS rendering failures
@@ -287,10 +218,10 @@ Grouped search result behavior:
 - The playback target is the cue group start time even when the displayed search
   preview contains several ASS lines.
 - If the source subtitle file changes, reindexing should rebuild the cue groups
-  refresh the subtitle-to-video mapping, and rebuild the ASS playback cache
-  before later search results are used for playback.
+  and refresh the subtitle-to-video mapping before later search results are
+  used for playback.
 
-## 8. M2 Fullscreen Behavior
+## 7. M2 Fullscreen Behavior
 
 Playback fullscreen belongs to the playback interaction model.
 
@@ -320,7 +251,7 @@ Implementation constraints:
 - Playback fullscreen should use the singleton render container owned by the playback player.
 - The fullscreen overlay should reuse the same playback controls and feedback model as the Playback Inspector.
 
-## 9. M2 Playback Controls
+## 8. M2 Playback Controls
 
 Playback controls should be explicit and should avoid accidental video-surface commands.
 
@@ -372,7 +303,7 @@ Current implementation notes:
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
 
-## 10. Error States
+## 9. Error States
 
 Playback errors should be clear.
 
@@ -380,9 +311,6 @@ Examples:
 
 - Matching video file not found.
 - Video file cannot be opened.
-- Remote provider can list the file but cannot resolve a playable ranged media
-  URL.
-- Remote media URL requires credentials or headers that are unavailable.
 - Timestamp seek failed.
 - Playback engine initialization failed.
 

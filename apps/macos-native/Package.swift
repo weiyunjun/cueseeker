@@ -74,10 +74,7 @@ let package = Package(
                 "CueSeekerCore",
                 "CueSeekerPlayback"
             ],
-            path: "Sources/CueSeekerApp",
-            linkerSettings: [
-                .linkedFramework("Security")
-            ]
+            path: "Sources/CueSeekerApp"
         ),
         .executableTarget(
             name: "NativePlaybackProbe",

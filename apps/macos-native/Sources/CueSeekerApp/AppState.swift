@@ -31,20 +31,16 @@ enum AppSection: String, CaseIterable, Identifiable {
 enum IndexingStatus: Equatable {
     case idle
     case indexing(URL)
-    case validatingRemote(String, detail: String?)
-    case indexingRemote(String, detail: String?)
     case indexingAll(currentFolder: URL, completedFolders: Int, totalFolders: Int)
     case completed(URL, SubtitleIndexingResult)
-    case completedRemote(String, SubtitleIndexingResult)
     case completedAll(folderCount: Int, SubtitleIndexingResult)
     case failed(URL, String)
-    case failedRemote(String, String)
 
     var isIndexing: Bool {
         switch self {
-        case .indexing, .validatingRemote, .indexingRemote, .indexingAll:
+        case .indexing, .indexingAll:
             return true
-        case .idle, .completed, .completedRemote, .completedAll, .failed, .failedRemote:
+        case .idle, .completed, .completedAll, .failed:
             return false
         }
     }
@@ -85,9 +81,7 @@ final class AppState: ObservableObject {
 
     @Published var selectedSection: AppSection = .search
     @Published var selectedFolders: [URL] = []
-    @Published var remoteSources: [StoredMediaSource] = []
     @Published var indexingStatus: IndexingStatus = .idle
-    @Published var searchDraftQuery = ""
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
@@ -119,17 +113,9 @@ final class AppState: ObservableObject {
     }
 
     private let userDefaults: UserDefaults
-    private let credentialStore = RemoteCredentialStore()
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
-    private var remoteRangeCachePrefetchTask: Task<Void, Never>?
-    private lazy var remoteWarmUpCoordinator = RemotePlaybackWarmUpCoordinator { [weak self] candidate in
-        guard let self else {
-            throw RemotePlaybackError.remoteSourceUnavailable
-        }
-        return try await self.remoteWarmPreparedRequest(for: candidate)
-    }
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -156,11 +142,7 @@ final class AppState: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
-            remoteSources = try database.remoteMediaSources()
-            try database.reconcileIndexedContent(
-                activeFolders: selectedFolders,
-                activeRemoteSourceIDs: remoteSources.map(\.id)
-            )
+            try database.reconcileIndexedContent(activeFolders: selectedFolders)
             let player = PlaybackPlayer()
             player.decodeMode = playbackDecodeMode
             player.assSubtitleRenderingMode = assSubtitleRenderingMode
@@ -206,147 +188,6 @@ final class AppState: ObservableObject {
         persistSelectedFolders()
         clearSearchAndPlaybackState(under: folder)
         refreshCurrentSearch(clearExistingResults: true)
-    }
-
-    func addAListRemoteSource(
-        displayName: String,
-        rootURLString: String,
-        username: String,
-        password: String
-    ) {
-        let trimmedURL = rootURLString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let rootURL = URL(string: trimmedURL) else {
-            startupError = "Invalid WebDAV URL."
-            return
-        }
-
-        indexingTask?.cancel()
-        let sourceName = displayName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-            ?? rootURL.host
-            ?? trimmedURL
-        let credentials = RemoteMediaSourceCredentials(username: username, password: password)
-        indexingStatus = .validatingRemote(sourceName, detail: "Checking WebDAV and AList access...")
-
-        let databaseURL = databaseURL
-        let credentialStore = credentialStore
-        let credentialRef = UUID().uuidString
-        indexingTask = Task {
-            do {
-                try await Self.validateAListRemoteSource(
-                    name: sourceName,
-                    rootURL: rootURL,
-                    credentials: credentials
-                ) { [weak self] detail in
-                    Task { @MainActor in
-                        guard case .validatingRemote(let currentName, _) = self?.indexingStatus,
-                              currentName == sourceName
-                        else {
-                            return
-                        }
-                        self?.indexingStatus = .validatingRemote(sourceName, detail: detail)
-                    }
-                }
-
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                try credentialStore.save(credentials, credentialRef: credentialRef)
-
-                let database = try SubtitleDatabase(path: databaseURL)
-                try database.migrate()
-                let sourceID = try database.addRemoteMediaSource(
-                    provider: .alist,
-                    rootURL: rootURL,
-                    displayName: sourceName,
-                    credentialRef: credentialRef
-                )
-                remoteSources = try database.remoteMediaSources()
-
-                guard let source = remoteSources.first(where: { $0.id == sourceID }) else {
-                    return
-                }
-                startRemoteIndexing(source, cancelExisting: false)
-            } catch {
-                credentialStore.delete(credentialRef: credentialRef)
-                guard !Task.isCancelled else {
-                    return
-                }
-                indexingStatus = .failedRemote(sourceName, Self.errorMessage(for: error))
-                startupError = "Failed to add remote source: \(Self.errorMessage(for: error))"
-            }
-        }
-    }
-
-    func removeRemoteSource(_ source: StoredMediaSource) {
-        do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
-            try database.removeIndexedRemoteSource(id: source.id)
-            credentialStore.delete(credentialRef: source.credentialRef)
-            remoteSources = try database.remoteMediaSources()
-            remoteWarmUpCoordinator.clear()
-            clearSearchAndPlaybackState(sourceID: source.id)
-            refreshCurrentSearch(clearExistingResults: true)
-        } catch {
-            startupError = "Failed to remove remote source: \(Self.errorMessage(for: error))"
-        }
-    }
-
-    func indexRemoteSource(_ source: StoredMediaSource) {
-        startRemoteIndexing(source, cancelExisting: true)
-    }
-
-    private func startRemoteIndexing(_ source: StoredMediaSource, cancelExisting: Bool) {
-        if cancelExisting {
-            indexingTask?.cancel()
-        }
-        indexingStatus = .indexingRemote(source.displayName, detail: "Starting remote index...")
-
-        let databaseURL = databaseURL
-        let credentialStore = credentialStore
-        indexingTask = Task {
-            do {
-                let credentials = try credentialStore.load(credentialRef: source.credentialRef)
-                let configuration = try Self.remoteConfiguration(source: source, credentials: credentials)
-                let progressHandler: @Sendable (RemoteIndexingProgress) -> Void = { [weak self] progress in
-                    print("REMOTE_INDEX source=\"\(source.displayName)\" \(progress.logMessage)")
-                    Task { @MainActor in
-                        guard case .indexingRemote(let currentName, _) = self?.indexingStatus,
-                              currentName == source.displayName
-                        else {
-                            return
-                        }
-                        self?.indexingStatus = .indexingRemote(
-                            source.displayName,
-                            detail: progress.userMessage
-                        )
-                    }
-                }
-                let result = try await Task.detached(priority: .userInitiated) {
-                    let database = try SubtitleDatabase(path: databaseURL)
-                    let indexer = RemoteSubtitleIndexer()
-                    return try await indexer.index(
-                        source: configuration,
-                        into: database,
-                        progress: progressHandler
-                    )
-                }.value
-
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                indexingStatus = .completedRemote(source.displayName, result)
-                refreshCurrentSearch()
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                indexingStatus = .failedRemote(source.displayName, Self.errorMessage(for: error))
-            }
-        }
     }
 
     func clearSearchFocus() {
@@ -494,71 +335,36 @@ final class AppState: ObservableObject {
         }
     }
 
-    func updateSearchDraftQuery(_ query: String) {
-        searchDraftQuery = query
-    }
-
-    func revertSearchDraftQuery() {
-        searchDraftQuery = searchQuery
-    }
-
-    func commitSearchDraftQuery() {
-        let query = searchDraftQuery
-        guard query != searchQuery || !canSkipCommittedSearch else {
-            return
-        }
-
+    func updateSearchQuery(_ query: String) {
         searchQuery = query
-        runSearch(for: query)
-    }
-
-    private var canSkipCommittedSearch: Bool {
-        switch searchStatus {
-        case .idle, .searching, .completed:
-            true
-        case .failed:
-            false
-        }
-    }
-
-    private func runSearch(for query: String) {
         searchTask?.cancel()
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
             searchStatus = .idle
             searchResults = []
-            remoteRangeCachePrefetchTask?.cancel()
-            remoteWarmUpCoordinator.clear()
             return
         }
 
         let folders = selectedFolders
-        let remoteSourceIDs = remoteSources.map(\.id)
-        guard !folders.isEmpty || !remoteSourceIDs.isEmpty else {
+        guard !folders.isEmpty else {
             searchStatus = .completed
             searchResults = []
             selectedSearchResult = nil
-            remoteRangeCachePrefetchTask?.cancel()
-            remoteWarmUpCoordinator.clear()
             return
         }
 
         searchStatus = .searching
-        remoteRangeCachePrefetchTask?.cancel()
-        remoteWarmUpCoordinator.clear()
 
         let databaseURL = databaseURL
         searchTask = Task {
             do {
+                try await Task.sleep(nanoseconds: 250_000_000)
+
                 let results = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     try database.migrate()
-                    return try database.search(
-                        trimmedQuery,
-                        under: folders,
-                        remoteSourceIDs: remoteSourceIDs
-                    )
+                    return try database.search(trimmedQuery, under: folders)
                 }.value
 
                 guard !Task.isCancelled else {
@@ -567,7 +373,6 @@ final class AppState: ObservableObject {
 
                 searchResults = results
                 searchStatus = .completed
-                publishRemoteRangeCachePrefetch(for: results)
             } catch is CancellationError {
                 return
             } catch {
@@ -577,8 +382,6 @@ final class AppState: ObservableObject {
 
                 searchResults = []
                 searchStatus = .failed(Self.errorMessage(for: error))
-                remoteRangeCachePrefetchTask?.cancel()
-                remoteWarmUpCoordinator.clear()
             }
         }
     }
@@ -594,12 +397,6 @@ final class AppState: ObservableObject {
     }
 
     func play(_ result: SubtitleSearchResult) {
-        Task {
-            await playResolved(result)
-        }
-    }
-
-    private func playResolved(_ result: SubtitleSearchResult) async {
         playbackStatus = .opening(result)
         let subtitleCues = playbackSubtitleCues(for: result)
         playbackViewModel?.setSubtitleCues(
@@ -608,38 +405,24 @@ final class AppState: ObservableObject {
         )
 
         do {
+            let request = try PlaybackRequest(
+                videoURL: URL(fileURLWithPath: result.videoPath),
+                startMilliseconds: result.startMilliseconds,
+                subtitleSource: playbackSubtitleSource(for: result)
+            )
+
             guard let player else {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
-            let mediaIdentifier = Self.playbackMediaIdentifier(for: result)
-            var playbackPlayer = player
-            if player.currentMediaIdentifier == mediaIdentifier {
-                let expectedSubtitleIdentifier = result.subtitleFormat == .ass ? result.subtitlePath : nil
-                if player.currentSubtitleSourceIdentifier != expectedSubtitleIdentifier {
-                    let subtitleSource = try await playbackSubtitleSource(for: result)
-                    if !player.hasActiveSubtitleSource(subtitleSource) {
-                        player.loadSubtitleSource(subtitleSource)
-                    }
-                }
-                try await player.seekAsync(toMilliseconds: result.startMilliseconds)
-            } else if let warmSession = remoteWarmUpCoordinator.takeWarmSession(mediaIdentifier: mediaIdentifier) {
-                playbackPlayer = try await promoteWarmSession(
-                    warmSession,
-                    for: result,
-                    replacing: player
-                )
+            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+                player.loadSubtitleSource(request.subtitleSource)
+                try player.seek(toMilliseconds: request.startMilliseconds)
             } else {
-                remoteWarmUpCoordinator.cancel(mediaIdentifier: mediaIdentifier)
-                try player.stop()
-                let request = try await playbackRequest(
-                    for: result,
-                    mediaIdentifier: mediaIdentifier
-                )
                 try player.open(request)
             }
 
-            try playbackPlayer.setPaused(false)
+            try player.setPaused(false)
             playbackStatus = .playing(result)
         } catch {
             playbackViewModel?.clearSubtitleCues()
@@ -794,95 +577,7 @@ final class AppState: ObservableObject {
             searchResults = []
         }
 
-        runSearch(for: searchQuery)
-    }
-
-    private func publishRemoteRangeCachePrefetch(for results: [SubtitleSearchResult]) {
-        remoteRangeCachePrefetchTask?.cancel()
-        let groups = remoteRangeCachePrefetchGroups(for: results)
-        guard !groups.isEmpty else {
-            return
-        }
-
-        print("REMOTE_RANGE_CACHE state=search_candidates videos=\(groups.count) windows=\(groups.reduce(0) { $0 + $1.results.count })")
-        remoteRangeCachePrefetchTask = Task { [weak self] in
-            guard let self else {
-                return
-            }
-            for group in groups {
-                guard !Task.isCancelled else {
-                    return
-                }
-                do {
-                    let resolved = try await self.resolvedRemoteMedia(for: group.results[0])
-                    await RemoteRangeCache.shared.prefetch(
-                        cacheKey: group.mediaIdentifier,
-                        remoteURL: resolved.url,
-                        headers: resolved.headers,
-                        windows: group.results.map {
-                            RemoteRangeCacheWindow(
-                                startMilliseconds: $0.startMilliseconds,
-                                endMilliseconds: $0.endMilliseconds
-                            )
-                        }
-                    )
-                } catch is CancellationError {
-                    return
-                } catch {
-                    print("REMOTE_RANGE_CACHE state=resolve_failed media=\(group.mediaIdentifier.hashValue) reason=\(error)")
-                }
-            }
-        }
-    }
-
-    private func remoteRangeCachePrefetchGroups(for results: [SubtitleSearchResult]) -> [RemoteRangeCachePrefetchGroup] {
-        let eligibleSourceIDs = Set(
-            remoteSources
-                .filter { source in
-                    source.type == .webdav
-                        && (source.provider == .alist || source.provider == .genericWebDAV)
-                }
-                .map(\.id)
-        )
-        guard !eligibleSourceIDs.isEmpty else {
-            return []
-        }
-
-        var groups: [RemoteRangeCachePrefetchGroup] = []
-        var groupIndexByMediaIdentifier: [String: Int] = [:]
-        var acceptedWindows = 0
-        for result in results {
-            guard acceptedWindows < 20,
-                  let sourceID = result.videoSourceID,
-                  eligibleSourceIDs.contains(sourceID)
-            else {
-                continue
-            }
-
-            let mediaIdentifier = Self.playbackMediaIdentifier(for: result)
-            if let index = groupIndexByMediaIdentifier[mediaIdentifier] {
-                groups[index].results.append(result)
-            } else {
-                groupIndexByMediaIdentifier[mediaIdentifier] = groups.count
-                groups.append(
-                    RemoteRangeCachePrefetchGroup(
-                        mediaIdentifier: mediaIdentifier,
-                        results: [result]
-                    )
-                )
-            }
-            acceptedWindows += 1
-        }
-        return groups
-    }
-
-    private func publishRemoteWarmCandidates(for results: [SubtitleSearchResult]) {
-        let candidates = RemotePlaybackWarmUpCoordinator.searchCandidates(
-            results: results,
-            remoteSources: remoteSources,
-            currentMediaIdentifier: player?.currentMediaIdentifier
-        )
-        remoteWarmUpCoordinator.publishSearchCandidates(candidates)
+        updateSearchQuery(searchQuery)
     }
 
     private func clearSearchAndPlaybackState(under folder: URL) {
@@ -895,25 +590,6 @@ final class AppState: ObservableObject {
         }
 
         self.selectedSearchResult = nil
-        remoteRangeCachePrefetchTask?.cancel()
-        remoteWarmUpCoordinator.clear()
-        stopPlayback()
-    }
-
-    private func clearSearchAndPlaybackState(sourceID: Int64) {
-        searchResults.removeAll { result in
-            result.subtitleSourceID == sourceID || result.videoSourceID == sourceID
-        }
-
-        guard let selectedSearchResult,
-              selectedSearchResult.subtitleSourceID == sourceID || selectedSearchResult.videoSourceID == sourceID
-        else {
-            return
-        }
-
-        self.selectedSearchResult = nil
-        remoteRangeCachePrefetchTask?.cancel()
-        remoteWarmUpCoordinator.clear()
         stopPlayback()
     }
 
@@ -961,132 +637,6 @@ final class AppState: ObservableObject {
         aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
     }
 
-    private func playbackRequest(
-        for result: SubtitleSearchResult,
-        mediaIdentifier: String? = nil,
-        includeSubtitleSource: Bool = true
-    ) async throws -> PlaybackRequest {
-        let subtitleSource = includeSubtitleSource ? try await playbackSubtitleSource(for: result) : nil
-
-        guard let sourceID = result.videoSourceID else {
-            return try PlaybackRequest(
-                videoURL: URL(fileURLWithPath: result.videoPath),
-                startMilliseconds: result.startMilliseconds,
-                subtitleSource: subtitleSource,
-                mediaIdentifier: mediaIdentifier
-            )
-        }
-
-        let resolved = try await resolvedRemoteMedia(for: result)
-
-        let proxyURL = try await LocalStreamProxy.shared.register(
-            remoteURL: resolved.url,
-            headers: resolved.headers,
-            cacheKey: mediaIdentifier ?? Self.remoteMediaIdentifier(sourceID: sourceID, result: result)
-        )
-
-        return try PlaybackRequest(
-            videoURL: proxyURL,
-            httpHeaders: [:],
-            startMilliseconds: result.startMilliseconds,
-            subtitleSource: subtitleSource,
-            mediaIdentifier: mediaIdentifier ?? Self.remoteMediaIdentifier(sourceID: sourceID, result: result)
-        )
-    }
-
-    private func resolvedRemoteMedia(for result: SubtitleSearchResult) async throws -> ResolvedRemoteMedia {
-        guard let sourceID = result.videoSourceID else {
-            throw RemotePlaybackError.remoteSourceUnavailable
-        }
-        guard let source = remoteSources.first(where: { $0.id == sourceID }) else {
-            throw RemotePlaybackError.remoteSourceUnavailable
-        }
-        let credentials = try credentialStore.load(credentialRef: source.credentialRef)
-        let configuration = try Self.remoteConfiguration(source: source, credentials: credentials)
-
-        switch source.provider {
-        case .alist:
-            guard let relativePath = result.videoSourceRelativePath else {
-                throw RemotePlaybackError.remoteRelativePathMissing
-            }
-            return try await AListResolver().resolve(
-                source: configuration,
-                sourceRelativePath: relativePath
-            )
-        case .genericWebDAV:
-            guard let url = URL(string: result.videoPath) else {
-                throw RemotePlaybackError.invalidRemoteURL
-            }
-            return ResolvedRemoteMedia(
-                url: url,
-                headers: Self.basicAuthHeaders(credentials: credentials)
-            )
-        case .local:
-            throw RemotePlaybackError.remoteSourceUnavailable
-        }
-    }
-
-    private func remoteWarmPreparedRequest(
-        for candidate: RemotePlaybackWarmCandidate
-    ) async throws -> RemotePlaybackWarmPreparedRequest {
-        let request = try await playbackRequest(
-            for: candidate.result,
-            mediaIdentifier: candidate.mediaIdentifier,
-            includeSubtitleSource: false
-        )
-        return RemotePlaybackWarmPreparedRequest(
-            request: request,
-            decodeMode: playbackDecodeMode
-        )
-    }
-
-    private func promoteWarmSession(
-        _ session: RemotePlaybackWarmSession,
-        for result: SubtitleSearchResult,
-        replacing currentPlayer: PlaybackPlayer
-    ) async throws -> PlaybackPlayer {
-        let volume = (try? currentPlayer.getDoubleProperty("volume")) ?? 100
-        let speed = (try? currentPlayer.getDoubleProperty("speed")) ?? 1
-        let subtitlesVisible = playbackViewModel?.areSubtitlesVisible ?? true
-        try currentPlayer.stop()
-
-        let warmPlayer = session.player
-        warmPlayer.assSubtitleRenderingMode = assSubtitleRenderingMode
-        try? warmPlayer.setDoubleProperty("volume", value: volume)
-        try? warmPlayer.setDoubleProperty("speed", value: speed)
-        warmPlayer.setSubtitlesVisible(subtitlesVisible)
-
-        self.player = warmPlayer
-        let viewModel = PlaybackViewModel(player: warmPlayer)
-        viewModel.areSubtitlesVisible = subtitlesVisible
-        viewModel.setSubtitleCues(
-            playbackSubtitleCues(for: result),
-            currentTimeMilliseconds: result.startMilliseconds
-        )
-        playbackViewModel = viewModel
-
-        let subtitleSource = try await playbackSubtitleSource(for: result)
-        if !warmPlayer.hasActiveSubtitleSource(subtitleSource) {
-            warmPlayer.loadSubtitleSource(subtitleSource)
-        }
-        try await warmPlayer.seekAsync(toMilliseconds: result.startMilliseconds)
-        return warmPlayer
-    }
-
-    private static func playbackMediaIdentifier(for result: SubtitleSearchResult) -> String {
-        guard let sourceID = result.videoSourceID else {
-            return result.videoPath
-        }
-        return remoteMediaIdentifier(sourceID: sourceID, result: result)
-    }
-
-    private static func remoteMediaIdentifier(sourceID: Int64, result: SubtitleSearchResult) -> String {
-        let path = result.videoSourceRelativePath?.removingPercentEncoding
-            ?? result.videoSourceRelativePath
-            ?? result.videoPath
-        return "remote:\(sourceID):\(path)"
-    }
-
     private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
         guard result.subtitleFormat == .srt else {
             return []
@@ -1096,7 +646,7 @@ final class AppState: ObservableObject {
             let database = try SubtitleDatabase(path: databaseURL)
             try database.migrate()
             let entries = try database.entries(
-                forSubtitlePath: result.subtitlePath
+                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath)
             )
             let cues = entries.map {
                 PlaybackSubtitleCue(
@@ -1122,39 +672,16 @@ final class AppState: ObservableObject {
         ]
     }
 
-    private func playbackSubtitleSource(for result: SubtitleSearchResult) async throws -> PlaybackSubtitleSource? {
+    private func playbackSubtitleSource(for result: SubtitleSearchResult) -> PlaybackSubtitleSource? {
         guard result.subtitleFormat == .ass else {
             return nil
         }
 
-        let database = try SubtitleDatabase(path: databaseURL)
-        try database.migrate()
-
-        let cachedScript = try database.assSourceScriptCache(forSubtitlePath: result.subtitlePath)
-        let hasRenderSegments = try database.hasASSRenderSegments(forSubtitlePath: result.subtitlePath)
-
-        guard cachedScript != nil || hasRenderSegments || result.subtitleSourceID == nil else {
-            print("Remote ASS playback cache miss: \(result.subtitlePath)")
-            return nil
-        }
-
-        let subtitleURL: URL
-        if result.subtitleSourceID != nil {
-            subtitleURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("CueSeekerIndexedASS-\(result.subtitleSourceID ?? 0)")
-                .appendingPathExtension("ass")
-        } else {
-            subtitleURL = URL(fileURLWithPath: result.subtitlePath)
-        }
-
         return PlaybackSubtitleSource(
-            url: subtitleURL,
+            url: URL(fileURLWithPath: result.subtitlePath),
             format: .ass,
-            inlineASSScript: cachedScript?.scriptText,
-            sourceIdentifier: result.subtitlePath,
             preparationTimeWindow: playbackSubtitleTimeWindow(for: result),
-            renderCacheDatabaseURL: databaseURL,
-            renderCacheSubtitlePath: result.subtitlePath
+            renderCacheDatabaseURL: databaseURL
         )
     }
 
@@ -1168,7 +695,7 @@ final class AppState: ObservableObject {
             let database = try SubtitleDatabase(path: databaseURL)
             try database.migrate()
             let timings = try database.cueTimings(
-                forSubtitlePath: result.subtitlePath,
+                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
                 startingAtMilliseconds: result.startMilliseconds,
                 limit: Self.assSubtitlePreparationCueLimit
             )
@@ -1194,74 +721,6 @@ final class AppState: ObservableObject {
             print("Failed to load ASS subtitle preparation window: \(error)")
             return fallback
         }
-    }
-
-    private static func validateAListRemoteSource(
-        name: String,
-        rootURL: URL,
-        credentials: RemoteMediaSourceCredentials,
-        progress: @escaping @Sendable (String) -> Void
-    ) async throws {
-        let configuration = RemoteMediaSourceConfiguration(
-            id: -1,
-            provider: .alist,
-            displayName: name,
-            rootURL: rootURL,
-            credentialRef: nil,
-            credentials: credentials
-        )
-
-        progress("Validating WebDAV root...")
-        var startedAt = Date()
-        let rootEntries = try await WebDAVClient(
-            rootURL: rootURL,
-            credentials: credentials
-        ).validateRoot()
-        print(
-            "REMOTE_VALIDATE source=\"\(name)\" stage=webdav_root entries=\(rootEntries.count) elapsed_ms=\(elapsedMilliseconds(since: startedAt))"
-        )
-
-        progress("Validating AList API login and root path...")
-        startedAt = Date()
-        try await AListResolver().validateRoot(source: configuration)
-        print(
-            "REMOTE_VALIDATE source=\"\(name)\" stage=alist_root elapsed_ms=\(elapsedMilliseconds(since: startedAt))"
-        )
-    }
-
-    private static func remoteConfiguration(
-        source: StoredMediaSource,
-        credentials: RemoteMediaSourceCredentials
-    ) throws -> RemoteMediaSourceConfiguration {
-        RemoteMediaSourceConfiguration(
-            id: source.id,
-            provider: source.provider,
-            displayName: source.displayName,
-            rootURL: try remoteRootURL(source.path),
-            credentialRef: source.credentialRef,
-            credentials: credentials
-        )
-    }
-
-    private static func remoteRootURL(_ value: String) throws -> URL {
-        guard let url = URL(string: value) else {
-            throw RemotePlaybackError.invalidRemoteURL
-        }
-        return url
-    }
-
-    private static func basicAuthHeaders(credentials: RemoteMediaSourceCredentials) -> [String: String] {
-        guard !credentials.username.isEmpty || !credentials.password.isEmpty else {
-            return [:]
-        }
-
-        let userPassword = "\(credentials.username):\(credentials.password)"
-        let encoded = Data(userPassword.utf8).base64EncodedString()
-        return ["Authorization": "Basic \(encoded)"]
-    }
-
-    private static func elapsedMilliseconds(since startDate: Date) -> Int {
-        max(0, Int(Date().timeIntervalSince(startDate) * 1_000))
     }
 
     private func persistSelectedFolders() {
@@ -1343,33 +802,5 @@ private extension NSView {
         }
 
         return false
-    }
-}
-
-private struct RemoteRangeCachePrefetchGroup: Sendable {
-    let mediaIdentifier: String
-    var results: [SubtitleSearchResult]
-}
-
-private enum RemotePlaybackError: Error, CustomStringConvertible {
-    case remoteSourceUnavailable
-    case remoteRelativePathMissing
-    case invalidRemoteURL
-
-    var description: String {
-        switch self {
-        case .remoteSourceUnavailable:
-            "Remote media source is unavailable."
-        case .remoteRelativePathMissing:
-            "Remote media relative path is missing."
-        case .invalidRemoteURL:
-            "Remote media URL is invalid."
-        }
-    }
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
     }
 }
