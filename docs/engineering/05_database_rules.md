@@ -53,8 +53,11 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `3`.
+- The current schema version is `6`.
 - Schema version `3` is the ASS cue model schema.
+- Schema version `6` rebuilds derived cue-group FTS rows using Han and
+  Japanese kana segmentation so pure kana queries can match existing indexed
+  subtitle content.
 
 ## 5. Migration Rules
 
@@ -198,6 +201,8 @@ Rules:
 - Updating or deleting cue groups or cue lines must keep FTS data consistent.
 - FTS table rebuild behavior must be documented before relying on it for recovery.
 - CJK search behavior must preserve at least the practical behavior of the archived Flutter implementation.
+- Japanese hiragana, katakana, and halfwidth katakana must be segmented for FTS
+  phrase matching so pure kana queries can match indexed subtitle text.
 
 Search ranking and query syntax:
 

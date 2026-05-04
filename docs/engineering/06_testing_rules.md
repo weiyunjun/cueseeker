@@ -79,6 +79,8 @@ Required database test areas:
 - Invalid query behavior.
 - Result limits and predictable ordering.
 - CJK search behavior at least matching the archived Flutter implementation's practical behavior.
+- Pure Japanese kana search behavior, including hiragana, katakana, and
+  halfwidth katakana queries.
 - Search scoped to the currently selected folders.
 - Startup reconciliation that removes or excludes index rows outside the
   currently selected folders.

@@ -245,7 +245,9 @@ Expected FTS data:
 - Cue group search content.
 - Link from FTS row to subtitle cue group.
 
-CJK handling should preserve at least the practical behavior of the existing Flutter implementation.
+Han and Japanese kana handling should preserve the practical CJK behavior of
+the existing Flutter implementation while also allowing pure hiragana,
+katakana, and halfwidth katakana queries to match indexed subtitle text.
 
 Search results must be scoped to the currently selected local subtitle folders.
 FTS rows outside that active folder scope are stale derived index data and must
@@ -294,7 +296,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `3`.
+- Schema version: `6`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -302,6 +304,9 @@ Current native schema:
 - The version 3 migration preserves durable configuration such as selected
   folders and playback settings while rebuilding derived subtitle index data
   from source subtitle files.
+- Version 6 rebuilds derived cue-group FTS rows from stored cue-group
+  `search_content` using Han and Japanese kana segmentation. It does not drop
+  durable user configuration.
 
 ## 14. Flutter Data Compatibility
 

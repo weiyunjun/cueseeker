@@ -56,7 +56,7 @@ public struct ASSRenderSegment: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 5
+    public static let currentSchemaVersion: Int = 6
 
     private let database: SQLiteDatabase
 
@@ -195,6 +195,10 @@ public final class SubtitleDatabase {
                 ADD COLUMN algorithm_version INTEGER NOT NULL DEFAULT 0;
                 """
             )
+        }
+
+        if previousVersion < 6 {
+            try rebuildFTSRows()
         }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
@@ -647,7 +651,7 @@ public final class SubtitleDatabase {
 
         let hasExplicitPhrase = trimmed.count >= 2 && trimmed.first == "\"" && trimmed.last == "\""
         let hasFTSSyntax = hasExplicitPhrase || trimmed.contains("*") || containsFTSOperator(in: trimmed)
-        let hasCJK = containsFlutterCJK(in: trimmed)
+        let hasCJK = containsCJKSearchCharacter(in: trimmed)
         let queryTokens = hasCJK ? [] : tokenizeLatinTokens(trimmed)
         let useOrderedTokenFilter = !hasFTSSyntax && !hasCJK && queryTokens.count > 1
 
@@ -803,19 +807,26 @@ public final class SubtitleDatabase {
         var segmented = ""
         for scalar in text.unicodeScalars {
             segmented.unicodeScalars.append(scalar)
-            if isFlutterCJK(scalar) {
+            if isCJKSearchCharacter(scalar) {
                 segmented.append(" ")
             }
         }
         return segmented
     }
 
-    private static func containsFlutterCJK(in text: String) -> Bool {
-        text.unicodeScalars.contains(where: isFlutterCJK)
+    private static func containsCJKSearchCharacter(in text: String) -> Bool {
+        text.unicodeScalars.contains(where: isCJKSearchCharacter)
     }
 
-    private static func isFlutterCJK(_ scalar: UnicodeScalar) -> Bool {
-        (0x4E00...0x9FA5).contains(Int(scalar.value))
+    private static func isCJKSearchCharacter(_ scalar: UnicodeScalar) -> Bool {
+        let value = Int(scalar.value)
+        return (0x3400...0x4DBF).contains(value)
+            || (0x4E00...0x9FFF).contains(value)
+            || (0xF900...0xFAFF).contains(value)
+            || (0x3040...0x309F).contains(value)
+            || (0x30A0...0x30FF).contains(value)
+            || (0x31F0...0x31FF).contains(value)
+            || (0xFF66...0xFF9F).contains(value)
     }
 
     private static func isASCIILetterOrDigit(_ character: Character) -> Bool {
@@ -1188,6 +1199,37 @@ public final class SubtitleDatabase {
         try statement.bind(Self.segmentCJK(content), at: 1)
         try statement.bind(cueGroupID, at: 2)
         try statement.run()
+    }
+
+    private func rebuildFTSRows() throws {
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            try database.execute("DELETE FROM subtitle_cue_groups_fts;")
+
+            var rows: [(cueGroupID: Int64, content: String)] = []
+            do {
+                let statement = try database.prepare(
+                    """
+                    SELECT id, search_content
+                    FROM subtitle_cue_groups
+                    ORDER BY id ASC;
+                    """
+                )
+
+                while try statement.step() {
+                    rows.append((statement.int64Column(0), statement.stringColumn(1)))
+                }
+            }
+
+            for row in rows {
+                try insertFTSRow(cueGroupID: row.cueGroupID, content: row.content)
+            }
+
+            try database.execute("COMMIT")
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
     }
 
     private func cueLines(forCueGroupID cueGroupID: Int64) throws -> [SubtitleCueLine] {

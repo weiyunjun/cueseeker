@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Fixed Japanese kana subtitle search by segmenting hiragana, katakana, and
+  halfwidth katakana for SQLite FTS phrase matching, and added a schema
+  migration that rebuilds derived FTS rows from stored cue-group search content.
 - Made search result selection update before playback session preparation starts,
   so result highlighting and inspector context respond immediately even when
   video open or seek work takes noticeable time.

@@ -559,6 +559,45 @@ func searchSegmentsCJKContentLikeFlutter() throws {
 }
 
 @Test
+func searchSegmentsJapaneseKanaContent() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Japanese.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Japanese.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "日本語ラインかなカナﾃｽﾄ"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "別の字幕"
+            )
+        ]
+    )
+
+    #expect(try database.search("ライン").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
+    #expect(try database.search("かな").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
+    #expect(try database.search("カナ").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
+    #expect(try database.search("ﾃｽﾄ").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
+}
+
+@Test
 func invalidExplicitFTSQueryReturnsNoResults() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -604,6 +643,22 @@ func migrationPreservesSearchPathsAndClearsLegacyDerivedIndex() throws {
     let searchPathID = try database.addSearchPath(URL(fileURLWithPath: "/Media"))
     let sameSearchPathID = try database.addSearchPath(URL(fileURLWithPath: "/Media"))
     #expect(searchPathID == sameSearchPathID)
+}
+
+@Test
+func migrationRebuildsFTSRowsForJapaneseKanaSearch() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try createVersionFiveDatabaseWithUnsegmentedKanaFTS(at: databaseURL)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+    #expect(try database.search("ライン").map(\.content) == ["日本語ライン"])
 }
 
 @Test
@@ -820,6 +875,173 @@ private func createLegacyVersionOneDatabase(at url: URL) throws {
         VALUES ('local', '/Media', '2026-05-02T00:00:00Z', '2026-05-02T00:00:00Z');
 
         PRAGMA user_version = 1;
+        """
+    )
+}
+
+private func createVersionFiveDatabaseWithUnsegmentedKanaFTS(at url: URL) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(
+        database,
+        """
+        CREATE TABLE search_paths (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL DEFAULT 'local',
+            path TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE subtitle_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_path TEXT NOT NULL UNIQUE,
+            format TEXT NOT NULL,
+            file_size INTEGER,
+            modified_at REAL,
+            indexed_at TEXT NOT NULL
+        );
+
+        CREATE TABLE video_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL UNIQUE,
+            video_name TEXT NOT NULL,
+            file_size INTEGER,
+            modified_at REAL,
+            duration REAL,
+            video_codec TEXT,
+            audio_codec TEXT,
+            native_video_candidate INTEGER,
+            native_audio_candidate INTEGER,
+            native_compatibility_reason TEXT,
+            native_failure_reason TEXT,
+            compatibility_evaluated_at TEXT
+        );
+
+        CREATE TABLE subtitle_video_matches (
+            subtitle_file_id INTEGER NOT NULL,
+            video_file_id INTEGER NOT NULL,
+            match_method TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY(subtitle_file_id, video_file_id)
+        );
+
+        CREATE TABLE subtitle_cue_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER NOT NULL,
+            subtitle_path TEXT NOT NULL,
+            seq INTEGER,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            search_content TEXT NOT NULL
+        );
+
+        CREATE TABLE subtitle_cue_lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cue_group_id INTEGER NOT NULL,
+            event_index INTEGER NOT NULL,
+            source_format TEXT NOT NULL,
+            source_style TEXT,
+            source_layer INTEGER,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            display_x REAL,
+            display_y REAL,
+            display_order INTEGER NOT NULL
+        );
+
+        CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
+            content,
+            cue_group_id UNINDEXED
+        );
+
+        CREATE TABLE ass_render_segments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER NOT NULL,
+            segment_index INTEGER NOT NULL,
+            algorithm_version INTEGER NOT NULL DEFAULT 0,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            event_count INTEGER NOT NULL,
+            byte_count INTEGER NOT NULL,
+            script_text TEXT NOT NULL,
+            UNIQUE(subtitle_file_id, segment_index)
+        );
+
+        INSERT INTO subtitle_files(subtitle_path, format, file_size, modified_at, indexed_at)
+        VALUES ('/Media/Japanese.srt', 'srt', 128, 0, '2026-05-04T00:00:00Z');
+
+        INSERT INTO video_files(path, video_name, file_size, modified_at)
+        VALUES ('/Media/Japanese.mkv', 'Japanese.mkv', 0, 0);
+
+        INSERT INTO subtitle_video_matches(subtitle_file_id, video_file_id, match_method, confidence, is_active)
+        VALUES (1, 1, 'same-directory-basename', 1.0, 1);
+
+        INSERT INTO subtitle_cue_groups(
+            id,
+            subtitle_file_id,
+            subtitle_path,
+            seq,
+            start_time,
+            end_time,
+            start_ms,
+            end_ms,
+            search_content
+        )
+        VALUES (
+            1,
+            1,
+            '/Media/Japanese.srt',
+            1,
+            '00:00:01,000',
+            '00:00:03,000',
+            1000,
+            3000,
+            '日本語ライン'
+        );
+
+        INSERT INTO subtitle_cue_lines(
+            cue_group_id,
+            event_index,
+            source_format,
+            start_time,
+            end_time,
+            start_ms,
+            end_ms,
+            content,
+            display_order
+        )
+        VALUES (
+            1,
+            0,
+            'srt',
+            '00:00:01,000',
+            '00:00:03,000',
+            1000,
+            3000,
+            '日本語ライン',
+            0
+        );
+
+        INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
+        VALUES ('日本語ライン', 1);
+
+        PRAGMA user_version = 5;
         """
     )
 }

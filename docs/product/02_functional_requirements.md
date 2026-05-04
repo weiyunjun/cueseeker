@@ -135,9 +135,9 @@ Requirements:
   cue lines. At least one cue line must satisfy the query semantics.
 - The current native search behavior should preserve the practical legacy Flutter semantics:
   single Latin-token searches use prefix matching, multi-token Latin searches use
-  ordered whole-token filtering after FTS recall, CJK content is segmented for
-  FTS phrase matching, and invalid FTS syntax returns no results instead of
-  crashing the app.
+  ordered whole-token filtering after FTS recall, Han and Japanese kana content
+  is segmented for FTS phrase matching, and invalid FTS syntax returns no
+  results instead of crashing the app.
 - Search ranking, tokenization, query syntax, and CJK behavior remain expected
   iteration areas. Future search-quality changes should update this section and
   the database search tests before the implementation is treated as stable.
