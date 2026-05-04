@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented the remote byte-range cache direction as the preferred long-term
+  acceleration path: cache one logical remote media resource instead of
+  temporary clip files, use keyframe-bounded playback windows, cap storage at
+  1,000 range-window entries, 16 GB total, and 64 MB per video, and limit the
+  initial committed-search prefetch policy to 20 remote cache windows.
 - Implemented the first remote playback warm-up path for committed search
   results: AList and generic WebDAV results now publish up to three distinct
   remote-video candidates, warm them serially through the normal local stream

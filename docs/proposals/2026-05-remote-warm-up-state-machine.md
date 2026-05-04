@@ -236,6 +236,66 @@ The coordinator should still apply the same global caps used by search results.
 Favorites are not a special playback path; they are another producer of warm
 candidates.
 
+## Remote Byte-Range Cache Direction
+
+The preferred long-term acceleration path is a disk-backed remote byte-range
+cache below playback, not temporary clip files. Playback should continue to see
+one logical remote media resource while the cache satisfies known byte ranges
+locally and fetches missing ranges from the provider.
+
+Cache scope:
+
+- Eligible sources: configured AList and generic WebDAV remote media sources.
+- Non-eligible sources: local folders, mounted NAS paths, and whole-video
+  temporary downloads.
+- Cache unit: a remote media identity plus one or more byte ranges needed for a
+  keyframe-aware playback window.
+
+Keyframe window policy:
+
+- For a subtitle result or future favorite timestamp, the cache target has a
+  desired playback window.
+- The cache start must be the nearest video keyframe at or before the desired
+  window start. This is required because video decode cannot reliably begin from
+  arbitrary inter frames.
+- The cache end must be the nearest video keyframe at or after the desired
+  window end. This gives playback enough complete GOP coverage to continue
+  beyond the searched line without immediately falling back to remote reads.
+- Audio ranges should cover the same effective playback interval so a cached
+  video window does not start with missing audio.
+- If keyframe metadata is not yet available, the cache may use a conservative
+  fallback window, but precise keyframe windows are the target behavior.
+
+Cache limits:
+
+- Maximum cached range-window entries: 1,000.
+- Maximum total cache size: 16 GB.
+- Maximum per-video cache size: 64 MB.
+- Per committed search prefetch cap during testing: 20 remote cache windows.
+- These limits are storage and prefetch caps. They do not imply warming every
+  search result, favorite, or distinct video.
+
+Lifecycle and invalidation:
+
+- The cache should use LRU eviction, biased toward current search results,
+  current playback, recent clicks, and future favorites.
+- Cached ranges must be invalidated when source identity or metadata changes.
+  Useful validation inputs include provider id, source id, source-relative path,
+  size, modification time, ETag, and content hash when available.
+- App shutdown may keep the cache within the configured disk limits. Explicit
+  source removal must remove cache entries derived from that source.
+- The cache must not persist AList tokens, signed raw URLs, provider headers,
+  Basic auth headers, or whole videos.
+
+Scheduler implication:
+
+Search, favorites, and future result surfaces should publish cache candidates to
+the centralized scheduler. The scheduler decides which candidates become cache
+prefetch work, which become light provider warm-up, and which are upgraded to
+active playback warm sessions. A search page may expose many results, but the
+testing policy starts with at most 20 cache prefetch windows per committed
+search.
+
 ## Durable Data Policy
 
 Warm-up can justify durable storage only when the durable data removes a
@@ -247,6 +307,10 @@ Suitable durable data may include:
 - Duration and stream metadata.
 - Codec names, stream indexes, time bases, and seekability.
 - Future bounded container seek-index summaries.
+- Keyframe index summaries needed to map subtitle timestamps to cacheable
+  decode windows.
+- Bounded remote byte-range cache metadata and cached range payloads under the
+  configured cache limits.
 - Existing subtitle playback caches.
 
 Unsuitable durable data:

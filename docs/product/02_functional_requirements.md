@@ -279,6 +279,30 @@ Requirements:
 - Warm-up should not load ASS rendering state in the background. Subtitle
   playback sources can be attached when a warm session is promoted to active
   playback.
+- Remote playback may add a disk-backed byte-range cache below playback. The
+  cache should preserve a single logical remote media URL for FFmpeg rather than
+  switching between temporary clip files and remote streams.
+- Remote byte-range cache entries must be bounded by keyframe-aware playback
+  windows. For a search result window, the start boundary must use the nearest
+  video keyframe at or before the target start time. The end boundary must use
+  the nearest video keyframe at or after the target window end time. If precise
+  keyframe metadata is unavailable, the cache may use a conservative fallback
+  window until keyframe metadata is discovered.
+- Remote byte-range cache should also store the stable remote ranges needed for
+  container opening and seeking, such as header, stream metadata, and seek index
+  ranges when the container requires them.
+- Initial cache limits: at most 1,000 cached range-window entries, 16 GB total
+  disk usage, and 64 MB per remote video. These are storage caps, not automatic
+  per-search prefetch counts.
+- A committed search should prefetch at most 20 remote cache windows in the
+  initial testing policy. Future lazy loading and the centralized scheduler may
+  refine which windows are eligible, but the search result count must not map
+  directly to unbounded remote requests.
+- Remote byte-range cache invalidation must use stable source identity plus
+  source metadata such as size, modification time, ETag, content hash, provider
+  id, and relative path when available.
+- The cache must not persist provider tokens, signed raw URLs, Basic auth
+  headers, provider playback headers, or whole remote video files.
 
 ## 10. Settings
 
