@@ -367,6 +367,19 @@ Rules:
 - Native read-ahead is session-scoped and must be cleared on open, close, and
   seek/session replacement. It must not copy or stage whole media files into a
   temporary local directory.
+- Same-media seek must reuse the active native playback session. It must not be
+  implemented by closing and reopening the same URL, because remote media would
+  pay the full open, probe, range-read, decoder setup, and subtitle setup cost on
+  every timeline jump.
+- In-session seek must coordinate the active demux, decode, audio, display, and
+  packet read-ahead state: stop and clear queued compressed packets, perform
+  `av_seek_frame` on the existing `AVFormatContext`, flush decoders, reset
+  playback clocks and pending audio output, then restart session-scoped
+  read-ahead.
+- Playback UI seek requests must not block the main actor while native seek or
+  remote byte-range reads are in progress. The UI may optimistically show the
+  requested target and should coalesce repeated seek requests so only the latest
+  pending target runs after any active seek finishes.
 - Native read-ahead should queue compressed FFmpeg packets, not decoded video
   frames or decoded audio frames, unless a later design explicitly changes the
   memory model.

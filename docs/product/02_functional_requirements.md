@@ -209,7 +209,11 @@ Requirements:
 - Allow play and pause.
 - Toggle play/pause by clicking the video surface.
 - Keep clicks in the playback operation controls from falling through to video-surface play or pause.
-- Prefer seek over reload when the current video is already open.
+- Seek instead of reloading when the current video is already open. Same-media
+  timeline jumps and same-video search-result jumps must not close and reopen the
+  media URL.
+- Keep seek controls responsive while the native backend performs seek work or
+  waits for remote byte-range reads.
 - Pause playback when the Playback Inspector is collapsed.
 - Pause playback when the user switches from Search to another top-level section.
 - Preserve the current selected result when the Playback Inspector is collapsed.

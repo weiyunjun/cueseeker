@@ -37,6 +37,8 @@ public final class PlaybackViewModel: ObservableObject {
     @Published var feedback: PlaybackFeedback?
 
     private var feedbackClearTask: Task<Void, Never>?
+    private var seekWorkerTask: Task<Void, Never>?
+    private var pendingSeekMilliseconds: Int?
     private var accumulatedForwardSeconds = 0
     private var accumulatedRewindSeconds = 0
     private var subtitleTrack = PlaybackSubtitleTrack.empty
@@ -44,6 +46,11 @@ public final class PlaybackViewModel: ObservableObject {
     public init(player: PlaybackPlayer) {
         self.player = player
         self.player.delegate = self
+    }
+
+    deinit {
+        feedbackClearTask?.cancel()
+        seekWorkerTask?.cancel()
     }
 
     public func togglePlayPause() {
@@ -64,19 +71,42 @@ public final class PlaybackViewModel: ObservableObject {
     private func performSeek(to seconds: Double, resetsAccumulatedFeedback: Bool) {
         let nonnegativeSeconds = seconds.isFinite ? max(seconds, 0) : 0
         let targetTime = duration > 0 ? min(nonnegativeSeconds, duration) : nonnegativeSeconds
-        let previousTime = currentTime
         currentTime = targetTime
         if resetsAccumulatedFeedback {
             accumulatedForwardSeconds = 0
             accumulatedRewindSeconds = 0
         }
 
-        do {
-            try player.seek(toMilliseconds: Int(targetTime * 1000))
-        } catch {
-            currentTime = previousTime
-            print("Failed to seek: \(error)")
+        enqueueSeek(toMilliseconds: Int(targetTime * 1000))
+    }
+
+    private func enqueueSeek(toMilliseconds milliseconds: Int) {
+        pendingSeekMilliseconds = max(0, milliseconds)
+        guard seekWorkerTask == nil else {
+            return
         }
+
+        seekWorkerTask = Task { [weak self] in
+            await self?.runSeekWorker()
+        }
+    }
+
+    private func runSeekWorker() async {
+        while !Task.isCancelled {
+            guard let milliseconds = pendingSeekMilliseconds else {
+                seekWorkerTask = nil
+                return
+            }
+
+            pendingSeekMilliseconds = nil
+            do {
+                try await player.seekAsync(toMilliseconds: milliseconds)
+            } catch {
+                print("Failed to seek: \(error)")
+            }
+        }
+
+        seekWorkerTask = nil
     }
     
     public func seekRelative(by seconds: Double) {

@@ -6,6 +6,15 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented same-media in-session native seek: progress-bar seeks and
+  same-video result jumps now avoid reopening the media URL, reset demux,
+  decoder, audio clock, and read-ahead state inside the active playback session,
+  run UI seek requests off the main actor, coalesce pending seek targets, and
+  skip ASS source reloads when the selected subtitle source is unchanged.
+- Documented same-media native seek requirements: timeline jumps and same-video
+  result jumps must reuse the active playback session, reset demux/decode/audio
+  state in-session, avoid reopening the media URL, and keep UI seek controls off
+  the blocking remote-read path.
 - Implemented indexed ASS playback-cache support: schema version 7 adds a
   full-source ASS cache for small ASS files while large ASS keeps render
   segments, local and remote indexers populate the cache, playback reads cached

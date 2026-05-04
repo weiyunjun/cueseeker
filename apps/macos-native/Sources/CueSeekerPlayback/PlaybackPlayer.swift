@@ -9,6 +9,7 @@ public protocol PlaybackPlayerDelegate: AnyObject {
 
 public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private let nativePlayer = SFXNativePlaybackPlayer()
+    private let seekQueue = DispatchQueue(label: "CueSeeker.PlaybackPlayer.Seek", qos: .userInitiated)
     private var currentRequest: PlaybackRequest?
     private var storedVolume: Double = 100
     private var storedSpeed: Double = 1.0
@@ -21,6 +22,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     public private(set) var currentVideoURL: URL?
     public private(set) var currentMediaIdentifier: String?
+    public var currentSubtitleSourceIdentifier: String? {
+        Self.subtitleIdentity(activeSubtitleSource)
+    }
     public var decodeMode: PlaybackDecodeMode = .auto {
         didSet {
             nativePlayer.decodeMode = decodeMode.nativeDecodeMode
@@ -63,6 +67,24 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public func seek(toMilliseconds milliseconds: Int) throws {
         try nativePlayer.seek(toMilliseconds: max(0, milliseconds))
         updateASSSubtitleTime(milliseconds: max(0, milliseconds))
+    }
+
+    public func seekAsync(toMilliseconds milliseconds: Int) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            seekQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(throwing: PlaybackError.playbackPlayerUnavailable)
+                    return
+                }
+
+                do {
+                    try self.seek(toMilliseconds: milliseconds)
+                    continuation.resume(returning: ())
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     public func setPaused(_ isPaused: Bool) throws {
@@ -115,6 +137,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             container.setSubtitlesVisible(self.subtitlesVisible)
         }
         startASSSubtitleRenderTicks()
+    }
+
+    public func hasActiveSubtitleSource(_ source: PlaybackSubtitleSource?) -> Bool {
+        Self.subtitleIdentity(activeSubtitleSource) == Self.subtitleIdentity(source)
     }
 
     deinit {
@@ -238,6 +264,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     private func emitPauseState(isPaused: Bool) {
         delegate?.player(self, didChangeProperty: "pause", value: .bool(isPaused))
+    }
+
+    private static func subtitleIdentity(_ source: PlaybackSubtitleSource?) -> String? {
+        guard let source else {
+            return nil
+        }
+        return source.sourceIdentifier ?? source.renderCacheSubtitlePath ?? source.url.absoluteString
     }
 }
 

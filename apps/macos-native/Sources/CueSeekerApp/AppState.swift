@@ -572,8 +572,14 @@ final class AppState: ObservableObject {
 
             let mediaIdentifier = Self.playbackMediaIdentifier(for: result)
             if player.currentMediaIdentifier == mediaIdentifier {
-                player.loadSubtitleSource(try await playbackSubtitleSource(for: result))
-                try player.seek(toMilliseconds: result.startMilliseconds)
+                let expectedSubtitleIdentifier = result.subtitleFormat == .ass ? result.subtitlePath : nil
+                if player.currentSubtitleSourceIdentifier != expectedSubtitleIdentifier {
+                    let subtitleSource = try await playbackSubtitleSource(for: result)
+                    if !player.hasActiveSubtitleSource(subtitleSource) {
+                        player.loadSubtitleSource(subtitleSource)
+                    }
+                }
+                try await player.seekAsync(toMilliseconds: result.startMilliseconds)
             } else {
                 try player.stop()
                 let request = try await playbackRequest(

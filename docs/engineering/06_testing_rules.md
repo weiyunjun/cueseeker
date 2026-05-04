@@ -182,6 +182,13 @@ Rules:
 - Playback read-ahead verification should record startup latency, queued packet
   cap behavior, seek/session replacement cleanup, and whether rebuffer events
   become fewer or shorter under network read pressure.
+- Same-media seek verification must confirm that timeline clicks and same-video
+  search-result jumps do not reopen the media URL, do not rebuild the playback
+  session, and do not block the main UI thread while the native backend waits on
+  remote byte-range reads.
+- Repeated seek verification should include quick successive targets and should
+  confirm that the app coalesces pending UI seek requests to the latest target
+  instead of executing every intermediate target after the user has moved on.
 - ASS subtitle rendering memory work must be judged primarily through
   end-to-end playback acceptance, not isolated renderer probes alone. The core
   acceptance question is whether the user-visible memory drop is meaningful
