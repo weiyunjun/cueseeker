@@ -31,7 +31,8 @@ enum AppSection: String, CaseIterable, Identifiable {
 enum IndexingStatus: Equatable {
     case idle
     case indexing(URL)
-    case indexingRemote(String)
+    case validatingRemote(String, detail: String?)
+    case indexingRemote(String, detail: String?)
     case indexingAll(currentFolder: URL, completedFolders: Int, totalFolders: Int)
     case completed(URL, SubtitleIndexingResult)
     case completedRemote(String, SubtitleIndexingResult)
@@ -41,7 +42,7 @@ enum IndexingStatus: Equatable {
 
     var isIndexing: Bool {
         switch self {
-        case .indexing, .indexingRemote, .indexingAll:
+        case .indexing, .validatingRemote, .indexingRemote, .indexingAll:
             return true
         case .idle, .completed, .completedRemote, .completedAll, .failed, .failedRemote:
             return false
@@ -211,30 +212,61 @@ final class AppState: ObservableObject {
             return
         }
 
+        indexingTask?.cancel()
+        let sourceName = displayName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? rootURL.host
+            ?? trimmedURL
+        let credentials = RemoteMediaSourceCredentials(username: username, password: password)
+        indexingStatus = .validatingRemote(sourceName, detail: "Checking WebDAV and AList access...")
+
+        let databaseURL = databaseURL
+        let credentialStore = credentialStore
         let credentialRef = UUID().uuidString
-        do {
-            try credentialStore.save(
-                RemoteMediaSourceCredentials(username: username, password: password),
-                credentialRef: credentialRef
-            )
+        indexingTask = Task {
+            do {
+                try await Self.validateAListRemoteSource(
+                    name: sourceName,
+                    rootURL: rootURL,
+                    credentials: credentials
+                ) { [weak self] detail in
+                    Task { @MainActor in
+                        guard case .validatingRemote(let currentName, _) = self?.indexingStatus,
+                              currentName == sourceName
+                        else {
+                            return
+                        }
+                        self?.indexingStatus = .validatingRemote(sourceName, detail: detail)
+                    }
+                }
 
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
-            let sourceID = try database.addRemoteMediaSource(
-                provider: .alist,
-                rootURL: rootURL,
-                displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? rootURL.host ?? trimmedURL,
-                credentialRef: credentialRef
-            )
-            remoteSources = try database.remoteMediaSources()
+                guard !Task.isCancelled else {
+                    return
+                }
 
-            guard let source = remoteSources.first(where: { $0.id == sourceID }) else {
-                return
+                try credentialStore.save(credentials, credentialRef: credentialRef)
+
+                let database = try SubtitleDatabase(path: databaseURL)
+                try database.migrate()
+                let sourceID = try database.addRemoteMediaSource(
+                    provider: .alist,
+                    rootURL: rootURL,
+                    displayName: sourceName,
+                    credentialRef: credentialRef
+                )
+                remoteSources = try database.remoteMediaSources()
+
+                guard let source = remoteSources.first(where: { $0.id == sourceID }) else {
+                    return
+                }
+                startRemoteIndexing(source, cancelExisting: false)
+            } catch {
+                credentialStore.delete(credentialRef: credentialRef)
+                guard !Task.isCancelled else {
+                    return
+                }
+                indexingStatus = .failedRemote(sourceName, Self.errorMessage(for: error))
+                startupError = "Failed to add remote source: \(Self.errorMessage(for: error))"
             }
-            indexRemoteSource(source)
-        } catch {
-            credentialStore.delete(credentialRef: credentialRef)
-            startupError = "Failed to add remote source: \(Self.errorMessage(for: error))"
         }
     }
 
@@ -253,8 +285,14 @@ final class AppState: ObservableObject {
     }
 
     func indexRemoteSource(_ source: StoredMediaSource) {
-        indexingTask?.cancel()
-        indexingStatus = .indexingRemote(source.displayName)
+        startRemoteIndexing(source, cancelExisting: true)
+    }
+
+    private func startRemoteIndexing(_ source: StoredMediaSource, cancelExisting: Bool) {
+        if cancelExisting {
+            indexingTask?.cancel()
+        }
+        indexingStatus = .indexingRemote(source.displayName, detail: "Starting remote index...")
 
         let databaseURL = databaseURL
         let credentialStore = credentialStore
@@ -262,10 +300,28 @@ final class AppState: ObservableObject {
             do {
                 let credentials = try credentialStore.load(credentialRef: source.credentialRef)
                 let configuration = try Self.remoteConfiguration(source: source, credentials: credentials)
+                let progressHandler: @Sendable (RemoteIndexingProgress) -> Void = { [weak self] progress in
+                    print("REMOTE_INDEX source=\"\(source.displayName)\" \(progress.logMessage)")
+                    Task { @MainActor in
+                        guard case .indexingRemote(let currentName, _) = self?.indexingStatus,
+                              currentName == source.displayName
+                        else {
+                            return
+                        }
+                        self?.indexingStatus = .indexingRemote(
+                            source.displayName,
+                            detail: progress.userMessage
+                        )
+                    }
+                }
                 let result = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     let indexer = RemoteSubtitleIndexer()
-                    return try await indexer.index(source: configuration, into: database)
+                    return try await indexer.index(
+                        source: configuration,
+                        into: database,
+                        progress: progressHandler
+                    )
                 }.value
 
                 guard !Task.isCancelled else {
@@ -938,6 +994,39 @@ final class AppState: ObservableObject {
             .appendingPathExtension(pathExtension)
     }
 
+    private static func validateAListRemoteSource(
+        name: String,
+        rootURL: URL,
+        credentials: RemoteMediaSourceCredentials,
+        progress: @escaping @Sendable (String) -> Void
+    ) async throws {
+        let configuration = RemoteMediaSourceConfiguration(
+            id: -1,
+            provider: .alist,
+            displayName: name,
+            rootURL: rootURL,
+            credentialRef: nil,
+            credentials: credentials
+        )
+
+        progress("Validating WebDAV root...")
+        var startedAt = Date()
+        let rootEntries = try await WebDAVClient(
+            rootURL: rootURL,
+            credentials: credentials
+        ).validateRoot()
+        print(
+            "REMOTE_VALIDATE source=\"\(name)\" stage=webdav_root entries=\(rootEntries.count) elapsed_ms=\(elapsedMilliseconds(since: startedAt))"
+        )
+
+        progress("Validating AList API login and root path...")
+        startedAt = Date()
+        try await AListResolver().validateRoot(source: configuration)
+        print(
+            "REMOTE_VALIDATE source=\"\(name)\" stage=alist_root elapsed_ms=\(elapsedMilliseconds(since: startedAt))"
+        )
+    }
+
     private static func remoteConfiguration(
         source: StoredMediaSource,
         credentials: RemoteMediaSourceCredentials
@@ -967,6 +1056,10 @@ final class AppState: ObservableObject {
         let userPassword = "\(credentials.username):\(credentials.password)"
         let encoded = Data(userPassword.utf8).base64EncodedString()
         return ["Authorization": "Basic \(encoded)"]
+    }
+
+    private static func elapsedMilliseconds(since startDate: Date) -> Int {
+        max(0, Int(Date().timeIntervalSince(startDate) * 1_000))
     }
 
     private func persistSelectedFolders() {

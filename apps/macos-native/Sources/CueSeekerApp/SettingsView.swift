@@ -322,12 +322,35 @@ struct SettingsView: View {
                     Text("Indexing \(folder.lastPathComponent)...")
                         .font(.subheadline)
                 }
-            case .indexingRemote(let name):
+            case .validatingRemote(let name, let detail):
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Indexing \(name)...")
-                        .font(.subheadline)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Validating \(name)...")
+                            .font(.subheadline)
+                        if let detail {
+                            Text(detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+            case .indexingRemote(let name, let detail):
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Indexing \(name)...")
+                            .font(.subheadline)
+                        if let detail {
+                            Text(detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
                 }
             case .indexingAll(let folder, let completedFolders, let totalFolders):
                 HStack(spacing: 8) {

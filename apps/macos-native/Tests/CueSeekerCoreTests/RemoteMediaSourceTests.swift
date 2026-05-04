@@ -23,6 +23,16 @@ func alistResolverHandlesRootDAVMount() throws {
 }
 
 @Test
+func alistResolverBuildsAPIPathForMountRoot() throws {
+    let path = try AListResolver.apiPath(
+        webDAVRootPath: "/dav/baidu",
+        sourceRelativePath: ""
+    )
+
+    #expect(path == "/baidu")
+}
+
+@Test
 func databaseStoresRemoteMediaSourceAndSearchesWithinRemoteScope() throws {
     let databaseURL = temporaryRemoteDatabaseURL()
     defer {

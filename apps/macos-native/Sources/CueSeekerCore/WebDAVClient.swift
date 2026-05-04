@@ -9,6 +9,17 @@ public struct WebDAVFile: Equatable, Sendable {
     public let modifiedAt: Date?
 }
 
+public enum WebDAVListingProgress: Equatable, Sendable {
+    case willListDirectory(path: String, visitedDirectories: Int, queuedDirectories: Int)
+    case didListDirectory(
+        path: String,
+        entries: Int,
+        files: Int,
+        directories: Int,
+        elapsedMilliseconds: Int
+    )
+}
+
 public enum WebDAVClientError: Error, Equatable, CustomStringConvertible {
     case invalidRootURL(String)
     case invalidFileURL(String)
@@ -40,7 +51,7 @@ public final class WebDAVClient: Sendable {
     public init(
         rootURL: URL,
         credentials: RemoteMediaSourceCredentials,
-        session: URLSession = .shared
+        session: URLSession? = nil
     ) throws {
         guard let scheme = rootURL.scheme,
               ["http", "https"].contains(scheme.lowercased()),
@@ -51,7 +62,7 @@ public final class WebDAVClient: Sendable {
 
         self.rootURL = rootURL
         self.credentials = credentials
-        self.session = session
+        self.session = session ?? Self.defaultSession
         self.rootPath = Self.normalizedRootPath(rootURL.path)
 
         var origin = "\(scheme)://\(host)"
@@ -61,7 +72,13 @@ public final class WebDAVClient: Sendable {
         self.origin = origin
     }
 
-    public func listAllFiles() async throws -> [WebDAVFile] {
+    public func validateRoot() async throws -> [WebDAVFile] {
+        try await propfind(rootURL)
+    }
+
+    public func listAllFiles(
+        progress: (@Sendable (WebDAVListingProgress) -> Void)? = nil
+    ) async throws -> [WebDAVFile] {
         var directories = [rootURL]
         var visitedDirectories = Set<String>()
         var files: [WebDAVFile] = []
@@ -69,22 +86,46 @@ public final class WebDAVClient: Sendable {
         while let directory = directories.first {
             directories.removeFirst()
 
-            let directoryKey = directory.absoluteString
+            let directoryPath = normalizedPath(for: directory)
+            let directoryKey = directoryPath
             guard !visitedDirectories.contains(directoryKey) else {
                 continue
             }
             visitedDirectories.insert(directoryKey)
+            progress?(
+                .willListDirectory(
+                    path: directoryPath,
+                    visitedDirectories: visitedDirectories.count,
+                    queuedDirectories: directories.count
+                )
+            )
 
+            let startedAt = Date()
             let entries = try await propfind(directory)
-            for entry in entries where entry.href != normalizedHref(for: directory) {
+            var discoveredFiles = 0
+            var discoveredDirectories = 0
+
+            for entry in entries where normalizedPath(forHref: entry.href) != directoryPath {
                 if entry.isDirectory {
                     if let url = url(forHref: entry.href) {
                         directories.append(url)
+                        discoveredDirectories += 1
                     }
                 } else {
                     files.append(entry)
+                    discoveredFiles += 1
                 }
             }
+
+            progress?(
+                .didListDirectory(
+                    path: directoryPath,
+                    entries: entries.count,
+                    files: discoveredFiles,
+                    directories: discoveredDirectories,
+                    elapsedMilliseconds: Self.elapsedMilliseconds(since: startedAt)
+                )
+            )
         }
 
         return files.sorted { $0.relativePath < $1.relativePath }
@@ -172,13 +213,18 @@ public final class WebDAVClient: Sendable {
         return URL(string: origin + href)
     }
 
-    private func normalizedHref(for url: URL) -> String {
-        var path = url.path.removingPercentEncoding ?? url.path
-        path = Self.normalizedRootPath(path)
-        if path != "/" {
-            path += "/"
+    private func normalizedPath(for url: URL) -> String {
+        Self.normalizedRootPath(url.path.removingPercentEncoding ?? url.path)
+    }
+
+    private func normalizedPath(forHref href: String) -> String {
+        let path: String
+        if let url = URL(string: href), url.scheme != nil {
+            path = url.path
+        } else {
+            path = href
         }
-        return path
+        return Self.normalizedRootPath(path.removingPercentEncoding ?? path)
     }
 
     private static func normalizedRootPath(_ path: String) -> String {
@@ -199,6 +245,17 @@ public final class WebDAVClient: Sendable {
             }
             .joined(separator: "/")
     }
+
+    private static func elapsedMilliseconds(since startDate: Date) -> Int {
+        max(0, Int(Date().timeIntervalSince(startDate) * 1_000))
+    }
+
+    private static let defaultSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 120
+        return URLSession(configuration: configuration)
+    }()
 }
 
 private final class WebDAVMultiStatusParser: NSObject, XMLParserDelegate {

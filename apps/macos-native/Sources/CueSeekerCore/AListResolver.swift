@@ -29,8 +29,34 @@ public enum AListResolverError: Error, Equatable, CustomStringConvertible {
 public final class AListResolver: Sendable {
     private let session: URLSession
 
-    public init(session: URLSession = .shared) {
-        self.session = session
+    public init(session: URLSession? = nil) {
+        self.session = session ?? Self.defaultSession
+    }
+
+    public func validateRoot(source: RemoteMediaSourceConfiguration) async throws {
+        let token = try await login(
+            rootURL: source.rootURL,
+            credentials: source.credentials
+        )
+        let apiPath = try Self.apiPath(
+            webDAVRootPath: source.rootURL.path,
+            sourceRelativePath: ""
+        )
+        let response: AListResponse<AListMetadataData> = try await postJSON(
+            endpoint: try apiURL(rootURL: source.rootURL, path: "/api/fs/get"),
+            headers: ["Authorization": token],
+            body: AListGetRequest(
+                path: apiPath,
+                password: "",
+                page: 1,
+                perPage: 0,
+                refresh: false
+            )
+        )
+
+        guard response.code == 200, response.data != nil else {
+            throw AListResolverError.resolveFailed(response.message)
+        }
     }
 
     public func resolve(
@@ -91,6 +117,9 @@ public final class AListResolver: Sendable {
         }
 
         var relativePath = sourceRelativePath.removingPercentEncoding ?? sourceRelativePath
+        if relativePath.isEmpty || relativePath == "/" {
+            return mountPath
+        }
         if !relativePath.hasPrefix("/") {
             relativePath = "/" + relativePath
         }
@@ -201,6 +230,16 @@ private struct AListLoginData: Decodable {
     let token: String
 }
 
+private struct AListMetadataData: Decodable {
+    let name: String?
+    let isDir: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case isDir = "is_dir"
+    }
+}
+
 private struct AListFileData: Decodable {
     let rawURL: String
     let header: HeaderPayload?
@@ -256,4 +295,13 @@ private extension JSONDecoder {
     static var alist: JSONDecoder {
         JSONDecoder()
     }
+}
+
+private extension AListResolver {
+    static let defaultSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 45
+        return URLSession(configuration: configuration)
+    }()
 }

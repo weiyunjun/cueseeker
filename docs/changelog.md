@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Made remote WebDAV/AList indexing diagnosable: adding a source now validates
+  WebDAV and AList access before saving, remote index status reports the active
+  phase, console logs include per-stage elapsed times, WebDAV requests use
+  bounded timeouts, and directory self-entries are normalized before recursion
+  to avoid encoded href mismatches.
 - Implemented the first read-only WebDAV/AList media-source path in the native
   app: users can add an AList WebDAV source, store credentials in Keychain,
   index remote subtitles, search remote cues, resolve AList playback through
