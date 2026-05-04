@@ -137,6 +137,10 @@ Rules:
 
 - Source subtitle files remain the source of truth for indexed subtitle content.
 - The SQLite database is an indexed local cache plus local app state, not a replacement for the source files.
+- ASS playback requires an app-owned local playback cache generated during
+  indexing for both local and remote sources. The source file remains the truth,
+  but playback must not depend on re-reading a remote ASS file after the current
+  index has already produced a valid cache.
 - The current M2 ASS support step adds ASS indexing, grouped cue search results,
   grouped result display, and click-to-playback behavior.
 - SRT blocks should map to cue groups with one cue line.
@@ -233,6 +237,11 @@ Rules:
   returned `raw_url` plus any returned `header` values as the playback target.
 - AList signed URLs, provider headers, JWT tokens, and Basic auth headers are
   transient secrets. They must not be persisted as durable database identity.
+- AList tokens should be cached in memory by provider origin, source identity,
+  and credential identity. Signed playback URLs and provider headers may also be
+  cached in memory by source ID plus video source-relative path until parsed
+  expiry, conservative TTL expiry, `401`, `403`, range failure, or a changed
+  `/api/fs/get` result. Same-video seek must not perform provider resolution.
 - Remote playback should pass resolved provider URLs through the local loopback
   stream proxy before native backend open. The proxy is a transport layer that
   forwards byte-range requests and provider headers; it must not be used as a
@@ -246,6 +255,9 @@ Rules:
 - Remote subtitle cache files must use bounded-length names, such as a
   fixed-length hash of source ID and source-relative path. Full remote paths
   must not be encoded directly into a single filesystem filename.
+- Remote ASS playback must use the indexed local ASS playback cache. A playback
+  click must not re-download a remote ASS file when the indexed cache is
+  current.
 
 ## 9. Playback Architecture
 
@@ -296,6 +308,9 @@ Rules:
   render preparation finishes.
 - Source ASS lookup remains required for exact render payload, including style,
   override-tag, vector drawing, `Effect`, and other formatting details.
+- Source ASS lookup should resolve to the app-owned indexed ASS playback cache.
+  Small ASS files may use a full-source cached payload; large ASS files should
+  use indexed render segments.
 - Time-windowed or segmented ASS preparation is the preferred future
   optimization for large ASS files. Full-file preparation may remain a fallback,
   but it should not be the only long-term render preparation path.
@@ -323,6 +338,11 @@ Rules:
 - Large ASS render segments are a derived cache. They must be rebuilt when the
   source subtitle file size or modified time changes, and stale segment rows
   must be removed with the owning subtitle file.
+- The ASS playback cache is scoped to durable source identity and metadata. It
+  must be removed when a selected local folder or remote source is removed, when
+  a subtitle path or remote address changes, or when the owning subtitle file no
+  longer exists. It must be rebuilt when size, modified time, ETag, content hash,
+  or ASS cache algorithm version changes.
 - The ASS render-segment cache must carry an algorithm version so segmentation
   strategy changes invalidate older derived rows instead of reusing stale
   windows for unchanged subtitle files.
@@ -444,10 +464,13 @@ Rules:
   references, but not passwords, access tokens, Basic auth headers, provider
   playback headers, or signed playback URLs.
 - AList JWT tokens should be treated as memory-only session material unless a
-  later credential design explicitly changes that rule.
+  later credential design explicitly changes that rule. They may be cached in
+  memory for provider calls and refreshed on authentication failure or expiry.
 - AList `raw_url` values and provider response headers must be treated as
   transient playback material and must not be written to logs or durable
-  database fields.
+  database fields. In-memory caches may reuse them while they remain valid, but
+  must invalidate them on expiry, `401`, `403`, range failure, or changed
+  provider resolution.
 - If future features need credentials beyond remote media-source access, prefer
   macOS Keychain.
 - Credential handling requires documentation before implementation.

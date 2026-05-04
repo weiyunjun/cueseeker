@@ -113,24 +113,38 @@ Rules:
 - Matching should initially use the same same-directory basename rules as local
   indexing.
 - Subtitle files may be downloaded into memory for parsing.
+- Every indexed ASS file, whether local or remote, must produce an app-owned
+  local playback cache during indexing. Small ASS files may be stored as the
+  full source script. Large ASS files should be stored as source-faithful render
+  segments.
 - Large ASS render segments should still be generated during indexing and stored
-  as derived SQLite cache rows.
+  as derived SQLite cache rows. They are the playback source for that indexed
+  subtitle identity and should not require downloading the remote ASS again.
 - Video files must not be downloaded during indexing.
 - Remote file identity should include source identity and path within the
   source, not only a raw URL string.
 - Incremental indexing may use WebDAV metadata such as size, modified time,
   ETag, or provider-specific identifiers when available.
+- The ASS playback cache must be reconciled with source identity and metadata:
+  removing a selected local folder or remote source removes its cached ASS
+  payloads; disappearing source subtitle files remove their cache rows; path or
+  address changes create a new durable identity and stale cache rows must be
+  pruned; size, modified time, ETag, hash, or algorithm-version changes rebuild
+  the cached payload.
 
 ## Playback Design
 
 The active native backend remains the playback engine.
 
-AList playback should resolve immediately before opening media:
+AList playback may need to resolve a playable URL before opening media, but
+result selection and same-video seek must use the fastest durable local state
+first:
 
 ```text
 stored remote media identity
--> AList /api/fs/get path
--> raw_url + headers
+-> cached signed playback URL if still valid
+-> otherwise AList /api/fs/get path
+-> raw_url + headers, cached in memory
 -> local loopback stream proxy
 -> FFmpeg avformat_open_input on localhost URL
 ```
@@ -140,11 +154,18 @@ Rules:
 - Direct `/dav/...` AList URLs should not be treated as the primary playback
   URL for AList sources.
 - Resolved signed URLs must not be stored as durable database identity.
-- A signed URL should be refreshed on each new media open.
+- Resolved signed URLs and provider headers may be cached in memory by source ID
+  plus video source-relative path. The cache should parse provider expiry fields
+  when possible, use a conservative TTL otherwise, refresh on `401`, `403`,
+  range failure, or expiry, and replace the cached value when `/api/fs/get`
+  returns a changed `raw_url`.
 - Same-video seek should avoid a full resolve when the currently open playback
   session remains valid.
 - Local proxy URLs are transport handles only. Same-video playback identity must
   remain source ID plus source-relative path, not the proxy token URL.
+- ASS subtitle playback must use the indexed local ASS playback cache. Opening a
+  search result must not download the remote ASS subtitle file again when the
+  indexed cache is current.
 - If a signed URL expires during playback, the app should surface a clear error
   first; automatic mid-stream refresh may be a later iteration.
 - The app must not use a fallback that downloads the entire remote video to a
@@ -162,7 +183,9 @@ Rules:
 - Passwords, tokens, Basic Authorization headers, AList API tokens, signed
   `raw_url` values, and provider request headers must not be logged.
 - AList API tokens should be kept in memory and refreshed through login when
-  needed.
+  needed. They may be reused by provider origin, source identity, and credential
+  identity until expiry or authentication failure. They are not durable database
+  identity.
 
 ## Data Model Impact
 
@@ -174,6 +197,9 @@ Expected additions:
   and credential reference.
 - Remote file identity fields for source ID and source-relative path.
 - A way to distinguish durable file identity from transient playback URLs.
+- ASS playback cache rows or files keyed by durable subtitle identity, metadata,
+  and cache algorithm version. Small ASS files need a full-source cached
+  payload; large ASS files need segment payloads with complete render context.
 
 The database may still store displayable subtitle and video paths for search
 result context, but implementation should not rely on those strings as the only
@@ -198,6 +224,9 @@ the native implementation must keep separate:
   extension.
 - Cache file identity should not be confused with durable media identity. The
   durable identity remains source ID plus source-relative path.
+- ASS playback cache identity must follow the same durable identity model. It
+  must not be keyed by a transient AList `raw_url`, proxy URL, or encoded display
+  string.
 
 ## SubFinderX Compatibility Lessons
 
@@ -216,9 +245,11 @@ compatibility guidance:
   and streaming headers. The proxy forwards `Range`, `HEAD`, `Content-Range`,
   `Accept-Ranges`, `ETag`, and similar streaming headers, but it must not become
   a whole-video download fallback.
-- Remote subtitle files may be downloaded to a local subtitle cache before
-  loading them into the subtitle renderer, but the cache filename must be short
-  and independent of the full remote path length.
+- Remote subtitle files should be downloaded for indexing, not for normal result
+  playback. The indexed ASS playback cache must be reused by the renderer. A
+  playback-time remote subtitle download is a cache-miss recovery path only and
+  should be treated as a bug or degraded mode when the index is expected to be
+  current.
 
 ## Technical Risks
 
@@ -241,6 +272,8 @@ Manual validation targets:
 - `PROPFIND` root listing returns `207 Multi-Status`.
 - Remote subtitle download succeeds.
 - Remote subtitle parsing and video matching find expected results.
+- Indexed remote ASS playback uses the app-owned ASS playback cache and does
+  not issue a second ASS `GET` when opening a result from a current index.
 - AList `/api/auth/login` succeeds.
 - AList `/api/fs/get` returns `code = 200` and a non-empty `raw_url`.
 - `raw_url` returns `206 Partial Content` for the first byte and tail byte
@@ -256,6 +289,10 @@ Automated tests should cover:
 - WebDAV path-to-source-relative-path normalization.
 - Percent-decoded display names for remote source-relative paths.
 - Short remote subtitle cache filenames for very long source-relative paths.
+- ASS playback-cache reconciliation when a source folder, remote source, path,
+  size, modified time, ETag, or cache algorithm version changes.
+- AList token caching and signed playback URL cache invalidation on expiry,
+  `401`, `403`, and range failures.
 - AList WebDAV root to API path conversion, such as
   `/dav/baidu/...` -> `/baidu/...`.
 - AList login response parsing.
@@ -270,7 +307,9 @@ First implementation is acceptable when:
 - Credentials are stored in Keychain.
 - Remote subtitle files can be indexed without downloading remote videos.
 - Search results from the remote source are scoped to the selected source.
-- Clicking a remote result resolves a fresh AList signed playback URL.
+- Clicking a remote result reuses current indexed ASS playback cache, reuses a
+  valid cached signed playback URL when available, and resolves a fresh AList
+  signed playback URL only when needed.
 - Native playback can open the resolved URL and seek to the selected timestamp.
 - The implementation does not stage whole remote videos in a local temp
   directory.

@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented the corrected remote ASS playback-cache direction: all indexed ASS
+  files should produce an app-owned local playback cache during indexing, remote
+  playback must not re-download current ASS files, AList tokens and signed links
+  should use fast in-memory caches, and ASS cache rows must reconcile with source
+  removal, path changes, metadata changes, and cache algorithm versions.
 - Routed remote WebDAV/AList playback through a local loopback stream proxy:
   CueSeeker now forwards provider URLs, auth headers, and byte-range requests
   while FFmpeg opens a localhost URL, preserving stable media identity separately

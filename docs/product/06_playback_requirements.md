@@ -67,6 +67,11 @@ Required:
 - Pass resolved playback URLs and provider headers to the native backend only
   near media open time.
 - Require seekable byte-range behavior for remote playback.
+- Reuse indexed local ASS playback cache for remote ASS results. Normal playback
+  must not re-download a remote ASS file that has already been indexed and
+  cached.
+- Cache AList tokens and signed playback URLs in memory so repeated clicks and
+  unchanged links avoid avoidable login and `/api/fs/get` latency.
 - Surface clear errors when a provider can list files but cannot provide a
   playable ranged media URL.
 - Display remote search results with decoded subtitle or video filenames, not
@@ -80,6 +85,8 @@ Out of scope:
 - Storing provider-signed playback URLs as durable media identity.
 - Storing passwords, tokens, Basic auth headers, signed URLs, or provider
   playback headers in SQLite.
+- Playback-time remote ASS downloading as the normal path for an already indexed
+  source.
 
 Notes:
 
@@ -98,6 +105,9 @@ Notes:
 - Locally mounted WebDAV/NAS paths may be preferred only when CueSeeker can
   match the remote source-relative path to a selected local root and confirm the
   file exists.
+- Signed AList `raw_url` values are transient, but valid in-memory cached links
+  should be reused until expiry, authentication or range failure, or a changed
+  provider result.
 
 ## 4. Video Matching Dependency
 
@@ -231,6 +241,9 @@ Rules:
   product direction is native-only ASS rendering.
 - ASS playback rendering must use the source `.ass` file, or a cache generated
   from that exact source file identity, not the database search projection.
+- All indexed ASS files should have an app-owned local playback cache. Small ASS
+  files may keep a full-source cached payload; large ASS files should use
+  indexed render segments.
 - Search results should expose readable dialogue or lyric text. Playback
   rendering must preserve timed source ASS events, including `Effect=fx`,
   vector drawing, clipping, karaoke, blur, alpha, transforms, and short-duration
@@ -239,6 +252,9 @@ Rules:
   seek, and playback controls must not wait for ASS parsing or rendering.
 - ASS subtitle preparation should be asynchronous, cancellable, and cached by
   source file identity.
+- ASS playback caches must be reconciled with selected folders, remote sources,
+  source-relative paths, file metadata, and cache algorithm versions so removed
+  or changed sources do not leave stale playback payloads.
 - The renderer may fall back to ASS Lite when the source-faithful renderer is
   unavailable, but fallback must not block video playback.
 - During source-faithful renderer development, complex ASS rendering failures
@@ -271,8 +287,8 @@ Grouped search result behavior:
 - The playback target is the cue group start time even when the displayed search
   preview contains several ASS lines.
 - If the source subtitle file changes, reindexing should rebuild the cue groups
-  and refresh the subtitle-to-video mapping before later search results are
-  used for playback.
+  refresh the subtitle-to-video mapping, and rebuild the ASS playback cache
+  before later search results are used for playback.
 
 ## 8. M2 Fullscreen Behavior
 
