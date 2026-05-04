@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented the remote playback hardening plan from SubFinderX compatibility
+  lessons: decoded display names for remote results, bounded subtitle cache
+  filenames, AList `raw_url` resolution, optional loopback stream proxy
+  fallback, and no whole-video temporary download fallback.
 - Made remote WebDAV/AList indexing diagnosable: adding a source now validates
   WebDAV and AList access before saving, remote index status reports the active
   phase, console logs include per-stage elapsed times, WebDAV requests use

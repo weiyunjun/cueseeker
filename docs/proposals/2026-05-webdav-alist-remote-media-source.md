@@ -176,6 +176,48 @@ The database may still store displayable subtitle and video paths for search
 result context, but implementation should not rely on those strings as the only
 remote identity.
 
+## Display and Cache Hardening
+
+The archived SubFinderX WebDAV implementation exposed several edge cases that
+the native implementation must keep separate:
+
+- Search result rows should display a human filename, not an encoded internal
+  URL. Local results may use the local subtitle filename; remote results should
+  prefer the source-relative subtitle path, take the last path component, and
+  percent-decode it for display.
+- Inspector metadata may show full local paths or remote source-relative paths,
+  but must still percent-decode display strings. Encoded WebDAV URLs are internal
+  identity/debug data, not the primary user-facing label.
+- Remote subtitle cache filenames must be short and stable. Do not base64 the
+  whole source-relative path into a single filesystem name, because long anime
+  release paths can exceed the macOS filename length limit. Use a fixed-length
+  hash of source ID plus source-relative path, preserving only the subtitle file
+  extension.
+- Cache file identity should not be confused with durable media identity. The
+  durable identity remains source ID plus source-relative path.
+
+## SubFinderX Compatibility Lessons
+
+SubFinderX handled WebDAV playback with several fallbacks that are useful as
+compatibility guidance:
+
+- Preserve raw path characters when building WebDAV URLs for AList. Some
+  high-level URI builders re-encode non-ASCII path components and can break
+  AList path resolution.
+- Resolve AList media through `/api/fs/get` shortly before playback and use the
+  returned `raw_url` plus optional headers.
+- Prefer a locally mounted file only when the same remote path can be proven to
+  exist under a selected local root. This is an optimization, not a requirement.
+- A local loopback stream proxy is an acceptable future compatibility layer for
+  generic WebDAV or provider URLs whose headers, redirects, non-ASCII paths, or
+  Range behavior are not handled consistently by the playback backend. The proxy
+  may forward `Range`, `HEAD`, `Content-Range`, `Accept-Ranges`, `ETag`, and
+  similar streaming headers, but it must not become a whole-video download
+  fallback.
+- Remote subtitle files may be downloaded to a local subtitle cache before
+  loading them into the subtitle renderer, but the cache filename must be short
+  and independent of the full remote path length.
+
 ## Technical Risks
 
 - WebDAV servers differ in path encoding, `PROPFIND` response shape, metadata,
@@ -210,6 +252,8 @@ Manual validation targets:
 Automated tests should cover:
 
 - WebDAV path-to-source-relative-path normalization.
+- Percent-decoded display names for remote source-relative paths.
+- Short remote subtitle cache filenames for very long source-relative paths.
 - AList WebDAV root to API path conversion, such as
   `/dav/baidu/...` -> `/baidu/...`.
 - AList login response parsing.

@@ -237,6 +237,11 @@ Rules:
   a playback fallback.
 - URL handling must preserve filenames containing spaces, brackets, ampersands,
   exclamation marks, apostrophes, parentheses, and non-ASCII characters.
+- User-facing remote filenames must be derived from decoded source-relative
+  paths, not from encoded WebDAV transport URLs.
+- Remote subtitle cache files must use bounded-length names, such as a
+  fixed-length hash of source ID and source-relative path. Full remote paths
+  must not be encoded directly into a single filesystem filename.
 
 ## 9. Playback Architecture
 
@@ -251,6 +256,10 @@ Rules:
 - Remote streams are allowed only through accepted media-source resolution
   rules. Provider-specific resolution must happen before native backend open,
   not inside subtitle parsing or search-result rendering.
+- A local loopback stream proxy is allowed as a future compatibility layer when
+  direct backend URL opening mishandles provider headers, redirects, non-ASCII
+  paths, or byte-range behavior. Such a proxy must forward stream requests and
+  range headers; it must not stage whole videos.
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
 - ASS Lite is an interim source text overlay and fallback. Source-faithful ASS
