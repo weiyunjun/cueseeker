@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Changed native search input to draft-and-commit behavior: typing no longer
+  refreshes results, Return commits the draft query, Escape restores the input
+  to the committed query behind the visible result list, and repeated committed
+  queries avoid unnecessary work when results are already current.
 - Added a draft remote playback warm-up state machine proposal covering shared
   scheduling across search, favorites, and future result surfaces, with explicit
   candidate, task, warm session, state transition, resource-limit, durable-data,

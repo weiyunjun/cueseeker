@@ -38,10 +38,16 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 16) {
                 SearchField(
                     text: Binding(
-                        get: { appState.searchQuery },
-                        set: { appState.updateSearchQuery($0) }
+                        get: { appState.searchDraftQuery },
+                        set: { appState.updateSearchDraftQuery($0) }
                     ),
-                    isFocused: $appState.isSearchFocused
+                    isFocused: $appState.isSearchFocused,
+                    onSubmit: {
+                        appState.commitSearchDraftQuery()
+                    },
+                    onCancel: {
+                        appState.revertSearchDraftQuery()
+                    }
                 )
                 .padding(.leading, 12)
                 .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
@@ -245,6 +251,8 @@ struct SearchView: View {
 private struct SearchField: View {
     @Binding var text: String
     @Binding var isFocused: Bool
+    var onSubmit: () -> Void
+    var onCancel: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -258,7 +266,9 @@ private struct SearchField: View {
                     set: { text = $0 }
                 ),
                 placeholder: "Search subtitles",
-                isFocused: $isFocused
+                isFocused: $isFocused,
+                onSubmit: onSubmit,
+                onCancel: onCancel
             )
             .frame(height: 22)
 

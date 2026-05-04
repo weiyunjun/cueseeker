@@ -87,6 +87,7 @@ final class AppState: ObservableObject {
     @Published var selectedFolders: [URL] = []
     @Published var remoteSources: [StoredMediaSource] = []
     @Published var indexingStatus: IndexingStatus = .idle
+    @Published var searchDraftQuery = ""
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
@@ -485,8 +486,34 @@ final class AppState: ObservableObject {
         }
     }
 
-    func updateSearchQuery(_ query: String) {
+    func updateSearchDraftQuery(_ query: String) {
+        searchDraftQuery = query
+    }
+
+    func revertSearchDraftQuery() {
+        searchDraftQuery = searchQuery
+    }
+
+    func commitSearchDraftQuery() {
+        let query = searchDraftQuery
+        guard query != searchQuery || !canSkipCommittedSearch else {
+            return
+        }
+
         searchQuery = query
+        runSearch(for: query)
+    }
+
+    private var canSkipCommittedSearch: Bool {
+        switch searchStatus {
+        case .idle, .searching, .completed:
+            true
+        case .failed:
+            false
+        }
+    }
+
+    private func runSearch(for query: String) {
         searchTask?.cancel()
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -510,8 +537,6 @@ final class AppState: ObservableObject {
         let databaseURL = databaseURL
         searchTask = Task {
             do {
-                try await Task.sleep(nanoseconds: 250_000_000)
-
                 let results = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     try database.migrate()
@@ -744,7 +769,7 @@ final class AppState: ObservableObject {
             searchResults = []
         }
 
-        updateSearchQuery(searchQuery)
+        runSearch(for: searchQuery)
     }
 
     private func clearSearchAndPlaybackState(under folder: URL) {

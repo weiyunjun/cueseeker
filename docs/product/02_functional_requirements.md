@@ -141,6 +141,9 @@ Requirements:
 
 - Search should respond quickly for typical personal libraries.
 - Empty queries should not return results.
+- Search input should be draft-based: typing text alone must not execute a
+  query, Return commits the draft query, and Escape restores the draft text to
+  the committed query that owns the current result list.
 - Search should support English text.
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.

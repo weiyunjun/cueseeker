@@ -28,11 +28,14 @@ On first launch, if no folders are configured:
 
 ## 3. Search Interaction
 
-Search should feel immediate.
+Search should feel deliberate.
 
 Expected behavior:
 
-- Typing updates results after a short debounce.
+- Typing edits a draft query only; it must not refresh results by itself.
+- Pressing Return commits the draft query and refreshes results.
+- Pressing Escape restores the search field text to the committed query that
+  produced the currently visible results.
 - Empty search shows an empty or guidance state.
 - Invalid search syntax should not crash the app.
 - Search results should not flicker unnecessarily.
