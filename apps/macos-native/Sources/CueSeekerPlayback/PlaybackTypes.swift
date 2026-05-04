@@ -44,6 +44,8 @@ public enum PlaybackSubtitleSourceFormat: String, Sendable, Equatable {
 public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let url: URL
     public let format: PlaybackSubtitleSourceFormat
+    public let inlineASSScript: String?
+    public let sourceIdentifier: String?
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
     public let renderCacheDatabaseURL: URL?
     public let renderCacheSubtitlePath: String?
@@ -51,12 +53,16 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
     public init(
         url: URL,
         format: PlaybackSubtitleSourceFormat,
+        inlineASSScript: String? = nil,
+        sourceIdentifier: String? = nil,
         preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
         renderCacheDatabaseURL: URL? = nil,
         renderCacheSubtitlePath: String? = nil
     ) {
         self.url = url
         self.format = format
+        self.inlineASSScript = inlineASSScript
+        self.sourceIdentifier = sourceIdentifier
         self.preparationTimeWindow = preparationTimeWindow
         self.renderCacheDatabaseURL = renderCacheDatabaseURL
         self.renderCacheSubtitlePath = renderCacheSubtitlePath

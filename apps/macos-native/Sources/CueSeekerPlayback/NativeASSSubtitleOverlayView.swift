@@ -67,11 +67,12 @@ final class NativeASSSubtitleOverlayView: NSView {
         }
 
         let sourceURL = source.url
+        let inlineASSScript = source.inlineASSScript
         let loadGeneration = generation
         loadTask = Task { [weak self] in
             do {
                 let document = try await Task.detached(priority: .userInitiated) {
-                    let contents = try String(contentsOf: sourceURL)
+                    let contents = try inlineASSScript ?? String(contentsOf: sourceURL)
                     return NativeASSParser.parse(contents)
                 }.value
 

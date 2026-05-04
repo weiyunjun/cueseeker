@@ -132,6 +132,47 @@ func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
 }
 
 @Test
+func storesAndReplacesFullASSSourcePlaybackCache() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Simple.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Simple.mkv")
+    let sourceScript = "[Script Info]\n[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,hello\n"
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [
+            testCueGroup(startMilliseconds: 1_000, endMilliseconds: 2_000, content: "hello", eventIndex: 0)
+        ],
+        assSourceScript: sourceScript
+    )
+
+    #expect(try database.hasASSPlaybackCache(forSubtitlePath: subtitleFile.path))
+    let cache = try #require(try database.assSourceScriptCache(forSubtitlePath: subtitleFile.path))
+    #expect(cache.scriptText == sourceScript)
+    #expect(cache.byteCount == sourceScript.utf8.count)
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .srt,
+        cueGroups: [
+            testCueGroup(startMilliseconds: 3_000, endMilliseconds: 4_000, content: "plain", eventIndex: 0)
+        ]
+    )
+
+    #expect(!(try database.hasASSSourceScriptCache(forSubtitlePath: subtitleFile.path)))
+}
+
+@Test
 func migrationInvalidatesOldASSRenderSegmentAlgorithmVersion() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

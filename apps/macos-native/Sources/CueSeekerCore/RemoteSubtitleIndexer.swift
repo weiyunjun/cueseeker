@@ -189,6 +189,7 @@ public struct RemoteSubtitleIndexer {
 
             let cueGroups: [SubtitleCueGroup]
             var assRenderSegments: [ASSRenderSegmentPayload] = []
+            var assSourceScript: String?
             let parseStartedAt = Date()
             switch format {
             case .srt:
@@ -218,6 +219,8 @@ public struct RemoteSubtitleIndexer {
                             elapsedMilliseconds: Self.elapsedMilliseconds(since: segmentStartedAt)
                         )
                     )
+                } else {
+                    assSourceScript = contents
                 }
             }
 
@@ -229,6 +232,7 @@ public struct RemoteSubtitleIndexer {
                 format: format,
                 cueGroups: cueGroups,
                 assRenderSegments: assRenderSegments,
+                assSourceScript: assSourceScript,
                 sourceID: source.id,
                 subtitleRelativePath: subtitleFile.relativePath,
                 videoRelativePath: videoFile.relativePath,
@@ -281,6 +285,10 @@ public struct RemoteSubtitleIndexer {
 
         if ASSRenderSegmenter.shouldSegment(format: metadata.subtitleFormat, fileSize: subtitleFile.size) {
             return try database.hasASSRenderSegments(forSubtitlePath: metadata.subtitlePath)
+        }
+
+        if metadata.subtitleFormat == .ass {
+            return try database.hasASSSourceScriptCache(forSubtitlePath: metadata.subtitlePath)
         }
 
         return true

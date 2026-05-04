@@ -63,8 +63,14 @@ public struct ASSRenderSegment: Equatable, Sendable {
     public let byteCount: Int
 }
 
+public struct ASSSourceScriptCache: Equatable, Sendable {
+    public let subtitlePath: String
+    public let scriptText: String
+    public let byteCount: Int
+}
+
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 6
+    public static let currentSchemaVersion: Int = 7
 
     private let database: SQLiteDatabase
 
@@ -202,6 +208,14 @@ public final class SubtitleDatabase {
 
             CREATE INDEX IF NOT EXISTS idx_ass_render_segments_lookup
                 ON ass_render_segments(subtitle_file_id, start_ms, end_ms);
+
+            CREATE TABLE IF NOT EXISTS ass_source_cache (
+                subtitle_file_id INTEGER PRIMARY KEY,
+                algorithm_version INTEGER NOT NULL DEFAULT 0,
+                byte_count INTEGER NOT NULL,
+                script_text TEXT NOT NULL,
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+            );
             """
         )
 
@@ -366,6 +380,7 @@ public final class SubtitleDatabase {
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
         assRenderSegments: [ASSRenderSegmentPayload] = [],
+        assSourceScript: String? = nil,
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil
     ) throws {
@@ -379,6 +394,7 @@ public final class SubtitleDatabase {
             format: format,
             cueGroups: cueGroups,
             assRenderSegments: assRenderSegments,
+            assSourceScript: assSourceScript,
             sourceID: nil,
             subtitleRelativePath: nil,
             videoRelativePath: nil,
@@ -396,6 +412,7 @@ public final class SubtitleDatabase {
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
         assRenderSegments: [ASSRenderSegmentPayload] = [],
+        assSourceScript: String? = nil,
         sourceID: Int64? = nil,
         subtitleRelativePath: String? = nil,
         videoRelativePath: String? = nil,
@@ -426,6 +443,10 @@ public final class SubtitleDatabase {
                 modifiedAt: videoModifiedAt
             )
             try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
+
+            if let assSourceScript {
+                try insertASSSourceScript(subtitleFileID: subtitleFileID, scriptText: assSourceScript)
+            }
 
             for segment in assRenderSegments {
                 try insertASSRenderSegment(subtitleFileID: subtitleFileID, segment: segment)
@@ -549,6 +570,58 @@ public final class SubtitleDatabase {
         try statement.bind(subtitlePath, at: 1)
         try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
         return try statement.step()
+    }
+
+    public func hasASSSourceScriptCache(forSubtitleFile subtitleFile: URL) throws -> Bool {
+        try hasASSSourceScriptCache(forSubtitlePath: subtitleFile.path)
+    }
+
+    public func hasASSSourceScriptCache(forSubtitlePath subtitlePath: String) throws -> Bool {
+        let statement = try database.prepare(
+            """
+            SELECT 1
+            FROM ass_source_cache c
+            JOIN subtitle_files sf ON sf.id = c.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND c.algorithm_version = ?
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(subtitlePath, at: 1)
+        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
+        return try statement.step()
+    }
+
+    public func hasASSPlaybackCache(forSubtitlePath subtitlePath: String) throws -> Bool {
+        try hasASSSourceScriptCache(forSubtitlePath: subtitlePath)
+            || hasASSRenderSegments(forSubtitlePath: subtitlePath)
+    }
+
+    public func assSourceScriptCache(forSubtitlePath subtitlePath: String) throws -> ASSSourceScriptCache? {
+        let statement = try database.prepare(
+            """
+            SELECT sf.subtitle_path, c.script_text, c.byte_count
+            FROM ass_source_cache c
+            JOIN subtitle_files sf ON sf.id = c.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND c.algorithm_version = ?
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(subtitlePath, at: 1)
+        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return ASSSourceScriptCache(
+            subtitlePath: statement.stringColumn(0),
+            scriptText: statement.stringColumn(1),
+            byteCount: statement.intColumn(2)
+        )
     }
 
     public func assRenderSegment(
@@ -695,6 +768,7 @@ public final class SubtitleDatabase {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
+            try database.execute("DELETE FROM ass_source_cache;")
             try database.execute("DELETE FROM ass_render_segments;")
             try database.execute("DELETE FROM subtitle_files;")
             try database.execute("DELETE FROM video_files;")
@@ -1120,6 +1194,23 @@ public final class SubtitleDatabase {
 
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
+            let deleteASSSourceCache = try database.prepare(
+                """
+                DELETE FROM ass_source_cache
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteASSSourceCache,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteASSSourceCache.run()
+
             let deleteASSRenderSegments = try database.prepare(
                 """
                 DELETE FROM ass_render_segments
@@ -1214,6 +1305,19 @@ public final class SubtitleDatabase {
 
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
+            let deleteASSSourceCache = try database.prepare(
+                """
+                DELETE FROM ass_source_cache
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE sf.source_id = ? \(keepCondition)
+                );
+                """
+            )
+            try bindSourceEntryParameters(statement: deleteASSSourceCache, sourceID: sourceID, subtitleFiles: subtitleFiles)
+            try deleteASSSourceCache.run()
+
             let deleteASSRenderSegments = try database.prepare(
                 """
                 DELETE FROM ass_render_segments
@@ -1542,6 +1646,33 @@ public final class SubtitleDatabase {
         try statement.run()
     }
 
+    private func insertASSSourceScript(
+        subtitleFileID: Int64,
+        scriptText: String
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO ass_source_cache(
+                subtitle_file_id,
+                algorithm_version,
+                byte_count,
+                script_text
+            )
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(subtitle_file_id) DO UPDATE SET
+                algorithm_version = excluded.algorithm_version,
+                byte_count = excluded.byte_count,
+                script_text = excluded.script_text;
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
+        try statement.bind(scriptText.utf8.count, at: 3)
+        try statement.bind(scriptText, at: 4)
+        try statement.run()
+    }
+
     private func insertFTSRow(cueGroupID: Int64, content: String) throws {
         let statement = try database.prepare(
             """
@@ -1593,6 +1724,19 @@ public final class SubtitleDatabase {
     }
 
     private func deleteIndexedSubtitlePath(_ subtitlePath: String) throws {
+        let deleteASSSourceCache = try database.prepare(
+            """
+            DELETE FROM ass_source_cache
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteASSSourceCache.bind(subtitlePath, at: 1)
+        try deleteASSSourceCache.run()
+
         let deleteASSRenderSegments = try database.prepare(
             """
             DELETE FROM ass_render_segments
@@ -1644,6 +1788,7 @@ public final class SubtitleDatabase {
             DROP TABLE IF EXISTS subtitle_cue_groups_fts;
             DROP TABLE IF EXISTS subtitle_cue_lines;
             DROP TABLE IF EXISTS subtitle_cue_groups;
+            DROP TABLE IF EXISTS ass_source_cache;
             DROP TABLE IF EXISTS ass_render_segments;
             DROP TABLE IF EXISTS subtitle_video_matches;
             DROP TABLE IF EXISTS video_files;

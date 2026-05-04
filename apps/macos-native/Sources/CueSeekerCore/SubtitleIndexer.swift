@@ -85,6 +85,7 @@ public struct SubtitleIndexer {
 
             let cueGroups: [SubtitleCueGroup]
             var assRenderSegments: [ASSRenderSegmentPayload] = []
+            var assSourceScript: String?
             switch format {
             case .srt:
                 cueGroups = SRTParser.parseCueGroups(contents)
@@ -92,6 +93,8 @@ public struct SubtitleIndexer {
                 cueGroups = ASSParser.parseCueGroups(contents)
                 if ASSRenderSegmenter.shouldSegment(format: format, fileSize: fileSize) {
                     assRenderSegments = ASSRenderSegmenter.renderSegments(from: contents)
+                } else {
+                    assSourceScript = contents
                 }
             }
 
@@ -101,6 +104,7 @@ public struct SubtitleIndexer {
                 format: format,
                 cueGroups: cueGroups,
                 assRenderSegments: assRenderSegments,
+                assSourceScript: assSourceScript,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt
             )
@@ -137,6 +141,10 @@ public struct SubtitleIndexer {
 
         if ASSRenderSegmenter.shouldSegment(format: metadata.subtitleFormat, fileSize: fileSize) {
             return try database.hasASSRenderSegments(forSubtitleFile: subtitleFile)
+        }
+
+        if metadata.subtitleFormat == .ass {
+            return try database.hasASSSourceScriptCache(forSubtitleFile: subtitleFile)
         }
 
         return true

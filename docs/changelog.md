@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented indexed ASS playback-cache support: schema version 7 adds a
+  full-source ASS cache for small ASS files while large ASS keeps render
+  segments, local and remote indexers populate the cache, playback reads cached
+  ASS payloads instead of re-downloading remote ASS files, and AList token plus
+  signed playback links now use in-memory fast-path caches.
 - Documented the corrected remote ASS playback-cache direction: all indexed ASS
   files should produce an app-owned local playback cache during indexing, remote
   playback must not re-download current ASS files, AList tokens and signed links

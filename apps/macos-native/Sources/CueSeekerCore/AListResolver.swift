@@ -27,6 +27,7 @@ public enum AListResolverError: Error, Equatable, CustomStringConvertible {
 }
 
 public final class AListResolver: Sendable {
+    private static let cache = AListResolverCache()
     private let session: URLSession
 
     public init(session: URLSession? = nil) {
@@ -63,6 +64,11 @@ public final class AListResolver: Sendable {
         source: RemoteMediaSourceConfiguration,
         sourceRelativePath: String
     ) async throws -> ResolvedRemoteMedia {
+        let linkCacheKey = Self.linkCacheKey(source: source, sourceRelativePath: sourceRelativePath)
+        if let cachedLink = await Self.cache.resolvedLink(for: linkCacheKey) {
+            return cachedLink
+        }
+
         let token = try await login(
             rootURL: source.rootURL,
             credentials: source.credentials
@@ -93,10 +99,16 @@ public final class AListResolver: Sendable {
             throw AListResolverError.invalidRawURL(data.rawURL)
         }
 
-        return ResolvedRemoteMedia(
+        let resolved = ResolvedRemoteMedia(
             url: url,
             headers: data.parsedHeaders
         )
+        await Self.cache.storeResolvedLink(
+            resolved,
+            for: linkCacheKey,
+            expiresAt: Self.resolvedLinkExpiresAt(rawURL: url)
+        )
+        return resolved
     }
 
     public static func apiPath(
@@ -141,6 +153,11 @@ public final class AListResolver: Sendable {
         rootURL: URL,
         credentials: RemoteMediaSourceCredentials
     ) async throws -> String {
+        let cacheKey = Self.tokenCacheKey(rootURL: rootURL, credentials: credentials)
+        if let cachedToken = await Self.cache.token(for: cacheKey) {
+            return cachedToken
+        }
+
         let response: AListResponse<AListLoginData> = try await postJSON(
             endpoint: try apiURL(rootURL: rootURL, path: "/api/auth/login"),
             headers: [:],
@@ -153,6 +170,11 @@ public final class AListResolver: Sendable {
         guard response.code == 200, let token = response.data?.token, !token.isEmpty else {
             throw AListResolverError.loginFailed(response.message)
         }
+        await Self.cache.storeToken(
+            token,
+            for: cacheKey,
+            expiresAt: Date().addingTimeInterval(6 * 60 * 60)
+        )
         return token
     }
 
@@ -304,4 +326,107 @@ private extension AListResolver {
         configuration.timeoutIntervalForResource = 45
         return URLSession(configuration: configuration)
     }()
+
+    static func linkCacheKey(
+        source: RemoteMediaSourceConfiguration,
+        sourceRelativePath: String
+    ) -> String {
+        "\(source.id)|\(normalizedOriginAndPath(source.rootURL))|\(sourceRelativePath)"
+    }
+
+    static func tokenCacheKey(
+        rootURL: URL,
+        credentials: RemoteMediaSourceCredentials
+    ) -> String {
+        "\(normalizedOrigin(rootURL))|\(credentials.username)|\(credentials.password.hashValue)"
+    }
+
+    static func normalizedOriginAndPath(_ url: URL) -> String {
+        var value = normalizedOrigin(url)
+        var path = url.path.removingPercentEncoding ?? url.path
+        while path.count > 1 && path.hasSuffix("/") {
+            path.removeLast()
+        }
+        value += path.isEmpty ? "/" : path
+        return value
+    }
+
+    static func normalizedOrigin(_ url: URL) -> String {
+        guard let scheme = url.scheme, let host = url.host else {
+            return url.absoluteString
+        }
+        var value = "\(scheme.lowercased())://\(host.lowercased())"
+        if let port = url.port {
+            value += ":\(port)"
+        }
+        return value
+    }
+
+    static func resolvedLinkExpiresAt(rawURL: URL) -> Date {
+        let fallback = Date().addingTimeInterval(30 * 60)
+        guard let components = URLComponents(url: rawURL, resolvingAgainstBaseURL: false),
+              let expires = components.queryItems?.first(where: { $0.name == "expires" })?.value,
+              let interval = expiryInterval(expires)
+        else {
+            return fallback
+        }
+
+        return Date().addingTimeInterval(min(interval * 0.8, 6 * 60 * 60))
+    }
+
+    static func expiryInterval(_ value: String) -> TimeInterval? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if trimmed.hasSuffix("h"), let hours = Double(trimmed.dropLast()) {
+            return hours * 60 * 60
+        }
+        if trimmed.hasSuffix("m"), let minutes = Double(trimmed.dropLast()) {
+            return minutes * 60
+        }
+        if trimmed.hasSuffix("s"), let seconds = Double(trimmed.dropLast()) {
+            return seconds
+        }
+        if let seconds = Double(trimmed) {
+            return seconds
+        }
+        return nil
+    }
+}
+
+private actor AListResolverCache {
+    private struct TokenEntry {
+        let token: String
+        let expiresAt: Date
+    }
+
+    private struct ResolvedLinkEntry {
+        let resolved: ResolvedRemoteMedia
+        let expiresAt: Date
+    }
+
+    private var tokens: [String: TokenEntry] = [:]
+    private var resolvedLinks: [String: ResolvedLinkEntry] = [:]
+
+    func token(for key: String) -> String? {
+        guard let entry = tokens[key], entry.expiresAt > Date() else {
+            tokens.removeValue(forKey: key)
+            return nil
+        }
+        return entry.token
+    }
+
+    func storeToken(_ token: String, for key: String, expiresAt: Date) {
+        tokens[key] = TokenEntry(token: token, expiresAt: expiresAt)
+    }
+
+    func resolvedLink(for key: String) -> ResolvedRemoteMedia? {
+        guard let entry = resolvedLinks[key], entry.expiresAt > Date() else {
+            resolvedLinks.removeValue(forKey: key)
+            return nil
+        }
+        return entry.resolved
+    }
+
+    func storeResolvedLink(_ resolved: ResolvedRemoteMedia, for key: String, expiresAt: Date) {
+        resolvedLinks[key] = ResolvedLinkEntry(resolved: resolved, expiresAt: expiresAt)
+    }
 }

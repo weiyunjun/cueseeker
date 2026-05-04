@@ -575,6 +575,7 @@ final class AppState: ObservableObject {
                 player.loadSubtitleSource(try await playbackSubtitleSource(for: result))
                 try player.seek(toMilliseconds: result.startMilliseconds)
             } else {
+                try player.stop()
                 let request = try await playbackRequest(
                     for: result,
                     mediaIdentifier: mediaIdentifier
@@ -923,9 +924,22 @@ final class AppState: ObservableObject {
             return nil
         }
 
+        let database = try SubtitleDatabase(path: databaseURL)
+        try database.migrate()
+
+        let cachedScript = try database.assSourceScriptCache(forSubtitlePath: result.subtitlePath)
+        let hasRenderSegments = try database.hasASSRenderSegments(forSubtitlePath: result.subtitlePath)
+
+        guard cachedScript != nil || hasRenderSegments || result.subtitleSourceID == nil else {
+            print("Remote ASS playback cache miss: \(result.subtitlePath)")
+            return nil
+        }
+
         let subtitleURL: URL
         if result.subtitleSourceID != nil {
-            subtitleURL = try await cachedRemoteSubtitleURL(for: result)
+            subtitleURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("CueSeekerIndexedASS-\(result.subtitleSourceID ?? 0)")
+                .appendingPathExtension("ass")
         } else {
             subtitleURL = URL(fileURLWithPath: result.subtitlePath)
         }
@@ -933,6 +947,8 @@ final class AppState: ObservableObject {
         return PlaybackSubtitleSource(
             url: subtitleURL,
             format: .ass,
+            inlineASSScript: cachedScript?.scriptText,
+            sourceIdentifier: result.subtitlePath,
             preparationTimeWindow: playbackSubtitleTimeWindow(for: result),
             renderCacheDatabaseURL: databaseURL,
             renderCacheSubtitlePath: result.subtitlePath
@@ -975,48 +991,6 @@ final class AppState: ObservableObject {
             print("Failed to load ASS subtitle preparation window: \(error)")
             return fallback
         }
-    }
-
-    private func cachedRemoteSubtitleURL(for result: SubtitleSearchResult) async throws -> URL {
-        guard let sourceID = result.subtitleSourceID,
-              let relativePath = result.subtitleSourceRelativePath,
-              let source = remoteSources.first(where: { $0.id == sourceID })
-        else {
-            throw RemotePlaybackError.remoteRelativePathMissing
-        }
-
-        let credentials = try credentialStore.load(credentialRef: source.credentialRef)
-        let rootURL = try Self.remoteRootURL(source.path)
-        let client = try WebDAVClient(rootURL: rootURL, credentials: credentials)
-        let data = try await client.downloadData(relativePath: relativePath)
-        let cacheURL = try remoteSubtitleCacheURL(
-            sourceID: sourceID,
-            relativePath: relativePath,
-            pathExtension: URL(fileURLWithPath: relativePath).pathExtension.nilIfEmpty ?? "ass"
-        )
-        try FileManager.default.createDirectory(
-            at: cacheURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try data.write(to: cacheURL, options: .atomic)
-        return cacheURL
-    }
-
-    private func remoteSubtitleCacheURL(
-        sourceID: Int64,
-        relativePath: String,
-        pathExtension: String
-    ) throws -> URL {
-        let cacheRoot = databaseURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("RemoteSubtitleCache", isDirectory: true)
-            .appendingPathComponent(String(sourceID), isDirectory: true)
-        let fileName = RemoteSubtitleCacheKey.fileName(
-            sourceID: sourceID,
-            relativePath: relativePath,
-            pathExtension: pathExtension
-        )
-        return cacheRoot.appendingPathComponent(fileName)
     }
 
     private static func validateAListRemoteSource(

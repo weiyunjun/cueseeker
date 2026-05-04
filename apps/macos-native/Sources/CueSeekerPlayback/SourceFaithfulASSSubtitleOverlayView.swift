@@ -67,6 +67,8 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private let queue = DispatchQueue(label: "CueSeeker.SourceFaithfulASSRenderer")
     private var session: SFXASSRendererSession?
     private var sourcePath: String?
+    private var inlineASSScript: String?
+    private var sourceIdentifier: String?
     private var renderCacheSubtitlePath: String?
     private var renderCacheDatabaseURL: URL?
     private var frameWidth = 0
@@ -89,6 +91,8 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 self.session?.close()
                 self.session = nil
                 self.sourcePath = sourcePath
+                self.inlineASSScript = source.inlineASSScript
+                self.sourceIdentifier = source.sourceIdentifier
                 self.renderCacheSubtitlePath = renderCacheSubtitlePath
                 self.renderCacheDatabaseURL = source.renderCacheDatabaseURL
                 self.frameWidth = frameWidth
@@ -119,6 +123,8 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             self.session?.close()
             self.session = nil
             self.sourcePath = nil
+            self.inlineASSScript = nil
+            self.sourceIdentifier = nil
             self.renderCacheSubtitlePath = nil
             self.renderCacheDatabaseURL = nil
             self.frameWidth = 0
@@ -214,6 +220,16 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
 
         activeRenderSegmentWindow = nil
+        if let inlineASSScript {
+            return try SFXASSRendererSession(
+                assScript: inlineASSScript,
+                sourceIdentifier: sourceIdentifier ?? sourcePath,
+                frameWidth: frameWidth,
+                frameHeight: frameHeight,
+                fontsDirectory: nil
+            )
+        }
+
         return try SFXASSRendererSession(
             assFileAtPath: sourcePath,
             frameWidth: frameWidth,
