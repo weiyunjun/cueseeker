@@ -2,11 +2,11 @@
 
 Status: Draft
 
-## 1. Local Folder Management
+## 1. Media Source Management
 
-The app must allow the user to add local subtitle folders.
+The app must allow the user to add selected media sources for subtitle indexing.
 
-Requirements:
+Local folder requirements:
 
 - The user can choose a local folder through a native macOS folder picker.
 - The app stores selected folder entries.
@@ -16,9 +16,21 @@ Requirements:
 - The app can refresh indexes for all selected folders.
 - The app should avoid duplicate folder entries when possible.
 
+Remote source requirements:
+
+- The first accepted remote source type is read-only WebDAV.
+- The first provider-specific WebDAV resolver is AList.
+- AList sources should use WebDAV for directory listing and subtitle reads, and
+  AList API resolution for playable signed media URLs.
+- Generic WebDAV sources may use direct WebDAV URLs for playback only when the
+  source supports byte-range reads required for seekable media playback.
+- Remote source credentials must not be stored in plain text.
+- Removing a remote source must remove the app's derived index data for that
+  source without modifying remote files.
+
 ## 2. Subtitle Scanning
 
-The app must scan selected local folders for supported external subtitle files.
+The app must scan selected media sources for supported external subtitle files.
 
 Requirements:
 
@@ -30,6 +42,9 @@ Requirements:
 - Report indexing progress.
 - Skip files that cannot be read.
 - Preserve enough error information for debugging.
+- Remote scanning must be read-only.
+- Remote scanning may download subtitle files for parsing, but must not download
+  matched video files during indexing.
 
 ## 3. Subtitle Parsing
 
@@ -74,7 +89,8 @@ ASS parsing requirements:
 
 ## 4. Video Matching
 
-The app must match subtitle files to local video files in the same directory.
+The app must match subtitle files to video files in the same directory or remote
+source-relative directory.
 
 Initial matching rule:
 
@@ -101,16 +117,21 @@ Requirements:
 - Store subtitle metadata.
 - Store video path.
 - Store subtitle path.
+- Store enough source identity to distinguish local paths from remote source
+  paths.
 - Store start and end timestamps.
 - Store searchable text content for each cue group.
 - Store the ordered cue lines that belong to each cue group.
 - Support incremental indexing based on file metadata.
 - Remove stale entries when source subtitle files no longer exist.
-- Remove derived index rows when a selected folder is removed.
-- Reconcile indexed content with the currently selected folders when the app
+- Remove derived index rows when a selected source is removed.
+- Reconcile indexed content with the currently selected media sources when the app
   starts.
-- If no folders are selected, previously derived index rows should be cleared or
+- If no sources are selected, previously derived index rows should be cleared or
   ignored so they cannot appear in search results.
+- Remote sources should use stable source-relative identity for indexing and
+  should not persist provider-issued temporary playback URLs as durable file
+  identity.
 
 ## 6. Search
 
@@ -124,8 +145,8 @@ Requirements:
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.
 - Results should be limited to avoid rendering excessive rows.
-- Search results must be scoped to the currently selected subtitle folders.
-- Stale index rows outside the currently selected folders must not appear in
+- Search results must be scoped to the currently selected media sources.
+- Stale index rows outside the currently selected sources must not appear in
   Search.
 - Search should return cue groups, not individual ASS lines, so a bilingual or
   multi-layer ASS moment appears as one result.
@@ -206,7 +227,27 @@ Requirements:
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 
-## 9. Settings
+## 9. Remote Playback
+
+Remote playback is accepted for read-only WebDAV sources after the local native
+playback loop.
+
+Requirements:
+
+- AList WebDAV sources must resolve playback through AList API rather than
+  direct `/dav/...` media URLs when AList API resolution is available.
+- AList playback resolution uses `/api/auth/login` and `/api/fs/get` to obtain a
+  current signed `raw_url` and optional provider headers.
+- Signed playback URLs must be resolved near playback time and must not be
+  treated as durable database identity.
+- The app must not download a whole remote video into a local temporary file as
+  a playback fallback.
+- Remote playback should use the same native playback backend and bounded
+  packet read-ahead behavior as local and mounted-NAS playback.
+- Remote playback errors should clearly distinguish source configuration,
+  authentication, provider resolution, and media open failures when practical.
+
+## 10. Settings
 
 The app must provide a settings surface for local app configuration.
 
@@ -219,10 +260,11 @@ Early settings:
 - View indexing status.
 - Choose a persisted playback decode mode from `hardware`, `software`, and
   `auto`.
+- Manage remote WebDAV sources after the remote-source implementation begins.
 
 Future settings may include playback, database, logging, and privacy options.
 
-## 10. Favorites
+## 11. Favorites
 
 Favorites are not required for M1.
 

@@ -11,7 +11,7 @@ The primary playback action is:
 ```text
 Click subtitle search result
 Open or update Playback Inspector
-Open matching local video inside the app
+Open matching local or resolved remote video inside the app
 Seek to subtitle start timestamp
 Play or pause as needed
 ```
@@ -50,7 +50,46 @@ Out of scope for M1:
 - Media library management.
 - External player windows as the primary playback experience.
 
-## 3. Video Matching Dependency
+## 3. Remote Playback Scope
+
+Remote playback is accepted after the local native playback path. It must extend
+the existing playback model rather than introduce a second production playback
+engine.
+
+Required:
+
+- Use the project-owned native FFmpeg backend for remote media after provider
+  resolution.
+- Support read-only WebDAV as the first remote source type.
+- Support AList as the first provider-specific resolver on top of WebDAV.
+- Use WebDAV for AList directory listing and subtitle reads.
+- Resolve AList playback URLs through AList API login and `/api/fs/get`.
+- Pass resolved playback URLs and provider headers to the native backend only
+  near media open time.
+- Require seekable byte-range behavior for remote playback.
+- Surface clear errors when a provider can list files but cannot provide a
+  playable ranged media URL.
+
+Out of scope:
+
+- Whole remote video download into a local temporary file as a playback fallback.
+- Treating AList `/api/auth/login` or `/api/fs/get` as generic WebDAV behavior.
+- Storing provider-signed playback URLs as durable media identity.
+- Storing passwords, tokens, Basic auth headers, signed URLs, or provider
+  playback headers in SQLite.
+
+Notes:
+
+- AList WebDAV `/dav/...` media URLs are not assumed to be directly playable.
+  Manual validation showed an AList BaiduNetdisk `/dav/...` media URL could
+  list and return size metadata but fail ranged playback after provider
+  redirect with `403 Forbidden`.
+- The matching `/api/fs/get` `raw_url` for the same media returned valid ranged
+  responses and could be opened and seeked by FFmpeg.
+- Generic WebDAV sources may use direct WebDAV media URLs only when range
+  requests and FFmpeg probing succeed against that server.
+
+## 4. Video Matching Dependency
 
 Playback depends on subtitle-to-video matching.
 
@@ -68,7 +107,7 @@ Movie.en.srt -> Movie.mp4
 Movie.scjp.ass -> Movie.mp4
 ```
 
-## 4. Timestamp Behavior
+## 5. Timestamp Behavior
 
 The app should seek to `start_ms`.
 
@@ -80,7 +119,7 @@ Expected behavior:
 - Timeline seeking must not temporarily reset the displayed playback time to `0`.
 - The UI may show the requested target timestamp immediately while the backend completes the seek, then accept later backend time updates as confirmation or correction.
 
-## 5. Playback Engine Selection
+## 6. Playback Engine Selection
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`,
 which supersedes ADR-0006 and ADR-0003.
@@ -93,6 +132,10 @@ Current decision:
   native macOS app.
 - Surface native opening, demuxing, hardware decode, display, audio decode,
   audio output, seek, and playback-control failures directly.
+- Remote media sources must not introduce a second production playback engine.
+  Provider resolution may produce a URL and request headers before
+  `avformat_open_input`, but demuxing, decode, output, seeking, and controls
+  remain owned by the native backend.
 
 Current implementation:
 
@@ -151,7 +194,7 @@ Evaluation criteria:
 - App signing and distribution impact.
 - Maintenance cost.
 
-## 6. Subtitle Rendering
+## 7. Subtitle Rendering
 
 The current native-first playback implementation supports app-owned subtitle
 overlay rendering for the selected indexed SRT file.
@@ -221,7 +264,7 @@ Grouped search result behavior:
   and refresh the subtitle-to-video mapping before later search results are
   used for playback.
 
-## 7. M2 Fullscreen Behavior
+## 8. M2 Fullscreen Behavior
 
 Playback fullscreen belongs to the playback interaction model.
 
@@ -251,7 +294,7 @@ Implementation constraints:
 - Playback fullscreen should use the singleton render container owned by the playback player.
 - The fullscreen overlay should reuse the same playback controls and feedback model as the Playback Inspector.
 
-## 8. M2 Playback Controls
+## 9. M2 Playback Controls
 
 Playback controls should be explicit and should avoid accidental video-surface commands.
 
@@ -303,7 +346,7 @@ Current implementation notes:
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
 
-## 9. Error States
+## 10. Error States
 
 Playback errors should be clear.
 
@@ -311,6 +354,9 @@ Examples:
 
 - Matching video file not found.
 - Video file cannot be opened.
+- Remote provider can list the file but cannot resolve a playable ranged media
+  URL.
+- Remote media URL requires credentials or headers that are unavailable.
 - Timestamp seek failed.
 - Playback engine initialization failed.
 

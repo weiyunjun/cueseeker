@@ -10,15 +10,22 @@ Product data facts belong in `docs/product/05_data_model.md`. This document defi
 
 ## 2. Database Role
 
-The native app should use SQLite with FTS5 for local subtitle indexing and search.
+The native app should use SQLite with FTS5 for subtitle indexing and search
+across selected local and remote media sources.
 
 Rules:
 
-- The database is local-only for the early native rewrite.
+- The database is local-first for the native rewrite.
+- Remote media-source support may store non-secret remote source identity and
+  derived remote index data locally, but the database must not become a remote
+  sync store.
 - Source subtitle files remain the source of truth for subtitle content.
 - The database stores indexed subtitle entries, search metadata, and local app state needed for the product workflow.
 - The database must not be treated as a remote sync store during M1.
-- The database must support rebuilding indexed subtitle content from selected local subtitle folders.
+- The database must support rebuilding indexed subtitle content from selected
+  local subtitle folders and selected remote subtitle sources.
+- The database must not store passwords, access tokens, Basic auth headers,
+  provider playback headers, or provider-signed playback URLs in plain text.
 
 ## 3. Database File Location
 
@@ -86,8 +93,8 @@ The M1 database should be recoverable from source subtitle files for indexed con
 Rules:
 
 - The app should tolerate deleting and rebuilding derived subtitle index data.
-- Clearing all derived subtitle index data is allowed when no selected folders
-  remain, because source subtitle files can recreate that data after folders are
+- Clearing all derived subtitle index data is allowed when no selected sources
+  remain, because source subtitle files can recreate that data after sources are
   added again.
 - Durable user state, such as configured folders and future favorites, must not be casually discarded.
 - Before destructive schema changes to durable user state, the project must define backup or recovery expectations.
@@ -110,7 +117,7 @@ The database should support the product entities described in `docs/product/05_d
 
 Expected early entities:
 
-- Search paths.
+- Search paths and media source provider metadata.
 - Video files.
 - Subtitle files.
 - Subtitle-to-video matches.
@@ -126,6 +133,10 @@ Future entities:
 Rules:
 
 - Row IDs may be used internally but must not be the only stable identity for future favorites.
+- Remote media identity must include the selected source and provider-relative
+  path. A raw HTTP playback URL is not stable identity.
+- AList `raw_url` values returned by `/api/fs/get` are transient playback
+  outputs and must not be stored as durable media-file identity.
 - Native playback compatibility metadata is owned by the media file, not by
   subtitle cue groups, cue lines, or subtitle file paths.
 - Subtitle-to-video matching must be represented separately enough that exact basename matching can later be replaced or supplemented by fuzzy or manual matching.
@@ -171,20 +182,31 @@ Rules:
 - Original or formatted time strings may be stored only when useful for display or debugging.
 - Timestamp parsing behavior belongs in parser tests and product requirements, not only in database code.
 
-## 11. Path Rules
+## 11. Path and Remote Identity Rules
 
-Local paths are important user data.
+Local paths and remote source identities are important user data.
 
 Rules:
 
 - Store enough path information to locate subtitle files and matched videos.
 - Do not store paths in a format that prevents migration between database versions.
-- Selected folder configuration is the active search scope. Search paths stored
+- Selected source configuration is the active search scope. Search paths stored
   in the database must be reconciled with that configuration rather than treated
   as an independent source of truth.
+- Local sources may store absolute local filesystem paths.
+- Remote sources must store enough non-secret source configuration to rebuild
+  provider-relative file identity, such as provider type, display name, root
+  URL, and source-relative path.
+- Remote source rows may store Keychain references, but must not store
+  passwords, access tokens, Basic auth headers, provider playback headers, or
+  signed playback URLs.
+- A remote media file should be identified by selected source plus
+  source-relative path, size, and modified time. A transient AList `raw_url`
+  must not be used as a durable identity or search-scope key.
 - Do not duplicate large path lists in logs or debug tables without reason.
 - If security-scoped bookmarks are needed, they should be stored as file-access metadata rather than mixed into subtitle entry rows.
-- Missing files must be handled as stale or unavailable data, not as database corruption.
+- Missing local files and unavailable remote files must be handled as stale or
+  unavailable data, not as database corruption.
 
 ## 12. FTS5 Rules
 
@@ -203,8 +225,8 @@ Search ranking and query syntax:
 
 - Result ordering must be predictable.
 - Empty queries must not return arbitrary rows.
-- Search results must be scoped to the currently selected subtitle folders.
-- If no folders are selected, search must return no results even if stale
+- Search results must be scoped to the currently selected media sources.
+- If no sources are selected, search must return no results even if stale
   database rows still exist.
 - Invalid query syntax must not crash the app.
 - Query limits must prevent excessive result rendering.
@@ -217,19 +239,19 @@ Search ranking and query syntax:
 
 ## 13. Indexing Consistency
 
-Indexing must keep database state aligned with selected folders.
+Indexing must keep database state aligned with selected media sources.
 
 Rules:
 
 - Reindexing a changed subtitle file must replace stale cue groups and cue lines
   for that file.
-- Removing a selected folder must remove derived subtitle cue groups, cue lines,
-  FTS rows, subtitle-file metadata, and stored search-path rows for that folder.
+- Removing a selected source must remove derived subtitle cue groups, cue lines,
+  FTS rows, subtitle-file metadata, and stored search-path rows for that source.
 - App startup must reconcile indexed content against the currently selected
-  folders so stale rows from previously removed folders cannot remain visible.
-- If no folders are currently selected, derived subtitle index data should be
+  sources so stale rows from previously removed sources cannot remain visible.
+- If no sources are currently selected, derived subtitle index data should be
   cleared or excluded from search.
-- Removing or losing access to a selected folder must not corrupt unrelated indexed data.
+- Removing or losing access to a selected source must not corrupt unrelated indexed data.
 - Source files that cannot be read should be skipped with diagnostics.
 - Stale entries for subtitle files that no longer exist should be removed during refresh.
 - Indexing progress should be trackable without requiring UI-specific database state.

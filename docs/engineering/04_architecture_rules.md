@@ -19,7 +19,10 @@ Core principles:
 - Keep persistent data local unless a future proposal explicitly changes that rule.
 - Make hard-to-reverse technical decisions through ADRs before production implementation depends on them.
 - Keep modules isolated enough that indexing, search, persistence, and playback can be tested independently.
-- Avoid introducing remote services, sync layers, or cross-platform abstractions during the early native rewrite.
+- Avoid introducing remote sync layers or cross-platform abstractions during the
+  early native rewrite.
+- Remote media access may be added only as an explicit, user-selected,
+  read-only media source. It must not become a general cloud-drive sync feature.
 
 ## 3. Target Platform
 
@@ -56,7 +59,8 @@ Default assumptions until a more specific document or ADR replaces them:
 
 - UI should use native macOS frameworks.
 - Persistent search data should use SQLite with FTS5.
-- Remote services are out of scope.
+- General remote sync services are out of scope. The accepted WebDAV/AList work
+  is limited to read-only media-source access.
 - Local file access is central to the app and must be designed explicitly.
 
 Accepted ADRs:
@@ -80,6 +84,8 @@ Expected responsibility areas:
 - Subtitle scanning.
 - Subtitle parsing.
 - Video matching.
+- Remote media-source access.
+- Provider-specific media URL resolution.
 - Database persistence and migrations.
 - Full-text search.
 - Playback.
@@ -91,7 +97,10 @@ Rules:
 - Subtitle parsing must not depend on UI state.
 - Database persistence must not depend on playback UI state.
 - Search must read from the database/index layer, not directly from arbitrary subtitle files.
-- Playback must receive a resolved local video path and timestamp, not perform subtitle parsing itself.
+- Playback must receive a resolved media target and timestamp, not perform
+  subtitle parsing or provider listing itself.
+- Provider-specific remote resolution must be separated from native demux,
+  decode, audio output, and playback controls.
 - UI state may coordinate workflows, but it must not be the only place where indexing or database rules are enforced.
 
 ## 6. Data Flow
@@ -107,6 +116,21 @@ Persist metadata, cue groups, and cue lines
 Update FTS index
 Search indexed text
 Open matched video at start_ms
+```
+
+The accepted read-only remote media-source loop should follow this conceptual
+flow:
+
+```text
+Selected remote source
+List supported remote subtitle and video files
+Read or download subtitle contents for indexing
+Match remote video files by source-relative identity
+Persist source identity, metadata, cue groups, and cue lines
+Update FTS index
+Search indexed text
+Resolve a fresh playable media URL when a result is opened
+Open resolved media target at start_ms
 ```
 
 Rules:
@@ -125,8 +149,14 @@ Rules:
 - Reindexing must be able to remove stale entries when source subtitle files disappear.
 - Indexed content must be reconciled with the currently selected folders so rows
   from removed folders do not remain visible.
-- Search must be scoped to the currently selected folders.
-- Search result playback must be based on persisted subtitle timing and matched video path.
+- Indexed content must also be reconciled with currently selected remote media
+  sources when remote indexing is enabled.
+- Search must be scoped to the currently selected media sources.
+- Search result playback must be based on persisted subtitle timing and matched
+  media identity.
+- For remote playback, transient provider-signed URLs must be resolved near
+  playback time and must not become the durable playback identity stored in the
+  database.
 
 ## 7. UI Architecture
 
@@ -171,8 +201,42 @@ Rules:
 - Security-scoped bookmark handling is not required for M1 while App Sandbox is disabled.
 - If sandboxing is later enabled, security-scoped bookmark handling must be documented and tested.
 - The app must not silently scan folders that the user has not selected or otherwise authorized.
+- The app must not silently scan remote sources that the user has not selected
+  or otherwise authorized.
+- Remote WebDAV access is read-only for the first implementation. Upload,
+  delete, move, rename, or remote metadata mutation behavior requires a separate
+  proposal.
 
 The final sandboxing and persistent file-access strategy may require an ADR.
+
+## 8.1 Remote Media Sources
+
+Remote media-source support is accepted as a narrow extension of indexing and
+playback.
+
+Rules:
+
+- The first remote protocol is WebDAV.
+- The first provider-specific resolver is AList.
+- Generic WebDAV is responsible for directory listing, metadata reads, and
+  subtitle file reads.
+- Generic WebDAV media playback may use direct remote URLs only when the server
+  supports seekable byte ranges and FFmpeg can probe and seek the URL.
+- AList WebDAV sources should use WebDAV for listing and subtitle reads, but
+  should resolve playable media URLs through AList APIs.
+- AList `/api/auth/login` and `/api/fs/get` are provider-specific behavior, not
+  generic WebDAV behavior.
+- AList `/dav/...` media URLs must not be assumed playable. Provider redirect
+  behavior may reject ranged playback even when WebDAV listing and `HEAD`
+  metadata work.
+- AList playback should request `/api/fs/get` near media open time and use the
+  returned `raw_url` plus any returned `header` values as the playback target.
+- AList signed URLs, provider headers, JWT tokens, and Basic auth headers are
+  transient secrets. They must not be persisted as durable database identity.
+- The app must not download a whole remote video into a local temporary file as
+  a playback fallback.
+- URL handling must preserve filenames containing spaces, brackets, ampersands,
+  exclamation marks, apostrophes, parentheses, and non-ASCII characters.
 
 ## 9. Playback Architecture
 
@@ -182,8 +246,11 @@ Rules:
 
 - M1 requires local file playback and timestamp seek only.
 - ADR-0007 selects native-only playback.
-- Playback code must not assume remote streams, local HTTP proxying, cache
-  layers, or complete ASS subtitle renderer compatibility.
+- Playback code must not assume local HTTP proxying, whole-file cache layers, or
+  complete ASS subtitle renderer compatibility.
+- Remote streams are allowed only through accepted media-source resolution
+  rules. Provider-specific resolution must happen before native backend open,
+  not inside subtitle parsing or search-result rendering.
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
 - ASS Lite is an interim source text overlay and fallback. Source-faithful ASS
@@ -255,6 +322,9 @@ Rules:
   packaging, signing, and font behavior.
 - The current playback route must always use the project-owned native backend.
 - The active native macOS app must not link against, initialize, or fall back to `libmpv`.
+- Remote media playback must still use the project-owned native backend after
+  provider resolution. Provider resolvers may produce a URL and request headers
+  before open, but they must not introduce a second production playback engine.
 - The native backend uses FFmpeg demuxing, user-selectable hardware, software,
   or automatic video decode mode, native display, FFmpeg audio decode, and
   `AVAudioEngine` output.
@@ -330,7 +400,8 @@ Logging should support debugging without exposing unnecessary personal data.
 Rules:
 
 - Logs may include technical diagnostics for indexing, parsing, database, search, playback, and UI errors.
-- Logs must not include credentials, tokens, or authentication headers.
+- Logs must not include credentials, tokens, authentication headers, provider
+  playback headers, or signed playback URLs.
 - Logs should avoid dumping full user file trees.
 - User paths may be logged when necessary to debug local file behavior, but broad recursive listings should be avoided.
 - User-facing errors should be shorter and less technical than diagnostic logs.
@@ -347,13 +418,26 @@ Recommended error categories:
 
 ## 12. Credential and Secret Handling
 
-The early native rewrite should not require stored credentials.
+The early native local rewrite did not require stored credentials. Remote media
+sources introduce credentials and must keep them isolated from ordinary
+configuration and index data.
 
 Rules:
 
 - Do not introduce credential storage for M1.
 - Do not store passwords, tokens, API keys, or authentication headers in plain text.
-- If future features need credentials, prefer macOS Keychain.
+- Remote source passwords and long-lived secrets should be stored in macOS
+  Keychain.
+- SQLite may store non-secret remote source configuration and Keychain
+  references, but not passwords, access tokens, Basic auth headers, provider
+  playback headers, or signed playback URLs.
+- AList JWT tokens should be treated as memory-only session material unless a
+  later credential design explicitly changes that rule.
+- AList `raw_url` values and provider response headers must be treated as
+  transient playback material and must not be written to logs or durable
+  database fields.
+- If future features need credentials beyond remote media-source access, prefer
+  macOS Keychain.
 - Credential handling requires documentation before implementation.
 - Secrets must not be written to Git-tracked files or logs.
 

@@ -8,6 +8,10 @@ The data model should remain stable across the native rewrite.
 
 Data should be local-first and easy to migrate. Schema changes must be explicit and documented before implementation.
 
+Remote media sources, when accepted, should remain local-first from the
+database's point of view: the database stores source configuration and derived
+index data locally, while remote files remain owned by the remote provider.
+
 ## 2. Core Entities
 
 Initial entities:
@@ -25,34 +29,47 @@ Favorites are not required for M1 but should be considered when designing identi
 
 ## 3. Search Path
 
-A search path represents a local folder selected for subtitle indexing.
+A search path represents a selected media source for subtitle indexing.
 
 Fields:
 
 - `id`
 - `type`
 - `path`
+- `provider`
+- `display_name`
+- `credential_ref`
 - `created_at`
 - `updated_at`
 
-Initial supported `type`:
+Supported `type` values:
 
 - `local`
+- `webdav`
 
-Remote path types are deferred.
+Initial `provider` values:
+
+- `local`
+- `genericWebDAV`
+- `alist`
 
 Notes:
 
-- Selected folder configuration is the source of truth for active local search
-  scope.
+- Selected source configuration is the source of truth for active search scope.
 - Database search-path rows and indexed subtitle rows are derived local index
-  state and must be reconciled with the selected folder configuration.
-- Removing a selected folder must remove or exclude derived index data under
-  that folder while preserving the local files on disk.
+  state and must be reconciled with the selected source configuration.
+- For local sources, `path` is the selected local folder path.
+- For WebDAV sources, `path` is the configured remote root URL or provider root
+  path needed to rebuild remote-relative identities.
+- `credential_ref` may reference macOS Keychain material, but passwords, access
+  tokens, Basic auth headers, signed playback URLs, and provider response
+  headers must not be stored in the database row.
+- Removing a selected source must remove or exclude derived index data under
+  that source while preserving the local files or remote files themselves.
 
 ## 4. Video File
 
-A video file represents a local media file discovered under a selected search path.
+A video file represents a media file discovered under a selected search path.
 
 The video file is the owner of native playback compatibility metadata. Native
 compatibility must not be keyed by subtitle file path or subtitle cue group identity.
@@ -60,7 +77,9 @@ compatibility must not be keyed by subtitle file path or subtitle cue group iden
 Expected fields:
 
 - `id`
+- `source_id`
 - `path`
+- `source_relative_path`
 - `file_size`
 - `modified_at`
 - `duration`
@@ -74,6 +93,12 @@ Expected fields:
 
 Notes:
 
+- Local files may use an absolute local filesystem path as `path`.
+- Remote files must use `source_id` plus `source_relative_path` as durable
+  identity. A provider-signed HTTP playback URL must not be stored as durable
+  media identity.
+- AList `raw_url` values returned by `/api/fs/get` are transient playback
+  resolution outputs and should be requested near media open time.
 - The initial fast native compatibility inspection should use stream presence,
   codec names, and current-device hardware decode capability.
 - Fast native compatibility inspection should not decode frames or start a
@@ -89,7 +114,9 @@ A subtitle file represents a source subtitle document discovered under a selecte
 Expected fields:
 
 - `id`
+- `source_id`
 - `path`
+- `source_relative_path`
 - `format`
 - `file_size`
 - `modified_at`
@@ -100,6 +127,9 @@ Notes:
 - Subtitle files are the source of truth for parsed subtitle text.
 - Subtitle files must not own native playback compatibility metadata.
 - Initial supported formats are `srt` and `ass`.
+- Remote subtitle files may be downloaded or read into memory for parsing and
+  derived ASS render-segment cache generation. This does not imply whole-video
+  remote caching.
 - Playback should load the source subtitle file associated with the selected
   search result. The database stores a searchable projection, not a replacement
   subtitle renderer.
@@ -151,7 +181,9 @@ Notes:
 
 - `start_ms` is the primary timestamp used for playback seek.
 - `end_ms` is useful for future current-line highlighting and favorites.
-- `subtitle_path` and timing fields are part of stable identity.
+- Source subtitle identity and timing fields are part of stable identity.
+  For remote subtitles, source identity means `source_id` plus
+  `source_relative_path`, not a transient provider playback URL.
 - `search_content` is the aggregated searchable text from the group's cue lines.
 - Playback should resolve the target media file through the active subtitle-to-video match, not through subtitle path naming assumptions.
 - The current native schema uses first-class subtitle files, video files,
@@ -229,12 +261,16 @@ Index metadata tracks whether a source subtitle file needs to be reindexed.
 
 Fields:
 
+- `source_id`
 - `subtitle_path`
+- `source_relative_path`
 - `file_size`
 - `modified_at`
 - `indexed_at`
 
-The app may use file size and modified time for incremental indexing.
+The app may use file size and modified time for incremental indexing. For
+remote sources, the provider's stable path, size, and modified time are the
+initial invalidation inputs.
 
 ## 11. Full-Text Search
 
@@ -247,9 +283,9 @@ Expected FTS data:
 
 CJK handling should preserve at least the practical behavior of the existing Flutter implementation.
 
-Search results must be scoped to the currently selected local subtitle folders.
-FTS rows outside that active folder scope are stale derived index data and must
-not appear in user-facing search results.
+Search results must be scoped to the currently selected media sources. FTS rows
+outside that active source scope are stale derived index data and must not
+appear in user-facing search results.
 
 If an ASS cue group contains multiple languages or styles with the same timing,
 FTS should return the cue group once when any contained cue line matches. The
@@ -268,18 +304,22 @@ Favorites are deferred until M3.
 Expected fields:
 
 - `id`
+- `source_id`
 - `subtitle_path`
+- `source_relative_path`
 - `start_ms`
 - `end_ms`
+- `video_source_id`
 - `video_path`
+- `video_source_relative_path`
 - `video_name`
 - `content`
 - `is_valid`
 - `created_at`
 
-Favorite identity should be based on source subtitle path and time range, not on
-volatile row IDs. When cue groups are available, favorites should target cue
-groups rather than individual ASS lines unless the product explicitly adds
+Favorite identity should be based on source subtitle identity and time range,
+not on volatile row IDs. When cue groups are available, favorites should target
+cue groups rather than individual ASS lines unless the product explicitly adds
 line-level favorites.
 
 ## 13. Schema Versioning

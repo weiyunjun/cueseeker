@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the first WebDAV/AList remote media-source plan: WebDAV will provide
+  read-only remote listing and subtitle reads, while AList sources will resolve
+  playable signed URLs through `/api/fs/get`; whole-video temporary download
+  fallback and plain-text credential storage are explicitly out of scope.
 - Made search result selection update before playback session preparation starts,
   so result highlighting and inspector context respond immediately even when
   video open or seek work takes noticeable time.
