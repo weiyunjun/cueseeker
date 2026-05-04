@@ -33,6 +33,48 @@ func alistResolverBuildsAPIPathForMountRoot() throws {
 }
 
 @Test
+func mediaPathDisplayUsesDecodedRemoteSubtitleFileName() {
+    let fileName = MediaPathDisplay.fileName(
+        sourceRelativePath: "%5BDBD-Raws%5D%5BBanG%20Dream%21%20It%27s%20MyGO%21%21%21%21%21%5D%5B04%5D%5B1080P%5D%5BBDRip%5D%5BHEVC-10bit%5D%5BFLAC%5D.scjp.ass",
+        path: "http://example.test/dav/baidu/%5BDBD-Raws%5D%5BBanG%20Dream%21%5D.scjp.ass"
+    )
+
+    #expect(fileName == "[DBD-Raws][BanG Dream! It's MyGO!!!!!][04][1080P][BDRip][HEVC-10bit][FLAC].scjp.ass")
+}
+
+@Test
+func mediaPathDisplayKeepsLocalFilenameBehavior() {
+    let fileName = MediaPathDisplay.fileName(
+        sourceRelativePath: nil,
+        path: "/Volumes/Synology/影视/胜者即是正义/胜者即是正义01.ass"
+    )
+
+    #expect(fileName == "胜者即是正义01.ass")
+}
+
+@Test
+func remoteSubtitleCacheKeyUsesShortStableFilenameForLongPath() {
+    let relativePath = Array(repeating: "[DBD-Raws][BanG Dream! It's MyGO!!!!!][1080P][BDRip][HEVC-10bit][FLAC]", count: 8)
+        .joined(separator: "/")
+        + ".scjp.ass"
+
+    let fileName = RemoteSubtitleCacheKey.fileName(
+        sourceID: 27,
+        relativePath: relativePath,
+        pathExtension: "ass"
+    )
+    let sameFileName = RemoteSubtitleCacheKey.fileName(
+        sourceID: 27,
+        relativePath: relativePath,
+        pathExtension: "ass"
+    )
+
+    #expect(fileName == sameFileName)
+    #expect(fileName.count == 68)
+    #expect(fileName.hasSuffix(".ass"))
+}
+
+@Test
 func databaseStoresRemoteMediaSourceAndSearchesWithinRemoteScope() throws {
     let databaseURL = temporaryRemoteDatabaseURL()
     defer {

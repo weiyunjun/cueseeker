@@ -149,12 +149,12 @@ struct SearchView: View {
 
                         MetadataField(
                             title: "Video Path",
-                            value: result.videoPath
+                            value: MediaPathDisplay.videoPath(for: result)
                         )
 
                         MetadataField(
                             title: "Subtitle Path",
-                            value: result.subtitlePath
+                            value: MediaPathDisplay.subtitlePath(for: result)
                         )
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -301,7 +301,7 @@ private struct SearchResultRow: View {
                     }
                 }
 
-                Text(URL(fileURLWithPath: result.subtitlePath).lastPathComponent)
+                Text(MediaPathDisplay.subtitleFileName(for: result))
                     .font(.system(size: SearchTypography.detailSize))
                     .foregroundStyle(isSelected ? Color.white.opacity(0.8) : Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)

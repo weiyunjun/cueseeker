@@ -984,14 +984,12 @@ final class AppState: ObservableObject {
             .deletingLastPathComponent()
             .appendingPathComponent("RemoteSubtitleCache", isDirectory: true)
             .appendingPathComponent(String(sourceID), isDirectory: true)
-        let fileName = Data(relativePath.utf8)
-            .base64EncodedString()
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "=", with: "")
-        return cacheRoot
-            .appendingPathComponent(fileName)
-            .appendingPathExtension(pathExtension)
+        let fileName = RemoteSubtitleCacheKey.fileName(
+            sourceID: sourceID,
+            relativePath: relativePath,
+            pathExtension: pathExtension
+        )
+        return cacheRoot.appendingPathComponent(fileName)
     }
 
     private static func validateAListRemoteSource(

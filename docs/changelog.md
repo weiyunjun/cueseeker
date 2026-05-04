@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Fixed remote WebDAV result labels and subtitle caching: remote search rows now
+  display decoded source-relative filenames, inspector paths use decoded
+  source-relative paths, and remote subtitle cache files use short stable hash
+  names instead of full base64-encoded remote paths.
 - Documented the remote playback hardening plan from SubFinderX compatibility
   lessons: decoded display names for remote results, bounded subtitle cache
   filenames, AList `raw_url` resolution, optional loopback stream proxy
