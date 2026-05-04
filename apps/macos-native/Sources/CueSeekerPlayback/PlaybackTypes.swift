@@ -92,12 +92,14 @@ public struct PlaybackRequest: Equatable, Sendable {
     public let httpHeaders: [String: String]
     public let startMilliseconds: Int
     public let subtitleSource: PlaybackSubtitleSource?
+    public let mediaIdentifier: String
 
     public init(
         videoURL: URL,
         httpHeaders: [String: String] = [:],
         startMilliseconds: Int,
-        subtitleSource: PlaybackSubtitleSource? = nil
+        subtitleSource: PlaybackSubtitleSource? = nil,
+        mediaIdentifier: String? = nil
     ) throws {
         guard videoURL.isFileURL || videoURL.isHTTPURL else {
             throw PlaybackError.invalidVideoURL(videoURL.absoluteString)
@@ -111,14 +113,11 @@ public struct PlaybackRequest: Equatable, Sendable {
         self.httpHeaders = httpHeaders
         self.startMilliseconds = max(0, startMilliseconds)
         self.subtitleSource = subtitleSource
+        self.mediaIdentifier = mediaIdentifier ?? (videoURL.isFileURL ? videoURL.path : videoURL.absoluteString)
     }
 
     public var nativeMediaPath: String {
         videoURL.isFileURL ? videoURL.path : videoURL.absoluteString
-    }
-
-    public var mediaIdentifier: String {
-        nativeMediaPath
     }
 }
 

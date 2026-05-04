@@ -566,16 +566,19 @@ final class AppState: ObservableObject {
         )
 
         do {
-            let request = try await playbackRequest(for: result)
-
             guard let player else {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
-            if player.currentMediaIdentifier == request.mediaIdentifier {
-                player.loadSubtitleSource(request.subtitleSource)
-                try player.seek(toMilliseconds: request.startMilliseconds)
+            let mediaIdentifier = Self.playbackMediaIdentifier(for: result)
+            if player.currentMediaIdentifier == mediaIdentifier {
+                player.loadSubtitleSource(try await playbackSubtitleSource(for: result))
+                try player.seek(toMilliseconds: result.startMilliseconds)
             } else {
+                let request = try await playbackRequest(
+                    for: result,
+                    mediaIdentifier: mediaIdentifier
+                )
                 try player.open(request)
             }
 
@@ -809,14 +812,18 @@ final class AppState: ObservableObject {
         aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
     }
 
-    private func playbackRequest(for result: SubtitleSearchResult) async throws -> PlaybackRequest {
+    private func playbackRequest(
+        for result: SubtitleSearchResult,
+        mediaIdentifier: String? = nil
+    ) async throws -> PlaybackRequest {
         let subtitleSource = try await playbackSubtitleSource(for: result)
 
         guard let sourceID = result.videoSourceID else {
             return try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: result.videoPath),
                 startMilliseconds: result.startMilliseconds,
-                subtitleSource: subtitleSource
+                subtitleSource: subtitleSource,
+                mediaIdentifier: mediaIdentifier
             )
         }
 
@@ -848,12 +855,32 @@ final class AppState: ObservableObject {
             throw RemotePlaybackError.remoteSourceUnavailable
         }
 
-        return try PlaybackRequest(
-            videoURL: resolved.url,
-            httpHeaders: resolved.headers,
-            startMilliseconds: result.startMilliseconds,
-            subtitleSource: subtitleSource
+        let proxyURL = try await LocalStreamProxy.shared.register(
+            remoteURL: resolved.url,
+            headers: resolved.headers
         )
+
+        return try PlaybackRequest(
+            videoURL: proxyURL,
+            httpHeaders: [:],
+            startMilliseconds: result.startMilliseconds,
+            subtitleSource: subtitleSource,
+            mediaIdentifier: mediaIdentifier ?? Self.remoteMediaIdentifier(sourceID: sourceID, result: result)
+        )
+    }
+
+    private static func playbackMediaIdentifier(for result: SubtitleSearchResult) -> String {
+        guard let sourceID = result.videoSourceID else {
+            return result.videoPath
+        }
+        return remoteMediaIdentifier(sourceID: sourceID, result: result)
+    }
+
+    private static func remoteMediaIdentifier(sourceID: Int64, result: SubtitleSearchResult) -> String {
+        let path = result.videoSourceRelativePath?.removingPercentEncoding
+            ?? result.videoSourceRelativePath
+            ?? result.videoPath
+        return "remote:\(sourceID):\(path)"
     }
 
     private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {

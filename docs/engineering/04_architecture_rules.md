@@ -233,6 +233,10 @@ Rules:
   returned `raw_url` plus any returned `header` values as the playback target.
 - AList signed URLs, provider headers, JWT tokens, and Basic auth headers are
   transient secrets. They must not be persisted as durable database identity.
+- Remote playback should pass resolved provider URLs through the local loopback
+  stream proxy before native backend open. The proxy is a transport layer that
+  forwards byte-range requests and provider headers; it must not be used as a
+  whole-video staging cache.
 - The app must not download a whole remote video into a local temporary file as
   a playback fallback.
 - URL handling must preserve filenames containing spaces, brackets, ampersands,
@@ -251,15 +255,14 @@ Rules:
 
 - M1 requires local file playback and timestamp seek only.
 - ADR-0007 selects native-only playback.
-- Playback code must not assume local HTTP proxying, whole-file cache layers, or
-  complete ASS subtitle renderer compatibility.
+- Playback code must not assume whole-file cache layers or complete ASS
+  subtitle renderer compatibility.
 - Remote streams are allowed only through accepted media-source resolution
   rules. Provider-specific resolution must happen before native backend open,
   not inside subtitle parsing or search-result rendering.
-- A local loopback stream proxy is allowed as a future compatibility layer when
-  direct backend URL opening mishandles provider headers, redirects, non-ASCII
-  paths, or byte-range behavior. Such a proxy must forward stream requests and
-  range headers; it must not stage whole videos.
+- The local loopback stream proxy must preserve stable playback identity outside
+  the localhost token URL so same-video seek and stale-session checks continue
+  to use durable media identity.
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
 - ASS Lite is an interim source text overlay and fallback. Source-faithful ASS

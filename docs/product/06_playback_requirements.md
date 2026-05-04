@@ -91,10 +91,10 @@ Notes:
   responses and could be opened and seeked by FFmpeg.
 - Generic WebDAV sources may use direct WebDAV media URLs only when range
   requests and FFmpeg probing succeed against that server.
-- A local loopback stream proxy may be added as a compatibility layer for
-  headers, redirects, non-ASCII paths, and byte-range forwarding. It must stream
-  requests through to the provider and must not download whole videos before
-  playback.
+- Remote playback uses a local loopback stream proxy as the compatibility layer
+  for provider headers, redirects, non-ASCII paths, and byte-range forwarding.
+  It must stream requests through to the provider and must not download whole
+  videos before playback.
 - Locally mounted WebDAV/NAS paths may be preferred only when CueSeeker can
   match the remote source-relative path to a selected local root and confirm the
   file exists.

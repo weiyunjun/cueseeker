@@ -131,7 +131,8 @@ AList playback should resolve immediately before opening media:
 stored remote media identity
 -> AList /api/fs/get path
 -> raw_url + headers
--> FFmpeg avformat_open_input
+-> local loopback stream proxy
+-> FFmpeg avformat_open_input on localhost URL
 ```
 
 Rules:
@@ -142,6 +143,8 @@ Rules:
 - A signed URL should be refreshed on each new media open.
 - Same-video seek should avoid a full resolve when the currently open playback
   session remains valid.
+- Local proxy URLs are transport handles only. Same-video playback identity must
+  remain source ID plus source-relative path, not the proxy token URL.
 - If a signed URL expires during playback, the app should surface a clear error
   first; automatic mid-stream refresh may be a later iteration.
 - The app must not use a fallback that downloads the entire remote video to a
@@ -208,12 +211,11 @@ compatibility guidance:
   returned `raw_url` plus optional headers.
 - Prefer a locally mounted file only when the same remote path can be proven to
   exist under a selected local root. This is an optimization, not a requirement.
-- A local loopback stream proxy is an acceptable future compatibility layer for
-  generic WebDAV or provider URLs whose headers, redirects, non-ASCII paths, or
-  Range behavior are not handled consistently by the playback backend. The proxy
-  may forward `Range`, `HEAD`, `Content-Range`, `Accept-Ranges`, `ETag`, and
-  similar streaming headers, but it must not become a whole-video download
-  fallback.
+- Remote playback uses a local loopback stream proxy so the playback backend
+  opens a localhost URL while CueSeeker forwards provider URLs, credentials,
+  and streaming headers. The proxy forwards `Range`, `HEAD`, `Content-Range`,
+  `Accept-Ranges`, `ETag`, and similar streaming headers, but it must not become
+  a whole-video download fallback.
 - Remote subtitle files may be downloaded to a local subtitle cache before
   loading them into the subtitle renderer, but the cache filename must be short
   and independent of the full remote path length.

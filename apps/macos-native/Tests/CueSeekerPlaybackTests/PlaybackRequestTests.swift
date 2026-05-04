@@ -188,6 +188,19 @@ func playbackRequestAllowsHTTPVideoURLAndStoresHeaders() throws {
 }
 
 @Test
+func playbackRequestCanUseStableMediaIdentifierForProxiedRemoteURL() throws {
+    let videoURL = try #require(URL(string: "http://127.0.0.1:49152/stream/token"))
+    let request = try PlaybackRequest(
+        videoURL: videoURL,
+        startMilliseconds: 2_000,
+        mediaIdentifier: "remote:27:Episode 01.mkv"
+    )
+
+    #expect(request.nativeMediaPath == videoURL.absoluteString)
+    #expect(request.mediaIdentifier == "remote:27:Episode 01.mkv")
+}
+
+@Test
 func playbackRequestRejectsUnsupportedRemoteScheme() {
     let videoURL = URL(string: "ftp://example.test/media.mkv")!
 

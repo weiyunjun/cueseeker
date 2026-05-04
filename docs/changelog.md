@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Routed remote WebDAV/AList playback through a local loopback stream proxy:
+  CueSeeker now forwards provider URLs, auth headers, and byte-range requests
+  while FFmpeg opens a localhost URL, preserving stable media identity separately
+  from the per-open proxy token and avoiding whole-video temporary downloads.
 - Fixed remote WebDAV result labels and subtitle caching: remote search rows now
   display decoded source-relative filenames, inspector paths use decoded
   source-relative paths, and remote subtitle cache files use short stable hash
