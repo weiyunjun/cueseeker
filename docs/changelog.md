@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a draft remote playback warm-up state machine proposal covering shared
+  scheduling across search, favorites, and future result surfaces, with explicit
+  candidate, task, warm session, state transition, resource-limit, durable-data,
+  and observability guidance.
 - Documented remote warm-session constraints: warm-up is bounded by distinct
   videos rather than result rows, centrally scheduled across search and future
   favorites, limited by provider politeness rules, memory-first by default, and
