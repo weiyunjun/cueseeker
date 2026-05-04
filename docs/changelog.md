@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the first remote playback warm-up path for committed search
+  results: AList and generic WebDAV results now publish up to three distinct
+  remote-video candidates, warm them serially through the normal local stream
+  proxy with muted medium warm-up, skip local and mounted NAS paths, and promote
+  completed warm sessions on matching result clicks instead of reopening the
+  remote media URL.
 - Changed native search input to draft-and-commit behavior: typing no longer
   refreshes results, Return commits the draft query, Escape restores the input
   to the committed query behind the visible result list, and repeated committed

@@ -123,6 +123,12 @@ final class AppState: ObservableObject {
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private lazy var remoteWarmUpCoordinator = RemotePlaybackWarmUpCoordinator { [weak self] candidate in
+        guard let self else {
+            throw RemotePlaybackError.remoteSourceUnavailable
+        }
+        return try await self.remoteWarmPreparedRequest(for: candidate)
+    }
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -278,6 +284,7 @@ final class AppState: ObservableObject {
             try database.removeIndexedRemoteSource(id: source.id)
             credentialStore.delete(credentialRef: source.credentialRef)
             remoteSources = try database.remoteMediaSources()
+            remoteWarmUpCoordinator.clear()
             clearSearchAndPlaybackState(sourceID: source.id)
             refreshCurrentSearch(clearExistingResults: true)
         } catch {
@@ -520,6 +527,7 @@ final class AppState: ObservableObject {
         guard !trimmedQuery.isEmpty else {
             searchStatus = .idle
             searchResults = []
+            remoteWarmUpCoordinator.clear()
             return
         }
 
@@ -529,10 +537,12 @@ final class AppState: ObservableObject {
             searchStatus = .completed
             searchResults = []
             selectedSearchResult = nil
+            remoteWarmUpCoordinator.clear()
             return
         }
 
         searchStatus = .searching
+        remoteWarmUpCoordinator.clear()
 
         let databaseURL = databaseURL
         searchTask = Task {
@@ -553,6 +563,7 @@ final class AppState: ObservableObject {
 
                 searchResults = results
                 searchStatus = .completed
+                publishRemoteWarmCandidates(for: results)
             } catch is CancellationError {
                 return
             } catch {
@@ -562,6 +573,7 @@ final class AppState: ObservableObject {
 
                 searchResults = []
                 searchStatus = .failed(Self.errorMessage(for: error))
+                remoteWarmUpCoordinator.clear()
             }
         }
     }
@@ -596,6 +608,7 @@ final class AppState: ObservableObject {
             }
 
             let mediaIdentifier = Self.playbackMediaIdentifier(for: result)
+            var playbackPlayer = player
             if player.currentMediaIdentifier == mediaIdentifier {
                 let expectedSubtitleIdentifier = result.subtitleFormat == .ass ? result.subtitlePath : nil
                 if player.currentSubtitleSourceIdentifier != expectedSubtitleIdentifier {
@@ -605,7 +618,14 @@ final class AppState: ObservableObject {
                     }
                 }
                 try await player.seekAsync(toMilliseconds: result.startMilliseconds)
+            } else if let warmSession = remoteWarmUpCoordinator.takeWarmSession(mediaIdentifier: mediaIdentifier) {
+                playbackPlayer = try await promoteWarmSession(
+                    warmSession,
+                    for: result,
+                    replacing: player
+                )
             } else {
+                remoteWarmUpCoordinator.cancel(mediaIdentifier: mediaIdentifier)
                 try player.stop()
                 let request = try await playbackRequest(
                     for: result,
@@ -614,7 +634,7 @@ final class AppState: ObservableObject {
                 try player.open(request)
             }
 
-            try player.setPaused(false)
+            try playbackPlayer.setPaused(false)
             playbackStatus = .playing(result)
         } catch {
             playbackViewModel?.clearSubtitleCues()
@@ -772,6 +792,15 @@ final class AppState: ObservableObject {
         runSearch(for: searchQuery)
     }
 
+    private func publishRemoteWarmCandidates(for results: [SubtitleSearchResult]) {
+        let candidates = RemotePlaybackWarmUpCoordinator.searchCandidates(
+            results: results,
+            remoteSources: remoteSources,
+            currentMediaIdentifier: player?.currentMediaIdentifier
+        )
+        remoteWarmUpCoordinator.publishSearchCandidates(candidates)
+    }
+
     private func clearSearchAndPlaybackState(under folder: URL) {
         searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
 
@@ -782,6 +811,7 @@ final class AppState: ObservableObject {
         }
 
         self.selectedSearchResult = nil
+        remoteWarmUpCoordinator.clear()
         stopPlayback()
     }
 
@@ -797,6 +827,7 @@ final class AppState: ObservableObject {
         }
 
         self.selectedSearchResult = nil
+        remoteWarmUpCoordinator.clear()
         stopPlayback()
     }
 
@@ -846,9 +877,10 @@ final class AppState: ObservableObject {
 
     private func playbackRequest(
         for result: SubtitleSearchResult,
-        mediaIdentifier: String? = nil
+        mediaIdentifier: String? = nil,
+        includeSubtitleSource: Bool = true
     ) async throws -> PlaybackRequest {
-        let subtitleSource = try await playbackSubtitleSource(for: result)
+        let subtitleSource = includeSubtitleSource ? try await playbackSubtitleSource(for: result) : nil
 
         guard let sourceID = result.videoSourceID else {
             return try PlaybackRequest(
@@ -899,6 +931,53 @@ final class AppState: ObservableObject {
             subtitleSource: subtitleSource,
             mediaIdentifier: mediaIdentifier ?? Self.remoteMediaIdentifier(sourceID: sourceID, result: result)
         )
+    }
+
+    private func remoteWarmPreparedRequest(
+        for candidate: RemotePlaybackWarmCandidate
+    ) async throws -> RemotePlaybackWarmPreparedRequest {
+        let request = try await playbackRequest(
+            for: candidate.result,
+            mediaIdentifier: candidate.mediaIdentifier,
+            includeSubtitleSource: false
+        )
+        return RemotePlaybackWarmPreparedRequest(
+            request: request,
+            decodeMode: playbackDecodeMode
+        )
+    }
+
+    private func promoteWarmSession(
+        _ session: RemotePlaybackWarmSession,
+        for result: SubtitleSearchResult,
+        replacing currentPlayer: PlaybackPlayer
+    ) async throws -> PlaybackPlayer {
+        let volume = (try? currentPlayer.getDoubleProperty("volume")) ?? 100
+        let speed = (try? currentPlayer.getDoubleProperty("speed")) ?? 1
+        let subtitlesVisible = playbackViewModel?.areSubtitlesVisible ?? true
+        try currentPlayer.stop()
+
+        let warmPlayer = session.player
+        warmPlayer.assSubtitleRenderingMode = assSubtitleRenderingMode
+        try? warmPlayer.setDoubleProperty("volume", value: volume)
+        try? warmPlayer.setDoubleProperty("speed", value: speed)
+        warmPlayer.setSubtitlesVisible(subtitlesVisible)
+
+        self.player = warmPlayer
+        let viewModel = PlaybackViewModel(player: warmPlayer)
+        viewModel.areSubtitlesVisible = subtitlesVisible
+        viewModel.setSubtitleCues(
+            playbackSubtitleCues(for: result),
+            currentTimeMilliseconds: result.startMilliseconds
+        )
+        playbackViewModel = viewModel
+
+        let subtitleSource = try await playbackSubtitleSource(for: result)
+        if !warmPlayer.hasActiveSubtitleSource(subtitleSource) {
+            warmPlayer.loadSubtitleSource(subtitleSource)
+        }
+        try await warmPlayer.seekAsync(toMilliseconds: result.startMilliseconds)
+        return warmPlayer
     }
 
     private static func playbackMediaIdentifier(for result: SubtitleSearchResult) -> String {

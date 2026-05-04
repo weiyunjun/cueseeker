@@ -189,6 +189,35 @@ Initial policy:
 - Provider politeness: do not launch warm-up for every distinct video in a large
   list; do not run parallel remote warm-up by default.
 
+## Initial Native Implementation
+
+The first implementation uses the medium warm-up level for committed search
+results only.
+
+Rules:
+
+- Eligibility is based on configured remote media sources, not host topology.
+  AList and generic WebDAV sources are eligible even when their URL points to a
+  LAN address. Local folders and mounted NAS paths are not eligible.
+- Search publishes candidates only after Return commits a query and results are
+  materialized. Typing draft text must not start warm-up.
+- Search candidates collapse by stable remote media identity and keep the first
+  result timestamp for each video in the visible result ordering.
+- The coordinator accepts at most three distinct videos from a search result
+  list and runs one warm-up at a time after a short debounce.
+- Medium warm-up builds the normal remote playback request, resolves AList or
+  generic WebDAV playback material through the local stream proxy, opens a
+  muted background native player at the warm point, primes briefly, then pauses
+  the session.
+- Background warm-up does not attach ASS subtitle rendering state. If the user
+  selects a warmed result, the warm session is promoted to active playback and
+  the subtitle source is attached during promotion.
+- Warm sessions expire after a short idle period. New searches cancel obsolete
+  queued work and release warm sessions that no longer match the current
+  candidate set.
+- Warm-up stores no whole video files, signed URLs, provider headers, tokens, or
+  packet cache data on disk.
+
 ## Favorites Implication
 
 A favorites list may contain many remote videos. For example, 100 favorites may

@@ -267,6 +267,18 @@ Requirements:
 - Warm-up must remain an acceleration path. It must not download whole remote
   videos, must not prevent normal click-to-playback if warm-up is incomplete,
   and must release inactive warm sessions after a short idle lifetime.
+- The initial native implementation applies warm-up only to configured remote
+  WebDAV providers, including AList, regardless of whether the host is a LAN IP
+  or a public internet host. Local folders and mounted NAS paths are not remote
+  warm-up candidates.
+- The initial native implementation uses medium warm-up for search results:
+  after a committed search completes, it warms at most three distinct remote
+  videos in result order, opens each through the normal local stream proxy,
+  mutes the background player, primes briefly at the first result timestamp for
+  that video, then pauses the warm session for possible promotion.
+- Warm-up should not load ASS rendering state in the background. Subtitle
+  playback sources can be attached when a warm session is promoted to active
+  playback.
 
 ## 10. Settings
 
