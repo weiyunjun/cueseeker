@@ -18,15 +18,27 @@ final class PlaybackFullscreenManager: ObservableObject {
     private var initialHoverLocation: CGPoint?
     private let initialHoverMovementThreshold: CGFloat = 6
 
-    func toggleFullscreen(player: PlaybackPlayer, viewModel: PlaybackViewModel) {
+    func toggleFullscreen(
+        player: PlaybackPlayer,
+        viewModel: PlaybackViewModel,
+        onCopySubtitle: @escaping () -> Void = {}
+    ) {
         if isFullscreen {
             exitFullscreen()
         } else {
-            enterFullscreen(player: player, viewModel: viewModel)
+            enterFullscreen(
+                player: player,
+                viewModel: viewModel,
+                onCopySubtitle: onCopySubtitle
+            )
         }
     }
 
-    func enterFullscreen(player: PlaybackPlayer, viewModel: PlaybackViewModel) {
+    func enterFullscreen(
+        player: PlaybackPlayer,
+        viewModel: PlaybackViewModel,
+        onCopySubtitle: @escaping () -> Void = {}
+    ) {
         guard !isFullscreen, fullscreenWindow == nil else {
             return
         }
@@ -69,6 +81,7 @@ final class PlaybackFullscreenManager: ObservableObject {
             rootView: PlaybackFullscreenOverlayView(
                 fullscreenManager: self,
                 viewModel: viewModel,
+                onCopySubtitle: onCopySubtitle,
                 onExit: { [weak self] in
                     Task { @MainActor in
                         self?.exitFullscreen()
@@ -315,6 +328,7 @@ private final class PlaybackFullscreenRootView: NSView {
 private struct PlaybackFullscreenOverlayView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @ObservedObject var viewModel: PlaybackViewModel
+    let onCopySubtitle: () -> Void
     let onExit: () -> Void
 
     var body: some View {
@@ -330,6 +344,7 @@ private struct PlaybackFullscreenOverlayView: View {
                 PlaybackControlsView(
                     viewModel: viewModel,
                     isFullscreen: true,
+                    onCopySubtitle: onCopySubtitle,
                     onToggleFullscreen: onExit
                 )
                 .transition(.opacity)

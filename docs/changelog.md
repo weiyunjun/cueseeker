@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a copy-current-subtitle playback command, available from a pencil-tip
+  control beside the subtitle visibility button and from the `Q` playback
+  shortcut, using the indexed cue-group timing and Search result line order for
+  clipboard text.
 - Fixed Japanese kana subtitle search by segmenting hiragana, katakana, and
   halfwidth katakana for SQLite FTS phrase matching, and added a schema
   migration that rebuilds derived FTS rows from stored cue-group search content.

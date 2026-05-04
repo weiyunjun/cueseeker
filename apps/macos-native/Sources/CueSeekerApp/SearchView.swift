@@ -129,6 +129,10 @@ struct SearchView: View {
                             onSurfaceTap: {
                                 appState.clearSearchFocus()
                                 appState.togglePlaybackFromUser()
+                            },
+                            onCopySubtitle: {
+                                appState.clearSearchFocus()
+                                appState.copyCurrentSubtitleToClipboard()
                             }
                         )
                             .aspectRatio(16 / 9, contentMode: .fit)

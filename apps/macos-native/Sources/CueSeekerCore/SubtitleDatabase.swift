@@ -36,6 +36,29 @@ public struct SubtitleCueTiming: Equatable, Sendable {
     }
 }
 
+public struct SubtitleCueTextSelection: Equatable, Sendable {
+    public let cueGroupID: Int64
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+    public let lines: [String]
+
+    public var text: String {
+        lines.joined(separator: "\n")
+    }
+
+    public init(
+        cueGroupID: Int64,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        lines: [String]
+    ) {
+        self.cueGroupID = cueGroupID
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = endMilliseconds
+        self.lines = lines
+    }
+}
+
 public struct SubtitleFileMetadata: Equatable, Sendable {
     public let subtitlePath: String
     public let subtitleFormat: SubtitleFormat
@@ -368,6 +391,38 @@ public final class SubtitleDatabase {
         return timings
     }
 
+    public func cueTextSelection(
+        forSubtitleFile subtitleFile: URL,
+        atMilliseconds milliseconds: Int
+    ) throws -> SubtitleCueTextSelection? {
+        let timestamp = max(0, milliseconds)
+        guard let group = try activeCueGroupSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: timestamp
+        ) ?? previousCueGroupSelection(
+            forSubtitleFile: subtitleFile,
+            beforeOrAtMilliseconds: timestamp
+        ) else {
+            return nil
+        }
+
+        let lineContents = try cueLines(forCueGroupID: group.cueGroupID)
+            .map(\.content)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let fallbackLines = group.searchContent
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return SubtitleCueTextSelection(
+            cueGroupID: group.cueGroupID,
+            startMilliseconds: group.startMilliseconds,
+            endMilliseconds: group.endMilliseconds,
+            lines: lineContents.isEmpty ? fallbackLines : lineContents
+        )
+    }
+
     public func hasASSRenderSegments(forSubtitleFile subtitleFile: URL) throws -> Bool {
         let statement = try database.prepare(
             """
@@ -625,6 +680,13 @@ public final class SubtitleDatabase {
         let subtitleFormat: SubtitleFormat
         let videoPath: String
         let videoName: String
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+        let searchContent: String
+    }
+
+    private struct CueGroupSelection {
+        let cueGroupID: Int64
         let startMilliseconds: Int
         let endMilliseconds: Int
         let searchContent: String
@@ -1201,6 +1263,68 @@ public final class SubtitleDatabase {
         try statement.run()
     }
 
+    private func activeCueGroupSelection(
+        forSubtitleFile subtitleFile: URL,
+        atMilliseconds milliseconds: Int
+    ) throws -> CueGroupSelection? {
+        let statement = try database.prepare(
+            """
+            SELECT g.id, g.start_ms, g.end_ms, g.search_content
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND g.start_ms <= ?
+              AND g.end_ms > ?
+              AND g.end_ms > g.start_ms
+            ORDER BY (g.end_ms - g.start_ms) ASC,
+                     g.end_ms DESC,
+                     g.start_ms DESC,
+                     g.id ASC
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(milliseconds, at: 2)
+        try statement.bind(milliseconds, at: 3)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return cueGroupSelection(from: statement)
+    }
+
+    private func previousCueGroupSelection(
+        forSubtitleFile subtitleFile: URL,
+        beforeOrAtMilliseconds milliseconds: Int
+    ) throws -> CueGroupSelection? {
+        let statement = try database.prepare(
+            """
+            SELECT g.id, g.start_ms, g.end_ms, g.search_content
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND g.end_ms <= ?
+              AND g.end_ms > g.start_ms
+            ORDER BY g.end_ms DESC,
+                     (g.end_ms - g.start_ms) ASC,
+                     g.start_ms DESC,
+                     g.id ASC
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(milliseconds, at: 2)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return cueGroupSelection(from: statement)
+    }
+
     private func rebuildFTSRows() throws {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
@@ -1344,6 +1468,15 @@ public final class SubtitleDatabase {
             startMilliseconds: statement.intColumn(8),
             endMilliseconds: statement.intColumn(9),
             content: statement.stringColumn(10)
+        )
+    }
+
+    private func cueGroupSelection(from statement: SQLiteStatement) -> CueGroupSelection {
+        CueGroupSelection(
+            cueGroupID: statement.int64Column(0),
+            startMilliseconds: statement.intColumn(1),
+            endMilliseconds: statement.intColumn(2),
+            searchContent: statement.stringColumn(3)
         )
     }
 

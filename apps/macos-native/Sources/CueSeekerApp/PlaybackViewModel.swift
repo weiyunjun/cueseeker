@@ -179,6 +179,18 @@ public final class PlaybackViewModel: ObservableObject {
         refreshActiveSubtitleText()
     }
 
+    func showSubtitleCopyFeedback(copied: Bool) {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                systemImage: copied ? "pencil.tip" : "exclamationmark.triangle",
+                text: copied ? "Copied" : "No Subtitle",
+                isCircular: false
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func showPlayPauseFeedback(isPlaying: Bool) {
         showFeedback(
             PlaybackFeedback(

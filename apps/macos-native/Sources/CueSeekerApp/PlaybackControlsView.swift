@@ -3,6 +3,7 @@ import SwiftUI
 struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackViewModel
     let isFullscreen: Bool
+    let onCopySubtitle: () -> Void
     let onToggleFullscreen: () -> Void
     
     @State private var isVolumeHovered = false
@@ -11,10 +12,12 @@ struct PlaybackControlsView: View {
     init(
         viewModel: PlaybackViewModel,
         isFullscreen: Bool = false,
+        onCopySubtitle: @escaping () -> Void = {},
         onToggleFullscreen: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.isFullscreen = isFullscreen
+        self.onCopySubtitle = onCopySubtitle
         self.onToggleFullscreen = onToggleFullscreen
     }
 
@@ -62,6 +65,20 @@ struct PlaybackControlsView: View {
                     .foregroundColor(.white)
 
                 Spacer()
+
+                Button(action: {
+                    onCopySubtitle()
+                }) {
+                    Image(systemName: "pencil.tip")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                        .frame(
+                            width: PlaybackControlsLayout.iconButtonSize,
+                            height: PlaybackControlsLayout.iconButtonSize
+                        )
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help("Copy Current Subtitle")
 
                 Button(action: {
                     viewModel.toggleSubtitles()

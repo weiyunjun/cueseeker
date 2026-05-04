@@ -276,6 +276,7 @@ Required behavior:
 - The subtitle button should toggle subtitle visibility through the playback engine.
 - Playback keyboard shortcuts should be available when a playback result is selected, the playback interface is visible, and the user is not typing into an editable text field.
 - Read-only selectable metadata text must not disable playback keyboard shortcuts.
+- `Q` should copy the current subtitle to the clipboard.
 - `C` should show or hide subtitles.
 - `F` should enter or exit playback fullscreen.
 - `Space` should play or pause.
@@ -288,7 +289,7 @@ Required behavior:
 - Playback speed changes must stay within `0.5x` through `2.0x`.
 - The visible playback speed menu should offer `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - Timeline hover and drag states must not move the playback operation controls vertically.
-- Playback commands should show transient feedback for subtitle visibility, play or pause, seek direction and amount, volume, and playback speed.
+- Playback commands should show transient feedback for subtitle copy, subtitle visibility, play or pause, seek direction and amount, volume, and playback speed.
 
 Current implementation notes:
 
@@ -302,6 +303,8 @@ Current implementation notes:
 - Read-only selectable metadata text does not count as editable text input for playback shortcut suppression.
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
+- Current subtitle copy uses the indexed cue-group projection for clipboard text
+  and preserves the same line ordering as Search result display.
 
 ## 9. Error States
 

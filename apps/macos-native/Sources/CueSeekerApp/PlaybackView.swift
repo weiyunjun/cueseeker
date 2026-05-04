@@ -7,6 +7,7 @@ struct PlaybackView: View {
     let viewModel: PlaybackViewModel?
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
+    let onCopySubtitle: () -> Void
 
     var body: some View {
         if let player, let viewModel {
@@ -14,7 +15,8 @@ struct PlaybackView: View {
                 player: player,
                 viewModel: viewModel,
                 fullscreenManager: fullscreenManager,
-                onSurfaceTap: onSurfaceTap
+                onSurfaceTap: onSurfaceTap,
+                onCopySubtitle: onCopySubtitle
             )
         } else {
             Color.black
@@ -27,6 +29,7 @@ struct PlaybackVideoView: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
+    let onCopySubtitle: () -> Void
     @State private var isControlsVisible = false
 
     var body: some View {
@@ -44,10 +47,12 @@ struct PlaybackVideoView: View {
             if isControlsVisible && !fullscreenManager.isFullscreen {
                 PlaybackControlsView(
                     viewModel: viewModel,
+                    onCopySubtitle: onCopySubtitle,
                     onToggleFullscreen: {
                         fullscreenManager.toggleFullscreen(
                             player: player,
-                            viewModel: viewModel
+                            viewModel: viewModel,
+                            onCopySubtitle: onCopySubtitle
                         )
                     }
                 )

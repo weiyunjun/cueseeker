@@ -124,6 +124,7 @@ M2 playback interaction model:
 - The speed menu should appear only when hovering over the speed button area.
 - The speed menu should disappear only after the pointer leaves the combined rectangular region whose top edge is the speed menu top edge and whose bottom edge is the speed button bottom edge.
 - Keyboard shortcuts in fullscreen should not reveal the playback operation controls.
+- A copy-current-subtitle button should appear immediately before the subtitle visibility button.
 - The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
 
@@ -135,7 +136,7 @@ Current M2 implementation:
 - Theater Mode suspends during app deactivation and restores on app activation without recreating the playback render context.
 - The Theater Mode window level allows Cmd-Tab and other system overlays to remain visible above playback fullscreen.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
-- Shortcut and control actions show transient feedback overlays for subtitle visibility, play/pause, relative seek, volume, and speed.
+- Shortcut and control actions show transient feedback overlays for copying the current subtitle, subtitle visibility, play/pause, relative seek, volume, and speed.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - The speed button hover area, speed button click area, and speed menu width are aligned to the same horizontal bounds.
 - Keyboard shortcuts adjust speed in `0.25x` steps and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
@@ -184,13 +185,14 @@ M2 keyboard shortcut model:
 - The native menu bar should expose relevant commands so keyboard shortcuts are discoverable through standard macOS menus where practical.
 - Playback shortcuts should be active only when a playback result is selected, the playback interface is visible, and editable text input is not focused.
 - Read-only selectable text in playback metadata should not suppress playback shortcuts.
+- `Q` should copy the current subtitle to the clipboard.
 - `C` should show or hide subtitles.
 - `F` should enter or exit playback fullscreen.
 - `Space` should toggle play or pause.
 - `Left Arrow` and `Right Arrow` should seek backward or forward by 5 seconds.
 - `Up Arrow` and `Down Arrow` should adjust volume by 5 percentage points.
 - `Shift+,` and `Shift+.` should decrease or increase playback speed by 0.25x.
-- Playback shortcut commands should show lightweight feedback overlays for subtitle visibility, play or pause, relative seek, volume, and speed changes.
+- Playback shortcut commands should show lightweight feedback overlays for subtitle copy, subtitle visibility, play or pause, relative seek, volume, and speed changes.
 
 ## 9. File And Finder Interaction
 

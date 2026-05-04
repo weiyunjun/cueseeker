@@ -156,6 +156,9 @@ Required M2 playback interaction checks:
 - Cmd-Tab and other system overlays remain visible above the Theater Mode window.
 - Theater Mode hides when the app resigns active and restores when the app becomes active again.
 - Fullscreen keyboard shortcuts execute playback commands without revealing the playback operation controls.
+- The `Q` shortcut copies the current subtitle without interfering with editable
+  text input.
+- The copy-current-subtitle button copies the same text as the `Q` shortcut.
 - Mouse or click activity reveals fullscreen controls and cursor and restarts the inactivity timer.
 - Selecting a search result, clicking app-owned feature buttons, selecting another sidebar section, or clicking the Playback Inspector clears Search field focus.
 - Cmd-Tab away and back, titlebar double-click resize, native traffic-light clicks, and foreground/background transitions do not intentionally clear Search field focus.

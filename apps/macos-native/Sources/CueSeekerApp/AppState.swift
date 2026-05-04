@@ -473,6 +473,39 @@ final class AppState: ObservableObject {
         playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
     }
 
+    @discardableResult
+    func copyCurrentSubtitleToClipboard() -> Bool {
+        guard let selectedSearchResult, let playbackViewModel else {
+            playbackViewModel?.showSubtitleCopyFeedback(copied: false)
+            return false
+        }
+
+        let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
+
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+
+            guard let selection = try database.cueTextSelection(
+                forSubtitleFile: URL(fileURLWithPath: selectedSearchResult.subtitlePath),
+                atMilliseconds: milliseconds
+            ), !selection.text.isEmpty else {
+                playbackViewModel.showSubtitleCopyFeedback(copied: false)
+                return false
+            }
+
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            let copied = pasteboard.setString(selection.text, forType: .string)
+            playbackViewModel.showSubtitleCopyFeedback(copied: copied)
+            return copied
+        } catch {
+            print("Failed to copy current subtitle: \(error)")
+            playbackViewModel.showSubtitleCopyFeedback(copied: false)
+            return false
+        }
+    }
+
     func handlePlaybackKeyDown(
         keyCode: UInt16,
         modifierFlagsRawValue: UInt
@@ -502,12 +535,21 @@ final class AppState: ObservableObject {
         let hasShift = modifierFlags.contains(.shift)
 
         switch keyCode {
+        case 12:
+            copyCurrentSubtitleToClipboard()
+            return true
         case 8:
             viewModel.toggleSubtitles()
             return true
         case 3:
             if let player {
-                playbackFullscreenManager.toggleFullscreen(player: player, viewModel: viewModel)
+                playbackFullscreenManager.toggleFullscreen(
+                    player: player,
+                    viewModel: viewModel,
+                    onCopySubtitle: { [weak self] in
+                        self?.copyCurrentSubtitleToClipboard()
+                    }
+                )
                 return true
             }
             return false

@@ -766,6 +766,120 @@ func returnsCueTimingsForWindowedASSPreparation() throws {
     ])
 }
 
+@Test
+func cueTextSelectionUsesShortestActiveCueAndLatestEndTieBreak() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Selection.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Selection.mkv")
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [
+            testCueGroup(startMilliseconds: 1_000, endMilliseconds: 8_000, content: "long", eventIndex: 0),
+            testCueGroup(startMilliseconds: 3_000, endMilliseconds: 5_000, content: "short earlier", eventIndex: 1),
+            testCueGroup(startMilliseconds: 3_500, endMilliseconds: 5_500, content: "short later", eventIndex: 2)
+        ]
+    )
+
+    let selectedCue = try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 4_000)
+    let selection = try #require(selectedCue)
+    #expect(selection.startMilliseconds == 3_500)
+    #expect(selection.endMilliseconds == 5_500)
+    #expect(selection.text == "short later")
+}
+
+@Test
+func cueTextSelectionFallsBackToPreviousCueRange() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Previous.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Previous.mkv")
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [
+            testCueGroup(startMilliseconds: 1_000, endMilliseconds: 5_000, content: "wide previous", eventIndex: 0),
+            testCueGroup(startMilliseconds: 4_500, endMilliseconds: 5_000, content: "short previous", eventIndex: 1),
+            testCueGroup(startMilliseconds: 7_000, endMilliseconds: 8_000, content: "future", eventIndex: 2)
+        ]
+    )
+
+    let selectedCue = try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 6_000)
+    let selection = try #require(selectedCue)
+    #expect(selection.startMilliseconds == 4_500)
+    #expect(selection.endMilliseconds == 5_000)
+    #expect(selection.text == "short previous")
+
+    #expect(try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 500) == nil)
+}
+
+@Test
+func cueTextSelectionReturnsLinesInSearchResultDisplayOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Lines.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Lines.mkv")
+    let cueGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "bottom\ntop",
+        cueLines: [
+            testCueLine(
+                eventIndex: 0,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "bottom",
+                displayOrder: 1
+            ),
+            testCueLine(
+                eventIndex: 1,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "top",
+                displayOrder: 0
+            )
+        ]
+    )
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [cueGroup]
+    )
+
+    let selectedCue = try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 2_000)
+    let selection = try #require(selectedCue)
+    #expect(selection.lines == ["top", "bottom"])
+    #expect(selection.text == "top\nbottom")
+}
+
 private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerDatabaseTests-\(UUID().uuidString)")
@@ -801,6 +915,29 @@ private func testCueGroup(
                 displayOrder: 0
             )
         ]
+    )
+}
+
+private func testCueLine(
+    eventIndex: Int,
+    startMilliseconds: Int,
+    endMilliseconds: Int,
+    content: String,
+    displayOrder: Int
+) -> SubtitleCueLine {
+    SubtitleCueLine(
+        eventIndex: eventIndex,
+        sourceFormat: .ass,
+        sourceStyle: nil,
+        sourceLayer: nil,
+        startTimecode: "\(startMilliseconds)",
+        endTimecode: "\(endMilliseconds)",
+        startMilliseconds: startMilliseconds,
+        endMilliseconds: endMilliseconds,
+        content: content,
+        displayX: nil,
+        displayY: nil,
+        displayOrder: displayOrder
     )
 }
 

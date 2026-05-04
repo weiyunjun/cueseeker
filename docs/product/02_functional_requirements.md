@@ -195,14 +195,27 @@ Requirements:
 - Do not automatically resume playback when the Playback Inspector is reopened.
 - Provide video-level fullscreen that does not put the app shell into macOS Full Screen.
 - Provide a subtitle visibility toggle.
+- Provide a copy-current-subtitle command from playback controls and keyboard.
 - Provide playback speed control with preset choices from `0.5x` through `2.0x`.
-- Provide keyboard shortcuts for subtitle visibility, fullscreen, play or pause, relative seek, volume, and speed adjustment.
+- Provide keyboard shortcuts for copying the current subtitle, subtitle visibility, fullscreen, play or pause, relative seek, volume, and speed adjustment.
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
 - ASS playback rendering should preserve timed source ASS events, including
   visual effects and vector drawing events. Search results should still expose
   readable dialogue or lyric text rather than raw effect commands.
+
+Current subtitle copy requirements:
+
+- Copy the cue group whose time range contains the current playback timestamp.
+- If multiple cue groups contain the current timestamp, choose the shortest
+  duration.
+- If multiple cue groups have the same duration but different time ranges,
+  choose the cue group with the later end timestamp.
+- If no cue group contains the current playback timestamp, search backward to
+  the nearest previous cue range and apply the same selection rules there.
+- Copy all lines in the selected cue group, separated by line breaks, using the
+  same line order as Search result display.
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 
