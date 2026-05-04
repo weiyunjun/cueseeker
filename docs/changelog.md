@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Made search result selection update before playback session preparation starts,
+  so result highlighting and inspector context respond immediately even when
+  video open or seek work takes noticeable time.
 - Reduced legacy `libass` CPU work for static ASS subtitles by reusing the
   previous cropped subtitle frame when libass reports no visual change, avoiding
   repeated RGBA compositing, `CGImage` creation, and layer replacement on every

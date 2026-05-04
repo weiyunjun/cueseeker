@@ -390,7 +390,10 @@ final class AppState: ObservableObject {
         selectedSearchResult = result
         isPlaybackInspectorVisible = true
         userDefaults.set(true, forKey: Self.isPlaybackInspectorVisibleKey)
-        play(result)
+        Task { @MainActor in
+            await Task.yield()
+            play(result)
+        }
     }
 
     func play(_ result: SubtitleSearchResult) {
