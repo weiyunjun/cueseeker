@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the first disk-backed remote byte-range cache implementation under the
+  local stream proxy: committed remote search results now prefetch up to 20
+  windows grouped by video, cache header and tail ranges plus estimated target
+  ranges, reuse cached ranges for later FFmpeg proxy requests, and capture small
+  remote ranges requested during playback for future hits.
 - Documented the remote byte-range cache direction as the preferred long-term
   acceleration path: cache one logical remote media resource instead of
   temporary clip files, use keyframe-bounded playback windows, cap storage at

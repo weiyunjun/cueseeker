@@ -296,6 +296,18 @@ active playback warm sessions. A search page may expose many results, but the
 testing policy starts with at most 20 cache prefetch windows per committed
 search.
 
+First implementation note:
+
+- The first implementation lives under the local stream proxy rather than a
+  custom FFmpeg AVIO layer.
+- It prefetches header and tail ranges, then estimates target byte windows from
+  subtitle timestamps until keyframe metadata is available.
+- It captures small byte ranges requested by FFmpeg during remote playback so
+  repeated opens and nearby seeks can hit disk even before precise keyframe
+  indexing exists.
+- It is an evaluation step for the cache direction, not the final keyframe-exact
+  range planner described above.
+
 ## Durable Data Policy
 
 Warm-up can justify durable storage only when the durable data removes a

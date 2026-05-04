@@ -12,11 +12,15 @@ actor LocalStreamProxy {
     private var targets: [String: ProxyTarget] = [:]
     private var targetOrder: [String] = []
 
-    func register(remoteURL: URL, headers: [String: String]) throws -> URL {
+    func register(
+        remoteURL: URL,
+        headers: [String: String],
+        cacheKey: String? = nil
+    ) throws -> URL {
         try ensureServer()
 
         let token = Self.makeToken()
-        targets[token] = ProxyTarget(remoteURL: remoteURL, headers: headers)
+        targets[token] = ProxyTarget(remoteURL: remoteURL, headers: headers, cacheKey: cacheKey)
         targetOrder.append(token)
         while targetOrder.count > Self.maximumTargets {
             let expiredToken = targetOrder.removeFirst()
@@ -148,6 +152,20 @@ actor LocalStreamProxy {
                 return
             }
 
+            if request.method == "GET",
+               let cacheKey = target.cacheKey,
+               let range = RemoteRangeCache.byteRange(from: request.headers["range"]),
+               let cachedResponse = await RemoteRangeCache.shared.cachedResponse(cacheKey: cacheKey, range: range) {
+                _ = writeAll(
+                    responseHeaderData(
+                        statusCode: cachedResponse.statusCode,
+                        headers: cachedResponse.headers
+                    ),
+                    to: clientSocket
+                ) && writeAll(cachedResponse.data, to: clientSocket)
+                return
+            }
+
             try await forward(request: request, target: target, to: clientSocket)
         } catch {
             _ = writeSimpleResponse(statusCode: 502, body: "Bad Gateway", to: clientSocket)
@@ -185,7 +203,11 @@ actor LocalStreamProxy {
 
         let transfer = LocalStreamProxyTransfer(
             clientSocket: clientSocket,
-            requestMethod: request.method
+            requestMethod: request.method,
+            cacheCapture: ProxyCacheCapture(
+                cacheKey: target.cacheKey,
+                requestRange: RemoteRangeCache.byteRange(from: request.headers["range"])
+            )
         )
         let session = URLSession(
             configuration: configuration,
@@ -319,6 +341,7 @@ actor LocalStreamProxy {
 private struct ProxyTarget: Sendable {
     let remoteURL: URL
     let headers: [String: String]
+    let cacheKey: String?
 }
 
 private struct ProxyRequest: Sendable {
@@ -378,6 +401,15 @@ private struct ProxyRequest: Sendable {
     }
 }
 
+private struct ProxyCacheCapture: Sendable {
+    let cacheKey: String?
+    let requestRange: RemoteByteRange?
+
+    var isEligible: Bool {
+        cacheKey != nil && requestRange != nil
+    }
+}
+
 private final class LocalStreamProxyTransfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private static let passthroughHeaderNames: Set<String> = [
         "accept-ranges",
@@ -391,12 +423,23 @@ private final class LocalStreamProxyTransfer: NSObject, URLSessionDataDelegate, 
 
     private let clientSocket: Int32
     private let requestMethod: String
+    private let cacheCapture: ProxyCacheCapture
     private let completion = DispatchSemaphore(value: 0)
     private var didSendResponse = false
+    private var responseRange: RemoteByteRange?
+    private var responseTotalSize: Int64?
+    private var responseContentType: String?
+    private var capturedData = Data()
+    private var isCaptureAllowed = false
 
-    init(clientSocket: Int32, requestMethod: String) {
+    init(
+        clientSocket: Int32,
+        requestMethod: String,
+        cacheCapture: ProxyCacheCapture
+    ) {
         self.clientSocket = clientSocket
         self.requestMethod = requestMethod
+        self.cacheCapture = cacheCapture
     }
 
     func waitUntilFinished() {
@@ -412,6 +455,17 @@ private final class LocalStreamProxyTransfer: NSObject, URLSessionDataDelegate, 
         guard let httpResponse = response as? HTTPURLResponse else {
             completionHandler(.cancel)
             return
+        }
+
+        if cacheCapture.isEligible,
+           httpResponse.statusCode == 206,
+           let parsedRange = RemoteRangeCache.responseRange(from: httpResponse.value(forHTTPHeaderField: "Content-Range")),
+           parsedRange.range.length <= 16 * 1024 * 1024 {
+            responseRange = parsedRange.range
+            responseTotalSize = parsedRange.totalSize
+            responseContentType = httpResponse.value(forHTTPHeaderField: "Content-Type")
+            isCaptureAllowed = true
+            capturedData.removeAll(keepingCapacity: true)
         }
 
         let responseData = LocalStreamProxy.responseHeaderData(
@@ -438,6 +492,17 @@ private final class LocalStreamProxyTransfer: NSObject, URLSessionDataDelegate, 
 
         if !LocalStreamProxy.writeAll(data, to: clientSocket) {
             dataTask.cancel()
+            isCaptureAllowed = false
+            capturedData.removeAll(keepingCapacity: false)
+            return
+        }
+
+        if isCaptureAllowed {
+            capturedData.append(data)
+            if capturedData.count > 16 * 1024 * 1024 {
+                isCaptureAllowed = false
+                capturedData.removeAll(keepingCapacity: false)
+            }
         }
     }
 
@@ -446,6 +511,24 @@ private final class LocalStreamProxyTransfer: NSObject, URLSessionDataDelegate, 
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
+        if error == nil,
+           isCaptureAllowed,
+           let cacheKey = cacheCapture.cacheKey,
+           let range = responseRange {
+            let data = capturedData
+            let totalSize = responseTotalSize
+            let contentType = responseContentType
+            Task.detached(priority: .utility) {
+                await RemoteRangeCache.shared.storeForwardedRange(
+                    cacheKey: cacheKey,
+                    range: range,
+                    totalSize: totalSize,
+                    contentType: contentType,
+                    data: data
+                )
+            }
+        }
+
         if error != nil && !didSendResponse {
             _ = LocalStreamProxy.writeAll(
                 LocalStreamProxy.responseHeaderData(

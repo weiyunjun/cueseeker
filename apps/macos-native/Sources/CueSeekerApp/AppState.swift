@@ -123,6 +123,7 @@ final class AppState: ObservableObject {
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var remoteRangeCachePrefetchTask: Task<Void, Never>?
     private lazy var remoteWarmUpCoordinator = RemotePlaybackWarmUpCoordinator { [weak self] candidate in
         guard let self else {
             throw RemotePlaybackError.remoteSourceUnavailable
@@ -527,6 +528,7 @@ final class AppState: ObservableObject {
         guard !trimmedQuery.isEmpty else {
             searchStatus = .idle
             searchResults = []
+            remoteRangeCachePrefetchTask?.cancel()
             remoteWarmUpCoordinator.clear()
             return
         }
@@ -537,11 +539,13 @@ final class AppState: ObservableObject {
             searchStatus = .completed
             searchResults = []
             selectedSearchResult = nil
+            remoteRangeCachePrefetchTask?.cancel()
             remoteWarmUpCoordinator.clear()
             return
         }
 
         searchStatus = .searching
+        remoteRangeCachePrefetchTask?.cancel()
         remoteWarmUpCoordinator.clear()
 
         let databaseURL = databaseURL
@@ -563,7 +567,7 @@ final class AppState: ObservableObject {
 
                 searchResults = results
                 searchStatus = .completed
-                publishRemoteWarmCandidates(for: results)
+                publishRemoteRangeCachePrefetch(for: results)
             } catch is CancellationError {
                 return
             } catch {
@@ -573,6 +577,7 @@ final class AppState: ObservableObject {
 
                 searchResults = []
                 searchStatus = .failed(Self.errorMessage(for: error))
+                remoteRangeCachePrefetchTask?.cancel()
                 remoteWarmUpCoordinator.clear()
             }
         }
@@ -792,6 +797,85 @@ final class AppState: ObservableObject {
         runSearch(for: searchQuery)
     }
 
+    private func publishRemoteRangeCachePrefetch(for results: [SubtitleSearchResult]) {
+        remoteRangeCachePrefetchTask?.cancel()
+        let groups = remoteRangeCachePrefetchGroups(for: results)
+        guard !groups.isEmpty else {
+            return
+        }
+
+        print("REMOTE_RANGE_CACHE state=search_candidates videos=\(groups.count) windows=\(groups.reduce(0) { $0 + $1.results.count })")
+        remoteRangeCachePrefetchTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+            for group in groups {
+                guard !Task.isCancelled else {
+                    return
+                }
+                do {
+                    let resolved = try await self.resolvedRemoteMedia(for: group.results[0])
+                    await RemoteRangeCache.shared.prefetch(
+                        cacheKey: group.mediaIdentifier,
+                        remoteURL: resolved.url,
+                        headers: resolved.headers,
+                        windows: group.results.map {
+                            RemoteRangeCacheWindow(
+                                startMilliseconds: $0.startMilliseconds,
+                                endMilliseconds: $0.endMilliseconds
+                            )
+                        }
+                    )
+                } catch is CancellationError {
+                    return
+                } catch {
+                    print("REMOTE_RANGE_CACHE state=resolve_failed media=\(group.mediaIdentifier.hashValue) reason=\(error)")
+                }
+            }
+        }
+    }
+
+    private func remoteRangeCachePrefetchGroups(for results: [SubtitleSearchResult]) -> [RemoteRangeCachePrefetchGroup] {
+        let eligibleSourceIDs = Set(
+            remoteSources
+                .filter { source in
+                    source.type == .webdav
+                        && (source.provider == .alist || source.provider == .genericWebDAV)
+                }
+                .map(\.id)
+        )
+        guard !eligibleSourceIDs.isEmpty else {
+            return []
+        }
+
+        var groups: [RemoteRangeCachePrefetchGroup] = []
+        var groupIndexByMediaIdentifier: [String: Int] = [:]
+        var acceptedWindows = 0
+        for result in results {
+            guard acceptedWindows < 20,
+                  let sourceID = result.videoSourceID,
+                  eligibleSourceIDs.contains(sourceID)
+            else {
+                continue
+            }
+
+            let mediaIdentifier = Self.playbackMediaIdentifier(for: result)
+            if let index = groupIndexByMediaIdentifier[mediaIdentifier] {
+                groups[index].results.append(result)
+            } else {
+                groupIndexByMediaIdentifier[mediaIdentifier] = groups.count
+                groups.append(
+                    RemoteRangeCachePrefetchGroup(
+                        mediaIdentifier: mediaIdentifier,
+                        results: [result]
+                    )
+                )
+            }
+            acceptedWindows += 1
+        }
+        return groups
+    }
+
     private func publishRemoteWarmCandidates(for results: [SubtitleSearchResult]) {
         let candidates = RemotePlaybackWarmUpCoordinator.searchCandidates(
             results: results,
@@ -811,6 +895,7 @@ final class AppState: ObservableObject {
         }
 
         self.selectedSearchResult = nil
+        remoteRangeCachePrefetchTask?.cancel()
         remoteWarmUpCoordinator.clear()
         stopPlayback()
     }
@@ -827,6 +912,7 @@ final class AppState: ObservableObject {
         }
 
         self.selectedSearchResult = nil
+        remoteRangeCachePrefetchTask?.cancel()
         remoteWarmUpCoordinator.clear()
         stopPlayback()
     }
@@ -891,37 +977,12 @@ final class AppState: ObservableObject {
             )
         }
 
-        guard let source = remoteSources.first(where: { $0.id == sourceID }) else {
-            throw RemotePlaybackError.remoteSourceUnavailable
-        }
-        let credentials = try credentialStore.load(credentialRef: source.credentialRef)
-        let configuration = try Self.remoteConfiguration(source: source, credentials: credentials)
-
-        let resolved: ResolvedRemoteMedia
-        switch source.provider {
-        case .alist:
-            guard let relativePath = result.videoSourceRelativePath else {
-                throw RemotePlaybackError.remoteRelativePathMissing
-            }
-            resolved = try await AListResolver().resolve(
-                source: configuration,
-                sourceRelativePath: relativePath
-            )
-        case .genericWebDAV:
-            guard let url = URL(string: result.videoPath) else {
-                throw RemotePlaybackError.invalidRemoteURL
-            }
-            resolved = ResolvedRemoteMedia(
-                url: url,
-                headers: Self.basicAuthHeaders(credentials: credentials)
-            )
-        case .local:
-            throw RemotePlaybackError.remoteSourceUnavailable
-        }
+        let resolved = try await resolvedRemoteMedia(for: result)
 
         let proxyURL = try await LocalStreamProxy.shared.register(
             remoteURL: resolved.url,
-            headers: resolved.headers
+            headers: resolved.headers,
+            cacheKey: mediaIdentifier ?? Self.remoteMediaIdentifier(sourceID: sourceID, result: result)
         )
 
         return try PlaybackRequest(
@@ -931,6 +992,38 @@ final class AppState: ObservableObject {
             subtitleSource: subtitleSource,
             mediaIdentifier: mediaIdentifier ?? Self.remoteMediaIdentifier(sourceID: sourceID, result: result)
         )
+    }
+
+    private func resolvedRemoteMedia(for result: SubtitleSearchResult) async throws -> ResolvedRemoteMedia {
+        guard let sourceID = result.videoSourceID else {
+            throw RemotePlaybackError.remoteSourceUnavailable
+        }
+        guard let source = remoteSources.first(where: { $0.id == sourceID }) else {
+            throw RemotePlaybackError.remoteSourceUnavailable
+        }
+        let credentials = try credentialStore.load(credentialRef: source.credentialRef)
+        let configuration = try Self.remoteConfiguration(source: source, credentials: credentials)
+
+        switch source.provider {
+        case .alist:
+            guard let relativePath = result.videoSourceRelativePath else {
+                throw RemotePlaybackError.remoteRelativePathMissing
+            }
+            return try await AListResolver().resolve(
+                source: configuration,
+                sourceRelativePath: relativePath
+            )
+        case .genericWebDAV:
+            guard let url = URL(string: result.videoPath) else {
+                throw RemotePlaybackError.invalidRemoteURL
+            }
+            return ResolvedRemoteMedia(
+                url: url,
+                headers: Self.basicAuthHeaders(credentials: credentials)
+            )
+        case .local:
+            throw RemotePlaybackError.remoteSourceUnavailable
+        }
     }
 
     private func remoteWarmPreparedRequest(
@@ -1251,6 +1344,11 @@ private extension NSView {
 
         return false
     }
+}
+
+private struct RemoteRangeCachePrefetchGroup: Sendable {
+    let mediaIdentifier: String
+    var results: [SubtitleSearchResult]
 }
 
 private enum RemotePlaybackError: Error, CustomStringConvertible {
