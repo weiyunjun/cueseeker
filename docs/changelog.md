@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Updated grouped Search result implementation to use 100-result lazy-loading
+  batches, added the collapse or expand-all control beside the result count, and
+  kept collapse actions disconnected from search loading.
 - Updated the grouped Search result requirements to use 100-result lazy-loading
   batches and to add a native collapse or expand-all control beside the result
   count.

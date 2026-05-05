@@ -96,11 +96,24 @@ struct SearchView: View {
             .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
 
             if let searchResultSummaryText {
-                Text(searchResultSummaryText)
-                    .font(.system(size: SearchTypography.detailSize))
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 12)
-                    .padding(.trailing, 28)
+                HStack(spacing: 12) {
+                    Text(searchResultSummaryText)
+                        .font(.system(size: SearchTypography.detailSize))
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    if appState.hasSearchResultGroups {
+                        Button {
+                            appState.clearSearchFocus()
+                            appState.toggleAllSearchResultGroups()
+                        } label: {
+                            Text(appState.searchResultGroupToggleTitle)
+                        }
+                    }
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 28)
             }
         }
     }
@@ -129,9 +142,6 @@ struct SearchView: View {
                     SearchResultGroupHeader(group: group) {
                         appState.clearSearchFocus()
                         appState.toggleSearchResultGroup(group.subtitlePath)
-                    }
-                    .onAppear {
-                        appState.loadMoreSearchResultsIfNeeded(currentGroup: group)
                     }
 
                     if !group.isCollapsed {

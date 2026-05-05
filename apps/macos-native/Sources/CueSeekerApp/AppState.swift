@@ -92,7 +92,7 @@ final class AppState: ObservableObject {
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let assSubtitleRenderingModeKey = "assSubtitleRenderingMode"
     private static let assSubtitlePreparationCueLimit = 8
-    private static let searchPageSize = 50
+    private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
 
     @Published var selectedSection: AppSection = .search
@@ -134,13 +134,13 @@ final class AppState: ObservableObject {
 
     var searchResultGroups: [SearchResultFileGroup] {
         let resultsByPath = Dictionary(grouping: searchResults, by: \.subtitlePath)
-        guard !resultsByPath.isEmpty else {
+        guard !searchFileSummaries.isEmpty || !resultsByPath.isEmpty else {
             return []
         }
 
         let summaryByPath = Dictionary(uniqueKeysWithValues: searchFileSummaries.map { ($0.subtitlePath, $0) })
         let summaryPaths = Set(searchFileSummaries.map(\.subtitlePath))
-        let orderedPaths = searchFileSummaries.map(\.subtitlePath).filter { resultsByPath[$0] != nil }
+        let orderedPaths = searchFileSummaries.map(\.subtitlePath)
         let extraPaths = resultsByPath.keys
             .filter { !summaryPaths.contains($0) }
             .sorted(by: Self.searchResultGroupPathSort)
@@ -156,6 +156,23 @@ final class AppState: ObservableObject {
                 isCollapsed: collapsedSearchResultGroupPaths.contains(path)
             )
         }
+    }
+
+    var hasSearchResultGroups: Bool {
+        !searchResultGroups.isEmpty
+    }
+
+    var searchResultGroupToggleTitle: String {
+        areAllSearchResultGroupsCollapsed ? "展开全部结果" : "折叠全部结果"
+    }
+
+    private var areAllSearchResultGroupsCollapsed: Bool {
+        let groupPaths = Set(searchResultGroups.map(\.id))
+        guard !groupPaths.isEmpty else {
+            return false
+        }
+
+        return groupPaths.isSubset(of: collapsedSearchResultGroupPaths)
     }
 
     private let userDefaults: UserDefaults
@@ -412,40 +429,24 @@ final class AppState: ObservableObject {
         )
     }
 
-    func loadMoreSearchResultsIfNeeded(currentGroup group: SearchResultFileGroup) {
-        guard group.isCollapsed,
-              hasMoreSearchResults,
-              !isSearching,
-              searchResultGroups.last?.id == group.id
-        else {
+    func toggleSearchResultGroup(_ subtitlePath: String) {
+        if collapsedSearchResultGroupPaths.contains(subtitlePath) {
+            collapsedSearchResultGroupPaths.remove(subtitlePath)
+        } else {
+            collapsedSearchResultGroupPaths.insert(subtitlePath)
+        }
+    }
+
+    func toggleAllSearchResultGroups() {
+        let groupPaths = Set(searchResultGroups.map(\.id))
+        guard !groupPaths.isEmpty else {
             return
         }
 
-        startSearch(
-            query: searchQuery,
-            offset: searchResults.count,
-            appending: true,
-            debounce: false
-        )
-    }
-
-    func toggleSearchResultGroup(_ subtitlePath: String) {
-        let didCollapse: Bool
-        if collapsedSearchResultGroupPaths.contains(subtitlePath) {
-            collapsedSearchResultGroupPaths.remove(subtitlePath)
-            didCollapse = false
+        if groupPaths.isSubset(of: collapsedSearchResultGroupPaths) {
+            collapsedSearchResultGroupPaths.subtract(groupPaths)
         } else {
-            collapsedSearchResultGroupPaths.insert(subtitlePath)
-            didCollapse = true
-        }
-
-        if didCollapse, shouldContinueLoadingCollapsedTail, !isSearching {
-            startSearch(
-                query: searchQuery,
-                offset: searchResults.count,
-                appending: true,
-                debounce: false
-            )
+            collapsedSearchResultGroupPaths.formUnion(groupPaths)
         }
     }
 
@@ -520,21 +521,6 @@ final class AppState: ObservableObject {
                 searchFileSummaries = page.fileSummaries
                 hasMoreSearchResults = searchResults.count < page.totalCount
                 searchStatus = .completed
-
-                if shouldContinueLoadingCollapsedTail {
-                    Task { @MainActor in
-                        guard hasMoreSearchResults, !isSearching else {
-                            return
-                        }
-
-                        startSearch(
-                            query: searchQuery,
-                            offset: searchResults.count,
-                            appending: true,
-                            debounce: false
-                        )
-                    }
-                }
             } catch is CancellationError {
                 return
             } catch {
@@ -551,16 +537,6 @@ final class AppState: ObservableObject {
                 searchStatus = .failed(Self.errorMessage(for: error))
             }
         }
-    }
-
-    private var shouldContinueLoadingCollapsedTail: Bool {
-        guard hasMoreSearchResults,
-              let lastGroup = searchResultGroups.last
-        else {
-            return false
-        }
-
-        return collapsedSearchResultGroupPaths.contains(lastGroup.id)
     }
 
     func openSearchResult(_ result: SubtitleSearchResult) {
