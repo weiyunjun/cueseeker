@@ -165,6 +165,12 @@ final class AppState: ObservableObject {
         !searchResultGroups.isEmpty
     }
 
+    var renderedSearchResultCount: Int {
+        searchResultGroups.reduce(0) { count, group in
+            group.isCollapsed ? count : count + group.results.count
+        }
+    }
+
     var searchResultGroupToggleTitle: String {
         areAllSearchResultGroupsCollapsed ? "展开全部结果" : "折叠全部结果"
     }

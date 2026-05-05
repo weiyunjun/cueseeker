@@ -101,6 +101,10 @@ struct SearchView: View {
                         .font(.system(size: SearchTypography.detailSize))
                         .foregroundStyle(.secondary)
 
+                    Text("调试：已渲染 \(appState.renderedSearchResultCount) 个结果")
+                        .font(.system(size: SearchTypography.detailSize))
+                        .foregroundStyle(.tertiary)
+
                     Spacer()
 
                     if appState.hasSearchResultGroups {

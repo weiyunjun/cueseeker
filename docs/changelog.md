@@ -6,6 +6,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added temporary Search diagnostics beside the result count to show the current
+  rendered result-row count while grouped lazy loading is being validated.
 - Clarified grouped Search lazy-loading rules: headers always show true counts,
   initial and incremental global rendering use 100-result batches, expanding all
   reveals one global batch, and expanding a subtitle-file header reveals at most

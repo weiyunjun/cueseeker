@@ -95,6 +95,8 @@ Accepted M1 search presentation:
 - The search field is a custom `NSTextView` wrapper (`SearchTextView`) allowing a 36pt high focus ring with zero baseline jitter, a leading magnifying-glass icon, and an inline clear button.
 - The area below the search field shows muted result-count text for the current
   query, such as `Found 42 results`.
+- During grouped lazy-loading validation, the result-count row may temporarily
+  show muted diagnostic text for the currently rendered result-row count.
 - The result-count row should include a native rounded bordered button aligned
   to the right of the count text. The button should use the same general visual
   style as the Settings `Index Now` button.
