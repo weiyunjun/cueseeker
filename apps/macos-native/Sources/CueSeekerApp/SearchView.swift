@@ -35,16 +35,8 @@ struct SearchView: View {
 
     private var searchResultsPane: some View {
         GeometryReader { geometry in
-            VStack(alignment: .leading, spacing: 16) {
-                SearchField(
-                    text: Binding(
-                        get: { appState.searchQuery },
-                        set: { appState.updateSearchQuery($0) }
-                    ),
-                    isFocused: $appState.isSearchFocused
-                )
-                .padding(.leading, 12)
-                .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
+            VStack(alignment: .leading, spacing: 6) {
+                searchHeader
 
                 if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     EmptyStateView(
@@ -91,28 +83,79 @@ struct SearchView: View {
         }
     }
 
+    private var searchHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SearchField(
+                text: Binding(
+                    get: { appState.searchQuery },
+                    set: { appState.updateSearchQuery($0) }
+                ),
+                isFocused: $appState.isSearchFocused
+            )
+            .padding(.leading, 12)
+            .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
+
+            if let searchResultSummaryText {
+                Text(searchResultSummaryText)
+                    .font(.system(size: SearchTypography.detailSize))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 12)
+                    .padding(.trailing, 28)
+            }
+        }
+    }
+
+    private var searchResultSummaryText: String? {
+        guard !appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        switch appState.searchStatus {
+        case .idle:
+            return nil
+        case .searching where appState.searchResults.isEmpty:
+            return nil
+        case .failed where appState.searchResults.isEmpty:
+            return nil
+        case .searching, .completed, .failed:
+            return "搜索到 \(appState.searchResultTotalCount) 个结果"
+        }
+    }
+
     private var resultsList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(Array(appState.searchResults.enumerated()), id: \.element.entryID) { index, result in
-                    let isSelected = appState.selectedSearchResult?.entryID == result.entryID
-                    let isNextSelected = index + 1 < appState.searchResults.count && appState.selectedSearchResult?.entryID == appState.searchResults[index + 1].entryID
-                    let isLast = index == appState.searchResults.count - 1
-
-                    Button {
+                ForEach(appState.searchResultGroups) { group in
+                    SearchResultGroupHeader(group: group) {
                         appState.clearSearchFocus()
-                        appState.openSearchResult(result)
-                    } label: {
-                        SearchResultRow(
-                            result: result,
-                            query: appState.searchQuery,
-                            isSelected: isSelected,
-                            showDivider: !isSelected && !isNextSelected && !isLast
-                        )
+                        appState.toggleSearchResultGroup(group.subtitlePath)
                     }
-                    .buttonStyle(StaticButtonStyle())
                     .onAppear {
-                        appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                        appState.loadMoreSearchResultsIfNeeded(currentGroup: group)
+                    }
+
+                    if !group.isCollapsed {
+                        ForEach(Array(group.results.enumerated()), id: \.element.entryID) { index, result in
+                            let isSelected = appState.selectedSearchResult?.entryID == result.entryID
+                            let isNextSelected = index + 1 < group.results.count && appState.selectedSearchResult?.entryID == group.results[index + 1].entryID
+                            let isLast = index == group.results.count - 1
+
+                            Button {
+                                appState.clearSearchFocus()
+                                appState.openSearchResult(result)
+                            } label: {
+                                SearchResultRow(
+                                    result: result,
+                                    query: appState.searchQuery,
+                                    isSelected: isSelected,
+                                    showDivider: !isSelected && !isNextSelected && !isLast
+                                )
+                            }
+                            .buttonStyle(StaticButtonStyle())
+                            .onAppear {
+                                appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                            }
+                        }
                     }
                 }
 
@@ -123,7 +166,8 @@ struct SearchView: View {
                         .padding(.vertical, 12)
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
         }
     }
 
@@ -297,6 +341,39 @@ private struct SearchField: View {
     }
 }
 
+private struct SearchResultGroupHeader: View {
+    let group: SearchResultFileGroup
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 0) {
+                Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: SearchLayout.groupDisclosureWidth, alignment: .leading)
+
+                Text(group.subtitleFileName)
+                    .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer(minLength: 12)
+
+                Text(group.displayCount)
+                    .font(.system(size: SearchTypography.detailSize, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .padding(.vertical, 7)
+            .padding(.horizontal, SearchLayout.resultOuterHorizontalPadding)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(StaticButtonStyle())
+    }
+}
+
 private struct SearchResultRow: View {
     let result: SubtitleSearchResult
     let query: String
@@ -314,26 +391,21 @@ private struct SearchResultRow: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-
-                Text(URL(fileURLWithPath: result.subtitlePath).lastPathComponent)
-                    .font(.system(size: SearchTypography.detailSize))
-                    .foregroundStyle(isSelected ? Color.white.opacity(0.8) : Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, 10)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, SearchLayout.resultContentHorizontalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 isSelected ? Color.accentColor : Color.clear
             )
             .foregroundStyle(isSelected ? Color.white : Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .padding(.horizontal, 12)
+            .padding(.horizontal, SearchLayout.resultOuterHorizontalPadding)
             
             Rectangle()
                 .fill(showDivider ? Color(nsColor: .separatorColor) : Color.clear)
                 .frame(height: 1)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, SearchLayout.resultOuterHorizontalPadding + SearchLayout.resultContentHorizontalPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -439,6 +511,7 @@ private final class ResizerNSView: NSView {
 }
 private enum SearchTypography {
     static let searchFieldSize: CGFloat = 16
+    static let groupHeaderSize: CGFloat = 13
     static let bodySize: CGFloat = 14
     static let detailSize: CGFloat = 12
     static let metadataLabelSize: CGFloat = 13
@@ -452,6 +525,9 @@ private enum SearchLayout {
     static let dividerHitWidth: CGFloat = 6
     static let dividerLineWidth: CGFloat = 1
     static let dividerActiveLineWidth: CGFloat = 3
+    static let resultOuterHorizontalPadding: CGFloat = 12
+    static let resultContentHorizontalPadding: CGFloat = 12
+    static let groupDisclosureWidth: CGFloat = 12
 }
 
 private func highlightedContent(_ content: String, query: String, isSelected: Bool = false) -> AttributedString {

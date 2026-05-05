@@ -26,6 +26,18 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let cueLines: [String]
 }
 
+public struct SubtitleSearchFileSummary: Equatable, Sendable {
+    public let subtitlePath: String
+    public let subtitleFileName: String
+    public let matchCount: Int
+}
+
+public struct SubtitleSearchPage: Equatable, Sendable {
+    public let results: [SubtitleSearchResult]
+    public let totalCount: Int
+    public let fileSummaries: [SubtitleSearchFileSummary]
+}
+
 public struct SubtitleCueTiming: Equatable, Sendable {
     public let startMilliseconds: Int
     public let endMilliseconds: Int
@@ -559,8 +571,22 @@ public final class SubtitleDatabase {
         offset: Int = 0,
         under folders: [URL]? = nil
     ) throws -> [SubtitleSearchResult] {
+        try searchPage(
+            query,
+            limit: limit,
+            offset: offset,
+            under: folders
+        ).results
+    }
+
+    public func searchPage(
+        _ query: String,
+        limit: Int = 50,
+        offset: Int = 0,
+        under folders: [URL]? = nil
+    ) throws -> SubtitleSearchPage {
         guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
-            return []
+            return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
         }
         let offset = max(0, offset)
 
@@ -568,7 +594,7 @@ public final class SubtitleDatabase {
         if let folders {
             let prefixes = Self.folderPathPrefixes(for: folders)
             guard !prefixes.isEmpty else {
-                return []
+                return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
             }
             pathPrefixes = prefixes
         } else {
@@ -578,7 +604,6 @@ public final class SubtitleDatabase {
         do {
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
             var candidateOffset = 0
-            var matchedOffset = 0
             var results: [SubtitleSearchResult] = []
             let scopeCondition = pathPrefixes.map {
                 let conditions = $0.map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
@@ -586,7 +611,7 @@ public final class SubtitleDatabase {
                 return "AND (\(conditions))"
             } ?? ""
 
-            while results.count < limit {
+            while true {
                 let statement = try database.prepare(
                     """
                     SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
@@ -640,35 +665,8 @@ public final class SubtitleDatabase {
                 candidateOffset += candidates.count
 
                 for candidate in candidates {
-                    let cueLines = try cueLines(forCueGroupID: candidate.cueGroupID)
-                    let lineContents = cueLines.map(\.content)
-                    let searchableLines = lineContents.isEmpty ? [candidate.searchContent] : lineContents
-
-                    guard searchableLines.contains(where: { Self.line($0, matches: plan.lineMatchRule) }) else {
-                        continue
-                    }
-
-                    if matchedOffset < offset {
-                        matchedOffset += 1
-                        continue
-                    }
-
-                    results.append(
-                        SubtitleSearchResult(
-                            entryID: candidate.cueGroupID,
-                            subtitlePath: candidate.subtitlePath,
-                            subtitleFormat: candidate.subtitleFormat,
-                            videoPath: candidate.videoPath,
-                            videoName: candidate.videoName,
-                            startMilliseconds: candidate.startMilliseconds,
-                            endMilliseconds: candidate.endMilliseconds,
-                            content: candidate.searchContent,
-                            cueLines: lineContents
-                        )
-                    )
-
-                    if results.count == limit {
-                        break
+                    if let result = try searchResult(for: candidate, matching: plan) {
+                        results.append(result)
                     }
                 }
 
@@ -677,9 +675,15 @@ public final class SubtitleDatabase {
                 }
             }
 
-            return results
+            let sortedResults = Self.sortedSearchResults(results)
+            let pageResults = Array(sortedResults.dropFirst(offset).prefix(limit))
+            return SubtitleSearchPage(
+                results: pageResults,
+                totalCount: sortedResults.count,
+                fileSummaries: Self.fileSummaries(for: sortedResults)
+            )
         } catch {
-            return []
+            return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
         }
     }
 
@@ -727,6 +731,82 @@ public final class SubtitleDatabase {
         case orderedLatinTokens([String])
         case cjkSubstring(String)
         case explicitFTS(String)
+    }
+
+    private func searchResult(
+        for candidate: SearchCandidate,
+        matching plan: SearchQueryPlan
+    ) throws -> SubtitleSearchResult? {
+        let cueLines = try cueLines(forCueGroupID: candidate.cueGroupID)
+        let lineContents = cueLines.map(\.content)
+        let searchableLines = lineContents.isEmpty ? [candidate.searchContent] : lineContents
+
+        guard searchableLines.contains(where: { Self.line($0, matches: plan.lineMatchRule) }) else {
+            return nil
+        }
+
+        return SubtitleSearchResult(
+            entryID: candidate.cueGroupID,
+            subtitlePath: candidate.subtitlePath,
+            subtitleFormat: candidate.subtitleFormat,
+            videoPath: candidate.videoPath,
+            videoName: candidate.videoName,
+            startMilliseconds: candidate.startMilliseconds,
+            endMilliseconds: candidate.endMilliseconds,
+            content: candidate.searchContent,
+            cueLines: lineContents
+        )
+    }
+
+    private static func sortedSearchResults(_ results: [SubtitleSearchResult]) -> [SubtitleSearchResult] {
+        results.sorted { lhs, rhs in
+            let lhsFileName = URL(fileURLWithPath: lhs.subtitlePath).lastPathComponent
+            let rhsFileName = URL(fileURLWithPath: rhs.subtitlePath).lastPathComponent
+            let fileNameComparison = lhsFileName.localizedStandardCompare(rhsFileName)
+            if fileNameComparison != .orderedSame {
+                return fileNameComparison == .orderedAscending
+            }
+
+            let pathComparison = lhs.subtitlePath.localizedStandardCompare(rhs.subtitlePath)
+            if pathComparison != .orderedSame {
+                return pathComparison == .orderedAscending
+            }
+
+            if lhs.startMilliseconds != rhs.startMilliseconds {
+                return lhs.startMilliseconds < rhs.startMilliseconds
+            }
+
+            if lhs.endMilliseconds != rhs.endMilliseconds {
+                return lhs.endMilliseconds < rhs.endMilliseconds
+            }
+
+            return lhs.entryID < rhs.entryID
+        }
+    }
+
+    private static func fileSummaries(for results: [SubtitleSearchResult]) -> [SubtitleSearchFileSummary] {
+        var countsByPath: [String: Int] = [:]
+        for result in results {
+            countsByPath[result.subtitlePath, default: 0] += 1
+        }
+
+        return countsByPath.keys.sorted { lhs, rhs in
+            let lhsFileName = URL(fileURLWithPath: lhs).lastPathComponent
+            let rhsFileName = URL(fileURLWithPath: rhs).lastPathComponent
+            let fileNameComparison = lhsFileName.localizedStandardCompare(rhsFileName)
+            if fileNameComparison != .orderedSame {
+                return fileNameComparison == .orderedAscending
+            }
+
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+        .map { path in
+            SubtitleSearchFileSummary(
+                subtitlePath: path,
+                subtitleFileName: URL(fileURLWithPath: path).lastPathComponent,
+                matchCount: countsByPath[path] ?? 0
+            )
+        }
     }
 
     private static func searchQueryPlan(for query: String, limit: Int) -> SearchQueryPlan? {

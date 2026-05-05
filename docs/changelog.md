@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented grouped Search result presentation by subtitle file, including
+  total result counts, file-level match counts, default-expanded collapsible
+  groups, and timestamp-ordered rows within each file group.
 - Documented the next Search result presentation direction: group matches by
   subtitle file, show total match counts, support default-expanded collapsible
   groups, and keep lazy loading based on cue-group result count.

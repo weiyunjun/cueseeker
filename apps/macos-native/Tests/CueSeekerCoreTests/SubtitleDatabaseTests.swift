@@ -123,6 +123,66 @@ func searchPaginatesBeyondDefaultResultLimit() throws {
 }
 
 @Test
+func searchPageReturnsTotalCountsAndFileSummaries() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/ZFolder/Alpha.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/ZFolder/Alpha.mkv")
+    let betaSubtitle = URL(fileURLWithPath: "/Media/AFolder/Beta.srt")
+    let betaVideo = URL(fileURLWithPath: "/Media/AFolder/Beta.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: alphaSubtitle,
+        videoFile: alphaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "Shared later alpha"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Shared earlier alpha"
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: betaSubtitle,
+        videoFile: betaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Shared beta"
+            )
+        ]
+    )
+
+    let page = try database.searchPage("shared", limit: 2)
+
+    #expect(page.totalCount == 3)
+    #expect(page.fileSummaries.map(\.subtitleFileName) == ["Alpha.srt", "Beta.srt"])
+    #expect(page.fileSummaries.map(\.matchCount) == [2, 1])
+    #expect(page.results.map(\.content) == ["Shared earlier alpha", "Shared later alpha"])
+}
+
+@Test
 func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

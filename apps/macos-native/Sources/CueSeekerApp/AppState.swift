@@ -69,6 +69,20 @@ enum PlaybackStatus: Equatable {
     }
 }
 
+struct SearchResultFileGroup: Identifiable, Equatable {
+    let subtitlePath: String
+    let subtitleFileName: String
+    let totalCount: Int
+    let results: [SubtitleSearchResult]
+    let isCollapsed: Bool
+
+    var id: String { subtitlePath }
+
+    var displayCount: String {
+        totalCount > 99 ? "99+" : "\(totalCount)"
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
@@ -87,7 +101,10 @@ final class AppState: ObservableObject {
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
+    @Published var searchResultTotalCount = 0
+    @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
     @Published var hasMoreSearchResults = false
+    @Published var collapsedSearchResultGroupPaths: Set<String> = []
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
@@ -113,6 +130,32 @@ final class AppState: ObservableObject {
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
         player
+    }
+
+    var searchResultGroups: [SearchResultFileGroup] {
+        let resultsByPath = Dictionary(grouping: searchResults, by: \.subtitlePath)
+        guard !resultsByPath.isEmpty else {
+            return []
+        }
+
+        let summaryByPath = Dictionary(uniqueKeysWithValues: searchFileSummaries.map { ($0.subtitlePath, $0) })
+        let summaryPaths = Set(searchFileSummaries.map(\.subtitlePath))
+        let orderedPaths = searchFileSummaries.map(\.subtitlePath).filter { resultsByPath[$0] != nil }
+        let extraPaths = resultsByPath.keys
+            .filter { !summaryPaths.contains($0) }
+            .sorted(by: Self.searchResultGroupPathSort)
+
+        return (orderedPaths + extraPaths).map { path in
+            let summary = summaryByPath[path]
+            let results = (resultsByPath[path] ?? []).sorted(by: Self.searchResultSort)
+            return SearchResultFileGroup(
+                subtitlePath: path,
+                subtitleFileName: summary?.subtitleFileName ?? URL(fileURLWithPath: path).lastPathComponent,
+                totalCount: summary?.matchCount ?? results.count,
+                results: results,
+                isCollapsed: collapsedSearchResultGroupPaths.contains(path)
+            )
+        }
     }
 
     private let userDefaults: UserDefaults
@@ -369,6 +412,43 @@ final class AppState: ObservableObject {
         )
     }
 
+    func loadMoreSearchResultsIfNeeded(currentGroup group: SearchResultFileGroup) {
+        guard group.isCollapsed,
+              hasMoreSearchResults,
+              !isSearching,
+              searchResultGroups.last?.id == group.id
+        else {
+            return
+        }
+
+        startSearch(
+            query: searchQuery,
+            offset: searchResults.count,
+            appending: true,
+            debounce: false
+        )
+    }
+
+    func toggleSearchResultGroup(_ subtitlePath: String) {
+        let didCollapse: Bool
+        if collapsedSearchResultGroupPaths.contains(subtitlePath) {
+            collapsedSearchResultGroupPaths.remove(subtitlePath)
+            didCollapse = false
+        } else {
+            collapsedSearchResultGroupPaths.insert(subtitlePath)
+            didCollapse = true
+        }
+
+        if didCollapse, shouldContinueLoadingCollapsedTail, !isSearching {
+            startSearch(
+                query: searchQuery,
+                offset: searchResults.count,
+                appending: true,
+                debounce: false
+            )
+        }
+    }
+
     private func startSearch(
         query: String,
         offset: Int,
@@ -379,12 +459,18 @@ final class AppState: ObservableObject {
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !appending {
+            searchResults = []
+            searchResultTotalCount = 0
+            searchFileSummaries = []
             hasMoreSearchResults = false
+            collapsedSearchResultGroupPaths = []
         }
 
         guard !trimmedQuery.isEmpty else {
             searchStatus = .idle
             searchResults = []
+            searchResultTotalCount = 0
+            searchFileSummaries = []
             hasMoreSearchResults = false
             return
         }
@@ -393,6 +479,8 @@ final class AppState: ObservableObject {
         guard !folders.isEmpty else {
             searchStatus = .completed
             searchResults = []
+            searchResultTotalCount = 0
+            searchFileSummaries = []
             hasMoreSearchResults = false
             selectedSearchResult = nil
             return
@@ -408,10 +496,10 @@ final class AppState: ObservableObject {
                     try await Task.sleep(nanoseconds: 250_000_000)
                 }
 
-                let results = try await Task.detached(priority: .userInitiated) {
+                let page = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     try database.migrate()
-                    return try database.search(
+                    return try database.searchPage(
                         trimmedQuery,
                         limit: pageSize,
                         offset: offset,
@@ -424,12 +512,29 @@ final class AppState: ObservableObject {
                 }
 
                 if appending {
-                    searchResults.append(contentsOf: results)
+                    searchResults.append(contentsOf: page.results)
                 } else {
-                    searchResults = results
+                    searchResults = page.results
                 }
-                hasMoreSearchResults = results.count == pageSize
+                searchResultTotalCount = page.totalCount
+                searchFileSummaries = page.fileSummaries
+                hasMoreSearchResults = searchResults.count < page.totalCount
                 searchStatus = .completed
+
+                if shouldContinueLoadingCollapsedTail {
+                    Task { @MainActor in
+                        guard hasMoreSearchResults, !isSearching else {
+                            return
+                        }
+
+                        startSearch(
+                            query: searchQuery,
+                            offset: searchResults.count,
+                            appending: true,
+                            debounce: false
+                        )
+                    }
+                }
             } catch is CancellationError {
                 return
             } catch {
@@ -439,11 +544,23 @@ final class AppState: ObservableObject {
 
                 if !appending {
                     searchResults = []
+                    searchResultTotalCount = 0
+                    searchFileSummaries = []
                 }
                 hasMoreSearchResults = false
                 searchStatus = .failed(Self.errorMessage(for: error))
             }
         }
+    }
+
+    private var shouldContinueLoadingCollapsedTail: Bool {
+        guard hasMoreSearchResults,
+              let lastGroup = searchResultGroups.last
+        else {
+            return false
+        }
+
+        return collapsedSearchResultGroupPaths.contains(lastGroup.id)
     }
 
     func openSearchResult(_ result: SubtitleSearchResult) {
@@ -724,6 +841,29 @@ final class AppState: ObservableObject {
             path.removeLast()
         }
         return path
+    }
+
+    private static func searchResultGroupPathSort(_ lhs: String, _ rhs: String) -> Bool {
+        let lhsFileName = URL(fileURLWithPath: lhs).lastPathComponent
+        let rhsFileName = URL(fileURLWithPath: rhs).lastPathComponent
+        let fileNameComparison = lhsFileName.localizedStandardCompare(rhsFileName)
+        if fileNameComparison != .orderedSame {
+            return fileNameComparison == .orderedAscending
+        }
+
+        return lhs.localizedStandardCompare(rhs) == .orderedAscending
+    }
+
+    private static func searchResultSort(_ lhs: SubtitleSearchResult, _ rhs: SubtitleSearchResult) -> Bool {
+        if lhs.startMilliseconds != rhs.startMilliseconds {
+            return lhs.startMilliseconds < rhs.startMilliseconds
+        }
+
+        if lhs.endMilliseconds != rhs.endMilliseconds {
+            return lhs.endMilliseconds < rhs.endMilliseconds
+        }
+
+        return lhs.entryID < rhs.entryID
     }
 
     private func aggregate(
