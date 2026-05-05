@@ -410,7 +410,7 @@ private struct SearchResultRow: View {
                     .lineLimit(1)
             }
             .padding(.vertical, 10)
-            .padding(.leading, SearchLayout.resultContentHorizontalPadding)
+            .padding(.leading, SearchLayout.resultTextLeadingPadding)
             .padding(.trailing, SearchLayout.resultTimestampTrailingPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
@@ -418,14 +418,14 @@ private struct SearchResultRow: View {
             )
             .foregroundStyle(Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .padding(.leading, SearchLayout.resultCardLeadingPadding)
+            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
             .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
             
             Rectangle()
                 .fill(showDivider ? Color(nsColor: .separatorColor) : Color.clear)
                 .frame(height: 1)
-                .padding(.leading, SearchLayout.resultCardLeadingPadding + SearchLayout.resultContentHorizontalPadding)
-                .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + SearchLayout.resultContentHorizontalPadding)
+                .padding(.leading, SearchLayout.resultDividerHorizontalPadding)
+                .padding(.trailing, SearchLayout.resultDividerHorizontalPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -546,10 +546,11 @@ private enum SearchLayout {
     static let dividerLineWidth: CGFloat = 1
     static let dividerActiveLineWidth: CGFloat = 3
     static let resultOuterHorizontalPadding: CGFloat = 12
-    static let resultContentHorizontalPadding: CGFloat = 12
     static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
-    static let resultCardLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
+    static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding
+    static let resultTextLeadingPadding: CGFloat = groupDisclosureWidth
+    static let resultDividerHorizontalPadding: CGFloat = resultOuterHorizontalPadding + resultTextLeadingPadding
 }
 
 private func highlightedContent(_ content: String, query: String, isSelected: Bool = false) -> AttributedString {
