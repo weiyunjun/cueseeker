@@ -101,7 +101,7 @@ struct SearchView: View {
                         .font(.system(size: SearchTypography.detailSize))
                         .foregroundStyle(.secondary)
 
-                    Text("调试：已渲染 \(appState.renderedSearchResultCount) 个结果")
+                    Text("Rendered \(appState.renderedSearchResultCount) results")
                         .font(.system(size: SearchTypography.detailSize))
                         .foregroundStyle(.tertiary)
 
@@ -135,7 +135,7 @@ struct SearchView: View {
         case .failed where appState.searchResults.isEmpty:
             return nil
         case .searching, .completed, .failed:
-            return "搜索到 \(appState.searchResultTotalCount) 个结果"
+            return "Found \(appState.searchResultTotalCount) results"
         }
     }
 
@@ -361,30 +361,38 @@ private struct SearchResultGroupHeader: View {
 
     var body: some View {
         Button(action: onToggle) {
-            HStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
                 Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: SearchLayout.groupDisclosureWidth, alignment: .leading)
+                    .frame(width: SearchLayout.groupDisclosureWidth, alignment: .topLeading)
+                    .padding(.top, 2)
 
-                Text(group.subtitleFileName)
-                    .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer(minLength: 12)
-
-                Text(group.displayCount)
-                    .font(.system(size: SearchTypography.detailSize, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                Text(headerTitle)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.vertical, 7)
             .padding(.horizontal, SearchLayout.resultOuterHorizontalPadding)
             .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
+    }
+
+    private var headerTitle: AttributedString {
+        var title = AttributedString(group.subtitleFileName + " ")
+        title.font = .system(size: SearchTypography.groupHeaderSize, weight: .semibold)
+        title.foregroundColor = .primary
+
+        var count = AttributedString("\u{00A0}\(group.displayCount)\u{00A0}")
+        count.font = .system(size: SearchTypography.detailSize, weight: .semibold)
+        count.foregroundColor = .white
+        count.backgroundColor = Color(nsColor: .darkGray)
+        title.append(count)
+
+        return title
     }
 }
 
@@ -414,12 +422,14 @@ private struct SearchResultRow: View {
             )
             .foregroundStyle(isSelected ? Color.white : Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .padding(.horizontal, SearchLayout.resultOuterHorizontalPadding)
+            .padding(.leading, SearchLayout.resultCardLeadingPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
             
             Rectangle()
                 .fill(showDivider ? Color(nsColor: .separatorColor) : Color.clear)
                 .frame(height: 1)
-                .padding(.horizontal, SearchLayout.resultOuterHorizontalPadding + SearchLayout.resultContentHorizontalPadding)
+                .padding(.leading, SearchLayout.resultCardLeadingPadding + SearchLayout.resultContentHorizontalPadding)
+                .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + SearchLayout.resultContentHorizontalPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -541,7 +551,8 @@ private enum SearchLayout {
     static let dividerActiveLineWidth: CGFloat = 3
     static let resultOuterHorizontalPadding: CGFloat = 12
     static let resultContentHorizontalPadding: CGFloat = 12
-    static let groupDisclosureWidth: CGFloat = 12
+    static let groupDisclosureWidth: CGFloat = 16
+    static let resultCardLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
 }
 
 private func highlightedContent(_ content: String, query: String, isSelected: Bool = false) -> AttributedString {

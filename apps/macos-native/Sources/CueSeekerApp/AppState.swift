@@ -172,7 +172,7 @@ final class AppState: ObservableObject {
     }
 
     var searchResultGroupToggleTitle: String {
-        areAllSearchResultGroupsCollapsed ? "展开全部结果" : "折叠全部结果"
+        areAllSearchResultGroupsCollapsed ? "Expand All Results" : "Collapse All Results"
     }
 
     private var areAllSearchResultGroupsCollapsed: Bool {
