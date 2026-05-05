@@ -102,6 +102,8 @@ Accepted M1 search presentation:
   localized text such as `折叠全部结果` or `展开全部结果`.
 - Search results are shown as a list of rounded rectangular cards.
 - Search result scrolling loads additional matches lazily in 100-result pages.
+- Expanding all result groups from the all-collapsed state reveals at most one
+  global 100-result batch.
 - Search results are grouped under subtitle-file headers.
 - Selecting a search result opens or updates the Playback Inspector without leaving Search.
 - Search results use refined macOS-native typography and highlight query matches with a yellow background.
@@ -129,6 +131,10 @@ Subtitle-file-name text and result-row subtitle text should align on the same
 left edge. The disclosure triangle should live in the left-side control space so
 it does not add extra indentation to result-row subtitle text. The exact spacing
 may be refined during implementation.
+
+Expanding a collapsed group should display at most the first 100 matching rows
+for that subtitle file. A group header must still show its real total count even
+when fewer than 100 rows are currently visible below it.
 
 Group ordering should be stable and based on subtitle file name. If two groups
 have the same displayed file name, the full subtitle path should be used as the

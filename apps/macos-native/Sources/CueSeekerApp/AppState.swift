@@ -105,6 +105,7 @@ final class AppState: ObservableObject {
     @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
     @Published var hasMoreSearchResults = false
     @Published var collapsedSearchResultGroupPaths: Set<String> = []
+    @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
@@ -141,13 +142,15 @@ final class AppState: ObservableObject {
         let summaryByPath = Dictionary(uniqueKeysWithValues: searchFileSummaries.map { ($0.subtitlePath, $0) })
         let summaryPaths = Set(searchFileSummaries.map(\.subtitlePath))
         let orderedPaths = searchFileSummaries.map(\.subtitlePath)
-        let extraPaths = resultsByPath.keys
+        let extraPaths = Set(resultsByPath.keys)
+            .union(expandedSearchResultGroupRowsByPath.keys)
             .filter { !summaryPaths.contains($0) }
             .sorted(by: Self.searchResultGroupPathSort)
 
         return (orderedPaths + extraPaths).map { path in
             let summary = summaryByPath[path]
-            let results = (resultsByPath[path] ?? []).sorted(by: Self.searchResultSort)
+            let groupRows = expandedSearchResultGroupRowsByPath[path] ?? resultsByPath[path] ?? []
+            let results = groupRows.sorted(by: Self.searchResultSort)
             return SearchResultFileGroup(
                 subtitlePath: path,
                 subtitleFileName: summary?.subtitleFileName ?? URL(fileURLWithPath: path).lastPathComponent,
@@ -179,6 +182,8 @@ final class AppState: ObservableObject {
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
+    private var loadedGlobalSearchResultCount = 0
     private var isSearching: Bool {
         if case .searching = searchStatus {
             return true
@@ -423,7 +428,7 @@ final class AppState: ObservableObject {
 
         startSearch(
             query: searchQuery,
-            offset: searchResults.count,
+            offset: loadedGlobalSearchResultCount,
             appending: true,
             debounce: false
         )
@@ -432,6 +437,7 @@ final class AppState: ObservableObject {
     func toggleSearchResultGroup(_ subtitlePath: String) {
         if collapsedSearchResultGroupPaths.contains(subtitlePath) {
             collapsedSearchResultGroupPaths.remove(subtitlePath)
+            revealInitialSearchResultGroupPage(for: subtitlePath)
         } else {
             collapsedSearchResultGroupPaths.insert(subtitlePath)
         }
@@ -445,6 +451,7 @@ final class AppState: ObservableObject {
 
         if groupPaths.isSubset(of: collapsedSearchResultGroupPaths) {
             collapsedSearchResultGroupPaths.subtract(groupPaths)
+            revealInitialGlobalSearchResultPage()
         } else {
             collapsedSearchResultGroupPaths.formUnion(groupPaths)
         }
@@ -460,29 +467,17 @@ final class AppState: ObservableObject {
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !appending {
-            searchResults = []
-            searchResultTotalCount = 0
-            searchFileSummaries = []
-            hasMoreSearchResults = false
-            collapsedSearchResultGroupPaths = []
+            resetSearchResultLoadingState()
         }
 
         guard !trimmedQuery.isEmpty else {
             searchStatus = .idle
-            searchResults = []
-            searchResultTotalCount = 0
-            searchFileSummaries = []
-            hasMoreSearchResults = false
             return
         }
 
         let folders = selectedFolders
         guard !folders.isEmpty else {
             searchStatus = .completed
-            searchResults = []
-            searchResultTotalCount = 0
-            searchFileSummaries = []
-            hasMoreSearchResults = false
             selectedSearchResult = nil
             return
         }
@@ -513,13 +508,18 @@ final class AppState: ObservableObject {
                 }
 
                 if appending {
-                    searchResults.append(contentsOf: page.results)
+                    appendGlobalSearchResults(page.results)
+                    loadedGlobalSearchResultCount = max(
+                        loadedGlobalSearchResultCount,
+                        offset + page.results.count
+                    )
                 } else {
                     searchResults = page.results
+                    loadedGlobalSearchResultCount = page.results.count
                 }
                 searchResultTotalCount = page.totalCount
                 searchFileSummaries = page.fileSummaries
-                hasMoreSearchResults = searchResults.count < page.totalCount
+                hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
                 searchStatus = .completed
             } catch is CancellationError {
                 return
@@ -529,9 +529,7 @@ final class AppState: ObservableObject {
                 }
 
                 if !appending {
-                    searchResults = []
-                    searchResultTotalCount = 0
-                    searchFileSummaries = []
+                    resetSearchResultLoadingState()
                 }
                 hasMoreSearchResults = false
                 searchStatus = .failed(Self.errorMessage(for: error))
@@ -770,6 +768,8 @@ final class AppState: ObservableObject {
 
         if clearExistingResults {
             searchResults = []
+            expandedSearchResultGroupRowsByPath = [:]
+            loadedGlobalSearchResultCount = 0
         }
 
         updateSearchQuery(searchQuery)
@@ -777,6 +777,14 @@ final class AppState: ObservableObject {
 
     private func clearSearchAndPlaybackState(under folder: URL) {
         searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
+        expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath.filter { path, _ in
+            !Self.path(path, isUnder: folder)
+        }
+        let groupTaskPaths = searchResultGroupTasks.keys.filter { Self.path($0, isUnder: folder) }
+        for path in groupTaskPaths {
+            searchResultGroupTasks[path]?.cancel()
+            searchResultGroupTasks.removeValue(forKey: path)
+        }
 
         guard let selectedSearchResult,
               Self.path(selectedSearchResult.subtitlePath, isUnder: folder)
@@ -840,6 +848,91 @@ final class AppState: ObservableObject {
         }
 
         return lhs.entryID < rhs.entryID
+    }
+
+    private func revealInitialSearchResultGroupPage(for subtitlePath: String) {
+        let currentRows = searchResults
+            .filter { $0.subtitlePath == subtitlePath }
+            .sorted(by: Self.searchResultSort)
+        expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
+
+        searchResultGroupTasks[subtitlePath]?.cancel()
+
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty, !selectedFolders.isEmpty else {
+            return
+        }
+
+        let folders = selectedFolders
+        let databaseURL = databaseURL
+        let pageSize = Self.searchPageSize
+        searchResultGroupTasks[subtitlePath] = Task { [weak self] in
+            do {
+                let results = try await Task.detached(priority: .userInitiated) {
+                    let database = try SubtitleDatabase(path: databaseURL)
+                    try database.migrate()
+                    return try database.search(
+                        trimmedQuery,
+                        limit: pageSize,
+                        offset: 0,
+                        under: folders,
+                        inSubtitlePath: subtitlePath
+                    )
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                guard let self,
+                      self.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                      self.searchFileSummaries.contains(where: { $0.subtitlePath == subtitlePath })
+                else {
+                    return
+                }
+
+                self.expandedSearchResultGroupRowsByPath[subtitlePath] = results
+                self.searchResultGroupTasks.removeValue(forKey: subtitlePath)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                self?.searchResultGroupTasks.removeValue(forKey: subtitlePath)
+                self?.searchStatus = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
+    private func revealInitialGlobalSearchResultPage() {
+        cancelSearchResultGroupTasks()
+        expandedSearchResultGroupRowsByPath = [:]
+        searchResults = Array(searchResults.prefix(Self.searchPageSize))
+        loadedGlobalSearchResultCount = searchResults.count
+        hasMoreSearchResults = loadedGlobalSearchResultCount < searchResultTotalCount
+    }
+
+    private func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
+        let existingEntryIDs = Set(searchResults.map(\.entryID))
+        searchResults.append(contentsOf: results.filter { !existingEntryIDs.contains($0.entryID) })
+    }
+
+    private func resetSearchResultLoadingState() {
+        cancelSearchResultGroupTasks()
+        searchResults = []
+        searchResultTotalCount = 0
+        searchFileSummaries = []
+        hasMoreSearchResults = false
+        collapsedSearchResultGroupPaths = []
+        expandedSearchResultGroupRowsByPath = [:]
+        loadedGlobalSearchResultCount = 0
+    }
+
+    private func cancelSearchResultGroupTasks() {
+        searchResultGroupTasks.values.forEach { $0.cancel() }
+        searchResultGroupTasks = [:]
     }
 
     private func aggregate(

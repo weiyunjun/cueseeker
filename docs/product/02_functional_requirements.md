@@ -159,13 +159,23 @@ Each subtitle-file group should display:
   query, including matches that have not yet been loaded by lazy pagination.
 - A collapsed or expanded state indicator.
 
-Subtitle-file groups should be expanded by default. Collapsing a group should
-only affect result visibility and must not affect search result counts, lazy
-loading state, or playback identity.
+Subtitle-file groups should be expanded by default, but only the first 100
+matching cue-group rows should be visible after the initial search. Scrolling to
+the bottom of the visible rows should reveal the next 100 cue-group rows when
+more results exist.
+
+Collapsing a group should only affect row visibility and must not affect search
+result counts, search scope, or playback identity. Expanding a collapsed
+subtitle-file group is an explicit lazy-loading trigger: the group should show
+at most the first 100 matching cue-group rows for that subtitle file, even when
+those rows are outside the currently visible global result batch.
 
 The Search view should provide a single control that collapses or expands all
-subtitle-file groups for the current query. This control should not change the
-loaded result count, the search result counts, or the lazy-loading cursor.
+subtitle-file groups for the current query. Collapsing all groups should hide
+all subtitle rows while keeping headers visible. Expanding all groups is an
+explicit lazy-loading trigger that reveals at most one global 100-result batch,
+not 100 rows per subtitle file. This control must not change total result
+counts or per-file header counts.
 
 Search result rows display:
 

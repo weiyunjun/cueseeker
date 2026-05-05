@@ -569,13 +569,15 @@ public final class SubtitleDatabase {
         _ query: String,
         limit: Int = 50,
         offset: Int = 0,
-        under folders: [URL]? = nil
+        under folders: [URL]? = nil,
+        inSubtitlePath subtitlePath: String? = nil
     ) throws -> [SubtitleSearchResult] {
         try searchPage(
             query,
             limit: limit,
             offset: offset,
-            under: folders
+            under: folders,
+            inSubtitlePath: subtitlePath
         ).results
     }
 
@@ -583,12 +585,17 @@ public final class SubtitleDatabase {
         _ query: String,
         limit: Int = 50,
         offset: Int = 0,
-        under folders: [URL]? = nil
+        under folders: [URL]? = nil,
+        inSubtitlePath subtitlePath: String? = nil
     ) throws -> SubtitleSearchPage {
         guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
             return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
         }
         let offset = max(0, offset)
+        let subtitlePathFilter = subtitlePath
+        if let subtitlePathFilter, subtitlePathFilter.isEmpty {
+            return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
+        }
 
         let pathPrefixes: [String]?
         if let folders {
@@ -610,6 +617,7 @@ public final class SubtitleDatabase {
                     .joined(separator: " OR ")
                 return "AND (\(conditions))"
             } ?? ""
+            let subtitlePathCondition = subtitlePathFilter.map { _ in "AND sf.subtitle_path = ?" } ?? ""
 
             while true {
                 let statement = try database.prepare(
@@ -623,6 +631,7 @@ public final class SubtitleDatabase {
                     JOIN video_files vf ON vf.id = m.video_file_id
                     WHERE subtitle_cue_groups_fts MATCH ?
                     \(scopeCondition)
+                    \(subtitlePathCondition)
                     ORDER BY vf.video_name ASC, g.start_ms ASC, g.id ASC
                     LIMIT ? OFFSET ?;
                     """
@@ -637,6 +646,10 @@ public final class SubtitleDatabase {
                         try statement.bind(prefix, at: bindIndex)
                         bindIndex += 1
                     }
+                }
+                if let subtitlePathFilter {
+                    try statement.bind(subtitlePathFilter, at: bindIndex)
+                    bindIndex += 1
                 }
                 try statement.bind(candidateBatchLimit, at: bindIndex)
                 bindIndex += 1

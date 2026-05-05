@@ -46,12 +46,15 @@ Grouped result behavior:
 - Groups should be expanded by default.
 - Clicking a subtitle-file header should collapse or expand that group.
 - Collapsing a group should only hide that group's loaded rows. It must not
-  change result counts, lazy loading behavior, search scope, or selection
-  identity.
+  change result counts, search scope, or selection identity.
 - Result lazy loading should remain based on matched cue groups, not subtitle
   file groups.
 - Result lazy loading should use 100 cue-group results as the initial visible
   budget and 100 cue-group results for each incremental load.
+- Lazy loading should trigger only from these user-visible actions: scrolling to
+  the bottom when more global rows can be shown, clicking the expand-all control
+  when all groups are collapsed, or expanding an individual subtitle-file
+  header.
 - Group header counts should represent the total number of matched cue groups in
   that subtitle file for the current query, including results not yet loaded in
   the visible list.
@@ -59,12 +62,15 @@ Grouped result behavior:
   the current query at once.
 - Collapsing all groups should reduce visible subtitle rows to zero while
   keeping subtitle-file headers visible.
-- Expanding all groups should reveal rows according to the current visible
-  result budget. It should not restore previously scrolled-in rows beyond that
-  budget solely because those rows were visible before collapse.
-- Collapse and expand-all actions should only change group visibility. They must
-  not trigger a search, fetch another lazy-loading page, change the lazy-loading
-  cursor, or mutate result counts.
+- Expanding all groups should reveal at most one global 100-result batch. It
+  should not reveal 100 rows per subtitle file, and it should not restore
+  previously scrolled-in rows beyond the current 100-row budget solely because
+  those rows were visible before collapse.
+- Expanding an individual subtitle-file header should reveal at most the first
+  100 matching rows for that subtitle file. If the file has fewer matches, all
+  of its matches should be visible.
+- Collapse actions should not trigger a search, fetch another lazy-loading page,
+  change the lazy-loading cursor, or mutate result counts.
 
 Search focus behavior:
 

@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Clarified grouped Search lazy-loading rules: headers always show true counts,
+  initial and incremental global rendering use 100-result batches, expanding all
+  reveals one global batch, and expanding a subtitle-file header reveals at most
+  that file's first 100 rows.
 - Updated grouped Search result implementation to use 100-result lazy-loading
   batches, added the collapse or expand-all control beside the result count, and
   kept collapse actions disconnected from search loading.

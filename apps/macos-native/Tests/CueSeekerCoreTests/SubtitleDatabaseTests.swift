@@ -183,6 +183,68 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
 }
 
 @Test
+func searchLoadsRowsForSpecificSubtitleFileOutsideGlobalPage() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/Alpha.mkv")
+    let zetaSubtitle = URL(fileURLWithPath: "/Media/Zeta.srt")
+    let zetaVideo = URL(fileURLWithPath: "/Media/Zeta.mkv")
+
+    let alphaEntries = (0..<100).map { index in
+        let minutes = index / 60
+        let seconds = index % 60
+        return SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: String(format: "00:%02d:%02d,000", minutes, seconds),
+            endTimecode: String(format: "00:%02d:%02d,500", minutes, seconds),
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Shared alpha line \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: alphaSubtitle,
+        videoFile: alphaVideo,
+        entries: alphaEntries
+    )
+    try database.replaceEntries(
+        subtitleFile: zetaSubtitle,
+        videoFile: zetaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:02:00,000",
+                endTimecode: "00:02:00,500",
+                startMilliseconds: 120_000,
+                endMilliseconds: 120_500,
+                text: "Shared zeta line"
+            )
+        ]
+    )
+
+    let globalPage = try database.searchPage("shared", limit: 100)
+    let zetaRows = try database.search(
+        "shared",
+        limit: 100,
+        inSubtitlePath: zetaSubtitle.path
+    )
+
+    #expect(globalPage.totalCount == 101)
+    #expect(globalPage.results.count == 100)
+    #expect(globalPage.results.contains { $0.subtitlePath == zetaSubtitle.path } == false)
+    #expect(globalPage.fileSummaries.map(\.matchCount) == [100, 1])
+    #expect(zetaRows.map(\.content) == ["Shared zeta line"])
+}
+
+@Test
 func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
