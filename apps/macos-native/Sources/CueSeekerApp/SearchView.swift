@@ -415,7 +415,7 @@ private struct SearchResultRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
                         Text(highlightedContent(line, query: query, isSelected: isSelected))
@@ -424,12 +424,19 @@ private struct SearchResultRow: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(formatTimestamp(result.startMilliseconds))
+                    .font(.system(size: SearchTypography.detailSize))
+                    .monospacedDigit()
+                    .lineLimit(1)
             }
             .padding(.vertical, 10)
-            .padding(.horizontal, SearchLayout.resultContentHorizontalPadding)
+            .padding(.leading, SearchLayout.resultContentHorizontalPadding)
+            .padding(.trailing, SearchLayout.resultTimestampTrailingPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                isSelected ? Color(nsColor: .separatorColor).opacity(0.45) : Color.clear
+                isSelected ? Color(nsColor: .separatorColor).opacity(0.6) : Color.clear
             )
             .foregroundStyle(Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -562,6 +569,7 @@ private enum SearchLayout {
     static let dividerActiveLineWidth: CGFloat = 3
     static let resultOuterHorizontalPadding: CGFloat = 12
     static let resultContentHorizontalPadding: CGFloat = 12
+    static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
     static let groupFilenameToBadgeSpacing: CGFloat = 16
     static let resultCardLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
