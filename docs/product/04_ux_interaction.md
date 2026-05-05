@@ -49,10 +49,22 @@ Grouped result behavior:
   change result counts, lazy loading behavior, search scope, or selection
   identity.
 - Result lazy loading should remain based on matched cue groups, not subtitle
-  file groups. Each loaded page should contain up to 50 cue-group results.
+  file groups.
+- Result lazy loading should use 100 cue-group results as the initial visible
+  budget and 100 cue-group results for each incremental load.
 - Group header counts should represent the total number of matched cue groups in
   that subtitle file for the current query, including results not yet loaded in
   the visible list.
+- The collapse or expand-all control should toggle all subtitle-file groups in
+  the current query at once.
+- Collapsing all groups should reduce visible subtitle rows to zero while
+  keeping subtitle-file headers visible.
+- Expanding all groups should reveal rows according to the current visible
+  result budget. It should not restore previously scrolled-in rows beyond that
+  budget solely because those rows were visible before collapse.
+- Collapse and expand-all actions should only change group visibility. They must
+  not trigger a search, fetch another lazy-loading page, change the lazy-loading
+  cursor, or mutate result counts.
 
 Search focus behavior:
 

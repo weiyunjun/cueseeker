@@ -124,7 +124,7 @@ Requirements:
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.
 - Results should be limited to avoid rendering excessive rows.
-- Search should load results incrementally in pages of 50 so broad queries can
+- Search should load results incrementally in pages of 100 so broad queries can
   continue revealing matches while avoiding an unbounded first render.
 - The Search view should show the total matching cue-group count for the current
   query near the search field.
@@ -162,6 +162,10 @@ Each subtitle-file group should display:
 Subtitle-file groups should be expanded by default. Collapsing a group should
 only affect result visibility and must not affect search result counts, lazy
 loading state, or playback identity.
+
+The Search view should provide a single control that collapses or expands all
+subtitle-file groups for the current query. This control should not change the
+loaded result count, the search result counts, or the lazy-loading cursor.
 
 Search result rows display:
 

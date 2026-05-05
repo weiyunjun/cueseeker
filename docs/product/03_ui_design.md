@@ -95,8 +95,13 @@ Accepted M1 search presentation:
 - The search field is a custom `NSTextView` wrapper (`SearchTextView`) allowing a 36pt high focus ring with zero baseline jitter, a leading magnifying-glass icon, and an inline clear button.
 - The area below the search field shows muted result-count text for the current
   query, such as `Found 42 results`.
+- The result-count row should include a native rounded bordered button aligned
+  to the right of the count text. The button should use the same general visual
+  style as the Settings `Index Now` button.
+- The collapse or expand-all button label should reflect the next action, using
+  localized text such as `折叠全部结果` or `展开全部结果`.
 - Search results are shown as a list of rounded rectangular cards.
-- Search result scrolling loads additional matches lazily in 50-result pages.
+- Search result scrolling loads additional matches lazily in 100-result pages.
 - Search results are grouped under subtitle-file headers.
 - Selecting a search result opens or updates the Playback Inspector without leaving Search.
 - Search results use refined macOS-native typography and highlight query matches with a yellow background.

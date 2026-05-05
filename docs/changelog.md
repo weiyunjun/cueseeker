@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Updated the grouped Search result requirements to use 100-result lazy-loading
+  batches and to add a native collapse or expand-all control beside the result
+  count.
 - Implemented grouped Search result presentation by subtitle file, including
   total result counts, file-level match counts, default-expanded collapsible
   groups, and timestamp-ordered rows within each file group.
