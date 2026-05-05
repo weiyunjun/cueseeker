@@ -556,11 +556,13 @@ public final class SubtitleDatabase {
     public func search(
         _ query: String,
         limit: Int = 50,
+        offset: Int = 0,
         under folders: [URL]? = nil
     ) throws -> [SubtitleSearchResult] {
         guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
             return []
         }
+        let offset = max(0, offset)
 
         let pathPrefixes: [String]?
         if let folders {
@@ -574,80 +576,103 @@ public final class SubtitleDatabase {
         }
 
         do {
+            let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
+            var candidateOffset = 0
+            var matchedOffset = 0
+            var results: [SubtitleSearchResult] = []
             let scopeCondition = pathPrefixes.map {
                 let conditions = $0.map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
                     .joined(separator: " OR ")
                 return "AND (\(conditions))"
             } ?? ""
-            let statement = try database.prepare(
-                """
-                SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                       g.start_ms, g.end_ms, g.search_content
-                FROM subtitle_cue_groups_fts f
-                JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-                JOIN video_files vf ON vf.id = m.video_file_id
-                WHERE subtitle_cue_groups_fts MATCH ?
-                \(scopeCondition)
-                ORDER BY vf.video_name ASC, g.start_ms ASC, g.id ASC
-                LIMIT ?;
-                """
-            )
 
-            try statement.bind(plan.ftsQuery, at: 1)
-            var bindIndex: Int32 = 2
-            if let pathPrefixes {
-                for prefix in pathPrefixes {
-                    try statement.bind(prefix.count, at: bindIndex)
-                    bindIndex += 1
-                    try statement.bind(prefix, at: bindIndex)
-                    bindIndex += 1
-                }
-            }
-            try statement.bind(plan.sqlLimit, at: bindIndex)
-
-            var candidates: [SearchCandidate] = []
-            while try statement.step() {
-                candidates.append(
-                    SearchCandidate(
-                        cueGroupID: statement.int64Column(0),
-                        subtitlePath: statement.stringColumn(1),
-                        subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
-                        videoPath: statement.stringColumn(3),
-                        videoName: statement.stringColumn(4),
-                        startMilliseconds: statement.intColumn(5),
-                        endMilliseconds: statement.intColumn(6),
-                        searchContent: statement.stringColumn(7)
-                    )
-                )
-            }
-
-            var results: [SubtitleSearchResult] = []
-            for candidate in candidates {
-                let cueLines = try cueLines(forCueGroupID: candidate.cueGroupID)
-                let lineContents = cueLines.map(\.content)
-                let searchableLines = lineContents.isEmpty ? [candidate.searchContent] : lineContents
-
-                guard searchableLines.contains(where: { Self.line($0, matches: plan.lineMatchRule) }) else {
-                    continue
-                }
-
-                results.append(
-                    SubtitleSearchResult(
-                        entryID: candidate.cueGroupID,
-                        subtitlePath: candidate.subtitlePath,
-                        subtitleFormat: candidate.subtitleFormat,
-                        videoPath: candidate.videoPath,
-                        videoName: candidate.videoName,
-                        startMilliseconds: candidate.startMilliseconds,
-                        endMilliseconds: candidate.endMilliseconds,
-                        content: candidate.searchContent,
-                        cueLines: lineContents
-                    )
+            while results.count < limit {
+                let statement = try database.prepare(
+                    """
+                    SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                           g.start_ms, g.end_ms, g.search_content
+                    FROM subtitle_cue_groups_fts f
+                    JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
+                    JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                    JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                    JOIN video_files vf ON vf.id = m.video_file_id
+                    WHERE subtitle_cue_groups_fts MATCH ?
+                    \(scopeCondition)
+                    ORDER BY vf.video_name ASC, g.start_ms ASC, g.id ASC
+                    LIMIT ? OFFSET ?;
+                    """
                 )
 
-                if results.count == limit {
+                try statement.bind(plan.ftsQuery, at: 1)
+                var bindIndex: Int32 = 2
+                if let pathPrefixes {
+                    for prefix in pathPrefixes {
+                        try statement.bind(prefix.count, at: bindIndex)
+                        bindIndex += 1
+                        try statement.bind(prefix, at: bindIndex)
+                        bindIndex += 1
+                    }
+                }
+                try statement.bind(candidateBatchLimit, at: bindIndex)
+                bindIndex += 1
+                try statement.bind(candidateOffset, at: bindIndex)
+
+                var candidates: [SearchCandidate] = []
+                while try statement.step() {
+                    candidates.append(
+                        SearchCandidate(
+                            cueGroupID: statement.int64Column(0),
+                            subtitlePath: statement.stringColumn(1),
+                            subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
+                            videoPath: statement.stringColumn(3),
+                            videoName: statement.stringColumn(4),
+                            startMilliseconds: statement.intColumn(5),
+                            endMilliseconds: statement.intColumn(6),
+                            searchContent: statement.stringColumn(7)
+                        )
+                    )
+                }
+
+                guard !candidates.isEmpty else {
+                    break
+                }
+
+                candidateOffset += candidates.count
+
+                for candidate in candidates {
+                    let cueLines = try cueLines(forCueGroupID: candidate.cueGroupID)
+                    let lineContents = cueLines.map(\.content)
+                    let searchableLines = lineContents.isEmpty ? [candidate.searchContent] : lineContents
+
+                    guard searchableLines.contains(where: { Self.line($0, matches: plan.lineMatchRule) }) else {
+                        continue
+                    }
+
+                    if matchedOffset < offset {
+                        matchedOffset += 1
+                        continue
+                    }
+
+                    results.append(
+                        SubtitleSearchResult(
+                            entryID: candidate.cueGroupID,
+                            subtitlePath: candidate.subtitlePath,
+                            subtitleFormat: candidate.subtitleFormat,
+                            videoPath: candidate.videoPath,
+                            videoName: candidate.videoName,
+                            startMilliseconds: candidate.startMilliseconds,
+                            endMilliseconds: candidate.endMilliseconds,
+                            content: candidate.searchContent,
+                            cueLines: lineContents
+                        )
+                    )
+
+                    if results.count == limit {
+                        break
+                    }
+                }
+
+                if candidates.count < candidateBatchLimit {
                     break
                 }
             }
@@ -694,7 +719,6 @@ public final class SubtitleDatabase {
 
     private struct SearchQueryPlan {
         let ftsQuery: String
-        let sqlLimit: Int
         let lineMatchRule: LineMatchRule
     }
 
@@ -715,8 +739,6 @@ public final class SubtitleDatabase {
         let hasFTSSyntax = hasExplicitPhrase || trimmed.contains("*") || containsFTSOperator(in: trimmed)
         let hasCJK = containsCJKSearchCharacter(in: trimmed)
         let queryTokens = hasCJK ? [] : tokenizeLatinTokens(trimmed)
-        let useOrderedTokenFilter = !hasFTSSyntax && !hasCJK && queryTokens.count > 1
-
         if !hasFTSSyntax && !hasCJK && queryTokens.isEmpty {
             return nil
         }
@@ -737,10 +759,8 @@ public final class SubtitleDatabase {
             lineMatchRule = .latinPrefix(queryTokens[0])
         }
 
-        let sqlLimit = useOrderedTokenFilter ? expandedSQLLimit(for: limit) : limit
         return SearchQueryPlan(
             ftsQuery: ftsQuery,
-            sqlLimit: sqlLimit,
             lineMatchRule: lineMatchRule
         )
     }
@@ -912,6 +932,10 @@ public final class SubtitleDatabase {
         }
 
         return min(expanded, Int(Int32.max))
+    }
+
+    private static func searchCandidateBatchLimit(for limit: Int) -> Int {
+        max(expandedSQLLimit(for: limit), 100)
     }
 
     private static func isASCIIWordCharacter(_ character: Character) -> Bool {

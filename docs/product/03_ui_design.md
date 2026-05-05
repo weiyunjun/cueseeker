@@ -94,6 +94,7 @@ Accepted M1 search presentation:
 
 - The search field is a custom `NSTextView` wrapper (`SearchTextView`) allowing a 36pt high focus ring with zero baseline jitter, a leading magnifying-glass icon, and an inline clear button.
 - Search results are shown as a list of rounded rectangular cards.
+- Search result scrolling loads additional matches lazily in 50-result pages.
 - Selecting a search result opens or updates the Playback Inspector without leaving Search.
 - Search results use refined macOS-native typography and highlight query matches with a yellow background.
 - Search result visual polish is still incomplete and subject to further iteration.

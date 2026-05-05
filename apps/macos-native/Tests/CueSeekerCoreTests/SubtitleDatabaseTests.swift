@@ -83,6 +83,46 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
 }
 
 @Test
+func searchPaginatesBeyondDefaultResultLimit() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Series.mkv")
+    let entries = (0..<55).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: "00:00:\(String(format: "%02d", index)),000",
+            endTimecode: "00:00:\(String(format: "%02d", index)),500",
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Shared searchable line \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+
+    let firstPage = try database.search("shared", limit: 50)
+    let secondPage = try database.search("shared", limit: 50, offset: 50)
+
+    #expect(firstPage.count == 50)
+    #expect(secondPage.count == 5)
+    #expect(firstPage[0].content == "Shared searchable line 0")
+    #expect(firstPage[49].content == "Shared searchable line 49")
+    #expect(secondPage[0].content == "Shared searchable line 50")
+    #expect(secondPage[4].content == "Shared searchable line 54")
+}
+
+@Test
 func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -727,6 +767,75 @@ func searchesCueGroupsAndRejectsCrossLineOnlyMatches() throws {
     #expect(alphaResults[0].startMilliseconds == 1_000)
 
     #expect(try database.search("alpha beta").isEmpty)
+}
+
+@Test
+func paginatedSearchContinuesPastFilteredFTSCandidates() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Filtered.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Filtered.mkv")
+    var cueGroups: [SubtitleCueGroup] = []
+
+    for index in 0..<100 {
+        let startMilliseconds = index * 1_000
+        cueGroups.append(
+            SubtitleCueGroup(
+                sequenceNumber: nil,
+                startTimecode: "\(startMilliseconds)",
+                endTimecode: "\(startMilliseconds + 500)",
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: startMilliseconds + 500,
+                searchContent: "alpha\nbeta",
+                cueLines: [
+                    testCueLine(
+                        eventIndex: index * 2,
+                        startMilliseconds: startMilliseconds,
+                        endMilliseconds: startMilliseconds + 500,
+                        content: "alpha",
+                        displayOrder: 0
+                    ),
+                    testCueLine(
+                        eventIndex: index * 2 + 1,
+                        startMilliseconds: startMilliseconds,
+                        endMilliseconds: startMilliseconds + 500,
+                        content: "beta",
+                        displayOrder: 1
+                    )
+                ]
+            )
+        )
+    }
+
+    for index in 100..<103 {
+        cueGroups.append(
+            testCueGroup(
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + 500,
+                content: "alpha beta page \(index)",
+                eventIndex: index
+            )
+        )
+    }
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: cueGroups
+    )
+
+    let firstPage = try database.search("alpha beta", limit: 2)
+    let secondPage = try database.search("alpha beta", limit: 2, offset: 2)
+
+    #expect(firstPage.map(\.content) == ["alpha beta page 100", "alpha beta page 101"])
+    #expect(secondPage.map(\.content) == ["alpha beta page 102"])
 }
 
 @Test

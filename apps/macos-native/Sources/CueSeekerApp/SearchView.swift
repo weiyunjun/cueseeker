@@ -64,7 +64,7 @@ struct SearchView: View {
                         ProgressView()
                             .offset(y: 72)
                     }
-                } else if case .failed(let message) = appState.searchStatus {
+                } else if case .failed(let message) = appState.searchStatus, appState.searchResults.isEmpty {
                     EmptyStateView(
                         title: "Search Failed",
                         systemImage: "exclamationmark.triangle",
@@ -111,6 +111,16 @@ struct SearchView: View {
                         )
                     }
                     .buttonStyle(StaticButtonStyle())
+                    .onAppear {
+                        appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                    }
+                }
+
+                if case .searching = appState.searchStatus, !appState.searchResults.isEmpty {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                 }
             }
             .padding(.vertical, 8)

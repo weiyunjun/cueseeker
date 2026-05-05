@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Replaced the hidden 50-result Search cap with lazy 50-result page loading so
+  broad searches can continue revealing older matches as the result list
+  scrolls.
 - Added a copy-current-subtitle playback command, available from a pencil-tip
   control beside the subtitle visibility button and from the `Q` playback
   shortcut, using the indexed cue-group timing and Search result line order for

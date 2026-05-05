@@ -78,6 +78,8 @@ final class AppState: ObservableObject {
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let assSubtitleRenderingModeKey = "assSubtitleRenderingMode"
     private static let assSubtitlePreparationCueLimit = 8
+    private static let searchPageSize = 50
+    private static let searchPrefetchThreshold = 10
 
     @Published var selectedSection: AppSection = .search
     @Published var selectedFolders: [URL] = []
@@ -85,6 +87,7 @@ final class AppState: ObservableObject {
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
+    @Published var hasMoreSearchResults = false
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
@@ -116,6 +119,13 @@ final class AppState: ObservableObject {
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var isSearching: Bool {
+        if case .searching = searchStatus {
+            return true
+        }
+
+        return false
+    }
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -337,12 +347,45 @@ final class AppState: ObservableObject {
 
     func updateSearchQuery(_ query: String) {
         searchQuery = query
+        startSearch(query: query, offset: 0, appending: false, debounce: true)
+    }
+
+    func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
+        guard hasMoreSearchResults, !isSearching else {
+            return
+        }
+
+        guard let index = searchResults.firstIndex(where: { $0.entryID == result.entryID }),
+              index >= searchResults.count - Self.searchPrefetchThreshold
+        else {
+            return
+        }
+
+        startSearch(
+            query: searchQuery,
+            offset: searchResults.count,
+            appending: true,
+            debounce: false
+        )
+    }
+
+    private func startSearch(
+        query: String,
+        offset: Int,
+        appending: Bool,
+        debounce: Bool
+    ) {
         searchTask?.cancel()
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !appending {
+            hasMoreSearchResults = false
+        }
+
         guard !trimmedQuery.isEmpty else {
             searchStatus = .idle
             searchResults = []
+            hasMoreSearchResults = false
             return
         }
 
@@ -350,6 +393,7 @@ final class AppState: ObservableObject {
         guard !folders.isEmpty else {
             searchStatus = .completed
             searchResults = []
+            hasMoreSearchResults = false
             selectedSearchResult = nil
             return
         }
@@ -357,21 +401,34 @@ final class AppState: ObservableObject {
         searchStatus = .searching
 
         let databaseURL = databaseURL
+        let pageSize = Self.searchPageSize
         searchTask = Task {
             do {
-                try await Task.sleep(nanoseconds: 250_000_000)
+                if debounce {
+                    try await Task.sleep(nanoseconds: 250_000_000)
+                }
 
                 let results = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     try database.migrate()
-                    return try database.search(trimmedQuery, under: folders)
+                    return try database.search(
+                        trimmedQuery,
+                        limit: pageSize,
+                        offset: offset,
+                        under: folders
+                    )
                 }.value
 
                 guard !Task.isCancelled else {
                     return
                 }
 
-                searchResults = results
+                if appending {
+                    searchResults.append(contentsOf: results)
+                } else {
+                    searchResults = results
+                }
+                hasMoreSearchResults = results.count == pageSize
                 searchStatus = .completed
             } catch is CancellationError {
                 return
@@ -380,7 +437,10 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                searchResults = []
+                if !appending {
+                    searchResults = []
+                }
+                hasMoreSearchResults = false
                 searchStatus = .failed(Self.errorMessage(for: error))
             }
         }

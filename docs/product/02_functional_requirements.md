@@ -124,6 +124,8 @@ Requirements:
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.
 - Results should be limited to avoid rendering excessive rows.
+- Search should load results incrementally in pages of 50 so broad queries can
+  continue revealing matches while avoiding an unbounded first render.
 - Search results must be scoped to the currently selected subtitle folders.
 - Stale index rows outside the currently selected folders must not appear in
   Search.
