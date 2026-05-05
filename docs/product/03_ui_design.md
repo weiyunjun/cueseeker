@@ -92,17 +92,18 @@ The search input should stay easy to access.
 
 Accepted M1 search presentation:
 
-- The search field is a custom `NSTextView` wrapper (`SearchTextView`) allowing a 36pt high focus ring with zero baseline jitter, a leading magnifying-glass icon, and an inline clear button.
+- The search field is a custom `NSTextView` wrapper (`SearchTextView`) allowing a 36pt high field, a 4pt gray focus outline, zero baseline jitter, a leading magnifying-glass icon, and an inline clear button.
 - The area below the search field shows muted result-count text for the current
   query, such as `Found 42 results`.
 - During grouped lazy-loading validation, the result-count row may temporarily
-  show muted diagnostic text for the currently rendered result-row count.
+  show muted diagnostic text such as `Rendered 100 results` for the currently
+  rendered result-row count.
 - The result-count row should include a native rounded bordered button aligned
   to the right of the count text. The button should use the same general visual
   style as the Settings `Index Now` button.
-- The collapse or expand-all button label should reflect the next action, using
-  localized text such as `折叠全部结果` or `展开全部结果`.
-- Search results are shown as a list of rounded rectangular cards.
+- The collapse or expand-all button label should reflect the next global action,
+  using English labels such as `Collapse All Results` or `Expand All Results`.
+- Search results are shown as a grouped list with rounded selection backgrounds.
 - Search result scrolling loads additional matches lazily in 100-result pages.
 - Expanding all result groups from the all-collapsed state reveals at most one
   global 100-result batch.
@@ -119,9 +120,6 @@ The group header should display:
 
 - A disclosure triangle on the left.
 - The subtitle file name.
-- A right-aligned count for the total number of matches in that subtitle file.
-
-The count should display `99+` when the total is greater than 99.
 
 The group header should be clickable as a single target and should toggle
 collapse or expansion. The disclosure triangle indicates state; it does not need
@@ -129,14 +127,23 @@ to be the only clickable control.
 
 Groups should be expanded by default.
 
+The current grouped Search header does not render a per-file count badge.
+Per-file match totals may still exist in search state for loading and future
+sorting behavior, but the visible count surface is the total result count below
+the search field.
+
+Subtitle file names should display in full and may wrap across multiple lines.
+The filename text may include invisible soft wrap opportunities after common
+filename delimiters such as `]`, `.`, `_`, and `-` so long bracketed names use
+available width more naturally without changing the visible filename.
+
 Subtitle-file-name text and result-row subtitle text should align on the same
 left edge. The disclosure triangle should live in the left-side control space so
 it does not add extra indentation to result-row subtitle text. The exact spacing
 may be refined during implementation.
 
 Expanding a collapsed group should display at most the first 100 matching rows
-for that subtitle file. A group header must still show its real total count even
-when fewer than 100 rows are currently visible below it.
+for that subtitle file.
 
 Group ordering should be stable and based on subtitle file name. If two groups
 have the same displayed file name, the full subtitle path should be used as the
@@ -150,6 +157,8 @@ Current M1 row content:
 
 - Subtitle text as the primary content.
 - Query match highlighting.
+- Start timestamp at the right side, matching the Playback Inspector `Start Time`
+  value for that result.
 
 Grouped cue result rows should display every cue line in the matched group,
 ordered by derived display order when available. Grouped rows may use dynamic
@@ -161,12 +170,20 @@ timestamp ascending.
 
 Rows should have stable height or predictable dynamic height. Long subtitle text should not break the layout.
 
-The row should remain fully clickable. Video file name and timestamp are not currently shown in the search result row.
+The row should remain fully clickable. The video file name is not currently shown
+in the search result row.
 
 Layout and Selection Behavior:
-- The search list uses progressive horizontal padding (`a - b = b - c`) where the margin from the pane edge to the selection card equals the margin from the card edge to the text content.
+- The selected-row background starts on the same left edge as the group
+  disclosure triangle.
+- Result-row subtitle text starts on the same left edge as the subtitle file
+  name.
+- The selected-row background and group header text area keep their right edges
+  aligned.
 - Unselected rows are separated by horizontal gray dividers with padding.
-- When a row is selected, it renders a solid accent color (blue) rounded rectangle background with white text, and this selection background visually covers the divider line.
+- When a row is selected, it renders a gray rounded rectangle background while
+  preserving the normal primary text color and yellow query-match highlighting.
+  The selection background visually covers the divider line.
 
 ## 7. Playback Inspector
 

@@ -6,12 +6,20 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Refined grouped Search visual presentation: subtitle-file headers now show a
+  disclosure triangle and full wrapping filename without a per-file count badge,
+  result rows show the start timestamp on the right, selected rows use a gray
+  background with primary text, and row/header alignment now follows separate
+  disclosure, filename, and selected-background edges.
+- Standardized grouped Search controls in English and aligned Search focus
+  styling with the selected-row gray treatment, including a thicker gray focus
+  outline on the Search field.
 - Added temporary Search diagnostics beside the result count to show the current
   rendered result-row count while grouped lazy loading is being validated.
-- Clarified grouped Search lazy-loading rules: headers always show true counts,
-  initial and incremental global rendering use 100-result batches, expanding all
-  reveals one global batch, and expanding a subtitle-file header reveals at most
-  that file's first 100 rows.
+- Clarified grouped Search lazy-loading rules: per-file totals remain true in
+  search state, initial and incremental global rendering use 100-result
+  batches, expanding all reveals one global batch, and expanding a subtitle-file
+  header reveals at most that file's first 100 rows.
 - Updated grouped Search result implementation to use 100-result lazy-loading
   batches, added the collapse or expand-all control beside the result count, and
   kept collapse actions disconnected from search loading.
@@ -19,11 +27,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
   batches and to add a native collapse or expand-all control beside the result
   count.
 - Implemented grouped Search result presentation by subtitle file, including
-  total result counts, file-level match counts, default-expanded collapsible
-  groups, and timestamp-ordered rows within each file group.
+  total result counts, per-file match totals in search state,
+  default-expanded collapsible groups, and timestamp-ordered rows within each
+  file group.
 - Documented the next Search result presentation direction: group matches by
-  subtitle file, show total match counts, support default-expanded collapsible
-  groups, and keep lazy loading based on cue-group result count.
+  subtitle file, maintain total match counts, support default-expanded
+  collapsible groups, and keep lazy loading based on cue-group result count.
 - Replaced the hidden 50-result Search cap with lazy 50-result page loading so
   broad searches can continue revealing older matches as the result list
   scrolls.

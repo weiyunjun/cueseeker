@@ -55,11 +55,14 @@ Grouped result behavior:
   the bottom when more global rows can be shown, clicking the expand-all control
   when all groups are collapsed, or expanding an individual subtitle-file
   header.
-- Group header counts should represent the total number of matched cue groups in
-  that subtitle file for the current query, including results not yet loaded in
-  the visible list.
+- Per-file match totals should remain available in search grouping state for
+  lazy-loading and future sorting behavior, but the current header presentation
+  does not render a per-file count badge.
 - The collapse or expand-all control should toggle all subtitle-file groups in
   the current query at once.
+- The collapse or expand-all control should track only its own global action
+  state. Manually collapsing or expanding a single subtitle-file header should
+  not change that control's label.
 - Collapsing all groups should reduce visible subtitle rows to zero while
   keeping subtitle-file headers visible.
 - Expanding all groups should reveal at most one global 100-result batch. It
@@ -89,7 +92,11 @@ Search focus behavior:
 
 When the user selects a result:
 
-- The selected row visually turns into a solid accent color (e.g., blue) with white text, overriding the default separator lines.
+- The selected row visually turns into a gray rounded rectangle while preserving
+  normal primary text color and query highlighting, overriding the default
+  separator lines.
+- The selected row continues to show the result's start timestamp on the right
+  side.
 - The app should remain in Search and open or update the Playback Inspector.
 - The Playback Inspector should expand automatically if it is collapsed.
 - Playback should start at or near the matching timestamp.
@@ -105,7 +112,11 @@ When the user selects a result:
 
 - **Sidebar**: The selected sidebar item uses a solid accent background with white text. Sidebar items do not have hover effects.
 - **Titlebar Buttons**: Toolbar toggle buttons use a subtle gray background on hover to indicate interactivity.
-- **Search Results**: Interactive result rows emphasize the selection state over hover, relying on progressive padding and a strong blue selection card.
+- **Search Field**: The focused Search field uses a gray outline rather than the
+  system accent color.
+- **Search Results**: Interactive result rows emphasize the selection state over
+  hover with a gray selected-row background, aligned group headers, and visible
+  right-side start timestamps.
 
 ## 5. Playback Interaction
 

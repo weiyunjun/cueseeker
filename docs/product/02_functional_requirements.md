@@ -155,9 +155,11 @@ Search results should be grouped by subtitle file.
 Each subtitle-file group should display:
 
 - The subtitle file name.
-- The total number of matching cue groups in that subtitle file for the current
-  query, including matches that have not yet been loaded by lazy pagination.
 - A collapsed or expanded state indicator.
+
+The current visible group header should not render a per-file count badge. The
+search layer should still retain per-file total counts for lazy-loading rules,
+future sorting behavior, and internal consistency checks.
 
 Subtitle-file groups should be expanded by default, but only the first 100
 matching cue-group rows should be visible after the initial search. Scrolling to
@@ -175,12 +177,19 @@ subtitle-file groups for the current query. Collapsing all groups should hide
 all subtitle rows while keeping headers visible. Expanding all groups is an
 explicit lazy-loading trigger that reveals at most one global 100-result batch,
 not 100 rows per subtitle file. This control must not change total result
-counts or per-file header counts.
+counts or per-file match totals.
+
+The collapse or expand-all control should use English labels, currently
+`Collapse All Results` and `Expand All Results`, and its label should be based
+on the last global collapse or expand action rather than on manual per-header
+toggle state.
 
 Search result rows display:
 
 - Subtitle text.
 - Highlighted query matches.
+- The result start timestamp, matching the Playback Inspector `Start Time`
+  value.
 
 For grouped subtitle results:
 
