@@ -370,8 +370,8 @@ private struct SearchResultGroupHeader: View {
 
                 ZStack(alignment: .topTrailing) {
                     Text(group.subtitleFileName)
-                        .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .font(.system(size: SearchTypography.groupHeaderSize))
+                        .foregroundStyle(.secondary)
                         .lineLimit(nil)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -379,6 +379,7 @@ private struct SearchResultGroupHeader: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     SearchResultCountBadge(text: group.displayCount)
+                        .padding(.top, 2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -395,14 +396,14 @@ private struct SearchResultCountBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: SearchTypography.detailSize, weight: .semibold))
+            .font(.system(size: SearchTypography.detailSize - 1, weight: .semibold))
             .foregroundStyle(.white)
             .monospacedDigit()
             .padding(.horizontal, 7)
             .padding(.vertical, 1)
             .background(
                 Capsule()
-                    .fill(Color(nsColor: .darkGray))
+                    .fill(Color(nsColor: .systemGray))
             )
     }
 }
