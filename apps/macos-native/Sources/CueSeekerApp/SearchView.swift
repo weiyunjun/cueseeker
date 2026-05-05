@@ -368,10 +368,17 @@ private struct SearchResultGroupHeader: View {
                     .frame(width: SearchLayout.groupDisclosureWidth, alignment: .topLeading)
                     .padding(.top, 2)
 
-                Text(headerTitle)
-                    .lineLimit(nil)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .lastTextBaseline, spacing: 6) {
+                    Text(group.subtitleFileName)
+                        .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+
+                    SearchResultCountBadge(text: group.displayCount)
+                }
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.vertical, 7)
@@ -380,19 +387,22 @@ private struct SearchResultGroupHeader: View {
         }
         .buttonStyle(StaticButtonStyle())
     }
+}
 
-    private var headerTitle: AttributedString {
-        var title = AttributedString(group.subtitleFileName + " ")
-        title.font = .system(size: SearchTypography.groupHeaderSize, weight: .semibold)
-        title.foregroundColor = .primary
+private struct SearchResultCountBadge: View {
+    let text: String
 
-        var count = AttributedString("\u{00A0}\(group.displayCount)\u{00A0}")
-        count.font = .system(size: SearchTypography.detailSize, weight: .semibold)
-        count.foregroundColor = .white
-        count.backgroundColor = Color(nsColor: .darkGray)
-        title.append(count)
-
-        return title
+    var body: some View {
+        Text(text)
+            .font(.system(size: SearchTypography.detailSize, weight: .semibold))
+            .foregroundStyle(.white)
+            .monospacedDigit()
+            .padding(.horizontal, 7)
+            .padding(.vertical, 1)
+            .background(
+                Capsule()
+                    .fill(Color(nsColor: .darkGray))
+            )
     }
 }
 
