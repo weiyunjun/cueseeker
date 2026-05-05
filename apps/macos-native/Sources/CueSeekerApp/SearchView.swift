@@ -351,7 +351,7 @@ private struct SearchField: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isFocused ? Color(nsColor: .separatorColor).opacity(0.8) : Color.clear, lineWidth: isFocused ? 2 : 0)
+                .stroke(isFocused ? Color(nsColor: .separatorColor).opacity(0.8) : Color.clear, lineWidth: isFocused ? 4 : 0)
         }
     }
 }
