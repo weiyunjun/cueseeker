@@ -113,6 +113,7 @@ struct SearchView: View {
                             appState.toggleAllSearchResultGroups()
                         } label: {
                             Text(appState.searchResultGroupToggleTitle)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -436,7 +437,7 @@ private struct SearchResultRow: View {
             .padding(.trailing, SearchLayout.resultTimestampTrailingPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                isSelected ? Color(nsColor: .separatorColor).opacity(0.6) : Color.clear
+                isSelected ? Color(nsColor: .separatorColor).opacity(0.8) : Color.clear
             )
             .foregroundStyle(Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
