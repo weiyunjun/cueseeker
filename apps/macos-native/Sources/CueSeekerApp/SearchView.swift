@@ -369,7 +369,7 @@ private struct SearchResultGroupHeader: View {
                     .frame(width: SearchLayout.groupDisclosureWidth, alignment: .topLeading)
                     .padding(.top, 2)
 
-                Text(group.subtitleFileName)
+                Text(filenameWithSoftWrapOpportunities(group.subtitleFileName))
                     .font(.system(size: SearchTypography.groupHeaderSize))
                     .foregroundStyle(.secondary)
                     .lineLimit(nil)
@@ -551,6 +551,21 @@ private enum SearchLayout {
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding
     static let resultTextLeadingPadding: CGFloat = groupDisclosureWidth
     static let resultDividerHorizontalPadding: CGFloat = resultOuterHorizontalPadding + resultTextLeadingPadding
+}
+
+private func filenameWithSoftWrapOpportunities(_ filename: String) -> String {
+    let zeroWidthSpace = "\u{200B}"
+    let softBreakCharacters: Set<Character> = ["]", ".", "_", "-"]
+    var wrapped = ""
+
+    for character in filename {
+        wrapped.append(character)
+        if softBreakCharacters.contains(character) {
+            wrapped.append(zeroWidthSpace)
+        }
+    }
+
+    return wrapped
 }
 
 private func highlightedContent(_ content: String, query: String, isSelected: Bool = false) -> AttributedString {
