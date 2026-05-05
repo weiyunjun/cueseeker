@@ -368,14 +368,13 @@ private struct SearchResultGroupHeader: View {
                     .frame(width: SearchLayout.groupDisclosureWidth, alignment: .topLeading)
                     .padding(.top, 2)
 
-                ZStack(alignment: .topTrailing) {
+                HStack(alignment: .top, spacing: SearchLayout.groupFilenameToBadgeSpacing) {
                     Text(group.subtitleFileName)
                         .font(.system(size: SearchTypography.groupHeaderSize))
                         .foregroundStyle(.secondary)
                         .lineLimit(nil)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.trailing, SearchLayout.groupCountBadgeReservedWidth)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     SearchResultCountBadge(text: group.displayCount)
@@ -564,7 +563,7 @@ private enum SearchLayout {
     static let resultOuterHorizontalPadding: CGFloat = 12
     static let resultContentHorizontalPadding: CGFloat = 12
     static let groupDisclosureWidth: CGFloat = 16
-    static let groupCountBadgeReservedWidth: CGFloat = 48
+    static let groupFilenameToBadgeSpacing: CGFloat = 16
     static let resultCardLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
 }
 

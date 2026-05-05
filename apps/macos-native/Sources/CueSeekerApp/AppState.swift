@@ -105,6 +105,7 @@ final class AppState: ObservableObject {
     @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
     @Published var hasMoreSearchResults = false
     @Published var collapsedSearchResultGroupPaths: Set<String> = []
+    @Published private var areSearchResultGroupsCollapsedByGlobalControl = false
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var playbackStatus: PlaybackStatus = .idle
@@ -172,16 +173,7 @@ final class AppState: ObservableObject {
     }
 
     var searchResultGroupToggleTitle: String {
-        areAllSearchResultGroupsCollapsed ? "Expand All Results" : "Collapse All Results"
-    }
-
-    private var areAllSearchResultGroupsCollapsed: Bool {
-        let groupPaths = Set(searchResultGroups.map(\.id))
-        guard !groupPaths.isEmpty else {
-            return false
-        }
-
-        return groupPaths.isSubset(of: collapsedSearchResultGroupPaths)
+        areSearchResultGroupsCollapsedByGlobalControl ? "Expand All Results" : "Collapse All Results"
     }
 
     private let userDefaults: UserDefaults
@@ -455,11 +447,13 @@ final class AppState: ObservableObject {
             return
         }
 
-        if groupPaths.isSubset(of: collapsedSearchResultGroupPaths) {
+        if areSearchResultGroupsCollapsedByGlobalControl {
             collapsedSearchResultGroupPaths.subtract(groupPaths)
+            areSearchResultGroupsCollapsedByGlobalControl = false
             revealInitialGlobalSearchResultPage()
         } else {
             collapsedSearchResultGroupPaths.formUnion(groupPaths)
+            areSearchResultGroupsCollapsedByGlobalControl = true
         }
     }
 
@@ -932,6 +926,7 @@ final class AppState: ObservableObject {
         searchFileSummaries = []
         hasMoreSearchResults = false
         collapsedSearchResultGroupPaths = []
+        areSearchResultGroupsCollapsedByGlobalControl = false
         expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
     }
