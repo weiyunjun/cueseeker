@@ -429,9 +429,9 @@ private struct SearchResultRow: View {
             .padding(.horizontal, SearchLayout.resultContentHorizontalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                isSelected ? Color.accentColor : Color.clear
+                isSelected ? Color(nsColor: .separatorColor).opacity(0.45) : Color.clear
             )
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .foregroundStyle(Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultCardLeadingPadding)
             .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
@@ -582,12 +582,8 @@ private func highlightedContent(_ content: String, query: String, isSelected: Bo
             if let lowerBound = AttributedString.Index(match.lowerBound, within: highlighted),
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
                 highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
-                if isSelected {
-                    highlighted[lowerBound..<upperBound].foregroundColor = .white
-                } else {
-                    highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(0.55)
-                    highlighted[lowerBound..<upperBound].foregroundColor = Color.primary
-                }
+                highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(0.55)
+                highlighted[lowerBound..<upperBound].foregroundColor = Color.primary
             }
 
             guard match.upperBound < content.endIndex else {
