@@ -369,42 +369,19 @@ private struct SearchResultGroupHeader: View {
                     .frame(width: SearchLayout.groupDisclosureWidth, alignment: .topLeading)
                     .padding(.top, 2)
 
-                HStack(alignment: .top, spacing: SearchLayout.groupFilenameToBadgeSpacing) {
-                    Text(group.subtitleFileName)
-                        .font(.system(size: SearchTypography.groupHeaderSize))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(nil)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    SearchResultCountBadge(text: group.displayCount)
-                        .padding(.top, 2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(group.subtitleFileName)
+                    .font(.system(size: SearchTypography.groupHeaderSize))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.vertical, 7)
             .padding(.horizontal, SearchLayout.resultOuterHorizontalPadding)
             .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
-    }
-}
-
-private struct SearchResultCountBadge: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: SearchTypography.detailSize - 1, weight: .semibold))
-            .foregroundStyle(.white)
-            .monospacedDigit()
-            .padding(.horizontal, 7)
-            .padding(.vertical, 1)
-            .background(
-                Capsule()
-                    .fill(Color(nsColor: .systemGray))
-            )
     }
 }
 
@@ -572,7 +549,6 @@ private enum SearchLayout {
     static let resultContentHorizontalPadding: CGFloat = 12
     static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
-    static let groupFilenameToBadgeSpacing: CGFloat = 16
     static let resultCardLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
 }
 
