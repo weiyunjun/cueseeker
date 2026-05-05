@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented the next Search result presentation direction: group matches by
+  subtitle file, show total match counts, support default-expanded collapsible
+  groups, and keep lazy loading based on cue-group result count.
 - Replaced the hidden 50-result Search cap with lazy 50-result page loading so
   broad searches can continue revealing older matches as the result list
   scrolls.

@@ -36,7 +36,23 @@ Expected behavior:
 - Empty search shows an empty or guidance state.
 - Invalid search syntax should not crash the app.
 - Search results should not flicker unnecessarily.
+- Search should show a muted total result count below the search field when a
+  query has results.
 - Repeating the same query should not trigger expensive work without reason.
+
+Grouped result behavior:
+
+- Search results should be grouped by subtitle file.
+- Groups should be expanded by default.
+- Clicking a subtitle-file header should collapse or expand that group.
+- Collapsing a group should only hide that group's loaded rows. It must not
+  change result counts, lazy loading behavior, search scope, or selection
+  identity.
+- Result lazy loading should remain based on matched cue groups, not subtitle
+  file groups. Each loaded page should contain up to 50 cue-group results.
+- Group header counts should represent the total number of matched cue groups in
+  that subtitle file for the current query, including results not yet loaded in
+  the visible list.
 
 Search focus behavior:
 

@@ -126,6 +126,8 @@ Requirements:
 - Results should be limited to avoid rendering excessive rows.
 - Search should load results incrementally in pages of 50 so broad queries can
   continue revealing matches while avoiding an unbounded first render.
+- The Search view should show the total matching cue-group count for the current
+  query near the search field.
 - Search results must be scoped to the currently selected subtitle folders.
 - Stale index rows outside the currently selected folders must not appear in
   Search.
@@ -148,11 +150,23 @@ Requirements:
 
 Search results must show enough information for the user to choose the correct match.
 
-Current M1 result rows display:
+Search results should be grouped by subtitle file.
+
+Each subtitle-file group should display:
+
+- The subtitle file name.
+- The total number of matching cue groups in that subtitle file for the current
+  query, including matches that have not yet been loaded by lazy pagination.
+- A collapsed or expanded state indicator.
+
+Subtitle-file groups should be expanded by default. Collapsing a group should
+only affect result visibility and must not affect search result counts, lazy
+loading state, or playback identity.
+
+Search result rows display:
 
 - Subtitle text.
 - Highlighted query matches.
-- Subtitle file name.
 
 For grouped subtitle results:
 

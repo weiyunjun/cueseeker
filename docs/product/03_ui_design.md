@@ -93,13 +93,43 @@ The search input should stay easy to access.
 Accepted M1 search presentation:
 
 - The search field is a custom `NSTextView` wrapper (`SearchTextView`) allowing a 36pt high focus ring with zero baseline jitter, a leading magnifying-glass icon, and an inline clear button.
+- The area below the search field shows muted result-count text for the current
+  query, such as `Found 42 results`.
 - Search results are shown as a list of rounded rectangular cards.
 - Search result scrolling loads additional matches lazily in 50-result pages.
+- Search results are grouped under subtitle-file headers.
 - Selecting a search result opens or updates the Playback Inspector without leaving Search.
 - Search results use refined macOS-native typography and highlight query matches with a yellow background.
 - Search result visual polish is still incomplete and subject to further iteration.
 
-## 5. Search Result Row
+## 5. Search Result Group
+
+Each subtitle-file group should be compact and scannable.
+
+The group header should display:
+
+- A disclosure triangle on the left.
+- The subtitle file name.
+- A right-aligned count for the total number of matches in that subtitle file.
+
+The count should display `99+` when the total is greater than 99.
+
+The group header should be clickable as a single target and should toggle
+collapse or expansion. The disclosure triangle indicates state; it does not need
+to be the only clickable control.
+
+Groups should be expanded by default.
+
+Subtitle-file-name text and result-row subtitle text should align on the same
+left edge. The disclosure triangle should live in the left-side control space so
+it does not add extra indentation to result-row subtitle text. The exact spacing
+may be refined during implementation.
+
+Group ordering should be stable and based on subtitle file name. If two groups
+have the same displayed file name, the full subtitle path should be used as the
+secondary stable ordering key.
+
+## 6. Search Result Row
 
 Each result row should be compact and scannable.
 
@@ -107,12 +137,14 @@ Current M1 row content:
 
 - Subtitle text as the primary content.
 - Query match highlighting.
-- Subtitle file name.
 
 Grouped cue result rows should display every cue line in the matched group,
 ordered by derived display order when available. Grouped rows may use dynamic
 height and must not deduplicate same-looking cue lines or impose a fixed
 product-level line count cap.
+
+Rows inside the same subtitle-file group should be ordered by subtitle
+timestamp ascending.
 
 Rows should have stable height or predictable dynamic height. Long subtitle text should not break the layout.
 
@@ -123,7 +155,7 @@ Layout and Selection Behavior:
 - Unselected rows are separated by horizontal gray dividers with padding.
 - When a row is selected, it renders a solid accent color (blue) rounded rectangle background with white text, and this selection background visually covers the divider line.
 
-## 6. Playback Inspector
+## 7. Playback Inspector
 
 The Playback Inspector is the right-side playback and result-detail panel in the Search workspace.
 
