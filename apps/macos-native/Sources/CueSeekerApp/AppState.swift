@@ -71,7 +71,7 @@ enum PlaybackStatus: Equatable {
 
 struct SearchResultFileGroup: Identifiable, Equatable {
     let subtitlePath: String
-    let subtitleFileName: String
+    let subtitleDisplayTitle: String
     let totalCount: Int
     let results: [SubtitleSearchResult]
     let isCollapsed: Bool
@@ -147,7 +147,8 @@ final class AppState: ObservableObject {
             let results = groupRows.sorted(by: Self.searchResultSort)
             return SearchResultFileGroup(
                 subtitlePath: path,
-                subtitleFileName: summary?.subtitleFileName ?? URL(fileURLWithPath: path).lastPathComponent,
+                subtitleDisplayTitle: summary?.subtitleDisplayTitle
+                    ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path),
                 totalCount: summary?.matchCount ?? results.count,
                 results: results,
                 isCollapsed: collapsedSearchResultGroupPaths.contains(path)
@@ -822,11 +823,11 @@ final class AppState: ObservableObject {
     }
 
     private static func searchResultGroupPathSort(_ lhs: String, _ rhs: String) -> Bool {
-        let lhsFileName = URL(fileURLWithPath: lhs).lastPathComponent
-        let rhsFileName = URL(fileURLWithPath: rhs).lastPathComponent
-        let fileNameComparison = lhsFileName.localizedStandardCompare(rhsFileName)
-        if fileNameComparison != .orderedSame {
-            return fileNameComparison == .orderedAscending
+        let lhsDisplayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: lhs)
+        let rhsDisplayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: rhs)
+        let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
+        if displayTitleComparison != .orderedSame {
+            return displayTitleComparison == .orderedAscending
         }
 
         return lhs.localizedStandardCompare(rhs) == .orderedAscending

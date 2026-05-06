@@ -29,6 +29,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
 public struct SubtitleSearchFileSummary: Equatable, Sendable {
     public let subtitlePath: String
     public let subtitleFileName: String
+    public let subtitleDisplayTitle: String
     public let matchCount: Int
 }
 
@@ -884,12 +885,14 @@ public final class SubtitleDatabase {
     }
 
     private static func sortedSearchResults(_ results: [SubtitleSearchResult]) -> [SubtitleSearchResult] {
-        results.sorted { lhs, rhs in
-            let lhsFileName = URL(fileURLWithPath: lhs.subtitlePath).lastPathComponent
-            let rhsFileName = URL(fileURLWithPath: rhs.subtitlePath).lastPathComponent
-            let fileNameComparison = lhsFileName.localizedStandardCompare(rhsFileName)
-            if fileNameComparison != .orderedSame {
-                return fileNameComparison == .orderedAscending
+        let displayTitlesByPath = displayTitlesByPath(for: results.map(\.subtitlePath))
+
+        return results.sorted { lhs, rhs in
+            let lhsDisplayTitle = displayTitlesByPath[lhs.subtitlePath] ?? URL(fileURLWithPath: lhs.subtitlePath).lastPathComponent
+            let rhsDisplayTitle = displayTitlesByPath[rhs.subtitlePath] ?? URL(fileURLWithPath: rhs.subtitlePath).lastPathComponent
+            let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
+            if displayTitleComparison != .orderedSame {
+                return displayTitleComparison == .orderedAscending
             }
 
             let pathComparison = lhs.subtitlePath.localizedStandardCompare(rhs.subtitlePath)
@@ -915,12 +918,14 @@ public final class SubtitleDatabase {
             countsByPath[result.subtitlePath, default: 0] += 1
         }
 
+        let displayTitlesByPath = displayTitlesByPath(for: Array(countsByPath.keys))
+
         return countsByPath.keys.sorted { lhs, rhs in
-            let lhsFileName = URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsFileName = URL(fileURLWithPath: rhs).lastPathComponent
-            let fileNameComparison = lhsFileName.localizedStandardCompare(rhsFileName)
-            if fileNameComparison != .orderedSame {
-                return fileNameComparison == .orderedAscending
+            let lhsDisplayTitle = displayTitlesByPath[lhs] ?? URL(fileURLWithPath: lhs).lastPathComponent
+            let rhsDisplayTitle = displayTitlesByPath[rhs] ?? URL(fileURLWithPath: rhs).lastPathComponent
+            let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
+            if displayTitleComparison != .orderedSame {
+                return displayTitleComparison == .orderedAscending
             }
 
             return lhs.localizedStandardCompare(rhs) == .orderedAscending
@@ -929,9 +934,21 @@ public final class SubtitleDatabase {
             SubtitleSearchFileSummary(
                 subtitlePath: path,
                 subtitleFileName: URL(fileURLWithPath: path).lastPathComponent,
+                subtitleDisplayTitle: displayTitlesByPath[path] ?? URL(fileURLWithPath: path).lastPathComponent,
                 matchCount: countsByPath[path] ?? 0
             )
         }
+    }
+
+    private static func displayTitlesByPath(for subtitlePaths: [String]) -> [String: String] {
+        Dictionary(
+            uniqueKeysWithValues: Set(subtitlePaths).map { path in
+                (
+                    path,
+                    SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path)
+                )
+            }
+        )
     }
 
     private static func searchQueryPlan(for query: String, limit: Int) -> SearchQueryPlan? {

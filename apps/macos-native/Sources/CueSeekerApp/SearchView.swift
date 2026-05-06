@@ -366,14 +366,14 @@ private struct SearchResultGroupHeader: View {
     }
 
     private var headerText: AttributedString {
-        var filename = AttributedString(filenameWithSoftWrapOpportunities(group.subtitleFileName))
-        filename.foregroundColor = isSelected ? .primary : Color.primary.opacity(0.76)
+        var displayTitle = AttributedString(displayTitleWithSoftWrapOpportunities(group.subtitleDisplayTitle))
+        displayTitle.foregroundColor = isSelected ? .primary : Color.primary.opacity(0.76)
 
         var count = AttributedString("  \(resultCountText)")
         count.foregroundColor = Color.secondary
 
-        filename.append(count)
-        return filename
+        displayTitle.append(count)
+        return displayTitle
     }
 
     private var resultCountText: String {
@@ -650,12 +650,12 @@ private enum SearchLayout {
     static let resultTextLeadingPadding: CGFloat = resultTextHorizontalPadding
 }
 
-private func filenameWithSoftWrapOpportunities(_ filename: String) -> String {
+private func displayTitleWithSoftWrapOpportunities(_ displayTitle: String) -> String {
     let zeroWidthSpace = "\u{200B}"
     let softBreakCharacters: Set<Character> = ["]", ".", "_", "-"]
     var wrapped = ""
 
-    for character in filename {
+    for character in displayTitle {
         wrapped.append(character)
         if softBreakCharacters.contains(character) {
             wrapped.append(zeroWidthSpace)

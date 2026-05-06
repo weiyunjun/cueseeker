@@ -183,6 +183,64 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
 }
 
 @Test
+func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
+    let databaseURL = temporaryDatabaseURL()
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerFriendlySummaryTests-\(UUID().uuidString)")
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let series = root.appendingPathComponent("葬送的芙莉莲")
+    try FileManager.default.createDirectory(at: series, withIntermediateDirectories: true)
+    let firstSubtitle = series.appendingPathComponent("aa1.ass")
+    let secondSubtitle = series.appendingPathComponent("aa2.ass")
+    let eleventhSubtitle = series.appendingPathComponent("aa11.ass")
+    for subtitleFile in [firstSubtitle, secondSubtitle, eleventhSubtitle] {
+        try "subtitle".write(to: subtitleFile, atomically: true, encoding: .utf8)
+    }
+
+    try database.replaceEntries(
+        subtitleFile: secondSubtitle,
+        videoFile: series.appendingPathComponent("aa2.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:02,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 2_000,
+                endMilliseconds: 3_000,
+                text: "Shared second"
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: eleventhSubtitle,
+        videoFile: series.appendingPathComponent("aa11.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:11,000",
+                endTimecode: "00:00:12,000",
+                startMilliseconds: 11_000,
+                endMilliseconds: 12_000,
+                text: "Shared eleventh"
+            )
+        ]
+    )
+
+    let page = try database.searchPage("shared", limit: 10)
+
+    #expect(page.fileSummaries.map(\.subtitleFileName) == ["aa2.ass", "aa11.ass"])
+    #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["葬送的芙莉莲 - 02", "葬送的芙莉莲 - 03"])
+    #expect(page.results.map(\.content) == ["Shared second", "Shared eleventh"])
+}
+
+@Test
 func searchLoadsRowsForSpecificSubtitleFileOutsideGlobalPage() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

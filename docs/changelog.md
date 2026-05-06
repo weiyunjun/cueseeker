@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented friendly Search result group titles by deriving display titles
+  from the immediate parent folder name and the subtitle file's non-recursive
+  Finder-like rank among same-extension regular sibling subtitle files, while
+  falling back to raw filenames when derivation is unavailable.
 - Accepted friendly Search result group titles: result headers should display
   the immediate parent folder name plus the subtitle file's Finder-like
   natural-sort rank among same-extension sibling subtitle files, such as
