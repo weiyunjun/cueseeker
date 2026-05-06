@@ -390,7 +390,7 @@ private struct SearchResultRow: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 3) {
                     ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
                         Text(highlightedContent(line, query: query, isSelected: isSelected))
                             .font(.system(size: SearchTypography.bodySize))
