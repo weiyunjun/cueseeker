@@ -208,14 +208,14 @@ struct SearchView: View {
                                 appState.clearSearchFocus()
                                 appState.revealVideoFile(for: result)
                             } label: {
-                                Label("Video Path", systemImage: "folder")
+                                Label("Video Folder", systemImage: "folder")
                             }
 
                             Button {
                                 appState.clearSearchFocus()
                                 appState.revealSubtitleFile(for: result)
                             } label: {
-                                Label("Subtitle Path", systemImage: "folder")
+                                Label("Subtitle Folder", systemImage: "folder")
                             }
                         }
                     }

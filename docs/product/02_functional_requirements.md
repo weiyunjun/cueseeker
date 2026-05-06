@@ -228,8 +228,8 @@ Clicking a result must open or update the Playback Inspector and trigger playbac
 The Playback Inspector displays additional context:
 
 - Embedded video playback.
-- A `Video Path` button that reveals the matched video file in Finder.
-- A `Subtitle Path` button that reveals the source subtitle file in Finder.
+- A `Video Folder` button that reveals the matched video file in Finder.
+- A `Subtitle Folder` button that reveals the source subtitle file in Finder.
 
 The Playback Inspector should not show separate read-only `Start Time`,
 `Video Path`, or `Subtitle Path` metadata fields under the video. Source file

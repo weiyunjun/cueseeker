@@ -122,11 +122,11 @@ When the user selects a result:
   the playback target and begin asynchronous source ASS rendering preparation.
 - Result selection and Playback Inspector expansion should remain responsive
   even when source ASS rendering is slow or unavailable.
-- The Playback Inspector should expose `Video Path` and `Subtitle Path` buttons
-  below the video instead of read-only path metadata.
-- Clicking `Video Path` should open Finder to the matched video's containing
+- The Playback Inspector should expose `Video Folder` and `Subtitle Folder`
+  buttons below the video instead of read-only path metadata.
+- Clicking `Video Folder` should open Finder to the matched video's containing
   folder and select the video file.
-- Clicking `Subtitle Path` should open Finder to the source subtitle's
+- Clicking `Subtitle Folder` should open Finder to the source subtitle's
   containing folder and select the subtitle file.
 
 ## 5. Visual Feedback and Hover
