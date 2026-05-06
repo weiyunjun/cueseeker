@@ -222,9 +222,16 @@ The Playback Inspector is the right-side playback and result-detail panel in the
 Required content:
 
 - Embedded video.
-- Start time.
-- Video path.
-- Subtitle path.
+- A `Video Path` button.
+- A `Subtitle Path` button.
+
+The Playback Inspector should not show read-only `Start Time`, `Video Path`, or
+`Subtitle Path` metadata labels and values under the video. The previous
+metadata area should instead provide the two file-location buttons.
+
+The `Video Path` and `Subtitle Path` buttons should visually match the ordinary
+Settings action buttons. Each button should use a folder icon to the left of the
+text label.
 
 Behavior:
 
@@ -236,6 +243,8 @@ Behavior:
 - Collapsing the Playback Inspector does not clear the current selected result.
 - Reopening the Playback Inspector does not automatically resume playback.
 - Switching from Search to Settings or another top-level section pauses playback without stopping it.
+- Clicking `Video Path` reveals the matched video file in Finder.
+- Clicking `Subtitle Path` reveals the source subtitle file in Finder.
 - Playback fullscreen presents the video in a black Theater Mode window rather than fullscreening the app shell.
 - Theater Mode must not visually cover system app-switching UI; Cmd-Tab and other system overlays should appear above playback fullscreen.
 - When the app resigns active during Theater Mode, playback fullscreen hides and then restores when the app becomes active again.

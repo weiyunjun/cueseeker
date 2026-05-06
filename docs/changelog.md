@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the Playback Inspector file-location action update: read-only Start
+  Time, Video Path, and Subtitle Path metadata should be replaced by `Video Path`
+  and `Subtitle Path` buttons that reveal the selected files in Finder.
 - Implemented friendly Search result group titles by deriving display titles
   from the immediate parent folder name and the subtitle file's non-recursive
   Finder-like rank among same-extension regular sibling subtitle files, while

@@ -228,11 +228,14 @@ Clicking a result must open or update the Playback Inspector and trigger playbac
 
 The Playback Inspector displays additional context:
 
-- Subtitle content.
-- Start time.
-- Video path.
-- Subtitle path, preserving the exact source filename even when Search result
-  group headers use friendly display titles.
+- Embedded video playback.
+- A `Video Path` button that reveals the matched video file in Finder.
+- A `Subtitle Path` button that reveals the source subtitle file in Finder.
+
+The Playback Inspector should not show separate read-only `Start Time`,
+`Video Path`, or `Subtitle Path` metadata fields under the video. Source file
+identity remains available through the Finder reveal buttons and internal search
+result state.
 
 ## 8. Local Playback
 
