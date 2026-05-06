@@ -388,7 +388,7 @@ private struct SearchResultRow: View {
     let isSelected: Bool
 
     var body: some View {
-        let rowTextColor: Color = isSelected ? .primary : .secondary
+        let rowTextColor: Color = isSelected ? .primary : Color.primary.opacity(0.82)
 
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
