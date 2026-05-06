@@ -400,9 +400,17 @@ private struct SearchResultRow: View {
     let result: SubtitleSearchResult
     let query: String
     let isSelected: Bool
+    @State private var isHovered = false
 
     var body: some View {
         let rowTextColor: Color = isSelected ? .primary : Color.primary.opacity(0.76)
+        let rowBackgroundColor: Color = if isSelected {
+            Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+        } else if isHovered {
+            Color(nsColor: .unemphasizedSelectedContentBackgroundColor).opacity(0.55)
+        } else {
+            Color.clear
+        }
 
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
@@ -428,15 +436,14 @@ private struct SearchResultRow: View {
             .padding(.leading, SearchLayout.resultTextLeadingPadding)
             .padding(.trailing, SearchLayout.resultTimestampTrailingPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                isSelected ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor) : Color.clear
-            )
+            .background(rowBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
             .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
     }
 
     private var displayLines: [String] {
