@@ -640,8 +640,8 @@ private enum SearchLayout {
     static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
     static let groupRailTriangleSize: CGFloat = 8
-    static let groupRailTriangleLineWidth: CGFloat = 2
-    static let groupRailTriangleTopPadding: CGFloat = 0
+    static let groupRailTriangleLineWidth: CGFloat = 1.5
+    static let groupRailTriangleTopPadding: CGFloat = 7
     static let groupRailLineTopSpacing: CGFloat = 2
     static let groupRailLineWidth: CGFloat = 1
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
