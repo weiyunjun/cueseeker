@@ -155,11 +155,15 @@ Search results should be grouped by subtitle file.
 Each subtitle-file group should display:
 
 - The subtitle file name.
+- The total matching cue-group count for that subtitle file as plain text
+  appended after the filename, separated by two spaces, using `1 result` for a
+  single match and `N results` otherwise.
 - A collapsed or expanded state indicator.
 
-The current visible group header should not render a per-file count badge. The
-search layer should still retain per-file total counts for lazy-loading rules,
-future sorting behavior, and internal consistency checks.
+The visible group header should not render a separate per-file count badge or
+additional count component. The per-file total should remain part of the header
+text. The search layer should still retain per-file total counts for
+lazy-loading rules, future sorting behavior, and internal consistency checks.
 
 Subtitle-file groups should be expanded by default, but only the first 100
 matching cue-group rows should be visible after the initial search. Scrolling to

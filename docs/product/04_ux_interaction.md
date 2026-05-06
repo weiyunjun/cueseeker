@@ -56,8 +56,9 @@ Grouped result behavior:
   when all groups are collapsed, or expanding an individual subtitle-file
   header.
 - Per-file match totals should remain available in search grouping state for
-  lazy-loading and future sorting behavior, but the current header presentation
-  does not render a per-file count badge.
+  lazy-loading and future sorting behavior. Header presentation should append
+  the per-file total to the subtitle filename as plain text and must not render
+  a per-file count badge or separate count component.
 - The collapse or expand-all control should toggle all subtitle-file groups in
   the current query at once.
 - The collapse or expand-all control should track only its own global action
@@ -96,7 +97,11 @@ When the user selects a result:
   normal primary text color and query highlighting, without relying on row
   divider lines.
 - The selected row continues to show the result's start timestamp on the right
-  side, but timestamp text remains visually weaker than subtitle text.
+  side. Within a row, subtitle text and timestamp text should use the same
+  color for that row's selection state.
+- Unselected rows use a slightly muted primary text color for both subtitle text
+  and timestamp text, preserving hierarchy without making the unselected
+  results as faint as group headers.
 - Search result subtitle text should keep internal SRT and ASS line breaks
   readable with extra wrapped-line spacing, especially for bilingual cue text.
 - The app should remain in Search and open or update the Playback Inspector.
@@ -119,7 +124,8 @@ When the user selects a result:
 - **Search Results**: Interactive result rows emphasize the selection state over
   hover with a macOS unemphasized gray selected-row background, aligned group
   headers, no row divider lines, readable bilingual line spacing, and visible
-  but visually muted right-side start timestamps.
+  right-side start timestamps whose text color matches the subtitle text for
+  the same row state.
 
 ## 5. Playback Interaction
 

@@ -120,7 +120,8 @@ Each subtitle-file group should be compact and scannable.
 The group header should display:
 
 - A disclosure triangle on the left.
-- The subtitle file name.
+- The subtitle file name followed by two spaces and the per-file result count
+  as plain text, for example `1.ass  3 results` or `1.ass  1 result`.
 
 The group header should be clickable as a single target and should toggle
 collapse or expansion. The disclosure triangle indicates state; it does not need
@@ -128,10 +129,10 @@ to be the only clickable control.
 
 Groups should be expanded by default.
 
-The current grouped Search header does not render a per-file count badge.
-Per-file match totals may still exist in search state for loading and future
-sorting behavior, but the visible count surface is the total result count below
-the search field.
+The grouped Search header should not render a per-file count badge or a
+separate right-aligned count component. Per-file match totals should appear as
+plain text appended to the filename, while also remaining available in search
+state for loading and future sorting behavior.
 
 Subtitle file names should display in full and may wrap across multiple lines.
 The filename text may include invisible soft wrap opportunities after common
@@ -160,6 +161,15 @@ Current M1 row content:
 - Query match highlighting.
 - Start timestamp at the right side, matching the Playback Inspector `Start Time`
   value for that result.
+
+Current result-row color behavior:
+
+- Selected rows use the macOS unemphasized selected-content background.
+- Selected subtitle text and selected start timestamps use the same primary
+  text color.
+- Unselected subtitle text and unselected start timestamps use the same
+  slightly muted primary text color so rows remain readable without competing
+  with the selected row.
 
 Grouped cue result rows should display every cue line in the matched group,
 ordered by derived display order when available. Grouped rows may use dynamic

@@ -6,11 +6,19 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Clarified the next grouped Search header count presentation: per-file totals
+  should be appended as plain text after the subtitle filename, using
+  `1 result` or `N results`, without reintroducing a badge or separate count UI.
+- Refined accepted Search result text contrast: subtitle rows and right-side
+  timestamps now share the same color within each selection state, selected rows
+  use primary text on the macOS unemphasized selection background, and
+  unselected rows use a softer primary text opacity while preserving the
+  existing yellow query highlight strengths.
 - Accepted the grouped Search result row visual refresh: selected rows now use
   the macOS unemphasized gray selection background, row divider lines are
-  removed, timestamps are visually muted, query highlights use separate selected
-  and unselected yellow strengths, and wrapped subtitle lines use additional
-  spacing for bilingual readability.
+  removed, query highlights use separate selected and unselected yellow
+  strengths, and wrapped subtitle lines use additional spacing for bilingual
+  readability.
 - Removed the native ASS renderer route from active playback: ASS playback now
   uses the `libass` source-faithful overlay only, Settings no longer exposes an
   ASS renderer selector, PlaybackSyncProbe reports the libass path, and ADR-0009
