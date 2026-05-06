@@ -432,7 +432,14 @@ private struct SearchResultGroupRail: View {
 
                 Button(action: onToggle) {
                     SearchResultDisclosureTriangle()
-                        .fill(Color.secondary)
+                        .stroke(
+                            Color.secondary,
+                            style: StrokeStyle(
+                                lineWidth: SearchLayout.groupRailTriangleLineWidth,
+                                lineCap: .round,
+                                lineJoin: .round
+                            )
+                        )
                         .frame(
                             width: SearchLayout.groupRailTriangleSize,
                             height: SearchLayout.groupRailTriangleSize
@@ -459,9 +466,8 @@ private struct SearchResultDisclosureTriangle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-        path.closeSubpath()
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
         return path
     }
 }
@@ -634,7 +640,8 @@ private enum SearchLayout {
     static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
     static let groupRailTriangleSize: CGFloat = 8
-    static let groupRailTriangleTopPadding: CGFloat = 9
+    static let groupRailTriangleLineWidth: CGFloat = 2
+    static let groupRailTriangleTopPadding: CGFloat = 0
     static let groupRailLineTopSpacing: CGFloat = 2
     static let groupRailLineWidth: CGFloat = 1
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
