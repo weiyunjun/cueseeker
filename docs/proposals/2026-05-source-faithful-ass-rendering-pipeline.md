@@ -1,11 +1,17 @@
 # Source-Faithful ASS Playback Rendering Pipeline
 
-Status: Accepted
+Status: Superseded By ADR-0009 Update
+
+Note: This proposal records the source-faithful ASS playback requirements and
+the historical native-renderer plan. The active implementation direction is now
+the `libass`-only renderer selected by ADR-0009. Sections that describe native
+ASS phases are retained as historical design context, not current execution
+guidance.
 
 ## Background
 
 CueSeeker now indexes `.ass` files, returns grouped ASS search results, and can
-load the selected source `.ass` file into an ASS Lite overlay. Real-world ASS
+load the selected source `.ass` file into a `libass` overlay. Real-world ASS
 files can contain tens of thousands of timed `Dialogue` events that are not
 plain subtitle text. Common examples include karaoke masks, vector drawings,
 blurred particles, bubble effects, clipped text reveals, and many short-lived
@@ -22,9 +28,8 @@ grouped cue lines, source style names, layers, and approximate layout metadata.
 It intentionally does not store enough raw ASS override data to reconstruct a
 full subtitle render. The source `.ass` file remains the rendering authority.
 
-The current ASS Lite overlay is useful as an interim readable-text fallback, but
-it is not a viable endpoint for complex ASS rendering. A source-faithful ASS
-pipeline is required.
+ASS Lite is not a viable endpoint for complex ASS rendering. A source-faithful
+ASS pipeline is required, and the active renderer for that pipeline is `libass`.
 
 ## Goals
 
@@ -113,17 +118,13 @@ must not block row selection or video controls.
 
 ### Renderer Direction
 
-The long-term direction is a project-owned native ASS rendering pipeline that
-can render source ASS events into overlay surfaces synchronized to the native
-playback clock.
+The active direction is a `libass`-backed source-faithful ASS renderer
+synchronized to the native playback clock.
 
-ADR-0009 selects native `v0` as the first renderer phase and a project-owned
-native ASS rendering pipeline as the default direction. This replaces any plan
-that treats ASS Lite as the final solution for complex ASS rendering. ASS Lite
-remains a simple readable-text fallback and diagnostic comparison path. The
-existing `libass` path remains a long-term selectable renderer for comparison,
-fallback, compatibility, and native-renderer reference output, while new native
-design discussion defaults to the native renderer.
+ADR-0009 now selects `libass` as CueSeeker's only active ASS playback renderer.
+This supersedes the previous project-owned native ASS renderer direction and
+removes Settings-based renderer selection. ASS Lite and native ASS renderer work
+must not be reachable as playback fallbacks.
 
 If a build includes a non-system legacy ASS renderer dependency, that decision
 must account for:
@@ -135,8 +136,8 @@ must account for:
 - Pixel format and alpha compositing over the native video surface.
 - Behavior on both Playback Inspector and Theater Mode fullscreen surfaces.
 
-ASS Lite remains an interim fallback for simple text-only cases and for
-regression isolation.
+Historical native-renderer phase details below are retained only as design
+context from the earlier proposal.
 
 ### Legacy Renderer Optimization Context
 

@@ -123,7 +123,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     func render(
         generation expectedGeneration: UUID,
         timestampMilliseconds: Int,
-        renderingMode: ASSSubtitleRenderingMode,
         completion: @escaping @Sendable (UUID, Result<ASSRenderedFrame, ASSRenderWorkerError>) -> Void
     ) {
         queue.async {
@@ -264,17 +263,6 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         didSet {
             if oldValue != videoSize {
                 reloadRendererIfPossible()
-                needsDisplay = true
-            }
-        }
-    }
-
-    var renderingMode: ASSSubtitleRenderingMode = .legacy {
-        didSet {
-            if oldValue != renderingMode {
-                renderedTimestampMilliseconds = nil
-                renderedFrame = nil
-                requestRender(force: true)
                 needsDisplay = true
             }
         }
@@ -437,8 +425,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         rendererWorker.render(
             generation: generation,
-            timestampMilliseconds: timestampMilliseconds,
-            renderingMode: renderingMode
+            timestampMilliseconds: timestampMilliseconds
         ) { [weak self] returnedGeneration, result in
             DispatchQueue.main.async(execute: {
                 guard let self, self.generation == returnedGeneration else {

@@ -38,83 +38,12 @@ func playbackRenderContainerUsesSourceFaithfulOverlayForASSSource() async throws
     """.write(to: subtitleURL, atomically: true, encoding: .utf8)
 
     view.setVideoSize(CGSize(width: 640, height: 360))
-    view.setASSSubtitleRenderingMode(.legacy)
     view.setSourceFaithfulASSSubtitleSource(
         PlaybackSubtitleSource(url: subtitleURL, format: .ass)
     )
 
     #expect(view.subviews.contains { String(describing: type(of: $0)).contains("SourceFaithfulASSSubtitleOverlayView") })
-    #expect(!view.subviews.contains { String(describing: type(of: $0)).contains("ASSLiteSubtitleOverlayView") })
-    try await Task.sleep(nanoseconds: 100_000_000)
-}
-
-@Test
-@MainActor
-func playbackRenderContainerRoutesASSSourceToNativeOverlayByDefault() async throws {
-    let view = PlaybackRenderContainerView()
-    let subtitleURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerNativeASSRoute-\(UUID().uuidString)")
-        .appendingPathExtension("ass")
-    defer {
-        try? FileManager.default.removeItem(at: subtitleURL)
-    }
-
-    try """
-    [Script Info]
-    PlayResX: 640
-    PlayResY: 360
-
-    [V4+ Styles]
-    Format: Name, Fontname, Fontsize
-    Style: Default, Helvetica, 32
-
-    [Events]
-    Format: Start, End, Style, Text
-    Dialogue: 0:00:00.00,0:00:02.00,Default,Hello
-    """.write(to: subtitleURL, atomically: true, encoding: .utf8)
-
-    view.setVideoSize(CGSize(width: 640, height: 360))
-    view.setSourceFaithfulASSSubtitleSource(
-        PlaybackSubtitleSource(url: subtitleURL, format: .ass)
-    )
-
-    #expect(view.subviews.contains { String(describing: type(of: $0)).contains("NativeASSSubtitleOverlayView") })
-    #expect(!view.subviews.contains { String(describing: type(of: $0)).contains("SourceFaithfulASSSubtitleOverlayView") })
-    try await Task.sleep(nanoseconds: 100_000_000)
-}
-
-@Test
-@MainActor
-func playbackRenderContainerCanAttachNativeASSOverlay() async throws {
-    let view = PlaybackRenderContainerView()
-    let subtitleURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerNativeASSOverlay-\(UUID().uuidString)")
-        .appendingPathExtension("ass")
-    defer {
-        try? FileManager.default.removeItem(at: subtitleURL)
-    }
-
-    try """
-    [Script Info]
-    PlayResX: 640
-    PlayResY: 360
-
-    [V4+ Styles]
-    Format: Name, Fontname, Fontsize
-    Style: Default, Helvetica, 32
-
-    [Events]
-    Format: Start, End, Style, Text
-    Dialogue: 0:00:00.00,0:00:02.00,Default,Hello
-    """.write(to: subtitleURL, atomically: true, encoding: .utf8)
-
-    view.setVideoSize(CGSize(width: 640, height: 360))
-    view.setNativeASSSubtitleSource(
-        PlaybackSubtitleSource(url: subtitleURL, format: .ass)
-    )
-
-    #expect(view.subviews.contains { String(describing: type(of: $0)).contains("NativeASSSubtitleOverlayView") })
-    #expect(!view.subviews.contains { String(describing: type(of: $0)).contains("ASSLiteSubtitleOverlayView") })
+    #expect(!view.subviews.contains { String(describing: type(of: $0)).contains("NativeASSSubtitleOverlayView") })
     try await Task.sleep(nanoseconds: 100_000_000)
 }
 
@@ -124,13 +53,6 @@ func playbackDecodeModeRawValuesMatchSettingsControlValues() {
     #expect(PlaybackDecodeMode.hardware.displayName == "hardware")
     #expect(PlaybackDecodeMode.software.displayName == "software")
     #expect(PlaybackDecodeMode.auto.displayName == "auto")
-}
-
-@Test
-func assSubtitleRenderingModeRawValuesMatchSettingsControlValues() {
-    #expect(ASSSubtitleRenderingMode.allCases.map(\.rawValue) == ["native", "legacy"])
-    #expect(ASSSubtitleRenderingMode.native.displayName == "native v0")
-    #expect(ASSSubtitleRenderingMode.legacy.displayName == "legacy libass")
 }
 
 @Test

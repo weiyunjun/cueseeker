@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed the native ASS renderer route from active playback: ASS playback now
+  uses the `libass` source-faithful overlay only, Settings no longer exposes an
+  ASS renderer selector, PlaybackSyncProbe reports the libass path, and ADR-0009
+  now records libass-only ASS rendering as the accepted direction. The unused
+  ASS Lite playback renderer code was removed from the production target as
+  part of the same single-renderer cleanup.
 - Refined grouped Search visual presentation: subtitle-file headers now show a
   disclosure triangle and full wrapping filename without a per-file count badge,
   result rows show the start timestamp on the right, selected rows use a gray

@@ -153,14 +153,16 @@ Evaluation criteria:
 
 ## 6. Subtitle Rendering
 
-The current native-first playback implementation supports app-owned subtitle
-overlay rendering for the selected indexed SRT file.
+The current native-only playback implementation supports app-owned subtitle
+overlay rendering for selected indexed subtitles, including `libass` rendering
+for ASS files.
 
 Future versions may need:
 
 - Highlight current subtitle.
 - Support text selection or learning interactions.
-- Source-faithful ASS rendering beyond the ASS Lite fallback.
+- Better `libass` font-resource handling for embedded attachments and adjacent
+  font folders.
 - Optional danmaku playback as a separate overlay domain from subtitles.
 
 Rules:
@@ -169,13 +171,11 @@ Rules:
   search result.
 - For SRT-only playback, the app may display current subtitle text from the
   indexed cue data.
-- ASS Lite is an interim text overlay and fallback. The long-term ASS playback
-  direction is the accepted source-faithful ASS rendering pipeline documented in
-  `docs/proposals/2026-05-source-faithful-ass-rendering-pipeline.md` and
-  ADR-0009.
-- The current transition keeps renderer selection available in Settings. Native
-  mode is the default direction for new ASS rendering work, and the final
-  product direction is native-only ASS rendering.
+- ASS playback rendering uses the `libass`-backed source-faithful overlay as
+  the only active renderer. The Settings surface must not expose an ASS renderer
+  selector.
+- ADR-0009 supersedes the previous native ASS renderer direction. Native ASS
+  renderer code must not be on the active playback path.
 - ASS playback rendering must use the source `.ass` file, or a cache generated
   from that exact source file identity, not the database search projection.
 - Search results should expose readable dialogue or lyric text. Playback
@@ -186,11 +186,9 @@ Rules:
   seek, and playback controls must not wait for ASS parsing or rendering.
 - ASS subtitle preparation should be asynchronous, cancellable, and cached by
   source file identity.
-- The renderer may fall back to ASS Lite when the source-faithful renderer is
-  unavailable, but fallback must not block video playback.
-- During source-faithful renderer development, complex ASS rendering failures
-  should be surfaced explicitly instead of being silently hidden by ASS Lite or
-  a legacy renderer path.
+- ASS rendering failures should be surfaced explicitly. The app should not
+  silently route failed ASS playback through ASS Lite or a native fallback
+  renderer.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.

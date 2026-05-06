@@ -90,7 +90,6 @@ final class AppState: ObservableObject {
     private static let isPlaybackInspectorVisibleKey = "isPlaybackInspectorVisible"
     private static let playbackInspectorWidthKey = "playbackInspectorWidth"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
-    private static let assSubtitleRenderingModeKey = "assSubtitleRenderingMode"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
@@ -119,12 +118,6 @@ final class AppState: ObservableObject {
         didSet {
             userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
             player?.decodeMode = playbackDecodeMode
-        }
-    }
-    @Published var assSubtitleRenderingMode: ASSSubtitleRenderingMode = .native {
-        didSet {
-            userDefaults.set(assSubtitleRenderingMode.rawValue, forKey: Self.assSubtitleRenderingModeKey)
-            player?.assSubtitleRenderingMode = assSubtitleRenderingMode
         }
     }
 
@@ -202,14 +195,12 @@ final class AppState: ObservableObject {
             Self.isSidebarVisibleKey: true,
             Self.isPlaybackInspectorVisibleKey: false,
             Self.playbackInspectorWidthKey: 520.0,
-            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
-            Self.assSubtitleRenderingModeKey: ASSSubtitleRenderingMode.native.rawValue
+            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
         isSidebarVisible = userDefaults.bool(forKey: Self.isSidebarVisibleKey)
         isPlaybackInspectorVisible = userDefaults.bool(forKey: Self.isPlaybackInspectorVisibleKey)
         playbackInspectorWidth = userDefaults.double(forKey: Self.playbackInspectorWidthKey)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
-        assSubtitleRenderingMode = Self.loadASSSubtitleRenderingMode(from: userDefaults)
 
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
@@ -218,7 +209,6 @@ final class AppState: ObservableObject {
             try database.reconcileIndexedContent(activeFolders: selectedFolders)
             let player = PlaybackPlayer()
             player.decodeMode = playbackDecodeMode
-            player.assSubtitleRenderingMode = assSubtitleRenderingMode
             self.player = player
             playbackViewModel = PlaybackViewModel(player: player)
         } catch {
@@ -1053,16 +1043,6 @@ final class AppState: ObservableObject {
               let mode = PlaybackDecodeMode(rawValue: rawValue)
         else {
             return .auto
-        }
-
-        return mode
-    }
-
-    private static func loadASSSubtitleRenderingMode(from userDefaults: UserDefaults) -> ASSSubtitleRenderingMode {
-        guard let rawValue = userDefaults.string(forKey: assSubtitleRenderingModeKey),
-              let mode = ASSSubtitleRenderingMode(rawValue: rawValue)
-        else {
-            return .native
         }
 
         return mode

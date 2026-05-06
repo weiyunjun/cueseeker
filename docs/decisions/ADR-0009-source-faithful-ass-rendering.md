@@ -1,225 +1,139 @@
-# ADR-0009: Native Source-Faithful ASS Rendering
+# ADR-0009: Libass Source-Faithful ASS Rendering
 
 Status: Accepted
 
-Updated: 2026-05-03
+Updated: 2026-05-06
 
 ## Background
 
-CueSeeker currently uses ASS Lite as an app-owned text overlay for `.ass`
-playback. ASS Lite is useful for simple readable dialogue, but it is not a
-source-faithful ASS renderer.
+CueSeeker playback must render the selected source `.ass` file, or a cache
+generated from that exact source identity. The SQLite search projection is only
+for searchable text and cue timing; it is not a rendering authority.
 
-Real-world ASS files can contain tens of thousands of timed events, including
-vector drawing, clipping, fades, alpha changes, blur, rotation, karaoke effects,
-and short-duration `Effect=fx` events. These features are common in opening
-themes, ending themes, signs, comments, and stylized on-screen text. They cannot
-be faithfully reconstructed from the SQLite search projection or from a simple
-`NSAttributedString` text overlay.
-
-The accepted source-faithful ASS rendering proposal states that playback
-rendering must preserve timed source ASS events and that the source `.ass` file
-or a cache generated from that exact source identity remains the rendering
-authority.
-
-The same proposal now defines a project-owned native subtitle engine direction.
-The first detailed phase is `v0` native text rendering for ordinary ASS
-dialogue. Later native phases remain high-level and flexible because real ASS
-coverage must be driven by user-provided samples, analysis scripts, visual
-comparison, and user review rather than by a fixed static-versus-complex split.
+The earlier version of this ADR selected a project-owned native ASS renderer as
+the long-term direction, with `libass` retained as a selectable comparison path.
+Real-world ASS behavior and font fallback compatibility now make that direction
+too risky for the current product goal. In practice, `libass` is the factual
+standard that mainstream players use for complex ASS subtitle rendering.
 
 ## Decision
 
-CueSeeker will implement ASS playback through a project-owned native subtitle
-rendering pipeline.
+CueSeeker will use the `libass`-backed source-faithful overlay as the only active
+ASS playback renderer.
 
-The immediate implementation direction is native `v0`: a small, testable native
-text core for ordinary ASS dialogue. The long-term product direction includes a
-fully self-owned native ASS rendering pipeline and a maintained `libass`-backed
-renderer option. The `libass` path remains a durable user-selectable comparison,
-diagnostic, and compatibility renderer, and its output is an important reference
-for native renderer evaluation.
+Rules:
 
-The production direction is:
+- The active playback path must not expose a native ASS renderer mode.
+- Settings must not expose an ASS renderer selector while only `libass` is
+  supported.
+- Native ASS renderer code must not be reachable from playback.
+- ASS Lite may exist only as archived or test-only legacy code. It must not be a
+  playback fallback for ASS rendering failures.
+- ASS rendering failures must surface explicitly instead of silently routing to
+  another renderer.
+- Video open, seek, play, pause, and fullscreen controls must not wait for ASS
+  renderer preparation.
+- Large ASS optimization should preserve source-faithful render context through
+  indexed render segments that are loaded by `libass`.
+- The native app must not reintroduce `libmpv` as a playback backend to obtain
+  ASS rendering behavior.
+
+The active production flow is:
 
 ```text
 Search result selection
 Immediate native video open or seek
-Asynchronous native ASS source loading and render preparation
-Native model built from the source .ass file
-Native subtitle surfaces composited over the displayed video rectangle
+Asynchronous libass source or render-segment loading
+Libass renders source-faithful subtitle surfaces
+Subtitle surfaces composite over the displayed video rectangle
 Renderer output catches up to the current playback clock
 ```
-
-Rules:
-
-- ASS Lite remains a simple readable-text fallback and regression-isolation
-  path. It must not be treated as the fix for complex ASS effects.
-- A `libass`-backed path remains a selectable renderer option while the native
-  engine matures and after native coverage improves. New native renderer design
-  should still default to the native renderer path.
-- The final target is to maintain native ASS rendering as the default project-owned
-  renderer while keeping `libass` available as a long-term selectable reference
-  and compatibility option.
-- Complex ASS playback must use source ASS data, not database cue projection.
-- Renderer failures must be exposed as explicit subtitle-rendering failures
-  during native renderer development. Silent fallback to ASS Lite or to a
-  legacy renderer must not hide native renderer defects.
-- Video open, seek, play, pause, and fullscreen controls must not wait for ASS
-  renderer preparation.
-- The first native implementation step is `v0` native text rendering for common
-  ASS dialogue, not danmaku-specific behavior or full VSFilter compatibility.
-- Native `v0` is not complete until ordinary dialogue visual alignment is
-  credible for subtitle-context review, including source style sizing and the
-  leading static size overrides documented in the implementation plan.
-- Long-term danmaku support, if accepted later, should be modeled as a separate
-  playback overlay track and renderer from source-faithful subtitle rendering.
-  ASS syntax and timeline heuristics may classify an ASS file as danmaku, but
-  danmaku lane scheduling is not part of native `v0` subtitle rendering.
-- The native app must not reintroduce `libmpv` as a playback backend to get ASS
-  rendering behavior.
 
 ## Rationale
 
 ASS compatibility is a specialized rendering problem. Correct handling of
 `\pos`, `\move`, `\clip`, `\iclip`, `\p` vector drawing, blur, border, alpha,
-karaoke, transforms, font fallback, and dense short-duration effects is too
-large to solve by extending ASS Lite.
+karaoke, transforms, dense short-duration effects, and font fallback is too
+large to solve reliably with a project-owned renderer in the current product
+phase.
 
-The project direction is to own this renderer rather than depend on an external
-ASS semantic renderer as the endpoint. A native renderer keeps memory behavior,
-surface ownership, playback integration, fullscreen behavior, and future
-feature routing under CueSeeker control. It also matches the project rule that
-playback rendering is source-file-owned while search remains a readable-text
-projection.
-
-Native `v0` deliberately starts with ordinary dialogue. This reduces risk while
-establishing the parser model, active-event selection, layout surface ownership,
-video-rectangle coordinate mapping, subtitle visibility behavior, and playback
-clock integration that later native phases can extend.
+Using `libass` as the single active renderer reduces behavioral ambiguity. There
+is one source of truth for ASS playback output, one failure path, and one
+dependency surface to improve when font resources, embedded attachments, or
+render-segment loading need better support.
 
 ## Tradeoffs
 
-- A project-owned native renderer is a larger implementation effort than
-  relying on `libass` as the final renderer.
-- Full visual compatibility with complex ASS files will arrive through a long
-  sample-driven exploration process rather than a fixed up-front tag checklist.
-- Font discovery, fallback, and style interpretation must be tested carefully
-  on macOS.
-- Renderer output must be composited into the existing playback render
-  container without breaking Theater Mode lifecycle rules.
-- The app must keep clear failure states while the renderer path is under
-  development because silent fallback would hide defects.
-- ASS Lite, native `v0`, and any legacy `libass` path must have explicit
-  ownership boundaries so fallback behavior does not obscure the native
-  renderer's state.
-- Legacy `libass` memory work must distinguish validated optimization
-  directions from unvalidated ideas. The accepted legacy optimization evidence
-  currently covers layer-contents presentation, cropped subtitle bitmap
-  presentation, and the lifecycle-safe subset of explicit clear or stop
-  recovery. Other optimization ideas need fresh measurement before adoption.
-- If the legacy `libass` path is included in a release build, it still affects
-  dependency bundling, signing, notarization, and license review.
+- CueSeeker depends on a non-system renderer dependency for source-faithful ASS
+  playback.
+- Packaging, signing, notarization, license review, and font-provider behavior
+  must account for `libass`.
+- Some player-compatible font cases require additional resource plumbing, such
+  as extracting Matroska font attachments or locating adjacent font folders.
+- A project-owned native renderer no longer serves as a fallback if `libass`
+  fails.
 
-These tradeoffs are acceptable because the product goal is a native renderer
-owned by CueSeeker, with `libass` retained as a long-term selectable reference
-and compatibility path rather than removed solely because native coverage
-improves.
+These tradeoffs are acceptable because a single `libass` renderer matches the
+expected behavior of mainstream ASS playback better than maintaining parallel
+renderers with different compatibility gaps.
 
 ## Alternatives Considered
 
 ### Continue Extending ASS Lite
 
-This is rejected for complex ASS rendering. It may handle additional simple
-text cases, but it is not a credible path for dense `Effect=fx`, vector
-drawing, clipping, karaoke, blur, alpha, and transform-heavy files.
+Rejected. ASS Lite is not a credible path for source-faithful rendering of
+dense effects, vector drawing, clipping, karaoke, transforms, or font fallback.
 
 ### Render From Database Cue Projection
 
-This is rejected. The database intentionally stores searchable text and
-approximate layout metadata. It does not preserve enough raw override tags,
-style state, drawing commands, or timed effects to reconstruct source visuals.
+Rejected. The database intentionally stores searchable text and timing
+projection. It does not preserve enough source styling, override tags, drawing
+commands, or timed effects to reconstruct source visuals.
 
 ### Reintroduce `libmpv`
 
-This is rejected. ADR-0007 selected native-only playback. ASS rendering work
-must not reintroduce MPV as a production playback fallback.
+Rejected. ADR-0007 selected native-only playback. ASS rendering work must not
+reintroduce MPV as a production playback fallback.
+
+### Maintain Native ASS As The Default Direction
+
+Rejected. This was the previous ADR direction. It created two competing ASS
+rendering semantics and made real-sample compatibility depend on a large
+project-owned renderer before the product needed that complexity.
 
 ### Make `libass` The Only Renderer
 
-This is rejected. A `libass`-backed path remains a long-term selectable renderer
-for diagnostics, comparison, and compatibility, but it must not replace the
-project-owned native renderer direction.
+Selected. It gives CueSeeker one ASS rendering authority and lets future work
+focus on feeding `libass` the right source script, render segment, frame size,
+font resources, and playback clock.
 
-### Build A Project-Owned Native Renderer
+## Implementation Notes
 
-This is selected. The native renderer starts with `v0` ordinary ASS dialogue
-and expands in later phases toward complete source-faithful ASS rendering.
-
-## Implementation Plan
-
-1. Implement native `v0` as the first renderer phase for ordinary ASS dialogue.
-2. Parse source sections into native model types such as `NativeASSDocument`,
-   `NativeASSStyle`, `NativeASSEvent`, and `NativeASSCue`.
-3. Support source style font, size, color, basic outline, basic shadow,
-   alignment, margins, layer, source order, raw text, cleaned text, and `\N`
-   line breaks.
-4. Select active events by playback timestamp and render small subtitle
-   surfaces bounded by text layout instead of full-video transparent frames.
-5. Composite native subtitle surfaces over the displayed video rectangle, not
-   the full black playback container.
-6. Keep search result selection, Playback Inspector visibility, video open,
-   video seek, and playback controls independent from ASS parsing and rendering.
-7. Keep current renderer selection behavior available during the transition, but
-   design new renderer work around native mode.
-8. Complete ordinary dialogue visual alignment inside Phase 1 by verifying ASS
-   script-coordinate mapping, source style sizing, and leading `\fs`, `\fscx`,
-   and `\fscy` size overrides against `legacy libass` and a reference player.
-   Phase 1.1 must first document and verify native font fallback parity before
-   further font-size calibration is accepted.
-9. Treat Phase 2 as a user-led, real-sample ASS coverage exploration phase. The
-   user provides representative samples, the AI analyzes their ASS syntax and
-   rendering features, each feature is translated into human-readable behavior,
-   and implementation scope is decided per cycle from that evidence.
-10. Treat Phase 3 as the point where behavior not precisely solved in Phase 2
-    receives an explicit compromise, omission, diagnostic, or temporary legacy
-    routing policy.
-11. Treat Phase 4 as performance, memory, and long-run stability work after the
-    major visual behavior questions are understood.
+- Remove Settings renderer selection and persisted ASS renderer mode.
+- Remove the native ASS playback route, parser, renderer, overlay, and tests.
+- Keep `CASSRendering` and `SourceFaithfulASSSubtitleOverlayView` as the ASS
+  playback path.
+- Keep `ASSRenderSegmenter` and `ass_render_segments` as source-preserving
+  `libass` performance optimizations.
+- Update diagnostics such as `PlaybackSyncProbe` to report `libass` only.
+- Future font-resource work should pass matched-video attachments and adjacent
+  font directories to the `libass` session instead of adding a second renderer.
 
 ## Verification Plan
 
-Native ASS renderer acceptance is primarily manual. Real ASS subtitle files can
-be very large and visually complex, and user-visible quality cannot be approved
-by isolated automated tests alone.
+Required checks:
 
-Required `v0` manual acceptance before the native renderer is considered usable:
-
-- Common ASS dialogue appears correctly enough for subtitle-context review.
-- Ordinary dialogue size and placement are close enough to `legacy libass` and a
-  reference player for common static dialogue samples.
-- Leading `\fs`, `\fscx`, and `\fscy` overrides affect native `v0` ordinary
-  dialogue sizing.
-- Simple bilingual or multi-line subtitles remain readable.
-- Unsupported override tags are stripped or omitted rather than shown as raw
-  subtitle text.
-- Subtitle output maps to the displayed video rectangle.
-- Playback, seek, subtitle visibility toggling, Playback Inspector, and Theater
-  Mode remain stable.
+- ASS playback routes to `SourceFaithfulASSSubtitleOverlayView`.
+- Settings has no ASS renderer picker.
+- Native ASS renderer code is not reachable from playback.
 - Search result selection updates immediately, and video open or seek does not
-  wait for native ASS parsing or rendering.
-- Memory behavior is directionally better than full-frame subtitle presentation
-  for ordinary dialogue.
+  wait for ASS renderer loading or rendering.
+- Subtitle visibility toggles the `libass` overlay without stopping playback.
+- Complex ASS samples render from the source `.ass` file or the matching
+  source-derived render segment.
+- Font fallback and font-resource behavior are compared against reference
+  players for representative real samples.
 
-Automated tests may still support parser, model, timing, cancellation, and
-non-blocking behavior, but they are not the authority for native subtitle visual
-acceptance.
-
-## Status Notes
-
-- The source-faithful implementation plan lives in
-  `docs/proposals/2026-05-source-faithful-ass-rendering-pipeline.md`.
-- Product playback rules continue to live in
-  `docs/product/06_playback_requirements.md`.
-- Release documentation must be updated before a build containing any non-system
-  legacy ASS renderer dependency is treated as a formal release.
+Automated tests should cover routing, non-blocking behavior, render-segment
+cache boundaries, unchanged-frame reuse, and failure propagation. Manual testing
+remains required for visual parity against real player output.

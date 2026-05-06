@@ -25,13 +25,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             nativePlayer.decodeMode = decodeMode.nativeDecodeMode
         }
     }
-    public var assSubtitleRenderingMode: ASSSubtitleRenderingMode = .native {
-        didSet {
-            Task { @MainActor in
-                (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleRenderingMode(self.assSubtitleRenderingMode)
-            }
-        }
-    }
 
     @MainActor public lazy var renderView: NSView = PlaybackRenderContainerView()
 
@@ -85,7 +78,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                     return
                 }
 
-                container.clearASSSubtitleScript()
                 container.clearSourceFaithfulASSSubtitleSource()
             }
             return
@@ -103,8 +95,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 guard let self else { return }
                 self.delegate?.player(self, didFailWithMessage: message)
             }
-            container.clearASSSubtitleScript()
-            container.setASSSubtitleRenderingMode(self.assSubtitleRenderingMode)
             container.setVideoSize(self.currentNativeVideoSize())
             container.setSourceFaithfulASSSubtitleSource(source)
             container.setASSSubtitleTime(milliseconds: currentMilliseconds)
@@ -186,7 +176,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         container.attach(nativePlayer.view)
         container.setVideoSize(currentNativeVideoSize())
         container.setSubtitlesVisible(subtitlesVisible)
-        container.setASSSubtitleRenderingMode(assSubtitleRenderingMode)
     }
 
     @MainActor private func currentNativeVideoSize() -> CGSize? {
@@ -279,14 +268,11 @@ private extension PlaybackDecodeMode {
 @MainActor
 public final class PlaybackRenderContainerView: NSView {
     private weak var attachedView: NSView?
-    private var assLiteOverlayView: ASSLiteSubtitleOverlayView?
     private var sourceFaithfulASSOverlayView: SourceFaithfulASSSubtitleOverlayView?
-    private var nativeASSOverlayView: NativeASSSubtitleOverlayView?
     private var currentASSSubtitleSource: PlaybackSubtitleSource?
     private var currentASSSubtitleTimeMilliseconds = 0
     private var currentSubtitlesVisible = true
     private var currentVideoSize: CGSize?
-    private var currentASSSubtitleRenderingMode: ASSSubtitleRenderingMode = .native
 
     var assRenderingFailureHandler: ((String) -> Void)?
 
@@ -317,21 +303,7 @@ public final class PlaybackRenderContainerView: NSView {
     public override func layout() {
         super.layout()
         attachedView?.frame = bounds
-        assLiteOverlayView?.frame = bounds
         sourceFaithfulASSOverlayView?.frame = bounds
-        nativeASSOverlayView?.frame = bounds
-    }
-
-    func setASSSubtitleScript(_ script: ASSLiteScript) {
-        ensureASSLiteOverlayView()
-        assLiteOverlayView?.script = script
-        assLiteOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
-        assLiteOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
-        assLiteOverlayView?.videoSize = currentVideoSize
-    }
-
-    func clearASSSubtitleScript() {
-        assLiteOverlayView?.script = nil
     }
 
     func setSourceFaithfulASSSubtitleSource(_ source: PlaybackSubtitleSource) {
@@ -342,70 +314,21 @@ public final class PlaybackRenderContainerView: NSView {
     func clearSourceFaithfulASSSubtitleSource() {
         currentASSSubtitleSource = nil
         sourceFaithfulASSOverlayView?.setSource(nil)
-        nativeASSOverlayView?.setSource(nil)
-    }
-
-    func setNativeASSSubtitleSource(_ source: PlaybackSubtitleSource) {
-        ensureNativeASSOverlayView()
-        nativeASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
-        nativeASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
-        nativeASSOverlayView?.videoSize = currentVideoSize
-        nativeASSOverlayView?.setSource(source)
-    }
-
-    func clearNativeASSSubtitleSource() {
-        nativeASSOverlayView?.setSource(nil)
     }
 
     func setASSSubtitleTime(milliseconds: Int) {
         currentASSSubtitleTimeMilliseconds = milliseconds
-        assLiteOverlayView?.currentTimeMilliseconds = milliseconds
         sourceFaithfulASSOverlayView?.currentTimeMilliseconds = milliseconds
-        nativeASSOverlayView?.currentTimeMilliseconds = milliseconds
     }
 
     func setSubtitlesVisible(_ isVisible: Bool) {
         currentSubtitlesVisible = isVisible
-        assLiteOverlayView?.areSubtitlesVisible = isVisible
         sourceFaithfulASSOverlayView?.areSubtitlesVisible = isVisible
-        nativeASSOverlayView?.areSubtitlesVisible = isVisible
-    }
-
-    func setASSSubtitleRenderingMode(_ mode: ASSSubtitleRenderingMode) {
-        currentASSSubtitleRenderingMode = mode
-        sourceFaithfulASSOverlayView?.renderingMode = mode
-        applyASSSubtitleSource()
     }
 
     func setVideoSize(_ videoSize: CGSize?) {
         currentVideoSize = videoSize
-        assLiteOverlayView?.videoSize = videoSize
         sourceFaithfulASSOverlayView?.videoSize = videoSize
-        nativeASSOverlayView?.videoSize = videoSize
-    }
-
-    private func ensureASSLiteOverlayView() {
-        if assLiteOverlayView == nil {
-            assLiteOverlayView = ASSLiteSubtitleOverlayView(frame: bounds)
-        }
-
-        guard let assLiteOverlayView else {
-            return
-        }
-
-        if assLiteOverlayView.superview !== self {
-            addSubview(assLiteOverlayView)
-        }
-
-        assLiteOverlayView.frame = bounds
-
-        if let attachedView {
-            addSubview(assLiteOverlayView, positioned: .above, relativeTo: attachedView)
-        }
-
-        assLiteOverlayView.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
-        assLiteOverlayView.areSubtitlesVisible = currentSubtitlesVisible
-        assLiteOverlayView.videoSize = currentVideoSize
     }
 
     private func ensureSourceFaithfulASSOverlayView() {
@@ -433,34 +356,6 @@ public final class PlaybackRenderContainerView: NSView {
         sourceFaithfulASSOverlayView.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
         sourceFaithfulASSOverlayView.areSubtitlesVisible = currentSubtitlesVisible
         sourceFaithfulASSOverlayView.videoSize = currentVideoSize
-        sourceFaithfulASSOverlayView.renderingMode = currentASSSubtitleRenderingMode
-    }
-
-    private func ensureNativeASSOverlayView() {
-        if nativeASSOverlayView == nil {
-            nativeASSOverlayView = NativeASSSubtitleOverlayView(frame: bounds)
-            nativeASSOverlayView?.onRenderingFailure = { [weak self] message in
-                self?.assRenderingFailureHandler?(message)
-            }
-        }
-
-        guard let nativeASSOverlayView else {
-            return
-        }
-
-        if nativeASSOverlayView.superview !== self {
-            addSubview(nativeASSOverlayView)
-        }
-
-        nativeASSOverlayView.frame = bounds
-
-        if let attachedView {
-            addSubview(nativeASSOverlayView, positioned: .above, relativeTo: attachedView)
-        }
-
-        nativeASSOverlayView.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
-        nativeASSOverlayView.areSubtitlesVisible = currentSubtitlesVisible
-        nativeASSOverlayView.videoSize = currentVideoSize
     }
 
     private func applyASSSubtitleSource() {
@@ -468,23 +363,11 @@ public final class PlaybackRenderContainerView: NSView {
             return
         }
 
-        switch currentASSSubtitleRenderingMode {
-        case .native:
-            sourceFaithfulASSOverlayView?.setSource(nil)
-            ensureNativeASSOverlayView()
-            nativeASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
-            nativeASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
-            nativeASSOverlayView?.videoSize = currentVideoSize
-            nativeASSOverlayView?.setSource(currentASSSubtitleSource)
-        case .legacy:
-            nativeASSOverlayView?.setSource(nil)
-            ensureSourceFaithfulASSOverlayView()
-            sourceFaithfulASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
-            sourceFaithfulASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
-            sourceFaithfulASSOverlayView?.videoSize = currentVideoSize
-            sourceFaithfulASSOverlayView?.renderingMode = currentASSSubtitleRenderingMode
-            sourceFaithfulASSOverlayView?.setSource(currentASSSubtitleSource)
-        }
+        ensureSourceFaithfulASSOverlayView()
+        sourceFaithfulASSOverlayView?.currentTimeMilliseconds = currentASSSubtitleTimeMilliseconds
+        sourceFaithfulASSOverlayView?.areSubtitlesVisible = currentSubtitlesVisible
+        sourceFaithfulASSOverlayView?.videoSize = currentVideoSize
+        sourceFaithfulASSOverlayView?.setSource(currentASSSubtitleSource)
     }
 
     private func ensureASSOverlaysStayAboveAttachedView() {
@@ -492,14 +375,8 @@ public final class PlaybackRenderContainerView: NSView {
             return
         }
 
-        if let assLiteOverlayView, assLiteOverlayView.superview === self {
-            addSubview(assLiteOverlayView, positioned: .above, relativeTo: attachedView)
-        }
         if let sourceFaithfulASSOverlayView, sourceFaithfulASSOverlayView.superview === self {
             addSubview(sourceFaithfulASSOverlayView, positioned: .above, relativeTo: attachedView)
-        }
-        if let nativeASSOverlayView, nativeASSOverlayView.superview === self {
-            addSubview(nativeASSOverlayView, positioned: .above, relativeTo: attachedView)
         }
     }
 }

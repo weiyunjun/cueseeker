@@ -6,7 +6,6 @@ import Foundation
 import QuartzCore
 
 private struct ProbeConfig {
-    var mode: ASSSubtitleRenderingMode
     var videoURL: URL
     var subtitleURL: URL
     var durationSeconds: Double = 300
@@ -18,7 +17,6 @@ private struct ProbeConfig {
     var verbose: Bool = false
 
     static func parse(_ arguments: [String]) throws -> ProbeConfig {
-        var mode: ASSSubtitleRenderingMode?
         var videoPath: String?
         var subtitlePath: String?
         var durationSeconds = 300.0
@@ -35,7 +33,7 @@ private struct ProbeConfig {
             let argument = arguments[index]
             switch argument {
             case "--mode":
-                mode = try parseMode(valueAfter: argument, arguments: arguments, index: &index)
+                try parseRendererCompatibility(valueAfter: argument, arguments: arguments, index: &index)
             case "--video":
                 videoPath = try parseString(valueAfter: argument, arguments: arguments, index: &index)
             case "--subtitle":
@@ -64,9 +62,6 @@ private struct ProbeConfig {
             }
         }
 
-        guard let mode else {
-            throw ProbeUsage.invalid("Missing --mode native|legacy.")
-        }
         guard let videoPath else {
             throw ProbeUsage.invalid("Missing --video path.")
         }
@@ -84,7 +79,6 @@ private struct ProbeConfig {
         }
 
         return ProbeConfig(
-            mode: mode,
             videoURL: videoURL,
             subtitleURL: subtitleURL,
             durationSeconds: durationSeconds,
@@ -110,16 +104,15 @@ private struct ProbeConfig {
         return arguments[index - 1]
     }
 
-    private static func parseMode(
+    private static func parseRendererCompatibility(
         valueAfter name: String,
         arguments: [String],
         index: inout Int
-    ) throws -> ASSSubtitleRenderingMode {
+    ) throws {
         let value = try parseString(valueAfter: name, arguments: arguments, index: &index)
-        guard let mode = ASSSubtitleRenderingMode(rawValue: value) else {
-            throw ProbeUsage.invalid("Invalid mode: \(value). Expected native or legacy.")
+        guard value == "libass" || value == "legacy" else {
+            throw ProbeUsage.invalid("Invalid mode: \(value). CueSeeker now uses libass only.")
         }
-        return mode
     }
 
     private static func parsePositiveDouble(
@@ -162,9 +155,10 @@ private enum ProbeUsage: Error, CustomStringConvertible {
 
     static let usage = """
     Usage:
-      PlaybackSyncProbe --mode native|legacy --video path --subtitle path [options]
+      PlaybackSyncProbe --video path --subtitle path [options]
 
     Options:
+      --mode libass|legacy        Optional compatibility flag. CueSeeker uses libass only.
       --duration seconds          Playback duration to observe. Default: 300
       --start seconds             Start timestamp. Default: 0
       --sample-interval seconds   Probe sample interval. Default: 1
@@ -263,7 +257,6 @@ private final class PlaybackSyncProbeRunner {
         NSApplication.shared.setActivationPolicy(.regular)
 
         player.delegate = playbackDelegate
-        player.assSubtitleRenderingMode = config.mode
 
         let window = NSWindow(
             contentRect: CGRect(origin: .zero, size: config.windowSize),
@@ -271,7 +264,7 @@ private final class PlaybackSyncProbeRunner {
             backing: .buffered,
             defer: false
         )
-        window.title = "CueSeeker Playback Sync Probe - \(config.mode.displayName)"
+        window.title = "CueSeeker Playback Sync Probe - libass"
         window.contentView = player.renderView
         window.center()
         window.orderFrontRegardless()
@@ -287,7 +280,7 @@ private final class PlaybackSyncProbeRunner {
         player.setSubtitlesVisible(true)
 
         startHostSeconds = CACurrentMediaTime()
-        print("SYNC_PROBE_START mode=\(config.mode.rawValue) duration=\(format(config.durationSeconds))s start=\(format(config.startSeconds))s sample_interval=\(format(config.sampleIntervalSeconds))s cues=\(cueGroups.count)")
+        print("SYNC_PROBE_START mode=libass duration=\(format(config.durationSeconds))s start=\(format(config.startSeconds))s sample_interval=\(format(config.sampleIntervalSeconds))s cues=\(cueGroups.count)")
 
         timer = Timer.scheduledTimer(
             withTimeInterval: config.sampleIntervalSeconds,
@@ -352,7 +345,7 @@ private final class PlaybackSyncProbeRunner {
 
         if config.verbose {
             print(
-                "SYNC_SAMPLE mode=\(config.mode.rawValue) wall=\(format(sample.wallSeconds)) media=\(format(sample.mediaSeconds)) expected=\(format(sample.expectedSeconds)) drift_vs_wall=\(format(sample.mediaSeconds - sample.expectedSeconds))"
+                "SYNC_SAMPLE mode=libass wall=\(format(sample.wallSeconds)) media=\(format(sample.mediaSeconds)) expected=\(format(sample.expectedSeconds)) drift_vs_wall=\(format(sample.mediaSeconds - sample.expectedSeconds))"
             )
         }
     }
@@ -383,16 +376,16 @@ private final class PlaybackSyncProbeRunner {
             && absoluteProgressDrift <= config.driftThresholdSeconds
             && maxAbsoluteProgressDrift <= config.driftThresholdSeconds
 
-        print("SYNC_PROBE_RESULT mode=\(config.mode.rawValue) status=\(passed ? "pass" : "fail")")
-        print("SYNC_CLOCK mode=\(config.mode.rawValue) wall_progress=\(format(wallProgress))s media_progress=\(format(mediaProgress))s progress_drift=\(format(progressDrift))s max_abs_progress_drift=\(format(maxAbsoluteProgressDrift))s final_expected_drift=\(format(finalExpectedDrift))s max_interval_lag=\(format(maxIntervalLag))s")
-        print("SYNC_STALL mode=\(config.mode.rawValue) stall_count=\(stallCount) max_flat_media=\(format(maxFlatMediaSeconds))s stall_threshold=\(format(config.stallThresholdSeconds))s")
-        print("SYNC_PLAYBACK mode=\(config.mode.rawValue) delegate_updates=\(snapshot.updateCount) is_playing=\(snapshot.isPlaying.map(String.init) ?? "unknown") duration=\(snapshot.duration.map(format) ?? "unknown")s failures=\(snapshot.failures.count)")
-        print("SYNC_SUBTITLE mode=\(config.mode.rawValue) observed_media_ms=\(finalMediaMilliseconds) expected_wall_ms=\(expectedMilliseconds) cue_matches_expected=\(cueMatchesExpected ? "yes" : "no")")
-        print("SYNC_SUBTITLE_OBSERVED mode=\(config.mode.rawValue) \(observedCue)")
-        print("SYNC_SUBTITLE_EXPECTED mode=\(config.mode.rawValue) \(expectedCue)")
+        print("SYNC_PROBE_RESULT mode=libass status=\(passed ? "pass" : "fail")")
+        print("SYNC_CLOCK mode=libass wall_progress=\(format(wallProgress))s media_progress=\(format(mediaProgress))s progress_drift=\(format(progressDrift))s max_abs_progress_drift=\(format(maxAbsoluteProgressDrift))s final_expected_drift=\(format(finalExpectedDrift))s max_interval_lag=\(format(maxIntervalLag))s")
+        print("SYNC_STALL mode=libass stall_count=\(stallCount) max_flat_media=\(format(maxFlatMediaSeconds))s stall_threshold=\(format(config.stallThresholdSeconds))s")
+        print("SYNC_PLAYBACK mode=libass delegate_updates=\(snapshot.updateCount) is_playing=\(snapshot.isPlaying.map(String.init) ?? "unknown") duration=\(snapshot.duration.map(format) ?? "unknown")s failures=\(snapshot.failures.count)")
+        print("SYNC_SUBTITLE mode=libass observed_media_ms=\(finalMediaMilliseconds) expected_wall_ms=\(expectedMilliseconds) cue_matches_expected=\(cueMatchesExpected ? "yes" : "no")")
+        print("SYNC_SUBTITLE_OBSERVED mode=libass \(observedCue)")
+        print("SYNC_SUBTITLE_EXPECTED mode=libass \(expectedCue)")
 
         for failure in snapshot.failures {
-            print("SYNC_FAILURE mode=\(config.mode.rawValue) message=\(failure)")
+            print("SYNC_FAILURE mode=libass message=\(failure)")
         }
 
         exitCode = passed ? 0 : 1

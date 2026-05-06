@@ -64,10 +64,8 @@ Accepted ADRs:
 - ADR-0002 selects Swift, SwiftUI, AppKit bridges, Swift Package Manager, SQLite with FTS5, and a project-owned persistence layer for M1.
 - ADR-0007 supersedes ADR-0006 and ADR-0003 and selects native-only playback.
 - ADR-0004 disables App Sandbox for M1 local development and personal builds.
-- ADR-0009 selects native `v0` as the first ASS renderer phase and a
-  project-owned native ASS rendering pipeline as the default direction. The
-  `libass` renderer remains a long-term selectable reference and compatibility
-  option, while new native renderer work should default to native mode.
+- ADR-0009 selects `libass` as the only active ASS playback renderer and
+  removes the previous native ASS renderer direction from production playback.
 
 ## 5. Module Boundaries
 
@@ -186,15 +184,11 @@ Rules:
   layers, or complete ASS subtitle renderer compatibility.
 - Playback errors must be propagated in a form that the UI can present clearly.
 - M1 playback must be embedded in the native app window.
-- ASS Lite is an interim source text overlay and fallback. Source-faithful ASS
-  playback rendering should follow the accepted pipeline in
-  `docs/proposals/2026-05-source-faithful-ass-rendering-pipeline.md`.
-- The native ASS renderer is the default direction for new subtitle rendering
-  work. The first native phase is `v0` ordinary ASS dialogue rendering; later
-  phases should be designed only when their implementation starts.
-- The `libass` ASS renderer path remains available through Settings as a
-  long-term selectable reference and compatibility option. Native ASS rendering
-  remains the default direction for new project-owned renderer work.
+- ASS playback rendering must use the `libass` source-faithful overlay. The
+  native ASS renderer and ASS Lite fallback must not be reachable from the
+  active playback route.
+- Settings must not expose an ASS renderer selector while CueSeeker has a
+  single supported ASS renderer.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - The database cue projection must not be treated as a replacement ASS renderer.
@@ -250,9 +244,9 @@ Rules:
 - The dedicated ASS renderer must be separate from the SQLite search layer and
   from the native video decoder. It should receive playback clock updates and
   present overlay output through the playback render container.
-- Selecting or bundling a dedicated external ASS renderer dependency must be
-  documented before implementation because it can affect native dependencies,
-  packaging, signing, and font behavior.
+- Bundling and updating `libass` remains an explicit playback dependency
+  concern because it affects packaging, signing, license review, font discovery,
+  and font fallback behavior.
 - The current playback route must always use the project-owned native backend.
 - The active native macOS app must not link against, initialize, or fall back to `libmpv`.
 - The native backend uses FFmpeg demuxing, user-selectable hardware, software,

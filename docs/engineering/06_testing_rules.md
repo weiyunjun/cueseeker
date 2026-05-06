@@ -348,35 +348,20 @@ Playback verification for the first ASS step:
 - Playback opens the matched video and seeks to the cue group's `start_ms`.
 - Source ASS subtitle rendering is not required for this first ASS step.
 
-## 15. ASS Lite Rendering Test Coverage
+## 15. ASS Renderer Routing Coverage
 
-ASS Lite remains an interim text fallback. It is complete only after the ASS Lite
-subset is verified.
+CueSeeker currently supports a single active ASS playback renderer: the
+`libass`-backed source-faithful overlay.
 
-Required parser and model coverage:
+Required routing coverage:
 
-- `[Script Info]` `PlayResX` and `PlayResY` parsing.
-- `[V4+ Styles]` and `[V4 Styles]` `Format:` and `Style:` parsing for the
-  documented style fields.
-- `[Events]` `Format:` and `Dialogue:` parsing for playback rendering.
-- ASS timecode conversion to milliseconds.
-- ASS `\N` line-break normalization for rendering.
-- Inline `\an1` through `\an9` alignment override parsing.
-- Unsupported override tags stripped without dropping visible text.
-- Multiple active dialogue events preserved with layer and source order.
-
-Required rendering and playback checks:
-
-- ASS search results load the source `.ass` file for playback rendering.
-- Basic dialogue appears over the video surface at the active playback time.
-- Source style color, font, size, outline, shadow, alignment, margins, and
-  simultaneous dialogue events are visible closely enough for subtitle context
-  review.
-- CJK subtitle text remains filled and readable, not hollow or stroke-heavy.
-- The ASS Lite overlay maps to the displayed video rectangle rather than the
-  full black playback container.
-- The existing subtitle button and `C` shortcut show and hide ASS Lite
-  subtitles.
+- ASS search results load the source `.ass` file, or the matching
+  source-derived render segment, for playback rendering.
+- Playback attaches `SourceFaithfulASSSubtitleOverlayView` for ASS subtitle
+  sources.
+- Playback does not attach native ASS or ASS Lite fallback overlays.
+- Settings does not expose an ASS renderer selector.
+- The existing subtitle visibility control shows and hides the `libass` overlay.
 - The overlay follows both Playback Inspector and Theater Mode fullscreen.
 - Missing or unreadable subtitle files do not prevent video playback.
 - SRT playback subtitle behavior does not regress.
@@ -390,27 +375,24 @@ The source-faithful ASS rendering pipeline is complete only after search,
 playback startup, render preparation, and complex ASS rendering behavior are
 verified separately.
 
-Native ASS renderer visual acceptance is primarily user manual testing. Real
-ASS subtitle files may have tens of thousands of events and complex visual
-behavior, so automated checks may support parser, model, cancellation,
-non-blocking, and regression coverage, but they do not approve native subtitle
-visual quality by themselves.
+CueSeeker currently has one active ASS playback renderer: the `libass`-backed
+source-faithful overlay. Tests should verify that ASS playback routes to this
+overlay only, Settings does not expose an ASS renderer picker, and native ASS or
+ASS Lite fallback renderers are not reachable from the active playback path.
 
-Required native `v0` manual checks:
+Required `libass` manual checks:
 
 - Common ASS dialogue appears correctly enough for subtitle-context review.
-- Ordinary dialogue size and placement are close enough to `legacy libass` and a
-  reference player for common static dialogue samples.
-- Simple bilingual or multi-line subtitles remain readable.
-- Unsupported override tags are stripped or omitted instead of shown as raw
-  subtitle text.
+- Complex ASS samples with vector drawing, clipping, karaoke, transforms, and
+  short-duration events render through the source `.ass` file or a
+  source-derived render segment.
+- Font behavior is compared against reference players for real samples that
+  rely on embedded, adjacent, or system fonts.
 - Subtitle output maps to the displayed video rectangle.
 - Playback, seek, subtitle visibility toggling, Playback Inspector, and Theater
   Mode remain stable.
-- Search result selection and video open or seek do not wait for native ASS
-  parsing or rendering.
-- Memory behavior for ordinary dialogue is directionally better than full-frame
-  subtitle presentation.
+- Search result selection and video open or seek do not wait for ASS renderer
+  loading or rendering.
 
 Required search projection coverage:
 

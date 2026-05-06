@@ -19,24 +19,6 @@ public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Eq
     }
 }
 
-public enum ASSSubtitleRenderingMode: String, CaseIterable, Identifiable, Sendable, Equatable {
-    case native
-    case legacy
-
-    public var id: String {
-        rawValue
-    }
-
-    public var displayName: String {
-        switch self {
-        case .native:
-            "native v0"
-        case .legacy:
-            "legacy libass"
-        }
-    }
-}
-
 public enum PlaybackSubtitleSourceFormat: String, Sendable, Equatable {
     case ass
 }
