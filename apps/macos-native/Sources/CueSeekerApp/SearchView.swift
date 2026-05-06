@@ -394,7 +394,7 @@ private struct SearchResultRow: View {
                     ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
                         Text(highlightedContent(line, query: query, isSelected: isSelected))
                             .font(.system(size: SearchTypography.bodySize))
-                            .lineSpacing(2)
+                            .lineSpacing(4)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                     }
