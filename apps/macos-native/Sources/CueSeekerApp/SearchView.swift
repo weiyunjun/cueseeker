@@ -144,32 +144,44 @@ struct SearchView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(appState.searchResultGroups) { group in
-                    SearchResultGroupHeader(
-                        group: group,
-                        isSelected: appState.selectedSearchResult?.subtitlePath == group.subtitlePath
-                    ) {
-                        appState.clearSearchFocus()
-                        appState.toggleSearchResultGroup(group.subtitlePath)
-                    }
-
-                    if !group.isCollapsed {
-                        ForEach(group.results, id: \.entryID) { result in
-                            let isSelected = appState.selectedSearchResult?.entryID == result.entryID
-
-                            Button {
+                    ZStack(alignment: .topLeading) {
+                        VStack(spacing: 0) {
+                            SearchResultGroupHeader(
+                                group: group,
+                                isSelected: appState.selectedSearchResult?.subtitlePath == group.subtitlePath
+                            ) {
                                 appState.clearSearchFocus()
-                                appState.openSearchResult(result)
-                            } label: {
-                                SearchResultRow(
-                                    result: result,
-                                    query: appState.searchQuery,
-                                    isSelected: isSelected
-                                )
+                                appState.toggleSearchResultGroup(group.subtitlePath)
                             }
-                            .buttonStyle(StaticButtonStyle())
-                            .onAppear {
-                                appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+
+                            if !group.isCollapsed {
+                                ForEach(group.results, id: \.entryID) { result in
+                                    let isSelected = appState.selectedSearchResult?.entryID == result.entryID
+
+                                    Button {
+                                        appState.clearSearchFocus()
+                                        appState.openSearchResult(result)
+                                    } label: {
+                                        SearchResultRow(
+                                            result: result,
+                                            query: appState.searchQuery,
+                                            isSelected: isSelected
+                                        )
+                                    }
+                                    .buttonStyle(StaticButtonStyle())
+                                    .onAppear {
+                                        appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                                    }
+                                }
                             }
+                        }
+
+                        SearchResultGroupRail(
+                            isCollapsed: group.isCollapsed,
+                            showsLine: !group.isCollapsed && !group.results.isEmpty
+                        ) {
+                            appState.clearSearchFocus()
+                            appState.toggleSearchResultGroup(group.subtitlePath)
                         }
                     }
                 }
@@ -363,23 +375,16 @@ private struct SearchResultGroupHeader: View {
 
     var body: some View {
         Button(action: onToggle) {
-            HStack(alignment: .top, spacing: 0) {
-                Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: SearchLayout.groupDisclosureWidth, alignment: .topLeading)
-                    .padding(.top, 2)
-
-                Text(headerText)
-                    .font(.system(size: SearchTypography.groupHeaderSize))
-                    .lineLimit(nil)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, 7)
-            .padding(.horizontal, SearchLayout.resultOuterHorizontalPadding)
-            .contentShape(Rectangle())
+            Text(headerText)
+                .font(.system(size: SearchTypography.groupHeaderSize))
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 7)
+                .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
+                .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
     }
@@ -397,6 +402,52 @@ private struct SearchResultGroupHeader: View {
 
     private var resultCountText: String {
         "\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")"
+    }
+}
+
+private struct SearchResultGroupRail: View {
+    let isCollapsed: Bool
+    let showsLine: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            let lineTop = SearchLayout.groupRailChevronTopPadding
+                + SearchLayout.groupRailChevronSize
+                + SearchLayout.groupRailLineTopSpacing
+            let lineHeight = max(CGFloat.zero, geometry.size.height - lineTop)
+            let lineX = SearchLayout.resultOuterHorizontalPadding
+                + SearchLayout.groupDisclosureWidth / 2
+
+            ZStack(alignment: .topLeading) {
+                if showsLine && lineHeight > 0 {
+                    Rectangle()
+                        .fill(Color.secondary)
+                        .frame(width: SearchLayout.groupRailLineWidth, height: lineHeight)
+                        .offset(
+                            x: lineX - SearchLayout.groupRailLineWidth / 2,
+                            y: lineTop
+                        )
+                }
+
+                Button(action: onToggle) {
+                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                        .font(.system(size: SearchLayout.groupRailChevronSize, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(
+                            width: SearchLayout.groupDisclosureWidth,
+                            height: SearchLayout.groupRailChevronSize,
+                            alignment: .center
+                        )
+                }
+                .buttonStyle(StaticButtonStyle())
+                .offset(
+                    x: SearchLayout.resultOuterHorizontalPadding,
+                    y: SearchLayout.groupRailChevronTopPadding
+                )
+            }
+        }
+        .frame(width: SearchLayout.resultSelectionLeadingPadding)
     }
 }
 
@@ -567,6 +618,10 @@ private enum SearchLayout {
     static let resultOuterHorizontalPadding: CGFloat = 12
     static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
+    static let groupRailChevronSize: CGFloat = 10
+    static let groupRailChevronTopPadding: CGFloat = 9
+    static let groupRailLineTopSpacing: CGFloat = 2
+    static let groupRailLineWidth: CGFloat = 1
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
     static let resultTextLeadingPadding: CGFloat = resultTimestampTrailingPadding
 }
