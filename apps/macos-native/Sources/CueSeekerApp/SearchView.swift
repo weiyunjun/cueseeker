@@ -444,7 +444,7 @@ private struct SearchResultGroupRail: View {
             ZStack(alignment: .topLeading) {
                 if showsLine && lineHeight > 0 {
                     Rectangle()
-                        .fill(Color.secondary)
+                        .fill(.tertiary)
                         .frame(width: SearchLayout.groupRailLineWidth, height: lineHeight)
                         .offset(
                             x: lineX - SearchLayout.groupRailLineWidth / 2,
