@@ -641,7 +641,7 @@ private enum SearchLayout {
     static let groupDisclosureWidth: CGFloat = 16
     static let groupRailChevronSize: CGFloat = 10
     static let groupRailChevronTopPadding: CGFloat = 9
-    static let groupRailLineTopSpacing: CGFloat = 2
+    static let groupRailLineTopSpacing: CGFloat = 8
     static let groupRailLineWidth: CGFloat = 1
     static let resultContentLeadingOffset: CGFloat = 5
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth + resultContentLeadingOffset
