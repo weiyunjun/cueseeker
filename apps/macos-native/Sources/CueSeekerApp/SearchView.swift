@@ -366,7 +366,7 @@ private struct SearchResultGroupHeader: View {
                     .frame(width: SearchLayout.groupDisclosureWidth, alignment: .topLeading)
                     .padding(.top, 2)
 
-                Text(filenameWithSoftWrapOpportunities(group.subtitleFileName))
+                Text(headerText)
                     .font(.system(size: SearchTypography.groupHeaderSize))
                     .foregroundStyle(.secondary)
                     .lineLimit(nil)
@@ -379,6 +379,14 @@ private struct SearchResultGroupHeader: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
+    }
+
+    private var headerText: String {
+        "\(filenameWithSoftWrapOpportunities(group.subtitleFileName))  \(resultCountText)"
+    }
+
+    private var resultCountText: String {
+        "\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")"
     }
 }
 
