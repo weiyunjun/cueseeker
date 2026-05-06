@@ -982,7 +982,6 @@ final class AppState: ObservableObject {
         return PlaybackSubtitleSource(
             url: URL(fileURLWithPath: result.subtitlePath),
             format: .ass,
-            matchedVideoURL: URL(fileURLWithPath: result.videoPath),
             preparationTimeWindow: playbackSubtitleTimeWindow(for: result),
             renderCacheDatabaseURL: databaseURL
         )

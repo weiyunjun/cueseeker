@@ -68,7 +68,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var session: SFXASSRendererSession?
     private var sourcePath: String?
     private var renderCacheDatabaseURL: URL?
-    private var fontsDirectoryPath: String?
     private var frameWidth = 0
     private var frameHeight = 0
     private var activeRenderSegmentWindow: PlaybackSubtitleTimeWindow?
@@ -82,13 +81,12 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     ) -> UUID {
         let nextGeneration = UUID()
 
-        queue.async { [source] in
+        queue.async { [sourcePath = source.url.path, renderCacheDatabaseURL = source.renderCacheDatabaseURL] in
             do {
                 self.session?.close()
                 self.session = nil
-                self.sourcePath = source.url.path
-                self.renderCacheDatabaseURL = source.renderCacheDatabaseURL
-                self.fontsDirectoryPath = try PlaybackASSFontResourceResolver.prepareFontDirectory(for: source)?.path
+                self.sourcePath = sourcePath
+                self.renderCacheDatabaseURL = renderCacheDatabaseURL
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
                 self.activeRenderSegmentWindow = nil
@@ -115,7 +113,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             self.session = nil
             self.sourcePath = nil
             self.renderCacheDatabaseURL = nil
-            self.fontsDirectoryPath = nil
             self.frameWidth = 0
             self.frameHeight = 0
             self.activeRenderSegmentWindow = nil
@@ -194,7 +191,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 sourceIdentifier: "\(sourcePath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)",
                 frameWidth: frameWidth,
                 frameHeight: frameHeight,
-                fontsDirectory: fontsDirectoryPath
+                fontsDirectory: nil
             )
         }
 
@@ -203,7 +200,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             assFileAtPath: sourcePath,
             frameWidth: frameWidth,
             frameHeight: frameHeight,
-            fontsDirectory: fontsDirectoryPath
+            fontsDirectory: nil
         )
     }
 

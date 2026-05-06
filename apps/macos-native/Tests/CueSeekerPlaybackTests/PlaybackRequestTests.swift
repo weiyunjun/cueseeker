@@ -130,7 +130,6 @@ func playbackRequestStoresASSSubtitleSource() throws {
 
     #expect(request.subtitleSource?.url == subtitleURL)
     #expect(request.subtitleSource?.format == .ass)
-    #expect(request.subtitleSource?.matchedVideoURL == videoURL.standardizedFileURL)
 }
 
 @Test
@@ -160,74 +159,6 @@ func playbackRequestStoresASSSubtitleTimeWindow() throws {
     )
 
     #expect(request.subtitleSource?.preparationTimeWindow == timeWindow)
-}
-
-@Test
-func playbackSubtitleSourcePreservesExplicitFontResourceContext() throws {
-    let videoURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")
-        .appendingPathExtension("mkv")
-    let subtitleURL = videoURL.deletingPathExtension().appendingPathExtension("ass")
-    let fontDirectoryURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerPlaybackFonts-\(UUID().uuidString)", isDirectory: true)
-    defer {
-        try? FileManager.default.removeItem(at: videoURL)
-        try? FileManager.default.removeItem(at: fontDirectoryURL)
-    }
-
-    try Data().write(to: videoURL)
-    try FileManager.default.createDirectory(at: fontDirectoryURL, withIntermediateDirectories: true)
-
-    let source = PlaybackSubtitleSource(
-        url: subtitleURL,
-        format: .ass,
-        matchedVideoURL: videoURL,
-        fontResourceDirectoryURL: fontDirectoryURL
-    )
-    let request = try PlaybackRequest(
-        videoURL: videoURL,
-        startMilliseconds: 1_000,
-        subtitleSource: source
-    )
-
-    #expect(request.subtitleSource?.matchedVideoURL == videoURL)
-    #expect(request.subtitleSource?.fontResourceDirectoryURL == fontDirectoryURL)
-}
-
-@Test
-func assFontResourceResolverMaterializesAdjacentFontsDirectory() throws {
-    let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerFontResourceTests-\(UUID().uuidString)", isDirectory: true)
-    let mediaDirectory = root.appendingPathComponent("Media", isDirectory: true)
-    let fontsDirectory = mediaDirectory.appendingPathComponent("Fonts", isDirectory: true)
-    let nestedFontsDirectory = fontsDirectory.appendingPathComponent("Nested", isDirectory: true)
-    let cacheRoot = root.appendingPathComponent("Cache", isDirectory: true)
-    defer {
-        try? FileManager.default.removeItem(at: root)
-    }
-
-    try FileManager.default.createDirectory(at: nestedFontsDirectory, withIntermediateDirectories: true)
-    let subtitleURL = mediaDirectory.appendingPathComponent("sample.ass")
-    let directFontURL = fontsDirectory.appendingPathComponent("Direct Font.ttf")
-    let nestedFontURL = nestedFontsDirectory.appendingPathComponent("NestedFont.otf")
-    let ignoredURL = fontsDirectory.appendingPathComponent("ignored.txt")
-    try Data("font-a".utf8).write(to: directFontURL)
-    try Data("font-b".utf8).write(to: nestedFontURL)
-    try Data("not-a-font".utf8).write(to: ignoredURL)
-    try Data("[Script Info]".utf8).write(to: subtitleURL)
-
-    let source = PlaybackSubtitleSource(url: subtitleURL, format: .ass)
-    let resolvedDirectory = try #require(
-        try PlaybackASSFontResourceResolver.prepareFontDirectory(
-            for: source,
-            cacheRoot: cacheRoot
-        )
-    )
-    let resolvedFileNames = try FileManager.default.contentsOfDirectory(atPath: resolvedDirectory.path)
-
-    #expect(resolvedFileNames.contains("Direct Font.ttf"))
-    #expect(resolvedFileNames.contains("NestedFont.otf"))
-    #expect(!resolvedFileNames.contains("ignored.txt"))
 }
 
 @Test

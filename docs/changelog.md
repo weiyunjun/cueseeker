@@ -6,11 +6,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Implemented libass font-resource plumbing for ASS playback: subtitle sources
-  now carry matched-video context, the playback renderer prepares a bounded
-  font directory from sibling font folders and matched-video font attachments,
-  and full-source and indexed render-segment sessions pass that directory to
-  `libass`.
 - Accepted the ASS font-resource plumbing rule for the libass-only playback
   path: ASS playback must carry matched-video font context into `libass`, cover
   adjacent font folders and video container font attachments, preserve that
