@@ -511,7 +511,7 @@ private struct SearchResultRow: View {
             }
             .padding(.vertical, 10)
             .padding(.leading, SearchLayout.resultTextLeadingPadding)
-            .padding(.trailing, SearchLayout.resultTimestampTrailingPadding)
+            .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(rowBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -638,14 +638,15 @@ private enum SearchLayout {
     static let dividerLineWidth: CGFloat = 1
     static let dividerActiveLineWidth: CGFloat = 3
     static let resultOuterHorizontalPadding: CGFloat = 12
-    static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
     static let groupRailChevronSize: CGFloat = 10
     static let groupRailChevronTopPadding: CGFloat = 9
     static let groupRailLineTopSpacing: CGFloat = 2
     static let groupRailLineWidth: CGFloat = 1
-    static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
-    static let resultTextLeadingPadding: CGFloat = resultTimestampTrailingPadding
+    static let resultContentLeadingOffset: CGFloat = 5
+    static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth + resultContentLeadingOffset
+    static let resultTextHorizontalPadding: CGFloat = 14
+    static let resultTextLeadingPadding: CGFloat = resultTextHorizontalPadding
 }
 
 private func filenameWithSoftWrapOpportunities(_ filename: String) -> String {
