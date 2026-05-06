@@ -445,6 +445,7 @@ private struct SearchResultGroupRail: View {
                 if showsLine && lineHeight > 0 {
                     Rectangle()
                         .fill(.tertiary)
+                        .opacity(0.55)
                         .frame(width: SearchLayout.groupRailLineWidth, height: lineHeight)
                         .offset(
                             x: lineX - SearchLayout.groupRailLineWidth / 2,
@@ -455,7 +456,7 @@ private struct SearchResultGroupRail: View {
                 Button(action: onToggle) {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: SearchLayout.groupRailChevronSize, weight: .semibold))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .frame(
                             width: SearchLayout.groupDisclosureWidth,
                             height: SearchLayout.groupRailChevronSize,
