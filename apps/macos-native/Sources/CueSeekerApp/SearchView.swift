@@ -600,9 +600,7 @@ private func highlightedContent(_ content: String, query: String, textColor: Col
         ) {
             if let lowerBound = AttributedString.Index(match.lowerBound, within: highlighted),
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
-                if !isSelected {
-                    highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
-                }
+                highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
                 highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(isSelected ? 0.7 : 0.4)
                 highlighted[lowerBound..<upperBound].foregroundColor = textColor
             }
