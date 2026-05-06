@@ -150,10 +150,8 @@ struct SearchView: View {
                     }
 
                     if !group.isCollapsed {
-                        ForEach(Array(group.results.enumerated()), id: \.element.entryID) { index, result in
+                        ForEach(group.results, id: \.entryID) { result in
                             let isSelected = appState.selectedSearchResult?.entryID == result.entryID
-                            let isNextSelected = index + 1 < group.results.count && appState.selectedSearchResult?.entryID == group.results[index + 1].entryID
-                            let isLast = index == group.results.count - 1
 
                             Button {
                                 appState.clearSearchFocus()
@@ -162,8 +160,7 @@ struct SearchView: View {
                                 SearchResultRow(
                                     result: result,
                                     query: appState.searchQuery,
-                                    isSelected: isSelected,
-                                    showDivider: !isSelected && !isNextSelected && !isLast
+                                    isSelected: isSelected
                                 )
                             }
                             .buttonStyle(StaticButtonStyle())
@@ -389,7 +386,6 @@ private struct SearchResultRow: View {
     let result: SubtitleSearchResult
     let query: String
     let isSelected: Bool
-    let showDivider: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -407,6 +403,7 @@ private struct SearchResultRow: View {
                 Text(formatTimestamp(result.startMilliseconds))
                     .font(.system(size: SearchTypography.detailSize))
                     .monospacedDigit()
+                    .foregroundStyle(isSelected ? .secondary : .tertiary)
                     .lineLimit(1)
             }
             .padding(.vertical, 10)
@@ -414,18 +411,12 @@ private struct SearchResultRow: View {
             .padding(.trailing, SearchLayout.resultTimestampTrailingPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                isSelected ? Color(nsColor: .separatorColor).opacity(0.8) : Color.clear
+                isSelected ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor) : Color.clear
             )
             .foregroundStyle(Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
             .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
-            
-            Rectangle()
-                .fill(showDivider ? Color(nsColor: .separatorColor) : Color.clear)
-                .frame(height: 1)
-                .padding(.leading, SearchLayout.resultDividerHorizontalPadding)
-                .padding(.trailing, SearchLayout.resultDividerHorizontalPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -550,7 +541,6 @@ private enum SearchLayout {
     static let groupDisclosureWidth: CGFloat = 16
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding
     static let resultTextLeadingPadding: CGFloat = groupDisclosureWidth
-    static let resultDividerHorizontalPadding: CGFloat = resultOuterHorizontalPadding + resultTextLeadingPadding
 }
 
 private func filenameWithSoftWrapOpportunities(_ filename: String) -> String {
@@ -583,7 +573,7 @@ private func highlightedContent(_ content: String, query: String, isSelected: Bo
             if let lowerBound = AttributedString.Index(match.lowerBound, within: highlighted),
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
                 highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
-                highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(0.55)
+                highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(isSelected ? 0.7 : 0.4)
                 highlighted[lowerBound..<upperBound].foregroundColor = Color.primary
             }
 
