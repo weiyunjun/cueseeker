@@ -542,6 +542,14 @@ final class AppState: ObservableObject {
         }
     }
 
+    func revealVideoFile(for result: SubtitleSearchResult) {
+        revealFile(atPath: result.videoPath)
+    }
+
+    func revealSubtitleFile(for result: SubtitleSearchResult) {
+        revealFile(atPath: result.subtitlePath)
+    }
+
     func play(_ result: SubtitleSearchResult) {
         playbackStatus = .opening(result)
         let subtitleCues = playbackSubtitleCues(for: result)
@@ -924,6 +932,12 @@ final class AppState: ObservableObject {
         areSearchResultGroupsCollapsedByGlobalControl = false
         expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
+    }
+
+    private func revealFile(atPath path: String) {
+        NSWorkspace.shared.activateFileViewerSelecting([
+            URL(fileURLWithPath: path)
+        ])
     }
 
     private func cancelSearchResultGroupTasks() {

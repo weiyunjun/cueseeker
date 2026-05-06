@@ -170,8 +170,7 @@ Current M1 row content:
 
 - Subtitle text as the primary content.
 - Query match highlighting.
-- Start timestamp at the right side, matching the Playback Inspector `Start Time`
-  value for that result.
+- Start timestamp at the right side.
 
 Current result-row color behavior:
 

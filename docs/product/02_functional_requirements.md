@@ -212,8 +212,7 @@ Search result rows display:
 
 - Subtitle text.
 - Highlighted query matches.
-- The result start timestamp, matching the Playback Inspector `Start Time`
-  value.
+- The result start timestamp.
 
 For grouped subtitle results:
 

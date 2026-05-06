@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented Playback Inspector file-location buttons: the video panel now
+  shows `Video Path` and `Subtitle Path` buttons with folder icons that ask
+  Finder to reveal and select the matched files.
 - Accepted the Playback Inspector file-location action update: read-only Start
   Time, Video Path, and Subtitle Path metadata should be replaced by `Video Path`
   and `Subtitle Path` buttons that reveal the selected files in Finder.

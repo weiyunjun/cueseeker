@@ -203,20 +203,21 @@ struct SearchView: View {
                                 .foregroundStyle(.red)
                         }
 
-                        MetadataField(
-                            title: "Start Time",
-                            value: formatTimestamp(result.startMilliseconds)
-                        )
+                        HStack(spacing: 12) {
+                            Button {
+                                appState.clearSearchFocus()
+                                appState.revealVideoFile(for: result)
+                            } label: {
+                                Label("Video Path", systemImage: "folder")
+                            }
 
-                        MetadataField(
-                            title: "Video Path",
-                            value: result.videoPath
-                        )
-
-                        MetadataField(
-                            title: "Subtitle Path",
-                            value: result.subtitlePath
-                        )
+                            Button {
+                                appState.clearSearchFocus()
+                                appState.revealSubtitleFile(for: result)
+                            } label: {
+                                Label("Subtitle Path", systemImage: "folder")
+                            }
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .padding(.top, AppShellLayout.contentTopPadding)
@@ -532,26 +533,6 @@ private struct SearchResultRow: View {
     }
 }
 
-private struct MetadataField: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: SearchTypography.metadataLabelSize, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Text(value)
-                .font(.system(size: SearchTypography.detailSize))
-                .lineLimit(3)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
 private struct ResizerView: NSViewRepresentable {
     var onHoverChanged: (Bool) -> Void
     var onDragStarted: () -> Void
@@ -627,7 +608,6 @@ private enum SearchTypography {
     static let groupHeaderSize: CGFloat = 13
     static let bodySize: CGFloat = 14
     static let detailSize: CGFloat = 12
-    static let metadataLabelSize: CGFloat = 13
 }
 
 private enum SearchLayout {
