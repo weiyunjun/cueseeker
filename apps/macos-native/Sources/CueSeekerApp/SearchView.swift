@@ -434,8 +434,8 @@ private struct SearchResultGroupRail: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let lineTop = SearchLayout.groupRailTriangleTopPadding
-                + SearchLayout.groupRailTriangleSize
+            let lineTop = SearchLayout.groupRailChevronTopPadding
+                + SearchLayout.groupRailChevronSize
                 + SearchLayout.groupRailLineTopSpacing
             let lineHeight = max(CGFloat.zero, geometry.size.height - lineTop)
             let lineX = SearchLayout.resultOuterHorizontalPadding
@@ -453,44 +453,23 @@ private struct SearchResultGroupRail: View {
                 }
 
                 Button(action: onToggle) {
-                    SearchResultDisclosureTriangle()
-                        .stroke(
-                            Color.secondary,
-                            style: StrokeStyle(
-                                lineWidth: SearchLayout.groupRailTriangleLineWidth,
-                                lineCap: .round,
-                                lineJoin: .round
-                            )
-                        )
-                        .frame(
-                            width: SearchLayout.groupRailTriangleSize,
-                            height: SearchLayout.groupRailTriangleSize
-                        )
-                        .rotationEffect(.degrees(isCollapsed ? -90 : 0))
+                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                        .font(.system(size: SearchLayout.groupRailChevronSize, weight: .semibold))
+                        .foregroundStyle(.secondary)
                         .frame(
                             width: SearchLayout.groupDisclosureWidth,
-                            height: SearchLayout.groupRailTriangleSize,
+                            height: SearchLayout.groupRailChevronSize,
                             alignment: .center
                         )
                 }
                 .buttonStyle(StaticButtonStyle())
                 .offset(
                     x: SearchLayout.resultOuterHorizontalPadding,
-                    y: SearchLayout.groupRailTriangleTopPadding
+                    y: SearchLayout.groupRailChevronTopPadding
                 )
             }
         }
         .frame(width: SearchLayout.resultSelectionLeadingPadding)
-    }
-}
-
-private struct SearchResultDisclosureTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        return path
     }
 }
 
@@ -661,9 +640,8 @@ private enum SearchLayout {
     static let resultOuterHorizontalPadding: CGFloat = 12
     static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
-    static let groupRailTriangleSize: CGFloat = 8
-    static let groupRailTriangleLineWidth: CGFloat = 1.5
-    static let groupRailTriangleTopPadding: CGFloat = 12
+    static let groupRailChevronSize: CGFloat = 10
+    static let groupRailChevronTopPadding: CGFloat = 9
     static let groupRailLineTopSpacing: CGFloat = 2
     static let groupRailLineWidth: CGFloat = 1
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
