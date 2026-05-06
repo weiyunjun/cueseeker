@@ -312,7 +312,9 @@ final class AppState: ObservableObject {
                 let result = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     let indexer = SubtitleIndexer()
-                    return try indexer.index(folder: folder, into: database)
+                    let result = try indexer.index(folder: folder, into: database)
+                    _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
+                    return result
                 }.value
 
                 guard !Task.isCancelled else {
@@ -363,7 +365,9 @@ final class AppState: ObservableObject {
                     let result = try await Task.detached(priority: .userInitiated) {
                         let database = try SubtitleDatabase(path: databaseURL)
                         let indexer = SubtitleIndexer()
-                        return try indexer.index(folder: folder, into: database)
+                        let result = try indexer.index(folder: folder, into: database)
+                        _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
+                        return result
                     }.value
 
                     if var currentResult = aggregateResult {
@@ -979,12 +983,41 @@ final class AppState: ObservableObject {
             return nil
         }
 
+        let subtitleURL = URL(fileURLWithPath: result.subtitlePath)
+        let videoURL = URL(fileURLWithPath: result.videoPath)
+        let fontResourceDirectoryURL = assFontResourceDirectory(
+            subtitleFile: subtitleURL,
+            videoFile: videoURL
+        )
+
         return PlaybackSubtitleSource(
-            url: URL(fileURLWithPath: result.subtitlePath),
+            url: subtitleURL,
             format: .ass,
+            matchedVideoURL: videoURL,
+            fontResourceDirectoryURL: fontResourceDirectoryURL,
             preparationTimeWindow: playbackSubtitleTimeWindow(for: result),
             renderCacheDatabaseURL: databaseURL
         )
+    }
+
+    private func assFontResourceDirectory(subtitleFile: URL, videoFile: URL) -> URL? {
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+            guard let manifest = try database.assFontResourceManifest(
+                forSubtitleFile: subtitleFile,
+                videoFile: videoFile
+            ), manifest.status == .readyWithFonts,
+               let fontsDirectoryPath = manifest.fontsDirectoryPath
+            else {
+                return nil
+            }
+
+            return URL(fileURLWithPath: fontsDirectoryPath)
+        } catch {
+            print("Failed to load ASS font resource manifest: \(error)")
+            return nil
+        }
     }
 
     private func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {

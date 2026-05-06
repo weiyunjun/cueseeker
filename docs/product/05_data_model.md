@@ -19,6 +19,7 @@ Initial entities:
 - Subtitle cue group.
 - Subtitle cue line.
 - Index metadata.
+- ASS font resource manifest.
 - Favorite.
 
 Favorites are not required for M1 but should be considered when designing identity stability.
@@ -236,6 +237,33 @@ Fields:
 
 The app may use file size and modified time for incremental indexing.
 
+ASS font resource manifests are derived index metadata for `libass` playback.
+They record whether external font resources for a subtitle/video pair have
+already been prepared before playback.
+
+Fields:
+
+- `subtitle_file_id`
+- `video_file_id`
+- `status`
+- `fonts_directory`
+- `resource_signature`
+- `error_message`
+- `prepared_at`
+
+Notes:
+
+- The manifest is keyed by subtitle file and matched video file.
+- `status` distinguishes prepared resources with fonts, prepared resources
+  without external fonts, and failed preparation.
+- `fonts_directory` points to an app-owned prepared cache directory only when
+  external font files were materialized.
+- `resource_signature` should change when the subtitle file, matched video
+  file, or discovered external font resources change.
+- Playback consumes this manifest as the external font-resource source of truth
+  for a given subtitle load. Playback must not mutate the manifest or perform
+  delayed font extraction on the playback path.
+
 ## 11. Full-Text Search
 
 The app should use SQLite FTS5 for subtitle text search.
@@ -296,7 +324,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `6`.
+- Schema version: `7`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -307,6 +335,8 @@ Current native schema:
 - Version 6 rebuilds derived cue-group FTS rows from stored cue-group
   `search_content` using Han and Japanese kana segmentation. It does not drop
   durable user configuration.
+- Version 7 adds ASS font-resource manifests for index-stage `libass` external
+  font preparation. It does not drop durable user configuration.
 
 ## 14. Flutter Data Compatibility
 

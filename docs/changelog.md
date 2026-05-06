@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented index-stage ASS font-resource manifests for the libass-only
+  playback path: schema version 7 records prepared font cache status, Index Now
+  materializes conventional adjacent font folders and supported container font
+  attachments into a cache directory, and playback only passes the prepared
+  directory to `libass` without scanning or extracting fonts on the subtitle
+  load path.
 - Accepted the ASS font-resource plumbing rule for the libass-only playback
   path: ASS playback must carry matched-video font context into `libass`, cover
   adjacent font folders and video container font attachments, preserve that

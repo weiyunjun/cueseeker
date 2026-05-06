@@ -90,8 +90,24 @@ public struct ASSRenderSegment: Equatable, Sendable {
     public let byteCount: Int
 }
 
+public enum ASSFontResourceStatus: String, Equatable, Sendable {
+    case readyWithFonts
+    case readyWithoutFonts
+    case failed
+}
+
+public struct ASSFontResourceManifest: Equatable, Sendable {
+    public let subtitlePath: String
+    public let videoPath: String
+    public let status: ASSFontResourceStatus
+    public let fontsDirectoryPath: String?
+    public let resourceSignature: String
+    public let errorMessage: String?
+    public let preparedAt: String
+}
+
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 6
+    public static let currentSchemaVersion: Int = 7
 
     private let database: SQLiteDatabase
 
@@ -220,6 +236,18 @@ public final class SubtitleDatabase {
 
             CREATE INDEX IF NOT EXISTS idx_ass_render_segments_lookup
                 ON ass_render_segments(subtitle_file_id, start_ms, end_ms);
+
+            CREATE TABLE IF NOT EXISTS ass_font_resources (
+                subtitle_file_id INTEGER PRIMARY KEY,
+                video_file_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                fonts_directory TEXT,
+                resource_signature TEXT NOT NULL,
+                error_message TEXT,
+                prepared_at TEXT NOT NULL,
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE,
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+            );
             """
         )
 
@@ -489,6 +517,90 @@ public final class SubtitleDatabase {
             eventCount: statement.intColumn(4),
             byteCount: statement.intColumn(5)
         )
+    }
+
+    public func assFontResourceManifest(
+        forSubtitleFile subtitleFile: URL,
+        videoFile: URL
+    ) throws -> ASSFontResourceManifest? {
+        let statement = try database.prepare(
+            """
+            SELECT sf.subtitle_path, vf.path, r.status, r.fonts_directory,
+                   r.resource_signature, r.error_message, r.prepared_at
+            FROM ass_font_resources r
+            JOIN subtitle_files sf ON sf.id = r.subtitle_file_id
+            JOIN video_files vf ON vf.id = r.video_file_id
+            WHERE sf.subtitle_path = ? AND vf.path = ?;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(videoFile.path, at: 2)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        let status = ASSFontResourceStatus(rawValue: statement.stringColumn(2)) ?? .failed
+        return ASSFontResourceManifest(
+            subtitlePath: statement.stringColumn(0),
+            videoPath: statement.stringColumn(1),
+            status: status,
+            fontsDirectoryPath: statement.nullableStringColumn(3),
+            resourceSignature: statement.stringColumn(4),
+            errorMessage: statement.nullableStringColumn(5),
+            preparedAt: statement.stringColumn(6)
+        )
+    }
+
+    public func upsertASSFontResourceManifest(
+        subtitleFile: URL,
+        videoFile: URL,
+        status: ASSFontResourceStatus,
+        fontsDirectory: URL?,
+        resourceSignature: String,
+        errorMessage: String? = nil
+    ) throws {
+        let subtitleFileID = try requireSubtitleFileID(for: subtitleFile)
+        let videoFileID = try requireVideoFileID(for: videoFile)
+        let statement = try database.prepare(
+            """
+            INSERT INTO ass_font_resources(
+                subtitle_file_id,
+                video_file_id,
+                status,
+                fonts_directory,
+                resource_signature,
+                error_message,
+                prepared_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(subtitle_file_id) DO UPDATE SET
+                video_file_id = excluded.video_file_id,
+                status = excluded.status,
+                fonts_directory = excluded.fonts_directory,
+                resource_signature = excluded.resource_signature,
+                error_message = excluded.error_message,
+                prepared_at = excluded.prepared_at;
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(videoFileID, at: 2)
+        try statement.bind(status.rawValue, at: 3)
+        if let fontsDirectory {
+            try statement.bind(fontsDirectory.path, at: 4)
+        } else {
+            try statement.bindNull(at: 4)
+        }
+        try statement.bind(resourceSignature, at: 5)
+        if let errorMessage {
+            try statement.bind(errorMessage, at: 6)
+        } else {
+            try statement.bindNull(at: 6)
+        }
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 7)
+        try statement.run()
     }
 
     public func subtitleFiles() throws -> [SubtitleFileMetadata] {
@@ -1242,6 +1354,40 @@ public final class SubtitleDatabase {
         try statement.bind(subtitleFileID, at: 1)
         try statement.bind(videoFileID, at: 2)
         try statement.run()
+    }
+
+    private func requireSubtitleFileID(for subtitleFile: URL) throws -> Int64 {
+        let statement = try database.prepare(
+            """
+            SELECT id
+            FROM subtitle_files
+            WHERE subtitle_path = ?;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+
+        guard try statement.step() else {
+            throw SQLiteDatabaseError.stepFailed("Subtitle file is not indexed: \(subtitleFile.path)")
+        }
+
+        return statement.int64Column(0)
+    }
+
+    private func requireVideoFileID(for videoFile: URL) throws -> Int64 {
+        let statement = try database.prepare(
+            """
+            SELECT id
+            FROM video_files
+            WHERE path = ?;
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+
+        guard try statement.step() else {
+            throw SQLiteDatabaseError.stepFailed("Video file is not indexed: \(videoFile.path)")
+        }
+
+        return statement.int64Column(0)
     }
 
     private func insertCueGroup(

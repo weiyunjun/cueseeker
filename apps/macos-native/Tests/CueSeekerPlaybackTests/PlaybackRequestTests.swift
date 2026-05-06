@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CueSeekerCore
 @testable import CueSeekerPlayback
 
 @Test
@@ -130,6 +131,35 @@ func playbackRequestStoresASSSubtitleSource() throws {
 
     #expect(request.subtitleSource?.url == subtitleURL)
     #expect(request.subtitleSource?.format == .ass)
+    #expect(request.subtitleSource?.matchedVideoURL == videoURL.standardizedFileURL)
+    #expect(request.subtitleSource?.fontResourceDirectoryURL == nil)
+}
+
+@Test
+func playbackRequestPreservesASSFontResourceDirectory() throws {
+    let root = try temporaryPlaybackTestDirectory()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let videoURL = root.appendingPathComponent("Episode.mp4")
+    let subtitleURL = root.appendingPathComponent("Episode.ass")
+    let fontsDirectory = root.appendingPathComponent("PreparedFonts", isDirectory: true)
+    try Data().write(to: videoURL)
+    try FileManager.default.createDirectory(at: fontsDirectory, withIntermediateDirectories: true)
+
+    let request = try PlaybackRequest(
+        videoURL: videoURL,
+        startMilliseconds: 1_000,
+        subtitleSource: PlaybackSubtitleSource(
+            url: subtitleURL,
+            format: .ass,
+            fontResourceDirectoryURL: fontsDirectory
+        )
+    )
+
+    #expect(request.subtitleSource?.matchedVideoURL == videoURL.standardizedFileURL)
+    #expect(request.subtitleSource?.fontResourceDirectoryURL == fontsDirectory)
 }
 
 @Test
@@ -159,6 +189,124 @@ func playbackRequestStoresASSSubtitleTimeWindow() throws {
     )
 
     #expect(request.subtitleSource?.preparationTimeWindow == timeWindow)
+}
+
+@Test
+func assFontResourceIndexerMaterializesAdjacentFontsAndSkipsUnchangedManifest() throws {
+    let root = try temporaryPlaybackTestDirectory()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let mediaDirectory = root.appendingPathComponent("Media", isDirectory: true)
+    let outsideDirectory = root.appendingPathComponent("MediaExtra", isDirectory: true)
+    let cacheRoot = root.appendingPathComponent("Cache", isDirectory: true)
+    let fontsDirectory = mediaDirectory.appendingPathComponent("Fonts", isDirectory: true)
+    let nestedFontsDirectory = fontsDirectory.appendingPathComponent("Nested", isDirectory: true)
+    try FileManager.default.createDirectory(at: nestedFontsDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: outsideDirectory, withIntermediateDirectories: true)
+
+    let subtitleURL = mediaDirectory.appendingPathComponent("Episode.ass")
+    let videoURL = mediaDirectory.appendingPathComponent("Episode.mp4")
+    let outsideSubtitleURL = outsideDirectory.appendingPathComponent("Outside.ass")
+    let outsideVideoURL = outsideDirectory.appendingPathComponent("Outside.mp4")
+    try Data().write(to: subtitleURL)
+    try Data().write(to: videoURL)
+    try Data().write(to: outsideSubtitleURL)
+    try Data().write(to: outsideVideoURL)
+    try Data([0x00, 0x01, 0x02]).write(to: fontsDirectory.appendingPathComponent("Subset Font.ttf"))
+    try Data([0x03, 0x04, 0x05]).write(to: nestedFontsDirectory.appendingPathComponent("Nested.otf"))
+    try Data([0x06]).write(to: fontsDirectory.appendingPathComponent("ignored.txt"))
+
+    let database = try SubtitleDatabase(path: root.appendingPathComponent("cue.sqlite"))
+    try database.migrate()
+    try database.replaceCueGroups(
+        subtitleFile: subtitleURL,
+        videoFile: videoURL,
+        format: .ass,
+        cueGroups: [playbackTestCueGroup(content: "Inside")]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: outsideSubtitleURL,
+        videoFile: outsideVideoURL,
+        format: .ass,
+        cueGroups: [playbackTestCueGroup(content: "Outside")]
+    )
+
+    let indexer = PlaybackASSFontResourceIndexer(cacheRoot: cacheRoot)
+    let firstResult = try indexer.index(folder: mediaDirectory, into: database)
+
+    #expect(firstResult.indexedManifests == 1)
+    #expect(firstResult.readyWithFonts == 1)
+    #expect(firstResult.readyWithoutFonts == 0)
+    #expect(firstResult.failedManifests == 0)
+    #expect(firstResult.skippedUnchangedManifests == 0)
+
+    let manifest = try #require(try database.assFontResourceManifest(
+        forSubtitleFile: subtitleURL,
+        videoFile: videoURL
+    ))
+    #expect(manifest.status == .readyWithFonts)
+    let preparedFontsDirectory = try #require(manifest.fontsDirectoryPath)
+    #expect(preparedFontsDirectory.hasPrefix(cacheRoot.path))
+    #expect(FileManager.default.fileExists(
+        atPath: URL(fileURLWithPath: preparedFontsDirectory).appendingPathComponent("Subset Font.ttf").path
+    ))
+    #expect(FileManager.default.fileExists(
+        atPath: URL(fileURLWithPath: preparedFontsDirectory).appendingPathComponent("Nested.otf").path
+    ))
+    #expect(!FileManager.default.fileExists(
+        atPath: URL(fileURLWithPath: preparedFontsDirectory).appendingPathComponent("ignored.txt").path
+    ))
+    #expect(try database.assFontResourceManifest(
+        forSubtitleFile: outsideSubtitleURL,
+        videoFile: outsideVideoURL
+    ) == nil)
+
+    let secondResult = try indexer.index(folder: mediaDirectory, into: database)
+    #expect(secondResult.indexedManifests == 0)
+    #expect(secondResult.skippedUnchangedManifests == 1)
+}
+
+@Test
+func assFontResourceIndexerStoresReadyWithoutFontsWhenNoExternalResourcesExist() throws {
+    let root = try temporaryPlaybackTestDirectory()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let mediaDirectory = root.appendingPathComponent("Media", isDirectory: true)
+    try FileManager.default.createDirectory(at: mediaDirectory, withIntermediateDirectories: true)
+
+    let subtitleURL = mediaDirectory.appendingPathComponent("Episode.ass")
+    let videoURL = mediaDirectory.appendingPathComponent("Episode.mp4")
+    try Data().write(to: subtitleURL)
+    try Data().write(to: videoURL)
+
+    let database = try SubtitleDatabase(path: root.appendingPathComponent("cue.sqlite"))
+    try database.migrate()
+    try database.replaceCueGroups(
+        subtitleFile: subtitleURL,
+        videoFile: videoURL,
+        format: .ass,
+        cueGroups: [playbackTestCueGroup(content: "No custom fonts")]
+    )
+
+    let result = try PlaybackASSFontResourceIndexer(
+        cacheRoot: root.appendingPathComponent("Cache", isDirectory: true)
+    ).index(folder: mediaDirectory, into: database)
+
+    #expect(result.indexedManifests == 1)
+    #expect(result.readyWithFonts == 0)
+    #expect(result.readyWithoutFonts == 1)
+    #expect(result.failedManifests == 0)
+
+    let manifest = try #require(try database.assFontResourceManifest(
+        forSubtitleFile: subtitleURL,
+        videoFile: videoURL
+    ))
+    #expect(manifest.status == .readyWithoutFonts)
+    #expect(manifest.fontsDirectoryPath == nil)
 }
 
 @Test
@@ -219,4 +367,38 @@ func playbackPlayerClampsNativeSpeedRange() throws {
 
     try player.setDoubleProperty("speed", value: 0.25)
     #expect(try player.getDoubleProperty("speed") == 0.5)
+}
+
+private func temporaryPlaybackTestDirectory() throws -> URL {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
+}
+
+private func playbackTestCueGroup(content: String) -> SubtitleCueGroup {
+    SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:00.00",
+        endTimecode: "0:00:01.00",
+        startMilliseconds: 0,
+        endMilliseconds: 1_000,
+        searchContent: content,
+        cueLines: [
+            SubtitleCueLine(
+                eventIndex: 0,
+                sourceFormat: .ass,
+                sourceStyle: nil,
+                sourceLayer: nil,
+                startTimecode: "0:00:00.00",
+                endTimecode: "0:00:01.00",
+                startMilliseconds: 0,
+                endMilliseconds: 1_000,
+                content: content,
+                displayX: nil,
+                displayY: nil,
+                displayOrder: 0
+            )
+        ]
+    )
 }

@@ -53,11 +53,13 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `6`.
+- The current schema version is `7`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
   subtitle content.
+- Schema version `7` adds ASS font-resource manifests so the index stage can
+  record prepared external font cache status for `libass` playback.
 
 ## 5. Migration Rules
 
@@ -120,6 +122,7 @@ Expected early entities:
 - Subtitle cue groups.
 - Subtitle cue lines.
 - Index metadata.
+- ASS font resource manifests.
 - FTS data.
 
 Future entities:
@@ -143,6 +146,13 @@ Rules:
 - Indexed cue group rows must keep enough metadata to open the matched video at
   `start_ms`.
 - Index metadata must allow incremental indexing based on source file metadata.
+- ASS font-resource manifests are derived index data keyed by subtitle file and
+  matched video file. They may store a prepared font cache directory, a resource
+  signature, a preparation status, an error message for diagnostics, and the
+  preparation timestamp.
+- ASS font-resource manifests must be rebuildable from source subtitle files,
+  matched video files, adjacent conventional font folders, and supported
+  container attachments. They must not become durable user-authored data.
 
 ## 9. Media Native Compatibility Profile Rules
 

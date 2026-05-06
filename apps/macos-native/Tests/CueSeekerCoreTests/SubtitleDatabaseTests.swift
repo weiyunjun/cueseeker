@@ -294,6 +294,73 @@ func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
 }
 
 @Test
+func storesAndLoadsASSFontResourceManifest() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Effects.mkv")
+    let fontsDirectory = URL(fileURLWithPath: "/Cache/CueSeeker/ASSFontResources/abc")
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [
+            testCueGroup(
+                startMilliseconds: 0,
+                endMilliseconds: 1_000,
+                content: "Styled line",
+                eventIndex: 0
+            )
+        ]
+    )
+
+    try database.upsertASSFontResourceManifest(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        status: .readyWithFonts,
+        fontsDirectory: fontsDirectory,
+        resourceSignature: "signature-v1"
+    )
+
+    let loadedManifest = try database.assFontResourceManifest(
+        forSubtitleFile: subtitleFile,
+        videoFile: videoFile
+    )
+    let manifest = try #require(loadedManifest)
+    #expect(manifest.subtitlePath == subtitleFile.path)
+    #expect(manifest.videoPath == videoFile.path)
+    #expect(manifest.status == .readyWithFonts)
+    #expect(manifest.fontsDirectoryPath == fontsDirectory.path)
+    #expect(manifest.resourceSignature == "signature-v1")
+    #expect(manifest.errorMessage == nil)
+    #expect(!manifest.preparedAt.isEmpty)
+
+    try database.upsertASSFontResourceManifest(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        status: .readyWithoutFonts,
+        fontsDirectory: nil,
+        resourceSignature: "signature-v2",
+        errorMessage: nil
+    )
+
+    let updatedManifest = try #require(try database.assFontResourceManifest(
+        forSubtitleFile: subtitleFile,
+        videoFile: videoFile
+    ))
+    #expect(updatedManifest.status == .readyWithoutFonts)
+    #expect(updatedManifest.fontsDirectoryPath == nil)
+    #expect(updatedManifest.resourceSignature == "signature-v2")
+}
+
+@Test
 func migrationInvalidatesOldASSRenderSegmentAlgorithmVersion() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

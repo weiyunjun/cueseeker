@@ -218,6 +218,15 @@ Rules:
   Discovery must be explicit and bounded to the selected subtitle and matched
   video location, such as conventional sibling font directories, and must not
   become a broad recursive scan of unrelated user folders.
+- External ASS font-resource preparation is an indexing-stage responsibility.
+  Playback may read a prepared manifest and pass an existing font directory to
+  `libass`, but it must not inspect media containers, copy font folders, extract
+  attachments, or mutate the active font directory after subtitle loading has
+  started.
+- The prepared ASS font-resource manifest is the single source of truth for
+  external font resources on a playback click. If the manifest is absent or
+  failed, playback must not start background font preparation that can later
+  change the rendered font during the same subtitle load.
 - ASS `[Fonts]` embedded resources remain source-file-owned and should continue
   to rely on `libass` embedded-font extraction. External font folders and video
   attachments are additional renderer inputs, not a replacement for source ASS
