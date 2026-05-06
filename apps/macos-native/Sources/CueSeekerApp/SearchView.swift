@@ -567,8 +567,8 @@ private enum SearchLayout {
     static let resultOuterHorizontalPadding: CGFloat = 12
     static let resultTimestampTrailingPadding: CGFloat = 10
     static let groupDisclosureWidth: CGFloat = 16
-    static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding
-    static let resultTextLeadingPadding: CGFloat = groupDisclosureWidth
+    static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
+    static let resultTextLeadingPadding: CGFloat = resultTimestampTrailingPadding
 }
 
 private func filenameWithSoftWrapOpportunities(_ filename: String) -> String {
