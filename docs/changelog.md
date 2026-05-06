@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted friendly Search result group titles: result headers should display
+  the immediate parent folder name plus the subtitle file's Finder-like
+  natural-sort rank among same-extension sibling subtitle files, such as
+  `葬送的芙莉莲 - 05`, while preserving full subtitle paths for identity,
+  playback, and diagnostics.
 - Implemented index-stage ASS font-resource manifests for the libass-only
   playback path: schema version 7 records prepared font cache status, Index Now
   materializes conventional adjacent font folders and supported container font

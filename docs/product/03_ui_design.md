@@ -120,8 +120,9 @@ Each subtitle-file group should be compact and scannable.
 The group header should display:
 
 - A disclosure triangle on the left.
-- The subtitle file name followed by two spaces and the per-file result count
-  as plain text, for example `1.ass  3 results` or `1.ass  1 result`.
+- A friendly subtitle group title followed by two spaces and the per-file
+  result count as plain text, for example `葬送的芙莉莲 - 05  3 results` or
+  `葬送的芙莉莲 - 05  1 result`.
 
 The group header should be clickable as a single target and should toggle
 collapse or expansion. The disclosure triangle indicates state; it does not need
@@ -131,25 +132,35 @@ Groups should be expanded by default.
 
 The grouped Search header should not render a per-file count badge or a
 separate right-aligned count component. Per-file match totals should appear as
-plain text appended to the filename, while also remaining available in search
+plain text appended to the display title, while also remaining available in search
 state for loading and future sorting behavior.
 
-Subtitle file names should display in full and may wrap across multiple lines.
-The filename text may include invisible soft wrap opportunities after common
-filename delimiters such as `]`, `.`, `_`, and `-` so long bracketed names use
-available width more naturally without changing the visible filename.
+Friendly group titles should use the immediate parent folder name plus the
+subtitle file's one-based natural-sort rank among visible regular sibling
+subtitle files with the same final subtitle extension. The rank should use
+Finder-like localized standard comparison so numeric filename runs sort by
+numeric value.
 
-Subtitle-file-name text and result-row subtitle text should align on the same
-left edge. The disclosure triangle should live in the left-side control space so
-it does not add extra indentation to result-row subtitle text. The exact spacing
+The display title format is `Parent Folder Name - NN`, with the numeric suffix
+zero-padded to at least two digits. If the friendly title cannot be derived, the
+header should fall back to the raw subtitle filename. Fallback filenames may
+wrap across multiple lines and may include invisible soft wrap opportunities
+after common filename delimiters such as `]`, `.`, `_`, and `-` so long
+bracketed names use available width more naturally without changing the visible
+filename.
+
+Group title text and result-row subtitle text should align on the same left
+edge. The disclosure triangle should live in the left-side control space so it
+does not add extra indentation to result-row subtitle text. The exact spacing
 may be refined during implementation.
 
 Expanding a collapsed group should display at most the first 100 matching rows
 for that subtitle file.
 
-Group ordering should be stable and based on subtitle file name. If two groups
-have the same displayed file name, the full subtitle path should be used as the
-secondary stable ordering key.
+Group ordering should be stable and based on the friendly display title when it
+is available. If two groups have the same display title, or if a group falls
+back to the source subtitle filename, the full subtitle path should be used as
+the secondary stable ordering key.
 
 ## 6. Search Result Row
 

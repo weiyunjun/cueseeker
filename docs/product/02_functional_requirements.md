@@ -154,11 +154,31 @@ Search results should be grouped by subtitle file.
 
 Each subtitle-file group should display:
 
-- The subtitle file name.
+- A friendly display title derived from the subtitle file's immediate parent
+  folder name and its one-based natural-sort rank among same-extension sibling
+  subtitle files when that title can be derived.
 - The total matching cue-group count for that subtitle file as plain text
-  appended after the filename, separated by two spaces, using `1 result` for a
+  appended after the display title, separated by two spaces, using `1 result` for a
   single match and `N results` otherwise.
 - A collapsed or expanded state indicator.
+
+Friendly subtitle-file group title rules:
+
+- The display title format is `Parent Folder Name - NN`.
+- `Parent Folder Name` is the immediate parent folder's last path component.
+- `NN` is the subtitle file's one-based rank among visible regular sibling
+  subtitle files with the same final subtitle extension.
+- The sequence number is zero-padded to at least two digits, expanding to the
+  sibling count's digit width when needed.
+- Sibling ordering should use macOS Finder-like localized standard comparison,
+  so numeric filename runs sort by numeric value, such as `aa2.ass` before
+  `aa11.ass`.
+- Rank derivation is scoped to the immediate parent directory and final subtitle
+  extension. `.srt` and `.ass` files are ranked independently.
+- If the friendly display title cannot be derived, the group should fall back
+  to the source subtitle filename.
+- Search grouping identity must remain based on subtitle path, not the friendly
+  display title.
 
 The visible group header should not render a separate per-file count badge or
 additional count component. The per-file total should remain part of the header
@@ -211,7 +231,8 @@ The Playback Inspector displays additional context:
 - Subtitle content.
 - Start time.
 - Video path.
-- Subtitle path.
+- Subtitle path, preserving the exact source filename even when Search result
+  group headers use friendly display titles.
 
 ## 8. Local Playback
 

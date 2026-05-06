@@ -57,8 +57,16 @@ Grouped result behavior:
   header.
 - Per-file match totals should remain available in search grouping state for
   lazy-loading and future sorting behavior. Header presentation should append
-  the per-file total to the subtitle filename as plain text and must not render
-  a per-file count badge or separate count component.
+  the per-file total to the friendly subtitle group title as plain text and
+  must not render a per-file count badge or separate count component.
+- The friendly subtitle group title should use the immediate parent folder name
+  plus the subtitle file's one-based Finder-like natural-sort rank among visible
+  regular sibling subtitle files with the same final subtitle extension, such as
+  `葬送的芙莉莲 - 05`.
+- Users can change the displayed work title by renaming the parent folder
+  without changing the subtitle or video filenames.
+- The full subtitle path remains available in the Playback Inspector for source
+  identity and diagnostics.
 - The collapse or expand-all control should toggle all subtitle-file groups in
   the current query at once.
 - The collapse or expand-all control should track only its own global action

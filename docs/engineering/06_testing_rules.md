@@ -54,6 +54,10 @@ Required unit test areas:
 - Subtitle file extension filtering.
 - Video basename matching.
 - Simple language suffix removal.
+- Friendly Search result group title derivation from parent folder name and
+  same-extension sibling subtitle rank.
+- Finder-like natural filename ordering for friendly Search result group titles,
+  including numeric cases such as `aa2.ass` before `aa11.ass`.
 - Search query normalization or validation, if implemented outside the database layer.
 
 Rules:
