@@ -388,6 +388,14 @@ Required `libass` manual checks:
   source-derived render segment.
 - Font behavior is compared against reference players for real samples that
   rely on embedded, adjacent, or system fonts.
+- Font behavior is compared against reference players for real samples that
+  rely on matched-video font attachments. The test sample should include at
+  least one ASS subtitle whose named font exists only as a video container
+  attachment so fallback-font regressions are visible.
+- Font behavior is compared against reference players for real samples that
+  rely on adjacent external font folders, such as a sibling `Fonts` directory.
+  The check must verify the playback path, not only the isolated ASS rendering
+  probe.
 - Subtitle output maps to the displayed video rectangle.
 - Playback, seek, subtitle visibility toggling, Playback Inspector, and Theater
   Mode remain stable.
@@ -423,6 +431,12 @@ Required render timeline coverage:
   boundary: indexing stores segment scripts, unchanged reindex skips only when
   those segments exist, and legacy `libass` can load the segment from memory for
   the current timestamp.
+- Font-resource plumbing must be verified for both full-source ASS loading and
+  indexed render-segment loading. A render segment must receive the same
+  renderer font directory or extracted attachment cache as the full-source path.
+- Playback subtitle source tests must verify that ASS playback can carry matched
+  video identity and renderer font resource context without reintroducing an ASS
+  renderer picker or native ASS fallback route.
 - Legacy `libass` unchanged-frame reuse must be tested with a static ASS sample:
   the first cropped render should produce a visible payload, and a subsequent
   unchanged timestamp in the same static interval should return no cropped

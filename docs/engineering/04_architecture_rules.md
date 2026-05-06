@@ -202,6 +202,26 @@ Rules:
   wait for ASS parsing or rendering.
 - ASS rendering should be coordinated through an asynchronous render coordinator
   with cancellation and cache invalidation keyed by source file identity.
+- The `libass` render source must carry explicit font-resource context. A
+  selected ASS subtitle is not enough by itself: the playback path must also
+  preserve the matched video identity and any discovered renderer font
+  directory or cache directory needed by the `libass` session.
+- `libass` must receive the same font-resource context for both full-source ASS
+  loading and indexed render-segment loading. Segment optimization must not
+  drop access to fonts that would have been available when rendering the full
+  source file.
+- CueSeeker must not assume that `libass` can read fonts from the matched video
+  container automatically. Matroska or other container font attachments must be
+  extracted or otherwise materialized into a renderer-owned font resource
+  directory before they can be passed to `libass`.
+- Adjacent external font folders are part of the ASS playback resource model.
+  Discovery must be explicit and bounded to the selected subtitle and matched
+  video location, such as conventional sibling font directories, and must not
+  become a broad recursive scan of unrelated user folders.
+- ASS `[Fonts]` embedded resources remain source-file-owned and should continue
+  to rely on `libass` embedded-font extraction. External font folders and video
+  attachments are additional renderer inputs, not a replacement for source ASS
+  content.
 - Source-faithful ASS rendering must avoid rebuilding presentation payloads when
   the renderer reports an unchanged visual frame. Static subtitle intervals
   should reuse the previous cropped subtitle surface and layer contents instead
@@ -247,6 +267,10 @@ Rules:
 - Bundling and updating `libass` remains an explicit playback dependency
   concern because it affects packaging, signing, license review, font discovery,
   and font fallback behavior.
+- Font-resource extraction or discovery caches are derived playback resources.
+  They must be invalidated when the matched video, subtitle source, or extracted
+  attachment set changes, and they must not become the source of truth for
+  subtitle search or cue grouping.
 - The current playback route must always use the project-owned native backend.
 - The active native macOS app must not link against, initialize, or fall back to `libmpv`.
 - The native backend uses FFmpeg demuxing, user-selectable hardware, software,

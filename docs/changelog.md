@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the ASS font-resource plumbing rule for the libass-only playback
+  path: ASS playback must carry matched-video font context into `libass`, cover
+  adjacent font folders and video container font attachments, preserve that
+  context for indexed render segments, and document release handling for
+  extracted font caches.
 - Clarified the next grouped Search header count presentation: per-file totals
   should be appended as plain text after the subtitle filename, using
   `1 result` or `N results`, without reintroducing a badge or separate count UI.
