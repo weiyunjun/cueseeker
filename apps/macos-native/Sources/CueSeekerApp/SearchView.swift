@@ -368,7 +368,6 @@ private struct SearchResultGroupHeader: View {
 
                 Text(headerText)
                     .font(.system(size: SearchTypography.groupHeaderSize))
-                    .foregroundStyle(.secondary)
                     .lineLimit(nil)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -381,8 +380,15 @@ private struct SearchResultGroupHeader: View {
         .buttonStyle(StaticButtonStyle())
     }
 
-    private var headerText: String {
-        "\(filenameWithSoftWrapOpportunities(group.subtitleFileName))  \(resultCountText)"
+    private var headerText: AttributedString {
+        var filename = AttributedString(filenameWithSoftWrapOpportunities(group.subtitleFileName))
+        filename.foregroundColor = Color.primary.opacity(0.76)
+
+        var count = AttributedString("  \(resultCountText)")
+        count.foregroundColor = Color.secondary
+
+        filename.append(count)
+        return filename
     }
 
     private var resultCountText: String {
