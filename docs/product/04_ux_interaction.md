@@ -93,10 +93,12 @@ Search focus behavior:
 When the user selects a result:
 
 - The selected row visually turns into a gray rounded rectangle while preserving
-  normal primary text color and query highlighting, overriding the default
-  separator lines.
+  normal primary text color and query highlighting, without relying on row
+  divider lines.
 - The selected row continues to show the result's start timestamp on the right
-  side.
+  side, but timestamp text remains visually weaker than subtitle text.
+- Search result subtitle text should keep internal SRT and ASS line breaks
+  readable with extra wrapped-line spacing, especially for bilingual cue text.
 - The app should remain in Search and open or update the Playback Inspector.
 - The Playback Inspector should expand automatically if it is collapsed.
 - Playback should start at or near the matching timestamp.
@@ -115,8 +117,9 @@ When the user selects a result:
 - **Search Field**: The focused Search field uses a gray outline rather than the
   system accent color.
 - **Search Results**: Interactive result rows emphasize the selection state over
-  hover with a gray selected-row background, aligned group headers, and visible
-  right-side start timestamps.
+  hover with a macOS unemphasized gray selected-row background, aligned group
+  headers, no row divider lines, readable bilingual line spacing, and visible
+  but visually muted right-side start timestamps.
 
 ## 5. Playback Interaction
 

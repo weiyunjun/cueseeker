@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the grouped Search result row visual refresh: selected rows now use
+  the macOS unemphasized gray selection background, row divider lines are
+  removed, timestamps are visually muted, query highlights use separate selected
+  and unselected yellow strengths, and wrapped subtitle lines use additional
+  spacing for bilingual readability.
 - Removed the native ASS renderer route from active playback: ASS playback now
   uses the `libass` source-faithful overlay only, Settings no longer exposes an
   ASS renderer selector, PlaybackSyncProbe reports the libass path, and ADR-0009

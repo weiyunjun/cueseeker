@@ -109,7 +109,8 @@ Accepted M1 search presentation:
   global 100-result batch.
 - Search results are grouped under subtitle-file headers.
 - Selecting a search result opens or updates the Playback Inspector without leaving Search.
-- Search results use refined macOS-native typography and highlight query matches with a yellow background.
+- Search results use refined macOS-native typography and highlight query
+  matches with a yellow background that remains readable on selected rows.
 - Search result visual polish is still incomplete and subject to further iteration.
 
 ## 5. Search Result Group
@@ -174,16 +175,24 @@ The row should remain fully clickable. The video file name is not currently show
 in the search result row.
 
 Layout and Selection Behavior:
+
 - The selected-row background starts on the same left edge as the group
   disclosure triangle.
 - Result-row subtitle text starts on the same left edge as the subtitle file
   name.
 - The selected-row background and group header text area keep their right edges
   aligned.
-- Unselected rows are separated by horizontal gray dividers with padding.
-- When a row is selected, it renders a gray rounded rectangle background while
-  preserving the normal primary text color and yellow query-match highlighting.
-  The selection background visually covers the divider line.
+- Rows do not use horizontal dividers. Row separation should come from internal
+  padding, group headers, and readable text spacing.
+- When a row is selected, it renders a macOS unemphasized gray rounded
+  rectangle background while preserving the normal primary subtitle text color.
+- Query-match highlighting should use a lighter yellow background on unselected
+  rows and a stronger yellow background on selected rows.
+- The right-side start timestamp should be visually secondary to subtitle text:
+  tertiary on unselected rows and secondary on selected rows.
+- Internal wrapped subtitle lines, including SRT line breaks and ASS `\N`
+  line breaks rendered inside a single cue line, should use 4pt line spacing so
+  bilingual subtitle text does not appear cramped.
 
 ## 7. Playback Inspector
 
