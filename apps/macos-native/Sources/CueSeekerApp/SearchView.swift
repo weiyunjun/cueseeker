@@ -144,7 +144,10 @@ struct SearchView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(appState.searchResultGroups) { group in
-                    SearchResultGroupHeader(group: group) {
+                    SearchResultGroupHeader(
+                        group: group,
+                        isSelected: appState.selectedSearchResult?.subtitlePath == group.subtitlePath
+                    ) {
                         appState.clearSearchFocus()
                         appState.toggleSearchResultGroup(group.subtitlePath)
                     }
@@ -355,6 +358,7 @@ private struct SearchField: View {
 
 private struct SearchResultGroupHeader: View {
     let group: SearchResultFileGroup
+    let isSelected: Bool
     let onToggle: () -> Void
 
     var body: some View {
@@ -382,7 +386,7 @@ private struct SearchResultGroupHeader: View {
 
     private var headerText: AttributedString {
         var filename = AttributedString(filenameWithSoftWrapOpportunities(group.subtitleFileName))
-        filename.foregroundColor = Color.primary.opacity(0.76)
+        filename.foregroundColor = isSelected ? .primary : Color.primary.opacity(0.76)
 
         var count = AttributedString("  \(resultCountText)")
         count.foregroundColor = Color.secondary
@@ -596,7 +600,9 @@ private func highlightedContent(_ content: String, query: String, textColor: Col
         ) {
             if let lowerBound = AttributedString.Index(match.lowerBound, within: highlighted),
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
-                highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
+                if !isSelected {
+                    highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
+                }
                 highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(isSelected ? 0.7 : 0.4)
                 highlighted[lowerBound..<upperBound].foregroundColor = textColor
             }
