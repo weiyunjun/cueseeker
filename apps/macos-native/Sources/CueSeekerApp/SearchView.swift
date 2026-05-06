@@ -388,12 +388,15 @@ private struct SearchResultRow: View {
     let isSelected: Bool
 
     var body: some View {
+        let rowTextColor: Color = isSelected ? .primary : .secondary
+
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                        Text(highlightedContent(line, query: query, isSelected: isSelected))
+                        Text(highlightedContent(line, query: query, textColor: rowTextColor, isSelected: isSelected))
                             .font(.system(size: SearchTypography.bodySize))
+                            .foregroundStyle(rowTextColor)
                             .lineSpacing(4)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
@@ -404,7 +407,7 @@ private struct SearchResultRow: View {
                 Text(formatTimestamp(result.startMilliseconds))
                     .font(.system(size: SearchTypography.detailSize))
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? .secondary : .tertiary)
+                    .foregroundStyle(rowTextColor)
                     .lineLimit(1)
             }
             .padding(.vertical, 10)
@@ -414,7 +417,6 @@ private struct SearchResultRow: View {
             .background(
                 isSelected ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor) : Color.clear
             )
-            .foregroundStyle(Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
             .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
@@ -559,7 +561,7 @@ private func filenameWithSoftWrapOpportunities(_ filename: String) -> String {
     return wrapped
 }
 
-private func highlightedContent(_ content: String, query: String, isSelected: Bool = false) -> AttributedString {
+private func highlightedContent(_ content: String, query: String, textColor: Color, isSelected: Bool = false) -> AttributedString {
     var highlighted = AttributedString(content)
     let terms = highlightTerms(from: query)
 
@@ -575,7 +577,7 @@ private func highlightedContent(_ content: String, query: String, isSelected: Bo
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
                 highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
                 highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(isSelected ? 0.7 : 0.4)
-                highlighted[lowerBound..<upperBound].foregroundColor = Color.primary
+                highlighted[lowerBound..<upperBound].foregroundColor = textColor
             }
 
             guard match.upperBound < content.endIndex else {
