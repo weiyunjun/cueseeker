@@ -144,46 +144,22 @@ struct SearchView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(appState.searchResultGroups) { group in
-                    ZStack(alignment: .topLeading) {
-                        VStack(spacing: 0) {
-                            SearchResultGroupHeader(
-                                group: group,
-                                isSelected: appState.selectedSearchResult?.subtitlePath == group.subtitlePath
-                            ) {
-                                appState.clearSearchFocus()
-                                appState.toggleSearchResultGroup(group.subtitlePath)
-                            }
-
-                            if !group.isCollapsed {
-                                ForEach(group.results, id: \.entryID) { result in
-                                    let isSelected = appState.selectedSearchResult?.entryID == result.entryID
-
-                                    Button {
-                                        appState.clearSearchFocus()
-                                        appState.openSearchResult(result)
-                                    } label: {
-                                        SearchResultRow(
-                                            result: result,
-                                            query: appState.searchQuery,
-                                            isSelected: isSelected
-                                        )
-                                    }
-                                    .buttonStyle(StaticButtonStyle())
-                                    .onAppear {
-                                        appState.loadMoreSearchResultsIfNeeded(currentResult: result)
-                                    }
-                                }
-                            }
-                        }
-
-                        SearchResultGroupRail(
-                            isCollapsed: group.isCollapsed,
-                            showsLine: !group.isCollapsed && !group.results.isEmpty
-                        ) {
+                    SearchResultGroupView(
+                        group: group,
+                        query: appState.searchQuery,
+                        selectedResult: appState.selectedSearchResult,
+                        onToggle: {
                             appState.clearSearchFocus()
                             appState.toggleSearchResultGroup(group.subtitlePath)
+                        },
+                        onOpenResult: { result in
+                            appState.clearSearchFocus()
+                            appState.openSearchResult(result)
+                        },
+                        onResultAppear: { result in
+                            appState.loadMoreSearchResultsIfNeeded(currentResult: result)
                         }
-                    }
+                    )
                 }
 
                 if case .searching = appState.searchStatus, !appState.searchResults.isEmpty {
@@ -402,6 +378,52 @@ private struct SearchResultGroupHeader: View {
 
     private var resultCountText: String {
         "\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")"
+    }
+}
+
+private struct SearchResultGroupView: View {
+    let group: SearchResultFileGroup
+    let query: String
+    let selectedResult: SubtitleSearchResult?
+    let onToggle: () -> Void
+    let onOpenResult: (SubtitleSearchResult) -> Void
+    let onResultAppear: (SubtitleSearchResult) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SearchResultGroupHeader(
+                group: group,
+                isSelected: selectedResult?.subtitlePath == group.subtitlePath,
+                onToggle: onToggle
+            )
+
+            if !group.isCollapsed {
+                ForEach(group.results, id: \.entryID) { result in
+                    let isSelected = selectedResult?.entryID == result.entryID
+
+                    Button {
+                        onOpenResult(result)
+                    } label: {
+                        SearchResultRow(
+                            result: result,
+                            query: query,
+                            isSelected: isSelected
+                        )
+                    }
+                    .buttonStyle(StaticButtonStyle())
+                    .onAppear {
+                        onResultAppear(result)
+                    }
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            SearchResultGroupRail(
+                isCollapsed: group.isCollapsed,
+                showsLine: !group.isCollapsed && !group.results.isEmpty,
+                onToggle: onToggle
+            )
+        }
     }
 }
 
@@ -641,7 +663,7 @@ private enum SearchLayout {
     static let groupDisclosureWidth: CGFloat = 16
     static let groupRailTriangleSize: CGFloat = 8
     static let groupRailTriangleLineWidth: CGFloat = 1.5
-    static let groupRailTriangleTopPadding: CGFloat = 7
+    static let groupRailTriangleTopPadding: CGFloat = 12
     static let groupRailLineTopSpacing: CGFloat = 2
     static let groupRailLineWidth: CGFloat = 1
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth
