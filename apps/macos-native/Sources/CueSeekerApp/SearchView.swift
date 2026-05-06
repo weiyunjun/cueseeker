@@ -455,7 +455,7 @@ private struct SearchResultGroupRail: View {
                 Button(action: onToggle) {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: SearchLayout.groupRailChevronSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                         .frame(
                             width: SearchLayout.groupDisclosureWidth,
                             height: SearchLayout.groupRailChevronSize,
