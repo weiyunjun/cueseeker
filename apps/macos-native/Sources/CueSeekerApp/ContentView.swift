@@ -123,7 +123,7 @@ struct ContentView: View {
     @ViewBuilder
     private var topBarTrailingControls: some View {
         if appState.selectedSection == .search {
-            playbackInspectorToggle
+            searchPanelToggle
                 .padding(.trailing, AppShellLayout.toggleTrailing)
                 .frame(height: AppShellLayout.topBarHeight)
         }
@@ -153,10 +153,10 @@ struct ContentView: View {
         )
     }
 
-    private var playbackInspectorToggle: some View {
+    private var searchPanelToggle: some View {
         Button {
             appState.performUserInitiatedAppCommand {
-                appState.togglePlaybackInspector()
+                appState.toggleSearchPanel()
             }
         } label: {
             Image(systemName: "sidebar.right")
@@ -170,7 +170,7 @@ struct ContentView: View {
         .buttonStyle(ToolbarButtonStyle())
         .focusable(false)
         .foregroundStyle(.primary)
-        .help(appState.isPlaybackInspectorVisible ? "Hide Playback Inspector" : "Show Playback Inspector")
+        .help(appState.isSearchPanelVisible ? "Hide Search Panel" : "Show Search Panel")
         .frame(
             width: AppShellLayout.toggleSize,
             height: AppShellLayout.toggleSize
@@ -198,7 +198,7 @@ struct ContentView: View {
 
 enum AppShellLayout {
     static let contentTopPadding: CGFloat = 16
-    static let minimumWindowWidth: CGFloat = 1_040
+    static let minimumWindowWidth: CGFloat = 1_120
     static let minimumWindowHeight: CGFloat = 560
     static let topBarHeight: CGFloat = 45
     static let sidebarWidth: CGFloat = 154

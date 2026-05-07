@@ -87,8 +87,8 @@ struct SearchResultFileGroup: Identifiable, Equatable {
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
     private static let isSidebarVisibleKey = "isSidebarVisible"
-    private static let isPlaybackInspectorVisibleKey = "isPlaybackInspectorVisible"
-    private static let playbackInspectorWidthKey = "playbackInspectorWidth"
+    private static let isSearchPanelVisibleKey = "isSearchPanelVisible"
+    private static let searchPanelWidthKey = "searchPanelWidth"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
@@ -110,8 +110,8 @@ final class AppState: ObservableObject {
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
     @Published var isSidebarVisible = true
-    @Published var isPlaybackInspectorVisible = false
-    @Published var playbackInspectorWidth: Double = 520
+    @Published var isSearchPanelVisible = true
+    @Published var searchPanelWidth: Double = 480
     @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
@@ -194,13 +194,13 @@ final class AppState: ObservableObject {
 
         userDefaults.register(defaults: [
             Self.isSidebarVisibleKey: true,
-            Self.isPlaybackInspectorVisibleKey: false,
-            Self.playbackInspectorWidthKey: 520.0,
+            Self.isSearchPanelVisibleKey: true,
+            Self.searchPanelWidthKey: 480.0,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
         isSidebarVisible = userDefaults.bool(forKey: Self.isSidebarVisibleKey)
-        isPlaybackInspectorVisible = userDefaults.bool(forKey: Self.isPlaybackInspectorVisibleKey)
-        playbackInspectorWidth = userDefaults.double(forKey: Self.playbackInspectorWidthKey)
+        isSearchPanelVisible = userDefaults.bool(forKey: Self.isSearchPanelVisibleKey)
+        searchPanelWidth = userDefaults.double(forKey: Self.searchPanelWidthKey)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
 
         do {
@@ -268,25 +268,14 @@ final class AppState: ObservableObject {
         userDefaults.set(isSidebarVisible, forKey: Self.isSidebarVisibleKey)
     }
 
-    func togglePlaybackInspector() {
-        if isPlaybackInspectorVisible {
-            collapsePlaybackInspector()
-        } else {
-            isPlaybackInspectorVisible = true
-            userDefaults.set(true, forKey: Self.isPlaybackInspectorVisibleKey)
-        }
+    func toggleSearchPanel() {
+        isSearchPanelVisible.toggle()
+        userDefaults.set(isSearchPanelVisible, forKey: Self.isSearchPanelVisibleKey)
     }
 
-    func collapsePlaybackInspector() {
-        isPlaybackInspectorVisible = false
-        userDefaults.set(false, forKey: Self.isPlaybackInspectorVisibleKey)
-        playbackFullscreenManager.exitFullscreen()
-        pausePlayback()
-    }
-
-    func updatePlaybackInspectorWidth(_ width: Double) {
-        playbackInspectorWidth = width
-        userDefaults.set(width, forKey: Self.playbackInspectorWidthKey)
+    func updateSearchPanelWidth(_ width: Double) {
+        searchPanelWidth = width
+        userDefaults.set(width, forKey: Self.searchPanelWidthKey)
     }
 
     func selectSection(_ section: AppSection) {
@@ -534,8 +523,6 @@ final class AppState: ObservableObject {
 
     func openSearchResult(_ result: SubtitleSearchResult) {
         selectedSearchResult = result
-        isPlaybackInspectorVisible = true
-        userDefaults.set(true, forKey: Self.isPlaybackInspectorVisibleKey)
         Task { @MainActor in
             await Task.yield()
             play(result)
@@ -665,7 +652,7 @@ final class AppState: ObservableObject {
         modifierFlagsRawValue: UInt
     ) -> Bool {
         let isPlaybackInterfaceVisible = selectedSection == .search
-            && (isPlaybackInspectorVisible || playbackFullscreenManager.isFullscreen)
+            && (selectedSearchResult != nil || playbackFullscreenManager.isFullscreen)
 
         guard isPlaybackInterfaceVisible else {
             return false

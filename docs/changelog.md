@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the player-first Search workspace layout in the native app:
+  playback now occupies the left side of Search, Search controls and grouped
+  results live in a collapsible right-side Search Panel, hiding that panel no
+  longer pauses playback, and the titlebar's right toggle now controls Search
+  Panel visibility.
 - Accepted the content-navigation and learning-panel model: the leftmost
   AppShell sidebar remains global navigation, future left content panels should
   handle Library, Timeline, and Favorites-style precise location, and the right

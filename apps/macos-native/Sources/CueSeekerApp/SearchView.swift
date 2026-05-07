@@ -5,35 +5,35 @@ import CueSeekerCore
 
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var inspectorDragStartWidth: Double?
-    @State private var isInspectorDividerHovered = false
-    @State private var isInspectorDividerDragging = false
+    @State private var searchPanelDragStartWidth: Double?
+    @State private var isSearchPanelDividerHovered = false
+    @State private var isSearchPanelDividerDragging = false
 
     var body: some View {
         GeometryReader { geometry in
-            let inspectorWidth = clampedInspectorWidth(for: geometry.size.width)
+            let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
 
             HStack(spacing: 0) {
-                searchResultsPane
-                    .frame(minWidth: SearchLayout.searchPaneMinimumWidth, maxWidth: .infinity)
+                playbackArea
+                    .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
                     .overlay(alignment: .trailing) {
-                        if appState.isPlaybackInspectorVisible {
-                            inspectorResizeDivider(availableWidth: geometry.size.width)
+                        if appState.isSearchPanelVisible {
+                            searchPanelResizeDivider(availableWidth: geometry.size.width)
                         }
                     }
 
-                if appState.isPlaybackInspectorVisible {
-                    playbackInspector
-                        .frame(width: inspectorWidth)
+                if appState.isSearchPanelVisible {
+                    searchPanel
+                        .frame(width: searchPanelWidth)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .animation(.easeInOut(duration: 0.18), value: appState.isPlaybackInspectorVisible)
+            .animation(.easeInOut(duration: 0.18), value: appState.isSearchPanelVisible)
         }
     }
 
-    private var searchResultsPane: some View {
+    private var searchPanel: some View {
         GeometryReader { geometry in
             VStack(alignment: .leading, spacing: 6) {
                 searchHeader
@@ -81,6 +81,7 @@ struct SearchView: View {
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             .contentShape(Rectangle()) // Global scroll capability
         }
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     private var searchHeader: some View {
@@ -174,7 +175,7 @@ struct SearchView: View {
         }
     }
 
-    private var playbackInspector: some View {
+    private var playbackArea: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let result = appState.selectedSearchResult {
                 ScrollView {
@@ -241,8 +242,8 @@ struct SearchView: View {
         )
     }
 
-    private func inspectorResizeDivider(availableWidth: CGFloat) -> some View {
-        let isActive = isInspectorDividerHovered || isInspectorDividerDragging
+    private func searchPanelResizeDivider(availableWidth: CGFloat) -> some View {
+        let isActive = isSearchPanelDividerHovered || isSearchPanelDividerDragging
 
         return ZStack(alignment: .trailing) {
             Rectangle()
@@ -256,49 +257,49 @@ struct SearchView: View {
             .overlay(
                 ResizerView(
                     onHoverChanged: { isHovered in
-                        isInspectorDividerHovered = isHovered
+                        isSearchPanelDividerHovered = isHovered
                     },
                     onDragStarted: {
                         appState.clearSearchFocus()
-                        isInspectorDividerDragging = true
-                        inspectorDragStartWidth = appState.playbackInspectorWidth
+                        isSearchPanelDividerDragging = true
+                        searchPanelDragStartWidth = appState.searchPanelWidth
                     },
                     onDragChanged: { translationX in
-                        let startWidth = inspectorDragStartWidth ?? appState.playbackInspectorWidth
+                        let startWidth = searchPanelDragStartWidth ?? appState.searchPanelWidth
                         let proposedWidth = startWidth - Double(translationX)
-                        appState.updatePlaybackInspectorWidth(
-                            clampedInspectorWidth(proposedWidth, availableWidth: availableWidth)
+                        appState.updateSearchPanelWidth(
+                            clampedSearchPanelWidth(proposedWidth, availableWidth: availableWidth)
                         )
                     },
                     onDragEnded: {
-                        inspectorDragStartWidth = nil
-                        isInspectorDividerDragging = false
+                        searchPanelDragStartWidth = nil
+                        isSearchPanelDividerDragging = false
                     }
                 )
             )
     }
 
-    private func clampedInspectorWidth(for availableWidth: CGFloat) -> CGFloat {
+    private func clampedSearchPanelWidth(for availableWidth: CGFloat) -> CGFloat {
         CGFloat(
-            clampedInspectorWidth(
-                appState.playbackInspectorWidth,
+            clampedSearchPanelWidth(
+                appState.searchPanelWidth,
                 availableWidth: availableWidth
             )
         )
     }
 
-    private func clampedInspectorWidth(_ width: Double, availableWidth: CGFloat) -> Double {
-        let availableInspectorWidth = Double(
+    private func clampedSearchPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
+        let availableSearchPanelWidth = Double(
             availableWidth
-                - SearchLayout.searchPaneMinimumWidth
+                - SearchLayout.playbackAreaMinimumWidth
         )
         let maxWidth = max(
-            SearchLayout.playbackInspectorMinimumWidth,
-            availableInspectorWidth
+            SearchLayout.searchPanelMinimumWidth,
+            availableSearchPanelWidth
         )
 
         return min(
-            max(width, SearchLayout.playbackInspectorMinimumWidth),
+            max(width, SearchLayout.searchPanelMinimumWidth),
             Double(maxWidth)
         )
     }
@@ -613,8 +614,8 @@ private enum SearchTypography {
 private enum SearchLayout {
     static let contentWidth: CGFloat = 860
     static let minimumHorizontalMargin: CGFloat = 24
-    static let searchPaneMinimumWidth: CGFloat = 480
-    static let playbackInspectorMinimumWidth: Double = 380
+    static let playbackAreaMinimumWidth: CGFloat = 520
+    static let searchPanelMinimumWidth: Double = 420
     static let dividerHitWidth: CGFloat = 6
     static let dividerLineWidth: CGFloat = 1
     static let dividerActiveLineWidth: CGFloat = 3
