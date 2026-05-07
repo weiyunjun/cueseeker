@@ -310,12 +310,10 @@ public final class PlaybackRenderContainerView: NSView {
         if let attachedView {
             attachedView.frame = bounds
             attachedView.needsLayout = true
-            attachedView.layoutSubtreeIfNeeded()
         }
         if let sourceFaithfulASSOverlayView {
             sourceFaithfulASSOverlayView.frame = bounds
             sourceFaithfulASSOverlayView.needsLayout = true
-            sourceFaithfulASSOverlayView.layoutSubtreeIfNeeded()
         }
         CATransaction.commit()
     }
