@@ -10,7 +10,7 @@ The primary playback action is:
 
 ```text
 Click subtitle search result
-Open or update the left-side Playback Area
+Open or update the central Playback Area
 Open matching local video inside the app
 Seek to subtitle start timestamp
 Play or pause as needed
@@ -22,7 +22,7 @@ The accepted Library playback action is:
 Click Library video row
 Open or update the central Playback Area
 Open selected local video inside the app
-Start from 0
+Start from Library resume history, or 0 when no Library history exists
 Play or pause as needed
 ```
 
@@ -42,17 +42,23 @@ Required:
 - Toggle play/pause from the video surface.
 - Seek when a different subtitle result in the same video is selected.
 - Continue playback when the right-side Search Panel is collapsed.
-- Pause playback when the user leaves Search for another top-level section.
+- Pause playback when the user leaves the CueSeeker workbench for another
+  documented top-level section.
 - Preserve the selected result when the Search Panel is collapsed.
 - Reopening the Search Panel should not automatically change playback state.
 - Handle missing files gracefully.
 
 Accepted M2 Library playback behavior:
 
-- Clicking a Library video row opens or updates playback from `0`.
-- If the selected Library video is already open, seeking to `0` is preferred
-  over reopening when practical.
-- Playback history or resume position is out of scope until documented.
+- Clicking a Library video row opens or updates playback from that video's
+  persisted Library resume position, falling back to `0` when no history
+  exists.
+- If the selected Library video is already open, seeking to the resolved resume
+  position is preferred over reopening when practical.
+- Library playback history is persisted only for playback sessions opened
+  through Library.
+- Search-result playback must not read, write, or overwrite Library playback
+  history. Search-result jumps remain exact subtitle-context jumps.
 
 Out of scope for M1:
 
@@ -257,9 +263,10 @@ Required behavior:
 - When the app becomes active again after such a suspension, playback fullscreen should be restored without recreating the playback render context.
 - Exiting fullscreen should return the video view to the embedded Playback Area.
 - Escape should exit playback fullscreen.
-- Switching away from Search, closing the main window, or terminating the app
-  should leave playback fullscreen cleanly.
-- Switching away from Search should pause playback and must not leave an orphan fullscreen window.
+- Switching away from the CueSeeker workbench, closing the main window, or
+  terminating the app should leave playback fullscreen cleanly.
+- Switching away from the CueSeeker workbench should pause playback and must not
+  leave an orphan fullscreen window.
 - Fullscreen may later provide temporary access to left-side content navigation
   or right-side learning workflow panels.
 - Temporary fullscreen panels must preserve the same side responsibilities:

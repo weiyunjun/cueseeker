@@ -82,6 +82,9 @@ Notes:
 - Library rows should use video file identity and duration from indexed video
   metadata. Reindexing is the expected refresh path when older indexed rows do
   not have duration metadata.
+- Library playback history should be keyed by video file identity and persist a
+  resume position for Library-opened playback only. Search-result playback
+  should not read or mutate this history.
 - If native playback fails for a media file, the app may preserve the native
   failure reason for diagnostics and later compatibility work.
 - Future audio-only playback should use the same media-file identity model.

@@ -223,7 +223,7 @@ For grouped subtitle results:
   product rule explicitly defines that behavior.
 - Do not impose a fixed product-level line count cap on displayed cue lines.
 
-Clicking a result must open or update the left-side Playback Area and trigger
+Clicking a result must open or update the central Playback Area and trigger
 playback for the matching video at the subtitle start timestamp.
 
 The Playback Area displays additional context:
@@ -240,6 +240,9 @@ result state.
 The Search controls and Search results belong in a right-side Search Panel.
 This Search Panel can collapse independently from playback. Collapsing it must
 not pause playback, clear the selected result, or change search result identity.
+The main window's top-level identity should be `CueSeeker`, not a `Search`
+workspace label. Search is a right-side panel workflow, not a main-window
+sidebar destination for the current single-workbench design.
 
 ## 8. Library And Timeline
 
@@ -269,8 +272,18 @@ When implemented, Library should support:
 - Avoid showing duplicate top-level rows for multiple subtitle files that map
   to the same playable video unless a later product rule defines a manual
   subtitle-selection workflow.
-- Open or update playback from `0` when the user clicks a video. Resume history
-  is a future feature and must be documented before replacing this behavior.
+- Let the left titlebar control collapse or expand the Library panel.
+- Let the Library panel be resized horizontally. Its default width should equal
+  its minimum width, and the first minimum width should be `310pt`, which is
+  `50pt` narrower than the previous fixed `360pt` Library width.
+- Persist the user's Library width when it differs from the default.
+- Persist Library folder collapse or expand state across launches.
+- Open or update playback from a persisted Library resume position when the
+  user clicks a video through Library, falling back to `0` when no history
+  exists.
+- Record playback history only for videos opened through Library. Opening or
+  seeking playback through Search results must not read, write, or overwrite
+  Library resume history.
 
 When implemented, Timeline should support:
 
@@ -375,8 +388,8 @@ Settings entry requirements:
 - Settings opens from `CueSeeker > Settings...` in the macOS app menu.
 - Settings is an independent window, not a main-window sidebar section.
 - Opening, focusing, or closing Settings must not pause playback, switch the
-  main workspace away from Search, collapse the Search Panel, or clear the
-  selected Search result.
+  main workspace away from the CueSeeker workbench, collapse either side panel,
+  or clear the selected Search result.
 
 Current Settings categories:
 

@@ -13,9 +13,18 @@ Index subtitles
 Search text
 Review results
 Click result
-Left-side Playback Area opens or updates
+Central Playback Area opens or updates
 Video plays at matching timestamp
 Collapse the right-side Search Panel when focusing on playback
+```
+
+Known-content review may also start from Library:
+
+```text
+Open app
+Use left-side Library to choose a known video
+Playback Area opens or updates from the Library resume position
+Search remains available on the right for active learning and lookup
 ```
 
 ## 2. First Launch
@@ -33,8 +42,10 @@ Search should feel immediate.
 Expected behavior:
 
 - Search controls and Search results live in the right-side Search Panel.
-- The leftmost app sidebar remains separate from the Search Panel and continues
-  to control main-window navigation such as `Search`.
+- The main window title should be `CueSeeker`; Search is a right-side panel
+  workflow, not the main-window workspace label.
+- The left titlebar control collapses or expands Library, while the right
+  titlebar control collapses or expands the Search Panel.
 - Settings opens from `CueSeeker > Settings...` in the macOS app menu and does
   not belong to the main-window sidebar.
 - The Search Panel can be collapsed when the user wants to focus on playback.
@@ -150,8 +161,8 @@ When the user selects a result:
   results as faint as group headers.
 - Search result subtitle text should keep internal SRT and ASS line breaks
   readable with extra wrapped-line spacing, especially for bilingual cue text.
-- The app should remain in Search and open or update the left-side Playback
-  Area.
+- The app should remain in the CueSeeker workbench and open or update the
+  central Playback Area.
 - If the Search Panel is visible, selecting a result should keep it visible so
   result-to-result review remains available.
 - Playback should start at or near the matching timestamp.
@@ -171,7 +182,6 @@ When the user selects a result:
 
 ## 6. Visual Feedback and Hover
 
-- **Sidebar**: The selected sidebar item uses a solid accent background with white text. Sidebar items do not have hover effects.
 - **Titlebar Buttons**: Toolbar toggle buttons use a subtle gray background on hover to indicate interactivity.
 - **Search Field**: The focused Search field uses a gray outline rather than the
   system accent color.
@@ -192,10 +202,11 @@ Required interactions:
 - Seek.
 - Jump from search result to timestamp.
 - Continue playback when the Search Panel is collapsed.
-- Opening Settings does not pause playback or switch away from Search.
-- Pause playback when switching from Search to another future main-window
-  workspace section if that section is documented to leave the playback review
-  context.
+- Opening Settings does not pause playback or switch away from the CueSeeker
+  workbench.
+- Pause playback when switching from the CueSeeker workbench to another future
+  main-window workspace section if that section is documented to leave the
+  playback review context.
 - Preserve the current selected result when the Search Panel is collapsed.
 - Reopening the Search Panel should not automatically change playback state.
 
@@ -206,7 +217,7 @@ Accepted M1 behavior:
 - Selecting a result calls playback immediately.
 - Re-selecting a timestamp in the same video should use seek rather than reloading the file.
 - The embedded video view is always inside the app window.
-- Normal result preview should use the left-side Playback Area instead of
+- Normal result preview should use the central Playback Area instead of
   dedicated playback-page navigation.
 - External player windows are not acceptable for the core workflow.
 
@@ -265,13 +276,18 @@ Library behavior:
 - Library should browse playable videos rather than raw subtitle files.
 - Library should appear in the Left Content Panel with a gray background and a
   dense grouped layout comparable to Search results.
-- The first Library implementation should use a fixed width that is 100 pt
-  wider than the current left-panel baseline.
+- Library should collapse or expand from the left titlebar control.
+- Library should be horizontally resizable after launch.
+- Library's default width should equal its minimum width.
+- Library's first default and minimum width should be `310pt`, `50pt` narrower
+  than the previous fixed `360pt` Library width.
+- Changed Library width should persist across launches.
 - Library should group videos by immediate parent folder only. It should not
   render nested folder trees in the first implementation.
 - Folder groups should be sorted with Finder-like natural ordering.
 - Folder groups should be expanded by default.
 - Users can collapse or expand individual folder groups.
+- Folder group collapse or expand state should persist across launches.
 - A top `Collapse All` / `Expand All` control should collapse or expand all
   folder groups.
 - Video rows inside a folder should be sorted with the same Finder-like natural
@@ -279,7 +295,12 @@ Library behavior:
 - Video rows should display `Parent Folder Name - NN  extension`, such as
   `葬送的芙莉莲 - 01  mkv`.
 - Video rows should display the indexed duration on the right.
-- Clicking a video should open or update playback from `0` for this version.
+- Clicking a video through Library should open or update playback from that
+  video's persisted Library resume position, falling back to `0` when no
+  history exists.
+- Playback progress should be recorded only while the current playback source
+  is Library. Opening or seeking through Search results should not read, write,
+  or overwrite Library resume history.
 - Clicking a video should not require the user to continue attending to the
   Library after playback starts.
 - Subtitle files should appear as video metadata or attached resources, not as
@@ -389,8 +410,8 @@ Expected behavior:
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
 - Opening, focusing, switching categories within, or closing Settings must not
-  pause playback, switch the main workspace away from Search, collapse the
-  Search Panel, or clear the selected Search result.
+  pause playback, switch away from the CueSeeker workbench, collapse either
+  side panel, or clear the selected Search result.
 
 ## 14. File And Finder Interaction
 
@@ -416,16 +437,17 @@ The app should remember:
 
 - Configured local folders.
 - Window size and maximized state.
-- Last selected main-window app section if practical.
-- Sidebar collapsed or expanded state.
+- Last selected main-window app section if future top-level sections are added.
 - Last selected Settings category if practical.
-- Left Content Panel mode and visibility when implemented.
+- Library visibility, width, and folder collapse state.
+- Left Content Panel mode when additional modes such as Timeline or Favorites
+  are implemented.
 - Search Panel width and visibility.
+- Library playback resume history, limited to Library-opened playback.
 - Queue or Learning Session state only after persistence rules are documented.
 - Playback decode mode.
 
 The app should not surprise the user by losing local configuration after restart.
-The structural layout persistence should keep the leftmost Sidebar state
-separate from Left Content Panel and Search Panel state so Library, Timeline,
-Favorites, Search, Queue, and Learning Session can evolve without inheriting
-unrelated panel behavior.
+The structural layout persistence should keep Left Content Panel state separate
+from Search Panel state so Library, Timeline, Favorites, Search, Queue, and
+Learning Session can evolve without inheriting unrelated panel behavior.

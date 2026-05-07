@@ -137,19 +137,20 @@ Rules:
   and decode mode.
 - Broader settings polish belongs to M2.
 - Search, indexing status, and playback state should be represented explicitly in UI state.
-- The leftmost app sidebar remains the AppShell navigation surface for
-  main-window workspaces such as `Search` and must remain independent from
-  Search workspace pane swaps.
+- The main window should use `CueSeeker` as its top-level workbench identity.
+  The old standalone `Search` AppShell label should be removed; Search is a
+  right-side learning panel workflow.
 - Settings belongs to the macOS app menu and an independent Settings window.
-  Opening or focusing Settings must not mutate Search workspace pane state,
+  Opening or focusing Settings must not mutate CueSeeker workbench pane state,
   selected result identity, or playback state.
 - The Settings window may share app state for configured folders, indexing
   commands, indexing status, and decode mode, but its presentation state should
-  not be stored inside Search workspace state.
-- The Search workspace uses a player-first layout: embedded playback on the
-  left and a collapsible Search Panel on the right.
+  not be stored inside Search Panel state.
+- The CueSeeker workbench uses a player-first layout: Library on the left when
+  expanded, embedded playback in the center, and a collapsible Search Panel on
+  the right.
 - The Search Panel is the collapsible auxiliary pane. Playback must not be
-  treated as the collapsible auxiliary pane in the Search workspace.
+  treated as the collapsible auxiliary pane in the CueSeeker workbench.
 - Collapsing the Search Panel must preserve playback state, selected result
   identity, and search context.
 - Future side-panel work should preserve distinct responsibilities around
@@ -158,14 +159,26 @@ Rules:
   and Learning Session-style active learning workflows.
 - Library should be modeled as a Left Content Panel mode, not as AppShell
   navigation and not as Settings folder management.
+- The fixed left titlebar control should collapse or expand Library, not a
+  standalone AppShell sidebar.
+- Library width should be resizable, with its first default width equal to its
+  minimum width of `310pt`, `50pt` narrower than the previous fixed `360pt`
+  Library width. User-adjusted Library width should persist as UI preference
+  state.
 - The first Library implementation should derive flat one-level folder groups
   from indexed playable video metadata. It should use Finder-like natural
   comparison for folder and video ordering, derive row display titles from the
   video's parent folder and sibling rank, and use indexed duration metadata for
   the right-side row duration.
+- Library folder collapse or expand state should persist as UI preference state
+  keyed by standardized folder path.
 - Clicking a Library video row should dispatch through the same playback open
-  path used by Search-result playback, with a start timestamp of `0` for the
-  first implementation.
+  path used by Search-result playback, but should resolve its start timestamp
+  from Library-only resume history before falling back to `0`.
+- Library resume history is durable user state keyed by video identity. It
+  should be read and written only for playback sessions opened from Library.
+  Search-result playback must not read, write, or overwrite Library resume
+  history.
 - Queue and Learning Session state must not be hidden inside playback UI state
   alone if it becomes durable or cross-view behavior.
 - Learning Session playback rules require product documentation before
@@ -174,7 +187,8 @@ Rules:
 - Keyboard behavior must preserve standard macOS text editing behavior.
 - UI errors should be concise and actionable, with technical detail reserved for logs.
 - The M1 app shell may combine SwiftUI content with AppKit titlebar controls when SwiftUI-only layout cannot match native macOS titlebar behavior.
-- AppKit titlebar controls should coordinate through shared app state rather than duplicating sidebar state.
+- AppKit titlebar controls should coordinate through shared app state rather
+  than duplicating side-panel visibility state.
 - The current M1 shell uses a fixed titlebar toggle and centered title.
 - To achieve custom offsets for native traffic light buttons, the app uses a Proxy View reparenting pattern to extract buttons from the system's `_NSTitlebarContainerView` rather than fighting the private AppKit layout engine with frame or bounds overrides.
 - Window dragging must be handled explicitly by the custom titlebar (`performDrag(with:)`) with `window.isMovableByWindowBackground` set to `false`. Relying on window background dragging causes conflicts with SwiftUI drag gestures on transparent views.
@@ -366,9 +380,9 @@ Rules:
 - The playback UI hosts a singleton render container owned by the playback player; fullscreen must move that same container rather than creating an independent render view.
 - Playback fullscreen uses a borderless Theater Mode window and must not call the app window's system Full Screen transition.
 - The Theater Mode window must use an app-level window level and must not use `screenSaver` or other system-overlay window levels that can cover the Cmd-Tab app switcher.
-- Closing fullscreen, hiding the Search workspace, switching away from Search,
-  closing the main window, or terminating the app must clean up the fullscreen
-  window.
+- Closing fullscreen, hiding the CueSeeker workbench, switching to another
+  future top-level workspace, closing the main window, or terminating the app
+  must clean up the fullscreen window.
 - Playback controls in the embedded Playback Area and fullscreen overlay should
   share the same playback view model and feedback overlay model.
 - Fullscreen chrome visibility and cursor hiding are owned by the fullscreen manager, not by individual SwiftUI playback control views.

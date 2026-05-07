@@ -24,8 +24,10 @@ Accepted M1 structure:
 
 ```text
 Native titlebar
-Sidebar navigation
-Main Workspace (Search workspace and future workspace panels)
+CueSeeker workbench
+Left Content Panel
+Playback Area
+Right Learning Panel
 ```
 
 The main window should support:
@@ -37,28 +39,35 @@ The main window should support:
 
 Current shell direction:
 
-- Traffic lights, sidebar toggle, and the current section title belong to the titlebar.
-- The sidebar toggle should stay in a fixed titlebar position near the traffic lights.
-- The Search Panel Toggle should stay in a fixed titlebar position on the right side when Search is active.
-- The current section title should remain centered in the titlebar.
+- Traffic lights, the Library panel toggle, the centered workbench title, and
+  the Search Panel Toggle belong to the titlebar.
+- The Library panel toggle should stay in a fixed titlebar position near the
+  traffic lights and should collapse or expand the Left Content Panel.
+- The Search Panel Toggle should stay in a fixed titlebar position on the right
+  side and should collapse or expand the right-side Search Panel.
+- The centered title should read `CueSeeker`. It should not read `Search`
+  because Search is now a right-side panel workflow, not the main-window
+  workspace identity.
 - Traffic lights are shifted 12pt to the right and vertically centered within the custom titlebar. To achieve this without fighting AppKit's native layout engine during window resizing, the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) are reparented (extracted from their system container and placed into a custom transparent `NSView` proxy). This preserves native hover effects and accurate hit testing.
 - The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
-- The `NSWindow` title dynamically tracks the active main workspace section to ensure correct contextual labeling in the full-screen drop-down title bar.
+- The `NSWindow` title should use the main workbench identity, `CueSeeker`, for
+  correct contextual labeling in the full-screen drop-down title bar.
 - To prevent UI artifacts when exiting full-screen mode, the native title visibility is hidden in the `windowWillExitFullScreen` delegate callback before the transition animation begins.
 - The titlebar should use a slightly darker gray than the main content background.
 - A thin gray divider should separate the titlebar from the content below.
-- The titlebar should visually sit above the sidebar.
-- The sidebar should use a quiet background and a right-side divider, not a heavy shadow.
+- The titlebar should visually sit above the workbench panels.
 - The window automatically maximizes to the screen's visible frame upon launch.
-- The current titlebar/sidebar implementation is an M1 iteration, not final polish.
+- The current titlebar and workbench panel implementation is an M1 iteration,
+  not final polish.
 
-## 3. Sidebar
+## 3. Main-Window Navigation
 
-The sidebar should provide high-level main-window navigation.
+The previous standalone `Search` sidebar item should be removed. The main
+window's current top-level destination is the CueSeeker workbench itself.
 
 Current sections:
 
-- Search.
+- None.
 
 Future main-window sections should be added only when they are true workspace
 destinations. Favorites should primarily belong to the Left Content Panel as
@@ -68,15 +77,10 @@ navigation.
 Settings should not be a main-window sidebar section. The formal Settings entry
 belongs in the macOS app menu and opens an independent Settings window.
 
-The sidebar should remain visually quiet and should not compete with search results or playback.
-
-Current M1 behavior:
-
-- The sidebar can be expanded or collapsed through the titlebar toggle.
-- When expanded, the sidebar is a single visual navigation region under the titlebar.
-- When collapsed, the main content receives a left inset so content does not start underneath the traffic lights and titlebar toggle.
-- Sidebar edge treatment should remain subtle. A gray divider is preferred over a drop shadow for the current M1 shell.
-- Selected sidebar items use a solid accent background with white text. Sidebar items do not respond to hover.
+If top-level navigation returns later, it should remain visually quiet and
+should not compete with Library, Search results, or playback. The titlebar's
+left control is reserved for Library visibility in the current workbench, not
+for toggling a standalone `Search` sidebar.
 
 ## 4. Main Workspace Panel Model
 
@@ -86,16 +90,15 @@ experience.
 Conceptual structure:
 
 ```text
-Leftmost AppShell sidebar
 Left Content Panel
 Playback Area
 Right Learning Panel
 ```
 
-The leftmost AppShell sidebar is main-window navigation. It is separate from
-the Left Content Panel and should continue to own main-window app sections such
-as `Search`. Settings is app-level configuration and belongs in the macOS app
-menu and independent Settings window, not in this sidebar.
+The main window is the CueSeeker workbench. The old standalone `Search`
+AppShell destination should not appear in the current single-workbench design.
+Settings is app-level configuration and belongs in the macOS app menu and
+independent Settings window, not in main-window navigation.
 
 The Left Content Panel is for known content and precise location:
 
@@ -113,35 +116,41 @@ The two side panels should not become generic tool drawers. The left side is for
 content structure and precise navigation. The right side is for search,
 collection, aggregation, queue building, and learning-session configuration.
 
-This panel model does not change the accepted player-first Search layout. The
-immediate Search workspace still places the Playback Area on the left and the
-Search Panel on the right.
+This panel model keeps playback central. Search is a Right Learning Panel mode
+beside the Playback Area, not the top-level workspace identity.
 
 Accepted first Library panel direction:
 
 - Library is the first concrete Left Content Panel for known video navigation.
-- Library is separate from the leftmost AppShell sidebar and from the Settings
-  `Library` category.
+- Library is separate from the Settings `Library` category.
 - Library keeps the left-side gray background treatment.
-- Library uses a fixed first-implementation width that is 100 pt wider than
-  the current left-panel baseline. Resizing can be designed later.
+- Library can collapse or expand through the fixed left titlebar control.
+- Library can be resized horizontally. Its default width should equal its
+  minimum width.
+- Library's first default and minimum width should be `310pt`, `50pt` narrower
+  than the previous fixed `360pt` Library width.
+- Library width should persist when the user changes it.
 - Library uses a dense grouped-list structure comparable to Search results.
 - Library shows only one folder grouping level.
 - Folder groups and video rows use Finder-like natural ordering.
 - Folder groups are expanded by default and can be collapsed independently.
+- Folder group collapse or expand state should persist across launches.
 - A top action toggles all folder groups with `Collapse All` and `Expand All`.
 - Video rows display `Parent Folder Name - NN  extension`, such as
   `葬送的芙莉莲 - 01  mkv`.
 - Video duration appears on the right side of each video row.
-- Clicking a video row opens or updates playback from `0` for this version.
+- Clicking a video row opens or updates playback from the persisted
+  Library-only resume position, falling back to `0` when no history exists.
 
-## 5. Search View
+## 5. CueSeeker Workbench And Search Panel
 
-The search view is the primary screen.
+The CueSeeker workbench is the primary screen. Search is the right-side learning
+panel inside that workbench.
 
 Required elements:
 
-- Left-side Playback Area.
+- Left-side Library panel when expanded.
+- Central Playback Area.
 - Right-side Search Panel.
 - Search input.
 - Indexing status when relevant.
@@ -154,9 +163,8 @@ The Search Panel must have a clear restore path when collapsed.
 
 Accepted player-first Search presentation:
 
-- The leftmost app sidebar remains outside the Search workspace layout swap and
-  continues to own main-window navigation such as `Search`.
-- The embedded Playback Area appears on the left side of the Search workspace.
+- The main titlebar identifies the workbench as `CueSeeker`.
+- The embedded Playback Area remains central.
 - Search controls and grouped Search results appear in a right-side Search
   Panel.
 - The right-side Search Panel may be collapsed so the Playback Area can expand.
@@ -183,7 +191,8 @@ Accepted M1 search presentation:
 - Expanding all result groups from the all-collapsed state reveals at most one
   global 100-result batch.
 - Search results are grouped under subtitle-file headers.
-- Selecting a search result opens or updates the left-side Playback Area without leaving Search.
+- Selecting a search result opens or updates the central Playback Area without
+  leaving the CueSeeker workbench.
 - Search results use refined macOS-native typography and highlight query
   matches with a yellow background that remains readable on selected rows.
 - Search result visual polish is still incomplete and subject to further iteration.
@@ -291,11 +300,10 @@ Layout and Selection Behavior:
 
 ## 8. Playback Area And Search Panel
 
-The Search workspace uses a player-first layout.
+The CueSeeker workbench uses a player-first layout.
 
-The Playback Area is the left-side playback and result-detail surface in the
-Search workspace. The Search Panel is the right-side search and result-selection
-surface.
+The Playback Area is the central playback and result-detail surface. The Search
+Panel is the right-side search and result-selection surface.
 
 As future left-side navigation features arrive, the Playback Area remains the
 central experience. A Left Content Panel may appear to its left for Library,
@@ -342,10 +350,9 @@ Behavior:
 - Collapsing the Search Panel does not clear the current selected result.
 - Reopening the Search Panel should restore the current Search context when
   practical and should not automatically change playback state.
-- Opening Settings from the app menu does not switch the main workspace away
-  from Search, pause playback, collapse the Search Panel, or clear the selected
-  result.
-- Switching from Search to another future main-window workspace section may
+- Opening Settings from the app menu does not pause playback, collapse either
+  side panel, or clear the selected result.
+- Switching to another future main-window workspace section may
   pause playback without stopping it when that section is documented.
 - Clicking `Video Folder` reveals the matched video file in Finder.
 - Clicking `Subtitle Folder` reveals the source subtitle file in Finder.
@@ -363,28 +370,32 @@ Behavior:
 
 Layout:
 
-- The leftmost app sidebar remains separate from this Search workspace layout
-  and keeps its existing main-window navigation behavior.
-- The Playback Area appears on the left side of the Search workspace.
-- The Search Panel appears on the right side of the Search workspace.
+- The Library panel appears on the left side of the CueSeeker workbench when
+  expanded.
+- The Playback Area appears in the central workbench region.
+- The Search Panel appears on the right side of the CueSeeker workbench.
+- The Library panel is resizable by dragging its right edge.
 - The Search Panel is resizable by dragging its left edge.
-- The sidebar width remains fixed according to the current shell behavior.
-- The Playback Area width changes dynamically as the Search Panel width changes.
+- The Playback Area width changes dynamically as the Library and Search Panel
+  widths or visibility change.
 - The Playback Area should receive priority when the window cannot comfortably
   show both panes.
+- The Library panel must keep a usable minimum width when expanded.
 - The Search Panel must keep a usable minimum width when expanded.
 
 Initial sizing guidance:
 
+- Library panel default width: `310pt`.
+- Library panel minimum width: `310pt`.
 - Playback Area minimum width: `520pt`.
 - Search Panel default width: `480pt`.
 - Search Panel minimum width: `420pt`.
-- Search Panel maximum width: available content width minus the Playback Area
-  minimum width.
+- Search Panel maximum width: available content width minus the Library panel
+  width and Playback Area minimum width.
 
-The Search Panel Toggle belongs in the titlebar at a fixed right-side position
-when Search is active. It should conceptually match the sidebar toggle pattern
-while controlling the right-side Search Panel.
+The Library panel toggle belongs in the titlebar at a fixed left-side position
+near the traffic lights. The Search Panel Toggle belongs in the titlebar at a
+fixed right-side position.
 
 M1 does not require advanced visual effects.
 
@@ -439,8 +450,8 @@ normal Settings window lifecycle.
 
 Settings should be functional and clear before they are visually refined.
 Opening, focusing, or closing Settings should not pause playback, switch the
-main workspace away from Search, collapse the Search Panel, or clear the
-selected Search result.
+main workspace away from the CueSeeker workbench, collapse either side panel,
+or clear the selected Search result.
 
 The Add Folder action should continue to use the native macOS folder selection
 experience. It may temporarily create Open and Save Panel or QuickLook helper

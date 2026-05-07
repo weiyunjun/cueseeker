@@ -128,6 +128,7 @@ Expected early entities:
 Future entities:
 
 - Favorites.
+- Library playback history.
 
 Rules:
 
@@ -153,6 +154,10 @@ Rules:
 - ASS font-resource manifests must be rebuildable from source subtitle files,
   matched video files, adjacent conventional font folders, and supported
   container attachments. They must not become durable user-authored data.
+- Library playback history is durable local user state. It should be keyed by
+  stable video identity, persist resume position and update timestamp, and must
+  not be rebuilt from subtitle index data.
+- Search-result playback must not read or mutate Library playback history.
 
 ## 9. Media Native Compatibility Profile Rules
 

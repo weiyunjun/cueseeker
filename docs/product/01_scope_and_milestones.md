@@ -41,9 +41,8 @@ Goal:
 - Search subtitle text.
 - Click a search result to open or update the matching local video in the
   embedded Playback Area at the matching timestamp.
-- Provide an embedded playback experience inside the Search workspace.
-- Provide a usable native macOS shell with Search navigation and a basic
-  Settings surface.
+- Provide an embedded playback experience inside the CueSeeker workbench.
+- Provide a usable native macOS shell with a basic Settings surface.
 
 Acceptance criteria:
 
@@ -143,10 +142,12 @@ Expected areas:
 - File and folder management with file-access persistence.
   Complete local folder management, including folder removal, reindex behavior, missing-folder handling, and restart behavior for previously selected folders.
 - Left Library panel.
-  Add the first Left Content Panel mode for known-video navigation: fixed-width
-  gray Library panel, flat collapsible folder groups, Finder-like natural
-  sorting, friendly video rows with extension and duration, and playback from
-  `0` when a video is clicked.
+  Add the first Left Content Panel mode for known-video navigation: gray
+  Library panel, flat collapsible folder groups, Finder-like natural sorting,
+  friendly video rows with extension and duration, and Library-only resume
+  history. The Library panel should be collapsible from the left titlebar
+  control and resizable after launch, with its default width equal to the
+  minimum width.
 - Error presentation.
   Provide understandable user-facing errors for file access, indexing, database, search, and playback failures.
 - App settings.
@@ -170,7 +171,7 @@ Acceptance criteria:
 - User-facing errors are understandable.
 - Window sizing, restoration, titlebar, full-screen, and inspector persistence behavior remain stable after M2 changes.
 - Settings can be opened from the app menu without pausing playback or changing
-  Search workspace state.
+  CueSeeker workbench state.
 
 ## 5. M3: Favorites and Personal Learning Flow
 

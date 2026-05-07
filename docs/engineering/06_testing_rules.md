@@ -171,20 +171,21 @@ Required M2 playback interaction checks:
 - The speed menu has no separate show or hide animation.
 - The speed button hover area, speed button click area, and speed menu width are aligned.
 - The speed menu remains visible only while the pointer is inside the documented rectangular hover region spanning the menu and speed button.
-- The leftmost app sidebar shows main-window navigation such as `Search`
-  independently from the Search workspace pane layout and does not own the
-  Settings entry.
+- The main window title identifies the workbench as `CueSeeker`; the old
+  standalone `Search` navigation label is not shown.
+- The fixed left titlebar control collapses or expands Library. The fixed right
+  titlebar control collapses or expands the Search Panel.
 - `CueSeeker > Settings...` opens or focuses an independent Settings window.
 - Opening, focusing, switching categories within, or closing Settings does not
-  pause playback, switch the main workspace away from Search, collapse the
-  Search Panel, or clear the selected Search result.
+  pause playback, switch away from the CueSeeker workbench, collapse either
+  side panel, or clear the selected Search result.
 - The Settings window exposes `Library` and `Decode` categories.
 - `Library` supports current Subtitle Folders operations: add folder, index,
   remove with confirmation, and indexing status.
 - `Decode` supports choosing persisted `hardware`, `software`, and `auto`
   decode modes.
-- The Search workspace places playback on the left and Search controls/results
-  on the right.
+- The CueSeeker workbench places Library on the left when expanded, playback in
+  the center, and Search controls/results on the right.
 - Collapsing the right-side Search Panel expands playback width, preserves the
   selected result, and does not pause playback.
 - Reopening the Search Panel restores the current Search context when practical.
@@ -193,13 +194,18 @@ Required M2 playback interaction checks:
 - Future Right Learning Panel modes should preserve the right-side active
   workflow responsibility for Search, Queue, and Learning Session.
 - Library panel checks should cover the first accepted Library behavior:
-  fixed left-panel width increased by 100 pt, gray background, flat one-level
-  folder grouping, Finder-like natural folder and video ordering, default
-  expanded groups, individual group collapse or expand, all-group
+  left titlebar collapse or expand, default width equal to the `310pt` minimum
+  width, width resizing and persistence, gray background, flat one-level folder
+  grouping, Finder-like natural folder and video ordering, default expanded
+  groups, persisted individual group collapse or expand, all-group
   `Collapse All` / `Expand All`, friendly video display names with extension,
-  right-side duration display, and click-to-playback from `0`.
+  right-side duration display, and click-to-playback from Library resume
+  history with `0` fallback.
 - Library metadata checks should include reindexing a fixture folder so video
   rows and duration values are populated from indexed metadata.
+- Library playback history checks should verify that Library-opened videos read
+  and write persisted resume position, while Search-result playback does not
+  read, write, or overwrite that history.
 
 Rules:
 

@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the CueSeeker workbench and Library persistence direction: remove
+  the standalone `Search` navigation label, title the main workbench
+  `CueSeeker`, let the left titlebar control collapse or expand Library, make
+  Library resizable with a `310pt` default/minimum width, persist Library
+  folder state, and persist resume history only for Library-opened playback.
 - Implemented the first native left-side Library panel for the Search
   workspace: indexed videos now appear in flat collapsible folder groups with
   Finder-like natural sorting, extension-aware friendly titles, duration
