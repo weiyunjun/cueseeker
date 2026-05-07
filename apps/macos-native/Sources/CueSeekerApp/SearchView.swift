@@ -33,11 +33,6 @@ struct SearchView: View {
 
                 playbackArea
                     .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
-                    .overlay(alignment: .trailing) {
-                        if appState.isSearchPanelVisible {
-                            searchPanelResizeDivider(availableWidth: geometry.size.width)
-                        }
-                    }
 
                 DrawerPanel(
                     edge: .trailing,
@@ -45,6 +40,11 @@ struct SearchView: View {
                     width: searchPanelWidth
                 ) {
                     searchPanel
+                }
+                .overlay(alignment: .leading) {
+                    if appState.isSearchPanelVisible {
+                        searchPanelResizeDivider(availableWidth: geometry.size.width)
+                    }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -359,7 +359,7 @@ struct SearchView: View {
     private func searchPanelResizeDivider(availableWidth: CGFloat) -> some View {
         let isActive = isSearchPanelDividerHovered || isSearchPanelDividerDragging
 
-        return ZStack(alignment: .trailing) {
+        return ZStack(alignment: .leading) {
             Rectangle()
                 .fill(Color.black.opacity(0.001))
 
