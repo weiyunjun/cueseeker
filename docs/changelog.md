@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the player-first Search workspace layout: the leftmost app sidebar
+  continues to own `Search` and `Settings` navigation, while the Search
+  workspace itself moves playback to the left and Search controls/results to a
+  collapsible right-side Search Panel that does not pause playback when hidden.
 - Implemented Playback Inspector file-location buttons: the video panel now
   shows `Video Folder` and `Subtitle Folder` buttons with folder icons that ask
   Finder to reveal and select the matched files.

@@ -25,8 +25,7 @@ Accepted M1 structure:
 ```text
 Native titlebar
 Sidebar navigation
-Main Workspace (Search Pane, Settings Pane, etc.)
-Playback Inspector
+Main Workspace (Search workspace, Settings Pane, etc.)
 ```
 
 The main window should support:
@@ -40,7 +39,7 @@ Current shell direction:
 
 - Traffic lights, sidebar toggle, and the current section title belong to the titlebar.
 - The sidebar toggle should stay in a fixed titlebar position near the traffic lights.
-- The Playback Inspector Toggle should stay in a fixed titlebar position on the right side.
+- The Search Panel Toggle should stay in a fixed titlebar position on the right side when Search is active.
 - The current section title should remain centered in the titlebar.
 - Traffic lights are shifted 12pt to the right and vertically centered within the custom titlebar. To achieve this without fighting AppKit's native layout engine during window resizing, the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) are reparented (extracted from their system container and placed into a custom transparent `NSView` proxy). This preserves native hover effects and accurate hit testing.
 - The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
@@ -82,13 +81,29 @@ The search view is the primary screen.
 
 Required elements:
 
+- Left-side Playback Area.
+- Right-side Search Panel.
 - Search input.
 - Indexing status when relevant.
 - Search result list.
 - Empty state when no query or no results exist.
 - Error state when search or database access fails.
 
-The search input should stay easy to access.
+The search input should stay easy to access when the Search Panel is expanded.
+The Search Panel must have a clear restore path when collapsed.
+
+Accepted player-first Search presentation:
+
+- The leftmost app sidebar remains outside the Search workspace layout swap and
+  continues to own `Search` and `Settings` navigation.
+- The embedded Playback Area appears on the left side of the Search workspace.
+- Search controls and grouped Search results appear in a right-side Search
+  Panel.
+- The right-side Search Panel may be collapsed so the Playback Area can expand.
+- Collapsing the Search Panel must not pause playback or clear the selected
+  result.
+- The Playback Area is the primary review surface after a result is selected;
+  Search is the functional navigation and result-selection surface.
 
 Accepted M1 search presentation:
 
@@ -108,7 +123,7 @@ Accepted M1 search presentation:
 - Expanding all result groups from the all-collapsed state reveals at most one
   global 100-result batch.
 - Search results are grouped under subtitle-file headers.
-- Selecting a search result opens or updates the Playback Inspector without leaving Search.
+- Selecting a search result opens or updates the left-side Playback Area without leaving Search.
 - Search results use refined macOS-native typography and highlight query
   matches with a yellow background that remains readable on selected rows.
 - Search result visual polish is still incomplete and subject to further iteration.
@@ -214,17 +229,21 @@ Layout and Selection Behavior:
   line breaks rendered inside a single cue line, should use 4pt line spacing so
   bilingual subtitle text does not appear cramped.
 
-## 7. Playback Inspector
+## 7. Playback Area And Search Panel
 
-The Playback Inspector is the right-side playback and result-detail panel in the Search workspace.
+The Search workspace uses a player-first two-pane layout.
 
-Required content:
+The Playback Area is the left-side playback and result-detail surface in the
+Search workspace. The Search Panel is the right-side search and result-selection
+surface.
+
+Playback Area required content:
 
 - Embedded video.
 - A `Video Folder` button.
 - A `Subtitle Folder` button.
 
-The Playback Inspector should not show read-only `Start Time`, `Video Path`, or
+The Playback Area should not show read-only `Start Time`, `Video Path`, or
 `Subtitle Path` metadata labels and values under the video. The previous
 metadata area should instead provide the two file-location buttons.
 
@@ -232,15 +251,28 @@ The `Video Folder` and `Subtitle Folder` buttons should visually match the
 ordinary Settings action buttons. Each button should use a folder icon to the
 left of the text label.
 
+Search Panel required content:
+
+- Search input.
+- Indexing status when relevant.
+- Result count.
+- Collapse or expand-all result control.
+- Grouped Search results.
+- Empty, loading, and error states.
+
 Behavior:
 
-- Selecting a result opens or updates the Playback Inspector.
-- Selecting a result expands the Playback Inspector when it is collapsed.
+- Selecting a result opens or updates the Playback Area.
+- Selecting a result should preserve the Search Panel when it is expanded.
 - Clicking the embedded video toggles play/pause.
 - Clicking the playback operation controls should not toggle play/pause unless the play/pause control is targeted.
-- Collapsing the Playback Inspector pauses playback and hides the panel.
-- Collapsing the Playback Inspector does not clear the current selected result.
-- Reopening the Playback Inspector does not automatically resume playback.
+- Collapsing the Search Panel hides search controls and result rows.
+- Collapsing the Search Panel expands the available width for the Playback
+  Area.
+- Collapsing the Search Panel does not pause playback.
+- Collapsing the Search Panel does not clear the current selected result.
+- Reopening the Search Panel should restore the current Search context when
+  practical and should not automatically change playback state.
 - Switching from Search to Settings or another top-level section pauses playback without stopping it.
 - Clicking `Video Folder` reveals the matched video file in Finder.
 - Clicking `Subtitle Folder` reveals the source subtitle file in Finder.
@@ -258,20 +290,28 @@ Behavior:
 
 Layout:
 
-- The Playback Inspector appears on the right side of the Search workspace.
-- The Playback Inspector is resizable by dragging its left edge.
+- The leftmost app sidebar remains separate from this Search workspace layout
+  and keeps its existing navigation behavior.
+- The Playback Area appears on the left side of the Search workspace.
+- The Search Panel appears on the right side of the Search workspace.
+- The Search Panel is resizable by dragging its left edge.
 - The sidebar width remains fixed according to the current shell behavior.
-- The Search Results Pane width changes dynamically as the Playback Inspector width changes.
-- The Search Results Pane must keep a usable minimum width.
+- The Playback Area width changes dynamically as the Search Panel width changes.
+- The Playback Area should receive priority when the window cannot comfortably
+  show both panes.
+- The Search Panel must keep a usable minimum width when expanded.
 
 Initial sizing guidance:
 
-- Search Results Pane minimum width: `480pt`.
-- Playback Inspector default width: `520pt`.
-- Playback Inspector minimum width: `380pt`.
-- Playback Inspector maximum width: available content width minus the Search Results Pane minimum width.
+- Playback Area minimum width: `520pt`.
+- Search Panel default width: `480pt`.
+- Search Panel minimum width: `420pt`.
+- Search Panel maximum width: available content width minus the Playback Area
+  minimum width.
 
-The Playback Inspector Toggle belongs in the titlebar at a fixed right-side position. It should conceptually match the sidebar toggle pattern while controlling the right-side inspector.
+The Search Panel Toggle belongs in the titlebar at a fixed right-side position
+when Search is active. It should conceptually match the sidebar toggle pattern
+while controlling the right-side Search Panel.
 
 M1 does not require advanced visual effects.
 
@@ -281,7 +321,7 @@ Current M2 playback control terminology:
 - `Transport Controls Zone`: the button row below the progress bar.
 - `Playback Operation Zone`: the combined `Timeline Zone` and `Transport Controls Zone`.
 
-## 7. Settings View
+## 8. Settings View
 
 The settings view should allow local folder management.
 
@@ -306,7 +346,7 @@ services while the panel is open. The UI should avoid unnecessary helper
 creation during normal Settings navigation, but it should not replace the
 native folder picker only to minimize process count.
 
-## 8. Visual Style
+## 9. Visual Style
 
 Initial visual style should be restrained.
 

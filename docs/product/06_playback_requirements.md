@@ -10,7 +10,7 @@ The primary playback action is:
 
 ```text
 Click subtitle search result
-Open or update Playback Inspector
+Open or update the left-side Playback Area
 Open matching local video inside the app
 Seek to subtitle start timestamp
 Play or pause as needed
@@ -31,10 +31,10 @@ Required:
 - Pause playback.
 - Toggle play/pause from the video surface.
 - Seek when a different subtitle result in the same video is selected.
-- Pause playback when the Playback Inspector is collapsed.
+- Continue playback when the right-side Search Panel is collapsed.
 - Pause playback when the user leaves Search for another top-level section.
-- Preserve the selected result when the Playback Inspector is collapsed.
-- Do not automatically resume playback when the Playback Inspector is reopened.
+- Preserve the selected result when the Search Panel is collapsed.
+- Reopening the Search Panel should not automatically change playback state.
 - Handle missing files gracefully.
 
 Out of scope for M1:
@@ -115,7 +115,7 @@ Current implementation:
   display path unless a separate implementation decision explicitly expands
   that scope.
 - The app uses a stable playback render container that hosts the native playback
-  view in the Playback Inspector and Theater Mode fullscreen.
+  view in the embedded Playback Area and Theater Mode fullscreen.
 - Native compatibility metadata should be selected from video-file metadata
   before playback begins, not by doing expensive playback capability checks after
   a subtitle result is clicked.
@@ -182,8 +182,9 @@ Rules:
   rendering must preserve timed source ASS events, including `Effect=fx`,
   vector drawing, clipping, karaoke, blur, alpha, transforms, and short-duration
   effects.
-- Search result selection, Playback Inspector visibility, video open, video
-  seek, and playback controls must not wait for ASS parsing or rendering.
+- Search result selection, Playback Area updates, Search Panel visibility,
+  video open, video seek, and playback controls must not wait for ASS parsing
+  or rendering.
 - ASS subtitle preparation should be asynchronous, cancellable, and cached by
   source file identity.
 - ASS rendering failures should be surfaced explicitly. The app should not
@@ -229,16 +230,18 @@ Required behavior:
 - Entering fullscreen should present the current video in an independent black theater-style window.
 - The main app window should not enter the system Full Screen Space when the playback fullscreen button is used.
 - The Theater Mode window must remain below system overlays such as the Cmd-Tab app switcher.
-- The fullscreen window should reuse the same playback render container used by the Playback Inspector.
+- The fullscreen window should reuse the same playback render container used by
+  the embedded Playback Area.
 - Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
 - The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
 - Mouse or click activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
 - Keyboard shortcuts in fullscreen should run playback commands without revealing the playback operation controls.
 - When the app resigns active during playback fullscreen, the fullscreen window should hide so other apps are visually reachable.
 - When the app becomes active again after such a suspension, playback fullscreen should be restored without recreating the playback render context.
-- Exiting fullscreen should return the video view to the Playback Inspector.
+- Exiting fullscreen should return the video view to the embedded Playback Area.
 - Escape should exit playback fullscreen.
-- Closing or hiding the Playback Inspector should leave playback fullscreen cleanly.
+- Switching away from Search, closing the main window, or terminating the app
+  should leave playback fullscreen cleanly.
 - Switching away from Search should pause playback and must not leave an orphan fullscreen window.
 
 Implementation constraints:
@@ -247,7 +250,8 @@ Implementation constraints:
 - Do not create a second backend render context for fullscreen.
 - Do not let SwiftUI view lifetime decide when backend render state is destroyed.
 - Playback fullscreen should use the singleton render container owned by the playback player.
-- The fullscreen overlay should reuse the same playback controls and feedback model as the Playback Inspector.
+- The fullscreen overlay should reuse the same playback controls and feedback
+  model as the embedded Playback Area.
 
 ## 8. M2 Playback Controls
 

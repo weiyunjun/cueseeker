@@ -39,7 +39,8 @@ Goal:
 - Match subtitle files to same-directory local video files.
 - Write subtitle entries to SQLite + FTS5.
 - Search subtitle text.
-- Click a search result to open or update the matching local video in the Playback Inspector at the matching timestamp.
+- Click a search result to open or update the matching local video in the
+  embedded Playback Area at the matching timestamp.
 - Provide an embedded playback experience inside the Search workspace.
 - Provide a usable native macOS shell with Search and Settings navigation.
 
@@ -52,10 +53,12 @@ Acceptance criteria:
 - The app can open a matching local video from a search result.
 - The app can seek to the subtitle start timestamp.
 - The matching video renders inside the native app window, not in an external player window.
-- Clicking a search result opens or updates the Playback Inspector without leaving Search.
-- Collapsing the Playback Inspector pauses playback and preserves the selected result.
+- Clicking a search result opens or updates the embedded Playback Area without
+  leaving Search.
+- Collapsing the right-side Search Panel preserves the selected result and does
+  not pause playback.
 - Switching from Search to another top-level section pauses playback without stopping it.
-- Reopening the Playback Inspector does not automatically resume playback.
+- Reopening the Search Panel does not automatically change playback state.
 - Clicking the embedded video toggles play/pause.
 - Repeated selection within the same video should seek rather than reload the video when practical.
 - Search and Settings are available through the native app shell.
@@ -64,8 +67,8 @@ Acceptance criteria:
 M1 acceptance status:
 
 - Accepted on 2026-04-28.
-- The project owner has manually reviewed the current UI interactions and confirmed that the Search, Settings, Playback Inspector, and embedded playback workflow are usable for the M1 milestone.
-- The current implementation exceeds the M1 milestone bar for UI interaction quality, even though future UI and playback refinements remain expected.
+- The project owner has manually reviewed the current UI interactions and confirmed that the Search, Settings, and embedded playback workflow are usable for the M1 milestone.
+- The implementation reviewed on 2026-04-28 exceeded the M1 milestone bar for UI interaction quality at that time, even though future UI and playback refinements remain expected.
 - The automated Swift test suite passed with 23 tests on 2026-04-28 using `swift test --package-path apps/macos-native`.
 
 Accepted M1 implementation summary:
@@ -76,7 +79,9 @@ Accepted M1 implementation summary:
 - Embedded playback now uses the project-owned native backend, replacing the
   earlier `libmpv`-primary bridge and later native-first fallback bridge.
 - The app shell has moved to a custom native shell with AppKit titlebar controls and SwiftUI content.
-- The Search workflow now uses the Playback Inspector instead of dedicated playback-page navigation.
+- The Search workflow uses embedded playback instead of dedicated playback-page
+  navigation. The accepted post-M1 layout direction places playback on the left
+  and Search controls/results in a collapsible right-side Search Panel.
 
 Known post-M1 follow-up areas:
 
@@ -128,7 +133,7 @@ Expected areas:
   playback toward the accepted non-blocking, source-faithful ASS rendering
   pipeline.
 - Window sizing and restoration regression verification.
-  M1 already implemented launch maximization, AppShell layout persistence, titlebar/full-screen behavior, and Playback Inspector width and visibility persistence. M2 should verify these behaviors and fix concrete regressions rather than treating this as a new major feature area.
+  M1 already implemented launch maximization, AppShell layout persistence, and titlebar/full-screen behavior. M2 should verify these behaviors, including the accepted player-first Search Panel width and visibility behavior, and fix concrete regressions rather than treating this as a new major feature area.
 - File and folder management with file-access persistence.
   Complete local folder management, including folder removal, reindex behavior, missing-folder handling, and restart behavior for previously selected folders.
 - Error presentation.

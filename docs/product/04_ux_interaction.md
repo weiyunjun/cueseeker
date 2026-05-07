@@ -13,9 +13,9 @@ Index subtitles
 Search text
 Review results
 Click result
-Playback Inspector opens or updates
+Left-side Playback Area opens or updates
 Video plays at matching timestamp
-Collapse Playback Inspector when not needed
+Collapse the right-side Search Panel when focusing on playback
 ```
 
 ## 2. First Launch
@@ -32,6 +32,13 @@ Search should feel immediate.
 
 Expected behavior:
 
+- Search controls and Search results live in the right-side Search Panel.
+- The leftmost app sidebar remains separate from the Search Panel and continues
+  to control `Search` and `Settings` navigation.
+- The Search Panel can be collapsed when the user wants to focus on playback.
+- Collapsing the Search Panel should preserve the current query, result state,
+  selected result, and playback context.
+- Collapsing the Search Panel must not pause playback.
 - Typing updates results after a short debounce.
 - Empty search shows an empty or guidance state.
 - Invalid search syntax should not crash the app.
@@ -65,8 +72,8 @@ Grouped result behavior:
   `葬送的芙莉莲 - 05`.
 - Users can change the displayed work title by renaming the parent folder
   without changing the subtitle or video filenames.
-- The full subtitle path remains available in the Playback Inspector for source
-  identity and diagnostics.
+- The full subtitle path remains available through the Playback Area file
+  actions and internal result state for source identity and diagnostics.
 - The collapse or expand-all control should toggle all subtitle-file groups in
   the current query at once.
 - The collapse or expand-all control should track only its own global action
@@ -91,7 +98,7 @@ Search focus behavior:
 - Clicking App-owned expand or collapse buttons should clear Search field focus.
 - Future App-owned feature buttons should clear Search field focus by default.
 - Selecting another sidebar section should clear Search field focus.
-- Clicking anywhere in the Playback Inspector should clear Search field focus.
+- Clicking anywhere in the Playback Area should clear Search field focus.
 - System-level app switching should not intentionally clear Search field focus.
 - Returning to the app after backgrounding should preserve the Search field focus state when AppKit preserves the first responder.
 - Double-clicking the titlebar to resize the window should not intentionally clear Search field focus.
@@ -112,17 +119,19 @@ When the user selects a result:
   results as faint as group headers.
 - Search result subtitle text should keep internal SRT and ASS line breaks
   readable with extra wrapped-line spacing, especially for bilingual cue text.
-- The app should remain in Search and open or update the Playback Inspector.
-- The Playback Inspector should expand automatically if it is collapsed.
+- The app should remain in Search and open or update the left-side Playback
+  Area.
+- If the Search Panel is visible, selecting a result should keep it visible so
+  result-to-result review remains available.
 - Playback should start at or near the matching timestamp.
 - If the same video is already open, the app should seek instead of reopening when practical.
 - If the video file is missing, the app should show a clear error.
 - Selecting a different result should switch video or seek within the current video and auto-play.
 - Selecting a grouped ASS cue result should use the cue group's `start_ms` as
   the playback target and begin asynchronous source ASS rendering preparation.
-- Result selection and Playback Inspector expansion should remain responsive
-  even when source ASS rendering is slow or unavailable.
-- The Playback Inspector should expose `Video Folder` and `Subtitle Folder`
+- Result selection and Playback Area updates should remain responsive even when
+  source ASS rendering is slow or unavailable.
+- The Playback Area should expose `Video Folder` and `Subtitle Folder`
   buttons below the video instead of read-only path metadata.
 - Clicking `Video Folder` should open Finder to the matched video's containing
   folder and select the video file.
@@ -151,10 +160,10 @@ Required interactions:
 - Toggle play/pause by clicking the embedded video.
 - Seek.
 - Jump from search result to timestamp.
-- Pause playback when the Playback Inspector is collapsed.
+- Continue playback when the Search Panel is collapsed.
 - Pause playback when switching from Search to Settings or another top-level section.
-- Preserve the current selected result when the Playback Inspector is collapsed.
-- Do not automatically resume playback when the Playback Inspector is reopened.
+- Preserve the current selected result when the Search Panel is collapsed.
+- Reopening the Search Panel should not automatically change playback state.
 
 Keyboard interactions should not interfere with text input.
 
@@ -163,7 +172,8 @@ Accepted M1 behavior:
 - Selecting a result calls playback immediately.
 - Re-selecting a timestamp in the same video should use seek rather than reloading the file.
 - The embedded video view is always inside the app window.
-- Normal result preview should use the Playback Inspector instead of dedicated playback-page navigation.
+- Normal result preview should use the left-side Playback Area instead of
+  dedicated playback-page navigation.
 - External player windows are not acceptable for the core workflow.
 
 M2 playback interaction model:
@@ -173,7 +183,8 @@ M2 playback interaction model:
 - Playback actions should provide clear visual feedback, such as a lightweight operation HUD or animation when the user plays, pauses, seeks, or triggers another command.
 - Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
-- Playback fullscreen should use an independent theater-style fullscreen window and return the embedded video to the Playback Inspector when closed.
+- Playback fullscreen should use an independent theater-style fullscreen window
+  and return the embedded video to the Playback Area when closed.
 - Entering or exiting playback fullscreen must not create a second playback render container or duplicate backend render state.
 - Entering playback fullscreen should immediately hide the playback operation controls and mouse cursor once, regardless of whether the controls were visible before fullscreen.
 - In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse or click activity.
@@ -198,7 +209,8 @@ M2 playback interaction model:
 
 Current M2 implementation:
 
-- Playback fullscreen uses a Theater Mode window and returns the same playback render container to the Playback Inspector when closed.
+- Playback fullscreen uses a Theater Mode window and returns the same playback
+  render container to the embedded Playback Area when closed.
 - Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
 - Fullscreen playback reveals controls and cursor from mouse or click activity, not from keyboard shortcuts.
 - Theater Mode suspends during app deactivation and restores on app activation without recreating the playback render context.
@@ -288,7 +300,10 @@ The app should remember:
 - Window size and maximized state.
 - Last selected app section if practical.
 - Sidebar collapsed or expanded state.
-- Playback Inspector width and visibility.
+- Search Panel width and visibility.
 - Playback decode mode.
 
-The app should not surprise the user by losing local configuration after restart. The structural layout (Sidebar, Inspector) persistence is globally bound to the AppShell, natively supporting future modules like Favorites.
+The app should not surprise the user by losing local configuration after restart.
+The structural layout persistence should keep the leftmost Sidebar state
+separate from the Search Panel state so future modules like Favorites can reuse
+the shell without inheriting Search-specific panel behavior.

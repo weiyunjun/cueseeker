@@ -223,18 +223,23 @@ For grouped subtitle results:
   product rule explicitly defines that behavior.
 - Do not impose a fixed product-level line count cap on displayed cue lines.
 
-Clicking a result must open or update the Playback Inspector and trigger playback for the matching video at the subtitle start timestamp.
+Clicking a result must open or update the left-side Playback Area and trigger
+playback for the matching video at the subtitle start timestamp.
 
-The Playback Inspector displays additional context:
+The Playback Area displays additional context:
 
 - Embedded video playback.
 - A `Video Folder` button that reveals the matched video file in Finder.
 - A `Subtitle Folder` button that reveals the source subtitle file in Finder.
 
-The Playback Inspector should not show separate read-only `Start Time`,
+The Playback Area should not show separate read-only `Start Time`,
 `Video Path`, or `Subtitle Path` metadata fields under the video. Source file
 identity remains available through the Finder reveal buttons and internal search
 result state.
+
+The Search controls and Search results belong in a right-side Search Panel.
+This Search Panel can collapse independently from playback. Collapsing it must
+not pause playback, clear the selected result, or change search result identity.
 
 ## 8. Local Playback
 
@@ -255,10 +260,10 @@ Requirements:
 - Toggle play/pause by clicking the video surface.
 - Keep clicks in the playback operation controls from falling through to video-surface play or pause.
 - Prefer seek over reload when the current video is already open.
-- Pause playback when the Playback Inspector is collapsed.
+- Continue playback when the Search Panel is collapsed.
 - Pause playback when the user switches from Search to another top-level section.
-- Preserve the current selected result when the Playback Inspector is collapsed.
-- Do not automatically resume playback when the Playback Inspector is reopened.
+- Preserve the current selected result when the Search Panel is collapsed.
+- Reopening the Search Panel should not automatically change playback state.
 - Provide video-level fullscreen that does not put the app shell into macOS Full Screen.
 - Provide a subtitle visibility toggle.
 - Provide a copy-current-subtitle command from playback controls and keyboard.

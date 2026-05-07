@@ -164,11 +164,20 @@ Required M2 playback interaction checks:
   text input.
 - The copy-current-subtitle button copies the same text as the `Q` shortcut.
 - Mouse or click activity reveals fullscreen controls and cursor and restarts the inactivity timer.
-- Selecting a search result, clicking app-owned feature buttons, selecting another sidebar section, or clicking the Playback Inspector clears Search field focus.
+- Selecting a search result, clicking app-owned feature buttons, selecting
+  another sidebar section, or clicking the Playback Area clears Search field
+  focus.
 - Cmd-Tab away and back, titlebar double-click resize, native traffic-light clicks, and foreground/background transitions do not intentionally clear Search field focus.
 - The speed menu has no separate show or hide animation.
 - The speed button hover area, speed button click area, and speed menu width are aligned.
 - The speed menu remains visible only while the pointer is inside the documented rectangular hover region spanning the menu and speed button.
+- The leftmost app sidebar still shows and switches `Search` and `Settings`
+  independently from the Search workspace pane layout.
+- The Search workspace places playback on the left and Search controls/results
+  on the right.
+- Collapsing the right-side Search Panel expands playback width, preserves the
+  selected result, and does not pause playback.
+- Reopening the Search Panel restores the current Search context when practical.
 
 Rules:
 
@@ -348,7 +357,7 @@ Required integration coverage:
 
 Playback verification for the first ASS step:
 
-- Clicking an ASS search result opens or updates the Playback Inspector.
+- Clicking an ASS search result opens or updates the Playback Area.
 - Playback opens the matched video and seeks to the cue group's `start_ms`.
 - Source ASS subtitle rendering is not required for this first ASS step.
 
@@ -366,7 +375,7 @@ Required routing coverage:
 - Playback does not attach native ASS or ASS Lite fallback overlays.
 - Settings does not expose an ASS renderer selector.
 - The existing subtitle visibility control shows and hides the `libass` overlay.
-- The overlay follows both Playback Inspector and Theater Mode fullscreen.
+- The overlay follows both the Playback Area and Theater Mode fullscreen.
 - Missing or unreadable subtitle files do not prevent video playback.
 - SRT playback subtitle behavior does not regress.
 
@@ -401,7 +410,7 @@ Required `libass` manual checks:
   The check must verify the playback path, not only the isolated ASS rendering
   probe.
 - Subtitle output maps to the displayed video rectangle.
-- Playback, seek, subtitle visibility toggling, Playback Inspector, and Theater
+- Playback, seek, subtitle visibility toggling, Playback Area, and Theater
   Mode remain stable.
 - Search result selection and video open or seek do not wait for ASS renderer
   loading or rendering.
@@ -471,7 +480,7 @@ Required renderer checks:
   sizing in native `v0`.
 - Complex ASS fixtures with vector drawing, clipping, and karaoke-like repeated
   effect events render without treating drawing commands as text.
-- Playback Inspector and Theater Mode fullscreen use the same renderer output
+- Playback Area and Theater Mode fullscreen use the same renderer output
   lifecycle.
 - Subtitle visibility toggles renderer output without stopping the video.
 - SRT playback subtitle behavior does not regress.
