@@ -183,6 +183,54 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
 }
 
 @Test
+func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let show2Episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
+    let show2Episode11Video = URL(fileURLWithPath: "/Media/Show 2/Episode 11.mkv")
+    let show11Episode1Video = URL(fileURLWithPath: "/Media/Show 11/Episode 1.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 2.en.srt"),
+        videoFile: show2Episode2Video,
+        entries: [databaseTestEntry(text: "Shared duplicate English subtitle")]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 2.ja.srt"),
+        videoFile: show2Episode2Video,
+        entries: [databaseTestEntry(text: "Shared duplicate Japanese subtitle")]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 11.srt"),
+        videoFile: show2Episode11Video,
+        entries: [databaseTestEntry(text: "Shared later episode")]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 11/Episode 1.srt"),
+        videoFile: show11Episode1Video,
+        entries: [databaseTestEntry(text: "Shared other folder")]
+    )
+
+    try database.updateVideoDuration(videoFile: show2Episode2Video, duration: 125.4)
+
+    let videos = try database.libraryVideos(under: [URL(fileURLWithPath: "/Media")])
+
+    #expect(videos.map(\.videoPath) == [
+        show2Episode2Video.path,
+        show2Episode11Video.path,
+        show11Episode1Video.path
+    ])
+    #expect(videos[0].duration == 125.4)
+    #expect(videos[0].subtitlePath == "/Media/Show 2/Episode 2.en.srt")
+}
+
+@Test
 func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
     let databaseURL = temporaryDatabaseURL()
     let root = FileManager.default.temporaryDirectory
@@ -1601,6 +1649,17 @@ private func executeSQLite(_ database: OpaquePointer?, _ sql: String) throws {
         sqlite3_free(errorMessage)
         throw SQLiteFixtureError.executeFailed(message)
     }
+}
+
+private func databaseTestEntry(text: String) -> SubtitleEntry {
+    SubtitleEntry(
+        sequenceNumber: 1,
+        startTimecode: "00:00:01,000",
+        endTimecode: "00:00:02,000",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        text: text
+    )
 }
 
 private enum SQLiteFixtureError: Error {

@@ -14,6 +14,9 @@ struct SearchView: View {
             let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
 
             HStack(spacing: 0) {
+                libraryPanel
+                    .frame(width: SearchLayout.libraryPanelWidth)
+
                 playbackArea
                     .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
                     .overlay(alignment: .trailing) {
@@ -30,6 +33,104 @@ struct SearchView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .animation(.easeInOut(duration: 0.18), value: appState.isSearchPanelVisible)
+        }
+    }
+
+    private var libraryPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            libraryHeader
+
+            if appState.selectedFolders.isEmpty {
+                EmptyStateView(
+                    title: "No Library",
+                    systemImage: "folder",
+                    message: "Add subtitle folders in CueSeeker > Settings..., then reindex."
+                )
+                .font(.system(size: SearchTypography.bodySize))
+            } else if case .loading = appState.libraryStatus, appState.libraryVideos.isEmpty {
+                EmptyStateView(
+                    title: "Loading Library",
+                    systemImage: "folder",
+                    message: "Reading indexed videos."
+                )
+                .font(.system(size: SearchTypography.bodySize))
+                .overlay {
+                    ProgressView()
+                        .offset(y: 72)
+                }
+            } else if case .failed(let message) = appState.libraryStatus {
+                EmptyStateView(
+                    title: "Library Failed",
+                    systemImage: "exclamationmark.triangle",
+                    message: message
+                )
+                .font(.system(size: SearchTypography.bodySize))
+            } else if appState.libraryVideos.isEmpty {
+                EmptyStateView(
+                    title: "No Videos",
+                    systemImage: "play.rectangle",
+                    message: "Reindex subtitle folders to populate Library videos."
+                )
+                .font(.system(size: SearchTypography.bodySize))
+            } else {
+                libraryList
+            }
+
+            Spacer()
+        }
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .padding(.top, AppShellLayout.contentTopPadding)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color.black.opacity(0.08))
+                .frame(width: 1)
+        }
+    }
+
+    private var libraryHeader: some View {
+        HStack(spacing: 12) {
+            Text("Library")
+                .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            if appState.hasLibraryFolderGroups {
+                Button {
+                    appState.clearSearchFocus()
+                    appState.toggleAllLibraryFolderGroups()
+                } label: {
+                    Text(appState.libraryGroupToggleTitle)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 14)
+        .frame(height: 36)
+    }
+
+    private var libraryList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(appState.libraryFolderGroups) { group in
+                    LibraryFolderGroupView(
+                        group: group,
+                        selectedVideoPath: appState.currentPlaybackVideoPath,
+                        onToggle: {
+                            appState.clearSearchFocus()
+                            appState.toggleLibraryFolderGroup(group.folderPath)
+                        },
+                        onOpenVideo: { video in
+                            appState.clearSearchFocus()
+                            appState.openLibraryVideo(video)
+                        }
+                    )
+                }
+            }
+            .padding(.top, 4)
+            .padding(.bottom, 8)
         }
     }
 
@@ -177,7 +278,7 @@ struct SearchView: View {
 
     private var playbackArea: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let result = appState.selectedSearchResult {
+            if appState.hasPlaybackSelection {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         PlaybackView(
@@ -207,16 +308,18 @@ struct SearchView: View {
                         HStack(spacing: 12) {
                             Button {
                                 appState.clearSearchFocus()
-                                appState.revealVideoFile(for: result)
+                                appState.revealCurrentVideoFile()
                             } label: {
                                 Label("Video Folder", systemImage: "folder")
                             }
 
-                            Button {
-                                appState.clearSearchFocus()
-                                appState.revealSubtitleFile(for: result)
-                            } label: {
-                                Label("Subtitle Folder", systemImage: "folder")
+                            if appState.currentPlaybackSubtitlePath != nil {
+                                Button {
+                                    appState.clearSearchFocus()
+                                    appState.revealCurrentSubtitleFile()
+                                } label: {
+                                    Label("Subtitle Folder", systemImage: "folder")
+                                }
                             }
                         }
                     }
@@ -228,7 +331,7 @@ struct SearchView: View {
                 EmptyStateView(
                     title: "No Selection",
                     systemImage: "play.rectangle",
-                    message: "Select a subtitle result to preview its matching video."
+                    message: "Select a Library video or subtitle result to preview playback."
                 )
                 .font(.system(size: SearchTypography.detailSize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -291,6 +394,7 @@ struct SearchView: View {
     private func clampedSearchPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
         let availableSearchPanelWidth = Double(
             availableWidth
+                - SearchLayout.libraryPanelWidth
                 - SearchLayout.playbackAreaMinimumWidth
         )
         let maxWidth = max(
@@ -343,6 +447,130 @@ private struct SearchField: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(isFocused ? Color(nsColor: .separatorColor).opacity(0.8) : Color.clear, lineWidth: isFocused ? 4 : 0)
         }
+    }
+}
+
+private struct LibraryFolderGroupHeader: View {
+    let group: LibraryFolderGroup
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            Text(headerText)
+                .font(.system(size: SearchTypography.groupHeaderSize))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.vertical, 7)
+                .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
+                .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(StaticButtonStyle())
+    }
+
+    private var headerText: AttributedString {
+        var title = AttributedString(group.folderTitle)
+        title.foregroundColor = isSelected ? .primary : Color.primary.opacity(0.76)
+
+        var count = AttributedString("  \(videoCountText)")
+        count.foregroundColor = Color.secondary
+
+        title.append(count)
+        return title
+    }
+
+    private var videoCountText: String {
+        "\(group.videos.count) \(group.videos.count == 1 ? "video" : "videos")"
+    }
+}
+
+private struct LibraryFolderGroupView: View {
+    let group: LibraryFolderGroup
+    let selectedVideoPath: String?
+    let onToggle: () -> Void
+    let onOpenVideo: (LibraryVideo) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            LibraryFolderGroupHeader(
+                group: group,
+                isSelected: group.videos.contains { $0.video.videoPath == selectedVideoPath },
+                onToggle: onToggle
+            )
+
+            if !group.isCollapsed {
+                ForEach(group.videos) { row in
+                    Button {
+                        onOpenVideo(row.video)
+                    } label: {
+                        LibraryVideoRowView(
+                            row: row,
+                            isSelected: selectedVideoPath == row.video.videoPath
+                        )
+                    }
+                    .buttonStyle(StaticButtonStyle())
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            SearchResultGroupRail(
+                isCollapsed: group.isCollapsed,
+                showsLine: !group.isCollapsed && !group.videos.isEmpty,
+                onToggle: onToggle
+            )
+        }
+    }
+}
+
+private struct LibraryVideoRowView: View {
+    let row: LibraryVideoRow
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        let rowTextColor: Color = isSelected ? .primary : Color.primary.opacity(0.76)
+        let rowBackgroundColor: Color = if isSelected {
+            Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+        } else if isHovered {
+            Color(nsColor: .unemphasizedSelectedContentBackgroundColor).opacity(0.55)
+        } else {
+            Color.clear
+        }
+
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(rowTitle)
+                .font(.system(size: SearchTypography.bodySize))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(rowTextColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(formatDuration(row.duration))
+                .font(.system(size: SearchTypography.detailSize))
+                .monospacedDigit()
+                .foregroundStyle(rowTextColor)
+                .lineLimit(1)
+        }
+        .padding(.vertical, 9)
+        .padding(.leading, SearchLayout.resultTextLeadingPadding)
+        .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
+        .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+    }
+
+    private var rowTitle: String {
+        guard !row.fileExtension.isEmpty else {
+            return row.displayTitle
+        }
+
+        return "\(row.displayTitle)  \(row.fileExtension)"
     }
 }
 
@@ -614,6 +842,7 @@ private enum SearchTypography {
 private enum SearchLayout {
     static let contentWidth: CGFloat = 860
     static let minimumHorizontalMargin: CGFloat = 24
+    static let libraryPanelWidth: CGFloat = 360
     static let playbackAreaMinimumWidth: CGFloat = 520
     static let searchPanelMinimumWidth: Double = 420
     static let dividerHitWidth: CGFloat = 6
@@ -698,4 +927,21 @@ private func formatTimestamp(_ milliseconds: Int) -> String {
     }
 
     return String(format: "%02d:%02d", minutes, seconds)
+}
+
+private func formatDuration(_ seconds: Double?) -> String {
+    guard let seconds, seconds.isFinite, seconds > 0 else {
+        return "--:--"
+    }
+
+    let totalSeconds = Int(seconds.rounded())
+    let hours = totalSeconds / 3_600
+    let minutes = (totalSeconds % 3_600) / 60
+    let remainingSeconds = totalSeconds % 60
+
+    if hours > 0 {
+        return String(format: "%d:%02d:%02d", hours, minutes, remainingSeconds)
+    }
+
+    return String(format: "%02d:%02d", minutes, remainingSeconds)
 }

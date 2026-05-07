@@ -33,6 +33,18 @@ public struct SubtitleSearchFileSummary: Equatable, Sendable {
     public let matchCount: Int
 }
 
+public struct LibraryVideo: Equatable, Sendable, Identifiable {
+    public let videoPath: String
+    public let videoName: String
+    public let duration: Double?
+    public let subtitlePath: String
+    public let subtitleFormat: SubtitleFormat
+
+    public var id: String {
+        videoPath
+    }
+}
+
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
@@ -811,6 +823,89 @@ public final class SubtitleDatabase {
         } catch {
             return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
         }
+    }
+
+    public func libraryVideos(under folders: [URL]) throws -> [LibraryVideo] {
+        let pathPrefixes = Self.folderPathPrefixes(for: folders)
+        guard !pathPrefixes.isEmpty else {
+            return []
+        }
+
+        let scopeCondition = pathPrefixes.map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
+            .joined(separator: " OR ")
+        let statement = try database.prepare(
+            """
+            SELECT vf.path, vf.video_name, vf.duration, sf.subtitle_path, sf.format
+            FROM video_files vf
+            JOIN subtitle_video_matches m ON m.video_file_id = vf.id AND m.is_active = 1
+            JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
+            WHERE \(scopeCondition)
+            ORDER BY vf.path ASC, sf.subtitle_path ASC;
+            """
+        )
+
+        var bindIndex: Int32 = 1
+        for prefix in pathPrefixes {
+            try statement.bind(prefix.count, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+        }
+
+        var videosByPath: [String: LibraryVideo] = [:]
+        while try statement.step() {
+            let subtitleFormat = SubtitleFormat(rawValue: statement.stringColumn(4)) ?? .srt
+            let video = LibraryVideo(
+                videoPath: statement.stringColumn(0),
+                videoName: statement.stringColumn(1),
+                duration: statement.nullableDoubleColumn(2),
+                subtitlePath: statement.stringColumn(3),
+                subtitleFormat: subtitleFormat
+            )
+
+            if let existing = videosByPath[video.videoPath] {
+                let subtitleComparison = video.subtitlePath.localizedStandardCompare(existing.subtitlePath)
+                if subtitleComparison == .orderedAscending {
+                    videosByPath[video.videoPath] = video
+                }
+            } else {
+                videosByPath[video.videoPath] = video
+            }
+        }
+
+        return videosByPath.values.sorted { lhs, rhs in
+            let lhsFolder = URL(fileURLWithPath: lhs.videoPath).deletingLastPathComponent().lastPathComponent
+            let rhsFolder = URL(fileURLWithPath: rhs.videoPath).deletingLastPathComponent().lastPathComponent
+            let folderComparison = lhsFolder.localizedStandardCompare(rhsFolder)
+            if folderComparison != .orderedSame {
+                return folderComparison == .orderedAscending
+            }
+
+            let nameComparison = lhs.videoName.localizedStandardCompare(rhs.videoName)
+            if nameComparison != .orderedSame {
+                return nameComparison == .orderedAscending
+            }
+
+            return lhs.videoPath.localizedStandardCompare(rhs.videoPath) == .orderedAscending
+        }
+    }
+
+    public func updateVideoDuration(videoFile: URL, duration: Double?) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE video_files
+            SET duration = ?
+            WHERE path = ?;
+            """
+        )
+
+        if let duration, duration.isFinite, duration >= 0 {
+            try statement.bind(duration, at: 1)
+        } else {
+            try statement.bindNull(at: 1)
+        }
+        try statement.bind(videoFile.path, at: 2)
+        try statement.run()
     }
 
     public func removeStaleEntries(under folder: URL, keeping subtitleFiles: Set<String>) throws {

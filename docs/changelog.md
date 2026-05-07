@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the first native left-side Library panel for the Search
+  workspace: indexed videos now appear in flat collapsible folder groups with
+  Finder-like natural sorting, extension-aware friendly titles, duration
+  metadata populated during reindexing, and click-to-playback from `0`.
 - Accepted the first left-side Library panel direction: Library should use a
   fixed gray left content panel, flat collapsible folder groups, Finder-like
   natural sorting, friendly video rows with extension and duration, and

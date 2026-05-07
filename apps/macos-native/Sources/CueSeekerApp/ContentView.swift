@@ -185,7 +185,7 @@ struct ContentView: View {
 
 enum AppShellLayout {
     static let contentTopPadding: CGFloat = 16
-    static let minimumWindowWidth: CGFloat = 1_120
+    static let minimumWindowWidth: CGFloat = 1_480
     static let minimumWindowHeight: CGFloat = 560
     static let topBarHeight: CGFloat = 45
     static let sidebarWidth: CGFloat = 154

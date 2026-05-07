@@ -53,6 +53,15 @@ startMilliseconds:(NSInteger)startMilliseconds
 
 @end
 
+@interface SFXMediaMetadataInspector : NSObject
+
+- (instancetype)init NS_UNAVAILABLE;
++ (nullable NSNumber *)durationSecondsAtMediaPath:(NSString *)mediaPath
+                                           error:(NSError **)error
+    NS_SWIFT_NAME(durationSeconds(atMediaPath:));
+
+@end
+
 FOUNDATION_EXPORT NSString * const SFXNativePlaybackErrorDomain;
 
 NS_ASSUME_NONNULL_END

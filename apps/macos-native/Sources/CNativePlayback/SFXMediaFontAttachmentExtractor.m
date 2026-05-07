@@ -1,6 +1,7 @@
 #import "SFXNativePlaybackPlayer.h"
 
 #include <dispatch/dispatch.h>
+#include <math.h>
 #include <libavcodec/codec_id.h>
 #include <libavcodec/codec_par.h>
 #include <libavformat/avformat.h>
@@ -207,6 +208,69 @@ static NSString *SFXUniqueAttachmentPath(NSString *directory, NSString *filename
 
     avformat_close_input(&formatContext);
     return @(extractedCount);
+}
+
+@end
+
+@implementation SFXMediaMetadataInspector
+
++ (nullable NSNumber *)durationSecondsAtMediaPath:(NSString *)mediaPath
+                                           error:(NSError **)error {
+    if (mediaPath.length == 0) {
+        if (error != NULL) {
+            *error = SFXMediaFontAttachmentError(200, @"Media path is required.");
+        }
+        return nil;
+    }
+
+    AVFormatContext *formatContext = NULL;
+    int result = avformat_open_input(&formatContext, mediaPath.UTF8String, NULL, NULL);
+    if (result < 0) {
+        if (error != NULL) {
+            *error = SFXMediaFontAttachmentError(
+                201,
+                [NSString stringWithFormat:@"Could not open media for metadata inspection: %@", SFXAttachmentFFmpegErrorString(result)]
+            );
+        }
+        return nil;
+    }
+
+    result = avformat_find_stream_info(formatContext, NULL);
+    if (result < 0) {
+        avformat_close_input(&formatContext);
+        if (error != NULL) {
+            *error = SFXMediaFontAttachmentError(
+                202,
+                [NSString stringWithFormat:@"Could not inspect media metadata: %@", SFXAttachmentFFmpegErrorString(result)]
+            );
+        }
+        return nil;
+    }
+
+    double durationSeconds = 0.0;
+    if (formatContext->duration != AV_NOPTS_VALUE && formatContext->duration > 0) {
+        durationSeconds = (double)formatContext->duration / AV_TIME_BASE;
+    } else {
+        for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
+            AVStream *stream = formatContext->streams[index];
+            if (stream == NULL || stream->duration == AV_NOPTS_VALUE || stream->duration <= 0) {
+                continue;
+            }
+
+            double streamDuration = stream->duration * av_q2d(stream->time_base);
+            if (isfinite(streamDuration) && streamDuration > durationSeconds) {
+                durationSeconds = streamDuration;
+            }
+        }
+    }
+
+    avformat_close_input(&formatContext);
+
+    if (!isfinite(durationSeconds) || durationSeconds <= 0) {
+        return nil;
+    }
+
+    return @(durationSeconds);
 }
 
 @end

@@ -48,11 +48,18 @@ enum SearchStatus: Equatable {
     case failed(String)
 }
 
+enum LibraryStatus: Equatable {
+    case idle
+    case loading
+    case completed
+    case failed(String)
+}
+
 enum PlaybackStatus: Equatable {
     case idle
-    case opening(SubtitleSearchResult)
-    case playing(SubtitleSearchResult)
-    case paused(SubtitleSearchResult)
+    case opening
+    case playing
+    case paused
     case failed(String)
 
     var isOpening: Bool {
@@ -78,6 +85,28 @@ struct SearchResultFileGroup: Identifiable, Equatable {
     }
 }
 
+struct LibraryVideoRow: Identifiable, Equatable {
+    let video: LibraryVideo
+    let displayTitle: String
+    let fileExtension: String
+    let duration: Double?
+
+    var id: String {
+        video.videoPath
+    }
+}
+
+struct LibraryFolderGroup: Identifiable, Equatable {
+    let folderPath: String
+    let folderTitle: String
+    let videos: [LibraryVideoRow]
+    let isCollapsed: Bool
+
+    var id: String {
+        folderPath
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
@@ -98,10 +127,14 @@ final class AppState: ObservableObject {
     @Published var searchResultTotalCount = 0
     @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
     @Published var hasMoreSearchResults = false
+    @Published var libraryStatus: LibraryStatus = .idle
+    @Published var libraryVideos: [LibraryVideo] = []
+    @Published var collapsedLibraryFolderPaths: Set<String> = []
     @Published var collapsedSearchResultGroupPaths: Set<String> = []
     @Published private var areSearchResultGroupsCollapsedByGlobalControl = false
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
+    @Published var selectedLibraryVideo: LibraryVideo?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
     @Published var isSidebarVisible = true
@@ -155,6 +188,73 @@ final class AppState: ObservableObject {
         !searchResultGroups.isEmpty
     }
 
+    var libraryFolderGroups: [LibraryFolderGroup] {
+        let videosByFolderPath = Dictionary(grouping: libraryVideos) {
+            URL(fileURLWithPath: $0.videoPath)
+                .deletingLastPathComponent()
+                .standardizedFileURL
+                .path
+        }
+
+        return videosByFolderPath.keys.sorted { lhs, rhs in
+            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
+            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
+            if titleComparison != .orderedSame {
+                return titleComparison == .orderedAscending
+            }
+
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+        .map { folderPath in
+            let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
+            let videos = (videosByFolderPath[folderPath] ?? []).sorted(by: Self.libraryVideoSort)
+            let rankWidth = max(2, String(videos.count).count)
+            let rows = videos.enumerated().map { index, video in
+                let sequence = String(format: "%0*d", rankWidth, index + 1)
+                let fileExtension = URL(fileURLWithPath: video.videoPath).pathExtension.lowercased()
+                return LibraryVideoRow(
+                    video: video,
+                    displayTitle: "\(folderTitle) - \(sequence)",
+                    fileExtension: fileExtension,
+                    duration: video.duration
+                )
+            }
+
+            return LibraryFolderGroup(
+                folderPath: folderPath,
+                folderTitle: folderTitle,
+                videos: rows,
+                isCollapsed: collapsedLibraryFolderPaths.contains(folderPath)
+            )
+        }
+    }
+
+    var hasLibraryFolderGroups: Bool {
+        !libraryFolderGroups.isEmpty
+    }
+
+    var libraryGroupToggleTitle: String {
+        let groups = libraryFolderGroups
+        guard !groups.isEmpty else {
+            return "Collapse All"
+        }
+
+        return groups.allSatisfy(\.isCollapsed) ? "Expand All" : "Collapse All"
+    }
+
+    var hasPlaybackSelection: Bool {
+        currentPlaybackVideoPath != nil
+    }
+
+    var currentPlaybackVideoPath: String? {
+        selectedLibraryVideo?.videoPath ?? selectedSearchResult?.videoPath
+    }
+
+    var currentPlaybackSubtitlePath: String? {
+        selectedLibraryVideo?.subtitlePath ?? selectedSearchResult?.subtitlePath
+    }
+
     var renderedSearchResultCount: Int {
         searchResultGroups.reduce(0) { count, group in
             group.isCollapsed ? count : count + group.results.count
@@ -168,6 +268,7 @@ final class AppState: ObservableObject {
     private let userDefaults: UserDefaults
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
+    private var libraryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     private var loadedGlobalSearchResultCount = 0
@@ -207,6 +308,7 @@ final class AppState: ObservableObject {
             player.decodeMode = playbackDecodeMode
             self.player = player
             playbackViewModel = PlaybackViewModel(player: player)
+            refreshLibrary()
         } catch {
             startupError = Self.errorMessage(for: error)
         }
@@ -246,6 +348,7 @@ final class AppState: ObservableObject {
         selectedFolders.removeAll { $0 == folder }
         persistSelectedFolders()
         clearSearchAndPlaybackState(under: folder)
+        refreshLibrary()
         refreshCurrentSearch(clearExistingResults: true)
     }
 
@@ -299,6 +402,7 @@ final class AppState: ObservableObject {
                     let indexer = SubtitleIndexer()
                     let result = try indexer.index(folder: folder, into: database)
                     _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
+                    _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
                     return result
                 }.value
 
@@ -307,6 +411,7 @@ final class AppState: ObservableObject {
                 }
 
                 indexingStatus = .completed(folder, result)
+                refreshLibrary()
                 refreshCurrentSearch()
             } catch {
                 guard !Task.isCancelled else {
@@ -352,6 +457,7 @@ final class AppState: ObservableObject {
                         let indexer = SubtitleIndexer()
                         let result = try indexer.index(folder: folder, into: database)
                         _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
+                        _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
                         return result
                     }.value
 
@@ -383,6 +489,7 @@ final class AppState: ObservableObject {
                 folderCount: folders.count,
                 aggregateResult
             )
+            refreshLibrary()
             refreshCurrentSearch()
         }
     }
@@ -433,6 +540,75 @@ final class AppState: ObservableObject {
         } else {
             collapsedSearchResultGroupPaths.formUnion(groupPaths)
             areSearchResultGroupsCollapsedByGlobalControl = true
+        }
+    }
+
+    func refreshLibrary() {
+        libraryTask?.cancel()
+
+        let folders = selectedFolders
+        guard !folders.isEmpty else {
+            libraryVideos = []
+            collapsedLibraryFolderPaths = []
+            libraryStatus = .idle
+            return
+        }
+
+        libraryStatus = .loading
+        let databaseURL = databaseURL
+        libraryTask = Task {
+            do {
+                let videos = try await Task.detached(priority: .userInitiated) {
+                    let database = try SubtitleDatabase(path: databaseURL)
+                    try database.migrate()
+                    return try database.libraryVideos(under: folders)
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                libraryVideos = videos
+                let existingGroupPaths = Set(
+                    videos.map {
+                        URL(fileURLWithPath: $0.videoPath)
+                            .deletingLastPathComponent()
+                            .standardizedFileURL
+                            .path
+                    }
+                )
+                collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.intersection(existingGroupPaths)
+                libraryStatus = .completed
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                libraryVideos = []
+                collapsedLibraryFolderPaths = []
+                libraryStatus = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
+    func toggleLibraryFolderGroup(_ folderPath: String) {
+        if collapsedLibraryFolderPaths.contains(folderPath) {
+            collapsedLibraryFolderPaths.remove(folderPath)
+        } else {
+            collapsedLibraryFolderPaths.insert(folderPath)
+        }
+    }
+
+    func toggleAllLibraryFolderGroups() {
+        let groupPaths = Set(libraryFolderGroups.map(\.id))
+        guard !groupPaths.isEmpty else {
+            return
+        }
+
+        if libraryFolderGroups.allSatisfy(\.isCollapsed) {
+            collapsedLibraryFolderPaths.subtract(groupPaths)
+        } else {
+            collapsedLibraryFolderPaths.formUnion(groupPaths)
         }
     }
 
@@ -518,22 +694,40 @@ final class AppState: ObservableObject {
 
     func openSearchResult(_ result: SubtitleSearchResult) {
         selectedSearchResult = result
+        selectedLibraryVideo = nil
         Task { @MainActor in
             await Task.yield()
             play(result)
         }
     }
 
-    func revealVideoFile(for result: SubtitleSearchResult) {
-        revealFile(atPath: result.videoPath)
+    func openLibraryVideo(_ video: LibraryVideo) {
+        selectedLibraryVideo = video
+        selectedSearchResult = nil
+        Task { @MainActor in
+            await Task.yield()
+            play(video)
+        }
     }
 
-    func revealSubtitleFile(for result: SubtitleSearchResult) {
-        revealFile(atPath: result.subtitlePath)
+    func revealCurrentVideoFile() {
+        guard let currentPlaybackVideoPath else {
+            return
+        }
+
+        revealFile(atPath: currentPlaybackVideoPath)
+    }
+
+    func revealCurrentSubtitleFile() {
+        guard let currentPlaybackSubtitlePath else {
+            return
+        }
+
+        revealFile(atPath: currentPlaybackSubtitlePath)
     }
 
     func play(_ result: SubtitleSearchResult) {
-        playbackStatus = .opening(result)
+        playbackStatus = .opening
         let subtitleCues = playbackSubtitleCues(for: result)
         playbackViewModel?.setSubtitleCues(
             subtitleCues,
@@ -559,7 +753,48 @@ final class AppState: ObservableObject {
             }
 
             try player.setPaused(false)
-            playbackStatus = .playing(result)
+            playbackStatus = .playing
+        } catch {
+            playbackViewModel?.clearSubtitleCues()
+            playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
+    func play(_ video: LibraryVideo) {
+        playbackStatus = .opening
+        let startMilliseconds = 0
+        let subtitleCues = playbackSubtitleCues(
+            forSubtitleFile: URL(fileURLWithPath: video.subtitlePath),
+            format: video.subtitleFormat,
+            fallbackStartMilliseconds: startMilliseconds,
+            fallbackEndMilliseconds: startMilliseconds,
+            fallbackContent: ""
+        )
+        playbackViewModel?.setSubtitleCues(
+            subtitleCues,
+            currentTimeMilliseconds: startMilliseconds
+        )
+
+        do {
+            let request = try PlaybackRequest(
+                videoURL: URL(fileURLWithPath: video.videoPath),
+                startMilliseconds: startMilliseconds,
+                subtitleSource: playbackSubtitleSource(for: video)
+            )
+
+            guard let player else {
+                throw PlaybackError.playbackPlayerUnavailable
+            }
+
+            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+                player.loadSubtitleSource(request.subtitleSource)
+                try player.seek(toMilliseconds: request.startMilliseconds)
+            } else {
+                try player.open(request)
+            }
+
+            try player.setPaused(false)
+            playbackStatus = .playing
         } catch {
             playbackViewModel?.clearSubtitleCues()
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -569,8 +804,8 @@ final class AppState: ObservableObject {
     func pausePlayback() {
         do {
             try player?.setPaused(true)
-            if case .playing(let result) = playbackStatus {
-                playbackStatus = .paused(result)
+            if case .playing = playbackStatus {
+                playbackStatus = .paused
             }
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -580,8 +815,8 @@ final class AppState: ObservableObject {
     func resumePlayback() {
         do {
             try player?.setPaused(false)
-            if case .paused(let result) = playbackStatus {
-                playbackStatus = .playing(result)
+            if case .paused = playbackStatus {
+                playbackStatus = .playing
             }
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -597,6 +832,8 @@ final class AppState: ObservableObject {
         case .idle:
             if let selectedSearchResult {
                 play(selectedSearchResult)
+            } else if let selectedLibraryVideo {
+                play(selectedLibraryVideo)
             }
         case .opening, .failed:
             break
@@ -611,7 +848,7 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func copyCurrentSubtitleToClipboard() -> Bool {
-        guard let selectedSearchResult, let playbackViewModel else {
+        guard let currentPlaybackSubtitlePath, let playbackViewModel else {
             playbackViewModel?.showSubtitleCopyFeedback(copied: false)
             return false
         }
@@ -623,7 +860,7 @@ final class AppState: ObservableObject {
             try database.migrate()
 
             guard let selection = try database.cueTextSelection(
-                forSubtitleFile: URL(fileURLWithPath: selectedSearchResult.subtitlePath),
+                forSubtitleFile: URL(fileURLWithPath: currentPlaybackSubtitlePath),
                 atMilliseconds: milliseconds
             ), !selection.text.isEmpty else {
                 playbackViewModel.showSubtitleCopyFeedback(copied: false)
@@ -647,13 +884,13 @@ final class AppState: ObservableObject {
         modifierFlagsRawValue: UInt
     ) -> Bool {
         let isPlaybackInterfaceVisible = selectedSection == .search
-            && (selectedSearchResult != nil || playbackFullscreenManager.isFullscreen)
+            && (currentPlaybackVideoPath != nil || playbackFullscreenManager.isFullscreen)
 
         guard isPlaybackInterfaceVisible else {
             return false
         }
 
-        guard selectedSearchResult != nil, let viewModel = playbackViewModel else {
+        guard currentPlaybackVideoPath != nil, let viewModel = playbackViewModel else {
             return false
         }
 
@@ -762,6 +999,8 @@ final class AppState: ObservableObject {
 
     private func clearSearchAndPlaybackState(under folder: URL) {
         searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
+        libraryVideos.removeAll { Self.path($0.videoPath, isUnder: folder) }
+        collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.filter { !Self.path($0, isUnder: folder) }
         expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath.filter { path, _ in
             !Self.path(path, isUnder: folder)
         }
@@ -771,14 +1010,18 @@ final class AppState: ObservableObject {
             searchResultGroupTasks.removeValue(forKey: path)
         }
 
-        guard let selectedSearchResult,
-              Self.path(selectedSearchResult.subtitlePath, isUnder: folder)
-        else {
-            return
-        }
+        let selectedSearchResultIsUnderFolder = selectedSearchResult.map {
+            Self.path($0.subtitlePath, isUnder: folder)
+        } ?? false
+        let selectedLibraryVideoIsUnderFolder = selectedLibraryVideo.map {
+            Self.path($0.videoPath, isUnder: folder)
+        } ?? false
 
-        self.selectedSearchResult = nil
-        stopPlayback()
+        if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder {
+            selectedSearchResult = nil
+            selectedLibraryVideo = nil
+            stopPlayback()
+        }
     }
 
     private static func path(_ path: String, isUnder folder: URL) -> Bool {
@@ -821,6 +1064,15 @@ final class AppState: ObservableObject {
         }
 
         return lhs.localizedStandardCompare(rhs) == .orderedAscending
+    }
+
+    private static func libraryVideoSort(_ lhs: LibraryVideo, _ rhs: LibraryVideo) -> Bool {
+        let nameComparison = lhs.videoName.localizedStandardCompare(rhs.videoName)
+        if nameComparison != .orderedSame {
+            return nameComparison == .orderedAscending
+        }
+
+        return lhs.videoPath.localizedStandardCompare(rhs.videoPath) == .orderedAscending
     }
 
     private static func searchResultSort(_ lhs: SubtitleSearchResult, _ rhs: SubtitleSearchResult) -> Bool {
@@ -941,7 +1193,23 @@ final class AppState: ObservableObject {
     }
 
     private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
-        guard result.subtitleFormat == .srt else {
+        playbackSubtitleCues(
+            forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+            format: result.subtitleFormat,
+            fallbackStartMilliseconds: result.startMilliseconds,
+            fallbackEndMilliseconds: result.endMilliseconds,
+            fallbackContent: result.content
+        )
+    }
+
+    private func playbackSubtitleCues(
+        forSubtitleFile subtitleFile: URL,
+        format: SubtitleFormat,
+        fallbackStartMilliseconds: Int,
+        fallbackEndMilliseconds: Int,
+        fallbackContent: String
+    ) -> [PlaybackSubtitleCue] {
+        guard format == .srt else {
             return []
         }
 
@@ -949,7 +1217,7 @@ final class AppState: ObservableObject {
             let database = try SubtitleDatabase(path: databaseURL)
             try database.migrate()
             let entries = try database.entries(
-                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath)
+                forSubtitleFile: subtitleFile
             )
             let cues = entries.map {
                 PlaybackSubtitleCue(
@@ -966,11 +1234,15 @@ final class AppState: ObservableObject {
             print("Failed to load playback subtitle track: \(error)")
         }
 
+        guard !fallbackContent.isEmpty else {
+            return []
+        }
+
         return [
             PlaybackSubtitleCue(
-                startMilliseconds: result.startMilliseconds,
-                endMilliseconds: result.endMilliseconds,
-                text: result.content
+                startMilliseconds: fallbackStartMilliseconds,
+                endMilliseconds: fallbackEndMilliseconds,
+                text: fallbackContent
             )
         ]
     }
@@ -997,6 +1269,32 @@ final class AppState: ObservableObject {
         )
     }
 
+    private func playbackSubtitleSource(for video: LibraryVideo) -> PlaybackSubtitleSource? {
+        guard video.subtitleFormat == .ass else {
+            return nil
+        }
+
+        let subtitleURL = URL(fileURLWithPath: video.subtitlePath)
+        let videoURL = URL(fileURLWithPath: video.videoPath)
+        let fontResourceDirectoryURL = assFontResourceDirectory(
+            subtitleFile: subtitleURL,
+            videoFile: videoURL
+        )
+
+        return PlaybackSubtitleSource(
+            url: subtitleURL,
+            format: .ass,
+            matchedVideoURL: videoURL,
+            fontResourceDirectoryURL: fontResourceDirectoryURL,
+            preparationTimeWindow: playbackSubtitleTimeWindow(
+                forSubtitleFile: subtitleURL,
+                startingAtMilliseconds: 0,
+                fallbackEndMilliseconds: 0
+            ),
+            renderCacheDatabaseURL: databaseURL
+        )
+    }
+
     private func assFontResourceDirectory(subtitleFile: URL, videoFile: URL) -> URL? {
         do {
             let database = try SubtitleDatabase(path: databaseURL)
@@ -1018,17 +1316,29 @@ final class AppState: ObservableObject {
     }
 
     private func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {
+        playbackSubtitleTimeWindow(
+            forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+            startingAtMilliseconds: result.startMilliseconds,
+            fallbackEndMilliseconds: result.endMilliseconds
+        )
+    }
+
+    private func playbackSubtitleTimeWindow(
+        forSubtitleFile subtitleFile: URL,
+        startingAtMilliseconds startMilliseconds: Int,
+        fallbackEndMilliseconds: Int
+    ) -> PlaybackSubtitleTimeWindow {
         let fallback = PlaybackSubtitleTimeWindow(
-            startMilliseconds: result.startMilliseconds,
-            endMilliseconds: result.endMilliseconds
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: fallbackEndMilliseconds
         )
 
         do {
             let database = try SubtitleDatabase(path: databaseURL)
             try database.migrate()
             let timings = try database.cueTimings(
-                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
-                startingAtMilliseconds: result.startMilliseconds,
+                forSubtitleFile: subtitleFile,
+                startingAtMilliseconds: startMilliseconds,
                 limit: Self.assSubtitlePreparationCueLimit
             )
 
