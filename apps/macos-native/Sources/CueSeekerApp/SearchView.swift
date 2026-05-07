@@ -24,11 +24,8 @@ struct SearchView: View {
                     width: libraryPanelWidth
                 ) {
                     libraryPanel
-                }
-                .overlay(alignment: .trailing) {
-                    if appState.isLibraryPanelVisible {
-                        libraryPanelResizeDivider(availableWidth: geometry.size.width)
-                    }
+                } divider: {
+                    libraryPanelResizeDivider(availableWidth: geometry.size.width)
                 }
 
                 playbackArea
@@ -40,11 +37,8 @@ struct SearchView: View {
                     width: searchPanelWidth
                 ) {
                     searchPanel
-                }
-                .overlay(alignment: .leading) {
-                    if appState.isSearchPanelVisible {
-                        searchPanelResizeDivider(availableWidth: geometry.size.width)
-                    }
+                } divider: {
+                    searchPanelResizeDivider(availableWidth: geometry.size.width)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -507,24 +501,36 @@ private enum DrawerPanelEdge {
             return width
         }
     }
+
+    var dividerAlignment: Alignment {
+        switch self {
+        case .leading:
+            return .trailing
+        case .trailing:
+            return .leading
+        }
+    }
 }
 
-private struct DrawerPanel<Content: View>: View {
+private struct DrawerPanel<Content: View, Divider: View>: View {
     let edge: DrawerPanelEdge
     let isVisible: Bool
     let width: CGFloat
     let content: Content
+    let divider: Divider
 
     init(
         edge: DrawerPanelEdge,
         isVisible: Bool,
         width: CGFloat,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder divider: () -> Divider
     ) {
         self.edge = edge
         self.isVisible = isVisible
         self.width = width
         self.content = content()
+        self.divider = divider()
     }
 
     var body: some View {
@@ -535,6 +541,9 @@ private struct DrawerPanel<Content: View>: View {
                 content
                     .frame(width: width)
                     .frame(maxHeight: .infinity)
+                    .overlay(alignment: edge.dividerAlignment) {
+                        divider
+                    }
                     .offset(x: isVisible ? 0 : edge.hiddenOffset(for: width))
             }
             .clipped()
