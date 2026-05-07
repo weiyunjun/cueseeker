@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the SQLite locking reliability direction: app-owned database
+  connections should use a non-zero busy timeout, the production database should
+  use WAL journal mode, indexing should avoid self-inflicted read/write
+  contention where practical, and valid large ASS render-segment cache rows
+  should not be treated as the root cause of `database is locked` failures.
 - Accepted the CueSeeker workbench responsiveness boundary direction: Library,
   Playback, and Search should have separate invalidation domains; side-panel
   collapse should preserve large list state; Library and Search presentation

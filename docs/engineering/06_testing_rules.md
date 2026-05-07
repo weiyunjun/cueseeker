@@ -210,6 +210,15 @@ Required M2 playback interaction checks:
 - Library playback history checks should verify that Library-opened videos read
   and write persisted resume position, while Search-result playback does not
   read, write, or overwrite that history.
+- Database locking regression checks should verify that `Index Now` does not
+  fail with `database is locked` when triggered shortly after app startup, after
+  Library startup hydration, after Search results are loaded, while playback
+  history may be written, or while ASS render-segment reads are possible.
+- SQLite connection checks should verify that app-owned connections configure a
+  non-zero busy timeout and use the documented production journal mode.
+- Indexing workflow checks should verify that app-owned Library and Search read
+  tasks are cancelled or isolated before indexing begins, so CueSeeker does not
+  create avoidable lock contention with itself.
 - Workbench responsiveness checks should verify the UI invalidation boundaries
   between Library, Playback, and Search:
   - Repeatedly toggling the left titlebar Library control should not rebuild

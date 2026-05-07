@@ -34,6 +34,37 @@ Rules:
 
 The exact path may be finalized with the native app project setup.
 
+## 3.1 SQLite Connection And Locking
+
+SQLite connection configuration is part of the native app's reliability model.
+
+Rules:
+
+- Every app-owned SQLite connection must configure a non-zero busy timeout so
+  short-lived read/write contention does not immediately surface to the user as
+  `database is locked`.
+- The production app database should use WAL journal mode unless a future
+  documented storage constraint requires a different mode.
+- WAL should be paired with a synchronous setting appropriate for local app
+  cache and durable app state. Any future change to this durability/performance
+  tradeoff must be documented before implementation depends on it.
+- Read-heavy operations such as Library hydration, Search queries, playback
+  metadata reads, and ASS render-segment reads must be able to coexist with
+  indexing writes without making ordinary user actions fail immediately.
+- Write-heavy operations such as `Index Now` should cancel or avoid app-owned
+  background read tasks when practical before starting indexing, so CueSeeker
+  does not create avoidable lock contention with itself.
+- Long indexing transactions should remain scoped to the smallest practical
+  unit of indexed replacement work. They should not cover file scanning,
+  subtitle parsing, media probing, or other slow non-SQL work.
+- Large ASS render-segment rows are valid derived cache data and are not, by
+  themselves, a reason to treat the database as corrupt or oversized. Locking
+  fixes should address connection and transaction behavior rather than deleting
+  valid derived cache rows.
+- User-visible database lock errors should be treated as bugs in connection,
+  timeout, or workflow coordination unless the database is held by an external
+  process for longer than the configured timeout.
+
 ## 4. Schema Versioning
 
 The native database must use an explicit schema versioning mechanism.
