@@ -376,6 +376,7 @@ final class AppState: ObservableObject {
 
     func indexFolder(_ folder: URL) {
         indexingTask?.cancel()
+        cancelDatabaseReadTasksBeforeIndexing()
         indexingStatus = .indexing(folder)
 
         let databaseURL = databaseURL
@@ -414,6 +415,7 @@ final class AppState: ObservableObject {
         }
 
         indexingTask?.cancel()
+        cancelDatabaseReadTasksBeforeIndexing()
         indexingStatus = .indexingAll(
             currentFolder: firstFolder,
             completedFolders: 0,
@@ -1265,6 +1267,21 @@ final class AppState: ObservableObject {
     private func cancelSearchResultGroupTasks() {
         searchResultGroupTasks.values.forEach { $0.cancel() }
         searchResultGroupTasks = [:]
+    }
+
+    private func cancelDatabaseReadTasksBeforeIndexing() {
+        libraryTask?.cancel()
+        libraryTask = nil
+        searchTask?.cancel()
+        searchTask = nil
+        cancelSearchResultGroupTasks()
+
+        if case .loading = libraryStatus {
+            libraryStatus = libraryVideos.isEmpty ? .idle : .completed
+        }
+        if case .searching = searchStatus {
+            searchStatus = .completed
+        }
     }
 
     private func aggregate(

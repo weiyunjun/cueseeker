@@ -25,6 +25,8 @@ public enum SQLiteDatabaseError: Error, Equatable, CustomStringConvertible {
 }
 
 final class SQLiteDatabase {
+    static let busyTimeoutMilliseconds: Int32 = 5_000
+
     private var handle: OpaquePointer?
 
     init(path: URL) throws {
@@ -38,7 +40,13 @@ final class SQLiteDatabase {
         }
 
         handle = database
-        try execute("PRAGMA foreign_keys = ON")
+        do {
+            try configureConnection()
+        } catch {
+            sqlite3_close(handle)
+            handle = nil
+            throw error
+        }
     }
 
     deinit {
@@ -69,12 +77,44 @@ final class SQLiteDatabase {
         sqlite3_last_insert_rowid(handle)
     }
 
+    func intPragma(_ name: String) throws -> Int {
+        let statement = try prepare("PRAGMA \(name);")
+        guard try statement.step() else {
+            return 0
+        }
+
+        return statement.intColumn(0)
+    }
+
+    func stringPragma(_ name: String) throws -> String {
+        let statement = try prepare("PRAGMA \(name);")
+        guard try statement.step() else {
+            return ""
+        }
+
+        return statement.stringColumn(0)
+    }
+
     var lastErrorMessage: String {
         guard let handle else {
             return "SQLite database is closed"
         }
 
         return String(cString: sqlite3_errmsg(handle))
+    }
+
+    private func configureConnection() throws {
+        guard let handle else {
+            throw SQLiteDatabaseError.openFailed("SQLite database is closed")
+        }
+
+        guard sqlite3_busy_timeout(handle, Self.busyTimeoutMilliseconds) == SQLITE_OK else {
+            throw SQLiteDatabaseError.openFailed(lastErrorMessage)
+        }
+
+        try execute("PRAGMA journal_mode = WAL")
+        try execute("PRAGMA synchronous = NORMAL")
+        try execute("PRAGMA foreign_keys = ON")
     }
 }
 

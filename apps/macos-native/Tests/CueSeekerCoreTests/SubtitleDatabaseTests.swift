@@ -17,6 +17,21 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
 }
 
 @Test
+func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.busyTimeoutMilliseconds() == SubtitleDatabase.configuredBusyTimeoutMilliseconds)
+    #expect(try database.journalMode().lowercased() == "wal")
+    #expect(try database.synchronousMode() == 1)
+}
+
+@Test
 func upsertsSearchPathAndReturnsStableID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -128,6 +128,7 @@ public struct ASSFontResourceManifest: Equatable, Sendable {
 
 public final class SubtitleDatabase {
     public static let currentSchemaVersion: Int = 8
+    public static let configuredBusyTimeoutMilliseconds: Int = 5_000
 
     private let database: SQLiteDatabase
 
@@ -301,6 +302,18 @@ public final class SubtitleDatabase {
         }
 
         return statement.intColumn(0)
+    }
+
+    public func busyTimeoutMilliseconds() throws -> Int {
+        try database.intPragma("busy_timeout")
+    }
+
+    public func journalMode() throws -> String {
+        try database.stringPragma("journal_mode")
+    }
+
+    public func synchronousMode() throws -> Int {
+        try database.intPragma("synchronous")
     }
 
     @discardableResult

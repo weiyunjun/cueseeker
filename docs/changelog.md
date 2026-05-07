@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented SQLite locking reliability in the native app: SQLite connections
+  now use a busy timeout plus WAL journal mode, and indexing cancels app-owned
+  Library/Search read tasks before starting write-heavy work to reduce
+  self-inflicted lock contention.
 - Accepted the SQLite locking reliability direction: app-owned database
   connections should use a non-zero busy timeout, the production database should
   use WAL journal mode, indexing should avoid self-inflicted read/write
