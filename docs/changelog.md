@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the CueSeeker workbench Library persistence changes in the native
+  app: the old visible `Search` navigation label is gone, the main title reads
+  `CueSeeker`, the left titlebar control toggles Library, Library defaults to a
+  resizable `310pt` panel, folder collapse state persists, and schema version 8
+  stores resume history only for Library-opened playback.
 - Accepted the CueSeeker workbench and Library persistence direction: remove
   the standalone `Search` navigation label, title the main workbench
   `CueSeeker`, let the left titlebar control collapse or expand Library, make

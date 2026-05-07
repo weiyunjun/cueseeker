@@ -5,6 +5,9 @@ import CueSeekerCore
 
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var libraryPanelDragStartWidth: Double?
+    @State private var isLibraryPanelDividerHovered = false
+    @State private var isLibraryPanelDividerDragging = false
     @State private var searchPanelDragStartWidth: Double?
     @State private var isSearchPanelDividerHovered = false
     @State private var isSearchPanelDividerDragging = false
@@ -14,8 +17,14 @@ struct SearchView: View {
             let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
 
             HStack(spacing: 0) {
-                libraryPanel
-                    .frame(width: SearchLayout.libraryPanelWidth)
+                if appState.isLibraryPanelVisible {
+                    libraryPanel
+                        .frame(width: libraryPanelWidth(for: geometry.size.width))
+                        .overlay(alignment: .trailing) {
+                            libraryPanelResizeDivider(availableWidth: geometry.size.width)
+                        }
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                }
 
                 playbackArea
                     .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
@@ -32,6 +41,7 @@ struct SearchView: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .animation(.easeInOut(duration: 0.18), value: appState.isLibraryPanelVisible)
             .animation(.easeInOut(duration: 0.18), value: appState.isSearchPanelVisible)
         }
     }
@@ -81,11 +91,6 @@ struct SearchView: View {
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .padding(.top, AppShellLayout.contentTopPadding)
         .background(Color(nsColor: .controlBackgroundColor))
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(Color.black.opacity(0.08))
-                .frame(width: 1)
-        }
     }
 
     private var libraryHeader: some View {
@@ -382,6 +387,72 @@ struct SearchView: View {
             )
     }
 
+    private func libraryPanelResizeDivider(availableWidth: CGFloat) -> some View {
+        let isActive = isLibraryPanelDividerHovered || isLibraryPanelDividerDragging
+
+        return ZStack(alignment: .trailing) {
+            Rectangle()
+                .fill(Color.black.opacity(0.001))
+
+            Rectangle()
+                .fill(Color.black.opacity(isActive ? 0.18 : 0.08))
+                .frame(width: isActive ? SearchLayout.dividerActiveLineWidth : SearchLayout.dividerLineWidth)
+        }
+            .frame(width: SearchLayout.dividerHitWidth)
+            .overlay(
+                ResizerView(
+                    onHoverChanged: { isHovered in
+                        isLibraryPanelDividerHovered = isHovered
+                    },
+                    onDragStarted: {
+                        appState.clearSearchFocus()
+                        isLibraryPanelDividerDragging = true
+                        libraryPanelDragStartWidth = appState.libraryPanelWidth
+                    },
+                    onDragChanged: { translationX in
+                        let startWidth = libraryPanelDragStartWidth ?? appState.libraryPanelWidth
+                        let proposedWidth = startWidth + Double(translationX)
+                        appState.updateLibraryPanelWidth(
+                            clampedLibraryPanelWidth(proposedWidth, availableWidth: availableWidth)
+                        )
+                    },
+                    onDragEnded: {
+                        libraryPanelDragStartWidth = nil
+                        isLibraryPanelDividerDragging = false
+                    }
+                )
+            )
+    }
+
+    private func libraryPanelWidth(for availableWidth: CGFloat) -> CGFloat {
+        CGFloat(
+            clampedLibraryPanelWidth(
+                appState.libraryPanelWidth,
+                availableWidth: availableWidth
+            )
+        )
+    }
+
+    private func clampedLibraryPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
+        let reservedSearchPanelWidth = appState.isSearchPanelVisible
+            ? SearchLayout.searchPanelMinimumWidth
+            : 0
+        let availableLibraryPanelWidth = Double(
+            availableWidth
+                - reservedSearchPanelWidth
+                - SearchLayout.playbackAreaMinimumWidth
+        )
+        let maxWidth = max(
+            SearchLayout.libraryPanelMinimumWidth,
+            availableLibraryPanelWidth
+        )
+
+        return min(
+            max(width, SearchLayout.libraryPanelMinimumWidth),
+            maxWidth
+        )
+    }
+
     private func clampedSearchPanelWidth(for availableWidth: CGFloat) -> CGFloat {
         CGFloat(
             clampedSearchPanelWidth(
@@ -394,7 +465,7 @@ struct SearchView: View {
     private func clampedSearchPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
         let availableSearchPanelWidth = Double(
             availableWidth
-                - SearchLayout.libraryPanelWidth
+                - (appState.isLibraryPanelVisible ? libraryPanelWidth(for: availableWidth) : 0)
                 - SearchLayout.playbackAreaMinimumWidth
         )
         let maxWidth = max(
@@ -842,7 +913,7 @@ private enum SearchTypography {
 private enum SearchLayout {
     static let contentWidth: CGFloat = 860
     static let minimumHorizontalMargin: CGFloat = 24
-    static let libraryPanelWidth: CGFloat = 360
+    static let libraryPanelMinimumWidth: Double = 310
     static let playbackAreaMinimumWidth: CGFloat = 520
     static let searchPanelMinimumWidth: Double = 420
     static let dividerHitWidth: CGFloat = 6

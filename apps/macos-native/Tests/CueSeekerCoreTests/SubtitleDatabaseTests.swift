@@ -231,6 +231,39 @@ func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
 }
 
 @Test
+func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 91_250,
+        duration: 1_800.5
+    )
+
+    let initialHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(initialHistory.videoPath == videoFile.path)
+    #expect(initialHistory.positionMilliseconds == 91_250)
+    #expect(initialHistory.duration == 1_800.5)
+
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 125_000,
+        duration: nil
+    )
+
+    let updatedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(updatedHistory.positionMilliseconds == 125_000)
+    #expect(updatedHistory.duration == nil)
+}
+
+@Test
 func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
     let databaseURL = temporaryDatabaseURL()
     let root = FileManager.default.temporaryDirectory

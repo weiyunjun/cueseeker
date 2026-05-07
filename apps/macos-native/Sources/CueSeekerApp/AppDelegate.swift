@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import Combine
 import CueSeekerCore
 
 @MainActor
@@ -8,7 +7,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var settingsWindow: NSWindow?
     private let appState = AppState()
-    private var cancellables = Set<AnyCancellable>()
     private var windowButtonsProxy: WindowButtonsProxyView?
     private var keyDownMonitor: Any?
 
@@ -28,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSEvent.removeMonitor(keyDownMonitor)
             self.keyDownMonitor = nil
         }
+        appState.saveCurrentLibraryPlaybackHistory()
         appState.playbackFullscreenManager.exitFullscreen()
     }
 
@@ -50,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
 
-        window.title = appState.selectedSection.title
+        window.title = "CueSeeker"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = false
@@ -65,21 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         self.window = window
-        
-        appState.$selectedSection
-            .sink { [weak self] section in
-                self?.window?.title = section.title
-                
-                // Force AppKit to perform the pending titlebar layout synchronously,
-                // then immediately re-apply our custom traffic light offsets.
-                // This prevents the buttons from jumping to their default positions
-                // for a single frame before windowDidUpdate catches them.
-                if let themeFrame = self?.window?.contentView?.superview {
-                    themeFrame.layoutSubtreeIfNeeded()
-                }
-                self?.adjustTrafficLights()
-            }
-            .store(in: &cancellables)
+        adjustTrafficLights()
     }
 
     private func configurePlaybackKeyboardShortcuts() {
@@ -140,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        appState.saveCurrentLibraryPlaybackHistory()
         appState.playbackFullscreenManager.exitFullscreen()
     }
 

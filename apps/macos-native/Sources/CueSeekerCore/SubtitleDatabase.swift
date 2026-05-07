@@ -45,6 +45,13 @@ public struct LibraryVideo: Equatable, Sendable, Identifiable {
     }
 }
 
+public struct LibraryPlaybackHistory: Equatable, Sendable {
+    public let videoPath: String
+    public let positionMilliseconds: Int
+    public let duration: Double?
+    public let updatedAt: String
+}
+
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
@@ -120,7 +127,7 @@ public struct ASSFontResourceManifest: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 7
+    public static let currentSchemaVersion: Int = 8
 
     private let database: SQLiteDatabase
 
@@ -260,6 +267,13 @@ public final class SubtitleDatabase {
                 prepared_at TEXT NOT NULL,
                 FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE,
                 FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS library_playback_history (
+                video_path TEXT PRIMARY KEY,
+                position_ms INTEGER NOT NULL,
+                duration REAL,
+                updated_at TEXT NOT NULL
             );
             """
         )
@@ -905,6 +919,56 @@ public final class SubtitleDatabase {
             try statement.bindNull(at: 1)
         }
         try statement.bind(videoFile.path, at: 2)
+        try statement.run()
+    }
+
+    public func libraryPlaybackHistory(forVideoFile videoFile: URL) throws -> LibraryPlaybackHistory? {
+        let statement = try database.prepare(
+            """
+            SELECT video_path, position_ms, duration, updated_at
+            FROM library_playback_history
+            WHERE video_path = ?;
+            """
+        )
+
+        try statement.bind(videoFile.path, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return LibraryPlaybackHistory(
+            videoPath: statement.stringColumn(0),
+            positionMilliseconds: max(0, statement.intColumn(1)),
+            duration: statement.nullableDoubleColumn(2),
+            updatedAt: statement.stringColumn(3)
+        )
+    }
+
+    public func upsertLibraryPlaybackHistory(
+        videoFile: URL,
+        positionMilliseconds: Int,
+        duration: Double?
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO library_playback_history(video_path, position_ms, duration, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(video_path) DO UPDATE SET
+                position_ms = excluded.position_ms,
+                duration = excluded.duration,
+                updated_at = excluded.updated_at;
+            """
+        )
+
+        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(max(0, positionMilliseconds), at: 2)
+        if let duration, duration.isFinite, duration > 0 {
+            try statement.bind(duration, at: 3)
+        } else {
+            try statement.bindNull(at: 3)
+        }
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 4)
         try statement.run()
     }
 

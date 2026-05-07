@@ -3,26 +3,6 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
-enum AppSection: String, CaseIterable, Identifiable {
-    case search
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .search:
-            "Search"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .search:
-            "magnifyingglass"
-        }
-    }
-}
-
 enum IndexingStatus: Equatable {
     case idle
     case indexing(URL)
@@ -71,6 +51,12 @@ enum PlaybackStatus: Equatable {
     }
 }
 
+private enum ActivePlaybackSource: Equatable {
+    case none
+    case library(videoPath: String)
+    case search
+}
+
 struct SearchResultFileGroup: Identifiable, Equatable {
     let subtitlePath: String
     let subtitleDisplayTitle: String
@@ -110,7 +96,9 @@ struct LibraryFolderGroup: Identifiable, Equatable {
 @MainActor
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
-    private static let isSidebarVisibleKey = "isSidebarVisible"
+    private static let isLibraryPanelVisibleKey = "isLibraryPanelVisible"
+    private static let libraryPanelWidthKey = "libraryPanelWidth"
+    private static let collapsedLibraryFolderPathsKey = "collapsedLibraryFolderPaths"
     private static let isSearchPanelVisibleKey = "isSearchPanelVisible"
     private static let searchPanelWidthKey = "searchPanelWidth"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
@@ -118,7 +106,6 @@ final class AppState: ObservableObject {
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
 
-    @Published var selectedSection: AppSection = .search
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
     @Published var searchQuery = ""
@@ -137,7 +124,8 @@ final class AppState: ObservableObject {
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
-    @Published var isSidebarVisible = true
+    @Published var isLibraryPanelVisible = true
+    @Published var libraryPanelWidth: Double = 310
     @Published var isSearchPanelVisible = true
     @Published var searchPanelWidth: Double = 480
     @Published var isSearchFocused = false
@@ -269,8 +257,10 @@ final class AppState: ObservableObject {
     private var player: PlaybackPlayer?
     private var indexingTask: Task<Void, Never>?
     private var libraryTask: Task<Void, Never>?
+    private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
+    private var activePlaybackSource: ActivePlaybackSource = .none
     private var loadedGlobalSearchResultCount = 0
     private var isSearching: Bool {
         if case .searching = searchStatus {
@@ -287,14 +277,17 @@ final class AppState: ObservableObject {
         self.userDefaults = userDefaults
         self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
+        collapsedLibraryFolderPaths = Self.loadCollapsedLibraryFolderPaths(from: userDefaults)
 
         userDefaults.register(defaults: [
-            Self.isSidebarVisibleKey: true,
+            Self.isLibraryPanelVisibleKey: true,
+            Self.libraryPanelWidthKey: 310.0,
             Self.isSearchPanelVisibleKey: true,
             Self.searchPanelWidthKey: 480.0,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
-        isSidebarVisible = userDefaults.bool(forKey: Self.isSidebarVisibleKey)
+        isLibraryPanelVisible = userDefaults.bool(forKey: Self.isLibraryPanelVisibleKey)
+        libraryPanelWidth = userDefaults.double(forKey: Self.libraryPanelWidthKey)
         isSearchPanelVisible = userDefaults.bool(forKey: Self.isSearchPanelVisibleKey)
         searchPanelWidth = userDefaults.double(forKey: Self.searchPanelWidthKey)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
@@ -361,9 +354,9 @@ final class AppState: ObservableObject {
         action()
     }
 
-    func toggleSidebar() {
-        isSidebarVisible.toggle()
-        userDefaults.set(isSidebarVisible, forKey: Self.isSidebarVisibleKey)
+    func toggleLibraryPanel() {
+        isLibraryPanelVisible.toggle()
+        userDefaults.set(isLibraryPanelVisible, forKey: Self.isLibraryPanelVisibleKey)
     }
 
     func toggleSearchPanel() {
@@ -371,23 +364,14 @@ final class AppState: ObservableObject {
         userDefaults.set(isSearchPanelVisible, forKey: Self.isSearchPanelVisibleKey)
     }
 
+    func updateLibraryPanelWidth(_ width: Double) {
+        libraryPanelWidth = width
+        userDefaults.set(width, forKey: Self.libraryPanelWidthKey)
+    }
+
     func updateSearchPanelWidth(_ width: Double) {
         searchPanelWidth = width
         userDefaults.set(width, forKey: Self.searchPanelWidthKey)
-    }
-
-    func selectSection(_ section: AppSection) {
-        guard selectedSection != section else {
-            return
-        }
-
-        clearSearchFocus()
-        selectedSection = section
-
-        if section != .search {
-            playbackFullscreenManager.exitFullscreen()
-            pausePlayback()
-        }
     }
 
     func indexFolder(_ folder: URL) {
@@ -550,6 +534,7 @@ final class AppState: ObservableObject {
         guard !folders.isEmpty else {
             libraryVideos = []
             collapsedLibraryFolderPaths = []
+            persistCollapsedLibraryFolderPaths()
             libraryStatus = .idle
             return
         }
@@ -578,6 +563,7 @@ final class AppState: ObservableObject {
                     }
                 )
                 collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.intersection(existingGroupPaths)
+                persistCollapsedLibraryFolderPaths()
                 libraryStatus = .completed
             } catch {
                 guard !Task.isCancelled else {
@@ -586,6 +572,7 @@ final class AppState: ObservableObject {
 
                 libraryVideos = []
                 collapsedLibraryFolderPaths = []
+                persistCollapsedLibraryFolderPaths()
                 libraryStatus = .failed(Self.errorMessage(for: error))
             }
         }
@@ -597,6 +584,7 @@ final class AppState: ObservableObject {
         } else {
             collapsedLibraryFolderPaths.insert(folderPath)
         }
+        persistCollapsedLibraryFolderPaths()
     }
 
     func toggleAllLibraryFolderGroups() {
@@ -610,6 +598,7 @@ final class AppState: ObservableObject {
         } else {
             collapsedLibraryFolderPaths.formUnion(groupPaths)
         }
+        persistCollapsedLibraryFolderPaths()
     }
 
     private func startSearch(
@@ -693,6 +682,9 @@ final class AppState: ObservableObject {
     }
 
     func openSearchResult(_ result: SubtitleSearchResult) {
+        saveCurrentLibraryPlaybackHistory()
+        stopLibraryPlaybackHistoryTracking()
+        activePlaybackSource = .search
         selectedSearchResult = result
         selectedLibraryVideo = nil
         Task { @MainActor in
@@ -702,6 +694,9 @@ final class AppState: ObservableObject {
     }
 
     func openLibraryVideo(_ video: LibraryVideo) {
+        if case .library = activePlaybackSource {
+            saveCurrentLibraryPlaybackHistory()
+        }
         selectedLibraryVideo = video
         selectedSearchResult = nil
         Task { @MainActor in
@@ -727,6 +722,9 @@ final class AppState: ObservableObject {
     }
 
     func play(_ result: SubtitleSearchResult) {
+        saveCurrentLibraryPlaybackHistory()
+        stopLibraryPlaybackHistoryTracking()
+        activePlaybackSource = .search
         playbackStatus = .opening
         let subtitleCues = playbackSubtitleCues(for: result)
         playbackViewModel?.setSubtitleCues(
@@ -761,8 +759,10 @@ final class AppState: ObservableObject {
     }
 
     func play(_ video: LibraryVideo) {
+        stopLibraryPlaybackHistoryTracking()
+        activePlaybackSource = .none
         playbackStatus = .opening
-        let startMilliseconds = 0
+        let startMilliseconds = libraryResumePositionMilliseconds(for: video)
         let subtitleCues = playbackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: video.subtitlePath),
             format: video.subtitleFormat,
@@ -779,7 +779,10 @@ final class AppState: ObservableObject {
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: video.videoPath),
                 startMilliseconds: startMilliseconds,
-                subtitleSource: playbackSubtitleSource(for: video)
+                subtitleSource: playbackSubtitleSource(
+                    for: video,
+                    startingAtMilliseconds: startMilliseconds
+                )
             )
 
             guard let player else {
@@ -795,6 +798,7 @@ final class AppState: ObservableObject {
 
             try player.setPaused(false)
             playbackStatus = .playing
+            startLibraryPlaybackHistoryTracking(videoPath: video.videoPath)
         } catch {
             playbackViewModel?.clearSubtitleCues()
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -807,6 +811,7 @@ final class AppState: ObservableObject {
             if case .playing = playbackStatus {
                 playbackStatus = .paused
             }
+            saveCurrentLibraryPlaybackHistory()
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
         }
@@ -883,8 +888,7 @@ final class AppState: ObservableObject {
         keyCode: UInt16,
         modifierFlagsRawValue: UInt
     ) -> Bool {
-        let isPlaybackInterfaceVisible = selectedSection == .search
-            && (currentPlaybackVideoPath != nil || playbackFullscreenManager.isFullscreen)
+        let isPlaybackInterfaceVisible = currentPlaybackVideoPath != nil || playbackFullscreenManager.isFullscreen
 
         guard isPlaybackInterfaceVisible else {
             return false
@@ -954,12 +958,43 @@ final class AppState: ObservableObject {
 
     func stopPlayback() {
         do {
+            saveCurrentLibraryPlaybackHistory()
+            stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()
             try player?.stop()
             playbackViewModel?.clearSubtitleCues()
+            activePlaybackSource = .none
             playbackStatus = .idle
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
+    func saveCurrentLibraryPlaybackHistory() {
+        guard case .library(let videoPath) = activePlaybackSource,
+              let playbackViewModel
+        else {
+            return
+        }
+
+        let positionMilliseconds = max(
+            0,
+            Int((playbackViewModel.currentTime * 1_000).rounded(.down))
+        )
+        let duration = playbackViewModel.duration.isFinite && playbackViewModel.duration > 0
+            ? playbackViewModel.duration
+            : nil
+
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+            try database.upsertLibraryPlaybackHistory(
+                videoFile: URL(fileURLWithPath: videoPath),
+                positionMilliseconds: positionMilliseconds,
+                duration: duration
+            )
+        } catch {
+            print("Failed to save Library playback history: \(error)")
         }
     }
 
@@ -997,10 +1032,44 @@ final class AppState: ObservableObject {
         updateSearchQuery(searchQuery)
     }
 
+    private func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+            return try database.libraryPlaybackHistory(
+                forVideoFile: URL(fileURLWithPath: video.videoPath)
+            )?.positionMilliseconds ?? 0
+        } catch {
+            print("Failed to load Library playback history: \(error)")
+            return 0
+        }
+    }
+
+    private func startLibraryPlaybackHistoryTracking(videoPath: String) {
+        activePlaybackSource = .library(videoPath: videoPath)
+        libraryPlaybackHistoryTask?.cancel()
+        libraryPlaybackHistoryTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                self?.saveCurrentLibraryPlaybackHistory()
+            }
+        }
+    }
+
+    private func stopLibraryPlaybackHistoryTracking() {
+        libraryPlaybackHistoryTask?.cancel()
+        libraryPlaybackHistoryTask = nil
+    }
+
     private func clearSearchAndPlaybackState(under folder: URL) {
         searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         libraryVideos.removeAll { Self.path($0.videoPath, isUnder: folder) }
         collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.filter { !Self.path($0, isUnder: folder) }
+        persistCollapsedLibraryFolderPaths()
         expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath.filter { path, _ in
             !Self.path(path, isUnder: folder)
         }
@@ -1269,7 +1338,10 @@ final class AppState: ObservableObject {
         )
     }
 
-    private func playbackSubtitleSource(for video: LibraryVideo) -> PlaybackSubtitleSource? {
+    private func playbackSubtitleSource(
+        for video: LibraryVideo,
+        startingAtMilliseconds startMilliseconds: Int
+    ) -> PlaybackSubtitleSource? {
         guard video.subtitleFormat == .ass else {
             return nil
         }
@@ -1288,8 +1360,8 @@ final class AppState: ObservableObject {
             fontResourceDirectoryURL: fontResourceDirectoryURL,
             preparationTimeWindow: playbackSubtitleTimeWindow(
                 forSubtitleFile: subtitleURL,
-                startingAtMilliseconds: 0,
-                fallbackEndMilliseconds: 0
+                startingAtMilliseconds: startMilliseconds,
+                fallbackEndMilliseconds: startMilliseconds
             ),
             renderCacheDatabaseURL: databaseURL
         )
@@ -1372,10 +1444,21 @@ final class AppState: ObservableObject {
         )
     }
 
+    private func persistCollapsedLibraryFolderPaths() {
+        userDefaults.set(
+            Array(collapsedLibraryFolderPaths).sorted(),
+            forKey: Self.collapsedLibraryFolderPathsKey
+        )
+    }
+
     private static func loadSelectedFolders(from userDefaults: UserDefaults) -> [URL] {
         userDefaults
             .stringArray(forKey: selectedFolderPathsKey)?
             .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? []
+    }
+
+    private static func loadCollapsedLibraryFolderPaths(from userDefaults: UserDefaults) -> Set<String> {
+        Set(userDefaults.stringArray(forKey: collapsedLibraryFolderPathsKey) ?? [])
     }
 
     private static func loadPlaybackDecodeMode(from userDefaults: UserDefaults) -> PlaybackDecodeMode {

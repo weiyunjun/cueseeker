@@ -53,13 +53,15 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `7`.
+- The current schema version is `8`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
   subtitle content.
 - Schema version `7` adds ASS font-resource manifests so the index stage can
   record prepared external font cache status for `libass` playback.
+- Schema version `8` adds Library playback history for durable resume
+  positions keyed by video path.
 
 ## 5. Migration Rules
 
