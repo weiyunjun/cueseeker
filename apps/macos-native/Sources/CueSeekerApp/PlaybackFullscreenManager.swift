@@ -11,40 +11,46 @@ final class PlaybackFullscreenManager: ObservableObject {
     private var fullscreenRootView: PlaybackFullscreenRootView?
     private var previousPresentationOptions: NSApplication.PresentationOptions?
     private weak var previousKeyWindow: NSWindow?
+    private var returnFrameInScreen: NSRect?
     private var chromeHideTask: Task<Void, Never>?
     private var onExitRequest: (() -> Void)?
     private var isCursorHidden = false
     private var isSuppressingInitialHover = false
     private var isSuspendedForAppDeactivation = false
+    private var isFullscreenTransitioning = false
     private var initialHoverLocation: CGPoint?
     private let initialHoverMovementThreshold: CGFloat = 6
 
+    @discardableResult
     func toggleFullscreen(
         player: PlaybackPlayer,
         viewModel: PlaybackViewModel,
         onCopySubtitle: @escaping () -> Void = {},
         onExitRequest: (() -> Void)? = nil
-    ) {
+    ) -> TimeInterval? {
         if isFullscreen {
-            exitFullscreen()
+            return exitFullscreen(animated: true)
         } else {
-            enterFullscreen(
+            return enterFullscreen(
                 player: player,
                 viewModel: viewModel,
                 onCopySubtitle: onCopySubtitle,
-                onExitRequest: onExitRequest
+                onExitRequest: onExitRequest,
+                animated: true
             )
         }
     }
 
+    @discardableResult
     func enterFullscreen(
         player: PlaybackPlayer,
         viewModel: PlaybackViewModel,
         onCopySubtitle: @escaping () -> Void = {},
-        onExitRequest: (() -> Void)? = nil
-    ) {
-        guard !isFullscreen, fullscreenWindow == nil else {
-            return
+        onExitRequest: (() -> Void)? = nil,
+        animated: Bool = true
+    ) -> TimeInterval? {
+        guard !isFullscreen, fullscreenWindow == nil, !isFullscreenTransitioning else {
+            return nil
         }
 
         let keyWindow = NSApplication.shared.keyWindow
@@ -55,13 +61,19 @@ final class PlaybackFullscreenManager: ObservableObject {
             ?? NSScreen.main
 
         guard let screen else {
-            return
+            return nil
         }
 
         previousPresentationOptions = NSApplication.shared.presentationOptions
+        returnFrameInScreen = renderFrameInScreen(for: player)
+        let targetFrame = screen.frame
+        let startFrame = validWindowFrame(
+            returnFrameInScreen,
+            fallback: targetFrame
+        )
 
         let window = PlaybackFullscreenWindow(
-            contentRect: screen.frame,
+            contentRect: animated ? startFrame : targetFrame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false,
@@ -105,6 +117,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         fullscreenRootView = rootView
         self.onExitRequest = onExitRequest
         isFullscreen = true
+        isFullscreenTransitioning = animated
         beginInitialHoverSuppression()
         hideChromeImmediately()
 
@@ -116,6 +129,21 @@ final class PlaybackFullscreenManager: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             self?.hideChromeImmediately()
         }
+
+        guard animated else {
+            return nil
+        }
+
+        let duration = max(0, window.animationResizeTime(targetFrame))
+        animateWindow(
+            window,
+            to: targetFrame,
+            duration: duration
+        ) { [weak self] in
+            self?.isFullscreenTransitioning = false
+            self?.hideChromeImmediately()
+        }
+        return duration
     }
 
     func suspendFullscreenForAppDeactivation() {
@@ -152,23 +180,57 @@ final class PlaybackFullscreenManager: ObservableObject {
         }
     }
 
-    func exitFullscreen() {
+    @discardableResult
+    func exitFullscreen(animated: Bool = false) -> TimeInterval? {
         guard isFullscreen || fullscreenWindow != nil else {
-            return
+            return nil
+        }
+
+        guard !isFullscreenTransitioning || !animated else {
+            return nil
         }
 
         let window = fullscreenWindow
         let rootView = fullscreenRootView
+        let targetFrame = validWindowFrameOrNil(returnFrameInScreen, fallback: window?.frame)
 
-        fullscreenWindow = nil
-        fullscreenRootView = nil
-        onExitRequest = nil
         chromeHideTask?.cancel()
         chromeHideTask = nil
         isChromeVisible = false
         isSuspendedForAppDeactivation = false
         endInitialHoverSuppression()
         showCursorIfNeeded()
+
+        if animated, let window, let targetFrame {
+            isFullscreenTransitioning = true
+            let duration = max(0, window.animationResizeTime(targetFrame))
+            animateWindow(
+                window,
+                to: targetFrame,
+                duration: duration
+            ) { [weak self] in
+                self?.finishExitFullscreen(window: window, rootView: rootView)
+            }
+            return duration
+        }
+
+        finishExitFullscreen(window: window, rootView: rootView)
+        return nil
+    }
+
+    private func finishExitFullscreen(
+        window: PlaybackFullscreenWindow?,
+        rootView: PlaybackFullscreenRootView?
+    ) {
+        guard isFullscreen || fullscreenWindow != nil || isFullscreenTransitioning else {
+            return
+        }
+
+        fullscreenWindow = nil
+        fullscreenRootView = nil
+        onExitRequest = nil
+        returnFrameInScreen = nil
+        isFullscreenTransitioning = false
 
         rootView?.detachRenderView()
         window?.contentView = nil
@@ -188,7 +250,61 @@ final class PlaybackFullscreenManager: ObservableObject {
         if let onExitRequest {
             onExitRequest()
         } else {
-            exitFullscreen()
+            exitFullscreen(animated: true)
+        }
+    }
+
+    private func renderFrameInScreen(for player: PlaybackPlayer) -> NSRect? {
+        let renderView = player.renderView
+        guard let window = renderView.window else {
+            return nil
+        }
+
+        let frame = window.convertToScreen(renderView.convert(renderView.bounds, to: nil))
+        guard isUsableWindowFrame(frame) else {
+            return nil
+        }
+
+        return frame
+    }
+
+    private func validWindowFrame(_ frame: NSRect?, fallback: NSRect) -> NSRect {
+        guard let frame, isUsableWindowFrame(frame) else {
+            return fallback
+        }
+
+        return frame
+    }
+
+    private func validWindowFrameOrNil(_ frame: NSRect?, fallback: NSRect?) -> NSRect? {
+        guard let fallback else {
+            return nil
+        }
+
+        return validWindowFrame(frame, fallback: fallback)
+    }
+
+    private func isUsableWindowFrame(_ frame: NSRect) -> Bool {
+        frame.width > 1 && frame.height > 1
+    }
+
+    private func animateWindow(
+        _ window: NSWindow,
+        to targetFrame: NSRect,
+        duration: TimeInterval,
+        completion: @escaping () -> Void
+    ) {
+        guard duration > 0 else {
+            window.setFrame(targetFrame, display: true)
+            completion()
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            window.animator().setFrame(targetFrame, display: true)
+        } completionHandler: {
+            completion()
         }
     }
 

@@ -40,8 +40,8 @@ struct ContentView: View {
     private var appTopBar: some View {
         TitlebarBackgroundView(
             backgroundColor: topBarBackground,
-            onDoubleClickZoom: {
-                appState.beginTitlebarZoomTransitionFromUser()
+            onDoubleClickZoom: { window in
+                appState.beginTitlebarZoomTransitionFromUser(window: window)
             }
         )
             .overlay {

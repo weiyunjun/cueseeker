@@ -3,7 +3,7 @@ import AppKit
 
 struct TitlebarBackgroundView: NSViewRepresentable {
     var backgroundColor: Color
-    var onDoubleClickZoom: () -> Bool = { true }
+    var onDoubleClickZoom: (NSWindow) -> Bool = { _ in true }
 
     func makeNSView(context: Context) -> DraggableNSView {
         let view = DraggableNSView()
@@ -20,7 +20,7 @@ struct TitlebarBackgroundView: NSViewRepresentable {
 }
 
 final class DraggableNSView: NSView {
-    var onDoubleClickZoom: (() -> Bool)?
+    var onDoubleClickZoom: ((NSWindow) -> Bool)?
 
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2 {
@@ -29,10 +29,13 @@ final class DraggableNSView: NSView {
             let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize"
             
             if action == "Maximize" {
-                guard onDoubleClickZoom?() ?? true else {
+                guard let window else {
                     return
                 }
-                self.window?.performZoom(nil)
+                guard onDoubleClickZoom?(window) ?? true else {
+                    return
+                }
+                window.performZoom(nil)
             } else if action == "Minimize" {
                 self.window?.miniaturize(nil)
             }

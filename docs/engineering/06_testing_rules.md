@@ -254,6 +254,15 @@ Required M2 playback interaction checks:
   expanding both workbench side panels during playback keeps the black video
   background, native video frame, and ASS overlay synchronized. The video frame
   must not visibly lag behind or detach from the black playback container.
+- Playback-size transition checks should verify that side-panel toggle commands,
+  titlebar double-click zoom, playback fullscreen `F`, fullscreen button
+  enter/exit, and Escape fullscreen exit are serialized while an animation is
+  active, without adding a post-animation cooldown.
+- Playback fullscreen animation checks should verify that Theater Mode enters
+  from the embedded playback render frame, exits back toward the embedded
+  playback render frame, keeps using the singleton render container, and derives
+  the command gate duration from AppKit's resize-animation timing for the
+  actual transition frames.
 - ASS timing-source changes are out of scope for the first workbench
   invalidation cleanup. If they are attempted later, manual checks must verify
   that selecting a Search result still updates selection, opens or seeks video,

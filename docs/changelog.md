@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added AppKit-derived playback-size transition rules and implemented animated
+  Theater Mode fullscreen enter/exit using the singleton native playback render
+  container, with fullscreen and titlebar zoom command gates based on the
+  current window resize animation rather than guessed fixed fullscreen delays.
 - Fixed native playback layout synchronization during workbench side-panel
   animations: the embedded playback card no longer relies on a separate SwiftUI
   black background, and the native render host/container/display layer now

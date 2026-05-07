@@ -177,6 +177,16 @@ Rules:
   disable implicit CALayer frame animations and synchronously lay out attached
   AppKit subviews where necessary so the video frame and black background remain
   visually locked together.
+- Workbench actions that animate the video's available size must be serialized
+  while the animation is active. This includes Library/Search panel toggles,
+  titlebar double-click zoom, playback fullscreen enter/exit, the `F`
+  fullscreen shortcut, and Escape-driven fullscreen exit. Direct divider drags
+  remain a live resize interaction and are not part of this serialized command
+  gate.
+- Playback fullscreen and titlebar zoom transition gates must use AppKit's
+  current resize-animation duration for the actual source and target window
+  frames, such as `NSWindow.animationResizeTime(_:)`. They must not use a fixed
+  guessed delay for fullscreen or window-zoom animation length.
 - The main window should use `CueSeeker` as its top-level workbench identity.
   The old standalone `Search` AppShell label should be removed; Search is a
   right-side learning panel workflow.
@@ -442,6 +452,11 @@ Rules:
 - Native seek state updates must not publish a transient `0` timestamp while a target seek is being prepared.
 - The playback UI hosts a singleton render container owned by the playback player; fullscreen must move that same container rather than creating an independent render view.
 - Playback fullscreen uses a borderless Theater Mode window and must not call the app window's system Full Screen transition.
+- Playback fullscreen enter and exit should animate the borderless Theater Mode
+  window between the embedded playback render frame and the target screen frame.
+  The animation should use the same singleton render container during the
+  transition so video, black background, and subtitle overlay ownership stay on
+  the native playback path.
 - The Theater Mode window must use an app-level window level and must not use `screenSaver` or other system-overlay window levels that can cover the Cmd-Tab app switcher.
 - Closing fullscreen, hiding the CueSeeker workbench, switching to another
   future top-level workspace, closing the main window, or terminating the app

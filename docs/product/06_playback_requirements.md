@@ -262,6 +262,11 @@ Required behavior:
 - The Theater Mode window must remain below system overlays such as the Cmd-Tab app switcher.
 - The fullscreen window should reuse the same playback render container used by
   the embedded Playback Area.
+- Entering fullscreen should animate the Theater Mode window from the embedded
+  playback render frame to the target screen frame.
+- Exiting fullscreen should animate the Theater Mode window back toward the
+  embedded playback render frame before returning the singleton render container
+  to the Playback Area.
 - Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
 - The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
 - Mouse or click activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
@@ -288,6 +293,9 @@ Implementation constraints:
 - Do not create a second backend render context for fullscreen.
 - Do not let SwiftUI view lifetime decide when backend render state is destroyed.
 - Playback fullscreen should use the singleton render container owned by the playback player.
+- The fullscreen enter and exit animation duration should come from the
+  platform's current window resize animation for the actual transition frames,
+  not from a fixed guessed fullscreen delay.
 - The embedded Playback Area's black video background should be owned by the
   native playback render container, not by a separate SwiftUI background behind
   the render view. The video frame, black background, and source-faithful ASS

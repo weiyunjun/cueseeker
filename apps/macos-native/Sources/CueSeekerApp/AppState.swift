@@ -105,8 +105,6 @@ final class AppState: ObservableObject {
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 220_000_000
-    private static let playbackFullscreenTransitionNanoseconds: UInt64 = 220_000_000
-    private static let windowZoomTransitionNanoseconds: UInt64 = 350_000_000
 
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
@@ -268,6 +266,7 @@ final class AppState: ObservableObject {
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
+    private var windowFrameBeforeUserZoom: NSRect?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     private var activePlaybackSource: ActivePlaybackSource = .none
     private var loadedGlobalSearchResultCount = 0
@@ -362,8 +361,20 @@ final class AppState: ObservableObject {
         action()
     }
 
-    func beginTitlebarZoomTransitionFromUser() -> Bool {
-        beginVideoSizeTransition(durationNanoseconds: Self.windowZoomTransitionNanoseconds)
+    func beginTitlebarZoomTransitionFromUser(window: NSWindow) -> Bool {
+        let targetFrame: NSRect
+        if window.isZoomed, let windowFrameBeforeUserZoom {
+            targetFrame = windowFrameBeforeUserZoom
+            self.windowFrameBeforeUserZoom = nil
+        } else {
+            windowFrameBeforeUserZoom = window.frame
+            targetFrame = window.screen?.visibleFrame ?? window.frame
+        }
+
+        return beginVideoSizeTransition(duration: Self.animationResizeDuration(
+            for: window,
+            targetFrame: targetFrame
+        ))
     }
 
     func toggleLibraryPanel() {
@@ -389,11 +400,11 @@ final class AppState: ObservableObject {
             return
         }
 
-        guard beginVideoSizeTransition(durationNanoseconds: Self.playbackFullscreenTransitionNanoseconds) else {
+        guard beginVideoSizeTransition() else {
             return
         }
 
-        playbackFullscreenManager.toggleFullscreen(
+        let duration = playbackFullscreenManager.toggleFullscreen(
             player: player,
             viewModel: playbackViewModel,
             onCopySubtitle: onCopySubtitle,
@@ -401,6 +412,7 @@ final class AppState: ObservableObject {
                 self?.exitPlaybackFullscreenFromUser()
             }
         )
+        completeVideoSizeTransition(after: duration)
     }
 
     func exitPlaybackFullscreenFromUser() {
@@ -408,11 +420,12 @@ final class AppState: ObservableObject {
             return
         }
 
-        guard beginVideoSizeTransition(durationNanoseconds: Self.playbackFullscreenTransitionNanoseconds) else {
+        guard beginVideoSizeTransition() else {
             return
         }
 
-        playbackFullscreenManager.exitFullscreen()
+        let duration = playbackFullscreenManager.exitFullscreen(animated: true)
+        completeVideoSizeTransition(after: duration)
     }
 
     func updateLibraryPanelWidth(_ width: Double) {
@@ -426,14 +439,37 @@ final class AppState: ObservableObject {
     }
 
     private func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {
+        beginVideoSizeTransition(duration: TimeInterval(durationNanoseconds) / 1_000_000_000)
+    }
+
+    private func beginVideoSizeTransition(duration: TimeInterval) -> Bool {
+        guard beginVideoSizeTransition() else {
+            return false
+        }
+
+        completeVideoSizeTransition(after: duration)
+        return true
+    }
+
+    private func beginVideoSizeTransition() -> Bool {
         guard !isVideoSizeTransitionInProgress else {
             return false
         }
 
         isVideoSizeTransitionInProgress = true
         videoSizeTransitionTask?.cancel()
+        return true
+    }
+
+    private func completeVideoSizeTransition(after duration: TimeInterval?) {
+        let duration = max(0, duration ?? 0)
+        guard duration > 0 else {
+            endVideoSizeTransition()
+            return
+        }
+
         videoSizeTransitionTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: durationNanoseconds)
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
             guard !Task.isCancelled else {
                 return
             }
@@ -442,12 +478,18 @@ final class AppState: ObservableObject {
                 self?.endVideoSizeTransition()
             }
         }
-        return true
     }
 
     private func endVideoSizeTransition() {
         isVideoSizeTransitionInProgress = false
         videoSizeTransitionTask = nil
+    }
+
+    private static func animationResizeDuration(
+        for window: NSWindow,
+        targetFrame: NSRect
+    ) -> TimeInterval {
+        max(0, window.animationResizeTime(targetFrame))
     }
 
     func indexFolder(_ folder: URL) {

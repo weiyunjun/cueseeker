@@ -164,6 +164,12 @@ Responsiveness boundaries:
 - During side-panel collapse or expand animations, the Playback Area's black
   video background and actual video frame should resize together. Users should
   not see the black container and the native video layer drift out of sync.
+- Commands that change the available playback size should not overlap. While a
+  Library/Search panel toggle, titlebar double-click zoom, playback fullscreen
+  enter/exit, `F` fullscreen toggle, or Escape fullscreen exit animation is
+  active, other command-style playback-size changes should be ignored until the
+  current animation ends. Manual divider dragging remains a direct resize
+  interaction.
 - Search field focus is Search Panel interaction state. Changing focus should
   not invalidate Library content or playback content.
 - The visible playback clock used by SwiftUI controls may update at a lower
@@ -258,6 +264,9 @@ M2 playback interaction model:
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
 - Playback fullscreen should use an independent theater-style fullscreen window
   and return the embedded video to the Playback Area when closed.
+- Entering and exiting playback fullscreen should feel like the video surface is
+  scaling between the embedded Playback Area and Theater Mode, not like an
+  instant window swap.
 - Entering or exiting playback fullscreen must not create a second playback render container or duplicate backend render state.
 - Entering playback fullscreen should immediately hide the playback operation controls and mouse cursor once, regardless of whether the controls were visible before fullscreen.
 - In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse or click activity.
