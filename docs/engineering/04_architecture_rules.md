@@ -170,6 +170,11 @@ Rules:
   comparison for folder and video ordering, derive row display titles from the
   video's parent folder and sibling rank, and use indexed duration metadata for
   the right-side row duration.
+- Library startup state must be hydrated from persisted indexed video metadata
+  before the first visible main-window render when the local database is
+  available. Asynchronous Library refreshes may reconcile or update existing
+  rows, but they must not make a previously indexed Library appear empty or
+  visibly loading after restart.
 - Library folder collapse or expand state should persist as UI preference state
   keyed by standardized folder path.
 - Clicking a Library video row should dispatch through the same playback open

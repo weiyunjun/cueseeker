@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the instant Library startup hydration rule: when indexed Library rows
+  already exist locally, app restart must hydrate the Library list before the
+  first visible main-window render instead of showing a transient empty or
+  loading Library panel.
 - Implemented the CueSeeker workbench Library persistence changes in the native
   app: the old visible `Search` navigation label is gone, the main title reads
   `CueSeeker`, the left titlebar control toggles Library, Library defaults to a

@@ -82,6 +82,10 @@ Notes:
 - Library rows should use video file identity and duration from indexed video
   metadata. Reindexing is the expected refresh path when older indexed rows do
   not have duration metadata.
+- The indexed video metadata needed to render the Library list is persistent
+  local state. The app should hydrate the Library list from this metadata during
+  startup before the first visible main-window render, rather than treating the
+  list as transient async UI state.
 - Library playback history should be keyed by video file identity and persist a
   resume position for Library-opened playback only. Search-result playback
   should not read or mutate this history.

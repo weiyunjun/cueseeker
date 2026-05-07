@@ -253,6 +253,10 @@ When implemented, Library should support:
 - Browse playable videos from indexed folders.
 - Use video identity as the primary row identity when a playable video can be
   resolved.
+- Hydrate the Library list from persisted indexed video metadata before the
+  first visible main-window render after app launch. Restarting the app must
+  not show an empty or loading Library panel when indexed Library rows already
+  exist locally.
 - Group videos by the immediate parent folder only. Library should be flat and
   should not render nested folder trees in the first implementation.
 - Sort folder groups and video rows with the same Finder-like natural ordering

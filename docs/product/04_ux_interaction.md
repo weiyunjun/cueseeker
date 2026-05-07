@@ -276,6 +276,10 @@ Library behavior:
 - Library should browse playable videos rather than raw subtitle files.
 - Library should appear in the Left Content Panel with a gray background and a
   dense grouped layout comparable to Search results.
+- Library should appear populated immediately after app restart when indexed
+  video metadata already exists locally. A visible Loading or empty state during
+  startup is only acceptable when no persisted Library rows exist or the
+  database cannot be opened.
 - Library should collapse or expand from the left titlebar control.
 - Library should be horizontally resizable after launch.
 - Library's default width should equal its minimum width.

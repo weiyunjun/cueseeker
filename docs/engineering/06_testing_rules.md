@@ -201,6 +201,10 @@ Required M2 playback interaction checks:
   `Collapse All` / `Expand All`, friendly video display names with extension,
   right-side duration display, and click-to-playback from Library resume
   history with `0` fallback.
+- Library startup checks should verify that a database with existing indexed
+  Library rows hydrates the Library list before the first visible main-window
+  render, without showing an empty or loading Library state solely because the
+  app restarted.
 - Library metadata checks should include reindexing a fixture folder so video
   rows and duration values are populated from indexed metadata.
 - Library playback history checks should verify that Library-opened videos read
