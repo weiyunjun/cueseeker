@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Reworked the native workbench side panels to use a drawer-style animation:
+  Library and Search keep fixed-width content while only their layout slot
+  opens or closes, preventing side-panel text from being squeezed and
+  remeasured during collapse or expand animations.
 - Implemented the first workbench UI invalidation cleanup: Library and Search
   presentation groups are now cached and rebuilt only through their relevant
   data/collapse mutation paths, and hiding either side panel keeps the panel

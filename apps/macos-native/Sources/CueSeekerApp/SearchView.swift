@@ -14,25 +14,22 @@ struct SearchView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let libraryPanelFrameWidth = appState.isLibraryPanelVisible
-                ? libraryPanelWidth(for: geometry.size.width)
-                : 0
+            let libraryPanelWidth = libraryPanelWidth(for: geometry.size.width)
             let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
-            let searchPanelFrameWidth = appState.isSearchPanelVisible
-                ? searchPanelWidth
-                : 0
 
             HStack(spacing: 0) {
-                libraryPanel
-                    .frame(width: libraryPanelFrameWidth)
-                    .clipped()
-                    .allowsHitTesting(appState.isLibraryPanelVisible)
-                    .accessibilityHidden(!appState.isLibraryPanelVisible)
-                    .overlay(alignment: .trailing) {
-                        if appState.isLibraryPanelVisible {
-                            libraryPanelResizeDivider(availableWidth: geometry.size.width)
-                        }
+                DrawerPanel(
+                    edge: .leading,
+                    isVisible: appState.isLibraryPanelVisible,
+                    width: libraryPanelWidth
+                ) {
+                    libraryPanel
+                }
+                .overlay(alignment: .trailing) {
+                    if appState.isLibraryPanelVisible {
+                        libraryPanelResizeDivider(availableWidth: geometry.size.width)
                     }
+                }
 
                 playbackArea
                     .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
@@ -42,11 +39,13 @@ struct SearchView: View {
                         }
                     }
 
-                searchPanel
-                    .frame(width: searchPanelFrameWidth)
-                    .clipped()
-                    .allowsHitTesting(appState.isSearchPanelVisible)
-                    .accessibilityHidden(!appState.isSearchPanelVisible)
+                DrawerPanel(
+                    edge: .trailing,
+                    isVisible: appState.isSearchPanelVisible,
+                    width: searchPanelWidth
+                ) {
+                    searchPanel
+                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .animation(.easeInOut(duration: 0.18), value: appState.isLibraryPanelVisible)
@@ -485,6 +484,63 @@ struct SearchView: View {
             max(width, SearchLayout.searchPanelMinimumWidth),
             Double(maxWidth)
         )
+    }
+}
+
+private enum DrawerPanelEdge {
+    case leading
+    case trailing
+
+    var alignment: Alignment {
+        switch self {
+        case .leading:
+            return .topLeading
+        case .trailing:
+            return .topTrailing
+        }
+    }
+
+    func hiddenOffset(for width: CGFloat) -> CGFloat {
+        switch self {
+        case .leading:
+            return -width
+        case .trailing:
+            return width
+        }
+    }
+}
+
+private struct DrawerPanel<Content: View>: View {
+    let edge: DrawerPanelEdge
+    let isVisible: Bool
+    let width: CGFloat
+    let content: Content
+
+    init(
+        edge: DrawerPanelEdge,
+        isVisible: Bool,
+        width: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.edge = edge
+        self.isVisible = isVisible
+        self.width = width
+        self.content = content()
+    }
+
+    var body: some View {
+        Color.clear
+            .frame(width: isVisible ? width : 0)
+            .frame(maxHeight: .infinity)
+            .overlay(alignment: edge.alignment) {
+                content
+                    .frame(width: width)
+                    .frame(maxHeight: .infinity)
+                    .offset(x: isVisible ? 0 : edge.hiddenOffset(for: width))
+            }
+            .clipped()
+            .allowsHitTesting(isVisible)
+            .accessibilityHidden(!isVisible)
     }
 }
 
