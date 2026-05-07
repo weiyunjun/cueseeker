@@ -1,13 +1,15 @@
 # ADR-0005: Playback Fullscreen Lifecycle and RenderView Architecture
 
-Status: Accepted, generalized by ADR-0006 and ADR-0007
+Status: Superseded for fullscreen mechanism by ADR-0010; retained as historical
+context for `libmpv` crash analysis and stable render-container ownership.
 
-ADR-0006 keeps the Theater Mode fullscreen rule but generalizes the concrete
-render ownership from an `MPVRenderView` singleton to a playback render
-container owned by the playback facade. The `libmpv`-specific crash analysis
-below remains historical context for why fullscreen must move a stable backend
-view instead of creating or destroying backend render state during fullscreen
-transitions.
+ADR-0006 generalized the concrete render ownership from an `MPVRenderView`
+singleton to a playback render container owned by the playback facade. ADR-0007
+removed production `libmpv` compatibility. ADR-0010 supersedes this ADR's
+borderless Theater Mode mechanism with a dedicated playback `NSWindow` using
+AppKit Full Screen Space. The remaining active invariant is that fullscreen must
+move one stable playback render container instead of creating or destroying
+backend render state during fullscreen transitions.
 
 ## Background
 
@@ -65,5 +67,10 @@ Current implementation note after ADR-0007:
 
 - The production app still moves one stable playback render container, but that
   container now hosts only the native playback view.
-- The fullscreen invariant remains the same: Theater Mode must move the existing
-  native render container and must not create duplicate render state.
+
+Current direction after ADR-0010:
+
+- The Theater Mode fullscreen mechanism is superseded for production direction.
+- Playback fullscreen should use a dedicated playback `NSWindow` entering
+  AppKit Full Screen Space while preserving the stable singleton native render
+  container invariant.

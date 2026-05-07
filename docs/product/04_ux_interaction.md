@@ -262,17 +262,19 @@ M2 playback interaction model:
 - Playback actions should provide clear visual feedback, such as a lightweight operation HUD or animation when the user plays, pauses, seeks, or triggers another command.
 - Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
-- Playback fullscreen should use an independent theater-style fullscreen window
-  and return the embedded video to the Playback Area when closed.
-- Entering and exiting playback fullscreen should feel like the video surface is
-  scaling between the embedded Playback Area and Theater Mode, not like an
-  instant window swap.
+- Playback fullscreen should use a dedicated playback window entering AppKit's
+  native Full Screen Space, then return the embedded video to the Playback Area
+  when closed.
+- Entering and exiting playback fullscreen should feel like a standard macOS
+  fullscreen transition, with the system managing Dock, menu bar, desktop,
+  wallpaper, Space, app switching, and system overlay behavior.
 - Entering or exiting playback fullscreen must not create a second playback render container or duplicate backend render state.
 - Entering playback fullscreen should immediately hide the playback operation controls and mouse cursor once, regardless of whether the controls were visible before fullscreen.
 - In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse or click activity.
 - In playback fullscreen, only mouse or click activity should reveal the playback operation controls and cursor; keyboard playback shortcuts should not reveal them.
-- Theater Mode should hide while the app is inactive so the visible UI matches the active foreground app.
-- Theater Mode should stay below system switchers and overlays such as Cmd-Tab.
+- App switching while playback fullscreen is active should follow standard
+  macOS Space behavior and should not leave a custom overlay window covering
+  other apps.
 - The progress bar and its enlarged hit area are named the `Timeline Zone`.
 - The button row below the progress bar is named the `Transport Controls Zone`.
 - Together, the `Timeline Zone` and `Transport Controls Zone` form the `Playback Operation Zone`.
@@ -291,12 +293,14 @@ M2 playback interaction model:
 
 Current M2 implementation:
 
-- Playback fullscreen uses a Theater Mode window and returns the same playback
-  render container to the embedded Playback Area when closed.
+- The previous borderless Theater Mode fullscreen implementation is superseded
+  by the accepted AppKit Full Screen Space direction for playback fullscreen.
+- Playback fullscreen should keep returning the same playback render container
+  to the embedded Playback Area when closed.
 - Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
 - Fullscreen playback reveals controls and cursor from mouse or click activity, not from keyboard shortcuts.
-- Theater Mode suspends during app deactivation and restores on app activation without recreating the playback render context.
-- The Theater Mode window level allows Cmd-Tab and other system overlays to remain visible above playback fullscreen.
+- AppKit fullscreen lifecycle should replace manual Theater Mode suspension for
+  app switching and deactivation behavior.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
 - Shortcut and control actions show transient feedback overlays for copying the current subtitle, subtitle visibility, play/pause, relative seek, volume, and speed.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.

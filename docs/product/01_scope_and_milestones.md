@@ -108,7 +108,9 @@ Planning status:
 
 - Started on 2026-04-28 after the M1 native macOS minimal local loop was accepted.
 - M2 scope is being refined from broad macOS polish into reviewable interaction, file-management, error, settings, and packaging work.
-- Playback interaction work has started and currently includes video-level Theater Mode fullscreen, playback operation controls, keyboard shortcuts, and visible feedback overlays.
+- Playback interaction work has started and currently includes video-level
+  playback fullscreen, playback operation controls, keyboard shortcuts, and
+  visible feedback overlays.
 - ASS subtitle search support is included in M2 planning as a search, indexing,
   playback-selection, and data-model migration feature.
 - The first ASS support implementation is complete in the native app: `.ass`
@@ -127,9 +129,13 @@ Expected areas:
   Define shortcut commands, focus scope, and conflict rules, especially for search text input and playback context.
 - Playback interaction model.
   Refine playback controls, progress and seek interaction, action buttons, and visual feedback such as operation HUD or animation. Playback controls and keyboard shortcuts should share the same underlying playback command model.
-  Current implementation includes an app-drawn upward playback speed menu, hover-based speed preset selection, subtitle visibility toggle, video-surface-only play/pause tapping, playback operation-zone click isolation, Theater Mode fullscreen, keyboard shortcuts, and transient feedback overlays.
+  Current implementation includes an app-drawn upward playback speed menu, hover-based speed preset selection, subtitle visibility toggle, video-surface-only play/pause tapping, playback operation-zone click isolation, playback fullscreen, keyboard shortcuts, and transient feedback overlays.
   Recent playback refinements align keyboard speed limits with playback controls, add the `1.75x` speed preset, use `5%` keyboard volume steps, keep timeline and volume hover states vertically stable, keep playback shortcuts active while read-only metadata text is selected, and suppress initial fullscreen hover events so controls and the cursor remain hidden immediately after entering fullscreen.
-  Accepted interaction refinements also cover Theater Mode suspension during app deactivation, Cmd-Tab switcher visibility above playback fullscreen, Search field focus clearing for app-owned interactions, Search field focus preservation for system-level window or app switching, mouse-only fullscreen chrome reveal, and speed menu hover geometry that matches the speed button click area.
+  Accepted interaction refinements also cover the AppKit Full Screen Space
+  direction for playback fullscreen, Search field focus clearing for app-owned
+  interactions, Search field focus preservation for system-level window or app
+  switching, mouse-only fullscreen chrome reveal, and speed menu hover geometry
+  that matches the speed button click area.
 - ASS subtitle search and grouped result support.
   The native app now scans `.ass` files, parses ASS dialogue events, indexes cue
   groups and cue lines, displays grouped search results, and supports

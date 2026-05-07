@@ -156,9 +156,12 @@ Required M1 playback checks:
 
 Required M2 playback interaction checks:
 
-- Playback fullscreen affects only the video experience and does not put the main app window into macOS Full Screen.
-- Cmd-Tab and other system overlays remain visible above the Theater Mode window.
-- Theater Mode hides when the app resigns active and restores when the app becomes active again.
+- Playback fullscreen affects only the video experience and does not put the
+  main workbench window into macOS Full Screen.
+- Playback fullscreen uses a dedicated playback window that enters AppKit's
+  native Full Screen Space.
+- Dock, menu bar, desktop, wallpaper, Spaces, Mission Control, app switching,
+  and system overlays follow standard macOS fullscreen behavior.
 - Fullscreen keyboard shortcuts execute playback commands without revealing the playback operation controls.
 - The `Q` shortcut copies the current subtitle without interfering with editable
   text input.
@@ -258,11 +261,10 @@ Required M2 playback interaction checks:
   titlebar double-click zoom, playback fullscreen `F`, fullscreen button
   enter/exit, and Escape fullscreen exit are serialized while an animation is
   active, without adding a post-animation cooldown.
-- Playback fullscreen animation checks should verify that Theater Mode enters
-  from the embedded playback render frame, exits back toward the embedded
-  playback render frame, keeps using the singleton render container, and derives
-  the command gate duration from AppKit's resize-animation timing for the
-  actual transition frames.
+- Playback fullscreen animation checks should verify that the dedicated
+  playback window enters and exits AppKit Full Screen Space through AppKit
+  fullscreen lifecycle callbacks, keeps using the singleton render container,
+  and does not rely on a guessed fixed fullscreen delay.
 - ASS timing-source changes are out of scope for the first workbench
   invalidation cleanup. If they are attempted later, manual checks must verify
   that selecting a Search result still updates selection, opens or seeks video,
@@ -292,8 +294,8 @@ Rules:
 - ASS subtitle rendering memory work must be judged primarily through
   end-to-end playback acceptance, not isolated renderer probes alone. The core
   acceptance question is whether the user-visible memory drop is meaningful
-  while playback, seeking, subtitle visibility toggling, and Theater Mode remain
-  stable.
+  while playback, seeking, subtitle visibility toggling, and playback
+  fullscreen remain stable.
 - ASS renderer measurements should compare the same video across no subtitles,
   SRT subtitles, simple ASS subtitles, and complex ASS subtitles. Useful
   observation points include process memory after open, after steady playback,
@@ -464,7 +466,7 @@ Required routing coverage:
 - Playback does not attach native ASS or ASS Lite fallback overlays.
 - Settings does not expose an ASS renderer selector.
 - The existing subtitle visibility control shows and hides the `libass` overlay.
-- The overlay follows both the Playback Area and Theater Mode fullscreen.
+- The overlay follows both the Playback Area and playback fullscreen.
 - Missing or unreadable subtitle files do not prevent video playback.
 - SRT playback subtitle behavior does not regress.
 
@@ -569,7 +571,7 @@ Required renderer checks:
   sizing in native `v0`.
 - Complex ASS fixtures with vector drawing, clipping, and karaoke-like repeated
   effect events render without treating drawing commands as text.
-- Playback Area and Theater Mode fullscreen use the same renderer output
+- Playback Area and playback fullscreen use the same renderer output
   lifecycle.
 - Subtitle visibility toggles renderer output without stopping the video.
 - SRT playback subtitle behavior does not regress.

@@ -102,8 +102,9 @@ forces compatibility and smoothness issues to be handled in the native stack.
 
 - ADR-0006 remains historical context for why native playback entered the
   production app.
-- Production playback should keep the stable render-container and Theater Mode
-  lifecycle rules, but the contained backend view is now native-only.
+- Production playback should keep the stable render-container lifecycle rule.
+  ADR-0010 supersedes the older borderless Theater Mode fullscreen mechanism
+  with a dedicated playback window that enters AppKit Full Screen Space.
 - Media inspection and future database metadata should record native
   compatibility facts and failure reasons rather than backend preference.
 - Packaging should account for FFmpeg and required non-system FFmpeg
