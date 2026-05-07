@@ -383,6 +383,13 @@ Layout:
 - The Search Panel is resizable by dragging its left edge.
 - The Playback Area width changes dynamically as the Library and Search Panel
   widths or visibility change.
+- Side panels should feel like fixed-width drawers. Collapsing a panel slides
+  its full-width content out of view while the Playback Area receives or
+  releases the corresponding space; panel contents should not visibly compress
+  during the animation.
+- The embedded Playback Area is a fixed top-aligned playback surface with
+  command buttons below it, not a document-style scroll page in normal
+  workbench playback.
 - The Playback Area should receive priority when the window cannot comfortably
   show both panes.
 - The Library panel must keep a usable minimum width when expanded.

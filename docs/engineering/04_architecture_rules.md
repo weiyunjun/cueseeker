@@ -165,6 +165,16 @@ Rules:
 - Side-panel collapse or expand must not destroy and recreate large list state.
   Prefer stable panel shells whose layout width, visibility, opacity, or hit
   testing changes without discarding the panel's current presentation model.
+- Workbench side panels should use fixed-width drawer content during collapse
+  and expand animations. The Library and Search panel contents must keep their
+  expanded width while sliding in or out; the workbench may separately adjust
+  the central Playback Area's reserved width. Do not animate panel content to
+  zero width or place large panel ScrollViews in a layout path that forces their
+  rows and buttons to accept changing width proposals during every toggle frame.
+- The embedded Playback Area should not be wrapped in a SwiftUI `ScrollView` for
+  the normal workbench playback surface. Side-panel toggles should resize a
+  top-aligned playback container directly instead of making ScrollView layout
+  repeatedly measure playback controls and the native render surface.
 - If SwiftUI lazy stacks are used for large grouped lists, row models should be
   flattened when necessary so lazy rendering applies to individual headers and
   rows rather than to a single large group view that eagerly builds all children

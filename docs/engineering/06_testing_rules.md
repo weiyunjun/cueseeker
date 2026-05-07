@@ -246,6 +246,14 @@ Required M2 playback interaction checks:
     refresh are the accepted reasons to rebuild the persisted Library
     presentation snapshot. Width resize and manual Library group collapse or
     expand may update presentation state, but must not rebuild rows.
+- Workbench side-panel animation checks should verify that collapse and expand
+  keep Library and Search panel contents at their expanded widths while sliding
+  the panels in or out. The panels must not be compressed to zero-width content
+  during animation, and the central Playback Area should resize independently.
+- Embedded Playback Area checks should verify that normal workbench playback is
+  not wrapped in a SwiftUI ScrollView layout path. Side-panel toggles should not
+  drive repeated ScrollView size measurement for the native playback surface or
+  its command buttons.
 - Performance diagnostics for this work should include counters or signposts
   for Library row rebuilds, Search row rebuilds, workbench container body
   refreshes, playback time publications, and ASS renderer reloads. These

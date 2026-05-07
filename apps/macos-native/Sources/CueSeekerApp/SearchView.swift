@@ -19,8 +19,18 @@ struct SearchView: View {
             GeometryReader { geometry in
                 let libraryPanelWidth = libraryPanelWidth(for: geometry.size.width)
                 let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
+                let reservedLibraryWidth = layoutState.isLibraryPanelVisible ? libraryPanelWidth : 0
+                let reservedSearchPanelWidth = layoutState.isSearchPanelVisible ? searchPanelWidth : 0
+                let playbackWidth = max(
+                    0,
+                    geometry.size.width - reservedLibraryWidth - reservedSearchPanelWidth
+                )
 
-                HStack(spacing: 0) {
+                ZStack(alignment: .topLeading) {
+                    playbackArea
+                        .frame(width: playbackWidth, height: geometry.size.height)
+                        .offset(x: reservedLibraryWidth)
+
                     DrawerPanel(
                         edge: .leading,
                         isVisible: layoutState.isLibraryPanelVisible,
@@ -30,9 +40,12 @@ struct SearchView: View {
                     } divider: {
                         libraryPanelResizeDivider(availableWidth: geometry.size.width)
                     }
-
-                    playbackArea
-                        .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
+                    .frame(width: libraryPanelWidth, height: geometry.size.height)
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height,
+                        alignment: .topLeading
+                    )
 
                     DrawerPanel(
                         edge: .trailing,
@@ -43,8 +56,15 @@ struct SearchView: View {
                     } divider: {
                         searchPanelResizeDivider(availableWidth: geometry.size.width)
                     }
+                    .frame(width: searchPanelWidth, height: geometry.size.height)
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height,
+                        alignment: .topTrailing
+                    )
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
                 .animation(.easeInOut(duration: 0.18), value: layoutState.isLibraryPanelVisible)
                 .animation(.easeInOut(duration: 0.18), value: layoutState.isSearchPanelVisible)
                 .background(LayoutPerformanceProbe(name: "SearchView.root.layout"))
@@ -339,60 +359,60 @@ struct SearchView: View {
         AppPerformanceProbe.measure("SearchView.playbackArea.body", thresholdMilliseconds: 4) {
             VStack(alignment: .leading, spacing: 0) {
                 if appState.hasPlaybackSelection {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            PlaybackView(
-                                player: appState.playbackPlayer,
-                                viewModel: appState.playbackViewModel,
-                                fullscreenManager: appState.playbackFullscreenManager,
-                                onSurfaceTap: {
-                                    appState.clearSearchFocus()
-                                    appState.togglePlaybackFromUser()
-                                },
-                                onCopySubtitle: {
-                                    appState.clearSearchFocus()
+                    VStack(alignment: .leading, spacing: 16) {
+                        PlaybackView(
+                            player: appState.playbackPlayer,
+                            viewModel: appState.playbackViewModel,
+                            fullscreenManager: appState.playbackFullscreenManager,
+                            onSurfaceTap: {
+                                appState.clearSearchFocus()
+                                appState.togglePlaybackFromUser()
+                            },
+                            onCopySubtitle: {
+                                appState.clearSearchFocus()
+                                appState.copyCurrentSubtitleToClipboard()
+                            },
+                            isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
+                            onToggleFullscreen: {
+                                appState.clearSearchFocus()
+                                appState.togglePlaybackFullscreenFromUser {
                                     appState.copyCurrentSubtitleToClipboard()
-                                },
-                                isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
-                                onToggleFullscreen: {
-                                    appState.clearSearchFocus()
-                                    appState.togglePlaybackFullscreenFromUser {
-                                        appState.copyCurrentSubtitleToClipboard()
-                                    }
                                 }
-                            )
-                                .aspectRatio(16 / 9, contentMode: .fit)
-                                .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                        )
+                            .aspectRatio(16 / 9, contentMode: .fit)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                            if case .failed(let message) = appState.playbackStatus {
-                                Label(message, systemImage: "exclamationmark.triangle")
-                                    .font(.system(size: SearchTypography.detailSize))
-                                    .foregroundStyle(.red)
+                        if case .failed(let message) = appState.playbackStatus {
+                            Label(message, systemImage: "exclamationmark.triangle")
+                                .font(.system(size: SearchTypography.detailSize))
+                                .foregroundStyle(.red)
+                        }
+
+                        HStack(spacing: 12) {
+                            Button {
+                                appState.clearSearchFocus()
+                                appState.revealCurrentVideoFile()
+                            } label: {
+                                Label("Video Folder", systemImage: "folder")
                             }
 
-                            HStack(spacing: 12) {
+                            if appState.currentPlaybackSubtitlePath != nil {
                                 Button {
                                     appState.clearSearchFocus()
-                                    appState.revealCurrentVideoFile()
+                                    appState.revealCurrentSubtitleFile()
                                 } label: {
-                                    Label("Video Folder", systemImage: "folder")
-                                }
-
-                                if appState.currentPlaybackSubtitlePath != nil {
-                                    Button {
-                                        appState.clearSearchFocus()
-                                        appState.revealCurrentSubtitleFile()
-                                    } label: {
-                                        Label("Subtitle Folder", systemImage: "folder")
-                                    }
+                                    Label("Subtitle Folder", systemImage: "folder")
                                 }
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding(.top, AppShellLayout.contentTopPadding)
-                        .padding([.horizontal, .bottom], 20)
+
+                        Spacer(minLength: 0)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.top, AppShellLayout.contentTopPadding)
+                    .padding([.horizontal, .bottom], 20)
                 } else {
                     EmptyStateView(
                         title: "No Selection",
@@ -598,19 +618,13 @@ private struct DrawerPanel<Content: View, Divider: View>: View {
 
     var body: some View {
         AppPerformanceProbe.measure("DrawerPanel.body", thresholdMilliseconds: 4) {
-            Color.clear
-                .frame(width: isVisible ? width : 0)
+            content
+                .frame(width: width)
                 .frame(maxHeight: .infinity)
-                .overlay(alignment: edge.alignment) {
-                    content
-                        .frame(width: width)
-                        .frame(maxHeight: .infinity)
-                        .overlay(alignment: edge.dividerAlignment) {
-                            divider
-                        }
-                        .offset(x: isVisible ? 0 : edge.hiddenOffset(for: width))
+                .overlay(alignment: edge.dividerAlignment) {
+                    divider
                 }
-                .clipped()
+                .offset(x: isVisible ? 0 : edge.hiddenOffset(for: width))
                 .allowsHitTesting(isVisible)
                 .accessibilityHidden(!isVisible)
         }
