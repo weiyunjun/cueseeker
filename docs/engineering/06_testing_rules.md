@@ -178,6 +178,10 @@ Required M2 playback interaction checks:
 - Collapsing the right-side Search Panel expands playback width, preserves the
   selected result, and does not pause playback.
 - Reopening the Search Panel restores the current Search context when practical.
+- Future Left Content Panel modes should preserve the left-side known-content
+  navigation responsibility for Library, Timeline, and Favorites.
+- Future Right Learning Panel modes should preserve the right-side active
+  workflow responsibility for Search, Queue, and Learning Session.
 
 Rules:
 

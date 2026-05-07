@@ -144,6 +144,15 @@ Rules:
   treated as the collapsible auxiliary pane in the Search workspace.
 - Collapsing the Search Panel must preserve playback state, selected result
   identity, and search context.
+- Future side-panel work should preserve distinct responsibilities around
+  playback: the Left Content Panel owns Library, Timeline, and Favorites-style
+  known-content navigation, while the Right Learning Panel owns Search, Queue,
+  and Learning Session-style active learning workflows.
+- Queue and Learning Session state must not be hidden inside playback UI state
+  alone if it becomes durable or cross-view behavior.
+- Learning Session playback rules require product documentation before
+  implementation because they affect playback state, keyboard behavior,
+  persistence, and test coverage.
 - Keyboard behavior must preserve standard macOS text editing behavior.
 - UI errors should be concise and actionable, with technical detail reserved for logs.
 - The M1 app shell may combine SwiftUI content with AppKit titlebar controls when SwiftUI-only layout cannot match native macOS titlebar behavior.

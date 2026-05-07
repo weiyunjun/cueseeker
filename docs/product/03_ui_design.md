@@ -56,14 +56,14 @@ Current shell direction:
 
 The sidebar should provide high-level navigation.
 
-Initial sections:
+Current sections:
 
 - Search.
 - Settings.
 
-Future sections:
-
-- Favorites.
+Future app-level sections should be added only when they are true global app
+sections. Favorites should primarily belong to the Left Content Panel as durable
+saved content unless a later product rule promotes it to app-level navigation.
 
 The sidebar should remain visually quiet and should not compete with search results or playback.
 
@@ -75,7 +75,45 @@ Current M1 behavior:
 - Sidebar edge treatment should remain subtle. A gray divider is preferred over a drop shadow for the current M1 shell.
 - Selected sidebar items use a solid accent background with white text. Sidebar items do not respond to hover.
 
-## 4. Search View
+## 4. Main Workspace Panel Model
+
+The long-term main workspace should be organized around playback as the central
+experience.
+
+Conceptual structure:
+
+```text
+Leftmost AppShell sidebar
+Left Content Panel
+Playback Area
+Right Learning Panel
+```
+
+The leftmost AppShell sidebar is global navigation. It is separate from the
+Left Content Panel and should continue to own app-level sections such as
+`Search` and `Settings`.
+
+The Left Content Panel is for known content and precise location:
+
+- Library.
+- Current video subtitle Timeline.
+- Favorites.
+
+The Right Learning Panel is for active learning workflows:
+
+- Search.
+- Queue.
+- Learning Session.
+
+The two side panels should not become generic tool drawers. The left side is for
+content structure and precise navigation. The right side is for search,
+collection, aggregation, queue building, and learning-session configuration.
+
+This panel model does not change the accepted player-first Search layout. The
+immediate Search workspace still places the Playback Area on the left and the
+Search Panel on the right.
+
+## 5. Search View
 
 The search view is the primary screen.
 
@@ -128,7 +166,7 @@ Accepted M1 search presentation:
   matches with a yellow background that remains readable on selected rows.
 - Search result visual polish is still incomplete and subject to further iteration.
 
-## 5. Search Result Group
+## 6. Search Result Group
 
 Each subtitle-file group should be compact and scannable.
 
@@ -177,7 +215,7 @@ is available. If two groups have the same display title, or if a group falls
 back to the source subtitle filename, the full subtitle path should be used as
 the secondary stable ordering key.
 
-## 6. Search Result Row
+## 7. Search Result Row
 
 Each result row should be compact and scannable.
 
@@ -229,13 +267,18 @@ Layout and Selection Behavior:
   line breaks rendered inside a single cue line, should use 4pt line spacing so
   bilingual subtitle text does not appear cramped.
 
-## 7. Playback Area And Search Panel
+## 8. Playback Area And Search Panel
 
-The Search workspace uses a player-first two-pane layout.
+The Search workspace uses a player-first layout.
 
 The Playback Area is the left-side playback and result-detail surface in the
 Search workspace. The Search Panel is the right-side search and result-selection
 surface.
+
+As future left-side navigation features arrive, the Playback Area remains the
+central experience. A Left Content Panel may appear to its left for Library,
+Timeline, or Favorites navigation, but that does not move Search back to the
+left side.
 
 Playback Area required content:
 
@@ -259,6 +302,10 @@ Search Panel required content:
 - Collapse or expand-all result control.
 - Grouped Search results.
 - Empty, loading, and error states.
+
+Future Search Panel actions may include hover buttons and contextual menus on
+result rows. A result-level `Add to Queue` action is an accepted future
+direction for building playback queues from Search.
 
 Behavior:
 
@@ -321,7 +368,7 @@ Current M2 playback control terminology:
 - `Transport Controls Zone`: the button row below the progress bar.
 - `Playback Operation Zone`: the combined `Timeline Zone` and `Transport Controls Zone`.
 
-## 8. Settings View
+## 9. Settings View
 
 The settings view should allow local folder management.
 
@@ -346,7 +393,7 @@ services while the panel is open. The UI should avoid unnecessary helper
 creation during normal Settings navigation, but it should not replace the
 native folder picker only to minimize process count.
 
-## 9. Visual Style
+## 10. Visual Style
 
 Initial visual style should be restrained.
 

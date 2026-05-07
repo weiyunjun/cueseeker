@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the content-navigation and learning-panel model: the leftmost
+  AppShell sidebar remains global navigation, future left content panels should
+  handle Library, Timeline, and Favorites-style precise location, and the right
+  learning panel should handle Search, Queue, and configurable learning-session
+  workflows without changing the accepted player-first Search workspace swap.
 - Accepted the player-first Search workspace layout: the leftmost app sidebar
   continues to own `Search` and `Settings` navigation, while the Search
   workspace itself moves playback to the left and Search controls/results to a

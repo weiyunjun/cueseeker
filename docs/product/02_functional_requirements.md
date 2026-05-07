@@ -241,7 +241,71 @@ The Search controls and Search results belong in a right-side Search Panel.
 This Search Panel can collapse independently from playback. Collapsing it must
 not pause playback, clear the selected result, or change search result identity.
 
-## 8. Local Playback
+## 8. Library And Timeline
+
+Library and Timeline are not required for M1.
+
+When implemented, Library should support:
+
+- Browse playable videos from indexed folders.
+- Use video identity as the primary row identity when a playable video can be
+  resolved.
+- Group videos by folder, work, or another documented display rule.
+- Use a flattened collapsible presentation that can reuse the Search result
+  grouping pattern where practical.
+- Display friendly video names while preserving raw paths for identity,
+  diagnostics, and Finder actions.
+- Avoid showing duplicate top-level rows for multiple subtitle files that map
+  to the same playable video unless a later product rule defines a manual
+  subtitle-selection workflow.
+- Open or update playback when the user clicks a video.
+
+When implemented, Timeline should support:
+
+- Show the current video's subtitle cues in timestamp order.
+- Jump playback to a selected subtitle cue.
+- Keep Timeline navigation tied to the currently loaded video.
+- Preserve source subtitle identity when multiple subtitle tracks or files are
+  available.
+
+Library and Timeline belong to the future Left Content Panel because they help
+the user locate known content and precise timestamps.
+
+## 9. Queue And Learning Session
+
+Queue and Learning Session are not required for M1.
+
+When implemented, Queue should support:
+
+- Add items from Search results.
+- Add items from Library videos.
+- Add items from Timeline subtitle cues.
+- Add items from Favorites.
+- Preserve enough identity to open the correct video and timestamp later.
+- Display queued items in a reviewable order.
+- Remove or reorder queued items when that workflow is accepted.
+
+Search result rows may later expose hover actions or context menus, including
+an `Add to Queue` action.
+
+When implemented, Learning Session should support configurable playback over
+selected or queued items.
+
+Future Learning Session options may include:
+
+- Context size around the selected timestamp.
+- Number of nearby subtitle cues to include.
+- Repeat count.
+- Random order.
+- Loop behavior.
+- Whether to play only cue windows or broader surrounding context.
+
+Detailed Learning Session behavior must be documented before implementation.
+
+Queue and Learning Session belong to the future Right Learning Panel because
+they are user-authored learning workflows rather than source media structure.
+
+## 10. Local Playback
 
 The app must support local video playback from a search result.
 
@@ -290,7 +354,7 @@ Current subtitle copy requirements:
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 
-## 9. Settings
+## 11. Settings
 
 The app must provide a settings surface for local app configuration.
 
@@ -306,14 +370,22 @@ Early settings:
 
 Future settings may include playback, database, logging, and privacy options.
 
-## 10. Favorites
+## 12. Favorites
 
 Favorites are not required for M1.
 
 When implemented, the app should support:
 
 - Favorite a subtitle line.
+- Favorite a video or broader saved item only after that favorite type is
+  documented.
 - Remove a favorite.
 - View favorite subtitle lines.
 - Jump from a favorite to video playback.
 - Preserve favorite identity across reindexing when possible.
+
+Favoriting is an action that may appear in Search results, Timeline rows,
+playback subtitle controls, contextual menus, and future hover controls.
+Browsing and managing Favorites belongs primarily to the Left Content Panel
+because Favorites are durable saved content. Favorites may also feed right-side
+Queue or Learning Session workflows.

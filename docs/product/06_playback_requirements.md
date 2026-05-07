@@ -243,6 +243,13 @@ Required behavior:
 - Switching away from Search, closing the main window, or terminating the app
   should leave playback fullscreen cleanly.
 - Switching away from Search should pause playback and must not leave an orphan fullscreen window.
+- Fullscreen may later provide temporary access to left-side content navigation
+  or right-side learning workflow panels.
+- Temporary fullscreen panels must preserve the same side responsibilities:
+  left for Library, Timeline, and Favorites-style location; right for Search,
+  Queue, and Learning Session workflows.
+- Temporary fullscreen panels must not create a second playback render view or
+  backend render context.
 
 Implementation constraints:
 
@@ -308,7 +315,34 @@ Current implementation notes:
 - Current subtitle copy uses the indexed cue-group projection for clipboard text
   and preserves the same line ordering as Search result display.
 
-## 9. Error States
+## 9. Learning Session Playback
+
+Learning Session playback is future work and is not required for M1 or the
+current M2 playback interaction baseline.
+
+Future Learning Session playback may support:
+
+- Playing a selected subtitle cue with surrounding context.
+- Playing a configured number of nearby subtitle cues before or after the
+  target cue.
+- Repeating an item multiple times.
+- Randomizing queued items.
+- Looping a queue or selected range.
+- Playing only cue windows or broader surrounding video context.
+
+Rules:
+
+- Learning Session playback must build on the same playback command model used
+  by normal playback controls and keyboard shortcuts.
+- Learning Session playback must preserve clear escape paths back to ordinary
+  playback.
+- Learning Session configuration must be documented before implementation
+  because it affects playback state, queue identity, keyboard behavior, and
+  persistence.
+- Learning Session behavior must not make ordinary Search result playback
+  slower or less predictable.
+
+## 10. Error States
 
 Playback errors should be clear.
 

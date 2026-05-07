@@ -171,17 +171,25 @@ Expected areas:
 - Remove favorites.
 - Jump from a favorite to the matching video timestamp.
 - Preserve favorite identity across reindexing when possible.
+- Present Favorites as durable saved content in the left-side content
+  navigation model when that panel exists.
+- Allow Favorites to feed future right-side Queue or Learning Session workflows
+  after those workflows are documented.
 
 Acceptance criteria:
 
 - Favorites persist locally.
 - Favorites remain linked to source subtitle timing.
 - Favorite actions are available through UI and keyboard interaction.
+- Favorites have a documented home in the content-navigation and learning-panel
+  model before implementation is treated as complete.
 
 ## 6. Explicitly Deferred
 
 The following are deferred until the local-first product is stable:
 
+- Playback Queue and configurable Learning Session modes, unless they are pulled
+  into a documented milestone before implementation.
 - Remote subtitle indexing.
 - Remote video playback.
 - Local HTTP proxy.

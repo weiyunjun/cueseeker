@@ -104,7 +104,33 @@ Search focus behavior:
 - Double-clicking the titlebar to resize the window should not intentionally clear Search field focus.
 - Clicking native traffic light controls should not intentionally clear Search field focus.
 
-## 4. Result Selection
+## 4. Panel Responsibility Model
+
+CueSeeker's main workspace should preserve distinct side responsibilities around
+the central playback experience.
+
+The left side is for known-content navigation and precise location:
+
+- Library browsing.
+- Current video subtitle Timeline.
+- Favorites browsing and management.
+
+The right side is for active learning workflows:
+
+- Search.
+- Search result aggregation.
+- Queue building.
+- Learning Session configuration.
+
+The left side should help the user quickly reach a known video or timestamp.
+After the user selects a video or timeline cue, attention can return to
+playback.
+
+The right side should help the user discover, collect, and sequence learning
+material. Search result rows may later expose hover actions or context menus,
+including adding a subtitle moment or video to a Queue.
+
+## 5. Result Selection
 
 When the user selects a result:
 
@@ -138,7 +164,7 @@ When the user selects a result:
 - Clicking `Subtitle Folder` should open Finder to the source subtitle's
   containing folder and select the subtitle file.
 
-## 5. Visual Feedback and Hover
+## 6. Visual Feedback and Hover
 
 - **Sidebar**: The selected sidebar item uses a solid accent background with white text. Sidebar items do not have hover effects.
 - **Titlebar Buttons**: Toolbar toggle buttons use a subtle gray background on hover to indicate interactivity.
@@ -150,7 +176,7 @@ When the user selects a result:
   right-side start timestamps whose text color matches the subtitle text for
   the same row state.
 
-## 5. Playback Interaction
+## 7. Playback Interaction
 
 M1 playback interaction should be minimal.
 
@@ -222,7 +248,53 @@ Current M2 implementation:
 - Keyboard shortcuts adjust speed in `0.25x` steps and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - The previous Flutter shortcut model was used as a reference, but the native M2 map intentionally changes subtitles to `C`, removes the bottom-mask shortcut, and changes speed adjustment to `Shift+,` and `Shift+.`.
 
-## 6. Indexing Interaction
+## 8. Library And Timeline Interaction
+
+Library and Timeline are future left-side content-navigation modes.
+
+Library behavior:
+
+- Library should browse playable videos rather than raw subtitle files.
+- Library may group videos by folder or work using a flattened collapsible
+  structure similar to Search result groups.
+- Clicking a video should open or update playback.
+- Clicking a video should not require the user to continue attending to the
+  Library after playback starts.
+- Subtitle files should appear as video metadata or attached resources, not as
+  duplicate top-level video entries when one playable video is available.
+
+Timeline behavior:
+
+- Timeline should show the current video's subtitles in timestamp order.
+- Clicking a Timeline row should seek playback precisely.
+- Timeline navigation should remain on the left because it is a precise
+  location tool for known content.
+
+## 9. Queue And Learning Session Interaction
+
+Queue and Learning Session are future right-side learning workflow modes.
+
+Queue behavior:
+
+- Search results, Library videos, Timeline rows, and Favorites may all become
+  queue inputs.
+- Search result rows may expose a hover `Add to Queue` action.
+- The user should be able to collect multiple Search results quickly while
+  scrolling.
+- Queue belongs on the right because it is a user-authored learning plan, not
+  the source content structure.
+
+Learning Session behavior:
+
+- Learning Session should configure how queued or selected material plays.
+- Future options may include how many subtitle lines or seconds around the
+  target timestamp to play, repeat count, random order, loop behavior, and
+  whether to play cue windows or broader context.
+- Detailed Learning Session behavior must be documented before implementation
+  because it affects playback commands, keyboard focus, queue identity, and
+  persistence.
+
+## 10. Indexing Interaction
 
 Indexing should communicate progress without blocking the whole app unnecessarily.
 
@@ -233,7 +305,7 @@ Expected behavior:
 - Show errors for unreadable folders or files.
 - Allow the user to continue using existing indexed data when possible.
 
-## 7. Error Handling
+## 11. Error Handling
 
 Errors should be understandable and actionable.
 
@@ -245,7 +317,7 @@ Error messages should answer:
 
 Technical details may be available in logs, but should not overwhelm the main UI.
 
-## 8. Keyboard Behavior
+## 12. Keyboard Behavior
 
 Keyboard behavior should follow native macOS expectations.
 
@@ -274,7 +346,7 @@ M2 keyboard shortcut model:
 - `Shift+,` and `Shift+.` should decrease or increase playback speed by 0.25x.
 - Playback shortcut commands should show lightweight feedback overlays for subtitle copy, subtitle visibility, play or pause, relative seek, volume, and speed changes.
 
-## 9. File And Finder Interaction
+## 13. File And Finder Interaction
 
 Native macOS file and Finder interactions are part of the expected product
 experience.
@@ -292,7 +364,7 @@ Rules:
 - The app should not weaken native file-access behavior or force-terminate
   system helper services only to reduce process count.
 
-## 10. Persistence
+## 14. Persistence
 
 The app should remember:
 
@@ -300,10 +372,13 @@ The app should remember:
 - Window size and maximized state.
 - Last selected app section if practical.
 - Sidebar collapsed or expanded state.
+- Left Content Panel mode and visibility when implemented.
 - Search Panel width and visibility.
+- Queue or Learning Session state only after persistence rules are documented.
 - Playback decode mode.
 
 The app should not surprise the user by losing local configuration after restart.
 The structural layout persistence should keep the leftmost Sidebar state
-separate from the Search Panel state so future modules like Favorites can reuse
-the shell without inheriting Search-specific panel behavior.
+separate from Left Content Panel and Search Panel state so Library, Timeline,
+Favorites, Search, Queue, and Learning Session can evolve without inheriting
+unrelated panel behavior.
