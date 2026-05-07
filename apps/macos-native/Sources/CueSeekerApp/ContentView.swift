@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
 
     private let animation = Animation.easeInOut(duration: 0.22)
 
@@ -26,7 +27,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.top, AppShellLayout.topBarHeight)
             }
-            .animation(animation, value: appState.isLibraryPanelVisible)
+            .animation(animation, value: layoutState.isLibraryPanelVisible)
 
             appTopBar
                 .frame(height: AppShellLayout.topBarHeight)
@@ -98,10 +99,10 @@ struct ContentView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(ToolbarButtonStyle())
-        .disabled(appState.isVideoSizeTransitionInProgress)
+        .disabled(layoutState.isVideoSizeTransitionInProgress)
         .focusable(false)
         .foregroundStyle(.primary)
-        .help(appState.isLibraryPanelVisible ? "Hide Library" : "Show Library")
+        .help(layoutState.isLibraryPanelVisible ? "Hide Library" : "Show Library")
         .frame(
             width: AppShellLayout.toggleSize,
             height: AppShellLayout.toggleSize
@@ -123,10 +124,10 @@ struct ContentView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(ToolbarButtonStyle())
-        .disabled(appState.isVideoSizeTransitionInProgress)
+        .disabled(layoutState.isVideoSizeTransitionInProgress)
         .focusable(false)
         .foregroundStyle(.primary)
-        .help(appState.isSearchPanelVisible ? "Hide Search Panel" : "Show Search Panel")
+        .help(layoutState.isSearchPanelVisible ? "Hide Search Panel" : "Show Search Panel")
         .frame(
             width: AppShellLayout.toggleSize,
             height: AppShellLayout.toggleSize

@@ -234,17 +234,18 @@ Required M2 playback interaction checks:
 - Workbench responsiveness checks should verify the UI invalidation boundaries
   between Library, Playback, and Search:
   - Repeatedly toggling the left titlebar Library control should not rebuild
-    Library presentation rows except when Library collapse state actually
-    changes, and must not destroy the playback render container.
+    Library presentation rows and must not destroy the playback render
+    container.
   - Exiting playback fullscreen should not rebuild Library presentation rows or
     Search presentation rows.
   - Clicking or focusing the Search field during playback should not rebuild
     Library presentation rows or reset playback state.
   - Search query updates should rebuild Search presentation rows only for the
     active query state and should not rebuild Library presentation rows.
-  - Library add-folder, remove-folder, reindex, width resize, and manual
-    Library group collapse or expand are the accepted reasons for Library-side
-    presentation changes.
+  - Library add-folder, remove-folder, reindex, and explicit Library data
+    refresh are the accepted reasons to rebuild the persisted Library
+    presentation snapshot. Width resize and manual Library group collapse or
+    expand may update presentation state, but must not rebuild rows.
 - Performance diagnostics for this work should include counters or signposts
   for Library row rebuilds, Search row rebuilds, workbench container body
   refreshes, playback time publications, and ASS renderer reloads. These

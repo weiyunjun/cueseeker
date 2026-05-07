@@ -178,6 +178,18 @@ final class SQLiteStatement {
         _ = try step()
     }
 
+    func reset() throws {
+        guard sqlite3_reset(statement) == SQLITE_OK else {
+            throw SQLiteDatabaseError.stepFailed(database.lastErrorMessage)
+        }
+    }
+
+    func clearBindings() throws {
+        guard sqlite3_clear_bindings(statement) == SQLITE_OK else {
+            throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+        }
+    }
+
     func int64Column(_ index: Int32) -> Int64 {
         sqlite3_column_int64(statement, index)
     }

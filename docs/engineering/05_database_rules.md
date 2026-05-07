@@ -84,7 +84,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `8`.
+- The current schema version is `9`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -93,6 +93,9 @@ Current mechanism:
   record prepared external font cache status for `libass` playback.
 - Schema version `8` adds Library playback history for durable resume
   positions keyed by video path.
+- Schema version `9` adds persisted Library presentation rows so startup can
+  hydrate the left Library panel from a ready indexed snapshot instead of
+  regrouping and resorting subtitle/video match rows.
 
 ## 5. Migration Rules
 
@@ -122,6 +125,10 @@ Derived index decoupling:
 - Search paths, subtitle files, video files, cue groups, cue lines, FTS rows,
   ASS render segments, ASS font-resource manifests, and Library presentation
   metadata are rebuildable local index data.
+- Library presentation metadata should be materialized during indexing or
+  explicit Library refresh. App startup should read it as a snapshot and must
+  not derive folder grouping, display titles, or row order from subtitle/video
+  joins in the hot path.
 - Library playback history is durable local user state and must survive folder
   removal, re-add, and reindex when the same video identity is available again.
 - Future favorites, queues, and learning-session records are durable user state.

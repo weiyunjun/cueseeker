@@ -71,7 +71,7 @@ struct SearchResultFileGroup: Identifiable, Equatable {
     }
 }
 
-struct LibraryVideoRow: Identifiable, Equatable {
+struct LibraryVideoRow: Identifiable {
     let video: LibraryVideo
     let displayTitle: String
     let fileExtension: String
@@ -82,24 +82,124 @@ struct LibraryVideoRow: Identifiable, Equatable {
     }
 }
 
-struct LibraryFolderGroup: Identifiable, Equatable {
+struct LibraryFolderGroup: Identifiable {
     let folderPath: String
     let folderTitle: String
     let videos: [LibraryVideoRow]
-    let isCollapsed: Bool
 
     var id: String {
         folderPath
     }
 }
 
+private struct LibraryPlaybackHistorySnapshot: Sendable {
+    let videoPath: String
+    let positionMilliseconds: Int
+    let duration: Double?
+}
+
+private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
+    private let databaseURL: URL
+    private let queue = DispatchQueue(
+        label: "app.cueseeker.library-playback-history",
+        qos: .utility
+    )
+    private var didMigrate = false
+
+    init(databaseURL: URL) {
+        self.databaseURL = databaseURL
+    }
+
+    func save(_ snapshot: LibraryPlaybackHistorySnapshot) {
+        queue.async { [weak self] in
+            self?.write(snapshot)
+        }
+    }
+
+    func saveAndWait(_ snapshot: LibraryPlaybackHistorySnapshot) {
+        queue.sync {
+            write(snapshot)
+        }
+    }
+
+    private func write(_ snapshot: LibraryPlaybackHistorySnapshot) {
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            if !didMigrate {
+                try database.migrate()
+                didMigrate = true
+            }
+            try database.upsertLibraryPlaybackHistory(
+                videoFile: URL(fileURLWithPath: snapshot.videoPath),
+                positionMilliseconds: snapshot.positionMilliseconds,
+                duration: snapshot.duration
+            )
+        } catch {
+            print("Failed to save Library playback history: \(error)")
+        }
+    }
+}
+
 @MainActor
-final class AppState: ObservableObject {
-    private static let selectedFolderPathsKey = "selectedFolderPaths"
+final class WorkbenchLayoutState: ObservableObject {
     private static let isLibraryPanelVisibleKey = "isLibraryPanelVisible"
     private static let libraryPanelWidthKey = "libraryPanelWidth"
     private static let isSearchPanelVisibleKey = "isSearchPanelVisible"
     private static let searchPanelWidthKey = "searchPanelWidth"
+
+    @Published var isLibraryPanelVisible: Bool
+    @Published var libraryPanelWidth: Double
+    @Published var isSearchPanelVisible: Bool
+    @Published var searchPanelWidth: Double
+    @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
+
+    private let userDefaults: UserDefaults
+
+    init(userDefaults: UserDefaults) {
+        self.userDefaults = userDefaults
+        isLibraryPanelVisible = userDefaults.bool(forKey: Self.isLibraryPanelVisibleKey)
+        libraryPanelWidth = userDefaults.double(forKey: Self.libraryPanelWidthKey)
+        isSearchPanelVisible = userDefaults.bool(forKey: Self.isSearchPanelVisibleKey)
+        searchPanelWidth = userDefaults.double(forKey: Self.searchPanelWidthKey)
+    }
+
+    func toggleLibraryPanel() {
+        isLibraryPanelVisible.toggle()
+        userDefaults.set(isLibraryPanelVisible, forKey: Self.isLibraryPanelVisibleKey)
+    }
+
+    func toggleSearchPanel() {
+        isSearchPanelVisible.toggle()
+        userDefaults.set(isSearchPanelVisible, forKey: Self.isSearchPanelVisibleKey)
+    }
+
+    func updateLibraryPanelWidth(_ width: Double) {
+        libraryPanelWidth = width
+        userDefaults.set(width, forKey: Self.libraryPanelWidthKey)
+    }
+
+    func updateSearchPanelWidth(_ width: Double) {
+        searchPanelWidth = width
+        userDefaults.set(width, forKey: Self.searchPanelWidthKey)
+    }
+
+    func beginVideoSizeTransition() -> Bool {
+        guard !isVideoSizeTransitionInProgress else {
+            return false
+        }
+
+        isVideoSizeTransitionInProgress = true
+        return true
+    }
+
+    func endVideoSizeTransition() {
+        isVideoSizeTransitionInProgress = false
+    }
+}
+
+@MainActor
+final class AppState: ObservableObject {
+    private static let selectedFolderPathsKey = "selectedFolderPaths"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
@@ -116,9 +216,9 @@ final class AppState: ObservableObject {
     @Published var hasMoreSearchResults = false
     @Published var libraryStatus: LibraryStatus = .idle
     @Published var libraryVideos: [LibraryVideo] = []
-    @Published var collapsedLibraryFolderPaths: Set<String> = []
     @Published var collapsedSearchResultGroupPaths: Set<String> = []
     @Published private(set) var libraryFolderGroups: [LibraryFolderGroup] = []
+    @Published private(set) var libraryPresentationRevision = 0
     @Published private(set) var searchResultGroups: [SearchResultFileGroup] = []
     @Published private(set) var renderedSearchResultCount = 0
     @Published private var areSearchResultGroupsCollapsedByGlobalControl = false
@@ -127,12 +227,7 @@ final class AppState: ObservableObject {
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
-    @Published var isLibraryPanelVisible = true
-    @Published var libraryPanelWidth: Double = 310
-    @Published var isSearchPanelVisible = true
-    @Published var searchPanelWidth: Double = 480
     @Published var isSearchFocused = false
-    @Published private(set) var isVideoSizeTransitionInProgress = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
         didSet {
@@ -142,6 +237,7 @@ final class AppState: ObservableObject {
     }
 
     let databaseURL: URL
+    let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
         player
@@ -152,46 +248,20 @@ final class AppState: ObservableObject {
     }
 
     private static func makeLibraryFolderGroups(
-        videos libraryVideos: [LibraryVideo],
-        collapsedFolderPaths: Set<String>
+        from snapshot: [LibraryFolderPresentation]
     ) -> [LibraryFolderGroup] {
-        let videosByFolderPath = Dictionary(grouping: libraryVideos) {
-            URL(fileURLWithPath: $0.videoPath)
-                .deletingLastPathComponent()
-                .standardizedFileURL
-                .path
-        }
-
-        return videosByFolderPath.keys.sorted { lhs, rhs in
-            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
-            let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
-            if titleComparison != .orderedSame {
-                return titleComparison == .orderedAscending
-            }
-
-            return lhs.localizedStandardCompare(rhs) == .orderedAscending
-        }
-        .map { folderPath in
-            let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
-            let videos = (videosByFolderPath[folderPath] ?? []).sorted(by: Self.libraryVideoSort)
-            let rankWidth = max(2, String(videos.count).count)
-            let rows = videos.enumerated().map { index, video in
-                let sequence = String(format: "%0*d", rankWidth, index + 1)
-                let fileExtension = URL(fileURLWithPath: video.videoPath).pathExtension.lowercased()
-                return LibraryVideoRow(
-                    video: video,
-                    displayTitle: "\(folderTitle) - \(sequence)",
-                    fileExtension: fileExtension,
-                    duration: video.duration
-                )
-            }
-
-            return LibraryFolderGroup(
-                folderPath: folderPath,
-                folderTitle: folderTitle,
-                videos: rows,
-                isCollapsed: collapsedFolderPaths.contains(folderPath)
+        snapshot.map { folder in
+            LibraryFolderGroup(
+                folderPath: folder.folderPath,
+                folderTitle: folder.folderTitle,
+                videos: folder.videos.map { row in
+                    LibraryVideoRow(
+                        video: row.libraryVideo,
+                        displayTitle: row.displayTitle,
+                        fileExtension: row.fileExtension,
+                        duration: row.duration
+                    )
+                }
             )
         }
     }
@@ -234,15 +304,6 @@ final class AppState: ObservableObject {
         !libraryFolderGroups.isEmpty
     }
 
-    var libraryGroupToggleTitle: String {
-        let groups = libraryFolderGroups
-        guard !groups.isEmpty else {
-            return "Collapse All"
-        }
-
-        return groups.allSatisfy(\.isCollapsed) ? "Expand All" : "Collapse All"
-    }
-
     var hasPlaybackSelection: Bool {
         currentPlaybackVideoPath != nil
     }
@@ -261,6 +322,7 @@ final class AppState: ObservableObject {
 
     private let userDefaults: UserDefaults
     private var player: PlaybackPlayer?
+    private let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
     private var indexingTask: Task<Void, Never>?
     private var libraryTask: Task<Void, Never>?
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
@@ -284,19 +346,18 @@ final class AppState: ObservableObject {
     ) {
         self.userDefaults = userDefaults
         self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
-        selectedFolders = Self.loadSelectedFolders(from: userDefaults)
 
         userDefaults.register(defaults: [
-            Self.isLibraryPanelVisibleKey: true,
-            Self.libraryPanelWidthKey: 310.0,
-            Self.isSearchPanelVisibleKey: true,
-            Self.searchPanelWidthKey: 480.0,
+            "isLibraryPanelVisible": true,
+            "libraryPanelWidth": 310.0,
+            "isSearchPanelVisible": true,
+            "searchPanelWidth": 480.0,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
-        isLibraryPanelVisible = userDefaults.bool(forKey: Self.isLibraryPanelVisibleKey)
-        libraryPanelWidth = userDefaults.double(forKey: Self.libraryPanelWidthKey)
-        isSearchPanelVisible = userDefaults.bool(forKey: Self.isSearchPanelVisibleKey)
-        searchPanelWidth = userDefaults.double(forKey: Self.searchPanelWidthKey)
+        workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
+        libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(databaseURL: self.databaseURL)
+
+        selectedFolders = Self.loadSelectedFolders(from: userDefaults)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
 
         do {
@@ -382,8 +443,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        isLibraryPanelVisible.toggle()
-        userDefaults.set(isLibraryPanelVisible, forKey: Self.isLibraryPanelVisibleKey)
+        workbenchLayout.toggleLibraryPanel()
     }
 
     func toggleSearchPanel() {
@@ -391,8 +451,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        isSearchPanelVisible.toggle()
-        userDefaults.set(isSearchPanelVisible, forKey: Self.isSearchPanelVisibleKey)
+        workbenchLayout.toggleSearchPanel()
     }
 
     func togglePlaybackFullscreenFromUser(onCopySubtitle: @escaping () -> Void = {}) {
@@ -441,13 +500,11 @@ final class AppState: ObservableObject {
     }
 
     func updateLibraryPanelWidth(_ width: Double) {
-        libraryPanelWidth = width
-        userDefaults.set(width, forKey: Self.libraryPanelWidthKey)
+        workbenchLayout.updateLibraryPanelWidth(width)
     }
 
     func updateSearchPanelWidth(_ width: Double) {
-        searchPanelWidth = width
-        userDefaults.set(width, forKey: Self.searchPanelWidthKey)
+        workbenchLayout.updateSearchPanelWidth(width)
     }
 
     private func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {
@@ -464,11 +521,10 @@ final class AppState: ObservableObject {
     }
 
     private func beginVideoSizeTransition() -> Bool {
-        guard !isVideoSizeTransitionInProgress else {
+        guard workbenchLayout.beginVideoSizeTransition() else {
             return false
         }
 
-        isVideoSizeTransitionInProgress = true
         videoSizeTransitionTask?.cancel()
         return true
     }
@@ -493,7 +549,7 @@ final class AppState: ObservableObject {
     }
 
     private func endVideoSizeTransition() {
-        isVideoSizeTransitionInProgress = false
+        workbenchLayout.endVideoSizeTransition()
         videoSizeTransitionTask = nil
     }
 
@@ -519,6 +575,7 @@ final class AppState: ObservableObject {
                     let result = try indexer.index(folder: folder, into: database)
                     _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
                     _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
+                    try database.rebuildLibraryPresentationSnapshot()
                     return result
                 }.value
 
@@ -605,6 +662,21 @@ final class AppState: ObservableObject {
                 return
             }
 
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    let database = try SubtitleDatabase(path: databaseURL)
+                    try database.migrate()
+                    try database.rebuildLibraryPresentationSnapshot()
+                }.value
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                indexingStatus = .failed(firstFolder, Self.errorMessage(for: error))
+                return
+            }
+
             indexingStatus = .completedAll(
                 folderCount: folders.count,
                 aggregateResult
@@ -672,9 +744,7 @@ final class AppState: ObservableObject {
 
         let folders = selectedFolders
         guard !folders.isEmpty else {
-            libraryVideos = []
-            collapsedLibraryFolderPaths = []
-            rebuildLibraryFolderGroups()
+            applyLibraryPresentation([])
             libraryStatus = .idle
             return
         }
@@ -683,91 +753,60 @@ final class AppState: ObservableObject {
         let databaseURL = databaseURL
         libraryTask = Task {
             do {
-                let videos = try await Task.detached(priority: .userInitiated) {
+                let snapshot = try await Task.detached(priority: .userInitiated) {
                     let database = try SubtitleDatabase(path: databaseURL)
                     try database.migrate()
-                    return try database.libraryVideos(under: folders)
+                    return try database.libraryPresentation(under: folders)
                 }.value
 
                 guard !Task.isCancelled else {
                     return
                 }
 
-                applyLibraryVideos(videos)
+                applyLibraryPresentation(snapshot)
                 libraryStatus = .completed
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
-                libraryVideos = []
-                collapsedLibraryFolderPaths = []
-                rebuildLibraryFolderGroups()
+                applyLibraryPresentation([])
                 libraryStatus = .failed(Self.errorMessage(for: error))
             }
         }
     }
 
-    func toggleLibraryFolderGroup(_ folderPath: String) {
-        if collapsedLibraryFolderPaths.contains(folderPath) {
-            collapsedLibraryFolderPaths.remove(folderPath)
-        } else {
-            collapsedLibraryFolderPaths.insert(folderPath)
-        }
-        rebuildLibraryFolderGroups()
-    }
-
-    func toggleAllLibraryFolderGroups() {
-        let groupPaths = Set(libraryFolderGroups.map(\.id))
-        guard !groupPaths.isEmpty else {
-            return
-        }
-
-        if libraryFolderGroups.allSatisfy(\.isCollapsed) {
-            collapsedLibraryFolderPaths.subtract(groupPaths)
-        } else {
-            collapsedLibraryFolderPaths.formUnion(groupPaths)
-        }
-        rebuildLibraryFolderGroups()
-    }
-
     private func hydrateLibrarySynchronously(from database: SubtitleDatabase) throws {
         let folders = selectedFolders
         guard !folders.isEmpty else {
-            libraryVideos = []
-            collapsedLibraryFolderPaths = []
-            rebuildLibraryFolderGroups()
+            applyLibraryPresentation([])
             libraryStatus = .idle
             return
         }
 
-        let videos = try database.libraryVideos(under: folders)
-        applyLibraryVideos(videos)
+        let snapshot = try database.libraryPresentation(under: folders)
+        applyLibraryPresentation(snapshot)
         libraryStatus = .completed
     }
 
-    private func applyLibraryVideos(_ videos: [LibraryVideo]) {
-        libraryVideos = videos
-        collapsedLibraryFolderPaths = Self.libraryGroupPaths(for: videos)
-        rebuildLibraryFolderGroups()
+    private func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
+        let groups = Self.makeLibraryFolderGroups(from: snapshot)
+        libraryFolderGroups = groups
+        libraryVideos = groups.flatMap { group in
+            group.videos.map(\.video)
+        }
+        libraryPresentationRevision += 1
     }
 
-    private func rebuildLibraryFolderGroups() {
-        libraryFolderGroups = Self.makeLibraryFolderGroups(
-            videos: libraryVideos,
-            collapsedFolderPaths: collapsedLibraryFolderPaths
-        )
-    }
-
-    private static func libraryGroupPaths(for videos: [LibraryVideo]) -> Set<String> {
-        Set(
-            videos.map {
-                URL(fileURLWithPath: $0.videoPath)
-                    .deletingLastPathComponent()
-                    .standardizedFileURL
-                    .path
-            }
-        )
+    private func removeLibraryPresentation(under folder: URL) {
+        let groups = libraryFolderGroups.filter { group in
+            !group.videos.contains { Self.path($0.video.videoPath, isUnder: folder) }
+        }
+        libraryFolderGroups = groups
+        libraryVideos = groups.flatMap { group in
+            group.videos.map(\.video)
+        }
+        libraryPresentationRevision += 1
     }
 
     private func startSearch(
@@ -1136,6 +1175,14 @@ final class AppState: ObservableObject {
     }
 
     func saveCurrentLibraryPlaybackHistory() {
+        saveCurrentLibraryPlaybackHistory(waitUntilFinished: false)
+    }
+
+    func saveCurrentLibraryPlaybackHistorySynchronously() {
+        saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
+    }
+
+    private func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) {
         guard case .library(let videoPath) = activePlaybackSource,
               let playbackViewModel
         else {
@@ -1149,17 +1196,16 @@ final class AppState: ObservableObject {
         let duration = playbackViewModel.duration.isFinite && playbackViewModel.duration > 0
             ? playbackViewModel.duration
             : nil
+        let snapshot = LibraryPlaybackHistorySnapshot(
+            videoPath: videoPath,
+            positionMilliseconds: positionMilliseconds,
+            duration: duration
+        )
 
-        do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
-            try database.upsertLibraryPlaybackHistory(
-                videoFile: URL(fileURLWithPath: videoPath),
-                positionMilliseconds: positionMilliseconds,
-                duration: duration
-            )
-        } catch {
-            print("Failed to save Library playback history: \(error)")
+        if waitUntilFinished {
+            libraryPlaybackHistoryWriter.saveAndWait(snapshot)
+        } else {
+            libraryPlaybackHistoryWriter.save(snapshot)
         }
     }
 
@@ -1238,12 +1284,10 @@ final class AppState: ObservableObject {
         loadedGlobalSearchResultCount = searchResults.count
         hasMoreSearchResults = false
         collapsedSearchResultGroupPaths = collapsedSearchResultGroupPaths.filter { !Self.path($0, isUnder: folder) }
-        libraryVideos.removeAll { Self.path($0.videoPath, isUnder: folder) }
-        collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.filter { !Self.path($0, isUnder: folder) }
+        removeLibraryPresentation(under: folder)
         expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath.filter { path, _ in
             !Self.path(path, isUnder: folder)
         }
-        rebuildLibraryFolderGroups()
         rebuildSearchResultGroups()
         let groupTaskPaths = searchResultGroupTasks.keys.filter { Self.path($0, isUnder: folder) }
         for path in groupTaskPaths {
@@ -1305,15 +1349,6 @@ final class AppState: ObservableObject {
         }
 
         return lhs.localizedStandardCompare(rhs) == .orderedAscending
-    }
-
-    private static func libraryVideoSort(_ lhs: LibraryVideo, _ rhs: LibraryVideo) -> Bool {
-        let nameComparison = lhs.videoName.localizedStandardCompare(rhs.videoName)
-        if nameComparison != .orderedSame {
-            return nameComparison == .orderedAscending
-        }
-
-        return lhs.videoPath.localizedStandardCompare(rhs.videoPath) == .orderedAscending
     }
 
     private static func searchResultSort(_ lhs: SubtitleSearchResult, _ rhs: SubtitleSearchResult) -> Bool {

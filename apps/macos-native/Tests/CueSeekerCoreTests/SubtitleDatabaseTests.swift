@@ -246,6 +246,57 @@ func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
 }
 
 @Test
+func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
+    let episode11Video = URL(fileURLWithPath: "/Media/Show 2/Episode 11.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 2.ja.srt"),
+        videoFile: episode2Video,
+        entries: [databaseTestEntry(text: "Japanese subtitle")]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 2.en.srt"),
+        videoFile: episode2Video,
+        entries: [databaseTestEntry(text: "English subtitle")]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 11.srt"),
+        videoFile: episode11Video,
+        entries: [databaseTestEntry(text: "Later episode")]
+    )
+    try database.updateVideoDuration(videoFile: episode2Video, duration: 125.4)
+
+    #expect(try database.libraryPresentation(under: [URL(fileURLWithPath: "/Media")]).isEmpty)
+
+    try database.rebuildLibraryPresentationSnapshot()
+    let groups = try database.libraryPresentation(under: [URL(fileURLWithPath: "/Media")])
+
+    #expect(groups.count == 1)
+    let group = try #require(groups.first)
+    #expect(group.folderTitle == "Show 2")
+    #expect(group.videos.map(\.videoPath) == [
+        episode2Video.path,
+        episode11Video.path
+    ])
+    #expect(group.videos.map(\.displayTitle) == [
+        "Show 2 - 01",
+        "Show 2 - 02"
+    ])
+    #expect(group.videos[0].fileExtension == "mkv")
+    #expect(group.videos[0].duration == 125.4)
+    #expect(group.videos[0].subtitlePath == "/Media/Show 2/Episode 2.en.srt")
+}
+
+@Test
 func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the stricter Library snapshot and workbench invalidation rule:
+  Library rows are persisted indexed-resource presentation loaded at startup as
+  a ready snapshot, while Library disclosure state, Search Panel visibility, and
+  Search focus are presentation changes that must not regenerate Library rows.
 - Accepted and implemented the ADR-0010 playback fullscreen path: playback now
   moves the singleton native render container into a dedicated playback window
   that enters AppKit native Full Screen Space, superseding the borderless

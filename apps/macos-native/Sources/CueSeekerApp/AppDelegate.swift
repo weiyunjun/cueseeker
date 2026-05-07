@@ -26,13 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSEvent.removeMonitor(keyDownMonitor)
             self.keyDownMonitor = nil
         }
-        appState.saveCurrentLibraryPlaybackHistory()
+        appState.saveCurrentLibraryPlaybackHistorySynchronously()
         appState.playbackFullscreenManager.exitFullscreen()
     }
 
     private func createMainWindow() {
         let contentView = ContentView()
             .environmentObject(appState)
+            .environmentObject(appState.workbenchLayout)
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: AppShellLayout.minimumWindowWidth, height: 720),
@@ -117,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        appState.saveCurrentLibraryPlaybackHistory()
+        appState.saveCurrentLibraryPlaybackHistorySynchronously()
         appState.playbackFullscreenManager.exitFullscreen()
     }
 

@@ -148,9 +148,11 @@ including adding a subtitle moment or video to a Queue.
 
 Responsiveness boundaries:
 
-- Library is a static known-content resource area. It should change only when
-  folders are added, removed, reindexed, manually collapsed or expanded, resized,
-  or when the user selects a Library video.
+- Library is a static known-content resource area. Its indexed row snapshot
+  should change only when folders are added, removed, reindexed, or explicitly
+  refreshed. Manual collapse or expand, resizing, Search interactions, and
+  playback interactions are presentation changes over that snapshot, not reasons
+  to rebuild Library rows.
 - Search is an active query and aggregation area. Search input, result loading,
   Search-group collapse state, Queue actions, and future learning actions should
   not rebuild Library rows or mutate Library state.
@@ -339,6 +341,9 @@ Library behavior:
 - Users can collapse or expand individual folder groups during the current
   session.
 - Folder group collapse or expand state should not persist across launches.
+- Folder group collapse or expand should only update the current presentation
+  state over the persisted Library snapshot. It should not regroup, resort, or
+  regenerate Library rows.
 - Reindexing or refreshing Library data should reload the Library list and
   reset all folder groups to collapsed.
 - A top `Collapse All` / `Expand All` control should collapse or expand all

@@ -5,12 +5,14 @@ import CueSeekerCore
 
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @State private var libraryPanelDragStartWidth: Double?
     @State private var isLibraryPanelDividerHovered = false
     @State private var isLibraryPanelDividerDragging = false
     @State private var searchPanelDragStartWidth: Double?
     @State private var isSearchPanelDividerHovered = false
     @State private var isSearchPanelDividerDragging = false
+    @State private var collapsedLibraryFolderPaths: Set<String> = []
 
     var body: some View {
         GeometryReader { geometry in
@@ -20,7 +22,7 @@ struct SearchView: View {
             HStack(spacing: 0) {
                 DrawerPanel(
                     edge: .leading,
-                    isVisible: appState.isLibraryPanelVisible,
+                    isVisible: layoutState.isLibraryPanelVisible,
                     width: libraryPanelWidth
                 ) {
                     libraryPanel
@@ -33,7 +35,7 @@ struct SearchView: View {
 
                 DrawerPanel(
                     edge: .trailing,
-                    isVisible: appState.isSearchPanelVisible,
+                    isVisible: layoutState.isSearchPanelVisible,
                     width: searchPanelWidth
                 ) {
                     searchPanel
@@ -42,8 +44,14 @@ struct SearchView: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .animation(.easeInOut(duration: 0.18), value: appState.isLibraryPanelVisible)
-            .animation(.easeInOut(duration: 0.18), value: appState.isSearchPanelVisible)
+            .animation(.easeInOut(duration: 0.18), value: layoutState.isLibraryPanelVisible)
+            .animation(.easeInOut(duration: 0.18), value: layoutState.isSearchPanelVisible)
+        }
+        .onAppear {
+            resetCollapsedLibraryFolders()
+        }
+        .onChange(of: appState.libraryPresentationRevision) { _ in
+            resetCollapsedLibraryFolders()
         }
     }
 
@@ -105,9 +113,9 @@ struct SearchView: View {
             if appState.hasLibraryFolderGroups {
                 Button {
                     appState.clearSearchFocus()
-                    appState.toggleAllLibraryFolderGroups()
+                    toggleAllLibraryFolderGroups()
                 } label: {
-                    Text(appState.libraryGroupToggleTitle)
+                    Text(libraryGroupToggleTitle)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -121,12 +129,14 @@ struct SearchView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(appState.libraryFolderGroups) { group in
+                    let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
                     LibraryFolderGroupView(
                         group: group,
+                        isCollapsed: isCollapsed,
                         selectedVideoPath: appState.currentPlaybackVideoPath,
                         onToggle: {
                             appState.clearSearchFocus()
-                            appState.toggleLibraryFolderGroup(group.folderPath)
+                            toggleLibraryFolderGroup(group.folderPath)
                         },
                         onOpenVideo: { video in
                             appState.clearSearchFocus()
@@ -137,6 +147,40 @@ struct SearchView: View {
             }
             .padding(.top, 4)
             .padding(.bottom, 8)
+        }
+    }
+
+    private var libraryGroupToggleTitle: String {
+        let groupPaths = Set(appState.libraryFolderGroups.map(\.id))
+        guard !groupPaths.isEmpty else {
+            return "Collapse All"
+        }
+
+        return groupPaths.isSubset(of: collapsedLibraryFolderPaths) ? "Expand All" : "Collapse All"
+    }
+
+    private func resetCollapsedLibraryFolders() {
+        collapsedLibraryFolderPaths = Set(appState.libraryFolderGroups.map(\.id))
+    }
+
+    private func toggleLibraryFolderGroup(_ folderPath: String) {
+        if collapsedLibraryFolderPaths.contains(folderPath) {
+            collapsedLibraryFolderPaths.remove(folderPath)
+        } else {
+            collapsedLibraryFolderPaths.insert(folderPath)
+        }
+    }
+
+    private func toggleAllLibraryFolderGroups() {
+        let groupPaths = Set(appState.libraryFolderGroups.map(\.id))
+        guard !groupPaths.isEmpty else {
+            return
+        }
+
+        if groupPaths.isSubset(of: collapsedLibraryFolderPaths) {
+            collapsedLibraryFolderPaths.subtract(groupPaths)
+        } else {
+            collapsedLibraryFolderPaths.formUnion(groupPaths)
         }
     }
 
@@ -299,7 +343,7 @@ struct SearchView: View {
                                 appState.clearSearchFocus()
                                 appState.copyCurrentSubtitleToClipboard()
                             },
-                            isFullscreenToggleDisabled: appState.isVideoSizeTransitionInProgress,
+                            isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
                             onToggleFullscreen: {
                                 appState.clearSearchFocus()
                                 appState.togglePlaybackFullscreenFromUser {
@@ -377,10 +421,10 @@ struct SearchView: View {
                     onDragStarted: {
                         appState.clearSearchFocus()
                         isSearchPanelDividerDragging = true
-                        searchPanelDragStartWidth = appState.searchPanelWidth
+                        searchPanelDragStartWidth = layoutState.searchPanelWidth
                     },
                     onDragChanged: { translationX in
-                        let startWidth = searchPanelDragStartWidth ?? appState.searchPanelWidth
+                        let startWidth = searchPanelDragStartWidth ?? layoutState.searchPanelWidth
                         let proposedWidth = startWidth - Double(translationX)
                         appState.updateSearchPanelWidth(
                             clampedSearchPanelWidth(proposedWidth, availableWidth: availableWidth)
@@ -414,10 +458,10 @@ struct SearchView: View {
                     onDragStarted: {
                         appState.clearSearchFocus()
                         isLibraryPanelDividerDragging = true
-                        libraryPanelDragStartWidth = appState.libraryPanelWidth
+                        libraryPanelDragStartWidth = layoutState.libraryPanelWidth
                     },
                     onDragChanged: { translationX in
-                        let startWidth = libraryPanelDragStartWidth ?? appState.libraryPanelWidth
+                        let startWidth = libraryPanelDragStartWidth ?? layoutState.libraryPanelWidth
                         let proposedWidth = startWidth + Double(translationX)
                         appState.updateLibraryPanelWidth(
                             clampedLibraryPanelWidth(proposedWidth, availableWidth: availableWidth)
@@ -434,14 +478,14 @@ struct SearchView: View {
     private func libraryPanelWidth(for availableWidth: CGFloat) -> CGFloat {
         CGFloat(
             clampedLibraryPanelWidth(
-                appState.libraryPanelWidth,
+                layoutState.libraryPanelWidth,
                 availableWidth: availableWidth
             )
         )
     }
 
     private func clampedLibraryPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
-        let reservedSearchPanelWidth = appState.isSearchPanelVisible
+        let reservedSearchPanelWidth = layoutState.isSearchPanelVisible
             ? SearchLayout.searchPanelMinimumWidth
             : 0
         let availableLibraryPanelWidth = Double(
@@ -463,7 +507,7 @@ struct SearchView: View {
     private func clampedSearchPanelWidth(for availableWidth: CGFloat) -> CGFloat {
         CGFloat(
             clampedSearchPanelWidth(
-                appState.searchPanelWidth,
+                layoutState.searchPanelWidth,
                 availableWidth: availableWidth
             )
         )
@@ -472,7 +516,7 @@ struct SearchView: View {
     private func clampedSearchPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
         let availableSearchPanelWidth = Double(
             availableWidth
-                - (appState.isLibraryPanelVisible ? libraryPanelWidth(for: availableWidth) : 0)
+                - (layoutState.isLibraryPanelVisible ? libraryPanelWidth(for: availableWidth) : 0)
                 - SearchLayout.playbackAreaMinimumWidth
         )
         let maxWidth = max(
@@ -639,6 +683,7 @@ private struct LibraryFolderGroupHeader: View {
 
 private struct LibraryFolderGroupView: View {
     let group: LibraryFolderGroup
+    let isCollapsed: Bool
     let selectedVideoPath: String?
     let onToggle: () -> Void
     let onOpenVideo: (LibraryVideo) -> Void
@@ -651,7 +696,7 @@ private struct LibraryFolderGroupView: View {
                 onToggle: onToggle
             )
 
-            if !group.isCollapsed {
+            if !isCollapsed {
                 ForEach(group.videos) { row in
                     Button {
                         onOpenVideo(row.video)
@@ -668,8 +713,8 @@ private struct LibraryFolderGroupView: View {
         }
         .overlay(alignment: .topLeading) {
             SearchResultGroupRail(
-                isCollapsed: group.isCollapsed,
-                showsLine: !group.isCollapsed && !group.videos.isEmpty,
+                isCollapsed: isCollapsed,
+                showsLine: !isCollapsed && !group.videos.isEmpty,
                 onToggle: onToggle
             )
         }

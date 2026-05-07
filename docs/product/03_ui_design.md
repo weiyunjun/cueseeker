@@ -407,9 +407,10 @@ Panel visibility and list lifetime:
 - The workbench side-panel shells should remain stable when their visibility
   changes. A collapse action should change layout visibility or width, not
   discard the panel's large list state.
-- Library rows are static indexed-resource presentation. They should remain
-  cached until Library data, session-only Library collapse state, or Library
-  ordering inputs change.
+- Library rows are static indexed-resource presentation loaded from a persisted
+  Library snapshot. They should remain cached until Library data or Library
+  ordering inputs change. Session-only Library collapse state is a view state
+  overlay and must not regenerate Library rows.
 - Search rows are active query presentation. They should remain cached until
   the query, loaded result page, Search-group collapse state, or Search ordering
   inputs change.

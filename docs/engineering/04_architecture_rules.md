@@ -152,9 +152,13 @@ Rules:
   Playback, and Search presentation views should receive scoped state so Search
   focus, Search results, playback clock updates, and side-panel resize gestures
   do not invalidate unrelated panels.
-- Library presentation rows are derived indexed-resource state. They should be
-  cached and rebuilt only when Library videos, Library grouping rules, Library
-  collapse state, or Library ordering inputs change.
+- Library presentation rows are persisted indexed-resource presentation state.
+  They should be materialized by indexing or an explicit Library data refresh,
+  then loaded as a ready snapshot. App startup and ordinary Library disclosure
+  changes must not regroup, resort, or regenerate Library row display data.
+- Library folder collapse or expand state is presentation state over the
+  persisted Library snapshot. Toggling one folder, toggling all folders, or
+  resetting all groups to collapsed must not rebuild Library presentation rows.
 - Search presentation rows are derived query state. They should be cached and
   rebuilt only when the query, loaded search page, Search result grouping state,
   Search collapse state, or Search ordering inputs change.
@@ -218,16 +222,18 @@ Rules:
   minimum width of `310pt`, `50pt` narrower than the previous fixed `360pt`
   Library width. User-adjusted Library width should persist as UI preference
   state.
-- The first Library implementation should derive flat one-level folder groups
-  from indexed playable video metadata. It should use Finder-like natural
+- The first Library implementation should materialize flat one-level folder
+  groups from indexed playable video metadata during indexing or explicit
+  Library refresh. The materialized snapshot should use Finder-like natural
   comparison for folder and video ordering, derive row display titles from the
   video's parent folder and sibling rank, and use indexed duration metadata for
   the right-side row duration.
-- Library startup state must be hydrated from persisted indexed video metadata
-  before the first visible main-window render when the local database is
-  available. Asynchronous Library refreshes may reconcile or update existing
-  rows, but they must not make a previously indexed Library appear empty or
-  visibly loading after restart.
+- Library startup state must be hydrated from the persisted Library presentation
+  snapshot before the first visible main-window render when the local database is
+  available. Startup must not rebuild Library presentation from subtitle/video
+  joins, grouping rules, or sorting rules. A one-time schema migration may
+  backfill the snapshot for older databases, but normal restarts must only read
+  the snapshot.
 - Library folder collapse or expand state is current-session presentation state.
   It should not persist across app restarts. App startup, Library data refresh,
   and reindex completion should all present Library folder groups as collapsed.
