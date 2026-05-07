@@ -425,9 +425,16 @@ Panel visibility and list lifetime:
   their own presentation state separate from Library rows.
 - Future Right Learning Panel modes such as Queue and Learning Session should
   keep their own presentation state separate from Search result rows.
+- Switching future Left or Right panel modes should feel like changing tools in
+  a stable panel, not like reopening the workbench. Library, Timeline,
+  Favorites, Search, Queue, and Learning Session should preserve local scroll,
+  collapse, selection, and draft state where practical.
 - The first SwiftUI implementation may use lazy list rendering, but grouped
   rows should be flattened when necessary so laziness applies to individual
   visible rows rather than to one large group view containing many child rows.
+- Dense row lists should prefer lightweight row interactions. Hover buttons,
+  plus actions, favorites, context menus, and full-row click targets should not
+  make the list feel like a column of heavy native buttons.
 
 M1 does not require advanced visual effects.
 

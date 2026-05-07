@@ -148,10 +148,19 @@ Rules:
   views must not subscribe to unrelated high-frequency or high-cardinality state
   when a smaller store, value model, or binding can express the same UI
   responsibility.
+- Performance diagnostics used to investigate UI stalls, such as run-loop
+  observers, automatic `sample` capture, or broad SwiftUI body/layout probes,
+  must not become unconditional production behavior. After a regression is
+  understood, heavy probes should be removed, gated to `DEBUG`, or enabled only
+  through an explicit diagnostic flag.
 - The workbench container should own layout coordination only. Library,
   Playback, and Search presentation views should receive scoped state so Search
   focus, Search results, playback clock updates, and side-panel resize gestures
   do not invalidate unrelated panels.
+- Future cleanup should continue splitting the workbench into smaller
+  invalidation domains. Library, Playback, Search, Queue, Timeline, Favorites,
+  and Learning Session views should subscribe only to the state they render,
+  rather than inheriting every `AppState` publication from the root workbench.
 - Library presentation rows are persisted indexed-resource presentation state.
   They should be materialized by indexing or an explicit Library data refresh,
   then loaded as a ready snapshot. App startup and ordinary Library disclosure
@@ -179,6 +188,11 @@ Rules:
   flattened when necessary so lazy rendering applies to individual headers and
   rows rather than to a single large group view that eagerly builds all children
   inside the group.
+- Dense Library, Search, Timeline, Queue, and Favorites rows should avoid
+  expensive SwiftUI/AppKit button layout when a lighter row plus explicit hit
+  handling can provide the same interaction. Full-row actions, hover actions,
+  and context menu affordances should be implemented without forcing large
+  result lists through repeated `NSButton` metrics or baseline calculations.
 - Search field focus should be owned by the Search Panel presentation layer
   unless another documented command needs to coordinate focus. Focus changes
   must not be treated as Library or Playback state changes.
@@ -224,6 +238,11 @@ Rules:
   playback: the Left Content Panel owns Library, Timeline, and Favorites-style
   known-content navigation, while the Right Learning Panel owns Search, Queue,
   and Learning Session-style active learning workflows.
+- The Left Content Panel and Right Learning Panel should evolve into stable
+  mode containers. Switching between Library, Timeline, Favorites, Search,
+  Queue, and Learning Session modes should preserve each mode's current
+  presentation state where practical and must not rebuild unrelated panel
+  lists or reset playback.
 - Library should be modeled as a Left Content Panel mode, not as AppShell
   navigation and not as Settings folder management.
 - The fixed left titlebar control should collapse or expand Library, not a

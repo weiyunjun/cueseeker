@@ -259,9 +259,26 @@ Required M2 playback interaction checks:
   refreshes, playback time publications, and ASS renderer reloads. These
   diagnostics may be temporary, but they must be sufficient to prove that
   unrelated panel interactions are not driving expensive recomputation.
+- Heavy performance diagnostics, including automatic `sample` capture, run-loop
+  observers, and broad SwiftUI body/layout probes, should have a verification
+  step to remove them or gate them behind DEBUG or an explicit diagnostic flag
+  after the target regression has been fixed.
+- UI invalidation-domain checks should confirm that Library, Playback, Search,
+  and future panel modes do not subscribe to unrelated high-frequency state.
+  Playback time publications, Search input changes, Library disclosure changes,
+  and side-panel visibility changes should each refresh only the smallest
+  practical view subtree.
+- Dense row interaction checks should cover large Library/Search result sets
+  with repeated row clicks, hover affordances, and context menus. If SwiftUI
+  Button layout appears in performance traces for ordinary row rendering,
+  consider lighter row hit handling before adding more row-level buttons.
 - Playback clock throttling checks should confirm that native video playback
   remains smooth, manual seek feedback updates immediately, and visible
   progress controls remain accurate enough for subtitle-context review.
+- Left and Right panel mode-container checks should verify that switching future
+  modes such as Library, Timeline, Favorites, Search, Queue, and Learning
+  Session preserves each mode's relevant presentation state and does not reset
+  playback or rebuild unrelated lists.
 - Playback render layout checks should verify that repeatedly collapsing and
   expanding both workbench side panels during playback keeps the black video
   background, native video frame, and ASS overlay synchronized. The video frame
