@@ -15,91 +15,97 @@ struct SearchView: View {
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
     var body: some View {
-        GeometryReader { geometry in
-            let libraryPanelWidth = libraryPanelWidth(for: geometry.size.width)
-            let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
+        AppPerformanceProbe.measure("SearchView.body", thresholdMilliseconds: 4) {
+            GeometryReader { geometry in
+                let libraryPanelWidth = libraryPanelWidth(for: geometry.size.width)
+                let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
 
-            HStack(spacing: 0) {
-                DrawerPanel(
-                    edge: .leading,
-                    isVisible: layoutState.isLibraryPanelVisible,
-                    width: libraryPanelWidth
-                ) {
-                    libraryPanel
-                } divider: {
-                    libraryPanelResizeDivider(availableWidth: geometry.size.width)
+                HStack(spacing: 0) {
+                    DrawerPanel(
+                        edge: .leading,
+                        isVisible: layoutState.isLibraryPanelVisible,
+                        width: libraryPanelWidth
+                    ) {
+                        libraryPanel
+                    } divider: {
+                        libraryPanelResizeDivider(availableWidth: geometry.size.width)
+                    }
+
+                    playbackArea
+                        .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
+
+                    DrawerPanel(
+                        edge: .trailing,
+                        isVisible: layoutState.isSearchPanelVisible,
+                        width: searchPanelWidth
+                    ) {
+                        searchPanel
+                    } divider: {
+                        searchPanelResizeDivider(availableWidth: geometry.size.width)
+                    }
                 }
-
-                playbackArea
-                    .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
-
-                DrawerPanel(
-                    edge: .trailing,
-                    isVisible: layoutState.isSearchPanelVisible,
-                    width: searchPanelWidth
-                ) {
-                    searchPanel
-                } divider: {
-                    searchPanelResizeDivider(availableWidth: geometry.size.width)
-                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .animation(.easeInOut(duration: 0.18), value: layoutState.isLibraryPanelVisible)
+                .animation(.easeInOut(duration: 0.18), value: layoutState.isSearchPanelVisible)
+                .background(LayoutPerformanceProbe(name: "SearchView.root.layout"))
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .animation(.easeInOut(duration: 0.18), value: layoutState.isLibraryPanelVisible)
-            .animation(.easeInOut(duration: 0.18), value: layoutState.isSearchPanelVisible)
-        }
-        .onAppear {
-            resetCollapsedLibraryFolders()
-        }
-        .onChange(of: appState.libraryPresentationRevision) { _ in
-            resetCollapsedLibraryFolders()
+            .onAppear {
+                resetCollapsedLibraryFolders()
+            }
+            .onChange(of: appState.libraryPresentationRevision) { _ in
+                resetCollapsedLibraryFolders()
+            }
         }
     }
 
     private var libraryPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            libraryHeader
+        AppPerformanceProbe.measure("SearchView.libraryPanel.body", thresholdMilliseconds: 4) {
+            VStack(alignment: .leading, spacing: 6) {
+                libraryHeader
 
-            if appState.selectedFolders.isEmpty {
-                EmptyStateView(
-                    title: "No Library",
-                    systemImage: "folder",
-                    message: "Add subtitle folders in CueSeeker > Settings..., then reindex."
-                )
-                .font(.system(size: SearchTypography.bodySize))
-            } else if case .loading = appState.libraryStatus, appState.libraryVideos.isEmpty {
-                EmptyStateView(
-                    title: "Loading Library",
-                    systemImage: "folder",
-                    message: "Reading indexed videos."
-                )
-                .font(.system(size: SearchTypography.bodySize))
-                .overlay {
-                    ProgressView()
-                        .offset(y: 72)
+                if appState.selectedFolders.isEmpty {
+                    EmptyStateView(
+                        title: "No Library",
+                        systemImage: "folder",
+                        message: "Add subtitle folders in CueSeeker > Settings..., then reindex."
+                    )
+                    .font(.system(size: SearchTypography.bodySize))
+                } else if case .loading = appState.libraryStatus, appState.libraryVideos.isEmpty {
+                    EmptyStateView(
+                        title: "Loading Library",
+                        systemImage: "folder",
+                        message: "Reading indexed videos."
+                    )
+                    .font(.system(size: SearchTypography.bodySize))
+                    .overlay {
+                        ProgressView()
+                            .offset(y: 72)
+                    }
+                } else if case .failed(let message) = appState.libraryStatus {
+                    EmptyStateView(
+                        title: "Library Failed",
+                        systemImage: "exclamationmark.triangle",
+                        message: message
+                    )
+                    .font(.system(size: SearchTypography.bodySize))
+                } else if appState.libraryVideos.isEmpty {
+                    EmptyStateView(
+                        title: "No Videos",
+                        systemImage: "play.rectangle",
+                        message: "Reindex subtitle folders to populate Library videos."
+                    )
+                    .font(.system(size: SearchTypography.bodySize))
+                } else {
+                    libraryList
                 }
-            } else if case .failed(let message) = appState.libraryStatus {
-                EmptyStateView(
-                    title: "Library Failed",
-                    systemImage: "exclamationmark.triangle",
-                    message: message
-                )
-                .font(.system(size: SearchTypography.bodySize))
-            } else if appState.libraryVideos.isEmpty {
-                EmptyStateView(
-                    title: "No Videos",
-                    systemImage: "play.rectangle",
-                    message: "Reindex subtitle folders to populate Library videos."
-                )
-                .font(.system(size: SearchTypography.bodySize))
-            } else {
-                libraryList
-            }
 
-            Spacer()
+                Spacer()
+            }
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .padding(.top, AppShellLayout.contentTopPadding)
+            .background(Color(nsColor: .textBackgroundColor))
+            .background(LayoutPerformanceProbe(name: "SearchView.libraryPanel.layout"))
         }
-        .frame(maxHeight: .infinity, alignment: .topLeading)
-        .padding(.top, AppShellLayout.contentTopPadding)
-        .background(Color(nsColor: .textBackgroundColor))
     }
 
     private var libraryHeader: some View {
@@ -185,54 +191,57 @@ struct SearchView: View {
     }
 
     private var searchPanel: some View {
-        GeometryReader { geometry in
-            VStack(alignment: .leading, spacing: 6) {
-                searchHeader
+        AppPerformanceProbe.measure("SearchView.searchPanel.body", thresholdMilliseconds: 4) {
+            GeometryReader { geometry in
+                VStack(alignment: .leading, spacing: 6) {
+                    searchHeader
 
-                if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    EmptyStateView(
-                        title: "No Search Query",
-                        systemImage: "text.magnifyingglass",
-                        message: "Add subtitle folders in CueSeeker > Settings..., then search indexed subtitle text."
-                    )
-                    .font(.system(size: SearchTypography.bodySize))
-                } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {
-                    EmptyStateView(
-                        title: "Searching",
-                        systemImage: "magnifyingglass",
-                        message: "Looking through indexed subtitle text."
-                    )
-                    .font(.system(size: SearchTypography.bodySize))
-                    .overlay {
-                        ProgressView()
-                            .offset(y: 72)
+                    if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        EmptyStateView(
+                            title: "No Search Query",
+                            systemImage: "text.magnifyingglass",
+                            message: "Add subtitle folders in CueSeeker > Settings..., then search indexed subtitle text."
+                        )
+                        .font(.system(size: SearchTypography.bodySize))
+                    } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {
+                        EmptyStateView(
+                            title: "Searching",
+                            systemImage: "magnifyingglass",
+                            message: "Looking through indexed subtitle text."
+                        )
+                        .font(.system(size: SearchTypography.bodySize))
+                        .overlay {
+                            ProgressView()
+                                .offset(y: 72)
+                        }
+                    } else if case .failed(let message) = appState.searchStatus, appState.searchResults.isEmpty {
+                        EmptyStateView(
+                            title: "Search Failed",
+                            systemImage: "exclamationmark.triangle",
+                            message: message
+                        )
+                        .font(.system(size: SearchTypography.bodySize))
+                    } else if appState.searchResults.isEmpty {
+                        EmptyStateView(
+                            title: "No Results",
+                            systemImage: "tray",
+                            message: "No indexed subtitle entries matched this query."
+                        )
+                        .font(.system(size: SearchTypography.bodySize))
+                    } else {
+                        resultsList
                     }
-                } else if case .failed(let message) = appState.searchStatus, appState.searchResults.isEmpty {
-                    EmptyStateView(
-                        title: "Search Failed",
-                        systemImage: "exclamationmark.triangle",
-                        message: message
-                    )
-                    .font(.system(size: SearchTypography.bodySize))
-                } else if appState.searchResults.isEmpty {
-                    EmptyStateView(
-                        title: "No Results",
-                        systemImage: "tray",
-                        message: "No indexed subtitle entries matched this query."
-                    )
-                    .font(.system(size: SearchTypography.bodySize))
-                } else {
-                    resultsList
-                }
 
-                Spacer()
+                    Spacer()
+                }
+                .frame(maxHeight: .infinity, alignment: .topLeading)
+                .padding(.top, AppShellLayout.contentTopPadding)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+                .contentShape(Rectangle()) // Global scroll capability
             }
-            .frame(maxHeight: .infinity, alignment: .topLeading)
-            .padding(.top, AppShellLayout.contentTopPadding)
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
-            .contentShape(Rectangle()) // Global scroll capability
+            .background(Color(nsColor: .textBackgroundColor))
+            .background(LayoutPerformanceProbe(name: "SearchView.searchPanel.layout"))
         }
-        .background(Color(nsColor: .textBackgroundColor))
     }
 
     private var searchHeader: some View {
@@ -327,78 +336,81 @@ struct SearchView: View {
     }
 
     private var playbackArea: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if appState.hasPlaybackSelection {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        PlaybackView(
-                            player: appState.playbackPlayer,
-                            viewModel: appState.playbackViewModel,
-                            fullscreenManager: appState.playbackFullscreenManager,
-                            onSurfaceTap: {
-                                appState.clearSearchFocus()
-                                appState.togglePlaybackFromUser()
-                            },
-                            onCopySubtitle: {
-                                appState.clearSearchFocus()
-                                appState.copyCurrentSubtitleToClipboard()
-                            },
-                            isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
-                            onToggleFullscreen: {
-                                appState.clearSearchFocus()
-                                appState.togglePlaybackFullscreenFromUser {
+        AppPerformanceProbe.measure("SearchView.playbackArea.body", thresholdMilliseconds: 4) {
+            VStack(alignment: .leading, spacing: 0) {
+                if appState.hasPlaybackSelection {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            PlaybackView(
+                                player: appState.playbackPlayer,
+                                viewModel: appState.playbackViewModel,
+                                fullscreenManager: appState.playbackFullscreenManager,
+                                onSurfaceTap: {
+                                    appState.clearSearchFocus()
+                                    appState.togglePlaybackFromUser()
+                                },
+                                onCopySubtitle: {
+                                    appState.clearSearchFocus()
                                     appState.copyCurrentSubtitleToClipboard()
+                                },
+                                isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
+                                onToggleFullscreen: {
+                                    appState.clearSearchFocus()
+                                    appState.togglePlaybackFullscreenFromUser {
+                                        appState.copyCurrentSubtitleToClipboard()
+                                    }
                                 }
-                            }
-                        )
-                            .aspectRatio(16 / 9, contentMode: .fit)
-                            .frame(maxWidth: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            )
+                                .aspectRatio(16 / 9, contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                        if case .failed(let message) = appState.playbackStatus {
-                            Label(message, systemImage: "exclamationmark.triangle")
-                                .font(.system(size: SearchTypography.detailSize))
-                                .foregroundStyle(.red)
-                        }
-
-                        HStack(spacing: 12) {
-                            Button {
-                                appState.clearSearchFocus()
-                                appState.revealCurrentVideoFile()
-                            } label: {
-                                Label("Video Folder", systemImage: "folder")
+                            if case .failed(let message) = appState.playbackStatus {
+                                Label(message, systemImage: "exclamationmark.triangle")
+                                    .font(.system(size: SearchTypography.detailSize))
+                                    .foregroundStyle(.red)
                             }
 
-                            if appState.currentPlaybackSubtitlePath != nil {
+                            HStack(spacing: 12) {
                                 Button {
                                     appState.clearSearchFocus()
-                                    appState.revealCurrentSubtitleFile()
+                                    appState.revealCurrentVideoFile()
                                 } label: {
-                                    Label("Subtitle Folder", systemImage: "folder")
+                                    Label("Video Folder", systemImage: "folder")
+                                }
+
+                                if appState.currentPlaybackSubtitlePath != nil {
+                                    Button {
+                                        appState.clearSearchFocus()
+                                        appState.revealCurrentSubtitleFile()
+                                    } label: {
+                                        Label("Subtitle Folder", systemImage: "folder")
+                                    }
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding(.top, AppShellLayout.contentTopPadding)
+                        .padding([.horizontal, .bottom], 20)
                     }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(.top, AppShellLayout.contentTopPadding)
-                    .padding([.horizontal, .bottom], 20)
+                } else {
+                    EmptyStateView(
+                        title: "No Selection",
+                        systemImage: "play.rectangle",
+                        message: "Select a Library video or subtitle result to preview playback."
+                    )
+                    .font(.system(size: SearchTypography.detailSize))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-            } else {
-                EmptyStateView(
-                    title: "No Selection",
-                    systemImage: "play.rectangle",
-                    message: "Select a Library video or subtitle result to preview playback."
-                )
-                .font(.system(size: SearchTypography.detailSize))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .background(Color(nsColor: .controlBackgroundColor))
+            .background(LayoutPerformanceProbe(name: "SearchView.playbackArea.layout"))
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    appState.clearSearchFocus()
+                }
+            )
         }
-        .background(Color(nsColor: .controlBackgroundColor))
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                appState.clearSearchFocus()
-            }
-        )
     }
 
     private func searchPanelResizeDivider(availableWidth: CGFloat) -> some View {
@@ -585,21 +597,23 @@ private struct DrawerPanel<Content: View, Divider: View>: View {
     }
 
     var body: some View {
-        Color.clear
-            .frame(width: isVisible ? width : 0)
-            .frame(maxHeight: .infinity)
-            .overlay(alignment: edge.alignment) {
-                content
-                    .frame(width: width)
-                    .frame(maxHeight: .infinity)
-                    .overlay(alignment: edge.dividerAlignment) {
-                        divider
-                    }
-                    .offset(x: isVisible ? 0 : edge.hiddenOffset(for: width))
-            }
-            .clipped()
-            .allowsHitTesting(isVisible)
-            .accessibilityHidden(!isVisible)
+        AppPerformanceProbe.measure("DrawerPanel.body", thresholdMilliseconds: 4) {
+            Color.clear
+                .frame(width: isVisible ? width : 0)
+                .frame(maxHeight: .infinity)
+                .overlay(alignment: edge.alignment) {
+                    content
+                        .frame(width: width)
+                        .frame(maxHeight: .infinity)
+                        .overlay(alignment: edge.dividerAlignment) {
+                            divider
+                        }
+                        .offset(x: isVisible ? 0 : edge.hiddenOffset(for: width))
+                }
+                .clipped()
+                .allowsHitTesting(isVisible)
+                .accessibilityHidden(!isVisible)
+        }
     }
 }
 

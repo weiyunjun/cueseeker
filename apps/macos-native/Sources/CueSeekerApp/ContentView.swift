@@ -18,23 +18,26 @@ struct ContentView: View {
     )
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            windowBackground
-                .ignoresSafeArea()
+        AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
+            ZStack(alignment: .topLeading) {
+                windowBackground
+                    .ignoresSafeArea()
 
-            HStack(spacing: 0) {
-                mainWorkspace
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.top, AppShellLayout.topBarHeight)
+                HStack(spacing: 0) {
+                    mainWorkspace
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.top, AppShellLayout.topBarHeight)
+                }
+                .animation(animation, value: layoutState.isLibraryPanelVisible)
+
+                appTopBar
+                    .frame(height: AppShellLayout.topBarHeight)
+                    .zIndex(3)
             }
-            .animation(animation, value: layoutState.isLibraryPanelVisible)
-
-            appTopBar
-                .frame(height: AppShellLayout.topBarHeight)
-                .zIndex(3)
+            .ignoresSafeArea(.container, edges: .top)
+            .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
+            .background(LayoutPerformanceProbe(name: "ContentView.layout"))
         }
-        .ignoresSafeArea(.container, edges: .top)
-        .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
     }
 
     @ViewBuilder

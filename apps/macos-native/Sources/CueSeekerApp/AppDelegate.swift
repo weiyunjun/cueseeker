@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppPerformanceProbe.mark("MARK CueSeeker.applicationDidFinishLaunching")
         AppPerformanceProbe.startMainThreadWatchdog()
+        AppPerformanceProbe.startMainRunLoopObserver()
         configureMainMenu()
         createMainWindow()
         configurePlaybackKeyboardShortcuts()
