@@ -297,11 +297,11 @@ final class AppState: ObservableObject {
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
             try database.reconcileIndexedContent(activeFolders: selectedFolders)
+            try hydrateLibrarySynchronously(from: database)
             let player = PlaybackPlayer()
             player.decodeMode = playbackDecodeMode
             self.player = player
             playbackViewModel = PlaybackViewModel(player: player)
-            refreshLibrary()
         } catch {
             startupError = Self.errorMessage(for: error)
         }
@@ -553,17 +553,7 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                libraryVideos = videos
-                let existingGroupPaths = Set(
-                    videos.map {
-                        URL(fileURLWithPath: $0.videoPath)
-                            .deletingLastPathComponent()
-                            .standardizedFileURL
-                            .path
-                    }
-                )
-                collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.intersection(existingGroupPaths)
-                persistCollapsedLibraryFolderPaths()
+                applyLibraryVideos(videos)
                 libraryStatus = .completed
             } catch {
                 guard !Task.isCancelled else {
@@ -598,6 +588,35 @@ final class AppState: ObservableObject {
         } else {
             collapsedLibraryFolderPaths.formUnion(groupPaths)
         }
+        persistCollapsedLibraryFolderPaths()
+    }
+
+    private func hydrateLibrarySynchronously(from database: SubtitleDatabase) throws {
+        let folders = selectedFolders
+        guard !folders.isEmpty else {
+            libraryVideos = []
+            collapsedLibraryFolderPaths = []
+            persistCollapsedLibraryFolderPaths()
+            libraryStatus = .idle
+            return
+        }
+
+        let videos = try database.libraryVideos(under: folders)
+        applyLibraryVideos(videos)
+        libraryStatus = .completed
+    }
+
+    private func applyLibraryVideos(_ videos: [LibraryVideo]) {
+        libraryVideos = videos
+        let existingGroupPaths = Set(
+            videos.map {
+                URL(fileURLWithPath: $0.videoPath)
+                    .deletingLastPathComponent()
+                    .standardizedFileURL
+                    .path
+            }
+        )
+        collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.intersection(existingGroupPaths)
         persistCollapsedLibraryFolderPaths()
     }
 

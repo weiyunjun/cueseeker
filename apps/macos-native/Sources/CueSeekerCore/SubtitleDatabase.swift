@@ -845,14 +845,14 @@ public final class SubtitleDatabase {
             return []
         }
 
-        let scopeCondition = pathPrefixes.map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
+        let scopeCondition = pathPrefixes.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
             .joined(separator: " OR ")
         let statement = try database.prepare(
             """
             SELECT vf.path, vf.video_name, vf.duration, sf.subtitle_path, sf.format
-            FROM video_files vf
-            JOIN subtitle_video_matches m ON m.video_file_id = vf.id AND m.is_active = 1
-            JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
+            FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
             WHERE \(scopeCondition)
             ORDER BY vf.path ASC, sf.subtitle_path ASC;
             """
@@ -860,9 +860,9 @@ public final class SubtitleDatabase {
 
         var bindIndex: Int32 = 1
         for prefix in pathPrefixes {
-            try statement.bind(prefix.count, at: bindIndex)
-            bindIndex += 1
             try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
             bindIndex += 1
         }
 
@@ -2012,6 +2012,10 @@ public final class SubtitleDatabase {
         }
 
         return prefixes.sorted()
+    }
+
+    private static func pathPrefixUpperBound(for prefix: String) -> String {
+        prefix + "\u{10FFFF}"
     }
 
     private static func folderPathVariants(for folder: URL) -> [String] {

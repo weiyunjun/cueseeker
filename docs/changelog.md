@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented instant Library startup hydration in the native app: startup now
+  loads persisted indexed Library videos synchronously from SQLite during
+  `AppState` initialization, before the first main-window state is presented,
+  using an indexed path-prefix range query while later refreshes continue to
+  reconcile the same state path.
 - Accepted the instant Library startup hydration rule: when indexed Library rows
   already exist locally, app restart must hydrate the Library list before the
   first visible main-window render instead of showing a transient empty or
