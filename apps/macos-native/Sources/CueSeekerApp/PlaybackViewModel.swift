@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import CueSeekerPlayback
 
@@ -20,15 +21,13 @@ public final class PlaybackViewModel: ObservableObject {
     static let minimumPlaybackSpeed = 0.5
     static let maximumPlaybackSpeed = 2.0
     static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+    private static let displayedCurrentTimePublishInterval: TimeInterval = 0.5
 
     public let player: PlaybackPlayer
 
     @Published public var isPlaying: Bool = false
-    @Published public var currentTime: Double = 0 {
-        didSet {
-            refreshActiveSubtitleText()
-        }
-    }
+    public private(set) var currentTime: Double = 0
+    @Published public private(set) var displayedCurrentTime: Double = 0
     @Published public var duration: Double = 0
     @Published public var volume: Double = 100
     @Published public var playbackSpeed: Double = 1.0
@@ -40,6 +39,7 @@ public final class PlaybackViewModel: ObservableObject {
     private var accumulatedForwardSeconds = 0
     private var accumulatedRewindSeconds = 0
     private var subtitleTrack = PlaybackSubtitleTrack.empty
+    private var lastDisplayedCurrentTimePublishTimestamp: TimeInterval = 0
 
     public init(player: PlaybackPlayer) {
         self.player = player
@@ -65,7 +65,7 @@ public final class PlaybackViewModel: ObservableObject {
         let nonnegativeSeconds = seconds.isFinite ? max(seconds, 0) : 0
         let targetTime = duration > 0 ? min(nonnegativeSeconds, duration) : nonnegativeSeconds
         let previousTime = currentTime
-        currentTime = targetTime
+        updatePlaybackTime(targetTime, publishesControlsImmediately: true)
         if resetsAccumulatedFeedback {
             accumulatedForwardSeconds = 0
             accumulatedRewindSeconds = 0
@@ -74,7 +74,7 @@ public final class PlaybackViewModel: ObservableObject {
         do {
             try player.seek(toMilliseconds: Int(targetTime * 1000))
         } catch {
-            currentTime = previousTime
+            updatePlaybackTime(previousTime, publishesControlsImmediately: true)
             print("Failed to seek: \(error)")
         }
     }
@@ -169,7 +169,10 @@ public final class PlaybackViewModel: ObservableObject {
     ) {
         subtitleTrack = PlaybackSubtitleTrack(cues: cues)
         if let currentTimeMilliseconds {
-            currentTime = Double(max(0, currentTimeMilliseconds)) / 1_000
+            updatePlaybackTime(
+                Double(max(0, currentTimeMilliseconds)) / 1_000,
+                publishesControlsImmediately: true
+            )
         }
         refreshActiveSubtitleText()
     }
@@ -243,6 +246,28 @@ public final class PlaybackViewModel: ObservableObject {
         }
     }
 
+    private func updatePlaybackTime(
+        _ time: Double,
+        publishesControlsImmediately: Bool = false
+    ) {
+        currentTime = time.isFinite ? max(time, 0) : 0
+        refreshActiveSubtitleText()
+        publishDisplayedCurrentTimeIfNeeded(force: publishesControlsImmediately)
+    }
+
+    private func publishDisplayedCurrentTimeIfNeeded(force: Bool) {
+        let now = Date.timeIntervalSinceReferenceDate
+        guard force
+            || now - lastDisplayedCurrentTimePublishTimestamp >= Self.displayedCurrentTimePublishInterval
+            || abs(displayedCurrentTime - currentTime) >= 1.0
+        else {
+            return
+        }
+
+        displayedCurrentTime = currentTime
+        lastDisplayedCurrentTimePublishTimestamp = now
+    }
+
     private func showFeedback(
         _ nextFeedback: PlaybackFeedback,
         durationMilliseconds: UInt64 = 800
@@ -290,13 +315,15 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
             switch name {
             case "time-pos":
                 if case .double(let d) = value {
-                    self.currentTime = d
-                    self.refreshActiveSubtitleText()
+                    self.updatePlaybackTime(d)
                 }
             case "duration":
                 if case .double(let d) = value { self.duration = d }
             case "pause":
-                if case .bool(let b) = value { self.isPlaying = !b }
+                if case .bool(let b) = value {
+                    self.isPlaying = !b
+                    self.publishDisplayedCurrentTimeIfNeeded(force: true)
+                }
             case "volume":
                 if case .double(let d) = value { self.volume = d }
             case "speed":

@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the second workbench UI invalidation cleanup: playback controls
+  now read a rate-limited displayed playback time while the view model keeps a
+  more precise internal playback time for resume history, relative seeking, and
+  subtitle text selection. Native video playback and source-faithful ASS timing
+  remain on their existing timing paths.
 - Reworked the native workbench side panels to use a drawer-style animation:
   Library and Search keep fixed-width content while only their layout slot
   opens or closes, preventing side-panel text from being squeezed and

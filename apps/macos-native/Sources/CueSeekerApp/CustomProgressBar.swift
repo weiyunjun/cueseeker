@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CustomProgressBar: View {
-    @Binding var currentTime: Double
+    let currentTime: Double
     let duration: Double
     let onSeek: (Double) -> Void
 

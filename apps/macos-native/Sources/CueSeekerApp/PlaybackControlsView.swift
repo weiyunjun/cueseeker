@@ -39,7 +39,7 @@ struct PlaybackControlsView: View {
     private var playbackOperationZone: some View {
         VStack(spacing: 0) {
             CustomProgressBar(
-                currentTime: $viewModel.currentTime,
+                currentTime: viewModel.displayedCurrentTime,
                 duration: viewModel.duration,
                 onSeek: { time in
                     viewModel.seek(to: time)
@@ -60,7 +60,7 @@ struct PlaybackControlsView: View {
 
                 volumeControl
 
-                Text("\(formatTime(viewModel.currentTime)) / \(formatTime(viewModel.duration))")
+                Text("\(formatTime(viewModel.displayedCurrentTime)) / \(formatTime(viewModel.duration))")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundColor(.white)
 
