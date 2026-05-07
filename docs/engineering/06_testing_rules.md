@@ -196,20 +196,29 @@ Required M2 playback interaction checks:
 - Library panel checks should cover the first accepted Library behavior:
   left titlebar collapse or expand, default width equal to the `310pt` minimum
   width, width resizing and persistence, gray background, flat one-level folder
-  grouping, Finder-like natural folder and video ordering, default expanded
-  groups, persisted individual group collapse or expand, all-group
+  grouping, Finder-like natural folder and video ordering, startup with all
+  folder groups collapsed, session-only individual group collapse or expand,
+  all-group
   `Collapse All` / `Expand All`, friendly video display names with extension,
   right-side duration display, and click-to-playback from Library resume
   history with `0` fallback.
+- Library visual checks should verify that no blue macOS focus ring appears on
+  the first Library folder row at startup. Keyboard focus should remain
+  available for real text controls such as Search input.
 - Library startup checks should verify that a database with existing indexed
   Library rows hydrates the Library list before the first visible main-window
   render, without showing an empty or loading Library state solely because the
   app restarted.
 - Library metadata checks should include reindexing a fixture folder so video
-  rows and duration values are populated from indexed metadata.
+  rows and duration values are populated from indexed metadata. Reindexing or a
+  Library data refresh should reset all Library folder groups to collapsed.
 - Library playback history checks should verify that Library-opened videos read
   and write persisted resume position, while Search-result playback does not
-  read, write, or overwrite that history.
+  read, write, or overwrite that history. Removing a folder and later adding or
+  reindexing the same path should not delete matching Library playback history.
+- Reindex workflow checks should verify that playback using media under the
+  reindexed folder is stopped or cleared before the rebuild starts, and that an
+  active Search query is rerun after the rebuild completes.
 - Database locking regression checks should verify that `Index Now` does not
   fail with `database is locked` when triggered shortly after app startup, after
   Library startup hydration, after Search results are loaded, while playback

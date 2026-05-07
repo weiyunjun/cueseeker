@@ -117,6 +117,20 @@ Destructive migrations:
 - Deleting stale index rows for missing source files is part of normal indexing behavior.
 - Any migration that cannot preserve favorites or other durable user state requires explicit review.
 
+Derived index decoupling:
+
+- Search paths, subtitle files, video files, cue groups, cue lines, FTS rows,
+  ASS render segments, ASS font-resource manifests, and Library presentation
+  metadata are rebuildable local index data.
+- Library playback history is durable local user state and must survive folder
+  removal, re-add, and reindex when the same video identity is available again.
+- Future favorites, queues, and learning-session records are durable user state.
+  Their current resource binding may be stale or unavailable, but the
+  user-authored record must not be deleted merely because an indexed file row is
+  missing.
+- Rebinding a folder after a path rename should update index bindings where
+  practical instead of requiring durable user state to be recreated.
+
 ## 6. Backup and Recovery
 
 The M1 database should be recoverable from source subtitle files for indexed content.
@@ -127,7 +141,8 @@ Rules:
 - Clearing all derived subtitle index data is allowed when no selected folders
   remain, because source subtitle files can recreate that data after folders are
   added again.
-- Durable user state, such as configured folders and future favorites, must not be casually discarded.
+- Durable user state, such as configured folders, Library playback history, and
+  future favorites, must not be casually discarded.
 - Before destructive schema changes to durable user state, the project must define backup or recovery expectations.
 - Corrupt database handling should prefer clear error reporting and rebuild options over silent data loss.
 
@@ -157,11 +172,11 @@ Expected early entities:
 - Index metadata.
 - ASS font resource manifests.
 - FTS data.
+- Library playback history.
 
 Future entities:
 
 - Favorites.
-- Library playback history.
 
 Rules:
 

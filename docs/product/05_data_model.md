@@ -49,9 +49,28 @@ Notes:
 - Database search-path rows and indexed subtitle rows are derived local index
   state and must be reconciled with the selected folder configuration.
 - Removing a selected folder must remove or exclude derived index data under
-  that folder while preserving the local files on disk.
+  that folder while preserving the local files on disk and durable user state
+  that may reference those files.
 
-## 4. Video File
+## 4. Derived Index Decoupling
+
+CueSeeker should separate durable user state from rebuildable local indexes.
+
+Rules:
+
+- Derived index data may become stale when folders are removed, renamed,
+  reindexed, or temporarily unavailable.
+- Index staleness must not by itself delete durable user state such as Library
+  playback history, future favorites, queues, or learning-session records.
+- User-authored state should keep stable file or cue identity where practical,
+  while the current binding to indexed rows remains a refreshable lookup.
+- When an indexed resource referenced by durable user state is missing,
+  CueSeeker should surface an unavailable, invalid, or unbound state rather than
+  silently deleting the user state.
+- Folder replacement or path repair should be treated as rebinding an index, not
+  recreating unrelated user state.
+
+## 5. Video File
 
 A video file represents a local media file discovered under a selected search path.
 
@@ -83,9 +102,9 @@ Notes:
   metadata. Reindexing is the expected refresh path when older indexed rows do
   not have duration metadata.
 - The indexed video metadata needed to render the Library list is persistent
-  local state. The app should hydrate the Library list from this metadata during
-  startup before the first visible main-window render, rather than treating the
-  list as transient async UI state.
+  local derived-index state. The app should hydrate the Library list from this
+  metadata during startup before the first visible main-window render, rather
+  than treating the list as transient async UI state.
 - Library playback history should be keyed by video file identity and persist a
   resume position for Library-opened playback only. Search-result playback
   should not read or mutate this history.
@@ -93,7 +112,7 @@ Notes:
   failure reason for diagnostics and later compatibility work.
 - Future audio-only playback should use the same media-file identity model.
 
-## 5. Subtitle File
+## 6. Subtitle File
 
 A subtitle file represents a source subtitle document discovered under a selected search path.
 
@@ -115,7 +134,7 @@ Notes:
   search result. The database stores a searchable projection, not a replacement
   subtitle renderer.
 
-## 6. Subtitle-to-Video Match
+## 7. Subtitle-to-Video Match
 
 A subtitle-to-video match links a subtitle file to a media file.
 
@@ -134,7 +153,7 @@ Notes:
   native compatibility metadata.
 - Search results should resolve playback through the active subtitle-to-video match.
 
-## 7. Subtitle Cue Group
+## 8. Subtitle Cue Group
 
 A subtitle cue group represents one searchable subtitle moment in one source
 subtitle file.
@@ -170,7 +189,7 @@ Notes:
   `srt_path`-centered subtitle-entry index is treated as rebuildable derived
   data during migration.
 
-## 8. Subtitle Cue Line
+## 9. Subtitle Cue Line
 
 A subtitle cue line represents one displayable/searchable line inside a cue
 group.
@@ -212,7 +231,7 @@ Notes:
   fields, while source ASS playback rendering must preserve timed source events
   through the source file or a dedicated render cache.
 
-## 9. ASS Layout Projection
+## 10. ASS Layout Projection
 
 ASS layout projection is intentionally approximate and exists for search result
 ordering, not for subtitle rendering.
@@ -234,7 +253,7 @@ Rules:
 - Do not use ASS `Layer` as a substitute for vertical position.
 - Do not attempt to infer visual duplicates during indexing.
 
-## 10. Index Metadata
+## 11. Index Metadata
 
 Index metadata tracks whether a source subtitle file needs to be reindexed.
 
@@ -274,7 +293,7 @@ Notes:
   for a given subtitle load. Playback must not mutate the manifest or perform
   delayed font extraction on the playback path.
 
-## 11. Full-Text Search
+## 12. Full-Text Search
 
 The app should use SQLite FTS5 for subtitle text search.
 
@@ -301,7 +320,7 @@ cue lines. The search implementation may use cue group content for recall, but
 it must ensure that at least one cue line satisfies the query semantics before a
 group is returned.
 
-## 12. Favorite
+## 13. Favorite
 
 Favorites are deferred until M3.
 
@@ -322,7 +341,12 @@ volatile row IDs. When cue groups are available, favorites should target cue
 groups rather than individual ASS lines unless the product explicitly adds
 line-level favorites.
 
-## 13. Schema Versioning
+A favorite's user-authored record is durable state. Its current resolved link to
+an indexed subtitle cue, video file, or Library row is derived index state. If
+the indexed resource disappears, the favorite should remain and show an invalid
+or unavailable resource state until the index is rebuilt or repaired.
+
+## 14. Schema Versioning
 
 The native implementation must define an explicit schema versioning mechanism before writing production user data.
 
@@ -334,7 +358,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `7`.
+- Schema version: `8`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -347,8 +371,10 @@ Current native schema:
   durable user configuration.
 - Version 7 adds ASS font-resource manifests for index-stage `libass` external
   font preparation. It does not drop durable user configuration.
+- Version 8 adds Library playback history for Library-opened resume behavior.
+  It does not drop derived index rows or durable user configuration.
 
-## 14. Flutter Data Compatibility
+## 15. Flutter Data Compatibility
 
 The archived Flutter implementation may contain useful existing SQLite data.
 

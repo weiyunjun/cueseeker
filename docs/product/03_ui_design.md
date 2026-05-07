@@ -133,8 +133,11 @@ Accepted first Library panel direction:
 - Library uses a dense grouped-list structure comparable to Search results.
 - Library shows only one folder grouping level.
 - Folder groups and video rows use Finder-like natural ordering.
-- Folder groups are expanded by default and can be collapsed independently.
-- Folder group collapse or expand state should persist across launches.
+- Folder groups are collapsed on app startup.
+- Folder group collapse or expand state is session-only. It should not persist
+  across launches.
+- Reindexing or refreshing Library data should rebuild Library rows and reset
+  folder groups to collapsed, because the indexed resource set may have changed.
 - A top action toggles all folder groups with `Collapse All` and `Expand All`.
 - Video rows display `Parent Folder Name - NN  extension`, such as
   `葬送的芙莉莲 - 01  mkv`.
@@ -403,8 +406,8 @@ Panel visibility and list lifetime:
   changes. A collapse action should change layout visibility or width, not
   discard the panel's large list state.
 - Library rows are static indexed-resource presentation. They should remain
-  cached until Library data, Library collapse state, or Library ordering inputs
-  change.
+  cached until Library data, session-only Library collapse state, or Library
+  ordering inputs change.
 - Search rows are active query presentation. They should remain cached until
   the query, loaded result page, Search-group collapse state, or Search ordering
   inputs change.

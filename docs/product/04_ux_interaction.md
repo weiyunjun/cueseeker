@@ -314,9 +314,12 @@ Library behavior:
 - Library should group videos by immediate parent folder only. It should not
   render nested folder trees in the first implementation.
 - Folder groups should be sorted with Finder-like natural ordering.
-- Folder groups should be expanded by default.
-- Users can collapse or expand individual folder groups.
-- Folder group collapse or expand state should persist across launches.
+- Folder groups should be collapsed on app startup.
+- Users can collapse or expand individual folder groups during the current
+  session.
+- Folder group collapse or expand state should not persist across launches.
+- Reindexing or refreshing Library data should reload the Library list and
+  reset all folder groups to collapsed.
 - A top `Collapse All` / `Expand All` control should collapse or expand all
   folder groups.
 - Video rows inside a folder should be sorted with the same Finder-like natural
@@ -335,7 +338,9 @@ Library behavior:
 - Subtitle files should appear as video metadata or attached resources, not as
   duplicate top-level video entries when one playable video is available.
 - Reindexing is the expected way to refresh Library video rows and duration
-  metadata when older indexed data is missing that information.
+  metadata when older indexed data is missing that information. A completed
+  reindex should refresh Library data, collapse all Library folder groups, and
+  rerun the current Search query when one is active.
 
 Timeline behavior:
 
@@ -378,6 +383,12 @@ Expected behavior:
 - Show completion state.
 - Show errors for unreadable folders or files.
 - Allow the user to continue using existing indexed data when possible.
+- If the currently playing media is under a folder being reindexed, CueSeeker
+  should stop or clear that playback before the rebuild starts. This prevents a
+  complex playback session from continuing against resource identities that are
+  being rebuilt.
+- Reindexing may make existing Search results stale. CueSeeker should rerun the
+  active Search query after reindexing instead of leaving old results in place.
 
 ## 11. Error Handling
 
@@ -468,7 +479,7 @@ The app should remember:
 - Window size and maximized state.
 - Last selected main-window app section if future top-level sections are added.
 - Last selected Settings category if practical.
-- Library visibility, width, and folder collapse state.
+- Library visibility and width.
 - Left Content Panel mode when additional modes such as Timeline or Favorites
   are implemented.
 - Search Panel width and visibility.

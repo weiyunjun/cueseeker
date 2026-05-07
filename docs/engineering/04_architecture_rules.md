@@ -206,8 +206,9 @@ Rules:
   available. Asynchronous Library refreshes may reconcile or update existing
   rows, but they must not make a previously indexed Library appear empty or
   visibly loading after restart.
-- Library folder collapse or expand state should persist as UI preference state
-  keyed by standardized folder path.
+- Library folder collapse or expand state is current-session presentation state.
+  It should not persist across app restarts. App startup, Library data refresh,
+  and reindex completion should all present Library folder groups as collapsed.
 - Clicking a Library video row should dispatch through the same playback open
   path used by Search-result playback, but should resolve its start timestamp
   from Library-only resume history before falling back to `0`.
@@ -215,6 +216,19 @@ Rules:
   should be read and written only for playback sessions opened from Library.
   Search-result playback must not read, write, or overwrite Library resume
   history.
+- Reindexing a folder should invalidate Library and Search presentation for
+  resources under that folder. After reindex completion, Library should be
+  refreshed with all folder groups collapsed, and any active Search query should
+  be rerun against the rebuilt index.
+- If current playback is using a media file under a folder being reindexed, the
+  app should stop or clear that playback before the reindex begins. This keeps
+  playback state from referencing resource identities that are actively being
+  rebuilt.
+- Derived local index rows may be deleted, rebuilt, or marked stale, but
+  durable user state that references those resources must remain separate.
+  History, future favorites, queues, and learning-session records should show
+  unavailable or unbound resource states when their current index binding is
+  missing rather than being silently deleted.
 - Queue and Learning Session state must not be hidden inside playback UI state
   alone if it becomes durable or cross-view behavior.
 - Learning Session playback rules require product documentation before

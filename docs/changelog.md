@@ -6,6 +6,16 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the derived index decoupling principle: rebuildable local index rows
+  may become stale or be recreated, but durable user state such as Library
+  playback history and future favorites should remain intact and show
+  unavailable or unbound resource states when their current index binding is
+  missing.
+- Accepted the revised Library view-state rule: Library group collapse state is
+  current-session presentation state only, app startup and Library refresh or
+  reindex should present all groups collapsed, and reindex should refresh
+  Library plus rerun the active Search query while clearing playback that uses
+  media under the folder being rebuilt.
 - Implemented SQLite locking reliability in the native app: SQLite connections
   now use a busy timeout plus WAL journal mode, and indexing cancels app-owned
   Library/Search read tasks before starting write-heavy work to reduce
