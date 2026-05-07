@@ -288,6 +288,10 @@ Implementation constraints:
 - Do not create a second backend render context for fullscreen.
 - Do not let SwiftUI view lifetime decide when backend render state is destroyed.
 - Playback fullscreen should use the singleton render container owned by the playback player.
+- The embedded Playback Area's black video background should be owned by the
+  native playback render container, not by a separate SwiftUI background behind
+  the render view. The video frame, black background, and source-faithful ASS
+  overlay should resize through the same native layout path.
 - The fullscreen overlay should reuse the same playback controls and feedback
   model as the embedded Playback Area.
 - Exiting fullscreen should not rebuild Library or Search result rows. Side

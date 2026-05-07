@@ -168,6 +168,15 @@ Rules:
 - Playback time exposed to SwiftUI controls should be rate-limited separately
   from the native playback clock so progress text and controls do not invalidate
   unrelated workbench UI at video-frame cadence.
+- The embedded Playback Area's black video background, native video view,
+  `AVSampleBufferDisplayLayer`, and source-faithful ASS overlay should be owned
+  and laid out by the native playback render container. SwiftUI may size and
+  clip the overall playback card, but it should not provide a separate black
+  backing layer whose layout can get ahead of the native video layer.
+- Native playback layout updates during workbench side-panel animations should
+  disable implicit CALayer frame animations and synchronously lay out attached
+  AppKit subviews where necessary so the video frame and black background remain
+  visually locked together.
 - The main window should use `CueSeeker` as its top-level workbench identity.
   The old standalone `Search` AppShell label should be removed; Search is a
   right-side learning panel workflow.

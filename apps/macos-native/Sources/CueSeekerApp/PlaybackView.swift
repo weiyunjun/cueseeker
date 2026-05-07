@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 import CueSeekerPlayback
 
@@ -38,6 +39,7 @@ struct PlaybackVideoView: View {
                 Color.black
             } else {
                 PlaybackRenderViewWrapper(player: player)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         onSurfaceTap()
@@ -141,9 +143,16 @@ private final class PlaybackRenderHostView: NSView {
     override func layout() {
         super.layout()
 
-        if renderView.superview === self {
-            renderView.frame = bounds
+        guard renderView.superview === self else {
+            return
         }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        renderView.frame = bounds
+        renderView.needsLayout = true
+        renderView.layoutSubtreeIfNeeded()
+        CATransaction.commit()
     }
 
     private func attachRenderView() {
@@ -154,5 +163,7 @@ private final class PlaybackRenderHostView: NSView {
         renderView.removeFromSuperview()
         addSubview(renderView)
         renderView.frame = bounds
+        renderView.needsLayout = true
+        renderView.layoutSubtreeIfNeeded()
     }
 }

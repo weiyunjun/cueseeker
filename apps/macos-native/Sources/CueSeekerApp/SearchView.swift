@@ -308,7 +308,6 @@ struct SearchView: View {
                         )
                             .aspectRatio(16 / 9, contentMode: .fit)
                             .frame(maxWidth: .infinity)
-                            .background(Color.black)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
 
                         if case .failed(let message) = appState.playbackStatus {

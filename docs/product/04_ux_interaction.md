@@ -161,6 +161,9 @@ Responsiveness boundaries:
 - Collapsing or expanding a side panel should preserve the panel's current
   content state. It should not destroy and recreate large result lists as a side
   effect of a layout change.
+- During side-panel collapse or expand animations, the Playback Area's black
+  video background and actual video frame should resize together. Users should
+  not see the black container and the native video layer drift out of sync.
 - Search field focus is Search Panel interaction state. Changing focus should
   not invalidate Library content or playback content.
 - The visible playback clock used by SwiftUI controls may update at a lower

@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Fixed native playback layout synchronization during workbench side-panel
+  animations: the embedded playback card no longer relies on a separate SwiftUI
+  black background, and the native render host/container/display layer now
+  synchronously applies layout without implicit CALayer frame animations.
 - Implemented the second workbench UI invalidation cleanup: playback controls
   now read a rate-limited displayed playback time while the view model keeps a
   more precise internal playback time for resume history, relative seeking, and

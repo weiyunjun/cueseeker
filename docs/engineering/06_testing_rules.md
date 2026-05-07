@@ -250,6 +250,10 @@ Required M2 playback interaction checks:
 - Playback clock throttling checks should confirm that native video playback
   remains smooth, manual seek feedback updates immediately, and visible
   progress controls remain accurate enough for subtitle-context review.
+- Playback render layout checks should verify that repeatedly collapsing and
+  expanding both workbench side panels during playback keeps the black video
+  background, native video frame, and ASS overlay synchronized. The video frame
+  must not visibly lag behind or detach from the black playback container.
 - ASS timing-source changes are out of scope for the first workbench
   invalidation cleanup. If they are attempted later, manual checks must verify
   that selecting a Search result still updates selection, opens or seeks video,

@@ -313,7 +313,11 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 - (void)layout {
     [super layout];
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
     _displayLayer.frame = self.bounds;
+    [CATransaction commit];
 }
 
 - (void)flush {

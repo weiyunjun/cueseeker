@@ -1,6 +1,7 @@
 import AppKit
 import CNativePlayback
 import Foundation
+import QuartzCore
 
 public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?)
@@ -295,6 +296,7 @@ public final class PlaybackRenderContainerView: NSView {
         attachedView?.removeFromSuperview()
         attachedView = view
         view.removeFromSuperview()
+        view.autoresizingMask = [.width, .height]
         addSubview(view)
         ensureASSOverlaysStayAboveAttachedView()
         needsLayout = true
@@ -302,8 +304,20 @@ public final class PlaybackRenderContainerView: NSView {
 
     public override func layout() {
         super.layout()
-        attachedView?.frame = bounds
-        sourceFaithfulASSOverlayView?.frame = bounds
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if let attachedView {
+            attachedView.frame = bounds
+            attachedView.needsLayout = true
+            attachedView.layoutSubtreeIfNeeded()
+        }
+        if let sourceFaithfulASSOverlayView {
+            sourceFaithfulASSOverlayView.frame = bounds
+            sourceFaithfulASSOverlayView.needsLayout = true
+            sourceFaithfulASSOverlayView.layoutSubtreeIfNeeded()
+        }
+        CATransaction.commit()
     }
 
     func setSourceFaithfulASSSubtitleSource(_ source: PlaybackSubtitleSource) {
@@ -344,6 +358,7 @@ public final class PlaybackRenderContainerView: NSView {
         }
 
         if sourceFaithfulASSOverlayView.superview !== self {
+            sourceFaithfulASSOverlayView.autoresizingMask = [.width, .height]
             addSubview(sourceFaithfulASSOverlayView)
         }
 
