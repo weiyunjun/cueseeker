@@ -6,7 +6,7 @@ Status: Accepted
 
 CueSeeker is moving toward a player-first workspace: playback is the central
 experience, Search is a functional right-side panel, and the leftmost AppShell
-sidebar continues to provide global navigation such as `Search` and `Settings`.
+sidebar provides main-window navigation such as `Search`.
 
 Future product work will add Library, Favorites, playback queue, learning
 sessions, and more precise subtitle navigation. These features need a stable
@@ -33,7 +33,8 @@ to each side of the playback surface.
 ## Non-goals
 
 - Change the accepted player-first Search workspace decision.
-- Change the current `Search` and `Settings` AppShell navigation behavior.
+- Define the Settings window. Settings is handled by the standalone Settings
+  window proposal.
 - Define final visual design for Library, Timeline, Favorites, Queue, or
   Learning Session.
 - Define database schema for Favorites or queue persistence.
@@ -53,8 +54,7 @@ Right Learning Panel
 
 Responsibilities:
 
-- `Leftmost AppShell sidebar`: global app navigation such as `Search` and
-  `Settings`.
+- `Leftmost AppShell sidebar`: main-window app navigation such as `Search`.
 - `Left Content Panel`: known-content navigation and precise location.
 - `Playback Area`: video playback, subtitle display, and playback controls.
 - `Right Learning Panel`: active search, result aggregation, queue building,
@@ -178,6 +178,8 @@ responsibilities around the central Playback Area.
 
 - Documentation distinguishes the leftmost AppShell sidebar from the future
   Left Content Panel.
+- Documentation does not require Settings to remain in the leftmost AppShell
+  sidebar.
 - Documentation states that the Left Content Panel owns Library, Timeline, and
   Favorites-style known-content navigation.
 - Documentation states that the Right Learning Panel owns Search, Queue, and
@@ -198,7 +200,7 @@ Playback Area, a left content-navigation panel for known content and precise
 location, and a right learning panel for Search, Queue, and Learning Session
 workflows.
 
-The model preserves the current AppShell navigation and the accepted
-player-first Search workspace plan. It gives future Library, Timeline,
-Favorites, Queue, and learning-session work a clear place without making
-CueSeeker behave like a generic IDE.
+The model preserves the accepted player-first Search workspace plan while
+leaving Settings to the standalone Settings window direction. It gives future
+Library, Timeline, Favorites, Queue, and learning-session work a clear place
+without making CueSeeker behave like a generic IDE.

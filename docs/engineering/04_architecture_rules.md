@@ -133,11 +133,19 @@ The UI must support the product's native macOS workflow without forcing future r
 Rules:
 
 - The first usable screen should support search and local folder management paths.
-- M1 may expose only the settings surface required to manage folders and indexing.
+- M1 may expose only the settings surface required to manage folders, indexing,
+  and decode mode.
 - Broader settings polish belongs to M2.
 - Search, indexing status, and playback state should be represented explicitly in UI state.
-- The leftmost app sidebar remains the AppShell navigation surface for `Search`
-  and `Settings` and must remain independent from Search workspace pane swaps.
+- The leftmost app sidebar remains the AppShell navigation surface for
+  main-window workspaces such as `Search` and must remain independent from
+  Search workspace pane swaps.
+- Settings belongs to the macOS app menu and an independent Settings window.
+  Opening or focusing Settings must not mutate Search workspace pane state,
+  selected result identity, or playback state.
+- The Settings window may share app state for configured folders, indexing
+  commands, indexing status, and decode mode, but its presentation state should
+  not be stored inside Search workspace state.
 - The Search workspace uses a player-first layout: embedded playback on the
   left and a collapsible Search Panel on the right.
 - The Search Panel is the collapsible auxiliary pane. Playback must not be
@@ -177,10 +185,10 @@ Rules:
   explicit low-frequency actions such as adding folders or future commands that
   reveal the current video in Finder.
 - Helper-service optimization should focus on avoiding unnecessary helper
-  creation during app launch, Search, Settings navigation, and playback, and on
-  preventing helper-service accumulation after the app exits. The app should
-  not replace standard macOS file panels or force-terminate system helper
-  services only to reduce Activity Monitor process counts.
+  creation during app launch, Search, opening or focusing Settings, and
+  playback, and on preventing helper-service accumulation after the app exits.
+  The app should not replace standard macOS file panels or force-terminate
+  system helper services only to reduce Activity Monitor process counts.
 - Persistent access to selected folders must be designed before relying on it across launches.
 - ADR-0004 disables App Sandbox for M1 local development and personal builds.
 - Security-scoped bookmark handling is not required for M1 while App Sandbox is disabled.

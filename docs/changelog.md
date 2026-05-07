@@ -6,20 +6,25 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the standalone Settings window direction: Settings should open from
+  `CueSeeker > Settings...`, use an independent two-column window with
+  `Library` and `Decode` categories, and no longer be owned by the main-window
+  AppShell sidebar.
 - Implemented the player-first Search workspace layout in the native app:
   playback now occupies the left side of Search, Search controls and grouped
   results live in a collapsible right-side Search Panel, hiding that panel no
   longer pauses playback, and the titlebar's right toggle now controls Search
   Panel visibility.
 - Accepted the content-navigation and learning-panel model: the leftmost
-  AppShell sidebar remains global navigation, future left content panels should
-  handle Library, Timeline, and Favorites-style precise location, and the right
-  learning panel should handle Search, Queue, and configurable learning-session
-  workflows without changing the accepted player-first Search workspace swap.
+  AppShell sidebar remains main-window navigation, future left content panels
+  should handle Library, Timeline, and Favorites-style precise location, and
+  the right learning panel should handle Search, Queue, and configurable
+  learning-session workflows without changing the accepted player-first Search
+  workspace swap.
 - Accepted the player-first Search workspace layout: the leftmost app sidebar
-  continues to own `Search` and `Settings` navigation, while the Search
-  workspace itself moves playback to the left and Search controls/results to a
-  collapsible right-side Search Panel that does not pause playback when hidden.
+  remains outside the Search workspace, while Search itself moves playback to
+  the left and Search controls/results to a collapsible right-side Search Panel
+  that does not pause playback when hidden.
 - Implemented Playback Inspector file-location buttons: the video panel now
   shows `Video Folder` and `Subtitle Folder` buttons with folder icons that ask
   Finder to reveal and select the matched files.

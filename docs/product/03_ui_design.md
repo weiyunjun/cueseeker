@@ -25,7 +25,7 @@ Accepted M1 structure:
 ```text
 Native titlebar
 Sidebar navigation
-Main Workspace (Search workspace, Settings Pane, etc.)
+Main Workspace (Search workspace and future workspace panels)
 ```
 
 The main window should support:
@@ -43,7 +43,7 @@ Current shell direction:
 - The current section title should remain centered in the titlebar.
 - Traffic lights are shifted 12pt to the right and vertically centered within the custom titlebar. To achieve this without fighting AppKit's native layout engine during window resizing, the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) are reparented (extracted from their system container and placed into a custom transparent `NSView` proxy). This preserves native hover effects and accurate hit testing.
 - The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
-- The `NSWindow` title dynamically tracks the active sidebar section to ensure correct contextual labeling in the full-screen drop-down title bar.
+- The `NSWindow` title dynamically tracks the active main workspace section to ensure correct contextual labeling in the full-screen drop-down title bar.
 - To prevent UI artifacts when exiting full-screen mode, the native title visibility is hidden in the `windowWillExitFullScreen` delegate callback before the transition animation begins.
 - The titlebar should use a slightly darker gray than the main content background.
 - A thin gray divider should separate the titlebar from the content below.
@@ -54,16 +54,19 @@ Current shell direction:
 
 ## 3. Sidebar
 
-The sidebar should provide high-level navigation.
+The sidebar should provide high-level main-window navigation.
 
 Current sections:
 
 - Search.
-- Settings.
 
-Future app-level sections should be added only when they are true global app
-sections. Favorites should primarily belong to the Left Content Panel as durable
-saved content unless a later product rule promotes it to app-level navigation.
+Future main-window sections should be added only when they are true workspace
+destinations. Favorites should primarily belong to the Left Content Panel as
+durable saved content unless a later product rule promotes it to main-window
+navigation.
+
+Settings should not be a main-window sidebar section. The formal Settings entry
+belongs in the macOS app menu and opens an independent Settings window.
 
 The sidebar should remain visually quiet and should not compete with search results or playback.
 
@@ -89,9 +92,10 @@ Playback Area
 Right Learning Panel
 ```
 
-The leftmost AppShell sidebar is global navigation. It is separate from the
-Left Content Panel and should continue to own app-level sections such as
-`Search` and `Settings`.
+The leftmost AppShell sidebar is main-window navigation. It is separate from
+the Left Content Panel and should continue to own main-window app sections such
+as `Search`. Settings is app-level configuration and belongs in the macOS app
+menu and independent Settings window, not in this sidebar.
 
 The Left Content Panel is for known content and precise location:
 
@@ -133,7 +137,7 @@ The Search Panel must have a clear restore path when collapsed.
 Accepted player-first Search presentation:
 
 - The leftmost app sidebar remains outside the Search workspace layout swap and
-  continues to own `Search` and `Settings` navigation.
+  continues to own main-window navigation such as `Search`.
 - The embedded Playback Area appears on the left side of the Search workspace.
 - Search controls and grouped Search results appear in a right-side Search
   Panel.
@@ -320,7 +324,11 @@ Behavior:
 - Collapsing the Search Panel does not clear the current selected result.
 - Reopening the Search Panel should restore the current Search context when
   practical and should not automatically change playback state.
-- Switching from Search to Settings or another top-level section pauses playback without stopping it.
+- Opening Settings from the app menu does not switch the main workspace away
+  from Search, pause playback, collapse the Search Panel, or clear the selected
+  result.
+- Switching from Search to another future main-window workspace section may
+  pause playback without stopping it when that section is documented.
 - Clicking `Video Folder` reveals the matched video file in Finder.
 - Clicking `Subtitle Folder` reveals the source subtitle file in Finder.
 - Playback fullscreen presents the video in a black Theater Mode window rather than fullscreening the app shell.
@@ -338,7 +346,7 @@ Behavior:
 Layout:
 
 - The leftmost app sidebar remains separate from this Search workspace layout
-  and keeps its existing navigation behavior.
+  and keeps its existing main-window navigation behavior.
 - The Playback Area appears on the left side of the Search workspace.
 - The Search Panel appears on the right side of the Search workspace.
 - The Search Panel is resizable by dragging its left edge.
@@ -368,11 +376,36 @@ Current M2 playback control terminology:
 - `Transport Controls Zone`: the button row below the progress bar.
 - `Playback Operation Zone`: the combined `Timeline Zone` and `Transport Controls Zone`.
 
-## 9. Settings View
+## 9. Settings Window
 
-The settings view should allow local folder management.
+Settings should be an independent macOS settings window, not a main-window
+sidebar section.
 
-Required elements:
+Formal entry:
+
+- `CueSeeker > Settings...` in the macOS app menu.
+- The standard `Command-,` shortcut may also be exposed if practical.
+
+Window structure:
+
+```text
+Settings Window
+Left Settings Category List
+Right Settings Content
+```
+
+The left Settings category list should use the current quiet gray background
+treatment. The right Settings content area should use the current white content
+background treatment.
+
+Current Settings categories:
+
+- `Library`.
+- `Decode`.
+
+The `Library` category should allow local folder management.
+
+Required `Library` elements:
 
 - List of indexed folders.
 - Add folder action.
@@ -381,16 +414,20 @@ Required elements:
 - Per-folder remove action.
 - Remove confirmation dialog explaining that local files will not be deleted.
 - Indexing status.
-- Decode Settings section with an app-drawn segmented control for `hardware`,
-  `software`, and `auto`, avoiding native menu services during the normal
-  Settings view lifecycle.
+
+The `Decode` category should expose an app-drawn segmented control for
+`hardware`, `software`, and `auto`, avoiding native menu services during the
+normal Settings window lifecycle.
 
 Settings should be functional and clear before they are visually refined.
+Opening, focusing, or closing Settings should not pause playback, switch the
+main workspace away from Search, collapse the Search Panel, or clear the
+selected Search result.
 
 The Add Folder action should continue to use the native macOS folder selection
 experience. It may temporarily create Open and Save Panel or QuickLook helper
 services while the panel is open. The UI should avoid unnecessary helper
-creation during normal Settings navigation, but it should not replace the
+creation during normal Settings window navigation, but it should not replace the
 native folder picker only to minimize process count.
 
 ## 10. Visual Style

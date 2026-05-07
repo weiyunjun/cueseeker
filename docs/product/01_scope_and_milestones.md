@@ -42,7 +42,8 @@ Goal:
 - Click a search result to open or update the matching local video in the
   embedded Playback Area at the matching timestamp.
 - Provide an embedded playback experience inside the Search workspace.
-- Provide a usable native macOS shell with Search and Settings navigation.
+- Provide a usable native macOS shell with Search navigation and a basic
+  Settings surface.
 
 Acceptance criteria:
 
@@ -61,7 +62,9 @@ Acceptance criteria:
 - Reopening the Search Panel does not automatically change playback state.
 - Clicking the embedded video toggles play/pause.
 - Repeated selection within the same video should seek rather than reload the video when practical.
-- Search and Settings are available through the native app shell.
+- Search is available through the native app shell.
+- A basic Settings surface is available for folder management and decode
+  configuration.
 - Remote playback and advanced visual effects are out of scope.
 
 M1 acceptance status:
@@ -92,6 +95,9 @@ Known post-M1 follow-up areas:
   complex ASS playback should move to the accepted source-faithful rendering
   pipeline.
 - Keyboard shortcuts, playback interaction refinement, native menu behavior, file and folder management, file-access persistence, error presentation, settings refinement, and packaging preparation belong to M2.
+- Post-M1 settings refinement should move Settings to the macOS app menu and an
+  independent Settings window so the main workspace remains focused on Search,
+  playback, and future content or learning panels.
 - Window sizing and restoration were substantially completed during M1 and should be treated as M2 regression-verification areas unless concrete defects are found.
 - The native-only playback integration requires focused app-level regression
   testing before it is treated as fully stabilized.
@@ -139,7 +145,8 @@ Expected areas:
 - Error presentation.
   Provide understandable user-facing errors for file access, indexing, database, search, and playback failures.
 - App settings.
-  Refine settings beyond the current folder-management surface after the specific M2 settings scope is confirmed.
+  Move Settings to `CueSeeker > Settings...` and provide an independent
+  two-column Settings window with current `Library` and `Decode` categories.
 - Packaging preparation.
   Prepare the app bundle for reliable local review builds, including dependency
   bundling concerns such as FFmpeg and required non-system FFmpeg dependencies.
@@ -157,6 +164,8 @@ Acceptance criteria:
 - The user can remove configured folders and recover clearly from missing or unavailable folders.
 - User-facing errors are understandable.
 - Window sizing, restoration, titlebar, full-screen, and inspector persistence behavior remain stable after M2 changes.
+- Settings can be opened from the app menu without pausing playback or changing
+  Search workspace state.
 
 ## 5. M3: Favorites and Personal Learning Flow
 

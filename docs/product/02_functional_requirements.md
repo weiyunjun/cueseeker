@@ -356,15 +356,31 @@ The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback
 
 ## 11. Settings
 
-The app must provide a settings surface for local app configuration.
+The app must provide a Settings surface for local app configuration.
 
-Early settings:
+Settings entry requirements:
 
-- Manage indexed folders.
+- Settings opens from `CueSeeker > Settings...` in the macOS app menu.
+- Settings is an independent window, not a main-window sidebar section.
+- Opening, focusing, or closing Settings must not pause playback, switch the
+  main workspace away from Search, collapse the Search Panel, or clear the
+  selected Search result.
+
+Current Settings categories:
+
+- `Library`.
+- `Decode`.
+
+`Library` settings requirements:
+
+- Manage indexed subtitle folders.
 - Add a local subtitle folder.
-- Trigger reindexing for all selected folders from the Settings toolbar.
+- Trigger reindexing for selected folders through an `Index Now` action.
 - Remove a selected folder through a confirmation dialog.
 - View indexing status.
+
+`Decode` settings requirements:
+
 - Choose a persisted playback decode mode from `hardware`, `software`, and
   `auto`.
 

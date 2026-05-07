@@ -20,14 +20,14 @@ playback is the main review experience after a result is selected.
 - Place the embedded playback area on the left side of the Search workspace.
 - Place Search controls and Search results in a right-side Search Panel.
 - Allow the right-side Search Panel to collapse so playback can use more space.
-- Preserve the leftmost app sidebar behavior for `Search` and `Settings`.
+- Preserve the leftmost app sidebar behavior outside the Search workspace.
 - Keep result-to-result review inside the Search workspace.
 - Keep the first implementation focused on layout and interaction structure.
 
 ## Non-goals
 
 - Redesign the leftmost app sidebar.
-- Change `Search` or `Settings` navigation behavior.
+- Change app-level navigation beyond the Search workspace layout.
 - Change search ranking, query semantics, result grouping, or lazy loading.
 - Change playback engine behavior.
 - Add media-library browsing.
@@ -60,8 +60,9 @@ Main Workspace
 ```
 
 The leftmost sidebar remains outside the Search workspace swap. It continues to
-provide the high-level `Search` and `Settings` navigation and keeps its existing
-expand or collapse behavior.
+provide main-window navigation such as `Search` and keeps its existing expand
+or collapse behavior. Settings is superseded by the standalone Settings window
+direction and no longer needs to remain in this sidebar.
 
 When Search is active, the visible horizontal order should be:
 
@@ -115,8 +116,10 @@ Collapsing the `Search Panel` should:
 Reopening the `Search Panel` should restore the current Search context when
 practical and should not automatically change playback state.
 
-Switching to another top-level section, such as Settings, should still pause
-playback without stopping it.
+Opening the standalone Settings window should not pause playback or change
+Search workspace state. Switching to another future main-window workspace
+section may still pause playback without stopping it when that section is
+documented.
 
 Initial layout guidance:
 
@@ -174,7 +177,8 @@ Risks:
 
 ## Acceptance Criteria
 
-- The leftmost app sidebar still owns `Search` and `Settings` navigation.
+- The leftmost app sidebar remains outside the Search workspace layout and owns
+  main-window navigation such as `Search`.
 - The leftmost app sidebar expand or collapse behavior is unchanged by this
   Search workspace layout change.
 - Inside the Search workspace, the Playback Area appears on the left.
@@ -187,7 +191,7 @@ Risks:
   practical.
 - Clicking a Search result updates the left-side Playback Area without leaving
   Search.
-- Switching from Search to Settings still pauses playback without stopping it.
+- Opening Settings does not pause playback or change Search workspace state.
 
 ## Decision
 
@@ -197,9 +201,11 @@ CueSeeker should move from a right-side playback inspector model to a
 player-first Search workspace. Playback belongs on the left as the primary
 review surface. Search belongs on the right as a functional, collapsible panel.
 The existing leftmost app sidebar remains outside this layout swap and must keep
-its current `Search` and `Settings` navigation role.
+its main-window navigation role.
 
 This proposal supersedes the layout and collapse portions of
 `docs/proposals/2026-04-search-playback-inspector.md`. It does not supersede
-the embedded playback, result-to-result review, pause-on-leaving-Search, or
-Theater Mode fullscreen decisions.
+the embedded playback, result-to-result review, pause-on-leaving-Search for
+future main-window sections, or Theater Mode fullscreen decisions. The
+standalone Settings window proposal supersedes this proposal's earlier
+assumption that Settings must remain in the leftmost AppShell sidebar.

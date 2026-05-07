@@ -34,7 +34,9 @@ Expected behavior:
 
 - Search controls and Search results live in the right-side Search Panel.
 - The leftmost app sidebar remains separate from the Search Panel and continues
-  to control `Search` and `Settings` navigation.
+  to control main-window navigation such as `Search`.
+- Settings opens from `CueSeeker > Settings...` in the macOS app menu and does
+  not belong to the main-window sidebar.
 - The Search Panel can be collapsed when the user wants to focus on playback.
 - Collapsing the Search Panel should preserve the current query, result state,
   selected result, and playback context.
@@ -97,7 +99,10 @@ Search focus behavior:
 - Selecting a search result should clear Search field focus.
 - Clicking App-owned expand or collapse buttons should clear Search field focus.
 - Future App-owned feature buttons should clear Search field focus by default.
-- Selecting another sidebar section should clear Search field focus.
+- Selecting another main-window sidebar section should clear Search field focus
+  when such sections exist.
+- Opening Settings may clear Search field focus, but it must not change Search
+  workspace, selected result, Search Panel, or playback state.
 - Clicking anywhere in the Playback Area should clear Search field focus.
 - System-level app switching should not intentionally clear Search field focus.
 - Returning to the app after backgrounding should preserve the Search field focus state when AppKit preserves the first responder.
@@ -187,7 +192,10 @@ Required interactions:
 - Seek.
 - Jump from search result to timestamp.
 - Continue playback when the Search Panel is collapsed.
-- Pause playback when switching from Search to Settings or another top-level section.
+- Opening Settings does not pause playback or switch away from Search.
+- Pause playback when switching from Search to another future main-window
+  workspace section if that section is documented to leave the playback review
+  context.
 - Preserve the current selected result when the Search Panel is collapsed.
 - Reopening the Search Panel should not automatically change playback state.
 
@@ -346,7 +354,29 @@ M2 keyboard shortcut model:
 - `Shift+,` and `Shift+.` should decrease or increase playback speed by 0.25x.
 - Playback shortcut commands should show lightweight feedback overlays for subtitle copy, subtitle visibility, play or pause, relative seek, volume, and speed changes.
 
-## 13. File And Finder Interaction
+## 13. Settings Interaction
+
+Settings should follow standard macOS app-settings expectations.
+
+Expected behavior:
+
+- The formal entry is `CueSeeker > Settings...` in the app menu.
+- The app may expose the standard `Command-,` shortcut if practical.
+- Opening Settings should create or focus a single independent Settings window.
+- The Settings window should use a two-column structure: a left category list
+  and right content area.
+- The left category list uses the quiet gray settings/navigation background.
+- The right content area uses the white settings content background.
+- The only current categories are `Library` and `Decode`.
+- `Library` contains current Subtitle Folders management: add folders, index
+  selected folders, remove folders with confirmation, and show indexing status.
+- `Decode` contains the playback decode mode selector for `hardware`,
+  `software`, and `auto`.
+- Opening, focusing, switching categories within, or closing Settings must not
+  pause playback, switch the main workspace away from Search, collapse the
+  Search Panel, or clear the selected Search result.
+
+## 14. File And Finder Interaction
 
 Native macOS file and Finder interactions are part of the expected product
 experience.
@@ -358,20 +388,21 @@ Rules:
   subtitle in Finder, may use native Finder or AppKit integration.
 - These explicit interactions may temporarily create Open and Save Panel,
   QuickLook, Finder, or other system helper services.
-- Helper services should not be triggered by ordinary launch, Search,
-  Settings navigation, or playback when no file-system interaction is being
+- Helper services should not be triggered by ordinary launch, Search, opening
+  or focusing Settings, or playback when no file-system interaction is being
   requested.
 - The app should not weaken native file-access behavior or force-terminate
   system helper services only to reduce process count.
 
-## 14. Persistence
+## 15. Persistence
 
 The app should remember:
 
 - Configured local folders.
 - Window size and maximized state.
-- Last selected app section if practical.
+- Last selected main-window app section if practical.
 - Sidebar collapsed or expanded state.
+- Last selected Settings category if practical.
 - Left Content Panel mode and visibility when implemented.
 - Search Panel width and visibility.
 - Queue or Learning Session state only after persistence rules are documented.
