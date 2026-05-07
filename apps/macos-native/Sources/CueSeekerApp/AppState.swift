@@ -98,7 +98,6 @@ final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
     private static let isLibraryPanelVisibleKey = "isLibraryPanelVisible"
     private static let libraryPanelWidthKey = "libraryPanelWidth"
-    private static let collapsedLibraryFolderPathsKey = "collapsedLibraryFolderPaths"
     private static let isSearchPanelVisibleKey = "isSearchPanelVisible"
     private static let searchPanelWidthKey = "searchPanelWidth"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
@@ -277,7 +276,6 @@ final class AppState: ObservableObject {
         self.userDefaults = userDefaults
         self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
-        collapsedLibraryFolderPaths = Self.loadCollapsedLibraryFolderPaths(from: userDefaults)
 
         userDefaults.register(defaults: [
             Self.isLibraryPanelVisibleKey: true,
@@ -377,6 +375,7 @@ final class AppState: ObservableObject {
     func indexFolder(_ folder: URL) {
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
+        clearSearchAndPlaybackState(under: folder)
         indexingStatus = .indexing(folder)
 
         let databaseURL = databaseURL
@@ -416,6 +415,9 @@ final class AppState: ObservableObject {
 
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
+        for folder in folders {
+            clearSearchAndPlaybackState(under: folder)
+        }
         indexingStatus = .indexingAll(
             currentFolder: firstFolder,
             completedFolders: 0,
@@ -536,7 +538,6 @@ final class AppState: ObservableObject {
         guard !folders.isEmpty else {
             libraryVideos = []
             collapsedLibraryFolderPaths = []
-            persistCollapsedLibraryFolderPaths()
             libraryStatus = .idle
             return
         }
@@ -564,7 +565,6 @@ final class AppState: ObservableObject {
 
                 libraryVideos = []
                 collapsedLibraryFolderPaths = []
-                persistCollapsedLibraryFolderPaths()
                 libraryStatus = .failed(Self.errorMessage(for: error))
             }
         }
@@ -576,7 +576,6 @@ final class AppState: ObservableObject {
         } else {
             collapsedLibraryFolderPaths.insert(folderPath)
         }
-        persistCollapsedLibraryFolderPaths()
     }
 
     func toggleAllLibraryFolderGroups() {
@@ -590,7 +589,6 @@ final class AppState: ObservableObject {
         } else {
             collapsedLibraryFolderPaths.formUnion(groupPaths)
         }
-        persistCollapsedLibraryFolderPaths()
     }
 
     private func hydrateLibrarySynchronously(from database: SubtitleDatabase) throws {
@@ -598,7 +596,6 @@ final class AppState: ObservableObject {
         guard !folders.isEmpty else {
             libraryVideos = []
             collapsedLibraryFolderPaths = []
-            persistCollapsedLibraryFolderPaths()
             libraryStatus = .idle
             return
         }
@@ -610,7 +607,11 @@ final class AppState: ObservableObject {
 
     private func applyLibraryVideos(_ videos: [LibraryVideo]) {
         libraryVideos = videos
-        let existingGroupPaths = Set(
+        collapsedLibraryFolderPaths = Self.libraryGroupPaths(for: videos)
+    }
+
+    private static func libraryGroupPaths(for videos: [LibraryVideo]) -> Set<String> {
+        Set(
             videos.map {
                 URL(fileURLWithPath: $0.videoPath)
                     .deletingLastPathComponent()
@@ -618,8 +619,6 @@ final class AppState: ObservableObject {
                     .path
             }
         )
-        collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.intersection(existingGroupPaths)
-        persistCollapsedLibraryFolderPaths()
     }
 
     private func startSearch(
@@ -1090,7 +1089,6 @@ final class AppState: ObservableObject {
         searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         libraryVideos.removeAll { Self.path($0.videoPath, isUnder: folder) }
         collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.filter { !Self.path($0, isUnder: folder) }
-        persistCollapsedLibraryFolderPaths()
         expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath.filter { path, _ in
             !Self.path(path, isUnder: folder)
         }
@@ -1480,21 +1478,10 @@ final class AppState: ObservableObject {
         )
     }
 
-    private func persistCollapsedLibraryFolderPaths() {
-        userDefaults.set(
-            Array(collapsedLibraryFolderPaths).sorted(),
-            forKey: Self.collapsedLibraryFolderPathsKey
-        )
-    }
-
     private static func loadSelectedFolders(from userDefaults: UserDefaults) -> [URL] {
         userDefaults
             .stringArray(forKey: selectedFolderPathsKey)?
             .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? []
-    }
-
-    private static func loadCollapsedLibraryFolderPaths(from userDefaults: UserDefaults) -> Set<String> {
-        Set(userDefaults.stringArray(forKey: collapsedLibraryFolderPathsKey) ?? [])
     }
 
     private static func loadPlaybackDecodeMode(from userDefaults: UserDefaults) -> PlaybackDecodeMode {

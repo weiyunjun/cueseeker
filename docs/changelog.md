@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the revised Library view-state behavior in the native app:
+  Library folder groups no longer load from or write to persisted collapse
+  state, startup and Library data refresh collapse all groups by default, and
+  reindex clears affected Library/Search/playback state before rebuilding.
+  Library/Search result row buttons also opt out of macOS focus rings intended
+  for keyboard-focused controls.
 - Accepted the derived index decoupling principle: rebuildable local index rows
   may become stale or be recreated, but durable user state such as Library
   playback history and future favorites should remain intact and show

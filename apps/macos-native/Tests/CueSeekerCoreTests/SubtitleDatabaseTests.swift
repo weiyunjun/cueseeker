@@ -279,6 +279,47 @@ func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
 }
 
 @Test
+func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let folder = URL(fileURLWithPath: "/Media/Show")
+    let videoFile = folder.appendingPathComponent("Episode 1.mkv")
+    try database.replaceEntries(
+        subtitleFile: folder.appendingPathComponent("Episode 1.srt"),
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Library history should survive index removal."
+            )
+        ]
+    )
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 42_000,
+        duration: 1_200.0
+    )
+
+    try database.removeIndexedFolder(folder)
+
+    #expect(try database.libraryVideos(under: [folder]).isEmpty)
+    let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(history.videoPath == videoFile.path)
+    #expect(history.positionMilliseconds == 42_000)
+    #expect(history.duration == 1_200.0)
+}
+
+@Test
 func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
     let databaseURL = temporaryDatabaseURL()
     let root = FileManager.default.temporaryDirectory

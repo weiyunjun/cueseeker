@@ -539,6 +539,7 @@ private struct LibraryFolderGroupHeader: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
+        .focusable(false)
     }
 
     private var headerText: AttributedString {
@@ -582,6 +583,7 @@ private struct LibraryFolderGroupView: View {
                         )
                     }
                     .buttonStyle(StaticButtonStyle())
+                    .focusable(false)
                 }
             }
         }
@@ -664,6 +666,7 @@ private struct SearchResultGroupHeader: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
+        .focusable(false)
     }
 
     private var headerText: AttributedString {
@@ -712,6 +715,7 @@ private struct SearchResultGroupView: View {
                         )
                     }
                     .buttonStyle(StaticButtonStyle())
+                    .focusable(false)
                     .onAppear {
                         onResultAppear(result)
                     }
@@ -765,6 +769,7 @@ private struct SearchResultGroupRail: View {
                         )
                 }
                 .buttonStyle(StaticButtonStyle())
+                .focusable(false)
                 .offset(
                     x: SearchLayout.resultOuterHorizontalPadding,
                     y: SearchLayout.groupRailChevronTopPadding
