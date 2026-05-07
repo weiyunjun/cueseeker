@@ -14,17 +14,25 @@ struct SearchView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let libraryPanelFrameWidth = appState.isLibraryPanelVisible
+                ? libraryPanelWidth(for: geometry.size.width)
+                : 0
             let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
+            let searchPanelFrameWidth = appState.isSearchPanelVisible
+                ? searchPanelWidth
+                : 0
 
             HStack(spacing: 0) {
-                if appState.isLibraryPanelVisible {
-                    libraryPanel
-                        .frame(width: libraryPanelWidth(for: geometry.size.width))
-                        .overlay(alignment: .trailing) {
+                libraryPanel
+                    .frame(width: libraryPanelFrameWidth)
+                    .clipped()
+                    .allowsHitTesting(appState.isLibraryPanelVisible)
+                    .accessibilityHidden(!appState.isLibraryPanelVisible)
+                    .overlay(alignment: .trailing) {
+                        if appState.isLibraryPanelVisible {
                             libraryPanelResizeDivider(availableWidth: geometry.size.width)
                         }
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                }
+                    }
 
                 playbackArea
                     .frame(minWidth: SearchLayout.playbackAreaMinimumWidth, maxWidth: .infinity)
@@ -34,11 +42,11 @@ struct SearchView: View {
                         }
                     }
 
-                if appState.isSearchPanelVisible {
-                    searchPanel
-                        .frame(width: searchPanelWidth)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
+                searchPanel
+                    .frame(width: searchPanelFrameWidth)
+                    .clipped()
+                    .allowsHitTesting(appState.isSearchPanelVisible)
+                    .accessibilityHidden(!appState.isSearchPanelVisible)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .animation(.easeInOut(duration: 0.18), value: appState.isLibraryPanelVisible)

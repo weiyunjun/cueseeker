@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the first workbench UI invalidation cleanup: Library and Search
+  presentation groups are now cached and rebuilt only through their relevant
+  data/collapse mutation paths, and hiding either side panel keeps the panel
+  subtree alive instead of removing and recreating the large list view.
 - Implemented the revised Library view-state behavior in the native app:
   Library folder groups no longer load from or write to persisted collapse
   state, startup and Library data refresh collapse all groups by default, and

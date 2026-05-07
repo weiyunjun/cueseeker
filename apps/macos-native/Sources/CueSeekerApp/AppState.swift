@@ -117,6 +117,9 @@ final class AppState: ObservableObject {
     @Published var libraryVideos: [LibraryVideo] = []
     @Published var collapsedLibraryFolderPaths: Set<String> = []
     @Published var collapsedSearchResultGroupPaths: Set<String> = []
+    @Published private(set) var libraryFolderGroups: [LibraryFolderGroup] = []
+    @Published private(set) var searchResultGroups: [SearchResultFileGroup] = []
+    @Published private(set) var renderedSearchResultCount = 0
     @Published private var areSearchResultGroupsCollapsedByGlobalControl = false
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
@@ -142,40 +145,14 @@ final class AppState: ObservableObject {
         player
     }
 
-    var searchResultGroups: [SearchResultFileGroup] {
-        let resultsByPath = Dictionary(grouping: searchResults, by: \.subtitlePath)
-        guard !searchFileSummaries.isEmpty || !resultsByPath.isEmpty else {
-            return []
-        }
-
-        let summaryByPath = Dictionary(uniqueKeysWithValues: searchFileSummaries.map { ($0.subtitlePath, $0) })
-        let summaryPaths = Set(searchFileSummaries.map(\.subtitlePath))
-        let orderedPaths = searchFileSummaries.map(\.subtitlePath)
-        let extraPaths = Set(resultsByPath.keys)
-            .union(expandedSearchResultGroupRowsByPath.keys)
-            .filter { !summaryPaths.contains($0) }
-            .sorted(by: Self.searchResultGroupPathSort)
-
-        return (orderedPaths + extraPaths).map { path in
-            let summary = summaryByPath[path]
-            let groupRows = expandedSearchResultGroupRowsByPath[path] ?? resultsByPath[path] ?? []
-            let results = groupRows.sorted(by: Self.searchResultSort)
-            return SearchResultFileGroup(
-                subtitlePath: path,
-                subtitleDisplayTitle: summary?.subtitleDisplayTitle
-                    ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path),
-                totalCount: summary?.matchCount ?? results.count,
-                results: results,
-                isCollapsed: collapsedSearchResultGroupPaths.contains(path)
-            )
-        }
-    }
-
     var hasSearchResultGroups: Bool {
         !searchResultGroups.isEmpty
     }
 
-    var libraryFolderGroups: [LibraryFolderGroup] {
+    private static func makeLibraryFolderGroups(
+        videos libraryVideos: [LibraryVideo],
+        collapsedFolderPaths: Set<String>
+    ) -> [LibraryFolderGroup] {
         let videosByFolderPath = Dictionary(grouping: libraryVideos) {
             URL(fileURLWithPath: $0.videoPath)
                 .deletingLastPathComponent()
@@ -212,7 +189,41 @@ final class AppState: ObservableObject {
                 folderPath: folderPath,
                 folderTitle: folderTitle,
                 videos: rows,
-                isCollapsed: collapsedLibraryFolderPaths.contains(folderPath)
+                isCollapsed: collapsedFolderPaths.contains(folderPath)
+            )
+        }
+    }
+
+    private static func makeSearchResultGroups(
+        results searchResults: [SubtitleSearchResult],
+        fileSummaries searchFileSummaries: [SubtitleSearchFileSummary],
+        expandedRowsByPath: [String: [SubtitleSearchResult]],
+        collapsedGroupPaths: Set<String>
+    ) -> [SearchResultFileGroup] {
+        let resultsByPath = Dictionary(grouping: searchResults, by: \.subtitlePath)
+        guard !searchFileSummaries.isEmpty || !resultsByPath.isEmpty else {
+            return []
+        }
+
+        let summaryByPath = Dictionary(uniqueKeysWithValues: searchFileSummaries.map { ($0.subtitlePath, $0) })
+        let summaryPaths = Set(searchFileSummaries.map(\.subtitlePath))
+        let orderedPaths = searchFileSummaries.map(\.subtitlePath)
+        let extraPaths = Set(resultsByPath.keys)
+            .union(expandedRowsByPath.keys)
+            .filter { !summaryPaths.contains($0) }
+            .sorted(by: Self.searchResultGroupPathSort)
+
+        return (orderedPaths + extraPaths).map { path in
+            let summary = summaryByPath[path]
+            let groupRows = expandedRowsByPath[path] ?? resultsByPath[path] ?? []
+            let results = groupRows.sorted(by: Self.searchResultSort)
+            return SearchResultFileGroup(
+                subtitlePath: path,
+                subtitleDisplayTitle: summary?.subtitleDisplayTitle
+                    ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path),
+                totalCount: summary?.matchCount ?? results.count,
+                results: results,
+                isCollapsed: collapsedGroupPaths.contains(path)
             )
         }
     }
@@ -240,12 +251,6 @@ final class AppState: ObservableObject {
 
     var currentPlaybackSubtitlePath: String? {
         selectedLibraryVideo?.subtitlePath ?? selectedSearchResult?.subtitlePath
-    }
-
-    var renderedSearchResultCount: Int {
-        searchResultGroups.reduce(0) { count, group in
-            group.isCollapsed ? count : count + group.results.count
-        }
     }
 
     var searchResultGroupToggleTitle: String {
@@ -509,9 +514,11 @@ final class AppState: ObservableObject {
     func toggleSearchResultGroup(_ subtitlePath: String) {
         if collapsedSearchResultGroupPaths.contains(subtitlePath) {
             collapsedSearchResultGroupPaths.remove(subtitlePath)
+            rebuildSearchResultGroups()
             revealInitialSearchResultGroupPage(for: subtitlePath)
         } else {
             collapsedSearchResultGroupPaths.insert(subtitlePath)
+            rebuildSearchResultGroups()
         }
     }
 
@@ -524,10 +531,12 @@ final class AppState: ObservableObject {
         if areSearchResultGroupsCollapsedByGlobalControl {
             collapsedSearchResultGroupPaths.subtract(groupPaths)
             areSearchResultGroupsCollapsedByGlobalControl = false
+            rebuildSearchResultGroups()
             revealInitialGlobalSearchResultPage()
         } else {
             collapsedSearchResultGroupPaths.formUnion(groupPaths)
             areSearchResultGroupsCollapsedByGlobalControl = true
+            rebuildSearchResultGroups()
         }
     }
 
@@ -538,6 +547,7 @@ final class AppState: ObservableObject {
         guard !folders.isEmpty else {
             libraryVideos = []
             collapsedLibraryFolderPaths = []
+            rebuildLibraryFolderGroups()
             libraryStatus = .idle
             return
         }
@@ -565,6 +575,7 @@ final class AppState: ObservableObject {
 
                 libraryVideos = []
                 collapsedLibraryFolderPaths = []
+                rebuildLibraryFolderGroups()
                 libraryStatus = .failed(Self.errorMessage(for: error))
             }
         }
@@ -576,6 +587,7 @@ final class AppState: ObservableObject {
         } else {
             collapsedLibraryFolderPaths.insert(folderPath)
         }
+        rebuildLibraryFolderGroups()
     }
 
     func toggleAllLibraryFolderGroups() {
@@ -589,6 +601,7 @@ final class AppState: ObservableObject {
         } else {
             collapsedLibraryFolderPaths.formUnion(groupPaths)
         }
+        rebuildLibraryFolderGroups()
     }
 
     private func hydrateLibrarySynchronously(from database: SubtitleDatabase) throws {
@@ -596,6 +609,7 @@ final class AppState: ObservableObject {
         guard !folders.isEmpty else {
             libraryVideos = []
             collapsedLibraryFolderPaths = []
+            rebuildLibraryFolderGroups()
             libraryStatus = .idle
             return
         }
@@ -608,6 +622,14 @@ final class AppState: ObservableObject {
     private func applyLibraryVideos(_ videos: [LibraryVideo]) {
         libraryVideos = videos
         collapsedLibraryFolderPaths = Self.libraryGroupPaths(for: videos)
+        rebuildLibraryFolderGroups()
+    }
+
+    private func rebuildLibraryFolderGroups() {
+        libraryFolderGroups = Self.makeLibraryFolderGroups(
+            videos: libraryVideos,
+            collapsedFolderPaths: collapsedLibraryFolderPaths
+        )
     }
 
     private static func libraryGroupPaths(for videos: [LibraryVideo]) -> Set<String> {
@@ -684,6 +706,7 @@ final class AppState: ObservableObject {
                 searchResultTotalCount = page.totalCount
                 searchFileSummaries = page.fileSummaries
                 hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
+                rebuildSearchResultGroups()
                 searchStatus = .completed
             } catch is CancellationError {
                 return
@@ -1047,6 +1070,7 @@ final class AppState: ObservableObject {
             searchResults = []
             expandedSearchResultGroupRowsByPath = [:]
             loadedGlobalSearchResultCount = 0
+            rebuildSearchResultGroups()
         }
 
         updateSearchQuery(searchQuery)
@@ -1087,11 +1111,18 @@ final class AppState: ObservableObject {
 
     private func clearSearchAndPlaybackState(under folder: URL) {
         searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
+        searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
+        searchResultTotalCount = searchFileSummaries.reduce(0) { $0 + $1.matchCount }
+        loadedGlobalSearchResultCount = searchResults.count
+        hasMoreSearchResults = false
+        collapsedSearchResultGroupPaths = collapsedSearchResultGroupPaths.filter { !Self.path($0, isUnder: folder) }
         libraryVideos.removeAll { Self.path($0.videoPath, isUnder: folder) }
         collapsedLibraryFolderPaths = collapsedLibraryFolderPaths.filter { !Self.path($0, isUnder: folder) }
         expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath.filter { path, _ in
             !Self.path(path, isUnder: folder)
         }
+        rebuildLibraryFolderGroups()
+        rebuildSearchResultGroups()
         let groupTaskPaths = searchResultGroupTasks.keys.filter { Self.path($0, isUnder: folder) }
         for path in groupTaskPaths {
             searchResultGroupTasks[path]?.cancel()
@@ -1180,6 +1211,7 @@ final class AppState: ObservableObject {
             .filter { $0.subtitlePath == subtitlePath }
             .sorted(by: Self.searchResultSort)
         expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
+        rebuildSearchResultGroups()
 
         searchResultGroupTasks[subtitlePath]?.cancel()
 
@@ -1218,6 +1250,7 @@ final class AppState: ObservableObject {
 
                 self.expandedSearchResultGroupRowsByPath[subtitlePath] = results
                 self.searchResultGroupTasks.removeValue(forKey: subtitlePath)
+                self.rebuildSearchResultGroups()
             } catch is CancellationError {
                 return
             } catch {
@@ -1237,6 +1270,7 @@ final class AppState: ObservableObject {
         searchResults = Array(searchResults.prefix(Self.searchPageSize))
         loadedGlobalSearchResultCount = searchResults.count
         hasMoreSearchResults = loadedGlobalSearchResultCount < searchResultTotalCount
+        rebuildSearchResultGroups()
     }
 
     private func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
@@ -1254,6 +1288,19 @@ final class AppState: ObservableObject {
         areSearchResultGroupsCollapsedByGlobalControl = false
         expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
+        rebuildSearchResultGroups()
+    }
+
+    private func rebuildSearchResultGroups() {
+        searchResultGroups = Self.makeSearchResultGroups(
+            results: searchResults,
+            fileSummaries: searchFileSummaries,
+            expandedRowsByPath: expandedSearchResultGroupRowsByPath,
+            collapsedGroupPaths: collapsedSearchResultGroupPaths
+        )
+        renderedSearchResultCount = searchResultGroups.reduce(0) { count, group in
+            group.isCollapsed ? count : count + group.results.count
+        }
     }
 
     private func revealFile(atPath path: String) {

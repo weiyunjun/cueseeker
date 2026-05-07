@@ -281,7 +281,8 @@ When implemented, Library should support:
   its minimum width, and the first minimum width should be `310pt`, which is
   `50pt` narrower than the previous fixed `360pt` Library width.
 - Persist the user's Library width when it differs from the default.
-- Persist Library folder collapse or expand state across launches.
+- Keep Library folder collapse or expand state only for the current session.
+  App startup and Library data refresh should show all folder groups collapsed.
 - Open or update playback from a persisted Library resume position when the
   user clicks a video through Library, falling back to `0` when no history
   exists.
