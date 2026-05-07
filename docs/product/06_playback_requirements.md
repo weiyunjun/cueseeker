@@ -366,7 +366,7 @@ Current implementation notes:
 - Fullscreen entry hides the playback operation controls and cursor immediately for both keyboard and button entry paths.
 - Fullscreen playback shortcuts do not reveal the playback operation controls.
 - The speed preset menu uses the same width as the speed button and has no separate show or hide animation.
-- The accepted playback fullscreen direction uses AppKit fullscreen lifecycle
+- The playback fullscreen implementation uses AppKit fullscreen lifecycle
   instead of manual Theater Mode deactivation handling.
 - Read-only selectable metadata text does not count as editable text input for playback shortcut suppression.
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.

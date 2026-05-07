@@ -6,14 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Accepted the AppKit playback fullscreen direction in ADR-0010: production
-  playback fullscreen should use a dedicated playback window entering native
-  macOS Full Screen Space, superseding the old borderless Theater Mode
-  mechanism that came from the removed `libmpv` playback era.
-- Added AppKit-derived playback-size transition rules and implemented animated
-  Theater Mode fullscreen enter/exit using the singleton native playback render
-  container, with fullscreen and titlebar zoom command gates based on the
-  current window resize animation rather than guessed fixed fullscreen delays.
+- Accepted and implemented the ADR-0010 playback fullscreen path: playback now
+  moves the singleton native render container into a dedicated playback window
+  that enters AppKit native Full Screen Space, superseding the borderless
+  Theater Mode mechanism that came from the removed `libmpv` playback era.
 - Fixed native playback layout synchronization during workbench side-panel
   animations: the embedded playback card no longer relies on a separate SwiftUI
   black background, and the native render host/container/display layer now

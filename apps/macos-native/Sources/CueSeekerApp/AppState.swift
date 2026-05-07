@@ -404,15 +404,20 @@ final class AppState: ObservableObject {
             return
         }
 
-        let duration = playbackFullscreenManager.toggleFullscreen(
+        let started = playbackFullscreenManager.toggleFullscreen(
             player: player,
             viewModel: playbackViewModel,
             onCopySubtitle: onCopySubtitle,
             onExitRequest: { [weak self] in
                 self?.exitPlaybackFullscreenFromUser()
+            },
+            onTransitionCompleted: { [weak self] in
+                self?.endVideoSizeTransition()
             }
         )
-        completeVideoSizeTransition(after: duration)
+        if !started {
+            endVideoSizeTransition()
+        }
     }
 
     func exitPlaybackFullscreenFromUser() {
@@ -424,8 +429,15 @@ final class AppState: ObservableObject {
             return
         }
 
-        let duration = playbackFullscreenManager.exitFullscreen(animated: true)
-        completeVideoSizeTransition(after: duration)
+        let started = playbackFullscreenManager.exitFullscreen(
+            animated: true,
+            onTransitionCompleted: { [weak self] in
+                self?.endVideoSizeTransition()
+            }
+        )
+        if !started {
+            endVideoSizeTransition()
+        }
     }
 
     func updateLibraryPanelWidth(_ width: Double) {

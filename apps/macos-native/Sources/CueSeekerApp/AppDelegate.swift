@@ -30,14 +30,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appState.playbackFullscreenManager.exitFullscreen()
     }
 
-    func applicationWillResignActive(_ notification: Notification) {
-        appState.playbackFullscreenManager.suspendFullscreenForAppDeactivation()
-    }
-
-    func applicationDidBecomeActive(_ notification: Notification) {
-        appState.playbackFullscreenManager.restoreFullscreenAfterAppActivation()
-    }
-
     private func createMainWindow() {
         let contentView = ContentView()
             .environmentObject(appState)

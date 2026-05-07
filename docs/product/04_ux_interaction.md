@@ -293,14 +293,14 @@ M2 playback interaction model:
 
 Current M2 implementation:
 
-- The previous borderless Theater Mode fullscreen implementation is superseded
-  by the accepted AppKit Full Screen Space direction for playback fullscreen.
-- Playback fullscreen should keep returning the same playback render container
-  to the embedded Playback Area when closed.
+- Playback fullscreen uses a dedicated playback window that enters AppKit
+  native Full Screen Space.
+- Playback fullscreen returns the same playback render container to the
+  embedded Playback Area when closed.
 - Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
 - Fullscreen playback reveals controls and cursor from mouse or click activity, not from keyboard shortcuts.
-- AppKit fullscreen lifecycle should replace manual Theater Mode suspension for
-  app switching and deactivation behavior.
+- AppKit fullscreen lifecycle replaces manual Theater Mode suspension for app
+  switching and deactivation behavior.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
 - Shortcut and control actions show transient feedback overlays for copying the current subtitle, subtitle visibility, play/pause, relative seek, volume, and speed.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
