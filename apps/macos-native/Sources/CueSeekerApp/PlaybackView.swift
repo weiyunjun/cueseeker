@@ -154,6 +154,7 @@ private final class PlaybackRenderHostView: NSView {
         CATransaction.setDisableActions(true)
         renderView.frame = bounds
         renderView.needsLayout = true
+        renderView.layoutSubtreeIfNeeded()
         CATransaction.commit()
     }
 
