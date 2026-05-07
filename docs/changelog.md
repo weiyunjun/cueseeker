@@ -10,6 +10,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
   moves the singleton native render container into a dedicated playback window
   that enters AppKit native Full Screen Space, superseding the borderless
   Theater Mode mechanism that came from the removed `libmpv` playback era.
+  Fullscreen transitions hide the playback window's traffic light buttons and
+  no longer leave a fake black placeholder in the embedded Playback Area.
 - Fixed native playback layout synchronization during workbench side-panel
   animations: the embedded playback card no longer relies on a separate SwiftUI
   black background, and the native render host/container/display layer now

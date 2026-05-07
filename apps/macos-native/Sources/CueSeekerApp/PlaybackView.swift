@@ -42,7 +42,7 @@ struct PlaybackVideoView: View {
     var body: some View {
         ZStack {
             if fullscreenManager.isFullscreen {
-                Color.black
+                Color.clear
             } else {
                 PlaybackRenderViewWrapper(player: player)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -61,12 +61,14 @@ struct PlaybackVideoView: View {
                 )
             }
 
-            PlaybackSubtitleOverlay(
-                text: viewModel.activeSubtitleText,
-                bottomPadding: isControlsVisible ? 112 : 28
-            )
+            if !fullscreenManager.isFullscreen {
+                PlaybackSubtitleOverlay(
+                    text: viewModel.activeSubtitleText,
+                    bottomPadding: isControlsVisible ? 112 : 28
+                )
 
-            PlaybackFeedbackOverlay(feedback: viewModel.feedback)
+                PlaybackFeedbackOverlay(feedback: viewModel.feedback)
+            }
         }
         .onHover { hover in
             isControlsVisible = hover

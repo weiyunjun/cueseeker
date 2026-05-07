@@ -295,8 +295,13 @@ Current M2 implementation:
 
 - Playback fullscreen uses a dedicated playback window that enters AppKit
   native Full Screen Space.
+- The dedicated playback fullscreen window hides standard traffic light
+  buttons during fullscreen transitions.
 - Playback fullscreen returns the same playback render container to the
   embedded Playback Area when closed.
+- The embedded Playback Area does not draw a black placeholder, duplicate
+  subtitles, duplicate feedback, or duplicate controls while playback is in the
+  fullscreen window.
 - Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
 - Fullscreen playback reveals controls and cursor from mouse or click activity, not from keyboard shortcuts.
 - AppKit fullscreen lifecycle replaces manual Theater Mode suspension for app

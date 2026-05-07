@@ -89,6 +89,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         window.acceptsMouseMovedEvents = true
         window.isReleasedWhenClosed = false
         window.delegate = self
+        hideStandardWindowButtons(for: window)
         window.onEscape = { [weak self] in
             Task { @MainActor in
                 self?.requestExitFullscreen()
@@ -126,6 +127,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
 
         window.contentView = rootView
         window.makeKeyAndOrderFront(nil)
+        hideStandardWindowButtons(for: window)
         NSApplication.shared.activate(ignoringOtherApps: true)
 
         DispatchQueue.main.async { [weak self] in
@@ -133,6 +135,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
                 return
             }
 
+            self.hideStandardWindowButtons(for: window)
             window.toggleFullScreen(nil)
         }
         return true
@@ -211,21 +214,31 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         }
     }
 
-    func windowDidEnterFullScreen(_ notification: Notification) {
-        guard notification.object as? NSWindow === fullscreenWindow else {
+    func windowWillEnterFullScreen(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === fullscreenWindow else {
             return
         }
 
+        hideStandardWindowButtons(for: window)
+    }
+
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === fullscreenWindow else {
+            return
+        }
+
+        hideStandardWindowButtons(for: window)
         isFullscreenTransitioning = false
         hideChromeImmediately()
         completeFullscreenTransition()
     }
 
     func windowWillExitFullScreen(_ notification: Notification) {
-        guard notification.object as? NSWindow === fullscreenWindow else {
+        guard let window = notification.object as? NSWindow, window === fullscreenWindow else {
             return
         }
 
+        hideStandardWindowButtons(for: window)
         isFullscreenTransitioning = true
         chromeHideTask?.cancel()
         chromeHideTask = nil
@@ -235,10 +248,11 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
-        guard notification.object as? PlaybackFullscreenWindow === fullscreenWindow else {
+        guard let window = notification.object as? PlaybackFullscreenWindow, window === fullscreenWindow else {
             return
         }
 
+        hideStandardWindowButtons(for: window)
         finishExitFullscreen(window: fullscreenWindow, rootView: fullscreenRootView)
         completeFullscreenTransition()
     }
@@ -257,6 +271,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
             return
         }
 
+        hideStandardWindowButtons(for: window)
         isFullscreenTransitioning = false
         hideChromeImmediately()
         completeFullscreenTransition()
@@ -269,6 +284,14 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
 
         finishExitFullscreen(window: fullscreenWindow, rootView: fullscreenRootView)
         completeFullscreenTransition()
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === fullscreenWindow else {
+            return
+        }
+
+        hideStandardWindowButtons(for: window)
     }
 
     private func renderFrameInScreen(for player: PlaybackPlayer) -> NSRect? {
@@ -307,6 +330,17 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
 
     private func isUsableWindowFrame(_ frame: NSRect) -> Bool {
         frame.width > 1 && frame.height > 1
+    }
+
+    private func hideStandardWindowButtons(for window: NSWindow) {
+        let buttonTypes: [NSWindow.ButtonType] = [
+            .closeButton,
+            .miniaturizeButton,
+            .zoomButton
+        ]
+        for buttonType in buttonTypes {
+            window.standardWindowButton(buttonType)?.isHidden = true
+        }
     }
 
     private func completeFullscreenTransition() {

@@ -298,6 +298,8 @@ Implementation constraints:
 - Playback fullscreen should move the singleton render container into a
   dedicated playback `NSWindow` and use AppKit `toggleFullScreen(_:)` on that
   playback window, not on the main CueSeeker workbench window.
+- The dedicated playback fullscreen window should hide standard macOS traffic
+  light buttons during fullscreen entry, active fullscreen, and fullscreen exit.
 - Fullscreen enter and exit state should come from AppKit fullscreen lifecycle
   callbacks. If custom animation is later needed, it should use AppKit's custom
   fullscreen animation callbacks and the system-provided duration, not a fixed
@@ -308,6 +310,10 @@ Implementation constraints:
   native playback render container, not by a separate SwiftUI background behind
   the render view. The video frame, black background, and source-faithful ASS
   overlay should resize through the same native layout path.
+- While the singleton render container is in the fullscreen playback window,
+  the embedded Playback Area should not draw a fake black placeholder, subtitle
+  overlay, feedback overlay, or playback controls. The embedded workbench should
+  remain visually transparent or neutral until the render container returns.
 - The fullscreen overlay should reuse the same playback controls and feedback
   model as the embedded Playback Area.
 - Exiting fullscreen should not rebuild Library or Search result rows. Side
