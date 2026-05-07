@@ -79,6 +79,9 @@ Notes:
   codec names, and current-device hardware decode capability.
 - Fast native compatibility inspection should not decode frames or start a
   playback engine during folder scanning.
+- Library rows should use video file identity and duration from indexed video
+  metadata. Reindexing is the expected refresh path when older indexed rows do
+  not have duration metadata.
 - If native playback fails for a media file, the app may preserve the native
   failure reason for diagnostics and later compatibility work.
 - Future audio-only playback should use the same media-file identity model.

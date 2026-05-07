@@ -117,6 +117,24 @@ This panel model does not change the accepted player-first Search layout. The
 immediate Search workspace still places the Playback Area on the left and the
 Search Panel on the right.
 
+Accepted first Library panel direction:
+
+- Library is the first concrete Left Content Panel for known video navigation.
+- Library is separate from the leftmost AppShell sidebar and from the Settings
+  `Library` category.
+- Library keeps the left-side gray background treatment.
+- Library uses a fixed first-implementation width that is 100 pt wider than
+  the current left-panel baseline. Resizing can be designed later.
+- Library uses a dense grouped-list structure comparable to Search results.
+- Library shows only one folder grouping level.
+- Folder groups and video rows use Finder-like natural ordering.
+- Folder groups are expanded by default and can be collapsed independently.
+- A top action toggles all folder groups with `Collapse All` and `Expand All`.
+- Video rows display `Parent Folder Name - NN  extension`, such as
+  `葬送的芙莉莲 - 01  mkv`.
+- Video duration appears on the right side of each video row.
+- Clicking a video row opens or updates playback from `0` for this version.
+
 ## 5. Search View
 
 The search view is the primary screen.

@@ -16,6 +16,16 @@ Seek to subtitle start timestamp
 Play or pause as needed
 ```
 
+The accepted Library playback action is:
+
+```text
+Click Library video row
+Open or update the central Playback Area
+Open selected local video inside the app
+Start from 0
+Play or pause as needed
+```
+
 The app is not intended to become a full media library or general-purpose media player.
 
 ## 2. M1 Playback Scope
@@ -36,6 +46,13 @@ Required:
 - Preserve the selected result when the Search Panel is collapsed.
 - Reopening the Search Panel should not automatically change playback state.
 - Handle missing files gracefully.
+
+Accepted M2 Library playback behavior:
+
+- Clicking a Library video row opens or updates playback from `0`.
+- If the selected Library video is already open, seeking to `0` is preferred
+  over reopening when practical.
+- Playback history or resume position is out of scope until documented.
 
 Out of scope for M1:
 

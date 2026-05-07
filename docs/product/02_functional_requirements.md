@@ -250,15 +250,27 @@ When implemented, Library should support:
 - Browse playable videos from indexed folders.
 - Use video identity as the primary row identity when a playable video can be
   resolved.
-- Group videos by folder, work, or another documented display rule.
-- Use a flattened collapsible presentation that can reuse the Search result
+- Group videos by the immediate parent folder only. Library should be flat and
+  should not render nested folder trees in the first implementation.
+- Sort folder groups and video rows with the same Finder-like natural ordering
+  used by friendly Search result group titles, so ordinary text sorts like
+  `a-z` and numeric filename runs sort naturally.
+- Use a flattened collapsible presentation that reuses the Search result
   grouping pattern where practical.
+- Expand folder groups by default.
+- Provide a `Collapse All` / `Expand All` control for all folder groups.
 - Display friendly video names while preserving raw paths for identity,
   diagnostics, and Finder actions.
+- Display video names as `Parent Folder Name - NN  extension`, where `NN` is
+  the video's one-based natural-sort rank among playable sibling videos in the
+  same folder, zero-padded to at least two digits, and `extension` is the final
+  video file extension without the leading dot.
+- Display each video's indexed duration on the right side of the row.
 - Avoid showing duplicate top-level rows for multiple subtitle files that map
   to the same playable video unless a later product rule defines a manual
   subtitle-selection workflow.
-- Open or update playback when the user clicks a video.
+- Open or update playback from `0` when the user clicks a video. Resume history
+  is a future feature and must be documented before replacing this behavior.
 
 When implemented, Timeline should support:
 

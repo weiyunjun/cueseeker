@@ -156,6 +156,16 @@ Rules:
   playback: the Left Content Panel owns Library, Timeline, and Favorites-style
   known-content navigation, while the Right Learning Panel owns Search, Queue,
   and Learning Session-style active learning workflows.
+- Library should be modeled as a Left Content Panel mode, not as AppShell
+  navigation and not as Settings folder management.
+- The first Library implementation should derive flat one-level folder groups
+  from indexed playable video metadata. It should use Finder-like natural
+  comparison for folder and video ordering, derive row display titles from the
+  video's parent folder and sibling rank, and use indexed duration metadata for
+  the right-side row duration.
+- Clicking a Library video row should dispatch through the same playback open
+  path used by Search-result playback, with a start timestamp of `0` for the
+  first implementation.
 - Queue and Learning Session state must not be hidden inside playback UI state
   alone if it becomes durable or cross-view behavior.
 - Learning Session playback rules require product documentation before

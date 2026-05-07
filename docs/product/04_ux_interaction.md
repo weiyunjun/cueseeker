@@ -263,13 +263,29 @@ Library and Timeline are future left-side content-navigation modes.
 Library behavior:
 
 - Library should browse playable videos rather than raw subtitle files.
-- Library may group videos by folder or work using a flattened collapsible
-  structure similar to Search result groups.
-- Clicking a video should open or update playback.
+- Library should appear in the Left Content Panel with a gray background and a
+  dense grouped layout comparable to Search results.
+- The first Library implementation should use a fixed width that is 100 pt
+  wider than the current left-panel baseline.
+- Library should group videos by immediate parent folder only. It should not
+  render nested folder trees in the first implementation.
+- Folder groups should be sorted with Finder-like natural ordering.
+- Folder groups should be expanded by default.
+- Users can collapse or expand individual folder groups.
+- A top `Collapse All` / `Expand All` control should collapse or expand all
+  folder groups.
+- Video rows inside a folder should be sorted with the same Finder-like natural
+  ordering used to derive the row rank.
+- Video rows should display `Parent Folder Name - NN  extension`, such as
+  `葬送的芙莉莲 - 01  mkv`.
+- Video rows should display the indexed duration on the right.
+- Clicking a video should open or update playback from `0` for this version.
 - Clicking a video should not require the user to continue attending to the
   Library after playback starts.
 - Subtitle files should appear as video metadata or attached resources, not as
   duplicate top-level video entries when one playable video is available.
+- Reindexing is the expected way to refresh Library video rows and duration
+  metadata when older indexed data is missing that information.
 
 Timeline behavior:
 

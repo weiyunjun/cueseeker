@@ -80,13 +80,20 @@ Library direction:
 - Library rows should represent playable videos when possible.
 - Subtitle files are metadata or resources attached to videos, not duplicate
   top-level video rows.
-- The Library may reuse the grouped, flattened, collapsible presentation pattern
-  from Search result groups.
+- The Library should reuse the grouped, flattened, collapsible presentation
+  pattern from Search result groups.
+- The first Library implementation should group videos by immediate parent
+  folder only, with no nested folder tree.
+- Folder groups and video rows should use Finder-like natural ordering.
+- Folder groups should be expanded by default and controlled by a
+  `Collapse All` / `Expand All` action.
 - Video names should use friendly display titles comparable to the accepted
-  Search group title rules, with raw filenames retained for identity and
-  diagnostics.
-- Clicking a video should open or update playback and should not require the
-  user to keep attending to the Left Content Panel.
+  Search group title rules, using `Parent Folder Name - NN  extension`, with
+  raw filenames retained for identity and diagnostics.
+- Video rows should show indexed duration on the right.
+- Clicking a video should open or update playback from `0` for the first
+  implementation and should not require the user to keep attending to the Left
+  Content Panel.
 
 Timeline direction:
 

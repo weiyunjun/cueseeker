@@ -142,6 +142,11 @@ Expected areas:
   M1 already implemented launch maximization, AppShell layout persistence, and titlebar/full-screen behavior. M2 should verify these behaviors, including the accepted player-first Search Panel width and visibility behavior, and fix concrete regressions rather than treating this as a new major feature area.
 - File and folder management with file-access persistence.
   Complete local folder management, including folder removal, reindex behavior, missing-folder handling, and restart behavior for previously selected folders.
+- Left Library panel.
+  Add the first Left Content Panel mode for known-video navigation: fixed-width
+  gray Library panel, flat collapsible folder groups, Finder-like natural
+  sorting, friendly video rows with extension and duration, and playback from
+  `0` when a video is clicked.
 - Error presentation.
   Provide understandable user-facing errors for file access, indexing, database, search, and playback failures.
 - App settings.

@@ -192,6 +192,14 @@ Required M2 playback interaction checks:
   navigation responsibility for Library, Timeline, and Favorites.
 - Future Right Learning Panel modes should preserve the right-side active
   workflow responsibility for Search, Queue, and Learning Session.
+- Library panel checks should cover the first accepted Library behavior:
+  fixed left-panel width increased by 100 pt, gray background, flat one-level
+  folder grouping, Finder-like natural folder and video ordering, default
+  expanded groups, individual group collapse or expand, all-group
+  `Collapse All` / `Expand All`, friendly video display names with extension,
+  right-side duration display, and click-to-playback from `0`.
+- Library metadata checks should include reindexing a fixture folder so video
+  rows and duration values are populated from indexed metadata.
 
 Rules:
 

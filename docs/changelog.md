@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the first left-side Library panel direction: Library should use a
+  fixed gray left content panel, flat collapsible folder groups, Finder-like
+  natural sorting, friendly video rows with extension and duration, and
+  click-to-playback from `0`.
 - Implemented the standalone Settings window in the native app: the App menu
   now exposes `Settings...`, the main sidebar no longer includes Settings, and
   the Settings window provides `Library` and `Decode` categories for subtitle
