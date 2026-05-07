@@ -5,7 +5,6 @@ import CueSeekerPlayback
 
 enum AppSection: String, CaseIterable, Identifiable {
     case search
-    case settings
 
     var id: String { rawValue }
 
@@ -13,8 +12,6 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .search:
             "Search"
-        case .settings:
-            "Settings"
         }
     }
 
@@ -22,8 +19,6 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .search:
             "magnifyingglass"
-        case .settings:
-            "gearshape"
         }
     }
 }

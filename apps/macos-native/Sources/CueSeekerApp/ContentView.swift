@@ -179,20 +179,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var mainWorkspace: some View {
-        ZStack {
-            SearchView()
-                .opacity(appState.selectedSection == .search ? 1 : 0)
-                .allowsHitTesting(appState.selectedSection == .search)
-                .accessibilityHidden(appState.selectedSection != .search)
-                .zIndex(appState.selectedSection == .search ? 1 : 0)
-
-            if appState.selectedSection == .settings {
-                SettingsView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(windowBackground)
-                    .zIndex(1)
-            }
-        }
+        SearchView()
     }
 }
 

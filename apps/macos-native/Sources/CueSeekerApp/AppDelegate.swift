@@ -6,6 +6,7 @@ import CueSeekerCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
+    private var settingsWindow: NSWindow?
     private let appState = AppState()
     private var cancellables = Set<AnyCancellable>()
     private var windowButtonsProxy: WindowButtonsProxyView?
@@ -102,6 +103,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc private func showSettings(_ sender: Any?) {
+        appState.clearSearchFocus()
+
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(sender)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let contentView = SettingsView()
+            .environmentObject(appState)
+        let settingsWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 520),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        settingsWindow.title = "Settings"
+        settingsWindow.minSize = NSSize(width: 680, height: 420)
+        settingsWindow.isReleasedWhenClosed = false
+        settingsWindow.contentView = NSHostingView(rootView: contentView)
+        settingsWindow.center()
+        settingsWindow.makeKeyAndOrderFront(sender)
+        self.settingsWindow = settingsWindow
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     func windowWillEnterFullScreen(_ notification: Notification) {
         window?.titleVisibility = .visible
         windowButtonsProxy?.isHidden = true
@@ -186,6 +214,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // App Menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
+        let settingsItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(showSettings(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        appMenu.addItem(settingsItem)
+        appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(
             NSMenuItem(
                 title: "Quit \(ApplicationInfo.name)",

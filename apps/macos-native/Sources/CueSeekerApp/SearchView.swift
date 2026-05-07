@@ -42,7 +42,7 @@ struct SearchView: View {
                     EmptyStateView(
                         title: "No Search Query",
                         systemImage: "text.magnifyingglass",
-                        message: "Add subtitle folders in Settings, then search indexed subtitle text."
+                        message: "Add subtitle folders in CueSeeker > Settings..., then search indexed subtitle text."
                     )
                     .font(.system(size: SearchTypography.bodySize))
                 } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {

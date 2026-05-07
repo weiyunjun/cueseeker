@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the standalone Settings window in the native app: the App menu
+  now exposes `Settings...`, the main sidebar no longer includes Settings, and
+  the Settings window provides `Library` and `Decode` categories for subtitle
+  folder management and playback decode mode.
 - Accepted the standalone Settings window direction: Settings should open from
   `CueSeeker > Settings...`, use an independent two-column window with
   `Library` and `Decode` categories, and no longer be owned by the main-window

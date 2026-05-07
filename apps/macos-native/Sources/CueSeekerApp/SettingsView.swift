@@ -3,78 +3,59 @@ import SwiftUI
 import CueSeekerCore
 import CueSeekerPlayback
 
+private enum SettingsCategory: String, CaseIterable, Identifiable {
+    case library
+    case decode
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .library:
+            "Library"
+        case .decode:
+            "Decode"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .library:
+            "folder"
+        case .decode:
+            "play.rectangle"
+        }
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var selectedCategory: SettingsCategory = .library
     @State private var folderPendingRemoval: URL?
     @State private var isChoosingFolder = false
 
+    private let categoryColumnWidth: CGFloat = 184
+    private let sidebarBackground = Color(
+        red: 0.942,
+        green: 0.942,
+        blue: 0.936
+    )
+    private let contentBackground = Color.white
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Subtitle Folders")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+        HStack(spacing: 0) {
+            categoryList
+                .frame(width: categoryColumnWidth)
 
-                Spacer()
+            Rectangle()
+                .fill(Color.black.opacity(0.08))
+                .frame(width: 1)
 
-                Button {
-                    chooseFolder()
-                } label: {
-                    Label("Add Folder", systemImage: "folder.badge.plus")
-                }
-                .disabled(appState.indexingStatus.isIndexing || isChoosingFolder)
-
-                Button {
-                    appState.indexAllFolders()
-                } label: {
-                    Label("Index Now", systemImage: "arrow.clockwise")
-                }
-                .disabled(appState.selectedFolders.isEmpty || appState.indexingStatus.isIndexing)
-            }
-
-            statusView
-
-            decodeSettingsView
-
-            if appState.selectedFolders.isEmpty {
-                EmptyStateView(
-                    title: "No Subtitle Folders",
-                    systemImage: "folder",
-                    message: "Choose a local folder containing .srt files."
-                )
-            } else {
-                List {
-                    ForEach(appState.selectedFolders, id: \.self) { folder in
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(folder.lastPathComponent)
-                                    .font(.headline)
-                                Text(folder.path)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-
-                            Spacer()
-
-                            Button {
-                                folderPendingRemoval = folder
-                            } label: {
-                                Label("Remove", systemImage: "minus.circle")
-                            }
-                            .disabled(appState.indexingStatus.isIndexing)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-            }
-
-            Spacer()
+            selectedContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.top, AppShellLayout.contentTopPadding)
-        .padding([.horizontal, .bottom], 24)
-        .navigationTitle("Settings")
+        .frame(minWidth: 680, minHeight: 420)
+        .background(contentBackground)
         .alert(
             "Remove Folder?",
             isPresented: removalConfirmationBinding,
@@ -92,21 +73,156 @@ struct SettingsView: View {
         }
     }
 
-    private var decodeSettingsView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Decode Settings")
-                .font(.title3)
-                .fontWeight(.semibold)
+    private var categoryList: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(SettingsCategory.allCases) { category in
+                Button {
+                    selectedCategory = category
+                } label: {
+                    Label(category.title, systemImage: category.systemImage)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedCategory == category
+                                ? Color.accentColor
+                                : Color.clear
+                        )
+                        .foregroundStyle(
+                            selectedCategory == category ? .white : .primary
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(StaticButtonStyle())
+                .focusable(false)
+            }
 
-            HStack(spacing: 12) {
-                Text("Decoder")
+            Spacer()
+        }
+        .padding(.top, 20)
+        .padding(.horizontal, 12)
+        .background(sidebarBackground)
+    }
+
+    @ViewBuilder
+    private var selectedContent: some View {
+        switch selectedCategory {
+        case .library:
+            librarySettingsContent
+        case .decode:
+            decodeSettingsContent
+        }
+    }
+
+    private var librarySettingsContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Library")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Text("Manage subtitle folders used for indexing and search.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button {
+                        chooseFolder()
+                    } label: {
+                        Label("Add Folder", systemImage: "folder.badge.plus")
+                    }
+                    .disabled(appState.indexingStatus.isIndexing || isChoosingFolder)
+
+                    Button {
+                        appState.indexAllFolders()
+                    } label: {
+                        Label("Index Now", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(appState.selectedFolders.isEmpty || appState.indexingStatus.isIndexing)
+                }
+            }
+
+            statusView
+
+            if appState.selectedFolders.isEmpty {
+                EmptyStateView(
+                    title: "No Subtitle Folders",
+                    systemImage: "folder",
+                    message: "Choose a local folder containing subtitle files."
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                folderList
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(contentBackground)
+    }
+
+    private var folderList: some View {
+        List {
+            ForEach(appState.selectedFolders, id: \.self) { folder in
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(folder.lastPathComponent)
+                            .font(.headline)
+                        Text(folder.path)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        folderPendingRemoval = folder
+                    } label: {
+                        Label("Remove", systemImage: "minus.circle")
+                    }
+                    .disabled(appState.indexingStatus.isIndexing)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .listStyle(.plain)
+    }
+
+    private var decodeSettingsContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Decode")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text("Choose the video decode mode used by playback.")
                     .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Decoder")
+                        .font(.headline)
+                    Text("Applies to newly opened playback sessions.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Spacer()
 
                 DecodeModeSegmentedControl(selection: $appState.playbackDecodeMode)
             }
+
+            Spacer()
         }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(contentBackground)
     }
 
     private var removalConfirmationBinding: Binding<Bool> {
