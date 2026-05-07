@@ -367,6 +367,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     dispatch_queue_t _demuxQueue;
     dispatch_queue_t _starvationQueue;
     dispatch_source_t _starvationTimer;
+    NSLock *_displaySubmissionLock;
     NSCondition *_packetQueueCondition;
     SFXQueuedPacket *_packetQueueHead;
     SFXQueuedPacket *_packetQueueTail;
@@ -420,9 +421,13 @@ static int SFXOutputChannelCount(int inputChannels) {
     float _volume;
     float _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
+    CVPixelBufferRef _pendingDisplayPixelBuffer;
+    CMTime _pendingDisplayPresentationTime;
+    NSInteger _pendingDisplayAutomaticRecycleMilliseconds;
 
     BOOL _flushDisplayBeforeStart;
     BOOL _flushDisplayOnFirstFrame;
+    BOOL _displaySubmissionScheduled;
     BOOL _usingHardwareDecode;
     BOOL _allowAutomaticSoftwareRecycle;
     BOOL _automaticSoftwareRecycleRequested;
@@ -470,6 +475,9 @@ static int SFXOutputChannelCount(int inputChannels) {
     _decodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.Decode", DISPATCH_QUEUE_SERIAL);
     _demuxQueue = dispatch_queue_create("CueSeeker.NativePlayback.Demux", DISPATCH_QUEUE_SERIAL);
     _starvationQueue = dispatch_queue_create("CueSeeker.NativePlayback.Starvation", DISPATCH_QUEUE_SERIAL);
+    _displaySubmissionLock = [[NSLock alloc] init];
+    _pendingDisplayPresentationTime = kCMTimeInvalid;
+    _pendingDisplayAutomaticRecycleMilliseconds = -1;
     _packetQueueCondition = [[NSCondition alloc] init];
     atomic_init(&_cancelled, false);
     atomic_init(&_finishingForAutomaticRecycle, false);
@@ -1722,41 +1730,101 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)enqueuePixelBuffer:(CVPixelBufferRef)pixelBuffer
           presentationTime:(CMTime)presentationTime
 automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
-    if (pixelBuffer == NULL || _displayLayer == nil) {
+    if (pixelBuffer == NULL) {
         return;
     }
 
     CVPixelBufferRetain(pixelBuffer);
+    BOOL shouldScheduleSubmission = NO;
+    [_displaySubmissionLock lock];
+    if (_pendingDisplayPixelBuffer != NULL) {
+        CVPixelBufferRelease(_pendingDisplayPixelBuffer);
+    }
+    _pendingDisplayPixelBuffer = pixelBuffer;
+    _pendingDisplayPresentationTime = presentationTime;
+    _pendingDisplayAutomaticRecycleMilliseconds = automaticRecycleMilliseconds;
+    if (!_displaySubmissionScheduled) {
+        _displaySubmissionScheduled = YES;
+        shouldScheduleSubmission = YES;
+    }
+    [_displaySubmissionLock unlock];
+
+    if (shouldScheduleSubmission) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self drainPendingPixelBufferSubmission];
+        });
+    }
+}
+
+- (void)drainPendingPixelBufferSubmission {
+    CVPixelBufferRef pixelBuffer = NULL;
+    CMTime presentationTime = kCMTimeInvalid;
+    NSInteger automaticRecycleMilliseconds = -1;
+
+    [_displaySubmissionLock lock];
+    pixelBuffer = _pendingDisplayPixelBuffer;
+    presentationTime = _pendingDisplayPresentationTime;
+    automaticRecycleMilliseconds = _pendingDisplayAutomaticRecycleMilliseconds;
+    _pendingDisplayPixelBuffer = NULL;
+    _pendingDisplayPresentationTime = kCMTimeInvalid;
+    _pendingDisplayAutomaticRecycleMilliseconds = -1;
+    _displaySubmissionScheduled = NO;
+    [_displaySubmissionLock unlock];
+
+    if (pixelBuffer == NULL) {
+        return;
+    }
+
     AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (atomic_load(&_cancelled)) {
-            CVPixelBufferRelease(pixelBuffer);
-            return;
-        }
-
-        BOOL enqueued = NO;
-        CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:pixelBuffer
-                                                         presentationTime:presentationTime];
-        if (sampleBuffer != NULL) {
-            if (_flushDisplayOnFirstFrame
-                || displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-                [displayLayer flush];
-                _flushDisplayOnFirstFrame = NO;
-            }
-            [displayLayer enqueueSampleBuffer:sampleBuffer];
-            enqueued = YES;
-            CFRelease(sampleBuffer);
-        }
+    if (atomic_load(&_cancelled) || displayLayer == nil) {
         CVPixelBufferRelease(pixelBuffer);
+        return;
+    }
 
-        if (enqueued) {
-            if (automaticRecycleMilliseconds >= 0) {
-                SFXNativePlaybackPlayer *owner = _owner;
-                [owner requestAutomaticSoftwareRecycleForSession:self
-                                                   atMilliseconds:automaticRecycleMilliseconds];
-            }
+    BOOL enqueued = NO;
+    CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:pixelBuffer
+                                                     presentationTime:presentationTime];
+    if (sampleBuffer != NULL) {
+        if (_flushDisplayOnFirstFrame
+            || displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+            [displayLayer flush];
+            _flushDisplayOnFirstFrame = NO;
         }
-    });
+        [displayLayer enqueueSampleBuffer:sampleBuffer];
+        enqueued = YES;
+        CFRelease(sampleBuffer);
+    }
+    CVPixelBufferRelease(pixelBuffer);
+
+    if (enqueued) {
+        if (automaticRecycleMilliseconds >= 0) {
+            SFXNativePlaybackPlayer *owner = _owner;
+            [owner requestAutomaticSoftwareRecycleForSession:self
+                                               atMilliseconds:automaticRecycleMilliseconds];
+        }
+    }
+}
+
+- (void)clearPendingPixelBufferSubmission {
+    NSInteger automaticRecycleMilliseconds = -1;
+
+    [_displaySubmissionLock lock];
+    if (_pendingDisplayPixelBuffer != NULL) {
+        CVPixelBufferRelease(_pendingDisplayPixelBuffer);
+        _pendingDisplayPixelBuffer = NULL;
+    }
+    automaticRecycleMilliseconds = _pendingDisplayAutomaticRecycleMilliseconds;
+    _pendingDisplayPresentationTime = kCMTimeInvalid;
+    _pendingDisplayAutomaticRecycleMilliseconds = -1;
+    [_displaySubmissionLock unlock];
+
+    if (automaticRecycleMilliseconds >= 0
+        && atomic_load(&_finishingForAutomaticRecycle)
+        && !atomic_load(&_cancelled)) {
+        SFXNativePlaybackPlayer *owner = _owner;
+        [owner requestAutomaticSoftwareRecycleForSession:self
+                                           atMilliseconds:automaticRecycleMilliseconds];
+    }
 }
 
 - (NSInteger)markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:(double)mediaSeconds {
@@ -1965,6 +2033,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (void)teardown {
     [self stopStarvationWatchdog];
     [self stopPacketReadAheadAndClear];
+    [self clearPendingPixelBufferSubmission];
 
     AVAudioPlayerNode *audioPlayer = _audioPlayer;
     AVAudioEngine *audioEngine = _audioEngine;

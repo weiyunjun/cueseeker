@@ -318,16 +318,25 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
                     self.updatePlaybackTime(d)
                 }
             case "duration":
-                if case .double(let d) = value { self.duration = d }
+                if case .double(let d) = value, self.duration != d {
+                    self.duration = d
+                }
             case "pause":
                 if case .bool(let b) = value {
-                    self.isPlaying = !b
-                    self.publishDisplayedCurrentTimeIfNeeded(force: true)
+                    let nextIsPlaying = !b
+                    if self.isPlaying != nextIsPlaying {
+                        self.isPlaying = nextIsPlaying
+                        self.publishDisplayedCurrentTimeIfNeeded(force: true)
+                    }
                 }
             case "volume":
-                if case .double(let d) = value { self.volume = d }
+                if case .double(let d) = value, self.volume != d {
+                    self.volume = d
+                }
             case "speed":
-                if case .double(let d) = value { self.playbackSpeed = d }
+                if case .double(let d) = value, self.playbackSpeed != d {
+                    self.playbackSpeed = d
+                }
             default:
                 break
             }
