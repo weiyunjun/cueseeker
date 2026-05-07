@@ -130,60 +130,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func windowDidResize(_ notification: Notification) {
-        adjustTrafficLights()
+        AppPerformanceProbe.measure("AppDelegate.windowDidResize", thresholdMilliseconds: 8) {
+            adjustTrafficLights()
+        }
     }
     
     func windowDidUpdate(_ notification: Notification) {
-        adjustTrafficLights()
+        AppPerformanceProbe.measure("AppDelegate.windowDidUpdate", thresholdMilliseconds: 8) {
+            adjustTrafficLights()
+        }
     }
     
     private func adjustTrafficLights() {
-        guard let window = self.window else { return }
+        AppPerformanceProbe.measure("AppDelegate.adjustTrafficLights", thresholdMilliseconds: 8) {
+            guard let window = self.window else { return }
         
-        if window.styleMask.contains(.fullScreen) { 
-            windowButtonsProxy?.isHidden = true
-            return 
-        }
-        
-        if windowButtonsProxy == nil, let themeFrame = window.contentView?.superview {
-            // AppTopBar is 45pt tall, width 80 is enough for the 3 buttons
-            let proxy = WindowButtonsProxyView(frame: NSRect(x: 24, y: 0, width: 80, height: 45))
-            themeFrame.addSubview(proxy)
-            windowButtonsProxy = proxy
-        }
-        
-        guard let proxy = windowButtonsProxy else { return }
-        proxy.isHidden = false
-        
-        if let themeFrame = proxy.superview {
-            let proxyY = themeFrame.isFlipped ? 0 : themeFrame.frame.height - proxy.frame.height
-            proxy.frame.origin = CGPoint(x: 24, y: proxyY)
-        }
-        
-        let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
-        var xOffset: CGFloat = 0
-        let targetCenterFromTop: CGFloat = 22.5
-        
-        for type in buttons {
-            guard let button = window.standardWindowButton(type) else { continue }
-            
-            if button.superview !== proxy {
-                proxy.addSubview(button)
+            if window.styleMask.contains(.fullScreen) {
+                windowButtonsProxy?.isHidden = true
+                return
             }
-            
-            // Prevent clipping just in case
-            button.superview?.clipsToBounds = false
-            
-            let targetY: CGFloat
-            if proxy.isFlipped {
-                targetY = targetCenterFromTop - (button.frame.height / 2)
-            } else {
-                targetY = proxy.frame.height - targetCenterFromTop - (button.frame.height / 2)
+        
+            if windowButtonsProxy == nil, let themeFrame = window.contentView?.superview {
+                // AppTopBar is 45pt tall, width 80 is enough for the 3 buttons
+                let proxy = WindowButtonsProxyView(frame: NSRect(x: 24, y: 0, width: 80, height: 45))
+                themeFrame.addSubview(proxy)
+                windowButtonsProxy = proxy
             }
+        
+            guard let proxy = windowButtonsProxy else { return }
+            proxy.isHidden = false
+        
+            if let themeFrame = proxy.superview {
+                let proxyY = themeFrame.isFlipped ? 0 : themeFrame.frame.height - proxy.frame.height
+                proxy.frame.origin = CGPoint(x: 24, y: proxyY)
+            }
+        
+            let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+            var xOffset: CGFloat = 0
+            let targetCenterFromTop: CGFloat = 22.5
+        
+            for type in buttons {
+                guard let button = window.standardWindowButton(type) else { continue }
             
-            button.frame.origin = CGPoint(x: xOffset, y: targetY)
-            // Native inter-button spacing is roughly 6pt (button width is typically 14, standard origin diff is 20)
-            xOffset += button.frame.width + 6
+                if button.superview !== proxy {
+                    proxy.addSubview(button)
+                }
+            
+                // Prevent clipping just in case
+                button.superview?.clipsToBounds = false
+            
+                let targetY: CGFloat
+                if proxy.isFlipped {
+                    targetY = targetCenterFromTop - (button.frame.height / 2)
+                } else {
+                    targetY = proxy.frame.height - targetCenterFromTop - (button.frame.height / 2)
+                }
+            
+                button.frame.origin = CGPoint(x: xOffset, y: targetY)
+                // Native inter-button spacing is roughly 6pt (button width is typically 14, standard origin diff is 20)
+                xOffset += button.frame.width + 6
+            }
         }
     }
 

@@ -5,6 +5,7 @@
 #import <CoreVideo/CoreVideo.h>
 #import <QuartzCore/QuartzCore.h>
 #import <dispatch/dispatch.h>
+#import <os/log.h>
 
 #include <libavcodec/avcodec.h>
 #include <libavcodec/packet.h>
@@ -33,6 +34,33 @@ static const double SFXVideoStarvationWatchdogIntervalSeconds = 0.05;
 static const double SFXReadAheadStartupSeconds = 0.0;
 static const double SFXReadAheadTargetSeconds = 10.0;
 static const size_t SFXReadAheadMaxBytes = 64 * 1024 * 1024;
+
+static os_log_t SFXPerformanceLog(void) {
+    static os_log_t log = NULL;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        log = os_log_create("com.cueseeker.perf", "CNativePlayback");
+    });
+    return log;
+}
+
+static CFTimeInterval SFXPerformanceNow(void) {
+    return CACurrentMediaTime();
+}
+
+static void SFXLogIfSlow(NSString *name, CFTimeInterval start, double thresholdMilliseconds) {
+    double elapsedMilliseconds = (SFXPerformanceNow() - start) * 1000.0;
+    if (elapsedMilliseconds < thresholdMilliseconds) {
+        return;
+    }
+
+    os_log(
+        SFXPerformanceLog(),
+        "SLOW %{public}@ %.2fms",
+        name,
+        elapsedMilliseconds
+    );
+}
 
 typedef struct SFXQueuedPacket {
     AVPacket *packet;
@@ -82,7 +110,9 @@ static void SFXDispatchSyncOnMain(dispatch_block_t block) {
     if ([NSThread isMainThread]) {
         block();
     } else {
+        CFTimeInterval start = SFXPerformanceNow();
         dispatch_sync(dispatch_get_main_queue(), block);
+        SFXLogIfSlow(@"SFXDispatchSyncOnMain", start, 16);
     }
 }
 
@@ -314,14 +344,18 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)layout {
     [super layout];
 
+    CFTimeInterval start = SFXPerformanceNow();
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _displayLayer.frame = self.bounds;
     [CATransaction commit];
+    SFXLogIfSlow(@"SFXNativePlaybackView.layout", start, 8);
 }
 
 - (void)flush {
+    CFTimeInterval start = SFXPerformanceNow();
     [_displayLayer flushAndRemoveImage];
+    SFXLogIfSlow(@"SFXNativePlaybackView.flush", start, 16);
 }
 
 @end
@@ -1689,6 +1723,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 - (CMSampleBufferRef)sampleBufferForPixelBuffer:(CVPixelBufferRef)pixelBuffer
                                presentationTime:(CMTime)presentationTime {
+    CFTimeInterval start = SFXPerformanceNow();
     CMVideoFormatDescriptionRef formatDescription = NULL;
     OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
         kCFAllocatorDefault,
@@ -1724,6 +1759,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         CFDictionarySetValue(attachment, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
     }
 
+    SFXLogIfSlow(@"SFXNativePlaybackSession.sampleBufferForPixelBuffer", start, 8);
     return sampleBuffer;
 }
 
@@ -1750,13 +1786,16 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     [_displaySubmissionLock unlock];
 
     if (shouldScheduleSubmission) {
+        CFTimeInterval scheduledAt = SFXPerformanceNow();
         dispatch_async(dispatch_get_main_queue(), ^{
+            SFXLogIfSlow(@"SFXNativePlaybackSession.displaySubmission.mainDelay", scheduledAt, 50);
             [self drainPendingPixelBufferSubmission];
         });
     }
 }
 
 - (void)drainPendingPixelBufferSubmission {
+    CFTimeInterval start = SFXPerformanceNow();
     CVPixelBufferRef pixelBuffer = NULL;
     CMTime presentationTime = kCMTimeInvalid;
     NSInteger automaticRecycleMilliseconds = -1;
@@ -1803,6 +1842,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
                                                atMilliseconds:automaticRecycleMilliseconds];
         }
     }
+    SFXLogIfSlow(@"SFXNativePlaybackSession.drainPendingPixelBufferSubmission", start, 8);
 }
 
 - (void)clearPendingPixelBufferSubmission {
@@ -2013,8 +2053,10 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     BOOL playing = self.isPlaying;
     id<SFXNativePlaybackPlayerDelegate> delegate = _delegate;
     SFXNativePlaybackPlayer *owner = _owner;
+    CFTimeInterval scheduledAt = SFXPerformanceNow();
 
     dispatch_async(dispatch_get_main_queue(), ^{
+        SFXLogIfSlow(@"SFXNativePlaybackSession.timeDelegate.mainDelay", scheduledAt, 50);
         [delegate nativePlaybackPlayer:owner
                          didUpdateTime:currentTime
                               duration:duration

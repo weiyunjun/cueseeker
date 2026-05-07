@@ -414,12 +414,16 @@ final class AppState: ObservableObject {
     }
 
     func clearSearchFocus() {
-        isSearchFocused = false
+        AppPerformanceProbe.measure("AppState.clearSearchFocus", thresholdMilliseconds: 4) {
+            isSearchFocused = false
+        }
     }
 
     func performUserInitiatedAppCommand(_ action: () -> Void) {
-        clearSearchFocus()
-        action()
+        AppPerformanceProbe.measure("AppState.performUserInitiatedAppCommand", thresholdMilliseconds: 4) {
+            clearSearchFocus()
+            action()
+        }
     }
 
     func beginTitlebarZoomTransitionFromUser(window: NSWindow) -> Bool {
@@ -439,19 +443,23 @@ final class AppState: ObservableObject {
     }
 
     func toggleLibraryPanel() {
-        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-            return
-        }
+        AppPerformanceProbe.measure("AppState.toggleLibraryPanel", thresholdMilliseconds: 4) {
+            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+                return
+            }
 
-        workbenchLayout.toggleLibraryPanel()
+            workbenchLayout.toggleLibraryPanel()
+        }
     }
 
     func toggleSearchPanel() {
-        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-            return
-        }
+        AppPerformanceProbe.measure("AppState.toggleSearchPanel", thresholdMilliseconds: 4) {
+            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+                return
+            }
 
-        workbenchLayout.toggleSearchPanel()
+            workbenchLayout.toggleSearchPanel()
+        }
     }
 
     func togglePlaybackFullscreenFromUser(onCopySubtitle: @escaping () -> Void = {}) {

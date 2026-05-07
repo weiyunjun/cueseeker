@@ -305,19 +305,21 @@ public final class PlaybackRenderContainerView: NSView {
     public override func layout() {
         super.layout()
 
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        if let attachedView {
-            attachedView.frame = bounds
-            attachedView.needsLayout = true
-            attachedView.layoutSubtreeIfNeeded()
+        PlaybackPerformanceProbe.measure("PlaybackRenderContainerView.layout", thresholdMilliseconds: 8) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            if let attachedView {
+                attachedView.frame = bounds
+                attachedView.needsLayout = true
+                attachedView.layoutSubtreeIfNeeded()
+            }
+            if let sourceFaithfulASSOverlayView {
+                sourceFaithfulASSOverlayView.frame = bounds
+                sourceFaithfulASSOverlayView.needsLayout = true
+                sourceFaithfulASSOverlayView.layoutSubtreeIfNeeded()
+            }
+            CATransaction.commit()
         }
-        if let sourceFaithfulASSOverlayView {
-            sourceFaithfulASSOverlayView.frame = bounds
-            sourceFaithfulASSOverlayView.needsLayout = true
-            sourceFaithfulASSOverlayView.layoutSubtreeIfNeeded()
-        }
-        CATransaction.commit()
     }
 
     func setSourceFaithfulASSSubtitleSource(_ source: PlaybackSubtitleSource) {

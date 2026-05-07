@@ -326,9 +326,12 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     override func layout() {
         super.layout()
-        subtitleContainerLayer.frame = bounds
-        if let renderedFrame {
-            updatePresentationLayout(for: renderedFrame)
+
+        PlaybackPerformanceProbe.measure("SourceFaithfulASSSubtitleOverlayView.layout", thresholdMilliseconds: 8) {
+            subtitleContainerLayer.frame = bounds
+            if let renderedFrame {
+                updatePresentationLayout(for: renderedFrame)
+            }
         }
     }
 
@@ -360,47 +363,55 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     private func reloadRendererIfPossible() {
-        guard let source else {
-            return
-        }
+        PlaybackPerformanceProbe.measure("SourceFaithfulASSSubtitleOverlayView.reloadRendererIfPossible", thresholdMilliseconds: 8) {
+            guard let source else {
+                return
+            }
 
-        guard let renderSize = renderFrameSize() else {
-            failureMessage = "ASS renderer is waiting for a valid video size."
+            guard let renderSize = renderFrameSize() else {
+                failureMessage = "ASS renderer is waiting for a valid video size."
+                needsDisplay = true
+                return
+            }
+
+            isRendererReady = false
+            clearPresentationState()
+            failureMessage = nil
             needsDisplay = true
-            return
+
+            let loadGeneration = rendererWorker.load(
+                source: source,
+                frameWidth: renderSize.width,
+                frameHeight: renderSize.height,
+                initialTimestampMilliseconds: currentTimeMilliseconds
+            ) { [weak self] returnedGeneration, result in
+                let scheduledAt = PlaybackPerformanceProbe.now()
+                DispatchQueue.main.async(execute: {
+                    PlaybackPerformanceProbe.logElapsed(
+                        "SourceFaithfulASSSubtitleOverlayView.loadCompletion.mainDelay",
+                        since: scheduledAt,
+                        thresholdMilliseconds: 50
+                    )
+                    guard let self, self.generation == returnedGeneration else {
+                        return
+                    }
+
+                    switch result {
+                    case .success:
+                        self.isRendererReady = true
+                        self.failureMessage = nil
+                        self.requestRender(force: true)
+                    case .failure(let error):
+                        self.isRendererReady = false
+                        self.renderedFrame = nil
+                        self.failureMessage = error.message
+                        self.onRenderingFailure?(error.message)
+                        self.needsDisplay = true
+                    }
+                })
+            }
+            generation = loadGeneration
         }
-
-        isRendererReady = false
-        clearPresentationState()
-        failureMessage = nil
-        needsDisplay = true
-
-        let loadGeneration = rendererWorker.load(
-            source: source,
-            frameWidth: renderSize.width,
-            frameHeight: renderSize.height,
-            initialTimestampMilliseconds: currentTimeMilliseconds
-        ) { [weak self] returnedGeneration, result in
-            DispatchQueue.main.async(execute: {
-                guard let self, self.generation == returnedGeneration else {
-                    return
-                }
-
-                switch result {
-                case .success:
-                    self.isRendererReady = true
-                    self.failureMessage = nil
-                    self.requestRender(force: true)
-                case .failure(let error):
-                    self.isRendererReady = false
-                    self.renderedFrame = nil
-                    self.failureMessage = error.message
-                    self.onRenderingFailure?(error.message)
-                    self.needsDisplay = true
-                }
-            })
-        }
-        generation = loadGeneration
     }
 
     private func requestRender(force: Bool = false) {
@@ -434,7 +445,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             generation: generation,
             timestampMilliseconds: timestampMilliseconds
         ) { [weak self] returnedGeneration, result in
+            let scheduledAt = PlaybackPerformanceProbe.now()
             DispatchQueue.main.async(execute: {
+                PlaybackPerformanceProbe.logElapsed(
+                    "SourceFaithfulASSSubtitleOverlayView.renderCompletion.mainDelay",
+                    since: scheduledAt,
+                    thresholdMilliseconds: 50
+                )
                 guard let self, self.generation == returnedGeneration else {
                     return
                 }
@@ -490,35 +507,37 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     private func updatePresentation(for frame: ASSSparseFrame) {
-        clearSubtitleLayers()
-        guard frame.frameWidth > 0, frame.frameHeight > 0 else {
-            return
+        PlaybackPerformanceProbe.measure("SourceFaithfulASSSubtitleOverlayView.updatePresentation", thresholdMilliseconds: 8) {
+            clearSubtitleLayers()
+            guard frame.frameWidth > 0, frame.frameHeight > 0 else {
+                return
+            }
+
+            subtitleContainerLayer.isHidden = !areSubtitlesVisible
+
+            guard let surface = frame.surface,
+                  let surfaceImage = makeImage(from: surface)
+            else {
+                return
+            }
+
+            let surfaceLayer = CALayer()
+            surfaceLayer.contents = surfaceImage
+            surfaceLayer.contentsGravity = .resize
+            surfaceLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+            surfaceLayer.magnificationFilter = .linear
+            surfaceLayer.minificationFilter = .linear
+            surfaceLayer.actions = [
+                "contents": NSNull(),
+                "position": NSNull(),
+                "bounds": NSNull(),
+                "frame": NSNull()
+            ]
+            subtitleContainerLayer.addSublayer(surfaceLayer)
+            subtitleSurfaceLayer = surfaceLayer
+
+            updatePresentationLayout(for: .sparse(frame))
         }
-
-        subtitleContainerLayer.isHidden = !areSubtitlesVisible
-
-        guard let surface = frame.surface,
-              let surfaceImage = makeImage(from: surface)
-        else {
-            return
-        }
-
-        let surfaceLayer = CALayer()
-        surfaceLayer.contents = surfaceImage
-        surfaceLayer.contentsGravity = .resize
-        surfaceLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-        surfaceLayer.magnificationFilter = .linear
-        surfaceLayer.minificationFilter = .linear
-        surfaceLayer.actions = [
-            "contents": NSNull(),
-            "position": NSNull(),
-            "bounds": NSNull(),
-            "frame": NSNull()
-        ]
-        subtitleContainerLayer.addSublayer(surfaceLayer)
-        subtitleSurfaceLayer = surfaceLayer
-
-        updatePresentationLayout(for: .sparse(frame))
     }
 
     private func updatePresentationLayout(for renderedFrame: ASSRenderedFrame) {

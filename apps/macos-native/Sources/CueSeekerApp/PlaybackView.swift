@@ -146,16 +146,18 @@ private final class PlaybackRenderHostView: NSView {
     override func layout() {
         super.layout()
 
-        guard renderView.superview === self else {
-            return
-        }
+        AppPerformanceProbe.measure("PlaybackRenderHostView.layout", thresholdMilliseconds: 8) {
+            guard renderView.superview === self else {
+                return
+            }
 
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        renderView.frame = bounds
-        renderView.needsLayout = true
-        renderView.layoutSubtreeIfNeeded()
-        CATransaction.commit()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            renderView.frame = bounds
+            renderView.needsLayout = true
+            renderView.layoutSubtreeIfNeeded()
+            CATransaction.commit()
+        }
     }
 
     private func attachRenderView() {
