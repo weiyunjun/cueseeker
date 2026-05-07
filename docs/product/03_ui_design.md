@@ -397,6 +397,25 @@ The Library panel toggle belongs in the titlebar at a fixed left-side position
 near the traffic lights. The Search Panel Toggle belongs in the titlebar at a
 fixed right-side position.
 
+Panel visibility and list lifetime:
+
+- The workbench side-panel shells should remain stable when their visibility
+  changes. A collapse action should change layout visibility or width, not
+  discard the panel's large list state.
+- Library rows are static indexed-resource presentation. They should remain
+  cached until Library data, Library collapse state, or Library ordering inputs
+  change.
+- Search rows are active query presentation. They should remain cached until
+  the query, loaded result page, Search-group collapse state, or Search ordering
+  inputs change.
+- Future Left Content Panel modes such as Timeline and Favorites should keep
+  their own presentation state separate from Library rows.
+- Future Right Learning Panel modes such as Queue and Learning Session should
+  keep their own presentation state separate from Search result rows.
+- The first SwiftUI implementation may use lazy list rendering, but grouped
+  rows should be flattened when necessary so laziness applies to individual
+  visible rows rather than to one large group view containing many child rows.
+
 M1 does not require advanced visual effects.
 
 Current M2 playback control terminology:

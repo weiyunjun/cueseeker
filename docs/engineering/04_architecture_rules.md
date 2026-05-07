@@ -137,6 +137,37 @@ Rules:
   and decode mode.
 - Broader settings polish belongs to M2.
 - Search, indexing status, and playback state should be represented explicitly in UI state.
+- The workbench must preserve separate invalidation domains for the Left
+  Content Panel, central Playback Area, and Right Learning Panel. A state change
+  in one domain must not require expensive derived state in another domain to be
+  recomputed.
+- A single broad observable object may coordinate workflows, but large SwiftUI
+  views must not subscribe to unrelated high-frequency or high-cardinality state
+  when a smaller store, value model, or binding can express the same UI
+  responsibility.
+- The workbench container should own layout coordination only. Library,
+  Playback, and Search presentation views should receive scoped state so Search
+  focus, Search results, playback clock updates, and side-panel resize gestures
+  do not invalidate unrelated panels.
+- Library presentation rows are derived indexed-resource state. They should be
+  cached and rebuilt only when Library videos, Library grouping rules, Library
+  collapse state, or Library ordering inputs change.
+- Search presentation rows are derived query state. They should be cached and
+  rebuilt only when the query, loaded search page, Search result grouping state,
+  Search collapse state, or Search ordering inputs change.
+- Side-panel collapse or expand must not destroy and recreate large list state.
+  Prefer stable panel shells whose layout width, visibility, opacity, or hit
+  testing changes without discarding the panel's current presentation model.
+- If SwiftUI lazy stacks are used for large grouped lists, row models should be
+  flattened when necessary so lazy rendering applies to individual headers and
+  rows rather than to a single large group view that eagerly builds all children
+  inside the group.
+- Search field focus should be owned by the Search Panel presentation layer
+  unless another documented command needs to coordinate focus. Focus changes
+  must not be treated as Library or Playback state changes.
+- Playback time exposed to SwiftUI controls should be rate-limited separately
+  from the native playback clock so progress text and controls do not invalidate
+  unrelated workbench UI at video-frame cadence.
 - The main window should use `CueSeeker` as its top-level workbench identity.
   The old standalone `Search` AppShell label should be removed; Search is a
   right-side learning panel workflow.
@@ -327,6 +358,10 @@ Rules:
 - The dedicated ASS renderer must be separate from the SQLite search layer and
   from the native video decoder. It should receive playback clock updates and
   present overlay output through the playback render container.
+- ASS timing-source consolidation is deferred until the workbench invalidation
+  boundaries are stable. Any future change to ASS playback timing must preserve
+  immediate selected-row updates, immediate video open or seek, and prompt
+  subtitle source loading after Search result selection.
 - Bundling and updating `libass` remains an explicit playback dependency
   concern because it affects packaging, signing, license review, font discovery,
   and font fallback behavior.

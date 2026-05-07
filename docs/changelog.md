@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the CueSeeker workbench responsiveness boundary direction: Library,
+  Playback, and Search should have separate invalidation domains; side-panel
+  collapse should preserve large list state; Library and Search presentation
+  rows should be cached derived state; playback-control time updates may be
+  rate-limited without affecting native video playback; and ASS timing-source
+  refactoring is deferred from the first UI invalidation cleanup.
 - Implemented instant Library startup hydration in the native app: startup now
   loads persisted indexed Library videos synchronously from SQLite during
   `AppState` initialization, before the first main-window state is presented,

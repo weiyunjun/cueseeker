@@ -146,6 +146,31 @@ The right side should help the user discover, collect, and sequence learning
 material. Search result rows may later expose hover actions or context menus,
 including adding a subtitle moment or video to a Queue.
 
+Responsiveness boundaries:
+
+- Library is a static known-content resource area. It should change only when
+  folders are added, removed, reindexed, manually collapsed or expanded, resized,
+  or when the user selects a Library video.
+- Search is an active query and aggregation area. Search input, result loading,
+  Search-group collapse state, Queue actions, and future learning actions should
+  not rebuild Library rows or mutate Library state.
+- Playback is the central video review area. Opening media, seeking,
+  play/pause, fullscreen, subtitle visibility, and playback-control state should
+  not rebuild Library rows or Search result rows unless the user explicitly
+  performs a Search or Library action.
+- Collapsing or expanding a side panel should preserve the panel's current
+  content state. It should not destroy and recreate large result lists as a side
+  effect of a layout change.
+- Search field focus is Search Panel interaction state. Changing focus should
+  not invalidate Library content or playback content.
+- The visible playback clock used by SwiftUI controls may update at a lower
+  frequency than the native video playback clock. This must not affect native
+  video playback smoothness or seek accuracy.
+- ASS playback timing and render-source coordination is performance-sensitive
+  and should not be refactored as part of the first UI invalidation cleanup.
+  Any later ASS timing-source change must preserve immediate subtitle loading
+  after Search result selection.
+
 ## 5. Result Selection
 
 When the user selects a result:

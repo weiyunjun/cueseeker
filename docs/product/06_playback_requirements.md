@@ -102,6 +102,13 @@ Expected behavior:
 - If the playback engine needs warm-up or delayed seek, the UI should still behave predictably.
 - Timeline seeking must not temporarily reset the displayed playback time to `0`.
 - The UI may show the requested target timestamp immediately while the backend completes the seek, then accept later backend time updates as confirmation or correction.
+- Native video playback clock updates and SwiftUI playback-control updates are
+  separate concerns. The native playback backend should continue playing and
+  seeking at normal precision even if visible SwiftUI controls update the
+  displayed time at a lower frequency to protect main-thread responsiveness.
+- User-initiated seek operations must update the visible requested time
+  immediately. Lower-frequency control updates must not make manual seeking
+  feel delayed.
 
 ## 5. Playback Engine Selection
 
@@ -283,6 +290,9 @@ Implementation constraints:
 - Playback fullscreen should use the singleton render container owned by the playback player.
 - The fullscreen overlay should reuse the same playback controls and feedback
   model as the embedded Playback Area.
+- Exiting fullscreen should not rebuild Library or Search result rows. Side
+  panel presentation state belongs to the workbench, not to fullscreen playback
+  lifecycle.
 
 ## 8. M2 Playback Controls
 
@@ -323,6 +333,10 @@ Required behavior:
 - The visible playback speed menu should offer `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - Timeline hover and drag states must not move the playback operation controls vertically.
 - Playback commands should show transient feedback for subtitle copy, subtitle visibility, play or pause, seek direction and amount, volume, and playback speed.
+- Continuous playback time updates used by visible SwiftUI controls should be
+  rate-limited enough to avoid invalidating unrelated workbench UI. Native video
+  playback and source-faithful subtitle rendering should keep their own timing
+  requirements.
 
 Current implementation notes:
 

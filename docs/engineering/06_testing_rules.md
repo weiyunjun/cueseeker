@@ -210,6 +210,32 @@ Required M2 playback interaction checks:
 - Library playback history checks should verify that Library-opened videos read
   and write persisted resume position, while Search-result playback does not
   read, write, or overwrite that history.
+- Workbench responsiveness checks should verify the UI invalidation boundaries
+  between Library, Playback, and Search:
+  - Repeatedly toggling the left titlebar Library control should not rebuild
+    Library presentation rows except when Library collapse state actually
+    changes, and must not destroy the playback render container.
+  - Exiting playback fullscreen should not rebuild Library presentation rows or
+    Search presentation rows.
+  - Clicking or focusing the Search field during playback should not rebuild
+    Library presentation rows or reset playback state.
+  - Search query updates should rebuild Search presentation rows only for the
+    active query state and should not rebuild Library presentation rows.
+  - Library add-folder, remove-folder, reindex, width resize, and manual
+    Library group collapse or expand are the accepted reasons for Library-side
+    presentation changes.
+- Performance diagnostics for this work should include counters or signposts
+  for Library row rebuilds, Search row rebuilds, workbench container body
+  refreshes, playback time publications, and ASS renderer reloads. These
+  diagnostics may be temporary, but they must be sufficient to prove that
+  unrelated panel interactions are not driving expensive recomputation.
+- Playback clock throttling checks should confirm that native video playback
+  remains smooth, manual seek feedback updates immediately, and visible
+  progress controls remain accurate enough for subtitle-context review.
+- ASS timing-source changes are out of scope for the first workbench
+  invalidation cleanup. If they are attempted later, manual checks must verify
+  that selecting a Search result still updates selection, opens or seeks video,
+  and loads the intended subtitle source promptly.
 
 Rules:
 
