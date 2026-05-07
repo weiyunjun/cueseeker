@@ -420,7 +420,7 @@ final class AppState: ObservableObject {
     }
 
     func performUserInitiatedAppCommand(_ action: () -> Void) {
-        AppPerformanceProbe.measure("AppState.performUserInitiatedAppCommand", thresholdMilliseconds: 4) {
+        AppPerformanceProbe.action("AppState.performUserInitiatedAppCommand", thresholdMilliseconds: 4) {
             clearSearchFocus()
             action()
         }
@@ -443,7 +443,7 @@ final class AppState: ObservableObject {
     }
 
     func toggleLibraryPanel() {
-        AppPerformanceProbe.measure("AppState.toggleLibraryPanel", thresholdMilliseconds: 4) {
+        AppPerformanceProbe.action("AppState.toggleLibraryPanel", thresholdMilliseconds: 4) {
             guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
                 return
             }
@@ -453,7 +453,7 @@ final class AppState: ObservableObject {
     }
 
     func toggleSearchPanel() {
-        AppPerformanceProbe.measure("AppState.toggleSearchPanel", thresholdMilliseconds: 4) {
+        AppPerformanceProbe.action("AppState.toggleSearchPanel", thresholdMilliseconds: 4) {
             guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
                 return
             }

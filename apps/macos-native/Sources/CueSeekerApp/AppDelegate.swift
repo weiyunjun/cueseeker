@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var keyDownMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppPerformanceProbe.mark("MARK CueSeeker.applicationDidFinishLaunching")
+        AppPerformanceProbe.startMainThreadWatchdog()
         configureMainMenu()
         createMainWindow()
         configurePlaybackKeyboardShortcuts()
