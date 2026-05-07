@@ -104,6 +104,9 @@ final class AppState: ObservableObject {
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
+    private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 220_000_000
+    private static let playbackFullscreenTransitionNanoseconds: UInt64 = 220_000_000
+    private static let windowZoomTransitionNanoseconds: UInt64 = 350_000_000
 
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
@@ -131,6 +134,7 @@ final class AppState: ObservableObject {
     @Published var isSearchPanelVisible = true
     @Published var searchPanelWidth: Double = 480
     @Published var isSearchFocused = false
+    @Published private(set) var isVideoSizeTransitionInProgress = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
         didSet {
@@ -263,6 +267,7 @@ final class AppState: ObservableObject {
     private var libraryTask: Task<Void, Never>?
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var videoSizeTransitionTask: Task<Void, Never>?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     private var activePlaybackSource: ActivePlaybackSource = .none
     private var loadedGlobalSearchResultCount = 0
@@ -357,14 +362,57 @@ final class AppState: ObservableObject {
         action()
     }
 
+    func beginTitlebarZoomTransitionFromUser() -> Bool {
+        beginVideoSizeTransition(durationNanoseconds: Self.windowZoomTransitionNanoseconds)
+    }
+
     func toggleLibraryPanel() {
+        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+            return
+        }
+
         isLibraryPanelVisible.toggle()
         userDefaults.set(isLibraryPanelVisible, forKey: Self.isLibraryPanelVisibleKey)
     }
 
     func toggleSearchPanel() {
+        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+            return
+        }
+
         isSearchPanelVisible.toggle()
         userDefaults.set(isSearchPanelVisible, forKey: Self.isSearchPanelVisibleKey)
+    }
+
+    func togglePlaybackFullscreenFromUser(onCopySubtitle: @escaping () -> Void = {}) {
+        guard let player, let playbackViewModel else {
+            return
+        }
+
+        guard beginVideoSizeTransition(durationNanoseconds: Self.playbackFullscreenTransitionNanoseconds) else {
+            return
+        }
+
+        playbackFullscreenManager.toggleFullscreen(
+            player: player,
+            viewModel: playbackViewModel,
+            onCopySubtitle: onCopySubtitle,
+            onExitRequest: { [weak self] in
+                self?.exitPlaybackFullscreenFromUser()
+            }
+        )
+    }
+
+    func exitPlaybackFullscreenFromUser() {
+        guard playbackFullscreenManager.isFullscreen else {
+            return
+        }
+
+        guard beginVideoSizeTransition(durationNanoseconds: Self.playbackFullscreenTransitionNanoseconds) else {
+            return
+        }
+
+        playbackFullscreenManager.exitFullscreen()
     }
 
     func updateLibraryPanelWidth(_ width: Double) {
@@ -375,6 +423,31 @@ final class AppState: ObservableObject {
     func updateSearchPanelWidth(_ width: Double) {
         searchPanelWidth = width
         userDefaults.set(width, forKey: Self.searchPanelWidthKey)
+    }
+
+    private func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {
+        guard !isVideoSizeTransitionInProgress else {
+            return false
+        }
+
+        isVideoSizeTransitionInProgress = true
+        videoSizeTransitionTask?.cancel()
+        videoSizeTransitionTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: durationNanoseconds)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                self?.endVideoSizeTransition()
+            }
+        }
+        return true
+    }
+
+    private func endVideoSizeTransition() {
+        isVideoSizeTransitionInProgress = false
+        videoSizeTransitionTask = nil
     }
 
     func indexFolder(_ folder: URL) {
@@ -962,17 +1035,12 @@ final class AppState: ObservableObject {
             viewModel.toggleSubtitles()
             return true
         case 3:
-            if let player {
-                playbackFullscreenManager.toggleFullscreen(
-                    player: player,
-                    viewModel: viewModel,
-                    onCopySubtitle: { [weak self] in
-                        self?.copyCurrentSubtitleToClipboard()
-                    }
-                )
-                return true
-            }
-            return false
+            togglePlaybackFullscreenFromUser(
+                onCopySubtitle: { [weak self] in
+                    self?.copyCurrentSubtitleToClipboard()
+                }
+            )
+            return true
         case 49:
             togglePlaybackFromUser()
             return true

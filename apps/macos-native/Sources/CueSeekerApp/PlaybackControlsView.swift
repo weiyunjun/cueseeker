@@ -3,6 +3,7 @@ import SwiftUI
 struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackViewModel
     let isFullscreen: Bool
+    let isFullscreenToggleDisabled: Bool
     let onCopySubtitle: () -> Void
     let onToggleFullscreen: () -> Void
     
@@ -12,11 +13,13 @@ struct PlaybackControlsView: View {
     init(
         viewModel: PlaybackViewModel,
         isFullscreen: Bool = false,
+        isFullscreenToggleDisabled: Bool = false,
         onCopySubtitle: @escaping () -> Void = {},
         onToggleFullscreen: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.isFullscreen = isFullscreen
+        self.isFullscreenToggleDisabled = isFullscreenToggleDisabled
         self.onCopySubtitle = onCopySubtitle
         self.onToggleFullscreen = onToggleFullscreen
     }
@@ -107,6 +110,8 @@ struct PlaybackControlsView: View {
                         )
                 }
                 .buttonStyle(PlainButtonStyle())
+                .disabled(isFullscreenToggleDisabled)
+                .opacity(isFullscreenToggleDisabled ? 0.55 : 1)
             }
             .padding(.horizontal, PlaybackControlsLayout.horizontalPadding)
             .padding(.bottom, PlaybackControlsLayout.transportRowBottomPadding)

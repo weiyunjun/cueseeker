@@ -12,6 +12,7 @@ final class PlaybackFullscreenManager: ObservableObject {
     private var previousPresentationOptions: NSApplication.PresentationOptions?
     private weak var previousKeyWindow: NSWindow?
     private var chromeHideTask: Task<Void, Never>?
+    private var onExitRequest: (() -> Void)?
     private var isCursorHidden = false
     private var isSuppressingInitialHover = false
     private var isSuspendedForAppDeactivation = false
@@ -21,7 +22,8 @@ final class PlaybackFullscreenManager: ObservableObject {
     func toggleFullscreen(
         player: PlaybackPlayer,
         viewModel: PlaybackViewModel,
-        onCopySubtitle: @escaping () -> Void = {}
+        onCopySubtitle: @escaping () -> Void = {},
+        onExitRequest: (() -> Void)? = nil
     ) {
         if isFullscreen {
             exitFullscreen()
@@ -29,7 +31,8 @@ final class PlaybackFullscreenManager: ObservableObject {
             enterFullscreen(
                 player: player,
                 viewModel: viewModel,
-                onCopySubtitle: onCopySubtitle
+                onCopySubtitle: onCopySubtitle,
+                onExitRequest: onExitRequest
             )
         }
     }
@@ -37,7 +40,8 @@ final class PlaybackFullscreenManager: ObservableObject {
     func enterFullscreen(
         player: PlaybackPlayer,
         viewModel: PlaybackViewModel,
-        onCopySubtitle: @escaping () -> Void = {}
+        onCopySubtitle: @escaping () -> Void = {},
+        onExitRequest: (() -> Void)? = nil
     ) {
         guard !isFullscreen, fullscreenWindow == nil else {
             return
@@ -73,7 +77,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         window.level = .normal
         window.onEscape = { [weak self] in
             Task { @MainActor in
-                self?.exitFullscreen()
+                self?.requestExitFullscreen()
             }
         }
 
@@ -84,7 +88,7 @@ final class PlaybackFullscreenManager: ObservableObject {
                 onCopySubtitle: onCopySubtitle,
                 onExit: { [weak self] in
                     Task { @MainActor in
-                        self?.exitFullscreen()
+                        self?.requestExitFullscreen()
                     }
                 }
             )
@@ -99,6 +103,7 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         fullscreenWindow = window
         fullscreenRootView = rootView
+        self.onExitRequest = onExitRequest
         isFullscreen = true
         beginInitialHoverSuppression()
         hideChromeImmediately()
@@ -157,6 +162,7 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         fullscreenWindow = nil
         fullscreenRootView = nil
+        onExitRequest = nil
         chromeHideTask?.cancel()
         chromeHideTask = nil
         isChromeVisible = false
@@ -176,6 +182,14 @@ final class PlaybackFullscreenManager: ObservableObject {
         previousKeyWindow?.makeKeyAndOrderFront(nil)
         previousKeyWindow = nil
         isFullscreen = false
+    }
+
+    private func requestExitFullscreen() {
+        if let onExitRequest {
+            onExitRequest()
+        } else {
+            exitFullscreen()
+        }
     }
 
     func registerActivity() {

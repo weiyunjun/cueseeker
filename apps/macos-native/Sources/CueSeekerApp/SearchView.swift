@@ -298,6 +298,13 @@ struct SearchView: View {
                             onCopySubtitle: {
                                 appState.clearSearchFocus()
                                 appState.copyCurrentSubtitleToClipboard()
+                            },
+                            isFullscreenToggleDisabled: appState.isVideoSizeTransitionInProgress,
+                            onToggleFullscreen: {
+                                appState.clearSearchFocus()
+                                appState.togglePlaybackFullscreenFromUser {
+                                    appState.copyCurrentSubtitleToClipboard()
+                                }
                             }
                         )
                             .aspectRatio(16 / 9, contentMode: .fit)

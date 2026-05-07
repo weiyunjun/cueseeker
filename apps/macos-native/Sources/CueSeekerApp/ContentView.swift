@@ -38,7 +38,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private var appTopBar: some View {
-        TitlebarBackgroundView(backgroundColor: topBarBackground)
+        TitlebarBackgroundView(
+            backgroundColor: topBarBackground,
+            onDoubleClickZoom: {
+                appState.beginTitlebarZoomTransitionFromUser()
+            }
+        )
             .overlay {
                 Text("CueSeeker")
                     .font(.system(
@@ -93,6 +98,7 @@ struct ContentView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(ToolbarButtonStyle())
+        .disabled(appState.isVideoSizeTransitionInProgress)
         .focusable(false)
         .foregroundStyle(.primary)
         .help(appState.isLibraryPanelVisible ? "Hide Library" : "Show Library")
@@ -117,6 +123,7 @@ struct ContentView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(ToolbarButtonStyle())
+        .disabled(appState.isVideoSizeTransitionInProgress)
         .focusable(false)
         .foregroundStyle(.primary)
         .help(appState.isSearchPanelVisible ? "Hide Search Panel" : "Show Search Panel")
