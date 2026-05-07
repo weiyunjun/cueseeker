@@ -97,7 +97,7 @@ struct SearchView: View {
         }
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .padding(.top, AppShellLayout.contentTopPadding)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(nsColor: .textBackgroundColor))
     }
 
     private var libraryHeader: some View {
@@ -194,7 +194,7 @@ struct SearchView: View {
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             .contentShape(Rectangle()) // Global scroll capability
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(nsColor: .textBackgroundColor))
     }
 
     private var searchHeader: some View {
