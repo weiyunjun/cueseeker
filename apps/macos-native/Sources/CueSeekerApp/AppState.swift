@@ -448,6 +448,10 @@ final class AppState: ObservableObject {
                 return
             }
 
+            UIInvalidationProbe.mark(
+                "ACTION UI.LibraryPanel.toggled",
+                details: "visibleBefore=\(workbenchLayout.isLibraryPanelVisible)"
+            )
             workbenchLayout.toggleLibraryPanel()
         }
     }
@@ -458,6 +462,10 @@ final class AppState: ObservableObject {
                 return
             }
 
+            UIInvalidationProbe.mark(
+                "ACTION UI.SearchPanel.toggled",
+                details: "visibleBefore=\(workbenchLayout.isSearchPanelVisible)"
+            )
             workbenchLayout.toggleSearchPanel()
         }
     }
@@ -695,6 +703,10 @@ final class AppState: ObservableObject {
     }
 
     func updateSearchQuery(_ query: String) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchQuery.changed",
+            details: "length=\(query.count)"
+        )
         searchQuery = query
         startSearch(query: query, offset: 0, appending: false, debounce: true)
     }
@@ -719,6 +731,10 @@ final class AppState: ObservableObject {
     }
 
     func toggleSearchResultGroup(_ subtitlePath: String) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchResultGroup.toggled",
+            details: "collapsedBefore=\(collapsedSearchResultGroupPaths.contains(subtitlePath))"
+        )
         if collapsedSearchResultGroupPaths.contains(subtitlePath) {
             collapsedSearchResultGroupPaths.remove(subtitlePath)
             rebuildSearchResultGroups()
@@ -735,6 +751,10 @@ final class AppState: ObservableObject {
             return
         }
 
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchResults.toggleAll",
+            details: "collapsedByGlobalControlBefore=\(areSearchResultGroupsCollapsedByGlobalControl) groups=\(groupPaths.count)"
+        )
         if areSearchResultGroupsCollapsedByGlobalControl {
             collapsedSearchResultGroupPaths.subtract(groupPaths)
             areSearchResultGroupsCollapsedByGlobalControl = false
@@ -907,6 +927,10 @@ final class AppState: ObservableObject {
     }
 
     func openSearchResult(_ result: SubtitleSearchResult) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchResult.opened",
+            details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
+        )
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
@@ -919,6 +943,10 @@ final class AppState: ObservableObject {
     }
 
     func openLibraryVideo(_ video: LibraryVideo) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.LibraryVideo.opened",
+            details: "duration=\(video.duration.map { String(format: "%.2f", $0) } ?? "unknown")"
+        )
         if case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }

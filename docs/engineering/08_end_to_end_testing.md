@@ -74,15 +74,31 @@ This test validates that:
 ### Required Instrumentation
 
 This test uses the default-off UI invalidation counter. Enable it only through
-the explicit diagnostic flag:
+an explicit diagnostic launch flag:
 
 ```bash
 CUESEEKER_PERF_UI=1
 ```
 
+or:
+
+```bash
+--cueseeker-perf-ui
+```
+
 The counter emits narrow `com.cueseeker.perf` logs for UI refresh and expensive
 model rebuild events. Current event names:
 
+- `MARK UIInvalidationProbe.enabled`
+- `ACTION UI.LibraryPanel.toggled`
+- `ACTION UI.SearchPanel.toggled`
+- `ACTION UI.LibraryVideo.opened`
+- `ACTION UI.SearchQuery.changed`
+- `ACTION UI.LibraryFolder.toggled`
+- `ACTION UI.LibraryFolders.toggleAll`
+- `ACTION UI.SearchResultGroup.toggled`
+- `ACTION UI.SearchResults.toggleAll`
+- `ACTION UI.SearchResult.opened`
 - `UI.ContentView.body`
 - `UI.AppTopBar.body`
 - `UI.Workbench.body`
@@ -98,6 +114,11 @@ model rebuild events. Current event names:
 
 The exact implementation may differ, but the log must make it possible to
 compare counter deltas before and after each user action.
+
+If `MARK UIInvalidationProbe.enabled` is not visible within three seconds after
+launch, the test environment is invalid. Stop immediately and relaunch with
+`CUESEEKER_PERF_UI=1` or `--cueseeker-perf-ui`; do not continue with a
+log-free manual test.
 
 Heavy probes are not required for this test. Do not enable automatic
 `/usr/bin/sample` capture unless a new stall regression appears.
@@ -117,9 +138,23 @@ cd /Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native
 CUESEEKER_PERF_UI=1 swift run CueSeeker
 ```
 
+Equivalent launch-argument form:
+
+```bash
+cd /Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native
+swift run CueSeeker --cueseeker-perf-ui
+```
+
 If the app is launched normally without diagnostic flags, Terminal A should
 produce no matching output. That verifies heavy diagnostics remain default-off,
 but it does not prove invalidation-domain isolation.
+
+Expected startup evidence:
+
+```text
+MARK UIInvalidationProbe.enabled pid=<pid>
+COUNT UI.ContentView.body ...
+```
 
 ### Preconditions
 
@@ -150,6 +185,8 @@ queued UI updates and log lines can settle.
 ### Evidence to Paste Back
 
 Paste the log block from app launch through two seconds after the final action.
+The pasted block must include `MARK UIInvalidationProbe.enabled` and the
+`ACTION UI...` marker for each manual action being evaluated.
 
 If the log is too large, paste one block per action with the action name written
 above it, for example:
@@ -173,6 +210,10 @@ Also state whether any visible user-facing issue occurred:
 The UI invalidation split passes only if the logs and manual behavior satisfy
 these criteria:
 
+- The log contains `MARK UIInvalidationProbe.enabled` within three seconds of
+  launch. Without this marker, the run is not a valid test.
+- Every evaluated user action has a corresponding `ACTION UI...` marker before
+  the counter deltas being judged.
 - During 30 seconds of idle playback, `UI.PlaybackTime.published` may increase,
   but `UI.LibraryPresentationSnapshot.rebuilt`,
   `UI.SearchPresentation.rebuilt`, and `UI.PlaybackRenderContainer.created`

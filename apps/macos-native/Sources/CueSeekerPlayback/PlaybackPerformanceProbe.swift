@@ -72,9 +72,9 @@ enum PlaybackPerformanceProbe {
         let nextCount = state.increment(name)
 
         if let details, !details.isEmpty {
-            logger.notice("COUNT \(name, privacy: .public) \(nextCount) \(details, privacy: .public)")
+            logger.warning("COUNT \(name, privacy: .public) \(nextCount) \(details, privacy: .public)")
         } else {
-            logger.notice("COUNT \(name, privacy: .public) \(nextCount)")
+            logger.warning("COUNT \(name, privacy: .public) \(nextCount)")
         }
 
         return nextCount
@@ -85,6 +85,11 @@ enum PlaybackPerformanceProbe {
     }
 
     private static func diagnosticFlag(_ name: String) -> Bool {
+        let argumentName = "--" + name.lowercased().replacingOccurrences(of: "_", with: "-")
+        if ProcessInfo.processInfo.arguments.contains(argumentName) {
+            return true
+        }
+
         let value = ProcessInfo.processInfo.environment[name]?.trimmingCharacters(
             in: .whitespacesAndNewlines
         ).lowercased()

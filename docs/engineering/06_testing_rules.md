@@ -300,6 +300,10 @@ Required M2 playback interaction checks:
   `CUESEEKER_PERF_WATCHDOG=1`, `CUESEEKER_PERF_RUNLOOP=1`,
   `CUESEEKER_PERF_AUTOSAMPLE=1`, `CUESEEKER_PERF_LAYOUT=1`, or
   `CUESEEKER_PERF_UI=1`, or `CUESEEKER_PERF_PLAYBACK=1`.
+- End-to-end tests that depend on diagnostic logs must have a startup marker
+  and action markers. If the expected startup marker does not appear within
+  three seconds, the run is invalid and must be relaunched with the documented
+  diagnostic flag instead of continuing as a manual visual check.
 - UI invalidation-domain checks should confirm that Library, Playback, Search,
   and future panel modes do not subscribe to unrelated high-frequency state.
   Playback time publications, Search input changes, Library disclosure changes,

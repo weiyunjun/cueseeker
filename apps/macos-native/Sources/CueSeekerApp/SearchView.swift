@@ -200,6 +200,10 @@ struct SearchView: View {
     }
 
     private func toggleLibraryFolderGroup(_ folderPath: String) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.LibraryFolder.toggled",
+            details: "collapsedBefore=\(collapsedLibraryFolderPaths.contains(folderPath))"
+        )
         if collapsedLibraryFolderPaths.contains(folderPath) {
             collapsedLibraryFolderPaths.remove(folderPath)
         } else {
@@ -213,6 +217,10 @@ struct SearchView: View {
             return
         }
 
+        UIInvalidationProbe.mark(
+            "ACTION UI.LibraryFolders.toggleAll",
+            details: "allCollapsedBefore=\(groupPaths.isSubset(of: collapsedLibraryFolderPaths)) groups=\(groupPaths.count)"
+        )
         if groupPaths.isSubset(of: collapsedLibraryFolderPaths) {
             collapsedLibraryFolderPaths.subtract(groupPaths)
         } else {
