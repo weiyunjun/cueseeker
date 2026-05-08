@@ -70,9 +70,8 @@ Current sections:
 - None.
 
 Future main-window sections should be added only when they are true workspace
-destinations. Favorites should primarily belong to the Left Content Panel as
-durable saved content unless a later product rule promotes it to main-window
-navigation.
+destinations. Shiori should remain a panel mode unless a later product rule
+promotes it to main-window navigation.
 
 Settings should not be a main-window sidebar section. The formal Settings entry
 belongs in the macOS app menu and opens an independent Settings window.
@@ -104,11 +103,11 @@ The Left Content Panel is for known content and precise location:
 
 - Library.
 - Current video subtitle Timeline.
-- Favorites.
 
 The Right Learning Panel is for active learning workflows:
 
 - Search.
+- Shiori.
 - Queue.
 - Learning Session.
 
@@ -309,9 +308,9 @@ The Playback Area is the central playback and result-detail surface. The Search
 Panel is the right-side search and result-selection surface.
 
 As future left-side navigation features arrive, the Playback Area remains the
-central experience. A Left Content Panel may appear to its left for Library,
-Timeline, or Favorites navigation, but that does not move Search back to the
-left side.
+central experience. A Left Content Panel may appear to its left for Library or
+Timeline navigation, but that does not move Search or Shiori back to the left
+side.
 
 Playback Area required content:
 
@@ -336,6 +335,13 @@ Search Panel required content:
 - Grouped Search results.
 - Empty, loading, and error states.
 
+Shiori Panel required content:
+
+- Shiori summary text in the form `<count> shioris in <count> files`.
+- A fixed `Collapse All` control that does not change into an expand-all control.
+- Grouped Shiori rows, expanded by default.
+- Empty and error states.
+
 Future Search Panel actions may include hover buttons and contextual menus on
 result rows. A result-level `Add to Queue` action is an accepted future
 direction for building playback queues from Search.
@@ -346,6 +352,12 @@ Behavior:
 - Selecting a result should preserve the Search Panel when it is expanded.
 - Clicking the embedded video toggles play/pause.
 - Clicking the playback operation controls should not toggle play/pause unless the play/pause control is targeted.
+- The playback Shiori control should sit immediately to the left of the
+  pencil-tip copy-current-subtitle control.
+- Saving a Shiori should show transient playback feedback with the Shiori icon
+  and `Shiori Saved`.
+- Removing a Shiori should show transient playback feedback with the Shiori icon
+  and `Shiori Removed`.
 - Collapsing the Search Panel hides search controls and result rows.
 - Collapsing the Search Panel expands the available width for the Playback
   Area.
@@ -421,19 +433,19 @@ Panel visibility and list lifetime:
 - Search rows are active query presentation. They should remain cached until
   the query, loaded result page, Search-group collapse state, or Search ordering
   inputs change.
-- Future Left Content Panel modes such as Timeline and Favorites should keep
-  their own presentation state separate from Library rows.
-- Future Right Learning Panel modes such as Queue and Learning Session should
-  keep their own presentation state separate from Search result rows.
+- Future Left Content Panel modes such as Timeline should keep their own
+  presentation state separate from Library rows.
+- Future Right Learning Panel modes such as Shiori, Queue, and Learning Session
+  should keep their own presentation state separate from Search result rows.
 - Switching future Left or Right panel modes should feel like changing tools in
   a stable panel, not like reopening the workbench. Library, Timeline,
-  Favorites, Search, Queue, and Learning Session should preserve local scroll,
+  Shiori, Search, Queue, and Learning Session should preserve local scroll,
   collapse, selection, and draft state where practical.
 - The first SwiftUI implementation may use lazy list rendering, but grouped
   rows should be flattened when necessary so laziness applies to individual
   visible rows rather than to one large group view containing many child rows.
 - Dense row lists should prefer lightweight row interactions. Hover buttons,
-  plus actions, favorites, context menus, and full-row click targets should not
+  plus actions, Shiori actions, context menus, and full-row click targets should not
   make the list feel like a column of heavy native buttons.
 
 M1 does not require advanced visual effects.

@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the initial Shiori feature direction: Shiori replaces the previous
+  saved-content naming, saves the current subtitle cue from playback with `S` or the
+  playback Shiori control, persists a real-world save timestamp, confirms removal
+  for already saved cues, and presents grouped Shiori rows in the right-side
+  learning panel with a fixed `Collapse All` control.
 - Fixed top bar UI toggle button "instant snap" bugs during side-panel animations
   by explicitly driving layout geometry with a global `withAnimation` transaction
   instead of relying on local implicit modifiers that drop frames inside `GeometryReader`.
@@ -14,7 +19,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Adjusted side-panel toggle buttons to snap perfectly flush (0px inner padding)
   against the vertical divider lines when panels are expanded.
 - Unified and increased top bar `modeButtonSpacing` to 18px for better visual proportion
-  across both the left Library and right Search/Favorites tab groups.
+  across both the left Library and right Search/Shiori tab groups.
 - Accepted the stricter Library snapshot and workbench invalidation rule:
   Library rows are persisted indexed-resource presentation loaded at startup as
   a ready snapshot, while Library disclosure state, Search Panel visibility, and
@@ -50,7 +55,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
   for keyboard-focused controls.
 - Accepted the derived index decoupling principle: rebuildable local index rows
   may become stale or be recreated, but durable user state such as Library
-  playback history and future favorites should remain intact and show
+  playback history and future Shiori records should remain intact and show
   unavailable or unbound resource states when their current index binding is
   missing.
 - Accepted the revised Library view-state rule: Library group collapse state is
@@ -115,8 +120,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
   Panel visibility.
 - Accepted the content-navigation and learning-panel model: the leftmost
   AppShell sidebar remains main-window navigation, future left content panels
-  should handle Library, Timeline, and Favorites-style precise location, and
-  the right learning panel should handle Search, Queue, and configurable
+  should handle Library and Timeline-style precise location, and the right
+  learning panel should handle Search, Shiori, Queue, and configurable
   learning-session workflows without changing the accepted player-first Search
   workspace swap.
 - Accepted the player-first Search workspace layout: the leftmost app sidebar
@@ -264,7 +269,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Eliminated Search input text baseline jitter by replacing the standard SwiftUI `TextField` with a custom `NSTextView` wrapper (`SearchTextView`), bypassing AppKit Field Editor swapping while preserving the custom 36pt focus ring via explicit state bridging.
 - Implemented global AppShell layout persistence using `UserDefaults` within `AppState` to automatically save and restore Sidebar visibility, Playback Inspector visibility, and Inspector width across application launches.
 - Configured the main window to automatically maximize to the screen's visible frame upon startup, preserving native window behavior without forcing Full Screen mode.
-- Adopted "Main Workspace" as the standard nomenclature for the center content region to support future scalability (e.g., Favorites).
+- Adopted "Main Workspace" as the standard nomenclature for the center content region to support future scalability (e.g., Shiori).
 - Kept Search mounted while switching to Settings so embedded playback preserves its render view and returns without a black frame.
 - Accepted the M1 native macOS minimal local loop on 2026-04-28 after manual UI interaction review and passing the Swift test suite.
 - Deferred search-quality optimization, keyboard shortcuts, playback interaction refinement, and broader native macOS polish to post-M1 work.

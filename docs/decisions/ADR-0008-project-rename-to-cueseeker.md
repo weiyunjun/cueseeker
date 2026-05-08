@@ -7,7 +7,7 @@ Status: Accepted
 The project started under the predecessor name `SubFinderX`.
 That name described the original subtitle search prototype, but the product
 direction has expanded toward subtitle-powered context review, playback
-navigation, favorites, dynamic lists, and future phrase discovery.
+navigation, Shiori, dynamic lists, and future phrase discovery.
 
 The old name also carried a temporary prototype tone. The project needs a
 clearer public identity before open-source publication, potential App Store

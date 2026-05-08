@@ -167,7 +167,7 @@ Rules:
   focus, Search results, playback clock updates, and side-panel resize gestures
   do not invalidate unrelated panels.
 - Future cleanup should continue splitting the workbench into smaller
-  invalidation domains. Library, Playback, Search, Queue, Timeline, Favorites,
+  invalidation domains. Library, Playback, Search, Queue, Timeline, Shiori,
   and Learning Session views should subscribe only to the state they render,
   rather than inheriting every `AppState` publication from the root workbench.
 - Library presentation rows are persisted indexed-resource presentation state.
@@ -197,7 +197,7 @@ Rules:
   flattened when necessary so lazy rendering applies to individual headers and
   rows rather than to a single large group view that eagerly builds all children
   inside the group.
-- Dense Library, Search, Timeline, Queue, and Favorites rows should avoid
+- Dense Library, Search, Timeline, Queue, and Shiori rows should avoid
   expensive SwiftUI/AppKit button layout when a lighter row plus explicit hit
   handling can provide the same interaction. Full-row actions, hover actions,
   and context menu affordances should be implemented without forcing large
@@ -242,14 +242,14 @@ Rules:
 - The Right Learning Panel is the collapsible auxiliary pane. Playback must not
   be treated as the collapsible auxiliary pane in the CueSeeker workbench.
 - Collapsing the Right Learning Panel must preserve playback state, selected
-  result identity, and Search/Favorites presentation context.
+  result identity, and Search/Shiori presentation context.
 - Future side-panel work should preserve distinct responsibilities around
   playback: the Left Content Panel owns Library and Timeline-style precise
-  resource positioning, while the Right Learning Panel owns Search, Favorites,
+  resource positioning, while the Right Learning Panel owns Search, Shiori,
   Queue, and Learning Session-style active learning and result aggregation
   workflows.
 - The Left Content Panel and Right Learning Panel should evolve into stable
-  mode containers. Switching between Library, Timeline, Search, Favorites,
+  mode containers. Switching between Library, Timeline, Search, Shiori,
   Queue, and Learning Session modes should preserve each mode's current
   presentation state where practical and must not rebuild unrelated panel lists
   or reset playback.
@@ -259,10 +259,10 @@ Rules:
   so the controls remain visually inside each side-panel titlebar region while
   still being rendered as top-level titlebar controls.
 - Left panel titlebar modes should start with a selected Library folder icon.
-  Right panel titlebar modes should start with Search and Favorites icons:
-  magnifying glass for Search and star for Favorites. Favorites is a Right
-  Learning Panel mode because it behaves like collected Search/result context,
-  not like Library folder navigation.
+  Right panel titlebar modes should start with Search and Shiori icons:
+  magnifying glass for Search and a Shiori saved-content icon for Shiori.
+  Shiori is a Right Learning Panel mode because it behaves like collected
+  Search/playback context, not like Library folder navigation.
 - Titlebar mode buttons should use hover feedback and selected feedback only.
   Their hover background should match the titlebar collapse-toggle hover
   background, and their selected background should match the collapse-toggle
@@ -337,7 +337,7 @@ Rules:
   rebuilt.
 - Derived local index rows may be deleted, rebuilt, or marked stale, but
   durable user state that references those resources must remain separate.
-  History, future favorites, queues, and learning-session records should show
+  History, Shiori records, future queues, and learning-session records should show
   unavailable or unbound resource states when their current index binding is
   missing rather than being silently deleted.
 - Queue and Learning Session state must not be hidden inside playback UI state

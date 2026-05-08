@@ -129,12 +129,12 @@ The left side is for known-content navigation and precise location:
 
 - Library browsing.
 - Current video subtitle Timeline.
-- Favorites browsing and management.
 
 The right side is for active learning workflows:
 
 - Search.
 - Search result aggregation.
+- Shiori browsing and management.
 - Queue building.
 - Learning Session configuration.
 
@@ -379,9 +379,17 @@ Timeline behavior:
 
 Queue and Learning Session are future right-side learning workflow modes.
 
+Shiori behavior:
+
+- Shiori belongs to the right side for the first implementation because it is
+  collected subtitle context created from playback and future learning actions.
+- Saving or removing a Shiori should not pause playback or reset Search state.
+- Shiori panel collapse state is presentation state and should not rebuild
+  Library rows or Search result rows.
+
 Queue behavior:
 
-- Search results, Library videos, Timeline rows, and Favorites may all become
+- Search results, Library videos, Timeline rows, and Shiori records may all become
   queue inputs.
 - Search result rows may expose a hover `Add to Queue` action.
 - The user should be able to collect multiple Search results quickly while
@@ -449,6 +457,8 @@ M2 keyboard shortcut model:
 - Playback shortcuts should be active only when a playback result is selected, the playback interface is visible, and editable text input is not focused.
 - Read-only selectable text in playback metadata should not suppress playback shortcuts.
 - `Q` should copy the current subtitle to the clipboard.
+- `S` should save the current subtitle as Shiori, or ask whether to remove the
+  existing Shiori when the current subtitle is already saved.
 - `C` should show or hide subtitles.
 - `F` should enter or exit playback fullscreen.
 - `Space` should toggle play or pause.
@@ -506,14 +516,16 @@ The app should remember:
 - Last selected main-window app section if future top-level sections are added.
 - Last selected Settings category if practical.
 - Library visibility and width.
-- Left Content Panel mode when additional modes such as Timeline or Favorites
-  are implemented.
+- Left Content Panel mode when additional modes such as Timeline are implemented.
 - Search Panel width and visibility.
+- Right Learning Panel mode when additional modes such as Shiori, Queue, or
+  Learning Session are implemented.
 - Library playback resume history, limited to Library-opened playback.
+- Shiori records, including their real-world save timestamp.
 - Queue or Learning Session state only after persistence rules are documented.
 - Playback decode mode.
 
 The app should not surprise the user by losing local configuration after restart.
 The structural layout persistence should keep Left Content Panel state separate
-from Search Panel state so Library, Timeline, Favorites, Search, Queue, and
+from Search Panel state so Library, Timeline, Shiori, Search, Queue, and
 Learning Session can evolve without inheriting unrelated panel behavior.

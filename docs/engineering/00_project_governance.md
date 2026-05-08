@@ -245,7 +245,7 @@ Recommended commit boundaries:
 - Implement SQLite FTS search.
 - Implement local video timestamp playback.
 - Implement macOS experience polish items.
-- Implement favorites and personal learning flow.
+- Implement Shiori and personal learning flow.
 
 ### 6.3 Commit Message Format
 
@@ -623,14 +623,14 @@ Goal:
 - Packaging, signing, and notarization preparation.
 - UI/UX refinement for the core local workflow.
 
-### M3: Favorites and Personal Learning Flow
+### M3: Shiori and Personal Learning Flow
 
 Goal:
 
-- Favorite the current subtitle.
-- List favorites.
-- Toggle favorites with keyboard interaction.
-- Persist favorite identity reliably.
+- Save the current subtitle as Shiori.
+- List Shiori records.
+- Toggle Shiori with keyboard interaction.
+- Persist Shiori identity reliably.
 
 ## 16. Data Model Rules
 
@@ -641,7 +641,7 @@ The following changes must update `docs/product/05_data_model.md` first and may 
 - Table structure changes.
 - Field meaning changes.
 - Primary key or unique index changes.
-- Favorite identity rule changes.
+- Shiori identity rule changes.
 - Search path storage changes.
 - Flutter data compatibility changes.
 

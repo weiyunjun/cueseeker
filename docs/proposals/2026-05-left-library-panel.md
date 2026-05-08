@@ -38,7 +38,7 @@ videos.
 - Implement nested folder browsing.
 - Implement manual subtitle-track selection for videos with multiple subtitle
   files.
-- Implement queue, favorite, or contextual actions from Library rows.
+- Implement queue, Shiori, or contextual actions from Library rows.
 - Change Search Panel layout or Search result behavior.
 - Change the standalone Settings window.
 

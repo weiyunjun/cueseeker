@@ -57,7 +57,7 @@ Recommended commit boundaries:
 - Implement FTS search.
 - Implement local video timestamp playback.
 - Implement macOS experience polish.
-- Implement favorites and personal learning flow.
+- Implement Shiori and personal learning flow.
 
 Rules:
 
@@ -127,7 +127,7 @@ Future tag candidates:
 - First native macOS shell.
 - M1 minimal local loop.
 - M2 macOS experience polish.
-- M3 favorites and personal learning flow.
+- M3 Shiori and personal learning flow.
 
 Rules:
 

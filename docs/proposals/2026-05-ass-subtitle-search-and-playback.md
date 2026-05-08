@@ -43,7 +43,7 @@ trying to become a full ASS renderer.
 - Selecting or bundling a dedicated ASS rendering dependency in the first
   implementation step.
 - Embedded subtitle stream decoding.
-- Line-level favorites.
+- Line-level Shiori records.
 - Fuzzy subtitle-to-video matching.
 - Media library browsing.
 - Remote subtitle indexing or remote video playback.

@@ -51,7 +51,7 @@ Provisional milestone labels:
 
 - M1: Native macOS minimal loop.
 - M2: macOS experience polish.
-- M3: Favorites and personal learning flow.
+- M3: Shiori and personal learning flow.
 
 ## 5. Bundle Identity
 

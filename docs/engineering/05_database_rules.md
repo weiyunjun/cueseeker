@@ -118,7 +118,7 @@ Destructive migrations:
   durable user configuration while rebuilding derived subtitle index rows and
   FTS rows from source subtitle files.
 - Deleting stale index rows for missing source files is part of normal indexing behavior.
-- Any migration that cannot preserve favorites or other durable user state requires explicit review.
+- Any migration that cannot preserve Shiori or other durable user state requires explicit review.
 
 Derived index decoupling:
 
@@ -131,7 +131,7 @@ Derived index decoupling:
   joins in the hot path.
 - Library playback history is durable local user state and must survive folder
   removal, re-add, and reindex when the same video identity is available again.
-- Future favorites, queues, and learning-session records are durable user state.
+- Shiori records and future queues and learning-session records are durable user state.
   Their current resource binding may be stale or unavailable, but the
   user-authored record must not be deleted merely because an indexed file row is
   missing.
@@ -149,7 +149,7 @@ Rules:
   remain, because source subtitle files can recreate that data after folders are
   added again.
 - Durable user state, such as configured folders, Library playback history, and
-  future favorites, must not be casually discarded.
+  Shiori records, must not be casually discarded.
 - Before destructive schema changes to durable user state, the project must define backup or recovery expectations.
 - Corrupt database handling should prefer clear error reporting and rebuild options over silent data loss.
 
@@ -183,11 +183,11 @@ Expected early entities:
 
 Future entities:
 
-- Favorites.
+- Shiori.
 
 Rules:
 
-- Row IDs may be used internally but must not be the only stable identity for future favorites.
+- Row IDs may be used internally but must not be the only stable identity for Shiori.
 - Native playback compatibility metadata is owned by the media file, not by
   subtitle cue groups, cue lines, or subtitle file paths.
 - Subtitle-to-video matching must be represented separately enough that exact basename matching can later be replaced or supplemented by fuzzy or manual matching.
@@ -213,6 +213,10 @@ Rules:
   stable video identity, persist resume position and update timestamp, and must
   not be rebuilt from subtitle index data.
 - Search-result playback must not read or mutate Library playback history.
+- Shiori records are durable local user state. The initial Shiori table should
+  use `subtitle_path`, `start_ms`, and `end_ms` as the stable cue identity,
+  persist `subtitle_format`, `video_path`, `video_name`, `content`, and
+  `created_at`, and avoid duplicate rows for the same saved cue identity.
 
 ## 9. Media Native Compatibility Profile Rules
 

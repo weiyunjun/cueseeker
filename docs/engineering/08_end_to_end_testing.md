@@ -186,8 +186,9 @@ queued UI updates and log lines can settle.
 12. Drag the playback progress bar or use a seek shortcut.
 13. Resize the left and right panels and verify the titlebar controls stay
     visually aligned with the corresponding panel regions.
-14. Click the right titlebar Search icon and Star icon, verifying Search shows
-    the current Search panel and Star shows the empty Favorites placeholder.
+14. Click the right titlebar Search icon and Shiori icon, verifying Search shows
+    the current Search panel and Shiori shows the current Shiori panel or empty
+    Shiori state.
 
 ### Evidence to Paste Back
 
@@ -216,7 +217,7 @@ Also state whether any visible user-facing issue occurred:
 - Any `Expand All` action appearing in Search or any Library-wide
   `Collapse All` / `Expand All` action appearing in Library.
 - Titlebar mode icons not tracking the resized side-panel widths.
-- Right titlebar Search or Star mode switching resetting playback or Search
+- Right titlebar Search or Shiori mode switching resetting playback or Search
   state unexpectedly.
 
 ### Acceptance Criteria
@@ -244,8 +245,9 @@ these criteria:
   Library folder disclosure remains per-folder.
 - The left titlebar mode region must show the Library folder icon when the
   Library panel is expanded. The right titlebar mode region must show Search
-  and Star icons when the right panel is expanded. Search displays the existing
-  Search panel, and Star displays an empty Favorites placeholder.
+  and Shiori icons when the right panel is expanded. Search displays the
+  existing Search panel, and Shiori displays the current Shiori panel or empty
+  Shiori state.
 - Titlebar mode icons and side-panel collapse toggles must remain visually
   aligned with the current side-panel width during manual divider resize and
   side-panel collapse or expand animation.

@@ -69,7 +69,7 @@ The early rewrite will not implement:
 - Translation popovers.
 - Word-level selection tools.
 
-Favorites are planned later than the core local workflow and macOS polish.
+Shiori is planned later than the core local workflow and macOS polish.
 
 ## 7. Visual Effect Non-Goals
 
@@ -81,4 +81,3 @@ The early rewrite will not implement:
 - Complex animated visual treatments.
 
 These should be reconsidered only after playback architecture is stable.
-

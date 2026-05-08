@@ -20,9 +20,9 @@ Initial entities:
 - Subtitle cue line.
 - Index metadata.
 - ASS font resource manifest.
-- Favorite.
+- Shiori.
 
-Favorites are not required for M1 but should be considered when designing identity stability.
+Shiori is not required for M1 but should be considered when designing identity stability.
 
 ## 3. Search Path
 
@@ -61,7 +61,7 @@ Rules:
 - Derived index data may become stale when folders are removed, renamed,
   reindexed, or temporarily unavailable.
 - Index staleness must not by itself delete durable user state such as Library
-  playback history, future favorites, queues, or learning-session records.
+  playback history, Shiori records, future queues, or learning-session records.
 - User-authored state should keep stable file or cue identity where practical,
   while the current binding to indexed rows remains a refreshable lookup.
 - When an indexed resource referenced by durable user state is missing,
@@ -180,7 +180,7 @@ Fields:
 Notes:
 
 - `start_ms` is the primary timestamp used for playback seek.
-- `end_ms` is useful for future current-line highlighting and favorites.
+- `end_ms` is useful for future current-line highlighting and Shiori.
 - `subtitle_path` and timing fields are part of stable identity.
 - `search_content` is the aggregated searchable text from the group's cue lines.
 - Playback should resolve the target media file through the active subtitle-to-video match, not through subtitle path naming assumptions.
@@ -320,14 +320,15 @@ cue lines. The search implementation may use cue group content for recall, but
 it must ensure that at least one cue line satisfies the query semantics before a
 group is returned.
 
-## 13. Favorite
+## 13. Shiori
 
-Favorites are deferred until M3.
+Shiori stores saved subtitle cues for later review.
 
 Expected fields:
 
 - `id`
 - `subtitle_path`
+- `subtitle_format`
 - `start_ms`
 - `end_ms`
 - `video_path`
@@ -336,14 +337,24 @@ Expected fields:
 - `is_valid`
 - `created_at`
 
-Favorite identity should be based on source subtitle path and time range, not on
-volatile row IDs. When cue groups are available, favorites should target cue
-groups rather than individual ASS lines unless the product explicitly adds
-line-level favorites.
+The initial native table should be named `shioris`.
 
-A favorite's user-authored record is durable state. Its current resolved link to
+`created_at` stores the real-world timestamp when the user saved the Shiori
+record. The initial Shiori panel does not need to display this timestamp, but the
+field must be persisted when the record is created.
+
+Shiori identity should be based on source subtitle path and time range, not on
+volatile row IDs. When cue groups are available, Shiori should target cue groups
+rather than individual ASS lines unless the product explicitly adds line-level
+Shiori records.
+
+Creating Shiori for a subtitle cue that already has a matching
+`subtitle_path`, `start_ms`, and `end_ms` should be treated as an existing
+record rather than creating a duplicate row.
+
+A Shiori record is durable user state. Its current resolved link to
 an indexed subtitle cue, video file, or Library row is derived index state. If
-the indexed resource disappears, the favorite should remain and show an invalid
+the indexed resource disappears, the Shiori record should remain and show an invalid
 or unavailable resource state until the index is rebuilt or repaired.
 
 ## 14. Schema Versioning
@@ -358,7 +369,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `8`.
+- Schema version: `9`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -373,6 +384,10 @@ Current native schema:
   font preparation. It does not drop durable user configuration.
 - Version 8 adds Library playback history for Library-opened resume behavior.
   It does not drop derived index rows or durable user configuration.
+- Version 9 adds persisted Library presentation rows so startup can hydrate the
+  Library panel from an indexed snapshot.
+- The first Shiori implementation should add the next schema migration and
+  preserve existing durable user state.
 
 ## 15. Flutter Data Compatibility
 

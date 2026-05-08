@@ -190,7 +190,7 @@ for ASS files.
 Future versions may need:
 
 - Highlight current subtitle.
-- Support text selection or learning interactions.
+- Support text selection or learning interactions such as Shiori.
 - Better `libass` font-resource handling for embedded attachments and adjacent
   font folders.
 - Optional danmaku playback as a separate overlay domain from subtitles.
@@ -284,7 +284,7 @@ Required behavior:
 - Fullscreen may later provide temporary access to left-side content navigation
   or right-side learning workflow panels.
 - Temporary fullscreen panels must preserve the same side responsibilities:
-  left for Library, Timeline, and Favorites-style location; right for Search,
+  left for Library and Timeline-style location; right for Search, Shiori,
   Queue, and Learning Session workflows.
 - Temporary fullscreen panels must not create a second playback render view or
   backend render context.
@@ -358,7 +358,9 @@ Required behavior:
 - Playback speed changes must stay within `0.5x` through `2.0x`.
 - The visible playback speed menu should offer `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - Timeline hover and drag states must not move the playback operation controls vertically.
-- Playback commands should show transient feedback for subtitle copy, subtitle visibility, play or pause, seek direction and amount, volume, and playback speed.
+- Playback commands should show transient feedback for Shiori save or removal,
+  subtitle copy, subtitle visibility, play or pause, seek direction and amount,
+  volume, and playback speed.
 - Continuous playback time updates used by visible SwiftUI controls should be
   rate-limited enough to avoid invalidating unrelated workbench UI. Native video
   playback and source-faithful subtitle rendering should keep their own timing
@@ -379,6 +381,9 @@ Current implementation notes:
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
 - Current subtitle copy uses the indexed cue-group projection for clipboard text
   and preserves the same line ordering as Search result display.
+- Shiori save should use the same indexed cue-group projection and current
+  playback timestamp semantics as current-subtitle copy. Saving should show
+  `Shiori Saved`; confirmed removal should show `Shiori Removed`.
 
 ## 9. Learning Session Playback
 

@@ -222,14 +222,14 @@ Required M2 playback interaction checks:
   the center, and Search controls/results on the right.
 - Collapsing the Right Learning Panel expands playback width, preserves the
   selected result, and does not pause playback.
-- Reopening the Right Learning Panel restores the current Search/Favorites
+- Reopening the Right Learning Panel restores the current Search/Shiori
   context when practical.
 - Future Left Content Panel modes should preserve the left-side precise
   resource-positioning responsibility for Library and Timeline.
 - Future Right Learning Panel modes should preserve the right-side active
-  workflow responsibility for Search, Favorites, Queue, and Learning Session.
+  workflow responsibility for Search, Shiori, Queue, and Learning Session.
 - Titlebar mode-container checks should verify that side-panel mode buttons are
-  rendered in the global titlebar, use the documented folder/search/star icons,
+  rendered in the global titlebar, use the documented folder/search/Shiori icons,
   and visually track the corresponding side-panel width during manual divider
   resize and collapse or expand animation.
 - Titlebar side-panel animation checks should verify that mode buttons do not
@@ -330,7 +330,7 @@ Required M2 playback interaction checks:
   remains smooth, manual seek feedback updates immediately, and visible
   progress controls remain accurate enough for subtitle-context review.
 - Left and Right panel mode-container checks should verify that switching future
-  modes such as Library, Timeline, Search, Favorites, Queue, and Learning
+  modes such as Library, Timeline, Search, Shiori, Queue, and Learning
   Session preserves each mode's relevant presentation state and does not reset
   playback or rebuild unrelated lists.
 - Playback render layout checks should verify that repeatedly collapsing and

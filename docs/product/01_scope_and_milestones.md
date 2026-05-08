@@ -179,7 +179,7 @@ Acceptance criteria:
 - Settings can be opened from the app menu without pausing playback or changing
   CueSeeker workbench state.
 
-## 5. M3: Favorites and Personal Learning Flow
+## 5. M3: Shiori and Personal Learning Flow
 
 Goal:
 
@@ -187,22 +187,22 @@ Goal:
 
 Expected areas:
 
-- Favorite a subtitle line.
-- View favorite lines.
-- Remove favorites.
-- Jump from a favorite to the matching video timestamp.
-- Preserve favorite identity across reindexing when possible.
-- Present Favorites as durable saved content in the left-side content
-  navigation model when that panel exists.
-- Allow Favorites to feed future right-side Queue or Learning Session workflows
+- Save the current subtitle cue as a Shiori.
+- View saved Shiori subtitle cues.
+- Remove Shiori records.
+- Jump from a Shiori row to the matching video timestamp.
+- Preserve Shiori identity across reindexing when possible.
+- Present Shiori as durable saved learning content in the right-side learning
+  panel for the first implementation.
+- Allow Shiori records to feed future right-side Queue or Learning Session workflows
   after those workflows are documented.
 
 Acceptance criteria:
 
-- Favorites persist locally.
-- Favorites remain linked to source subtitle timing.
-- Favorite actions are available through UI and keyboard interaction.
-- Favorites have a documented home in the content-navigation and learning-panel
+- Shiori records persist locally.
+- Shiori records remain linked to source subtitle timing.
+- Shiori actions are available through UI and keyboard interaction.
+- Shiori has a documented home in the content-navigation and learning-panel
   model before implementation is treated as complete.
 
 ## 6. Explicitly Deferred

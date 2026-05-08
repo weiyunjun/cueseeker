@@ -310,7 +310,7 @@ When implemented, Queue should support:
 - Add items from Search results.
 - Add items from Library videos.
 - Add items from Timeline subtitle cues.
-- Add items from Favorites.
+- Add items from Shiori.
 - Preserve enough identity to open the correct video and timestamp later.
 - Display queued items in a reviewable order.
 - Remove or reorder queued items when that workflow is accepted.
@@ -416,22 +416,61 @@ Current Settings categories:
 
 Future settings may include playback, database, logging, and privacy options.
 
-## 12. Favorites
+## 12. Shiori
 
-Favorites are not required for M1.
+Shiori is CueSeeker's saved-subtitle workflow.
 
 When implemented, the app should support:
 
-- Favorite a subtitle line.
-- Favorite a video or broader saved item only after that favorite type is
+- Save the current subtitle cue as a Shiori.
+- Save a video or broader saved item only after that Shiori type is
   documented.
-- Remove a favorite.
-- View favorite subtitle lines.
-- Jump from a favorite to video playback.
-- Preserve favorite identity across reindexing when possible.
+- Remove a Shiori record.
+- View saved Shiori subtitle cues.
+- Jump from a Shiori row to video playback.
+- Preserve Shiori identity across reindexing when possible.
 
-Favoriting is an action that may appear in Search results, Timeline rows,
-playback subtitle controls, contextual menus, and future hover controls.
-Browsing and managing Favorites belongs primarily to the Left Content Panel
-because Favorites are durable saved content. Favorites may also feed right-side
-Queue or Learning Session workflows.
+Initial Shiori save behavior:
+
+- The initial visible save action belongs in playback controls.
+- The playback Shiori button should appear immediately to the left of the
+  pencil-tip copy-current-subtitle button.
+- The `S` playback shortcut should trigger the same command as the playback
+  Shiori button.
+- Shiori shortcut handling must preserve native text input behavior and must not
+  intercept editable text fields or modified shortcuts such as `Command-S`.
+- The save command should resolve the current subtitle cue through the indexed
+  database projection, using the current playback subtitle file and current
+  playback timestamp. This should follow the same cue-selection semantics as
+  current-subtitle copy: prefer the active cue at the playback time, then fall
+  back to the previous cue when no active cue exists.
+- If no subtitle cue can be resolved, the app should show a concise feedback
+  overlay rather than creating an empty Shiori record.
+- If the resolved cue is not already saved, the app should persist it and show a
+  playback feedback overlay with the Shiori icon and `Shiori Saved`.
+- If the resolved cue is already saved, the app should ask for confirmation
+  before deletion. Suggested English copy is title `Remove Shiori?`, message
+  `This subtitle is already saved. Remove it from Shiori?`, confirmation
+  `Remove`, and cancellation `Cancel`.
+- After confirmed deletion, the app should show a playback feedback overlay with
+  the Shiori icon and `Shiori Removed`.
+
+Initial Shiori panel behavior:
+
+- The current right-side saved-content placeholder becomes the Shiori mode.
+- The Shiori mode uses a saved-content icon in the titlebar and should be named
+  `Shiori` in user-facing English text.
+- Shiori rows should be grouped by subtitle file, following the Search result
+  grouping pattern where practical.
+- Shiori groups are expanded by default.
+- The Shiori panel summary should read `<count> shioris in <count> files`.
+- The Shiori panel should expose a fixed `Collapse All` control. The control
+  does not become `Expand All`; after a global collapse, users expand groups
+  individually.
+- Shiori rows display saved subtitle text and the subtitle start timestamp.
+- Clicking a Shiori row should open or update playback for the saved video at
+  the saved subtitle start timestamp.
+
+Shiori actions may later appear in Search results, Timeline rows, contextual
+menus, and future hover controls after those entry points are documented. Shiori
+may also feed right-side Queue or Learning Session workflows.

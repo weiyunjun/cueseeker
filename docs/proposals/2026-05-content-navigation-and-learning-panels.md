@@ -8,7 +8,7 @@ CueSeeker is moving toward a player-first workspace: playback is the central
 experience, Search is a functional right-side panel, and the leftmost AppShell
 sidebar provides main-window navigation such as `Search`.
 
-Future product work will add Library, Favorites, playback queue, learning
+Future product work will add Library, Shiori, playback queue, learning
 sessions, and more precise subtitle navigation. These features need a stable
 information architecture before implementation starts, otherwise CueSeeker may
 drift toward an IDE-like collection of generic tool panes instead of a media
@@ -25,7 +25,7 @@ to each side of the playback surface.
 - Treat the left-side content panel as a precise content-navigation surface.
 - Treat the right-side panel as a search, aggregation, queue, and learning
   workflow surface.
-- Provide a future home for Favorites without making Favorites only a search
+- Provide a future home for Shiori without making Shiori only a search
   result action.
 - Provide a future home for playback queue and configurable learning sessions.
 - Keep the accepted player-first Search workspace layout intact.
@@ -35,9 +35,9 @@ to each side of the playback surface.
 - Change the accepted player-first Search workspace decision.
 - Define the Settings window. Settings is handled by the standalone Settings
   window proposal.
-- Define final visual design for Library, Timeline, Favorites, Queue, or
+- Define final visual design for Library, Timeline, Shiori, Queue, or
   Learning Session.
-- Define database schema for Favorites or queue persistence.
+- Define database schema for Shiori or queue persistence.
 - Implement autoplay or learning-session behavior.
 - Replace Theater Mode fullscreen.
 
@@ -71,8 +71,6 @@ Accepted future panel modes:
 
 - `Library`: browse indexed videos and folders.
 - `Timeline`: browse the current video's time-ordered subtitle cues.
-- `Favorites`: browse stable saved subtitle moments or saved videos when that
-  product behavior is accepted.
 
 Library direction:
 
@@ -102,15 +100,6 @@ Timeline direction:
 - Timeline navigation is a content-location feature, not a search-result
   aggregation feature.
 
-Favorites direction:
-
-- Favoriting is an action that may appear in Search results, Timeline rows, the
-  current playback subtitle, contextual menus, and future hover controls.
-- Browsing and managing Favorites belongs primarily to the Left Content Panel
-  because Favorites are durable saved content, not only transient search output.
-- Favorites may also be used by right-side learning workflows, such as adding
-  saved items to a queue or searching within saved items.
-
 ## Right Learning Panel
 
 The Right Learning Panel is for active learning workflows.
@@ -118,6 +107,7 @@ The Right Learning Panel is for active learning workflows.
 Accepted future panel modes:
 
 - `Search`: search indexed subtitle content and review aggregated matches.
+- `Shiori`: browse saved subtitle cues.
 - `Queue`: collect videos or subtitle moments for sequential playback.
 - `Learning Session`: configure how queued or selected items are played.
 
@@ -131,10 +121,19 @@ Search direction:
 - A hover `Add to Queue` action on each result is an accepted future interaction
   direction.
 
+Shiori direction:
+
+- Shiori is an action that may appear in Search results, Timeline rows, the
+  current playback subtitle, contextual menus, and future hover controls.
+- The first accepted Shiori implementation belongs to the Right Learning Panel
+  because it behaves like collected Search/playback context for active learning.
+- Shiori may also be used by right-side learning workflows, such as adding
+  saved items to a queue or searching within saved items.
+
 Queue direction:
 
 - The queue is user-assembled learning material, not the source media library.
-- Search results, Favorites, Timeline rows, and Library videos may all become
+- Search results, Shiori records, Timeline rows, and Library videos may all become
   queue inputs.
 - The Queue should support quick collection while the user scrolls through
   Search results.
@@ -159,10 +158,10 @@ Rules:
 
 - Fullscreen panel access must preserve the same side responsibilities:
   left-side surfaces navigate known content and precise timeline locations,
-  while right-side surfaces support Search, Queue, and Learning Session actions.
+  while right-side surfaces support Search, Shiori, Queue, and Learning Session actions.
 - Temporary fullscreen panels must not create a second playback render context.
 - Temporary fullscreen panels must not change the meaning of Library, Timeline,
-  Favorites, Search, Queue, or Learning Session.
+  Shiori, Search, Queue, or Learning Session.
 - Fullscreen panel access should remain optional and should not make fullscreen
   feel like a general desktop workspace.
 
@@ -187,10 +186,10 @@ responsibilities around the central Playback Area.
   Left Content Panel.
 - Documentation does not require Settings to remain in the leftmost AppShell
   sidebar.
-- Documentation states that the Left Content Panel owns Library, Timeline, and
-  Favorites-style known-content navigation.
-- Documentation states that the Right Learning Panel owns Search, Queue, and
-  Learning Session-style active learning workflows.
+- Documentation states that the Left Content Panel owns Library and
+  Timeline-style known-content navigation.
+- Documentation states that the Right Learning Panel owns Search, Shiori, Queue,
+  and Learning Session-style active learning workflows.
 - Documentation records that Search result hover actions may add items to a
   future Queue.
 - Documentation records that future learning-session playback modes require
@@ -204,10 +203,10 @@ Accepted.
 
 CueSeeker should evolve into a media learning workspace with a stable center
 Playback Area, a left content-navigation panel for known content and precise
-location, and a right learning panel for Search, Queue, and Learning Session
-workflows.
+location, and a right learning panel for Search, Shiori, Queue, and Learning
+Session workflows.
 
 The model preserves the accepted player-first Search workspace plan while
 leaving Settings to the standalone Settings window direction. It gives future
-Library, Timeline, Favorites, Queue, and learning-session work a clear place
+Library, Timeline, Shiori, Queue, and learning-session work a clear place
 without making CueSeeker behave like a generic IDE.
