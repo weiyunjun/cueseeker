@@ -804,6 +804,10 @@ final class AppState: ObservableObject {
             group.videos.map(\.video)
         }
         libraryPresentationRevision += 1
+        UIInvalidationProbe.count(
+            "UI.LibraryPresentationSnapshot.rebuilt",
+            details: "groups=\(groups.count) rows=\(libraryVideos.count)"
+        )
     }
 
     private func removeLibraryPresentation(under folder: URL) {
@@ -815,6 +819,10 @@ final class AppState: ObservableObject {
             group.videos.map(\.video)
         }
         libraryPresentationRevision += 1
+        UIInvalidationProbe.count(
+            "UI.LibraryPresentationSnapshot.rebuilt",
+            details: "groups=\(groups.count) rows=\(libraryVideos.count) reason=remove"
+        )
     }
 
     private func startSearch(
@@ -1466,6 +1474,10 @@ final class AppState: ObservableObject {
         renderedSearchResultCount = searchResultGroups.reduce(0) { count, group in
             group.isCollapsed ? count : count + group.results.count
         }
+        UIInvalidationProbe.count(
+            "UI.SearchPresentation.rebuilt",
+            details: "groups=\(searchResultGroups.count) rows=\(renderedSearchResultCount)"
+        )
     }
 
     private func revealFile(atPath path: String) {

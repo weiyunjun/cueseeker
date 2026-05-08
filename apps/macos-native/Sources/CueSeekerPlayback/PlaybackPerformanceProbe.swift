@@ -1,9 +1,25 @@
 import Foundation
 import os
 
+private final class PlaybackPerformanceProbeState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var counters: [String: UInt64] = [:]
+
+    func increment(_ name: String) -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let nextCount = (counters[name] ?? 0) + 1
+        counters[name] = nextCount
+        return nextCount
+    }
+}
+
 enum PlaybackPerformanceProbe {
     private static let logger = Logger(subsystem: "com.cueseeker.perf", category: "Playback")
     private static let isEnabled = diagnosticFlag("CUESEEKER_PERF_PLAYBACK")
+    private static let isUIInvalidationEnabled = diagnosticFlag("CUESEEKER_PERF_UI")
+    private static let state = PlaybackPerformanceProbeState()
 
     static func now() -> UInt64 {
         guard isEnabled else {
@@ -45,6 +61,23 @@ enum PlaybackPerformanceProbe {
         }
 
         logger.warning("\(message(name: name, elapsedMilliseconds: elapsedMilliseconds), privacy: .public)")
+    }
+
+    @discardableResult
+    static func countUI(_ name: String, details: String? = nil) -> UInt64 {
+        guard isUIInvalidationEnabled else {
+            return 0
+        }
+
+        let nextCount = state.increment(name)
+
+        if let details, !details.isEmpty {
+            logger.notice("COUNT \(name, privacy: .public) \(nextCount) \(details, privacy: .public)")
+        } else {
+            logger.notice("COUNT \(name, privacy: .public) \(nextCount)")
+        }
+
+        return nextCount
     }
 
     private static func message(name: String, elapsedMilliseconds: Double) -> String {

@@ -73,18 +73,18 @@ This test validates that:
 
 ### Required Instrumentation
 
-Before using this test as an acceptance gate, add a default-off UI invalidation
-counter. The counter should be enabled only by an explicit diagnostic flag, for
-example:
+This test uses the default-off UI invalidation counter. Enable it only through
+the explicit diagnostic flag:
 
 ```bash
 CUESEEKER_PERF_UI=1
 ```
 
-The counter should emit narrow `com.cueseeker.perf` logs for UI refresh and
-expensive model rebuild events. Recommended event names:
+The counter emits narrow `com.cueseeker.perf` logs for UI refresh and expensive
+model rebuild events. Current event names:
 
 - `UI.ContentView.body`
+- `UI.AppTopBar.body`
 - `UI.Workbench.body`
 - `UI.LibraryPanel.body`
 - `UI.LibraryRows.rendered`

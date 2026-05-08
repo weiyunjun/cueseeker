@@ -299,7 +299,7 @@ Required M2 playback interaction checks:
   needed, enable only the narrow flag for the probe under test, such as
   `CUESEEKER_PERF_WATCHDOG=1`, `CUESEEKER_PERF_RUNLOOP=1`,
   `CUESEEKER_PERF_AUTOSAMPLE=1`, `CUESEEKER_PERF_LAYOUT=1`, or
-  `CUESEEKER_PERF_PLAYBACK=1`.
+  `CUESEEKER_PERF_UI=1`, or `CUESEEKER_PERF_PLAYBACK=1`.
 - UI invalidation-domain checks should confirm that Library, Playback, Search,
   and future panel modes do not subscribe to unrelated high-frequency state.
   Playback time publications, Search input changes, Library disclosure changes,

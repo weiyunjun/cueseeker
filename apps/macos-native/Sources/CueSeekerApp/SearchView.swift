@@ -16,7 +16,9 @@ struct SearchView: View {
 
     var body: some View {
         AppPerformanceProbe.measure("SearchView.body", thresholdMilliseconds: 4) {
-            GeometryReader { geometry in
+            UIInvalidationProbe.count("UI.Workbench.body")
+
+            return GeometryReader { geometry in
                 let libraryPanelWidth = libraryPanelWidth(for: geometry.size.width)
                 let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
                 let reservedLibraryWidth = layoutState.isLibraryPanelVisible ? libraryPanelWidth : 0
@@ -80,7 +82,9 @@ struct SearchView: View {
 
     private var libraryPanel: some View {
         AppPerformanceProbe.measure("SearchView.libraryPanel.body", thresholdMilliseconds: 4) {
-            VStack(alignment: .leading, spacing: 6) {
+            UIInvalidationProbe.count("UI.LibraryPanel.body")
+
+            return VStack(alignment: .leading, spacing: 6) {
                 libraryHeader
 
                 if appState.selectedFolders.isEmpty {
@@ -152,7 +156,13 @@ struct SearchView: View {
     }
 
     private var libraryList: some View {
-        ScrollView {
+        let rowCount = appState.libraryFolderGroups.reduce(0) { $0 + $1.videos.count }
+        UIInvalidationProbe.count(
+            "UI.LibraryRows.rendered",
+            details: "groups=\(appState.libraryFolderGroups.count) rows=\(rowCount)"
+        )
+
+        return ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(appState.libraryFolderGroups) { group in
                     let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
@@ -212,7 +222,9 @@ struct SearchView: View {
 
     private var searchPanel: some View {
         AppPerformanceProbe.measure("SearchView.searchPanel.body", thresholdMilliseconds: 4) {
-            GeometryReader { geometry in
+            UIInvalidationProbe.count("UI.SearchPanel.body")
+
+            return GeometryReader { geometry in
                 VStack(alignment: .leading, spacing: 6) {
                     searchHeader
 
@@ -322,7 +334,12 @@ struct SearchView: View {
     }
 
     private var resultsList: some View {
-        ScrollView {
+        UIInvalidationProbe.count(
+            "UI.SearchRows.rendered",
+            details: "groups=\(appState.searchResultGroups.count) rows=\(appState.renderedSearchResultCount)"
+        )
+
+        return ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(appState.searchResultGroups) { group in
                     SearchResultGroupView(
@@ -357,7 +374,9 @@ struct SearchView: View {
 
     private var playbackArea: some View {
         AppPerformanceProbe.measure("SearchView.playbackArea.body", thresholdMilliseconds: 4) {
-            VStack(alignment: .leading, spacing: 0) {
+            UIInvalidationProbe.count("UI.PlaybackArea.body")
+
+            return VStack(alignment: .leading, spacing: 0) {
                 if appState.hasPlaybackSelection {
                     VStack(alignment: .leading, spacing: 16) {
                         PlaybackView(

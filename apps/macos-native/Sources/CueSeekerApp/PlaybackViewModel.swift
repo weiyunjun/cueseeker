@@ -266,6 +266,10 @@ public final class PlaybackViewModel: ObservableObject {
 
         displayedCurrentTime = currentTime
         lastDisplayedCurrentTimePublishTimestamp = now
+        UIInvalidationProbe.count(
+            "UI.PlaybackTime.published",
+            details: String(format: "time=%.2f", displayedCurrentTime)
+        )
     }
 
     private func showFeedback(

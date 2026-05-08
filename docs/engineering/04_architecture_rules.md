@@ -158,7 +158,8 @@ Rules:
   `CUESEEKER_PERF_WATCHDOG=1` for the main-thread watchdog,
   `CUESEEKER_PERF_RUNLOOP=1` for the run-loop observer,
   `CUESEEKER_PERF_AUTOSAMPLE=1` for automatic `/usr/bin/sample` capture,
-  `CUESEEKER_PERF_LAYOUT=1` for SwiftUI/AppKit layout probes, and
+  `CUESEEKER_PERF_LAYOUT=1` for SwiftUI/AppKit layout probes,
+  `CUESEEKER_PERF_UI=1` for UI invalidation counters, and
   `CUESEEKER_PERF_PLAYBACK=1` for playback slow-path logs. These flags are
   diagnostic tooling, not product behavior.
 - The workbench container should own layout coordination only. Library,

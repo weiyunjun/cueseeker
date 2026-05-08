@@ -279,6 +279,7 @@ public final class PlaybackRenderContainerView: NSView {
 
     init() {
         super.init(frame: .zero)
+        PlaybackPerformanceProbe.countUI("UI.PlaybackRenderContainer.created")
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
     }
