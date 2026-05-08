@@ -309,7 +309,7 @@ enum AppShellLayout {
     static let toggleTrailing: CGFloat = 16
     static let toggleSize: CGFloat = 28
     static let toggleIconSize: CGFloat = 15
-    static let modeButtonSpacing: CGFloat = 6
+    static let modeButtonSpacing: CGFloat = 18
     static let modeControlsOuterPadding: CGFloat = 12
     static let collapsedLeadingHandleX: CGFloat = windowControlsReservedWidth
         + toggleLeadingAfterWindowControls
