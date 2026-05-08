@@ -115,10 +115,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowWillEnterFullScreen(_ notification: Notification) {
         window?.titleVisibility = .visible
         windowButtonsProxy?.isHidden = true
+        appState.workbenchLayout.isAppFullscreen = true
     }
 
     func windowWillExitFullScreen(_ notification: Notification) {
         window?.titleVisibility = .hidden
+        appState.workbenchLayout.isAppFullscreen = false
     }
 
     func windowWillClose(_ notification: Notification) {

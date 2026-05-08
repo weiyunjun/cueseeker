@@ -86,7 +86,9 @@ private struct AppTopBar: View {
 
     private var topBarLeadingControls: some View {
         GeometryReader { _ in
-            let collapsedHandleX = AppShellLayout.collapsedLeadingHandleX
+            let collapsedHandleX = layoutState.isAppFullscreen
+                ? AppShellLayout.modeControlsOuterPadding
+                : AppShellLayout.collapsedLeadingHandleX
             let handleX = leadingControlHandleX
 
             ZStack(alignment: .topLeading) {
@@ -186,16 +188,20 @@ private struct AppTopBar: View {
     }
 
     private var leadingControlHandleX: CGFloat {
+        let collapsedX = layoutState.isAppFullscreen
+            ? AppShellLayout.modeControlsOuterPadding
+            : AppShellLayout.collapsedLeadingHandleX
+
         if layoutState.isLibraryPanelVisible {
             return max(
-                AppShellLayout.collapsedLeadingHandleX,
+                collapsedX,
                 CGFloat(layoutState.libraryPanelWidth)
                     - AppShellLayout.modeControlsOuterPadding
                     - AppShellLayout.toggleSize
             )
         }
 
-        return AppShellLayout.collapsedLeadingHandleX
+        return collapsedX
     }
 
     private func trailingControlHandleX(availableWidth: CGFloat) -> CGFloat {

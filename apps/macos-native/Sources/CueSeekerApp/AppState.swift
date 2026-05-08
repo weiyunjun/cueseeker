@@ -160,6 +160,7 @@ final class WorkbenchLayoutState: ObservableObject {
     @Published var searchPanelWidth: Double
     @Published var rightPanelMode: WorkbenchRightPanelMode = .search
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
+    @Published var isAppFullscreen = false
 
     private let userDefaults: UserDefaults
 
