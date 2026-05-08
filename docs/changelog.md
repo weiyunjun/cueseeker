@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the first native Shiori workflow: schema version 10 persists
+  saved subtitle cues, playback can save or remove Shiori with UI feedback, the
+  `S` key triggers the same action, and the right-side Shiori panel lists saved
+  rows grouped by subtitle file.
 - Accepted the initial Shiori feature direction: Shiori replaces the previous
   saved-content naming, saves the current subtitle cue from playback with `S` or the
   playback Shiori control, persists a real-world save timestamp, confirms removal

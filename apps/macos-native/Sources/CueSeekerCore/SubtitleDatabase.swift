@@ -86,6 +86,26 @@ public struct LibraryPlaybackHistory: Equatable, Sendable {
     public let updatedAt: String
 }
 
+public struct Shiori: Equatable, Sendable, Identifiable {
+    public let id: Int64
+    public let subtitlePath: String
+    public let subtitleFormat: SubtitleFormat
+    public let videoPath: String
+    public let videoName: String
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+    public let content: String
+    public let isValid: Bool
+    public let createdAt: String
+
+    public var cueLines: [String] {
+        content
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+}
+
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
@@ -161,7 +181,7 @@ public struct ASSFontResourceManifest: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 9
+    public static let currentSchemaVersion: Int = 10
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
 
     private let database: SQLiteDatabase
@@ -331,6 +351,26 @@ public final class SubtitleDatabase {
 
             CREATE INDEX IF NOT EXISTS idx_library_video_rows_order
                 ON library_video_rows(folder_order, video_order);
+
+            CREATE TABLE IF NOT EXISTS shioris (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subtitle_path TEXT NOT NULL,
+                subtitle_format TEXT NOT NULL,
+                start_ms INTEGER NOT NULL,
+                end_ms INTEGER NOT NULL,
+                video_path TEXT NOT NULL,
+                video_name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                is_valid INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                UNIQUE(subtitle_path, start_ms, end_ms)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_subtitle_path
+                ON shioris(subtitle_path);
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_order
+                ON shioris(subtitle_path, start_ms, end_ms);
             """
         )
 
@@ -1205,6 +1245,132 @@ public final class SubtitleDatabase {
         }
         try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 4)
         try statement.run()
+    }
+
+    public func upsertShiori(
+        subtitleFile: URL,
+        subtitleFormat: SubtitleFormat,
+        videoFile: URL,
+        videoName: String,
+        selection: SubtitleCueTextSelection,
+        createdAt: Date = Date()
+    ) throws -> Shiori {
+        let statement = try database.prepare(
+            """
+            INSERT INTO shioris(
+                subtitle_path,
+                subtitle_format,
+                start_ms,
+                end_ms,
+                video_path,
+                video_name,
+                content,
+                is_valid,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(subtitle_path, start_ms, end_ms) DO UPDATE SET
+                subtitle_format = excluded.subtitle_format,
+                video_path = excluded.video_path,
+                video_name = excluded.video_name,
+                content = excluded.content,
+                is_valid = 1;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFormat.rawValue, at: 2)
+        try statement.bind(max(0, selection.startMilliseconds), at: 3)
+        try statement.bind(max(selection.startMilliseconds, selection.endMilliseconds), at: 4)
+        try statement.bind(videoFile.path, at: 5)
+        try statement.bind(videoName, at: 6)
+        try statement.bind(selection.text, at: 7)
+        try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 8)
+        try statement.run()
+
+        guard let shiori = try shiori(
+            subtitleFile: subtitleFile,
+            startMilliseconds: selection.startMilliseconds,
+            endMilliseconds: selection.endMilliseconds
+        ) else {
+            throw SQLiteDatabaseError.stepFailed("Inserted Shiori could not be loaded")
+        }
+
+        return shiori
+    }
+
+    public func shiori(
+        subtitleFile: URL,
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) throws -> Shiori? {
+        let statement = try database.prepare(
+            """
+            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
+                   start_ms, end_ms, content, is_valid, created_at
+            FROM shioris
+            WHERE subtitle_path = ?
+              AND start_ms = ?
+              AND end_ms = ?;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(max(0, startMilliseconds), at: 2)
+        try statement.bind(max(startMilliseconds, endMilliseconds), at: 3)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return shiori(from: statement)
+    }
+
+    public func shioris() throws -> [Shiori] {
+        let statement = try database.prepare(
+            """
+            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
+                   start_ms, end_ms, content, is_valid, created_at
+            FROM shioris
+            ORDER BY subtitle_path ASC, start_ms ASC, end_ms ASC, id ASC;
+            """
+        )
+
+        var shioris: [Shiori] = []
+        while try statement.step() {
+            shioris.append(shiori(from: statement))
+        }
+        return shioris
+    }
+
+    @discardableResult
+    public func removeShiori(
+        subtitleFile: URL,
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) throws -> Bool {
+        guard try shiori(
+            subtitleFile: subtitleFile,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        ) != nil else {
+            return false
+        }
+
+        let statement = try database.prepare(
+            """
+            DELETE FROM shioris
+            WHERE subtitle_path = ?
+              AND start_ms = ?
+              AND end_ms = ?;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(max(0, startMilliseconds), at: 2)
+        try statement.bind(max(startMilliseconds, endMilliseconds), at: 3)
+        try statement.run()
+        return true
     }
 
     public func removeStaleEntries(under folder: URL, keeping subtitleFiles: Set<String>) throws {
@@ -2176,6 +2342,21 @@ public final class SubtitleDatabase {
             startMilliseconds: statement.intColumn(1),
             endMilliseconds: statement.intColumn(2),
             searchContent: statement.stringColumn(3)
+        )
+    }
+
+    private func shiori(from statement: SQLiteStatement) -> Shiori {
+        Shiori(
+            id: statement.int64Column(0),
+            subtitlePath: statement.stringColumn(1),
+            subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
+            videoPath: statement.stringColumn(3),
+            videoName: statement.stringColumn(4),
+            startMilliseconds: statement.intColumn(5),
+            endMilliseconds: statement.intColumn(6),
+            content: statement.stringColumn(7),
+            isValid: statement.intColumn(8) != 0,
+            createdAt: statement.stringColumn(9)
         )
     }
 

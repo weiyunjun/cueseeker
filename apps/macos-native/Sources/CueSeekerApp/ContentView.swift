@@ -176,12 +176,12 @@ private struct AppTopBar: View {
             )
 
             titlebarModeButton(
-                systemImage: "star",
-                isSelected: layoutState.rightPanelMode == .favorites,
+                systemImage: layoutState.rightPanelMode == .shiori ? "bookmark.fill" : "bookmark",
+                isSelected: layoutState.rightPanelMode == .shiori,
                 action: {
-                    layoutState.selectRightPanelMode(.favorites)
+                    layoutState.selectRightPanelMode(.shiori)
                 },
-                help: "Favorites"
+                help: "Shiori"
             )
         }
         .fixedSize(horizontal: true, vertical: false)

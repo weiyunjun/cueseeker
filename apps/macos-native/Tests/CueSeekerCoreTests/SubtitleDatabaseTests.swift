@@ -330,6 +330,118 @@ func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
 }
 
 @Test
+func shioriPersistsCueIdentityAndCreatedAt() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Episode 1.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "First saved line.\nSecond saved line."
+            )
+        ]
+    )
+
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+
+    let shiori = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection,
+        createdAt: createdAt
+    )
+    let duplicate = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection,
+        createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+    )
+
+    #expect(shiori.id == duplicate.id)
+    #expect(shiori.subtitlePath == subtitleFile.path)
+    #expect(shiori.subtitleFormat == .srt)
+    #expect(shiori.videoPath == videoFile.path)
+    #expect(shiori.videoName == "Episode 1.mkv")
+    #expect(shiori.startMilliseconds == 1_000)
+    #expect(shiori.endMilliseconds == 3_000)
+    #expect(shiori.cueLines == ["First saved line.", "Second saved line."])
+    #expect(shiori.isValid)
+    #expect(shiori.createdAt == ISO8601DateFormatter().string(from: createdAt))
+    #expect(duplicate.createdAt == shiori.createdAt)
+    #expect(try database.shioris().count == 1)
+}
+
+@Test
+func removingIndexedFolderPreservesShiori() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let folder = URL(fileURLWithPath: "/Media/Show")
+    let subtitleFile = folder.appendingPathComponent("Episode 1.srt")
+    let videoFile = folder.appendingPathComponent("Episode 1.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Shiori should survive index removal."
+            )
+        ]
+    )
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    _ = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection
+    )
+
+    try database.removeIndexedFolder(folder)
+
+    #expect(try database.search("Shiori").isEmpty)
+    let shiori = try #require(try database.shioris().first)
+    #expect(shiori.subtitlePath == subtitleFile.path)
+    #expect(shiori.videoPath == videoFile.path)
+    #expect(shiori.content == "Shiori should survive index removal.")
+}
+
+@Test
 func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

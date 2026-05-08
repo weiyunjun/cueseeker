@@ -9,6 +9,7 @@ struct PlaybackView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
     let onCopySubtitle: () -> Void
+    let onSaveShiori: () -> Void
     let isFullscreenToggleDisabled: Bool
     let onToggleFullscreen: () -> Void
 
@@ -20,6 +21,7 @@ struct PlaybackView: View {
                 fullscreenManager: fullscreenManager,
                 onSurfaceTap: onSurfaceTap,
                 onCopySubtitle: onCopySubtitle,
+                onSaveShiori: onSaveShiori,
                 isFullscreenToggleDisabled: isFullscreenToggleDisabled,
                 onToggleFullscreen: onToggleFullscreen
             )
@@ -35,6 +37,7 @@ struct PlaybackVideoView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
     let onCopySubtitle: () -> Void
+    let onSaveShiori: () -> Void
     let isFullscreenToggleDisabled: Bool
     let onToggleFullscreen: () -> Void
     @State private var isControlsVisible = false
@@ -57,6 +60,7 @@ struct PlaybackVideoView: View {
                     viewModel: viewModel,
                     isFullscreenToggleDisabled: isFullscreenToggleDisabled,
                     onCopySubtitle: onCopySubtitle,
+                    onSaveShiori: onSaveShiori,
                     onToggleFullscreen: onToggleFullscreen
                 )
             }

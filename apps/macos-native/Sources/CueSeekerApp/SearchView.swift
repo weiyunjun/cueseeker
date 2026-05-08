@@ -195,16 +195,39 @@ struct SearchView: View {
         switch layoutState.rightPanelMode {
         case .search:
             searchPanel
-        case .favorites:
-            favoritesPanel
+        case .shiori:
+            shioriPanel
         }
     }
 
-    private var favoritesPanel: some View {
-        AppPerformanceProbe.measure("SearchView.favoritesPanel.body", thresholdMilliseconds: 4) {
-            Color(nsColor: .textBackgroundColor)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(LayoutPerformanceProbe(name: "SearchView.favoritesPanel.layout"))
+    private var shioriPanel: some View {
+        AppPerformanceProbe.measure("SearchView.shioriPanel.body", thresholdMilliseconds: 4) {
+            UIInvalidationProbe.count("UI.ShioriPanel.body")
+
+            return GeometryReader { geometry in
+                VStack(alignment: .leading, spacing: 6) {
+                    shioriHeader
+
+                    if appState.shioris.isEmpty {
+                        EmptyStateView(
+                            title: "No Shiori",
+                            systemImage: "bookmark",
+                            message: "Save subtitles from playback to collect Shiori."
+                        )
+                        .font(.system(size: SearchTypography.bodySize))
+                    } else {
+                        shioriList
+                    }
+
+                    Spacer()
+                }
+                .frame(maxHeight: .infinity, alignment: .topLeading)
+                .padding(.top, AppShellLayout.contentTopPadding)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+                .contentShape(Rectangle())
+            }
+            .background(Color(nsColor: .textBackgroundColor))
+            .background(LayoutPerformanceProbe(name: "SearchView.shioriPanel.layout"))
         }
     }
 
@@ -300,6 +323,33 @@ struct SearchView: View {
         }
     }
 
+    private var shioriHeader: some View {
+        HStack(spacing: 12) {
+            Text(shioriSummaryText)
+                .font(.system(size: SearchTypography.detailSize))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            if appState.hasShioriFileGroups {
+                Button {
+                    appState.clearSearchFocus()
+                    appState.collapseAllShioriGroups()
+                } label: {
+                    Text("Collapse All")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 28)
+        .frame(height: 36)
+    }
+
+    private var shioriSummaryText: String {
+        "\(appState.shioriCount) shioris in \(appState.shioriFileCount) files"
+    }
+
     private var searchResultSummaryText: String? {
         guard !appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
@@ -315,6 +365,34 @@ struct SearchView: View {
         case .searching, .completed, .failed:
             let fileText = appState.searchResultFileCount == 1 ? "file" : "files"
             return "Found \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)"
+        }
+    }
+
+    private var shioriList: some View {
+        UIInvalidationProbe.count(
+            "UI.ShioriRows.rendered",
+            details: "groups=\(appState.shioriFileGroups.count) rows=\(appState.shioriCount)"
+        )
+
+        return ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(appState.shioriFileGroups) { group in
+                    ShioriGroupView(
+                        group: group,
+                        selectedShiori: appState.selectedShiori,
+                        onToggle: {
+                            appState.clearSearchFocus()
+                            appState.toggleShioriGroup(group.subtitlePath)
+                        },
+                        onOpenShiori: { shiori in
+                            appState.clearSearchFocus()
+                            appState.openShiori(shiori)
+                        }
+                    )
+                }
+            }
+            .padding(.top, 4)
+            .padding(.bottom, 8)
         }
     }
 
@@ -376,12 +454,21 @@ struct SearchView: View {
                                 appState.clearSearchFocus()
                                 appState.copyCurrentSubtitleToClipboard()
                             },
+                            onSaveShiori: {
+                                appState.clearSearchFocus()
+                                appState.toggleCurrentShiori()
+                            },
                             isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
                             onToggleFullscreen: {
                                 appState.clearSearchFocus()
-                                appState.togglePlaybackFullscreenFromUser {
-                                    appState.copyCurrentSubtitleToClipboard()
-                                }
+                                appState.togglePlaybackFullscreenFromUser(
+                                    onCopySubtitle: {
+                                        appState.copyCurrentSubtitleToClipboard()
+                                    },
+                                    onSaveShiori: {
+                                        appState.toggleCurrentShiori()
+                                    }
+                                )
                             }
                         )
                             .aspectRatio(16 / 9, contentMode: .fit)
@@ -884,6 +971,132 @@ private struct SearchResultGroupView: View {
                 onToggle: onToggle
             )
         }
+    }
+}
+
+private struct ShioriGroupHeader: View {
+    let group: ShioriFileGroup
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Text(headerText)
+            .font(.system(size: SearchTypography.groupHeaderSize))
+            .lineLimit(nil)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.vertical, 7)
+            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowAction(onToggle)
+        .focusable(false)
+    }
+
+    private var headerText: AttributedString {
+        var displayTitle = AttributedString(displayTitleWithSoftWrapOpportunities(group.subtitleDisplayTitle))
+        displayTitle.foregroundColor = isSelected ? .primary : Color.primary.opacity(0.76)
+
+        var count = AttributedString("  \(shioriCountText)")
+        count.foregroundColor = Color.secondary
+
+        displayTitle.append(count)
+        return displayTitle
+    }
+
+    private var shioriCountText: String {
+        "\(group.totalCount) \(group.totalCount == 1 ? "shiori" : "shioris")"
+    }
+}
+
+private struct ShioriGroupView: View {
+    let group: ShioriFileGroup
+    let selectedShiori: Shiori?
+    let onToggle: () -> Void
+    let onOpenShiori: (Shiori) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ShioriGroupHeader(
+                group: group,
+                isSelected: selectedShiori?.subtitlePath == group.subtitlePath,
+                onToggle: onToggle
+            )
+
+            if !group.isCollapsed {
+                ForEach(group.shioris) { shiori in
+                    ShioriRowView(
+                        shiori: shiori,
+                        isSelected: selectedShiori?.id == shiori.id
+                    )
+                    .listRowAction {
+                        onOpenShiori(shiori)
+                    }
+                    .focusable(false)
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            SearchResultGroupRail(
+                isCollapsed: group.isCollapsed,
+                showsLine: !group.isCollapsed && !group.shioris.isEmpty,
+                onToggle: onToggle
+            )
+        }
+    }
+}
+
+private struct ShioriRowView: View {
+    let shiori: Shiori
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        let rowTextColor: Color = isSelected ? .primary : Color.primary.opacity(0.76)
+        let rowBackgroundColor: Color = if isSelected {
+            Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+        } else if isHovered {
+            Color(nsColor: .unemphasizedSelectedContentBackgroundColor).opacity(0.55)
+        } else {
+            Color.clear
+        }
+
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: SearchTypography.bodySize))
+                            .foregroundStyle(rowTextColor)
+                            .lineSpacing(4)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(formatTimestamp(shiori.startMilliseconds))
+                    .font(.system(size: SearchTypography.detailSize))
+                    .monospacedDigit()
+                    .foregroundStyle(rowTextColor)
+                    .lineLimit(1)
+            }
+            .padding(.vertical, 10)
+            .padding(.leading, SearchLayout.resultTextLeadingPadding)
+            .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(rowBackgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+    }
+
+    private var displayLines: [String] {
+        shiori.cueLines.isEmpty ? [shiori.content] : shiori.cueLines
     }
 }
 

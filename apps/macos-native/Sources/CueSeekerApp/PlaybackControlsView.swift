@@ -5,6 +5,7 @@ struct PlaybackControlsView: View {
     let isFullscreen: Bool
     let isFullscreenToggleDisabled: Bool
     let onCopySubtitle: () -> Void
+    let onSaveShiori: () -> Void
     let onToggleFullscreen: () -> Void
     
     @State private var isVolumeHovered = false
@@ -15,12 +16,14 @@ struct PlaybackControlsView: View {
         isFullscreen: Bool = false,
         isFullscreenToggleDisabled: Bool = false,
         onCopySubtitle: @escaping () -> Void = {},
+        onSaveShiori: @escaping () -> Void = {},
         onToggleFullscreen: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.isFullscreen = isFullscreen
         self.isFullscreenToggleDisabled = isFullscreenToggleDisabled
         self.onCopySubtitle = onCopySubtitle
+        self.onSaveShiori = onSaveShiori
         self.onToggleFullscreen = onToggleFullscreen
     }
 
@@ -68,6 +71,20 @@ struct PlaybackControlsView: View {
                     .foregroundColor(.white)
 
                 Spacer()
+
+                Button(action: {
+                    onSaveShiori()
+                }) {
+                    Image(systemName: "bookmark")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                        .frame(
+                            width: PlaybackControlsLayout.iconButtonSize,
+                            height: PlaybackControlsLayout.iconButtonSize
+                        )
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help("Save Shiori")
 
                 Button(action: {
                     onCopySubtitle()

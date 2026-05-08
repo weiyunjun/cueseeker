@@ -84,7 +84,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `9`.
+- The current schema version is `10`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -96,6 +96,9 @@ Current mechanism:
 - Schema version `9` adds persisted Library presentation rows so startup can
   hydrate the left Library panel from a ready indexed snapshot instead of
   regrouping and resorting subtitle/video match rows.
+- Schema version `10` adds Shiori subtitle-cue records keyed by
+  `subtitle_path`, `start_ms`, and `end_ms`, including real-world `created_at`
+  save timestamps.
 
 ## 5. Migration Rules
 

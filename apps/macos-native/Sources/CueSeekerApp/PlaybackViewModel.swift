@@ -8,6 +8,12 @@ enum PlaybackFeedbackPosition: Equatable {
     case trailing
 }
 
+enum ShioriFeedbackState {
+    case saved
+    case removed
+    case unavailable
+}
+
 struct PlaybackFeedback: Identifiable, Equatable {
     let id = UUID()
     let position: PlaybackFeedbackPosition
@@ -192,6 +198,34 @@ public final class PlaybackViewModel: ObservableObject {
             ),
             durationMilliseconds: 1_000
         )
+    }
+
+    func showShioriFeedback(_ state: ShioriFeedbackState) {
+        let feedback: PlaybackFeedback = switch state {
+        case .saved:
+            PlaybackFeedback(
+                position: .center,
+                systemImage: "bookmark.fill",
+                text: "Shiori Saved",
+                isCircular: false
+            )
+        case .removed:
+            PlaybackFeedback(
+                position: .center,
+                systemImage: "bookmark",
+                text: "Shiori Removed",
+                isCircular: false
+            )
+        case .unavailable:
+            PlaybackFeedback(
+                position: .center,
+                systemImage: "exclamationmark.triangle",
+                text: "No Subtitle",
+                isCircular: false
+            )
+        }
+
+        showFeedback(feedback, durationMilliseconds: 1_000)
     }
 
     func showPlayPauseFeedback(isPlaying: Bool) {

@@ -56,6 +56,7 @@ private enum ActivePlaybackSource: Equatable {
     case none
     case library(videoPath: String)
     case search
+    case shiori
 }
 
 struct SearchResultFileGroup: Identifiable, Equatable {
@@ -70,6 +71,16 @@ struct SearchResultFileGroup: Identifiable, Equatable {
     var displayCount: String {
         totalCount > 99 ? "99+" : "\(totalCount)"
     }
+}
+
+struct ShioriFileGroup: Identifiable, Equatable {
+    let subtitlePath: String
+    let subtitleDisplayTitle: String
+    let shioris: [Shiori]
+    let isCollapsed: Bool
+
+    var id: String { subtitlePath }
+    var totalCount: Int { shioris.count }
 }
 
 struct LibraryVideoRow: Identifiable {
@@ -144,7 +155,7 @@ private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
 @MainActor
 enum WorkbenchRightPanelMode: String {
     case search
-    case favorites
+    case shiori
 }
 
 @MainActor
@@ -234,12 +245,16 @@ final class AppState: ObservableObject {
     @Published var libraryStatus: LibraryStatus = .idle
     @Published var libraryVideos: [LibraryVideo] = []
     @Published var collapsedSearchResultGroupPaths: Set<String> = []
+    @Published var collapsedShioriGroupPaths: Set<String> = []
     @Published private(set) var libraryFolderGroups: [LibraryFolderGroup] = []
     @Published private(set) var libraryPresentationRevision = 0
     @Published private(set) var searchResultGroups: [SearchResultFileGroup] = []
+    @Published private(set) var shioris: [Shiori] = []
+    @Published private(set) var shioriFileGroups: [ShioriFileGroup] = []
     @Published private(set) var renderedSearchResultCount = 0
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
+    @Published var selectedShiori: Shiori?
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
@@ -261,6 +276,18 @@ final class AppState: ObservableObject {
 
     var hasSearchResultGroups: Bool {
         !searchResultGroups.isEmpty
+    }
+
+    var hasShioriFileGroups: Bool {
+        !shioriFileGroups.isEmpty
+    }
+
+    var shioriCount: Int {
+        shioris.count
+    }
+
+    var shioriFileCount: Int {
+        shioriFileGroups.count
     }
 
     var searchResultFileCount: Int {
@@ -320,6 +347,40 @@ final class AppState: ObservableObject {
         }
     }
 
+    private static func makeShioriFileGroups(
+        from shioris: [Shiori],
+        collapsedGroupPaths: Set<String>
+    ) -> [ShioriFileGroup] {
+        let shiorisByPath = Dictionary(grouping: shioris, by: \.subtitlePath)
+        let displayTitlesByPath = Dictionary(
+            uniqueKeysWithValues: shiorisByPath.keys.map { path in
+                (
+                    path,
+                    SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path)
+                )
+            }
+        )
+
+        return shiorisByPath.keys.sorted { lhs, rhs in
+            let lhsDisplayTitle = displayTitlesByPath[lhs] ?? URL(fileURLWithPath: lhs).lastPathComponent
+            let rhsDisplayTitle = displayTitlesByPath[rhs] ?? URL(fileURLWithPath: rhs).lastPathComponent
+            let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
+            if displayTitleComparison != .orderedSame {
+                return displayTitleComparison == .orderedAscending
+            }
+
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+        .map { path in
+            ShioriFileGroup(
+                subtitlePath: path,
+                subtitleDisplayTitle: displayTitlesByPath[path] ?? URL(fileURLWithPath: path).lastPathComponent,
+                shioris: (shiorisByPath[path] ?? []).sorted(by: Self.shioriSort),
+                isCollapsed: collapsedGroupPaths.contains(path)
+            )
+        }
+    }
+
     var hasLibraryFolderGroups: Bool {
         !libraryFolderGroups.isEmpty
     }
@@ -329,11 +390,15 @@ final class AppState: ObservableObject {
     }
 
     var currentPlaybackVideoPath: String? {
-        selectedLibraryVideo?.videoPath ?? selectedSearchResult?.videoPath
+        selectedLibraryVideo?.videoPath ?? selectedSearchResult?.videoPath ?? selectedShiori?.videoPath
     }
 
     var currentPlaybackSubtitlePath: String? {
-        selectedLibraryVideo?.subtitlePath ?? selectedSearchResult?.subtitlePath
+        selectedLibraryVideo?.subtitlePath ?? selectedSearchResult?.subtitlePath ?? selectedShiori?.subtitlePath
+    }
+
+    var currentPlaybackSubtitleFormat: SubtitleFormat? {
+        selectedLibraryVideo?.subtitleFormat ?? selectedSearchResult?.subtitleFormat ?? selectedShiori?.subtitleFormat
     }
 
     private let userDefaults: UserDefaults
@@ -382,6 +447,7 @@ final class AppState: ObservableObject {
             try database.migrate()
             try database.reconcileIndexedContent(activeFolders: selectedFolders)
             try hydrateLibrarySynchronously(from: database)
+            try hydrateShiorisSynchronously(from: database)
             let player = PlaybackPlayer()
             player.decodeMode = playbackDecodeMode
             self.player = player
@@ -494,7 +560,10 @@ final class AppState: ObservableObject {
         }
     }
 
-    func togglePlaybackFullscreenFromUser(onCopySubtitle: @escaping () -> Void = {}) {
+    func togglePlaybackFullscreenFromUser(
+        onCopySubtitle: @escaping () -> Void = {},
+        onSaveShiori: @escaping () -> Void = {}
+    ) {
         guard let player, let playbackViewModel else {
             return
         }
@@ -507,6 +576,7 @@ final class AppState: ObservableObject {
             player: player,
             viewModel: playbackViewModel,
             onCopySubtitle: onCopySubtitle,
+            onSaveShiori: onSaveShiori,
             onExitRequest: { [weak self] in
                 self?.exitPlaybackFullscreenFromUser()
             },
@@ -838,6 +908,10 @@ final class AppState: ObservableObject {
         libraryStatus = .completed
     }
 
+    private func hydrateShiorisSynchronously(from database: SubtitleDatabase) throws {
+        applyShioris(try database.shioris())
+    }
+
     private func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
         let groups = Self.makeLibraryFolderGroups(from: snapshot)
         libraryFolderGroups = groups
@@ -863,6 +937,22 @@ final class AppState: ObservableObject {
         UIInvalidationProbe.count(
             "UI.LibraryPresentationSnapshot.rebuilt",
             details: "groups=\(groups.count) rows=\(libraryVideos.count) reason=remove"
+        )
+    }
+
+    private func applyShioris(_ nextShioris: [Shiori]) {
+        shioris = nextShioris.sorted(by: Self.shioriSort)
+        rebuildShioriFileGroups()
+    }
+
+    private func rebuildShioriFileGroups() {
+        shioriFileGroups = Self.makeShioriFileGroups(
+            from: shioris,
+            collapsedGroupPaths: collapsedShioriGroupPaths
+        )
+        UIInvalidationProbe.count(
+            "UI.ShioriPresentation.rebuilt",
+            details: "groups=\(shioriFileGroups.count) rows=\(shioris.count)"
         )
     }
 
@@ -956,6 +1046,7 @@ final class AppState: ObservableObject {
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
         selectedSearchResult = result
+        selectedShiori = nil
         selectedLibraryVideo = nil
         Task { @MainActor in
             await Task.yield()
@@ -973,9 +1064,27 @@ final class AppState: ObservableObject {
         }
         selectedLibraryVideo = video
         selectedSearchResult = nil
+        selectedShiori = nil
         Task { @MainActor in
             await Task.yield()
             play(video)
+        }
+    }
+
+    func openShiori(_ shiori: Shiori) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.Shiori.opened",
+            details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
+        )
+        saveCurrentLibraryPlaybackHistory()
+        stopLibraryPlaybackHistoryTracking()
+        activePlaybackSource = .shiori
+        selectedShiori = shiori
+        selectedSearchResult = nil
+        selectedLibraryVideo = nil
+        Task { @MainActor in
+            await Task.yield()
+            play(shiori)
         }
     }
 
@@ -1079,6 +1188,43 @@ final class AppState: ObservableObject {
         }
     }
 
+    func play(_ shiori: Shiori) {
+        saveCurrentLibraryPlaybackHistory()
+        stopLibraryPlaybackHistoryTracking()
+        activePlaybackSource = .shiori
+        playbackStatus = .opening
+        let subtitleCues = playbackSubtitleCues(for: shiori)
+        playbackViewModel?.setSubtitleCues(
+            subtitleCues,
+            currentTimeMilliseconds: shiori.startMilliseconds
+        )
+
+        do {
+            let request = try PlaybackRequest(
+                videoURL: URL(fileURLWithPath: shiori.videoPath),
+                startMilliseconds: shiori.startMilliseconds,
+                subtitleSource: playbackSubtitleSource(for: shiori)
+            )
+
+            guard let player else {
+                throw PlaybackError.playbackPlayerUnavailable
+            }
+
+            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+                player.loadSubtitleSource(request.subtitleSource)
+                try player.seek(toMilliseconds: request.startMilliseconds)
+            } else {
+                try player.open(request)
+            }
+
+            try player.setPaused(false)
+            playbackStatus = .playing
+        } catch {
+            playbackViewModel?.clearSubtitleCues()
+            playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
     func pausePlayback() {
         do {
             try player?.setPaused(true)
@@ -1113,6 +1259,8 @@ final class AppState: ObservableObject {
                 play(selectedSearchResult)
             } else if let selectedLibraryVideo {
                 play(selectedLibraryVideo)
+            } else if let selectedShiori {
+                play(selectedShiori)
             }
         case .opening, .failed:
             break
@@ -1158,6 +1306,83 @@ final class AppState: ObservableObject {
         }
     }
 
+    @discardableResult
+    func toggleCurrentShiori() -> Bool {
+        guard let currentPlaybackSubtitlePath,
+              let currentPlaybackSubtitleFormat,
+              let currentPlaybackVideoPath,
+              let playbackViewModel
+        else {
+            playbackViewModel?.showShioriFeedback(.unavailable)
+            return false
+        }
+
+        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
+        let videoFile = URL(fileURLWithPath: currentPlaybackVideoPath)
+        let videoName = selectedLibraryVideo?.videoName
+            ?? selectedSearchResult?.videoName
+            ?? selectedShiori?.videoName
+            ?? videoFile.lastPathComponent
+        let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
+
+        do {
+            let database = try SubtitleDatabase(path: databaseURL)
+            try database.migrate()
+
+            guard let selection = try database.cueTextSelection(
+                forSubtitleFile: subtitleFile,
+                atMilliseconds: milliseconds
+            ), !selection.text.isEmpty else {
+                playbackViewModel.showShioriFeedback(.unavailable)
+                return false
+            }
+
+            if try database.shiori(
+                subtitleFile: subtitleFile,
+                startMilliseconds: selection.startMilliseconds,
+                endMilliseconds: selection.endMilliseconds
+            ) != nil {
+                guard confirmShioriRemoval() else {
+                    return false
+                }
+
+                try database.removeShiori(
+                    subtitleFile: subtitleFile,
+                    startMilliseconds: selection.startMilliseconds,
+                    endMilliseconds: selection.endMilliseconds
+                )
+                applyShioris(try database.shioris())
+                playbackViewModel.showShioriFeedback(.removed)
+                return true
+            }
+
+            _ = try database.upsertShiori(
+                subtitleFile: subtitleFile,
+                subtitleFormat: currentPlaybackSubtitleFormat,
+                videoFile: videoFile,
+                videoName: videoName,
+                selection: selection
+            )
+            applyShioris(try database.shioris())
+            playbackViewModel.showShioriFeedback(.saved)
+            return true
+        } catch {
+            print("Failed to toggle Shiori: \(error)")
+            playbackViewModel.showShioriFeedback(.unavailable)
+            return false
+        }
+    }
+
+    private func confirmShioriRemoval() -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Remove Shiori?"
+        alert.informativeText = "This subtitle is already saved. Remove it from Shiori?"
+        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     func handlePlaybackKeyDown(
         keyCode: UInt16,
         modifierFlagsRawValue: UInt
@@ -1189,6 +1414,9 @@ final class AppState: ObservableObject {
         case 12:
             copyCurrentSubtitleToClipboard()
             return true
+        case 1:
+            toggleCurrentShiori()
+            return true
         case 8:
             viewModel.toggleSubtitles()
             return true
@@ -1196,6 +1424,9 @@ final class AppState: ObservableObject {
             togglePlaybackFullscreenFromUser(
                 onCopySubtitle: { [weak self] in
                     self?.copyCurrentSubtitleToClipboard()
+                },
+                onSaveShiori: { [weak self] in
+                    self?.toggleCurrentShiori()
                 }
             )
             return true
@@ -1245,6 +1476,38 @@ final class AppState: ObservableObject {
 
     func saveCurrentLibraryPlaybackHistorySynchronously() {
         saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
+    }
+
+    func toggleShioriGroup(_ subtitlePath: String) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.ShioriGroup.toggled",
+            details: "collapsedBefore=\(collapsedShioriGroupPaths.contains(subtitlePath))"
+        )
+        if collapsedShioriGroupPaths.contains(subtitlePath) {
+            collapsedShioriGroupPaths.remove(subtitlePath)
+        } else {
+            collapsedShioriGroupPaths.insert(subtitlePath)
+        }
+        rebuildShioriFileGroups()
+    }
+
+    func collapseAllShioriGroups() {
+        let groupPaths = Set(shioriFileGroups.map(\.id))
+        guard !groupPaths.isEmpty else {
+            return
+        }
+
+        let collapsedPaths = collapsedShioriGroupPaths.union(groupPaths)
+        guard collapsedPaths != collapsedShioriGroupPaths else {
+            return
+        }
+
+        UIInvalidationProbe.mark(
+            "ACTION UI.Shiori.collapseAll",
+            details: "groups=\(groupPaths.count)"
+        )
+        collapsedShioriGroupPaths = collapsedPaths
+        rebuildShioriFileGroups()
     }
 
     private func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) {
@@ -1366,10 +1629,14 @@ final class AppState: ObservableObject {
         let selectedLibraryVideoIsUnderFolder = selectedLibraryVideo.map {
             Self.path($0.videoPath, isUnder: folder)
         } ?? false
+        let selectedShioriIsUnderFolder = selectedShiori.map {
+            Self.path($0.videoPath, isUnder: folder)
+        } ?? false
 
-        if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder {
+        if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder || selectedShioriIsUnderFolder {
             selectedSearchResult = nil
             selectedLibraryVideo = nil
+            selectedShiori = nil
             stopPlayback()
         }
     }
@@ -1426,6 +1693,22 @@ final class AppState: ObservableObject {
         }
 
         return lhs.entryID < rhs.entryID
+    }
+
+    private static func shioriSort(_ lhs: Shiori, _ rhs: Shiori) -> Bool {
+        if lhs.subtitlePath != rhs.subtitlePath {
+            return searchResultGroupPathSort(lhs.subtitlePath, rhs.subtitlePath)
+        }
+
+        if lhs.startMilliseconds != rhs.startMilliseconds {
+            return lhs.startMilliseconds < rhs.startMilliseconds
+        }
+
+        if lhs.endMilliseconds != rhs.endMilliseconds {
+            return lhs.endMilliseconds < rhs.endMilliseconds
+        }
+
+        return lhs.id < rhs.id
     }
 
     private func revealInitialSearchResultGroupPage(for subtitlePath: String) {
@@ -1577,6 +1860,16 @@ final class AppState: ObservableObject {
         )
     }
 
+    private func playbackSubtitleCues(for shiori: Shiori) -> [PlaybackSubtitleCue] {
+        playbackSubtitleCues(
+            forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
+            format: shiori.subtitleFormat,
+            fallbackStartMilliseconds: shiori.startMilliseconds,
+            fallbackEndMilliseconds: shiori.endMilliseconds,
+            fallbackContent: shiori.content
+        )
+    }
+
     private func playbackSubtitleCues(
         forSubtitleFile subtitleFile: URL,
         format: SubtitleFormat,
@@ -1640,6 +1933,32 @@ final class AppState: ObservableObject {
             matchedVideoURL: videoURL,
             fontResourceDirectoryURL: fontResourceDirectoryURL,
             preparationTimeWindow: playbackSubtitleTimeWindow(for: result),
+            renderCacheDatabaseURL: databaseURL
+        )
+    }
+
+    private func playbackSubtitleSource(for shiori: Shiori) -> PlaybackSubtitleSource? {
+        guard shiori.subtitleFormat == .ass else {
+            return nil
+        }
+
+        let subtitleURL = URL(fileURLWithPath: shiori.subtitlePath)
+        let videoURL = URL(fileURLWithPath: shiori.videoPath)
+        let fontResourceDirectoryURL = assFontResourceDirectory(
+            subtitleFile: subtitleURL,
+            videoFile: videoURL
+        )
+
+        return PlaybackSubtitleSource(
+            url: subtitleURL,
+            format: .ass,
+            matchedVideoURL: videoURL,
+            fontResourceDirectoryURL: fontResourceDirectoryURL,
+            preparationTimeWindow: playbackSubtitleTimeWindow(
+                forSubtitleFile: subtitleURL,
+                startingAtMilliseconds: shiori.startMilliseconds,
+                fallbackEndMilliseconds: shiori.endMilliseconds
+            ),
             renderCacheDatabaseURL: databaseURL
         )
     }

@@ -369,7 +369,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `9`.
+- Schema version: `10`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -386,8 +386,9 @@ Current native schema:
   It does not drop derived index rows or durable user configuration.
 - Version 9 adds persisted Library presentation rows so startup can hydrate the
   Library panel from an indexed snapshot.
-- The first Shiori implementation should add the next schema migration and
-  preserve existing durable user state.
+- Version 10 adds persisted Shiori subtitle-cue records keyed by subtitle path
+  and cue time range. It preserves Shiori rows when indexed folder content is
+  removed or rebuilt.
 
 ## 15. Flutter Data Compatibility
 

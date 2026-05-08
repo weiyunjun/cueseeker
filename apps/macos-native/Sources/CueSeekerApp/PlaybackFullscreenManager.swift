@@ -25,6 +25,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         player: PlaybackPlayer,
         viewModel: PlaybackViewModel,
         onCopySubtitle: @escaping () -> Void = {},
+        onSaveShiori: @escaping () -> Void = {},
         onExitRequest: (() -> Void)? = nil,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
@@ -38,6 +39,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
                 player: player,
                 viewModel: viewModel,
                 onCopySubtitle: onCopySubtitle,
+                onSaveShiori: onSaveShiori,
                 onExitRequest: onExitRequest,
                 onTransitionCompleted: onTransitionCompleted
             )
@@ -49,6 +51,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         player: PlaybackPlayer,
         viewModel: PlaybackViewModel,
         onCopySubtitle: @escaping () -> Void = {},
+        onSaveShiori: @escaping () -> Void = {},
         onExitRequest: (() -> Void)? = nil,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
@@ -101,6 +104,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
                 fullscreenManager: self,
                 viewModel: viewModel,
                 onCopySubtitle: onCopySubtitle,
+                onSaveShiori: onSaveShiori,
                 onExit: { [weak self] in
                     Task { @MainActor in
                         self?.requestExitFullscreen()
@@ -508,6 +512,7 @@ private struct PlaybackFullscreenOverlayView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @ObservedObject var viewModel: PlaybackViewModel
     let onCopySubtitle: () -> Void
+    let onSaveShiori: () -> Void
     let onExit: () -> Void
 
     var body: some View {
@@ -524,6 +529,7 @@ private struct PlaybackFullscreenOverlayView: View {
                     viewModel: viewModel,
                     isFullscreen: true,
                     onCopySubtitle: onCopySubtitle,
+                    onSaveShiori: onSaveShiori,
                     onToggleFullscreen: onExit
                 )
                 .transition(.opacity)
