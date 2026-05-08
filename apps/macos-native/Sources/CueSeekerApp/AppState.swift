@@ -470,7 +470,9 @@ final class AppState: ObservableObject {
                 "ACTION UI.LibraryPanel.toggled",
                 details: "visibleBefore=\(workbenchLayout.isLibraryPanelVisible)"
             )
-            workbenchLayout.toggleLibraryPanel()
+            withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+                workbenchLayout.toggleLibraryPanel()
+            }
         }
     }
 
@@ -484,7 +486,9 @@ final class AppState: ObservableObject {
                 "ACTION UI.SearchPanel.toggled",
                 details: "visibleBefore=\(workbenchLayout.isSearchPanelVisible)"
             )
-            workbenchLayout.toggleSearchPanel()
+            withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+                workbenchLayout.toggleSearchPanel()
+            }
         }
     }
 

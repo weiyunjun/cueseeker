@@ -111,8 +111,6 @@ private struct AppTopBar: View {
                     .offset(x: handleX)
                     .zIndex(2)
             }
-            .animation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration), value: layoutState.isLibraryPanelVisible)
-            .animation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration), value: layoutState.libraryPanelWidth)
         }
         .frame(height: AppShellLayout.topBarHeight)
         .clipped()
@@ -149,8 +147,6 @@ private struct AppTopBar: View {
                     .offset(x: handleX + AppShellLayout.toggleSize + AppShellLayout.modeButtonSpacing)
                     .allowsHitTesting(layoutState.isSearchPanelVisible)
             }
-            .animation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration), value: layoutState.isSearchPanelVisible)
-            .animation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration), value: layoutState.searchPanelWidth)
         }
         .frame(height: AppShellLayout.topBarHeight)
         .clipped()

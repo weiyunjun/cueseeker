@@ -67,14 +67,6 @@ struct SearchView: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
-                .animation(
-                    .easeInOut(duration: AppShellLayout.sidePanelAnimationDuration),
-                    value: layoutState.isLibraryPanelVisible
-                )
-                .animation(
-                    .easeInOut(duration: AppShellLayout.sidePanelAnimationDuration),
-                    value: layoutState.isSearchPanelVisible
-                )
                 .background(LayoutPerformanceProbe(name: "SearchView.root.layout"))
             }
             .onAppear {
