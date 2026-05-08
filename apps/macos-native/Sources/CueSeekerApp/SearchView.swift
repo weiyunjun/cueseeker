@@ -139,16 +139,6 @@ struct SearchView: View {
                 .foregroundStyle(.secondary)
 
             Spacer()
-
-            if appState.hasLibraryFolderGroups {
-                Button {
-                    appState.clearSearchFocus()
-                    toggleAllLibraryFolderGroups()
-                } label: {
-                    Text(libraryGroupToggleTitle)
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
         .padding(.leading, 12)
         .padding(.trailing, 14)
@@ -186,15 +176,6 @@ struct SearchView: View {
         }
     }
 
-    private var libraryGroupToggleTitle: String {
-        let groupPaths = Set(appState.libraryFolderGroups.map(\.id))
-        guard !groupPaths.isEmpty else {
-            return "Collapse All"
-        }
-
-        return groupPaths.isSubset(of: collapsedLibraryFolderPaths) ? "Expand All" : "Collapse All"
-    }
-
     private func resetCollapsedLibraryFolders() {
         collapsedLibraryFolderPaths = Set(appState.libraryFolderGroups.map(\.id))
     }
@@ -208,23 +189,6 @@ struct SearchView: View {
             collapsedLibraryFolderPaths.remove(folderPath)
         } else {
             collapsedLibraryFolderPaths.insert(folderPath)
-        }
-    }
-
-    private func toggleAllLibraryFolderGroups() {
-        let groupPaths = Set(appState.libraryFolderGroups.map(\.id))
-        guard !groupPaths.isEmpty else {
-            return
-        }
-
-        UIInvalidationProbe.mark(
-            "ACTION UI.LibraryFolders.toggleAll",
-            details: "allCollapsedBefore=\(groupPaths.isSubset(of: collapsedLibraryFolderPaths)) groups=\(groupPaths.count)"
-        )
-        if groupPaths.isSubset(of: collapsedLibraryFolderPaths) {
-            collapsedLibraryFolderPaths.subtract(groupPaths)
-        } else {
-            collapsedLibraryFolderPaths.formUnion(groupPaths)
         }
     }
 
@@ -302,18 +266,14 @@ struct SearchView: View {
                         .font(.system(size: SearchTypography.detailSize))
                         .foregroundStyle(.secondary)
 
-                    Text("Rendered \(appState.renderedSearchResultCount) results")
-                        .font(.system(size: SearchTypography.detailSize))
-                        .foregroundStyle(.tertiary)
-
                     Spacer()
 
                     if appState.hasSearchResultGroups {
                         Button {
                             appState.clearSearchFocus()
-                            appState.toggleAllSearchResultGroups()
+                            appState.collapseAllSearchResultGroups()
                         } label: {
-                            Text(appState.searchResultGroupToggleTitle)
+                            Text("Collapse All")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -337,7 +297,8 @@ struct SearchView: View {
         case .failed where appState.searchResults.isEmpty:
             return nil
         case .searching, .completed, .failed:
-            return "Found \(appState.searchResultTotalCount) results"
+            let fileText = appState.searchResultFileCount == 1 ? "file" : "files"
+            return "Found \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)"
         }
     }
 
@@ -699,24 +660,30 @@ private struct SearchField: View {
     }
 }
 
+private extension View {
+    func listRowAction(_ action: @escaping () -> Void) -> some View {
+        contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: Text("Activate"), action)
+    }
+}
+
 private struct LibraryFolderGroupHeader: View {
     let group: LibraryFolderGroup
     let isSelected: Bool
     let onToggle: () -> Void
 
     var body: some View {
-        Button(action: onToggle) {
-            Text(headerText)
-                .font(.system(size: SearchTypography.groupHeaderSize))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .padding(.vertical, 7)
-                .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-                .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(StaticButtonStyle())
+        Text(headerText)
+            .font(.system(size: SearchTypography.groupHeaderSize))
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .padding(.vertical, 7)
+            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowAction(onToggle)
         .focusable(false)
     }
 
@@ -753,15 +720,13 @@ private struct LibraryFolderGroupView: View {
 
             if !isCollapsed {
                 ForEach(group.videos) { row in
-                    Button {
+                    LibraryVideoRowView(
+                        row: row,
+                        isSelected: selectedVideoPath == row.video.videoPath
+                    )
+                    .listRowAction {
                         onOpenVideo(row.video)
-                    } label: {
-                        LibraryVideoRowView(
-                            row: row,
-                            isSelected: selectedVideoPath == row.video.videoPath
-                        )
                     }
-                    .buttonStyle(StaticButtonStyle())
                     .focusable(false)
                 }
             }
@@ -832,19 +797,16 @@ private struct SearchResultGroupHeader: View {
     let onToggle: () -> Void
 
     var body: some View {
-        Button(action: onToggle) {
-            Text(headerText)
-                .font(.system(size: SearchTypography.groupHeaderSize))
-                .lineLimit(nil)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.vertical, 7)
-                .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-                .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(StaticButtonStyle())
+        Text(headerText)
+            .font(.system(size: SearchTypography.groupHeaderSize))
+            .lineLimit(nil)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.vertical, 7)
+            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowAction(onToggle)
         .focusable(false)
     }
 
@@ -884,16 +846,14 @@ private struct SearchResultGroupView: View {
                 ForEach(group.results, id: \.entryID) { result in
                     let isSelected = selectedResult?.entryID == result.entryID
 
-                    Button {
+                    SearchResultRow(
+                        result: result,
+                        query: query,
+                        isSelected: isSelected
+                    )
+                    .listRowAction {
                         onOpenResult(result)
-                    } label: {
-                        SearchResultRow(
-                            result: result,
-                            query: query,
-                            isSelected: isSelected
-                        )
                     }
-                    .buttonStyle(StaticButtonStyle())
                     .focusable(false)
                     .onAppear {
                         onResultAppear(result)
@@ -937,17 +897,16 @@ private struct SearchResultGroupRail: View {
                         )
                 }
 
-                Button(action: onToggle) {
-                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: SearchLayout.groupRailChevronSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(
-                            width: SearchLayout.groupDisclosureWidth,
-                            height: SearchLayout.groupRailChevronSize,
-                            alignment: .center
-                        )
-                }
-                .buttonStyle(StaticButtonStyle())
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: SearchLayout.groupRailChevronSize, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(
+                        width: SearchLayout.groupDisclosureWidth,
+                        height: SearchLayout.groupRailChevronSize,
+                        alignment: .center
+                    )
+                    .listRowAction(onToggle)
+                    .accessibilityLabel(isCollapsed ? "Expand group" : "Collapse group")
                 .focusable(false)
                 .offset(
                     x: SearchLayout.resultOuterHorizontalPadding,

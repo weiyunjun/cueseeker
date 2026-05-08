@@ -95,9 +95,8 @@ model rebuild events. Current event names:
 - `ACTION UI.LibraryVideo.opened`
 - `ACTION UI.SearchQuery.changed`
 - `ACTION UI.LibraryFolder.toggled`
-- `ACTION UI.LibraryFolders.toggleAll`
 - `ACTION UI.SearchResultGroup.toggled`
-- `ACTION UI.SearchResults.toggleAll`
+- `ACTION UI.SearchResults.collapseAll`
 - `ACTION UI.SearchResult.opened`
 - `UI.ContentView.body`
 - `UI.AppTopBar.body`
@@ -176,11 +175,15 @@ queued UI updates and log lines can settle.
 1. Start playback from Library.
 2. Let playback run idle for 30 seconds.
 3. Focus Search and type a short query that returns results.
-4. Expand and collapse one Library folder.
-5. Click a Search result for the currently indexed Library.
-6. Toggle the right Search Panel closed and open.
-7. Toggle the left Library Panel closed and open.
-8. Drag the playback progress bar or use a seek shortcut.
+4. Verify Search results are expanded by default for the new query.
+5. Click `Collapse All` in Search and verify all current result groups collapse.
+6. Modify the query and verify the new Search results are expanded by default.
+7. Expand and collapse one Library folder.
+8. Click a Library video row.
+9. Click a Search result for the currently indexed Library.
+10. Toggle the right Search Panel closed and open.
+11. Toggle the left Library Panel closed and open.
+12. Drag the playback progress bar or use a seek shortcut.
 
 ### Evidence to Paste Back
 
@@ -204,6 +207,10 @@ Also state whether any visible user-facing issue occurred:
 - Lost Search result state.
 - Playback pause, restart, or visible seek delay.
 - Search result click not immediately loading the intended subtitle source.
+- Missing or incorrect Search summary text.
+- Missing Search default-expanded result groups after a new query.
+- Any `Expand All` action appearing in Search or any Library-wide
+  `Collapse All` / `Expand All` action appearing in Library.
 
 ### Acceptance Criteria
 
@@ -221,11 +228,21 @@ these criteria:
 - During Search query input, Search counters may increase, but Library
   presentation snapshot rebuilds must remain `0`, and the playback render
   container must not be recreated.
+- New Search results must be expanded by default. The Search panel may expose a
+  fixed `Collapse All` command for the current result set, but must not retain a
+  global collapsed mode across a new query.
+- The Search summary must read `Found <count> results in <count> files` and
+  must not expose rendered-row counts.
+- Library must not expose a panel-wide `Collapse All` or `Expand All` command;
+  Library folder disclosure remains per-folder.
 - During Library folder expand or collapse, Library panel counters may increase,
   but Search presentation rebuilds and playback render container creation must
   remain `0`.
-- Clicking a Search result may update Search selection and Playback state, but
-  must not rebuild Library presentation rows.
+- Clicking a Library video or Search result row may update selection and
+  Playback state, but must not rebuild unrelated presentation rows.
+- Dense Library/Search rows and group headers should use lightweight row tap
+  handling rather than SwiftUI `Button` wrappers. Top-level command buttons may
+  remain buttons.
 - Side-panel toggle actions may refresh the workbench layout, but must preserve
   Library collapse state, Search result state, scroll position where practical,
   and the playback render container.

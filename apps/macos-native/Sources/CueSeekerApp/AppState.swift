@@ -221,7 +221,6 @@ final class AppState: ObservableObject {
     @Published private(set) var libraryPresentationRevision = 0
     @Published private(set) var searchResultGroups: [SearchResultFileGroup] = []
     @Published private(set) var renderedSearchResultCount = 0
-    @Published private var areSearchResultGroupsCollapsedByGlobalControl = false
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var selectedLibraryVideo: LibraryVideo?
@@ -245,6 +244,10 @@ final class AppState: ObservableObject {
 
     var hasSearchResultGroups: Bool {
         !searchResultGroups.isEmpty
+    }
+
+    var searchResultFileCount: Int {
+        searchFileSummaries.count
     }
 
     private static func makeLibraryFolderGroups(
@@ -314,10 +317,6 @@ final class AppState: ObservableObject {
 
     var currentPlaybackSubtitlePath: String? {
         selectedLibraryVideo?.subtitlePath ?? selectedSearchResult?.subtitlePath
-    }
-
-    var searchResultGroupToggleTitle: String {
-        areSearchResultGroupsCollapsedByGlobalControl ? "Expand All Results" : "Collapse All Results"
     }
 
     private let userDefaults: UserDefaults
@@ -745,26 +744,24 @@ final class AppState: ObservableObject {
         }
     }
 
-    func toggleAllSearchResultGroups() {
+    func collapseAllSearchResultGroups() {
         let groupPaths = Set(searchResultGroups.map(\.id))
         guard !groupPaths.isEmpty else {
             return
         }
 
         UIInvalidationProbe.mark(
-            "ACTION UI.SearchResults.toggleAll",
-            details: "collapsedByGlobalControlBefore=\(areSearchResultGroupsCollapsedByGlobalControl) groups=\(groupPaths.count)"
+            "ACTION UI.SearchResults.collapseAll",
+            details: "groups=\(groupPaths.count)"
         )
-        if areSearchResultGroupsCollapsedByGlobalControl {
-            collapsedSearchResultGroupPaths.subtract(groupPaths)
-            areSearchResultGroupsCollapsedByGlobalControl = false
-            rebuildSearchResultGroups()
-            revealInitialGlobalSearchResultPage()
-        } else {
-            collapsedSearchResultGroupPaths.formUnion(groupPaths)
-            areSearchResultGroupsCollapsedByGlobalControl = true
-            rebuildSearchResultGroups()
+
+        let collapsedPaths = collapsedSearchResultGroupPaths.union(groupPaths)
+        guard collapsedPaths != collapsedSearchResultGroupPaths else {
+            return
         }
+
+        collapsedSearchResultGroupPaths = collapsedPaths
+        rebuildSearchResultGroups()
     }
 
     func refreshLibrary() {
@@ -1486,7 +1483,6 @@ final class AppState: ObservableObject {
         searchFileSummaries = []
         hasMoreSearchResults = false
         collapsedSearchResultGroupPaths = []
-        areSearchResultGroupsCollapsedByGlobalControl = false
         expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
         rebuildSearchResultGroups()

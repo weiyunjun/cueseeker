@@ -232,10 +232,9 @@ Required M2 playback interaction checks:
   width, width resizing and persistence, gray background, flat one-level folder
   grouping, Finder-like natural folder and video ordering, startup with all
   folder groups collapsed, session-only individual group collapse or expand,
-  all-group
-  `Collapse All` / `Expand All`, friendly video display names with extension,
-  right-side duration display, and click-to-playback from Library resume
-  history with `0` fallback.
+  no panel-wide `Collapse All` / `Expand All`, friendly video display names
+  with extension, right-side duration display, and click-to-playback from
+  Library resume history with `0` fallback.
 - Library visual checks should verify that no blue macOS focus ring appears on
   the first Library folder row at startup. Keyboard focus should remain
   available for real text controls such as Search input.
@@ -312,7 +311,8 @@ Required M2 playback interaction checks:
 - Dense row interaction checks should cover large Library/Search result sets
   with repeated row clicks, hover affordances, and context menus. If SwiftUI
   Button layout appears in performance traces for ordinary row rendering,
-  consider lighter row hit handling before adding more row-level buttons.
+  use lighter row hit handling before adding more row-level buttons. Top-level
+  command buttons may remain SwiftUI buttons when they are not repeated per row.
 - Playback clock throttling checks should confirm that native video playback
   remains smooth, manual seek feedback updates immediately, and visible
   progress controls remain accurate enough for subtitle-context review.
