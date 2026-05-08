@@ -86,20 +86,21 @@ private struct AppTopBar: View {
 
     private var topBarLeadingControls: some View {
         GeometryReader { _ in
+            let collapsedHandleX = AppShellLayout.collapsedLeadingHandleX
             let handleX = leadingControlHandleX
-            let visibleTabsWidth = layoutState.isLibraryPanelVisible
-                ? AppShellLayout.leadingModeTabsWidth
-                : 0
 
             ZStack(alignment: .topLeading) {
                 leadingModeTabs
                     .frame(
-                        width: visibleTabsWidth,
+                        width: AppShellLayout.leadingModeTabsWidth,
                         height: AppShellLayout.topBarHeight,
                         alignment: .trailing
                     )
-                    .clipped()
-                    .offset(x: handleX - AppShellLayout.modeButtonSpacing - visibleTabsWidth)
+                    .mask(alignment: .trailing) {
+                        Rectangle()
+                            .frame(width: max(0, handleX - collapsedHandleX))
+                    }
+                    .offset(x: handleX - AppShellLayout.modeButtonSpacing - AppShellLayout.leadingModeTabsWidth)
                     .allowsHitTesting(layoutState.isLibraryPanelVisible)
 
                 libraryPanelToggle
@@ -120,10 +121,11 @@ private struct AppTopBar: View {
     @ViewBuilder
     private var topBarTrailingControls: some View {
         GeometryReader { geometry in
+            let collapsedHandleX = max(
+                0,
+                geometry.size.width - AppShellLayout.modeControlsOuterPadding - AppShellLayout.toggleSize
+            )
             let handleX = trailingControlHandleX(availableWidth: geometry.size.width)
-            let visibleTabsWidth = layoutState.isSearchPanelVisible
-                ? AppShellLayout.trailingModeTabsWidth
-                : 0
 
             ZStack(alignment: .topLeading) {
                 searchPanelToggle
@@ -136,11 +138,14 @@ private struct AppTopBar: View {
 
                 trailingModeTabs
                     .frame(
-                        width: visibleTabsWidth,
+                        width: AppShellLayout.trailingModeTabsWidth,
                         height: AppShellLayout.topBarHeight,
                         alignment: .leading
                     )
-                    .clipped()
+                    .mask(alignment: .leading) {
+                        Rectangle()
+                            .frame(width: max(0, collapsedHandleX - handleX))
+                    }
                     .offset(x: handleX + AppShellLayout.toggleSize + AppShellLayout.modeButtonSpacing)
                     .allowsHitTesting(layoutState.isSearchPanelVisible)
             }

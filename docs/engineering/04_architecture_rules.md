@@ -277,6 +277,11 @@ Rules:
   buttons should be pushed into the collapsed side and disappear by clipping,
   leaving only the collapse-toggle visible. During expand, the strip should
   reveal mode buttons by reversing the same clipped movement.
+- The drawer-style clipped strip must use a globally stationary mask boundary.
+  The container frame should maintain its full expanded width during the
+  animation so hit testing and dragging are not broken, while a `.mask` with a
+  dynamically calculated width creates a clipping edge that remains perfectly
+  stationary in global coordinates as the buttons translate past it.
 - Titlebar side-panel control animation and side-panel body animation must use
   the same duration and finish at the same time. Their travel distance may
   differ; matching duration matters more than matching speed.
