@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 import CueSeekerCore
 import CueSeekerPlayback
 
