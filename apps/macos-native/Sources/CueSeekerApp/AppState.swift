@@ -202,7 +202,7 @@ final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let assSubtitlePreparationCueLimit = 8
-    private static let searchPageSize = 100
+    private static let searchPageSize = 1000
     private static let searchPrefetchThreshold = 10
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 220_000_000
 
@@ -413,6 +413,10 @@ final class AppState: ObservableObject {
     }
 
     func clearSearchFocus() {
+        guard isSearchFocused else {
+            return
+        }
+
         AppPerformanceProbe.measure("AppState.clearSearchFocus", thresholdMilliseconds: 4) {
             isSearchFocused = false
         }
@@ -750,16 +754,15 @@ final class AppState: ObservableObject {
             return
         }
 
-        UIInvalidationProbe.mark(
-            "ACTION UI.SearchResults.collapseAll",
-            details: "groups=\(groupPaths.count)"
-        )
-
         let collapsedPaths = collapsedSearchResultGroupPaths.union(groupPaths)
         guard collapsedPaths != collapsedSearchResultGroupPaths else {
             return
         }
 
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchResults.collapseAll",
+            details: "groups=\(groupPaths.count)"
+        )
         collapsedSearchResultGroupPaths = collapsedPaths
         rebuildSearchResultGroups()
     }
