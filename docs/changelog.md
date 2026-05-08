@@ -6,6 +6,15 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Fixed top bar UI toggle button "instant snap" bugs during side-panel animations
+  by explicitly driving layout geometry with a global `withAnimation` transaction
+  instead of relying on local implicit modifiers that drop frames inside `GeometryReader`.
+- Symmetrized the left side-panel toggle button in macOS fullscreen mode to dynamically
+  match the right side's edge padding when traffic light controls are hidden.
+- Adjusted side-panel toggle buttons to snap perfectly flush (0px inner padding)
+  against the vertical divider lines when panels are expanded.
+- Unified and increased top bar `modeButtonSpacing` to 18px for better visual proportion
+  across both the left Library and right Search/Favorites tab groups.
 - Accepted the stricter Library snapshot and workbench invalidation rule:
   Library rows are persisted indexed-resource presentation loaded at startup as
   a ready snapshot, while Library disclosure state, Search Panel visibility, and

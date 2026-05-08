@@ -285,6 +285,18 @@ Rules:
 - Titlebar side-panel control animation and side-panel body animation must use
   the same duration and finish at the same time. Their travel distance may
   differ; matching duration matters more than matching speed.
+- These synchronized animations must be driven by a single, explicit global
+  `withAnimation` transaction on the underlying state mutation (e.g.,
+  `toggleLibraryPanel`). Redundant implicit `.animation` modifiers on dependent
+  layout views or `GeometryReader`s must be avoided to prevent loss of geometry
+  tracking and "instant snap" bugs.
+- In fullscreen mode, the titlebar's left side-panel controls must dynamically
+  re-align their collapsed coordinate to match the right side-panel controls'
+  symmetry (e.g., matching padding from the screen edge), since the standard
+  macOS window controls (traffic lights) are hidden.
+- When side-panels are expanded, their titlebar toggle buttons should dock
+  flush against the side-panel's vertical divider line (0px padding), while
+  maintaining their required outer padding from the screen edge when collapsed.
 - Library should be modeled as a Left Content Panel mode, not as AppShell
   navigation and not as Settings folder management.
 - The fixed left titlebar control should collapse or expand Library, not a
