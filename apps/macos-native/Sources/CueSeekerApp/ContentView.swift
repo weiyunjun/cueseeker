@@ -196,7 +196,7 @@ private struct AppTopBar: View {
             return max(
                 collapsedX,
                 CGFloat(layoutState.libraryPanelWidth)
-                    - AppShellLayout.modeControlsOuterPadding
+                    - 0 // 0px distance from vertical divider
                     - AppShellLayout.toggleSize
             )
         }
@@ -213,7 +213,7 @@ private struct AppTopBar: View {
 
             return max(
                 0,
-                availableWidth - panelWidth + AppShellLayout.modeControlsOuterPadding
+                availableWidth - panelWidth + 0
             )
         }
 
