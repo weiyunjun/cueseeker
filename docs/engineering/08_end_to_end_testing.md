@@ -249,6 +249,10 @@ these criteria:
 - Titlebar mode icons and side-panel collapse toggles must remain visually
   aligned with the current side-panel width during manual divider resize and
   side-panel collapse or expand animation.
+- Titlebar mode icons must not fade during side-panel collapse or expand. They
+  should disappear or appear by clipping as the titlebar drawer strip is pushed
+  in or out, and the titlebar animation must finish with the side-panel body
+  animation.
 - Switching right-panel modes must not reset playback, the active Search query,
   loaded Search results, or Library disclosure state.
 - During Library folder expand or collapse, Library panel counters may increase,

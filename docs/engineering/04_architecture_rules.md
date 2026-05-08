@@ -272,6 +272,14 @@ Rules:
   and mode controls must visually move with the same side-panel edge they
   represent. The collapse-toggle should stay above mode buttons in z-order so
   its motion defines the visible boundary of the side-panel titlebar controls.
+- Titlebar side-panel controls must use a drawer-style clipped strip, not
+  conditional insertion/removal or opacity transitions. During collapse, mode
+  buttons should be pushed into the collapsed side and disappear by clipping,
+  leaving only the collapse-toggle visible. During expand, the strip should
+  reveal mode buttons by reversing the same clipped movement.
+- Titlebar side-panel control animation and side-panel body animation must use
+  the same duration and finish at the same time. Their travel distance may
+  differ; matching duration matters more than matching speed.
 - Library should be modeled as a Left Content Panel mode, not as AppShell
   navigation and not as Settings folder management.
 - The fixed left titlebar control should collapse or expand Library, not a

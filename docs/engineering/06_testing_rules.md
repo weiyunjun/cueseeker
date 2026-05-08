@@ -232,6 +232,10 @@ Required M2 playback interaction checks:
   rendered in the global titlebar, use the documented folder/search/star icons,
   and visually track the corresponding side-panel width during manual divider
   resize and collapse or expand animation.
+- Titlebar side-panel animation checks should verify that mode buttons do not
+  fade in or out. They should be revealed or hidden only by the clipped
+  drawer-style strip, and the titlebar controls should finish their animation
+  at the same time as the side-panel body.
 - Titlebar mode-button checks should verify that mode buttons have hover and
   selected states only: hover matches collapse-toggle hover, selected matches
   collapse-toggle pressed, and clicking a mode button does not add a separate
