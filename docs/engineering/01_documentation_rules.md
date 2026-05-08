@@ -100,6 +100,7 @@ docs/engineering/
   05_database_rules.md
   06_testing_rules.md
   07_release_rules.md
+  08_end_to_end_testing.md
 ```
 
 Rules:

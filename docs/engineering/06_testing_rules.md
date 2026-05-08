@@ -141,7 +141,38 @@ Rules:
 - Text input shortcuts must continue to behave like native macOS text fields.
 - Keyboard shortcuts must be checked for conflicts before being considered complete.
 
-## 8. Playback Verification
+## 8. End-to-End Test Documentation
+
+End-to-end tests are required for changes whose main risk is runtime behavior,
+macOS integration, playback behavior, UI responsiveness, or user-visible
+workflow friction.
+
+Detailed procedures live in `docs/engineering/08_end_to_end_testing.md`.
+
+Rules:
+
+- Before asking for an end-to-end test, create or update a test document under
+  `docs/engineering/` that describes the exact test method, the expected log
+  flow, and the acceptance criteria.
+- The test document must include the feature or regression under test,
+  preconditions, build or launch commands, diagnostic environment variables,
+  log-stream commands, user action steps, expected observations, failure
+  examples, cleanup steps, and what evidence the user should paste back.
+- The AI/log handoff must be explicit. The document should state which terminal
+  should be running, how to delimit a test run, what log predicate or file path
+  matters, and how the assistant should interpret the pasted output.
+- If a test depends on temporary probes, the document must identify whether
+  those probes are default-off, how to enable them, and what later change should
+  remove or keep them gated.
+- Acceptance criteria must avoid vague instructions such as "try it for a
+  while." Each test should define concrete pass/fail conditions such as no
+  `com.cueseeker.perf` output, no `MainThread.stall`, no unrelated row rebuild
+  counter increase, preserved scroll position, or immediate playback seek.
+- End-to-end test docs are allowed to evolve during debugging, but every
+  meaningful change to the expected procedure or acceptance criteria must be
+  committed with the code or documentation change that relies on it.
+
+## 9. Playback Verification
 
 Playback requires both automated-adjacent verification and manual acceptance.
 

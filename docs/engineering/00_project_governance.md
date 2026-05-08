@@ -89,6 +89,7 @@ docs/engineering/
   05_database_rules.md
   06_testing_rules.md
   07_release_rules.md
+  08_end_to_end_testing.md
 ```
 
 This document is the top-level governance document. Detailed rules live in the dedicated files listed above.
@@ -515,6 +516,7 @@ Detailed rules should live at:
 
 ```text
 docs/engineering/06_testing_rules.md
+docs/engineering/08_end_to_end_testing.md
 ```
 
 Testing rules must define:
@@ -526,6 +528,8 @@ Testing rules must define:
 - Database migration test expectations.
 - Playback verification expectations.
 - UI smoke test expectations.
+- End-to-end test documentation, log handoff, and acceptance evidence
+  expectations for runtime-sensitive changes.
 
 At minimum, the native rewrite should cover:
 
