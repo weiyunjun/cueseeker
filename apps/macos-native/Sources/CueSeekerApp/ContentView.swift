@@ -103,6 +103,10 @@ private struct AppTopBar: View {
                     .allowsHitTesting(layoutState.isLibraryPanelVisible)
 
                 libraryPanelToggle
+                    .frame(
+                        width: AppShellLayout.toggleSize,
+                        height: AppShellLayout.topBarHeight
+                    )
                     .offset(x: handleX)
                     .zIndex(2)
             }
@@ -123,6 +127,10 @@ private struct AppTopBar: View {
 
             ZStack(alignment: .topLeading) {
                 searchPanelToggle
+                    .frame(
+                        width: AppShellLayout.toggleSize,
+                        height: AppShellLayout.topBarHeight
+                    )
                     .offset(x: handleX)
                     .zIndex(2)
 
@@ -248,7 +256,7 @@ private struct AppTopBar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(ToolbarButtonStyle())
-        .disabled(layoutState.isVideoSizeTransitionInProgress)
+        .allowsHitTesting(!layoutState.isVideoSizeTransitionInProgress)
         .focusable(false)
         .foregroundStyle(.primary)
         .help(layoutState.isLibraryPanelVisible ? "Hide Library" : "Show Library")
@@ -273,7 +281,7 @@ private struct AppTopBar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(ToolbarButtonStyle())
-        .disabled(layoutState.isVideoSizeTransitionInProgress)
+        .allowsHitTesting(!layoutState.isVideoSizeTransitionInProgress)
         .focusable(false)
         .foregroundStyle(.primary)
         .help(layoutState.isSearchPanelVisible ? "Hide Right Panel" : "Show Right Panel")
