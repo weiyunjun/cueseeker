@@ -3,9 +3,14 @@ import os
 
 enum PlaybackPerformanceProbe {
     private static let logger = Logger(subsystem: "com.cueseeker.perf", category: "Playback")
+    private static let isEnabled = diagnosticFlag("CUESEEKER_PERF_PLAYBACK")
 
     static func now() -> UInt64 {
-        DispatchTime.now().uptimeNanoseconds
+        guard isEnabled else {
+            return 0
+        }
+
+        return DispatchTime.now().uptimeNanoseconds
     }
 
     @discardableResult
@@ -14,6 +19,10 @@ enum PlaybackPerformanceProbe {
         thresholdMilliseconds: Double = 16,
         _ block: () throws -> T
     ) rethrows -> T {
+        guard isEnabled else {
+            return try block()
+        }
+
         let start = now()
         defer {
             logElapsed(name, since: start, thresholdMilliseconds: thresholdMilliseconds)
@@ -26,6 +35,10 @@ enum PlaybackPerformanceProbe {
         since start: UInt64,
         thresholdMilliseconds: Double = 16
     ) {
+        guard isEnabled else {
+            return
+        }
+
         let elapsedMilliseconds = Double(now() - start) / 1_000_000
         guard elapsedMilliseconds >= thresholdMilliseconds else {
             return
@@ -36,5 +49,18 @@ enum PlaybackPerformanceProbe {
 
     private static func message(name: String, elapsedMilliseconds: Double) -> String {
         String(format: "SLOW %@ %.2fms", name, elapsedMilliseconds)
+    }
+
+    private static func diagnosticFlag(_ name: String) -> Bool {
+        let value = ProcessInfo.processInfo.environment[name]?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).lowercased()
+
+        switch value {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
+        }
     }
 }

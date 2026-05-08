@@ -1,7 +1,23 @@
-import AppKit
 import SwiftUI
+import AppKit
 
-struct LayoutPerformanceProbe: NSViewRepresentable {
+struct LayoutPerformanceProbe: View {
+    let name: String
+    var thresholdMilliseconds: Double = 8
+
+    var body: some View {
+        if AppPerformanceProbe.isLayoutProbeEnabled {
+            LayoutPerformanceProbeHost(
+                name: name,
+                thresholdMilliseconds: thresholdMilliseconds
+            )
+        } else {
+            EmptyView()
+        }
+    }
+}
+
+private struct LayoutPerformanceProbeHost: NSViewRepresentable {
     let name: String
     var thresholdMilliseconds: Double = 8
 

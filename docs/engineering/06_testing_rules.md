@@ -263,6 +263,12 @@ Required M2 playback interaction checks:
   observers, and broad SwiftUI body/layout probes, should have a verification
   step to remove them or gate them behind DEBUG or an explicit diagnostic flag
   after the target regression has been fixed.
+- Normal smoke runs should produce no `com.cueseeker.perf` output unless an
+  explicit diagnostic environment flag is set. When deeper investigation is
+  needed, enable only the narrow flag for the probe under test, such as
+  `CUESEEKER_PERF_WATCHDOG=1`, `CUESEEKER_PERF_RUNLOOP=1`,
+  `CUESEEKER_PERF_AUTOSAMPLE=1`, `CUESEEKER_PERF_LAYOUT=1`, or
+  `CUESEEKER_PERF_PLAYBACK=1`.
 - UI invalidation-domain checks should confirm that Library, Playback, Search,
   and future panel modes do not subscribe to unrelated high-frequency state.
   Playback time publications, Search input changes, Library disclosure changes,

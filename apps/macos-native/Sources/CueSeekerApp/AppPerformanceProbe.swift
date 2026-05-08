@@ -182,6 +182,17 @@ private final class AppPerformanceProbeState: @unchecked Sendable {
 enum AppPerformanceProbe {
     private static let logger = Logger(subsystem: "com.cueseeker.perf", category: "App")
     private static let state = AppPerformanceProbeState()
+    private static let isExplicitLoggingEnabled = diagnosticFlag("CUESEEKER_PERF")
+    static let isAutomaticSampleEnabled = diagnosticFlag("CUESEEKER_PERF_AUTOSAMPLE")
+    static let isMainThreadWatchdogEnabled = diagnosticFlag("CUESEEKER_PERF_WATCHDOG")
+        || isAutomaticSampleEnabled
+    static let isMainRunLoopObserverEnabled = diagnosticFlag("CUESEEKER_PERF_RUNLOOP")
+    static let isLayoutProbeEnabled = diagnosticFlag("CUESEEKER_PERF_LAYOUT")
+    static let isEnabled = isExplicitLoggingEnabled
+        || isMainThreadWatchdogEnabled
+        || isMainRunLoopObserverEnabled
+        || isAutomaticSampleEnabled
+        || isLayoutProbeEnabled
     private static let watchdogQueue = DispatchQueue(
         label: "app.cueseeker.performance-watchdog",
         qos: .utility
@@ -201,6 +212,10 @@ enum AppPerformanceProbe {
         thresholdMilliseconds: Double = 16,
         _ block: () throws -> T
     ) rethrows -> T {
+        guard isEnabled else {
+            return try block()
+        }
+
         let start = now()
         defer {
             logElapsed(name, since: start, thresholdMilliseconds: thresholdMilliseconds)
@@ -214,6 +229,10 @@ enum AppPerformanceProbe {
         thresholdMilliseconds: Double = 16,
         _ block: () throws -> T
     ) rethrows -> T {
+        guard isEnabled else {
+            return try block()
+        }
+
         recordLastAction(name)
         mark("MARK \(name).begin")
         let start = now()
@@ -229,6 +248,9 @@ enum AppPerformanceProbe {
         intervalMilliseconds: Int = 250,
         sampleThresholdMilliseconds: Double = 1_000
     ) {
+        guard isMainThreadWatchdogEnabled else {
+            return
+        }
         guard !state.hasWatchdogTimer() else {
             return
         }
@@ -241,10 +263,11 @@ enum AppPerformanceProbe {
         )
         timer.setEventHandler {
             let timestamp = now()
-            if let sampleTrigger = state.markPendingMainThreadPingSampled(
-                now: timestamp,
-                thresholdMilliseconds: sampleThresholdMilliseconds
-            ) {
+            if isAutomaticSampleEnabled,
+               let sampleTrigger = state.markPendingMainThreadPingSampled(
+                   now: timestamp,
+                   thresholdMilliseconds: sampleThresholdMilliseconds
+               ) {
                 startAutomaticSample(
                     pingID: sampleTrigger.id,
                     stalledMilliseconds: sampleTrigger.elapsedMilliseconds,
@@ -280,6 +303,9 @@ enum AppPerformanceProbe {
     }
 
     static func startMainRunLoopObserver(thresholdMilliseconds: Double = 250) {
+        guard isMainRunLoopObserverEnabled else {
+            return
+        }
         guard !state.hasRunLoopObserver() else {
             return
         }
@@ -337,6 +363,10 @@ enum AppPerformanceProbe {
         since start: UInt64,
         thresholdMilliseconds: Double = 16
     ) {
+        guard isEnabled else {
+            return
+        }
+
         let elapsedMilliseconds = Double(now() - start) / 1_000_000
         guard elapsedMilliseconds >= thresholdMilliseconds else {
             return
@@ -346,6 +376,10 @@ enum AppPerformanceProbe {
     }
 
     static func mark(_ name: String) {
+        guard isEnabled else {
+            return
+        }
+
         logger.warning("\(name, privacy: .public)")
     }
 
@@ -471,5 +505,18 @@ enum AppPerformanceProbe {
             lastAction,
             elapsedMilliseconds
         )
+    }
+
+    private static func diagnosticFlag(_ name: String) -> Bool {
+        let value = ProcessInfo.processInfo.environment[name]?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).lowercased()
+
+        switch value {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
+        }
     }
 }

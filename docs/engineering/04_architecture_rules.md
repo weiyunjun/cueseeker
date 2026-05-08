@@ -153,6 +153,14 @@ Rules:
   must not become unconditional production behavior. After a regression is
   understood, heavy probes should be removed, gated to `DEBUG`, or enabled only
   through an explicit diagnostic flag.
+- Current performance probes must be default-off in normal runs. Use
+  `CUESEEKER_PERF=1` for lightweight app timing logs,
+  `CUESEEKER_PERF_WATCHDOG=1` for the main-thread watchdog,
+  `CUESEEKER_PERF_RUNLOOP=1` for the run-loop observer,
+  `CUESEEKER_PERF_AUTOSAMPLE=1` for automatic `/usr/bin/sample` capture,
+  `CUESEEKER_PERF_LAYOUT=1` for SwiftUI/AppKit layout probes, and
+  `CUESEEKER_PERF_PLAYBACK=1` for playback slow-path logs. These flags are
+  diagnostic tooling, not product behavior.
 - The workbench container should own layout coordination only. Library,
   Playback, and Search presentation views should receive scoped state so Search
   focus, Search results, playback clock updates, and side-panel resize gestures
