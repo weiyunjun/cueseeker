@@ -141,6 +141,12 @@ private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
 }
 
 @MainActor
+enum WorkbenchRightPanelMode: String {
+    case search
+    case favorites
+}
+
+@MainActor
 final class WorkbenchLayoutState: ObservableObject {
     private static let isLibraryPanelVisibleKey = "isLibraryPanelVisible"
     private static let libraryPanelWidthKey = "libraryPanelWidth"
@@ -151,6 +157,7 @@ final class WorkbenchLayoutState: ObservableObject {
     @Published var libraryPanelWidth: Double
     @Published var isSearchPanelVisible: Bool
     @Published var searchPanelWidth: Double
+    @Published var rightPanelMode: WorkbenchRightPanelMode = .search
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
 
     private let userDefaults: UserDefaults
@@ -181,6 +188,14 @@ final class WorkbenchLayoutState: ObservableObject {
     func updateSearchPanelWidth(_ width: Double) {
         searchPanelWidth = width
         userDefaults.set(width, forKey: Self.searchPanelWidthKey)
+    }
+
+    func selectRightPanelMode(_ mode: WorkbenchRightPanelMode) {
+        guard rightPanelMode != mode else {
+            return
+        }
+
+        rightPanelMode = mode
     }
 
     func beginVideoSizeTransition() -> Bool {

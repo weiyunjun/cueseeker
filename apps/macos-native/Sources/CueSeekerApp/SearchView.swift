@@ -54,7 +54,7 @@ struct SearchView: View {
                         isVisible: layoutState.isSearchPanelVisible,
                         width: searchPanelWidth
                     ) {
-                        searchPanel
+                        rightPanel
                     } divider: {
                         searchPanelResizeDivider(availableWidth: geometry.size.width)
                     }
@@ -189,6 +189,24 @@ struct SearchView: View {
             collapsedLibraryFolderPaths.remove(folderPath)
         } else {
             collapsedLibraryFolderPaths.insert(folderPath)
+        }
+    }
+
+    @ViewBuilder
+    private var rightPanel: some View {
+        switch layoutState.rightPanelMode {
+        case .search:
+            searchPanel
+        case .favorites:
+            favoritesPanel
+        }
+    }
+
+    private var favoritesPanel: some View {
+        AppPerformanceProbe.measure("SearchView.favoritesPanel.body", thresholdMilliseconds: 4) {
+            Color(nsColor: .textBackgroundColor)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(LayoutPerformanceProbe(name: "SearchView.favoritesPanel.layout"))
         }
     }
 

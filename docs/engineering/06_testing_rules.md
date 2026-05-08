@@ -208,7 +208,7 @@ Required M2 playback interaction checks:
 - The main window title identifies the workbench as `CueSeeker`; the old
   standalone `Search` navigation label is not shown.
 - The fixed left titlebar control collapses or expands Library. The fixed right
-  titlebar control collapses or expands the Search Panel.
+  titlebar control collapses or expands the Right Learning Panel.
 - `CueSeeker > Settings...` opens or focuses an independent Settings window.
 - Opening, focusing, switching categories within, or closing Settings does not
   pause playback, switch away from the CueSeeker workbench, collapse either
@@ -220,13 +220,22 @@ Required M2 playback interaction checks:
   decode modes.
 - The CueSeeker workbench places Library on the left when expanded, playback in
   the center, and Search controls/results on the right.
-- Collapsing the right-side Search Panel expands playback width, preserves the
+- Collapsing the Right Learning Panel expands playback width, preserves the
   selected result, and does not pause playback.
-- Reopening the Search Panel restores the current Search context when practical.
-- Future Left Content Panel modes should preserve the left-side known-content
-  navigation responsibility for Library, Timeline, and Favorites.
+- Reopening the Right Learning Panel restores the current Search/Favorites
+  context when practical.
+- Future Left Content Panel modes should preserve the left-side precise
+  resource-positioning responsibility for Library and Timeline.
 - Future Right Learning Panel modes should preserve the right-side active
-  workflow responsibility for Search, Queue, and Learning Session.
+  workflow responsibility for Search, Favorites, Queue, and Learning Session.
+- Titlebar mode-container checks should verify that side-panel mode buttons are
+  rendered in the global titlebar, use the documented folder/search/star icons,
+  and visually track the corresponding side-panel width during manual divider
+  resize and collapse or expand animation.
+- Titlebar mode-button checks should verify that mode buttons have hover and
+  selected states only: hover matches collapse-toggle hover, selected matches
+  collapse-toggle pressed, and clicking a mode button does not add a separate
+  pressed state.
 - Library panel checks should cover the first accepted Library behavior:
   left titlebar collapse or expand, default width equal to the `310pt` minimum
   width, width resizing and persistence, gray background, flat one-level folder
@@ -317,7 +326,7 @@ Required M2 playback interaction checks:
   remains smooth, manual seek feedback updates immediately, and visible
   progress controls remain accurate enough for subtitle-context review.
 - Left and Right panel mode-container checks should verify that switching future
-  modes such as Library, Timeline, Favorites, Search, Queue, and Learning
+  modes such as Library, Timeline, Search, Favorites, Queue, and Learning
   Session preserves each mode's relevant presentation state and does not reset
   playback or rebuild unrelated lists.
 - Playback render layout checks should verify that repeatedly collapsing and

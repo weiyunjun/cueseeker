@@ -181,9 +181,13 @@ queued UI updates and log lines can settle.
 7. Expand and collapse one Library folder.
 8. Click a Library video row.
 9. Click a Search result for the currently indexed Library.
-10. Toggle the right Search Panel closed and open.
+10. Toggle the Right Learning Panel closed and open.
 11. Toggle the left Library Panel closed and open.
 12. Drag the playback progress bar or use a seek shortcut.
+13. Resize the left and right panels and verify the titlebar controls stay
+    visually aligned with the corresponding panel regions.
+14. Click the right titlebar Search icon and Star icon, verifying Search shows
+    the current Search panel and Star shows the empty Favorites placeholder.
 
 ### Evidence to Paste Back
 
@@ -211,6 +215,9 @@ Also state whether any visible user-facing issue occurred:
 - Missing Search default-expanded result groups after a new query.
 - Any `Expand All` action appearing in Search or any Library-wide
   `Collapse All` / `Expand All` action appearing in Library.
+- Titlebar mode icons not tracking the resized side-panel widths.
+- Right titlebar Search or Star mode switching resetting playback or Search
+  state unexpectedly.
 
 ### Acceptance Criteria
 
@@ -235,6 +242,15 @@ these criteria:
   must not expose rendered-row counts.
 - Library must not expose a panel-wide `Collapse All` or `Expand All` command;
   Library folder disclosure remains per-folder.
+- The left titlebar mode region must show the Library folder icon when the
+  Library panel is expanded. The right titlebar mode region must show Search
+  and Star icons when the right panel is expanded. Search displays the existing
+  Search panel, and Star displays an empty Favorites placeholder.
+- Titlebar mode icons and side-panel collapse toggles must remain visually
+  aligned with the current side-panel width during manual divider resize and
+  side-panel collapse or expand animation.
+- Switching right-panel modes must not reset playback, the active Search query,
+  loaded Search results, or Library disclosure state.
 - During Library folder expand or collapse, Library panel counters may increase,
   but Search presentation rebuilds and playback render container creation must
   remain `0`.

@@ -237,21 +237,41 @@ Rules:
   commands, indexing status, and decode mode, but its presentation state should
   not be stored inside Search Panel state.
 - The CueSeeker workbench uses a player-first layout: Library on the left when
-  expanded, embedded playback in the center, and a collapsible Search Panel on
-  the right.
-- The Search Panel is the collapsible auxiliary pane. Playback must not be
-  treated as the collapsible auxiliary pane in the CueSeeker workbench.
-- Collapsing the Search Panel must preserve playback state, selected result
-  identity, and search context.
+  expanded, embedded playback in the center, and a collapsible Right Learning
+  Panel on the right.
+- The Right Learning Panel is the collapsible auxiliary pane. Playback must not
+  be treated as the collapsible auxiliary pane in the CueSeeker workbench.
+- Collapsing the Right Learning Panel must preserve playback state, selected
+  result identity, and Search/Favorites presentation context.
 - Future side-panel work should preserve distinct responsibilities around
-  playback: the Left Content Panel owns Library, Timeline, and Favorites-style
-  known-content navigation, while the Right Learning Panel owns Search, Queue,
-  and Learning Session-style active learning workflows.
+  playback: the Left Content Panel owns Library and Timeline-style precise
+  resource positioning, while the Right Learning Panel owns Search, Favorites,
+  Queue, and Learning Session-style active learning and result aggregation
+  workflows.
 - The Left Content Panel and Right Learning Panel should evolve into stable
-  mode containers. Switching between Library, Timeline, Favorites, Search,
+  mode containers. Switching between Library, Timeline, Search, Favorites,
   Queue, and Learning Session modes should preserve each mode's current
-  presentation state where practical and must not rebuild unrelated panel
-  lists or reset playback.
+  presentation state where practical and must not rebuild unrelated panel lists
+  or reset playback.
+- Left and Right panel mode selectors belong visually to the global titlebar,
+  not to the panel content body. Their horizontal positions must stay
+  synchronized with the current panel visibility and user-resized panel widths,
+  so the controls remain visually inside each side-panel titlebar region while
+  still being rendered as top-level titlebar controls.
+- Left panel titlebar modes should start with a selected Library folder icon.
+  Right panel titlebar modes should start with Search and Favorites icons:
+  magnifying glass for Search and star for Favorites. Favorites is a Right
+  Learning Panel mode because it behaves like collected Search/result context,
+  not like Library folder navigation.
+- Titlebar mode buttons should use hover feedback and selected feedback only.
+  Their hover background should match the titlebar collapse-toggle hover
+  background, and their selected background should match the collapse-toggle
+  pressed background. Mode buttons should not add a separate pressed visual
+  state on click.
+- During side-panel collapse and expand animation, the titlebar collapse-toggle
+  and mode controls must visually move with the same side-panel edge they
+  represent. The collapse-toggle should stay above mode buttons in z-order so
+  its motion defines the visible boundary of the side-panel titlebar controls.
 - Library should be modeled as a Left Content Panel mode, not as AppShell
   navigation and not as Settings folder management.
 - The fixed left titlebar control should collapse or expand Library, not a
