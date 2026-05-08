@@ -219,7 +219,7 @@ final class AppState: ObservableObject {
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 1000
     private static let searchPrefetchThreshold = 10
-    private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 220_000_000
+    private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
 
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle

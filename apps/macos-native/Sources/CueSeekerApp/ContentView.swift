@@ -86,107 +86,126 @@ private struct AppTopBar: View {
 
     private var topBarLeadingControls: some View {
         GeometryReader { _ in
-            let drawerWidth = leadingControlDrawerWidth
-            let clipWidth = titlebarControlClipWidth(for: drawerWidth)
+            let handleX = leadingControlHandleX
+            let visibleTabsWidth = layoutState.isLibraryPanelVisible
+                ? AppShellLayout.leadingModeTabsWidth
+                : 0
 
-            HStack(spacing: AppShellLayout.modeButtonSpacing) {
-                titlebarModeButton(
-                    systemImage: "folder",
-                    isSelected: true,
-                    action: {},
-                    help: "Library"
-                )
-                .allowsHitTesting(layoutState.isLibraryPanelVisible)
-                .zIndex(1)
+            ZStack(alignment: .topLeading) {
+                leadingModeTabs
+                    .frame(
+                        width: visibleTabsWidth,
+                        height: AppShellLayout.topBarHeight,
+                        alignment: .trailing
+                    )
+                    .clipped()
+                    .offset(x: handleX - AppShellLayout.modeButtonSpacing - visibleTabsWidth)
+                    .allowsHitTesting(layoutState.isLibraryPanelVisible)
 
                 libraryPanelToggle
+                    .offset(x: handleX)
                     .zIndex(2)
             }
-            .padding(.trailing, AppShellLayout.modeControlsOuterPadding)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(width: clipWidth, height: AppShellLayout.topBarHeight, alignment: .trailing)
-            .clipped()
-            .padding(.leading, AppShellLayout.modeControlsOuterPadding)
-            .frame(width: drawerWidth, height: AppShellLayout.topBarHeight, alignment: .leading)
-            .padding(.leading, AppShellLayout.windowControlsReservedWidth)
             .animation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration), value: layoutState.isLibraryPanelVisible)
             .animation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration), value: layoutState.libraryPanelWidth)
         }
         .frame(height: AppShellLayout.topBarHeight)
+        .clipped()
     }
 
     @ViewBuilder
     private var topBarTrailingControls: some View {
         GeometryReader { geometry in
-            let drawerWidth = trailingControlDrawerWidth(availableWidth: geometry.size.width)
-            let clipWidth = titlebarControlClipWidth(for: drawerWidth)
+            let handleX = trailingControlHandleX(availableWidth: geometry.size.width)
+            let visibleTabsWidth = layoutState.isSearchPanelVisible
+                ? AppShellLayout.trailingModeTabsWidth
+                : 0
 
-            HStack(spacing: AppShellLayout.modeButtonSpacing) {
+            ZStack(alignment: .topLeading) {
                 searchPanelToggle
+                    .offset(x: handleX)
                     .zIndex(2)
 
-                titlebarModeButton(
-                    systemImage: "magnifyingglass",
-                    isSelected: layoutState.rightPanelMode == .search,
-                    action: {
-                        layoutState.selectRightPanelMode(.search)
-                    },
-                    help: "Search"
-                )
-                .allowsHitTesting(layoutState.isSearchPanelVisible)
-                .zIndex(1)
-
-                titlebarModeButton(
-                    systemImage: "star",
-                    isSelected: layoutState.rightPanelMode == .favorites,
-                    action: {
-                        layoutState.selectRightPanelMode(.favorites)
-                    },
-                    help: "Favorites"
-                )
-                .allowsHitTesting(layoutState.isSearchPanelVisible)
-                .zIndex(1)
+                trailingModeTabs
+                    .frame(
+                        width: visibleTabsWidth,
+                        height: AppShellLayout.topBarHeight,
+                        alignment: .leading
+                    )
+                    .clipped()
+                    .offset(x: handleX + AppShellLayout.toggleSize + AppShellLayout.modeButtonSpacing)
+                    .allowsHitTesting(layoutState.isSearchPanelVisible)
             }
-            .padding(.leading, AppShellLayout.modeControlsOuterPadding)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(width: clipWidth, height: AppShellLayout.topBarHeight, alignment: .leading)
-            .clipped()
-            .padding(.trailing, AppShellLayout.modeControlsOuterPadding)
-            .frame(width: drawerWidth, height: AppShellLayout.topBarHeight, alignment: .leading)
-            .frame(maxWidth: .infinity, maxHeight: AppShellLayout.topBarHeight, alignment: .trailing)
             .animation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration), value: layoutState.isSearchPanelVisible)
             .animation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration), value: layoutState.searchPanelWidth)
         }
         .frame(height: AppShellLayout.topBarHeight)
+        .clipped()
     }
 
-    private var leadingControlDrawerWidth: CGFloat {
+    private var leadingModeTabs: some View {
+        titlebarModeButton(
+            systemImage: "folder",
+            isSelected: true,
+            action: {},
+            help: "Library"
+        )
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var trailingModeTabs: some View {
+        HStack(spacing: AppShellLayout.modeButtonSpacing) {
+            titlebarModeButton(
+                systemImage: "magnifyingglass",
+                isSelected: layoutState.rightPanelMode == .search,
+                action: {
+                    layoutState.selectRightPanelMode(.search)
+                },
+                help: "Search"
+            )
+
+            titlebarModeButton(
+                systemImage: "star",
+                isSelected: layoutState.rightPanelMode == .favorites,
+                action: {
+                    layoutState.selectRightPanelMode(.favorites)
+                },
+                help: "Favorites"
+            )
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var leadingControlHandleX: CGFloat {
         if layoutState.isLibraryPanelVisible {
             return max(
-                CGFloat(layoutState.libraryPanelWidth) - AppShellLayout.windowControlsReservedWidth,
-                AppShellLayout.collapsedSideControlDrawerWidth
+                AppShellLayout.collapsedLeadingHandleX,
+                CGFloat(layoutState.libraryPanelWidth)
+                    - AppShellLayout.modeControlsOuterPadding
+                    - AppShellLayout.toggleSize
             )
         }
 
-        return AppShellLayout.collapsedSideControlDrawerWidth
+        return AppShellLayout.collapsedLeadingHandleX
     }
 
-    private func trailingControlDrawerWidth(availableWidth: CGFloat) -> CGFloat {
+    private func trailingControlHandleX(availableWidth: CGFloat) -> CGFloat {
         if layoutState.isSearchPanelVisible {
-            return min(
-                max(
-                    CGFloat(layoutState.searchPanelWidth),
-                    AppShellLayout.collapsedSideControlDrawerWidth
-                ),
-                max(AppShellLayout.collapsedSideControlDrawerWidth, availableWidth)
+            let panelWidth = min(
+                CGFloat(layoutState.searchPanelWidth),
+                availableWidth
+            )
+
+            return max(
+                0,
+                availableWidth - panelWidth + AppShellLayout.modeControlsOuterPadding
             )
         }
 
-        return AppShellLayout.collapsedSideControlDrawerWidth
-    }
-
-    private func titlebarControlClipWidth(for drawerWidth: CGFloat) -> CGFloat {
-        max(0, drawerWidth - AppShellLayout.modeControlsOuterPadding)
+        return max(
+            0,
+            availableWidth - AppShellLayout.modeControlsOuterPadding - AppShellLayout.toggleSize
+        )
     }
 
     private func titlebarModeButton(
@@ -277,8 +296,10 @@ enum AppShellLayout {
     static let toggleIconSize: CGFloat = 15
     static let modeButtonSpacing: CGFloat = 6
     static let modeControlsOuterPadding: CGFloat = 12
-    static let collapsedSideControlDrawerWidth: CGFloat = toggleSize
-        + modeControlsOuterPadding * 2
+    static let collapsedLeadingHandleX: CGFloat = windowControlsReservedWidth
+        + toggleLeadingAfterWindowControls
+    static let leadingModeTabsWidth: CGFloat = toggleSize
+    static let trailingModeTabsWidth: CGFloat = toggleSize * 2 + modeButtonSpacing
     static let sidePanelAnimationDuration: Double = 0.18
     static let titleFontSize: CGFloat = 16
     static let titleFontWeight: Font.Weight = .semibold
