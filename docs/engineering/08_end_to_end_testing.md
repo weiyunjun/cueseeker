@@ -179,7 +179,7 @@ queued UI updates and log lines can settle.
 5. Click `Collapse All` in Search and verify all current result groups collapse.
 6. Modify the query and verify the new Search results are expanded by default.
 7. Expand and collapse one Library folder.
-8. Click a Library video row.
+8. Click an episode button inside an expanded Library folder.
 9. Click a Search result for the currently indexed Library.
 10. Toggle the Right Learning Panel closed and open.
 11. Toggle the left Library Panel closed and open.
@@ -260,8 +260,8 @@ these criteria:
 - During Library folder expand or collapse, Library panel counters may increase,
   but Search presentation rebuilds and playback render container creation must
   remain `0`.
-- Clicking a Library video or Search result row may update selection and
-  Playback state, but must not rebuild unrelated presentation rows.
+- Clicking a Library episode button or Search result row may update selection
+  and Playback state, but must not rebuild unrelated presentation rows.
 - Dense Library/Search rows and group headers should use lightweight row tap
   handling rather than SwiftUI `Button` wrappers. Top-level command buttons may
   remain buttons.

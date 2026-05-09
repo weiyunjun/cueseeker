@@ -129,20 +129,48 @@ Accepted first Library panel direction:
 - Library's first default and minimum width should be `310pt`, `50pt` narrower
   than the previous fixed `360pt` Library width.
 - Library width should persist when the user changes it.
-- Library uses a dense grouped-list structure comparable to Search results.
+- Library uses a dense grouped layout with folder rows on top and an
+  expand-on-demand episode-button grid underneath.
 - Library shows only one folder grouping level.
-- Folder groups and video rows use Finder-like natural ordering.
+- Folder groups and the playable videos inside each folder use Finder-like
+  natural ordering.
 - Folder groups are collapsed on app startup.
 - Folder group collapse or expand state is session-only. It should not persist
   across launches.
 - Reindexing or refreshing Library data should rebuild Library rows and reset
   folder groups to collapsed, because the indexed resource set may have changed.
-- A top action toggles all folder groups with `Collapse All` and `Expand All`.
-- Video rows display `Parent Folder Name - NN  extension`, such as
-  `葬送的芙莉莲 - 01  mkv`.
-- Video duration appears on the right side of each video row.
-- Clicking a video row opens or updates playback from the persisted
+- Folder rows are two-line: the folder display name on the first line, and a
+  subtitle on the second line. The subtitle reads `N episodes` by default and
+  `N episodes · Playing M` while a Library-launched playback session is active
+  for a video in this folder, where `M` is that video's one-based sibling rank.
+- Folder rows must not display a leading first-letter or first-character avatar
+  block. The folder display name is the leftmost element, hugging the panel's
+  normal left padding.
+- A chevron on the right of the folder row indicates expand or collapse state.
+  The full folder row is the click target that toggles expand or collapse.
+- Expanded folders show a numbered button grid using each video's one-based
+  natural-sort sibling rank. The grid does not display file names, durations,
+  or language tags. Per-video metadata stays available for tooltips, future
+  hover information, and accessibility, but is not part of the visible grid
+  rendering.
+- The episode grid uses minimum-button-width auto-flow columns; the column
+  count adapts to the current Library panel width.
+- The episode grid is indented slightly to the right of the folder row's left
+  edge to express hierarchy. The indent should remain small.
+- Episode buttons use three visual states only: default, hover, and playing.
+  Hover should match the existing collapse-toggle hover treatment. The playing
+  state highlights only when playback was launched through Library.
+- Expanding a folder that contains the currently Library-launched playing video
+  should auto-scroll that video's button into view as part of the expand
+  transition. Auto-scroll must not fire for already-expanded folders.
+- Library does not expose a panel-wide `Collapse All` or `Expand All` control.
+  Folder disclosure remains per-folder.
+- Clicking an episode button opens or updates playback from the persisted
   Library-only resume position, falling back to `0` when no history exists.
+- The Library `Playing M` indicator and the playing-state button highlight are
+  driven exclusively by Library-launched playback. Playback opened through
+  Search results, Shiori, or any other surface must not toggle these Library
+  indicators.
 
 ## 5. CueSeeker Workbench And Search Panel
 

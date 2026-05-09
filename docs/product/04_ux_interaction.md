@@ -322,8 +322,7 @@ Library and Timeline are future left-side content-navigation modes.
 Library behavior:
 
 - Library should browse playable videos rather than raw subtitle files.
-- Library should appear in the Left Content Panel with a gray background and a
-  dense grouped layout comparable to Search results.
+- Library should appear in the Left Content Panel with a gray background.
 - Library should appear populated immediately after app restart when indexed
   video metadata already exists locally. A visible Loading or empty state during
   startup is only acceptable when no persisted Library rows exist or the
@@ -346,21 +345,45 @@ Library behavior:
   regenerate Library rows.
 - Reindexing or refreshing Library data should reload the Library list and
   reset all folder groups to collapsed.
-- A top `Collapse All` / `Expand All` control should collapse or expand all
-  folder groups.
-- Video rows inside a folder should be sorted with the same Finder-like natural
+- Library should not expose a panel-wide `Collapse All` or `Expand All`
+  control. Folder disclosure remains per-folder.
+- Folder rows should use a two-line layout: the folder display name on top and
+  an episode-count subtitle below. The subtitle reads `N episodes` by default
+  and `N episodes · Playing M` while a Library-launched playback session is
+  active for a video in this folder, where `M` is that video's one-based
+  sibling rank among playable sibling videos in the same folder.
+- Folder rows must not display a leading first-letter or first-character avatar
+  block.
+- The full folder row should be the click target that toggles expand or
+  collapse. The right-side chevron is a visual indicator only.
+- Videos inside a folder should be sorted with the same Finder-like natural
   ordering used to derive the row rank.
-- Video rows should display `Parent Folder Name - NN  extension`, such as
-  `葬送的芙莉莲 - 01  mkv`.
-- Video rows should display the indexed duration on the right.
-- Clicking a video through Library should open or update playback from that
-  video's persisted Library resume position, falling back to `0` when no
-  history exists.
+- Expanded folders should show a numbered episode-button grid where each
+  button's label is that video's one-based sibling rank. File names, durations,
+  and language tags should not be drawn inside the grid.
+- The episode grid should use minimum-button-width auto-flow columns so the
+  column count adapts as the user resizes the Library panel.
+- The episode grid should be indented slightly to the right of the folder
+  row's left edge so the hierarchy is visible. The indent should remain small.
+- Episode buttons should use only three visual states: default, hover, and
+  playing. The playing state highlights only when the current playback was
+  launched through Library.
+- When the user expands a folder that contains the currently Library-launched
+  playing video, the panel should auto-scroll that video's episode button into
+  view as part of the expand transition. Auto-scroll should not fire for
+  already-expanded folders or for data refresh.
+- Clicking an episode button should open or update playback from that video's
+  persisted Library resume position, falling back to `0` when no history
+  exists.
 - Playback progress should be recorded only while the current playback source
   is Library. Opening or seeking through Search results should not read, write,
   or overwrite Library resume history.
-- Clicking a video should not require the user to continue attending to the
-  Library after playback starts.
+- The `Playing M` folder subtitle and the playing-state button highlight should
+  be driven exclusively by Library-launched playback. Playback opened through
+  Search results, Shiori, or any other surface must not toggle these Library
+  indicators.
+- Clicking an episode button should not require the user to continue attending
+  to the Library after playback starts.
 - Subtitle files should appear as video metadata or attached resources, not as
   duplicate top-level video entries when one playable video is available.
 - Reindexing is the expected way to refresh Library video rows and duration

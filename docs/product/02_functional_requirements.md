@@ -259,20 +259,33 @@ When implemented, Library should support:
   exist locally.
 - Group videos by the immediate parent folder only. Library should be flat and
   should not render nested folder trees in the first implementation.
-- Sort folder groups and video rows with the same Finder-like natural ordering
-  used by friendly Search result group titles, so ordinary text sorts like
-  `a-z` and numeric filename runs sort naturally.
-- Use a flattened collapsible presentation that reuses the Search result
-  grouping pattern where practical.
-- Expand folder groups by default.
-- Provide a `Collapse All` / `Expand All` control for all folder groups.
-- Display friendly video names while preserving raw paths for identity,
-  diagnostics, and Finder actions.
-- Display video names as `Parent Folder Name - NN  extension`, where `NN` is
+- Sort folder groups and the videos inside each folder with the same Finder-like
+  natural ordering used by friendly Search result group titles, so ordinary
+  text sorts like `a-z` and numeric filename runs sort naturally.
+- Display each folder as a two-line row: the folder display name on the first
+  line and an episode-count subtitle on the second line, with a chevron
+  disclosure indicator on the right.
+- Read `N episodes` as the folder subtitle when no Library-launched playback is
+  active for any video in this folder, and read `N episodes · Playing M` when
+  Library-launched playback is active for a video in this folder, where `M` is
+  that video's one-based natural-sort rank among playable sibling videos in the
+  same folder.
+- Library folder rows must not display a leading first-letter or first-character
+  avatar block.
+- Treat the entire folder row as a single click target that toggles folder
+  expand or collapse. The chevron is a visual indicator, not the only hit
+  region.
+- Render an expanded folder as a numbered button grid where each button shows
   the video's one-based natural-sort rank among playable sibling videos in the
-  same folder, zero-padded to at least two digits, and `extension` is the final
-  video file extension without the leading dot.
-- Display each video's indexed duration on the right side of the row.
+  same folder. Per-video file names, durations, and language tags are not shown
+  in the grid.
+- Use minimum-button-width auto-flow columns for the episode grid so the column
+  count adapts to the user's current Library panel width.
+- Indent the episode grid slightly relative to the folder row's left edge to
+  express hierarchy. The indent should remain small.
+- Use only three episode-button visual states: default, hover, and playing.
+  The playing state highlights the currently playing video only when that
+  playback was launched from Library.
 - Avoid showing duplicate top-level rows for multiple subtitle files that map
   to the same playable video unless a later product rule defines a manual
   subtitle-selection workflow.
@@ -283,12 +296,20 @@ When implemented, Library should support:
 - Persist the user's Library width when it differs from the default.
 - Keep Library folder collapse or expand state only for the current session.
   App startup and Library data refresh should show all folder groups collapsed.
+- When a user expands a folder that contains the currently Library-launched
+  playing video, automatically scroll that video's episode button into view as
+  part of the expand transition. Auto-scroll must not fire on already-expanded
+  folders or on data refresh.
 - Open or update playback from a persisted Library resume position when the
   user clicks a video through Library, falling back to `0` when no history
   exists.
 - Record playback history only for videos opened through Library. Opening or
   seeking playback through Search results must not read, write, or overwrite
   Library resume history.
+- Drive the Library `Playing M` folder subtitle and the corresponding episode
+  button highlight only from playback sessions launched through Library.
+  Playback launched through Search results, Shiori, or any other surface must
+  not toggle these Library indicators.
 
 When implemented, Timeline should support:
 

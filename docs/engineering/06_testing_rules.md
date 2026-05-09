@@ -240,14 +240,34 @@ Required M2 playback interaction checks:
   selected states only: hover matches collapse-toggle hover, selected matches
   collapse-toggle pressed, and clicking a mode button does not add a separate
   pressed state.
-- Library panel checks should cover the first accepted Library behavior:
+- Library panel checks should cover the accepted Library behavior:
   left titlebar collapse or expand, default width equal to the `310pt` minimum
   width, width resizing and persistence, gray background, flat one-level folder
   grouping, Finder-like natural folder and video ordering, startup with all
   folder groups collapsed, session-only individual group collapse or expand,
-  no panel-wide `Collapse All` / `Expand All`, friendly video display names
-  with extension, right-side duration display, and click-to-playback from
-  Library resume history with `0` fallback.
+  no panel-wide `Collapse All` / `Expand All`, two-line folder rows with no
+  leading first-letter avatar, full-row click toggling expand or collapse,
+  numbered episode-button grid in expanded folders using one-based sibling
+  rank, episode grid using minimum-width auto-flow columns that adapt to the
+  Library panel width, episode grid indented slightly to the right of the
+  folder row's left edge, three episode-button states only (default, hover,
+  playing), and click-to-playback from Library resume history with `0`
+  fallback.
+- Library subtitle text checks should verify that the folder row subtitle
+  reads `N episodes` when no Library-launched playback is active for any video
+  in this folder, and reads `N episodes · Playing M` while a Library-launched
+  playback session is active for a video in this folder, where `M` is that
+  video's one-based sibling rank.
+- Library "Playing" indicator checks should verify that the folder subtitle
+  `Playing M` indicator and the episode-button playing-state highlight light
+  up only for playback launched through Library, and never for playback
+  launched through Search results, Shiori, or any other surface. Search-result
+  playback whose video happens to belong to a Library folder must not change
+  the folder's subtitle text or any episode-button state.
+- Library auto-scroll checks should verify that expanding a folder containing
+  the currently Library-launched playing video scrolls that video's episode
+  button into view as part of the expand transition. Auto-scroll must not fire
+  for already-expanded folders or for data refresh.
 - Library visual checks should verify that no blue macOS focus ring appears on
   the first Library folder row at startup. Keyboard focus should remain
   available for real text controls such as Search input.
@@ -255,9 +275,12 @@ Required M2 playback interaction checks:
   Library rows hydrates the Library list before the first visible main-window
   render, without showing an empty or loading Library state solely because the
   app restarted.
-- Library metadata checks should include reindexing a fixture folder so video
-  rows and duration values are populated from indexed metadata. Reindexing or a
-  Library data refresh should reset all Library folder groups to collapsed.
+- Library metadata checks should include reindexing a fixture folder so episode
+  buttons and indexed duration metadata are populated. Even though duration is
+  not drawn in folder rows or episode buttons, indexed duration metadata must
+  remain available for tooltips, accessibility, and future features.
+  Reindexing or a Library data refresh should reset all Library folder groups
+  to collapsed.
 - Library playback history checks should verify that Library-opened videos read
   and write persisted resume position, while Search-result playback does not
   read, write, or overwrite that history. Removing a folder and later adding or

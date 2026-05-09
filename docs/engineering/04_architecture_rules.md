@@ -308,9 +308,28 @@ Rules:
 - The first Library implementation should materialize flat one-level folder
   groups from indexed playable video metadata during indexing or explicit
   Library refresh. The materialized snapshot should use Finder-like natural
-  comparison for folder and video ordering, derive row display titles from the
-  video's parent folder and sibling rank, and use indexed duration metadata for
-  the right-side row duration.
+  comparison for folder and video ordering, derive each video's one-based
+  sibling rank among playable sibling videos in the same folder, and keep
+  indexed duration metadata available for tooltips, accessibility, and future
+  features even though the visible folder row and episode-grid layout do not
+  draw per-video durations.
+- Library folder rows present a two-line layout: folder display name on the
+  first line and an episode-count subtitle on the second line. The subtitle
+  reads `N episodes` by default and `N episodes · Playing M` while a
+  Library-launched playback session is active for a video in this folder, where
+  `M` is that video's sibling rank. Folder rows must not draw a leading
+  first-letter or first-character avatar block.
+- The full Library folder row is a single click target that toggles expand or
+  collapse. The right-side chevron is a visual indicator only.
+- Expanded Library folders render a numbered episode-button grid using each
+  video's sibling rank. The grid must not draw per-video file names, durations,
+  or language tags. The grid must use minimum-button-width auto-flow columns so
+  the column count adapts to the user-resized Library panel width, and must be
+  indented slightly to the right of the folder row's left edge to express
+  hierarchy.
+- Episode buttons must use only three visual states: default, hover, and
+  playing. Hover should reuse the existing collapse-toggle hover treatment.
+  The playing state highlights only when playback was launched through Library.
 - Library startup state must be hydrated from the persisted Library presentation
   snapshot before the first visible main-window render when the local database is
   available. Startup must not rebuild Library presentation from subtitle/video
@@ -320,13 +339,25 @@ Rules:
 - Library folder collapse or expand state is current-session presentation state.
   It should not persist across app restarts. App startup, Library data refresh,
   and reindex completion should all present Library folder groups as collapsed.
-- Clicking a Library video row should dispatch through the same playback open
-  path used by Search-result playback, but should resolve its start timestamp
-  from Library-only resume history before falling back to `0`.
+- When the user expands a Library folder that contains the currently
+  Library-launched playing video, the panel should auto-scroll that video's
+  episode button into view as part of the expand transition. Auto-scroll must
+  not fire on already-expanded folders or on data refresh.
+- Library does not expose a panel-wide `Collapse All` or `Expand All` control.
+  Folder disclosure remains per-folder.
+- Clicking a Library episode button should dispatch through the same playback
+  open path used by Search-result playback, but should resolve its start
+  timestamp from Library-only resume history before falling back to `0`.
 - Library resume history is durable user state keyed by video identity. It
   should be read and written only for playback sessions opened from Library.
   Search-result playback must not read, write, or overwrite Library resume
   history.
+- The Library `Playing M` folder subtitle and the playing-state episode button
+  highlight are presentation indicators driven exclusively by Library-launched
+  playback. Playback opened through Search results, Shiori, or any other
+  surface must not toggle these Library indicators. Whether a given playback
+  session is Library-launched is part of playback session state and should be
+  resolvable without inspecting Search or Library row identity directly.
 - Reindexing a folder should invalidate Library and Search presentation for
   resources under that folder. After reindex completion, Library should be
   refreshed with all folder groups collapsed, and any active Search query should

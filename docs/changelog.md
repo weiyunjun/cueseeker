@@ -6,6 +6,16 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the revised Library row direction: Library folder rows drop the
+  leading first-letter avatar, use a two-line layout with an
+  `N episodes`/`N episodes · Playing M` subtitle, and toggle expand or collapse
+  on full-row click. Expanded folders display a numbered episode-button grid
+  whose column count adapts to the Library panel width and uses three states
+  only (default, hover, playing). The `Playing M` indicator and the playing
+  episode highlight are scoped strictly to playback launched through Library;
+  Search-result and other playback surfaces do not toggle them. Expanding a
+  folder containing the Library-launched playing video auto-scrolls that
+  episode button into view.
 - Implemented the first native Shiori workflow: schema version 10 persists
   saved subtitle cues, playback can save or remove Shiori with UI feedback, the
   `S` key triggers the same action, and the right-side Shiori panel lists saved
