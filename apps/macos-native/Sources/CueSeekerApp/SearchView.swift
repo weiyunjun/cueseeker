@@ -150,27 +150,29 @@ struct SearchView: View {
             details: "groups=\(appState.libraryFolderGroups.count) rows=\(rowCount)"
         )
 
-        return ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(appState.libraryFolderGroups) { group in
-                    let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
-                    LibraryFolderGroupView(
-                        group: group,
-                        isCollapsed: isCollapsed,
-                        selectedVideoPath: appState.currentPlaybackVideoPath,
-                        onToggle: {
-                            appState.clearSearchFocus()
-                            toggleLibraryFolderGroup(group.folderPath)
-                        },
-                        onOpenVideo: { video in
-                            appState.clearSearchFocus()
-                            appState.openLibraryVideo(video)
-                        }
-                    )
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(appState.libraryFolderGroups) { group in
+                        let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
+                        LibraryFolderGroupView(
+                            group: group,
+                            isCollapsed: isCollapsed,
+                            libraryPlayingVideoPath: appState.libraryPlayingVideoPath,
+                            onToggle: {
+                                appState.clearSearchFocus()
+                                toggleLibraryFolderGroup(group.folderPath, proxy: proxy)
+                            },
+                            onOpenVideo: { video in
+                                appState.clearSearchFocus()
+                                appState.openLibraryVideo(video)
+                            }
+                        )
+                    }
                 }
+                .padding(.top, 4)
+                .padding(.bottom, 8)
             }
-            .padding(.top, 4)
-            .padding(.bottom, 8)
         }
     }
 
@@ -178,13 +180,23 @@ struct SearchView: View {
         collapsedLibraryFolderPaths = Set(appState.libraryFolderGroups.map(\.id))
     }
 
-    private func toggleLibraryFolderGroup(_ folderPath: String) {
+    private func toggleLibraryFolderGroup(_ folderPath: String, proxy: ScrollViewProxy) {
+        let wasCollapsed = collapsedLibraryFolderPaths.contains(folderPath)
         UIInvalidationProbe.mark(
             "ACTION UI.LibraryFolder.toggled",
-            details: "collapsedBefore=\(collapsedLibraryFolderPaths.contains(folderPath))"
+            details: "collapsedBefore=\(wasCollapsed)"
         )
-        if collapsedLibraryFolderPaths.contains(folderPath) {
+        if wasCollapsed {
             collapsedLibraryFolderPaths.remove(folderPath)
+            if let playingPath = appState.libraryPlayingVideoPath,
+               let group = appState.libraryFolderGroups.first(where: { $0.folderPath == folderPath }),
+               group.videos.contains(where: { $0.video.videoPath == playingPath }) {
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(playingPath, anchor: .center)
+                    }
+                }
+            }
         } else {
             collapsedLibraryFolderPaths.insert(folderPath)
         }
@@ -772,126 +784,180 @@ private extension View {
     }
 }
 
-private struct LibraryFolderGroupHeader: View {
-    let group: LibraryFolderGroup
-    let isSelected: Bool
-    let onToggle: () -> Void
-
-    var body: some View {
-        Text(headerText)
-            .font(.system(size: SearchTypography.groupHeaderSize))
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .padding(.vertical, 7)
-            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowAction(onToggle)
-        .focusable(false)
-    }
-
-    private var headerText: AttributedString {
-        var title = AttributedString(group.folderTitle)
-        title.foregroundColor = isSelected ? .primary : Color.primary.opacity(0.76)
-
-        var count = AttributedString("  \(videoCountText)")
-        count.foregroundColor = Color.secondary
-
-        title.append(count)
-        return title
-    }
-
-    private var videoCountText: String {
-        "\(group.videos.count) \(group.videos.count == 1 ? "video" : "videos")"
-    }
-}
-
 private struct LibraryFolderGroupView: View {
     let group: LibraryFolderGroup
     let isCollapsed: Bool
-    let selectedVideoPath: String?
+    let libraryPlayingVideoPath: String?
     let onToggle: () -> Void
     let onOpenVideo: (LibraryVideo) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            LibraryFolderGroupHeader(
-                group: group,
-                isSelected: group.videos.contains { $0.video.videoPath == selectedVideoPath },
+            LibraryFolderHeader(
+                folderTitle: group.folderTitle,
+                episodeCount: group.videos.count,
+                playingRank: playingRank,
+                isCollapsed: isCollapsed,
                 onToggle: onToggle
             )
 
             if !isCollapsed {
-                ForEach(group.videos) { row in
-                    LibraryVideoRowView(
-                        row: row,
-                        isSelected: selectedVideoPath == row.video.videoPath
-                    )
-                    .listRowAction {
-                        onOpenVideo(row.video)
-                    }
-                    .focusable(false)
-                }
+                LibraryEpisodeGrid(
+                    rows: group.videos,
+                    libraryPlayingVideoPath: libraryPlayingVideoPath,
+                    onOpenVideo: onOpenVideo
+                )
             }
         }
-        .overlay(alignment: .topLeading) {
-            SearchResultGroupRail(
-                isCollapsed: isCollapsed,
-                showsLine: !isCollapsed && !group.videos.isEmpty,
-                onToggle: onToggle
-            )
+    }
+
+    private var playingRank: Int? {
+        guard let path = libraryPlayingVideoPath,
+              let index = group.videos.firstIndex(where: { $0.video.videoPath == path })
+        else {
+            return nil
         }
+        return index + 1
     }
 }
 
-private struct LibraryVideoRowView: View {
-    let row: LibraryVideoRow
-    let isSelected: Bool
+private struct LibraryFolderHeader: View {
+    let folderTitle: String
+    let episodeCount: Int
+    let playingRank: Int?
+    let isCollapsed: Bool
+    let onToggle: () -> Void
     @State private var isHovered = false
 
     var body: some View {
-        let rowTextColor: Color = isSelected ? .primary : Color.primary.opacity(0.76)
-        let rowBackgroundColor: Color = if isSelected {
-            Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
-        } else if isHovered {
-            Color(nsColor: .unemphasizedSelectedContentBackgroundColor).opacity(0.55)
-        } else {
-            Color.clear
-        }
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(folderTitle)
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
 
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(rowTitle)
-                .font(.system(size: SearchTypography.bodySize))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(rowTextColor)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(subtitleText)
+                    .font(.system(size: SearchTypography.detailSize))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(formatDuration(row.duration))
-                .font(.system(size: SearchTypography.detailSize))
-                .monospacedDigit()
-                .foregroundStyle(rowTextColor)
-                .lineLimit(1)
+            Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 14, height: 14, alignment: .center)
         }
-        .padding(.vertical, 9)
-        .padding(.leading, SearchLayout.resultTextLeadingPadding)
-        .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
+        .padding(.horizontal, LibraryLayout.folderRowInnerHorizontalPadding)
+        .padding(.vertical, LibraryLayout.folderRowVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(rowBackgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-        .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
         .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+        )
+        .padding(.horizontal, LibraryLayout.folderRowOuterHorizontalPadding)
         .onHover { isHovered = $0 }
+        .listRowAction(onToggle)
+        .focusable(false)
     }
 
-    private var rowTitle: String {
-        guard !row.fileExtension.isEmpty else {
-            return row.displayTitle
+    private var subtitleText: String {
+        let label = episodeCount == 1 ? "episode" : "episodes"
+        if let rank = playingRank {
+            return "\(episodeCount) \(label) · Playing \(rank)"
         }
-
-        return "\(row.displayTitle)  \(row.fileExtension)"
+        return "\(episodeCount) \(label)"
     }
+}
+
+private struct LibraryEpisodeGrid: View {
+    let rows: [LibraryVideoRow]
+    let libraryPlayingVideoPath: String?
+    let onOpenVideo: (LibraryVideo) -> Void
+
+    private let columns: [GridItem] = [
+        GridItem(
+            .adaptive(minimum: LibraryLayout.episodeButtonMinimumWidth),
+            spacing: LibraryLayout.episodeGridHorizontalSpacing,
+            alignment: .top
+        )
+    ]
+
+    var body: some View {
+        LazyVGrid(
+            columns: columns,
+            alignment: .leading,
+            spacing: LibraryLayout.episodeGridVerticalSpacing
+        ) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                LibraryEpisodeButton(
+                    rank: index + 1,
+                    isPlaying: row.video.videoPath == libraryPlayingVideoPath,
+                    action: { onOpenVideo(row.video) }
+                )
+                .id(row.video.videoPath)
+            }
+        }
+        .padding(.leading, LibraryLayout.episodeGridLeadingPadding)
+        .padding(.trailing, LibraryLayout.episodeGridTrailingPadding)
+        .padding(.top, LibraryLayout.episodeGridTopPadding)
+        .padding(.bottom, LibraryLayout.episodeGridBottomPadding)
+    }
+}
+
+private struct LibraryEpisodeButton: View {
+    let rank: Int
+    let isPlaying: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Text("\(rank)")
+            .font(.system(size: SearchTypography.bodySize, weight: .medium))
+            .monospacedDigit()
+            .foregroundStyle(textColor)
+            .frame(maxWidth: .infinity, minHeight: LibraryLayout.episodeButtonHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(backgroundColor)
+            )
+            .contentShape(Rectangle())
+            .onHover { isHovered = $0 }
+            .listRowAction(action)
+            .focusable(false)
+            .accessibilityLabel("Episode \(rank)")
+    }
+
+    private var textColor: Color {
+        isPlaying ? .white : .primary
+    }
+
+    private var backgroundColor: Color {
+        if isPlaying {
+            return Color.accentColor
+        }
+        if isHovered {
+            return Color.primary.opacity(0.08)
+        }
+        return Color.primary.opacity(0.04)
+    }
+}
+
+private enum LibraryLayout {
+    static let folderRowInnerHorizontalPadding: CGFloat = 12
+    static let folderRowVerticalPadding: CGFloat = 8
+    static let folderRowOuterHorizontalPadding: CGFloat = 8
+    static let episodeButtonMinimumWidth: CGFloat = 44
+    static let episodeButtonHeight: CGFloat = 36
+    static let episodeGridHorizontalSpacing: CGFloat = 8
+    static let episodeGridVerticalSpacing: CGFloat = 8
+    static let episodeGridLeadingPadding: CGFloat = 28
+    static let episodeGridTrailingPadding: CGFloat = 20
+    static let episodeGridTopPadding: CGFloat = 6
+    static let episodeGridBottomPadding: CGFloat = 10
 }
 
 private struct SearchResultGroupHeader: View {
@@ -1372,19 +1438,3 @@ private func formatTimestamp(_ milliseconds: Int) -> String {
     return String(format: "%02d:%02d", minutes, seconds)
 }
 
-private func formatDuration(_ seconds: Double?) -> String {
-    guard let seconds, seconds.isFinite, seconds > 0 else {
-        return "--:--"
-    }
-
-    let totalSeconds = Int(seconds.rounded())
-    let hours = totalSeconds / 3_600
-    let minutes = (totalSeconds % 3_600) / 60
-    let remainingSeconds = totalSeconds % 60
-
-    if hours > 0 {
-        return String(format: "%d:%02d:%02d", hours, minutes, remainingSeconds)
-    }
-
-    return String(format: "%02d:%02d", minutes, remainingSeconds)
-}
