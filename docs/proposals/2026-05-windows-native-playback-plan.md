@@ -212,6 +212,53 @@ It should be enough to open a media file, select or pass an external ASS
 subtitle, start playback, observe the selected decode path, and receive a
 structured failure or summary report.
 
+## Windows Client Bootstrap Decisions
+
+The first Windows client should not invent temporary product semantics in order
+to move faster. It should use the existing CueSeeker product contracts as the
+source of truth and implement only the amount of UI needed to exercise them
+inside the Windows app.
+
+Initial Windows app integration should follow these decisions:
+
+- The Windows client should reuse the macOS database architecture, indexing
+  semantics, Library semantics, Search semantics, Shiori semantics, and
+  Settings categories where practical. If a macOS behavior cannot yet be
+  represented on Windows, the gap should be documented instead of hidden behind
+  a Windows-only transitional rule.
+- The initial main window should follow the accepted three-area workbench:
+  Library on the left, playback in the center, and the right-side panel for
+  Search and Shiori modes.
+- The left Library should be driven by the indexed playable-video model
+  described in the product documents. It should not introduce a separate
+  temporary grouping model merely for the Windows bootstrap.
+- Search result selection should immediately select the result, open or update
+  the matching video, and seek to the selected cue group's `start_ms`. When the
+  matching video is already open, the app should prefer seeking over reloading
+  when practical.
+- Shiori is the accepted product, UI, and code-domain name for saved subtitle
+  cues. The Windows right-side mode button should remain present as `Shiori`
+  during the bootstrap even if the first implementation shows an empty
+  development state before durable Shiori integration is wired.
+- The first Windows Settings entry may be placed in the center playback area,
+  immediately after the temporary `Subtitle Folder` button, until final Windows
+  window chrome and command placement are designed. The button should open a
+  Settings surface whose layout follows the accepted macOS standalone Settings
+  model: a two-column window with `Library` and `Decode` categories.
+- Windows `Library` Settings should provide folder management and the `Index
+  Now` action using the same indexing behavior as macOS. Windows `Decode`
+  Settings should manage the persisted decode preference used by the native
+  playback backend.
+- Opening or closing Settings must not pause playback, switch the right-side
+  mode, clear the Search query, clear the selected Search result, or rebuild
+  Library/Search/Shiori presentation state unnecessarily.
+- Custom Windows titlebar work and Mica polish are deferred for the bootstrap.
+  The early Windows app may use standard WinUI window behavior while playback,
+  indexing, Library, Search, Settings, and Shiori integration are being wired.
+
+These decisions define the first Windows app integration boundary. They do not
+change the current macOS technical route or the accepted product semantics.
+
 ## W0 Testing Boundaries
 
 W0 testing should be evidence-driven but intentionally bounded.
