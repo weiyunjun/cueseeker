@@ -15,6 +15,7 @@ $reportDir = Join-Path $labDir "out\reports"
 $videoPath = Join-Path $fixtureDir "windows-lab-sample.mkv"
 $subtitlePath = Join-Path $fixtureDir "windows-lab-sample.ass"
 $reportPath = Join-Path $reportDir "windows-lab-sample-inspect.json"
+$playbackReportPath = Join-Path $reportDir "windows-lab-sample-playback.json"
 
 New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 
@@ -62,12 +63,31 @@ if (@($inspectReport.subtitles.attachments).Count -lt 1) {
 if (-not $SkipPlay) {
     Write-Host ""
     Write-Host "== Play =="
-    & (Join-Path $scriptDir "run-lab.ps1") $videoPath -Play -SubtitlePath $subtitlePath -SeekMs $SeekMs -DurationMs $DurationMs -Configuration $Configuration
+    & (Join-Path $scriptDir "run-lab.ps1") $videoPath -Play -SubtitlePath $subtitlePath -SeekMs $SeekMs -DurationMs $DurationMs -ReportPath $playbackReportPath -Configuration $Configuration
     if ($LASTEXITCODE -ne 0) {
         throw "Playback smoke failed with exit code $LASTEXITCODE."
+    }
+    $playbackReport = Get-Content -Raw -Path $playbackReportPath | ConvertFrom-Json
+    if (-not $playbackReport.playback.success) {
+        throw "Playback report did not mark playback as successful."
+    }
+    if ($playbackReport.decode.path_used -ne "software") {
+        throw "Playback report did not record the expected software decode path."
+    }
+    if ($playbackReport.video.frames_rendered -lt 1) {
+        throw "Playback report did not record rendered video frames."
+    }
+    if ($playbackReport.audio.output -ne "wasapi_shared") {
+        throw "Playback report did not record WASAPI shared-mode audio output."
+    }
+    if ($playbackReport.subtitles.overlay -ne "external_ass") {
+        throw "Playback report did not record the external ASS overlay."
     }
 }
 
 Write-Host ""
 Write-Host "Smoke verification complete."
 Write-Host ("  report: {0}" -f $reportPath)
+if (-not $SkipPlay) {
+    Write-Host ("  playback report: {0}" -f $playbackReportPath)
+}

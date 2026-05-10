@@ -15,6 +15,7 @@ param(
 
     [int]$SeekMs = 0,
     [int]$DurationMs = 15000,
+    [string]$ReportPath = "",
     [string]$SubtitlePath = "",
     [string]$Configuration = "Debug"
 )
@@ -50,7 +51,11 @@ if (-not [string]::IsNullOrWhiteSpace($SubtitlePath)) {
 }
 
 if ($Play) {
-    & $exe --play $MediaPath --seek-ms $SeekMs --duration-ms $DurationMs @labArgs
+    $playArgs = @("--play", $MediaPath, "--seek-ms", $SeekMs, "--duration-ms", $DurationMs)
+    if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
+        $playArgs += @("--report-path", $ReportPath)
+    }
+    & $exe @playArgs @labArgs
     exit $LASTEXITCODE
 }
 

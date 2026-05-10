@@ -90,6 +90,7 @@ target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE
     d3dcompiler
     dxguid
     ole32
+    psapi
     propsys
 )
 

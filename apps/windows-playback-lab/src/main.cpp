@@ -7,6 +7,7 @@
 #include <functiondiscoverykeys_devpkey.h>
 #include <mmdeviceapi.h>
 #include <mmreg.h>
+#include <psapi.h>
 #include <propsys.h>
 #include <wrl/client.h>
 
@@ -129,6 +130,11 @@ std::wstring utf8ToWide(std::string_view value)
     return result;
 }
 
+std::filesystem::path pathFromUtf8(const std::string& path)
+{
+    return std::filesystem::path(utf8ToWide(path));
+}
+
 std::string jsonEscape(std::string_view value)
 {
     std::ostringstream out;
@@ -167,12 +173,244 @@ std::string jsonEscape(std::string_view value)
     return out.str();
 }
 
+void writeUtf8TextFile(const std::string& path, std::string_view contents)
+{
+    const std::filesystem::path filePath = pathFromUtf8(path);
+    std::error_code ec;
+    if (filePath.has_parent_path()) {
+        std::filesystem::create_directories(filePath.parent_path(), ec);
+        if (ec) {
+            throw std::runtime_error("Could not create report directory: " + ec.message());
+        }
+    }
+
+    std::ofstream output(filePath, std::ios::binary);
+    if (!output) {
+        throw std::runtime_error("Could not open report file for writing");
+    }
+    output.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+    if (!output) {
+        throw std::runtime_error("Could not write report file");
+    }
+}
+
 std::string lowerAscii(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));
     });
     return value;
+}
+
+uint64_t fileTimeTicks(const FILETIME& value)
+{
+    ULARGE_INTEGER result = {};
+    result.LowPart = value.dwLowDateTime;
+    result.HighPart = value.dwHighDateTime;
+    return result.QuadPart;
+}
+
+uint64_t fileTimeDeltaMs(const FILETIME& start, const FILETIME& end)
+{
+    const uint64_t startTicks = fileTimeTicks(start);
+    const uint64_t endTicks = fileTimeTicks(end);
+    return endTicks > startTicks ? (endTicks - startTicks) / 10'000 : 0;
+}
+
+struct ProcessTelemetrySnapshot {
+    bool memoryOk = false;
+    bool cpuOk = false;
+    uint64_t workingSetBytes = 0;
+    uint64_t peakWorkingSetBytes = 0;
+    uint64_t privateBytes = 0;
+    FILETIME kernelTime = {};
+    FILETIME userTime = {};
+};
+
+ProcessTelemetrySnapshot captureProcessTelemetry()
+{
+    ProcessTelemetrySnapshot snapshot;
+
+    PROCESS_MEMORY_COUNTERS_EX memoryCounters = {};
+    memoryCounters.cb = sizeof(memoryCounters);
+    if (GetProcessMemoryInfo(
+            GetCurrentProcess(),
+            reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memoryCounters),
+            sizeof(memoryCounters))) {
+        snapshot.memoryOk = true;
+        snapshot.workingSetBytes = static_cast<uint64_t>(memoryCounters.WorkingSetSize);
+        snapshot.peakWorkingSetBytes = static_cast<uint64_t>(memoryCounters.PeakWorkingSetSize);
+        snapshot.privateBytes = static_cast<uint64_t>(memoryCounters.PrivateUsage);
+    }
+
+    FILETIME creationTime = {};
+    FILETIME exitTime = {};
+    if (GetProcessTimes(GetCurrentProcess(), &creationTime, &exitTime, &snapshot.kernelTime, &snapshot.userTime)) {
+        snapshot.cpuOk = true;
+    }
+
+    return snapshot;
+}
+
+struct ProcessTelemetry {
+    ProcessTelemetrySnapshot start;
+    ProcessTelemetrySnapshot end;
+    uint64_t peakWorkingSetBytes = 0;
+    uint64_t peakPrivateBytes = 0;
+    int64_t wallElapsedMs = 0;
+};
+
+void startProcessTelemetry(ProcessTelemetry& telemetry)
+{
+    telemetry.start = captureProcessTelemetry();
+    telemetry.end = telemetry.start;
+    telemetry.peakWorkingSetBytes = telemetry.start.workingSetBytes;
+    telemetry.peakPrivateBytes = telemetry.start.privateBytes;
+}
+
+void sampleProcessTelemetry(ProcessTelemetry& telemetry)
+{
+    telemetry.end = captureProcessTelemetry();
+    if (telemetry.end.memoryOk) {
+        telemetry.peakWorkingSetBytes = std::max(telemetry.peakWorkingSetBytes, telemetry.end.workingSetBytes);
+        telemetry.peakWorkingSetBytes = std::max(telemetry.peakWorkingSetBytes, telemetry.end.peakWorkingSetBytes);
+        telemetry.peakPrivateBytes = std::max(telemetry.peakPrivateBytes, telemetry.end.privateBytes);
+    }
+}
+
+void finishProcessTelemetry(ProcessTelemetry& telemetry, std::chrono::steady_clock::time_point wallStart)
+{
+    sampleProcessTelemetry(telemetry);
+    telemetry.wallElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - wallStart)
+                                  .count();
+}
+
+struct PlaybackReport {
+    std::string mediaPath;
+    std::optional<std::string> subtitlePath;
+    int64_t seekMs = 0;
+    int64_t requestedDurationMs = 0;
+    bool success = false;
+    std::string failureStage;
+    std::string error;
+    std::string completionReason = "unknown";
+    std::string decodePathRequested = "software";
+    std::string decodePathUsed = "software";
+    int videoStreamIndex = -1;
+    std::string videoCodec = "unknown";
+    std::string videoDecoder = "unknown";
+    std::string pixelFormat = "unknown";
+    int videoWidth = 0;
+    int videoHeight = 0;
+    int audioStreamIndex = -1;
+    std::string audioCodec = "none";
+    std::string audioDecoder = "none";
+    int audioInputSampleRate = 0;
+    int audioInputChannels = 0;
+    std::string audioOutput = "none";
+    std::string audioEndpoint;
+    std::string audioMixFormat;
+    std::string subtitleOverlay = "none";
+    int subtitleEvents = 0;
+    int subtitleStyles = 0;
+    int64_t firstFrameMs = -1;
+    uint64_t videoFramesDecoded = 0;
+    uint64_t videoFramesRendered = 0;
+    uint64_t audioFramesDecoded = 0;
+    uint64_t audioSampleFramesWritten = 0;
+    ProcessTelemetry process;
+};
+
+void writePlaybackReport(const std::string& reportPath, const PlaybackReport& report)
+{
+    std::ostringstream out;
+    out << "{\n";
+    out << "  \"schema\": \"cueseeker.windows_playback_lab.playback_report.v0\",\n";
+    out << "  \"request\": {\n";
+    out << "    \"media_path\": \"" << jsonEscape(report.mediaPath) << "\",\n";
+    if (report.subtitlePath) {
+        out << "    \"subtitle_path\": \"" << jsonEscape(*report.subtitlePath) << "\",\n";
+    } else {
+        out << "    \"subtitle_path\": null,\n";
+    }
+    out << "    \"seek_ms\": " << report.seekMs << ",\n";
+    out << "    \"duration_ms\": " << report.requestedDurationMs << "\n";
+    out << "  },\n";
+    out << "  \"playback\": {\n";
+    out << "    \"success\": " << (report.success ? "true" : "false") << ",\n";
+    if (report.failureStage.empty()) {
+        out << "    \"failure_stage\": null,\n";
+    } else {
+        out << "    \"failure_stage\": \"" << jsonEscape(report.failureStage) << "\",\n";
+    }
+    if (report.error.empty()) {
+        out << "    \"error\": null,\n";
+    } else {
+        out << "    \"error\": \"" << jsonEscape(report.error) << "\",\n";
+    }
+    out << "    \"completion_reason\": \"" << jsonEscape(report.completionReason) << "\",\n";
+    out << "    \"first_frame_ms\": " << report.firstFrameMs << "\n";
+    out << "  },\n";
+    out << "  \"decode\": {\n";
+    out << "    \"path_requested\": \"" << jsonEscape(report.decodePathRequested) << "\",\n";
+    out << "    \"path_used\": \"" << jsonEscape(report.decodePathUsed) << "\",\n";
+    out << "    \"fallback_used\": false\n";
+    out << "  },\n";
+    out << "  \"video\": {\n";
+    out << "    \"stream_index\": " << report.videoStreamIndex << ",\n";
+    out << "    \"codec\": \"" << jsonEscape(report.videoCodec) << "\",\n";
+    out << "    \"decoder\": \"" << jsonEscape(report.videoDecoder) << "\",\n";
+    out << "    \"pixel_format\": \"" << jsonEscape(report.pixelFormat) << "\",\n";
+    out << "    \"width\": " << report.videoWidth << ",\n";
+    out << "    \"height\": " << report.videoHeight << ",\n";
+    out << "    \"frames_decoded\": " << report.videoFramesDecoded << ",\n";
+    out << "    \"frames_rendered\": " << report.videoFramesRendered << "\n";
+    out << "  },\n";
+    out << "  \"audio\": {\n";
+    out << "    \"stream_index\": " << report.audioStreamIndex << ",\n";
+    out << "    \"codec\": \"" << jsonEscape(report.audioCodec) << "\",\n";
+    out << "    \"decoder\": \"" << jsonEscape(report.audioDecoder) << "\",\n";
+    out << "    \"input_sample_rate\": " << report.audioInputSampleRate << ",\n";
+    out << "    \"input_channels\": " << report.audioInputChannels << ",\n";
+    out << "    \"output\": \"" << jsonEscape(report.audioOutput) << "\",\n";
+    if (report.audioEndpoint.empty()) {
+        out << "    \"endpoint\": null,\n";
+    } else {
+        out << "    \"endpoint\": \"" << jsonEscape(report.audioEndpoint) << "\",\n";
+    }
+    if (report.audioMixFormat.empty()) {
+        out << "    \"mix_format\": null,\n";
+    } else {
+        out << "    \"mix_format\": \"" << jsonEscape(report.audioMixFormat) << "\",\n";
+    }
+    out << "    \"frames_decoded\": " << report.audioFramesDecoded << ",\n";
+    out << "    \"sample_frames_written\": " << report.audioSampleFramesWritten << "\n";
+    out << "  },\n";
+    out << "  \"subtitles\": {\n";
+    out << "    \"overlay\": \"" << jsonEscape(report.subtitleOverlay) << "\",\n";
+    out << "    \"external_ass_provided\": " << (report.subtitlePath ? "true" : "false") << ",\n";
+    out << "    \"events\": " << report.subtitleEvents << ",\n";
+    out << "    \"styles\": " << report.subtitleStyles << "\n";
+    out << "  },\n";
+    out << "  \"performance\": {\n";
+    out << "    \"wall_elapsed_ms\": " << report.process.wallElapsedMs << ",\n";
+    out << "    \"process_cpu_user_ms\": "
+        << (report.process.start.cpuOk && report.process.end.cpuOk ? fileTimeDeltaMs(report.process.start.userTime, report.process.end.userTime) : 0)
+        << ",\n";
+    out << "    \"process_cpu_kernel_ms\": "
+        << (report.process.start.cpuOk && report.process.end.cpuOk ? fileTimeDeltaMs(report.process.start.kernelTime, report.process.end.kernelTime) : 0)
+        << ",\n";
+    out << "    \"working_set_start_bytes\": " << report.process.start.workingSetBytes << ",\n";
+    out << "    \"working_set_end_bytes\": " << report.process.end.workingSetBytes << ",\n";
+    out << "    \"working_set_peak_bytes\": " << report.process.peakWorkingSetBytes << ",\n";
+    out << "    \"private_bytes_start\": " << report.process.start.privateBytes << ",\n";
+    out << "    \"private_bytes_end\": " << report.process.end.privateBytes << ",\n";
+    out << "    \"private_bytes_peak\": " << report.process.peakPrivateBytes << "\n";
+    out << "  }\n";
+    out << "}\n";
+
+    writeUtf8TextFile(reportPath, out.str());
 }
 
 void throwIfFailed(HRESULT hr, const char* context)
@@ -494,7 +732,7 @@ std::string assTrackTypeName(int trackType)
 
 std::filesystem::path subtitlePathFromUtf8(const std::string& path)
 {
-    return std::filesystem::path(utf8ToWide(path));
+    return pathFromUtf8(path);
 }
 
 std::vector<char> readAssProbeFile(const std::string& path, uintmax_t maxBytes)
@@ -1517,8 +1755,19 @@ int findBestAudioStream(AVFormatContext* format)
     return streamIndex >= 0 ? streamIndex : -1;
 }
 
-void playVideo(const std::string& path, const std::optional<std::string>& subtitlePath, int64_t seekMs, int64_t durationMs)
+void playVideo(
+    const std::string& path,
+    const std::optional<std::string>& subtitlePath,
+    int64_t seekMs,
+    int64_t durationMs,
+    const std::optional<std::string>& reportPath)
 {
+    PlaybackReport report;
+    report.mediaPath = path;
+    report.subtitlePath = subtitlePath;
+    report.seekMs = seekMs;
+    report.requestedDurationMs = durationMs;
+
     AVFormatContext* rawFormat = nullptr;
     int result = avformat_open_input(&rawFormat, path.c_str(), nullptr, nullptr);
     if (result < 0) {
@@ -1536,10 +1785,13 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
 
     const int streamIndex = findBestVideoStream(format.get());
     AVStream* stream = format->streams[streamIndex];
+    report.videoStreamIndex = streamIndex;
+    report.videoCodec = codecName(stream->codecpar->codec_id);
     const AVCodec* decoder = avcodec_find_decoder(stream->codecpar->codec_id);
     if (!decoder) {
         throw std::runtime_error("No decoder found for video codec " + codecName(stream->codecpar->codec_id));
     }
+    report.videoDecoder = decoder->name ? decoder->name : "unknown";
 
     std::unique_ptr<AVCodecContext, CodecContextDeleter> codec(avcodec_alloc_context3(decoder));
     if (!codec) {
@@ -1563,10 +1815,13 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
     std::unique_ptr<SwrContext, SwrContextDeleter> audioSwr;
 
     if (audioStream) {
+        report.audioStreamIndex = audioStreamIndex;
+        report.audioCodec = codecName(audioStream->codecpar->codec_id);
         const AVCodec* audioDecoder = avcodec_find_decoder(audioStream->codecpar->codec_id);
         if (!audioDecoder) {
             throw std::runtime_error("No decoder found for audio codec " + codecName(audioStream->codecpar->codec_id));
         }
+        report.audioDecoder = audioDecoder->name ? audioDecoder->name : "unknown";
 
         audioCodec.reset(avcodec_alloc_context3(audioDecoder));
         if (!audioCodec) {
@@ -1585,9 +1840,16 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
         if (audioCodec->sample_rate <= 0 || audioCodec->sample_fmt == AV_SAMPLE_FMT_NONE) {
             throw std::runtime_error("Audio stream has invalid sample format or sample rate");
         }
+        report.audioInputSampleRate = audioCodec->sample_rate;
+        report.audioInputChannels = audioCodec->ch_layout.nb_channels > 0
+            ? audioCodec->ch_layout.nb_channels
+            : audioStream->codecpar->ch_layout.nb_channels;
 
         audioOutput = std::make_unique<WasapiAudioOutput>();
         audioOutput->initialize();
+        report.audioOutput = "wasapi_shared";
+        report.audioEndpoint = audioOutput->endpointName();
+        report.audioMixFormat = audioOutput->outputDescription();
 
         AVChannelLayout inputLayout = {};
         if (audioCodec->ch_layout.nb_channels > 0) {
@@ -1646,12 +1908,20 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
     if (frameWidth <= 0 || frameHeight <= 0) {
         throw std::runtime_error("Video stream has invalid dimensions");
     }
+    report.videoWidth = frameWidth;
+    report.videoHeight = frameHeight;
+    if (codec->pix_fmt != AV_PIX_FMT_NONE) {
+        report.pixelFormat = pixelFormatName(codec->pix_fmt);
+    }
 
 #if CUESEEKER_HAS_LIBASS_HEADER
     std::unique_ptr<AssOverlay> subtitleOverlay;
     if (subtitlePath) {
         subtitleOverlay = std::make_unique<AssOverlay>();
         subtitleOverlay->initialize(*subtitlePath, frameWidth, frameHeight);
+        report.subtitleOverlay = "external_ass";
+        report.subtitleEvents = subtitleOverlay->eventCount();
+        report.subtitleStyles = subtitleOverlay->styleCount();
     }
 #else
     if (subtitlePath) {
@@ -1706,6 +1976,7 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
     std::cerr << "ASS overlay: libass SDK is not linked in this build.\n";
 #endif
 
+    startProcessTelemetry(report.process);
     const auto wallStart = std::chrono::steady_clock::now();
     std::optional<double> mediaStart;
     bool running = true;
@@ -1721,8 +1992,10 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
             if (receive < 0) {
                 throw std::runtime_error("avcodec_receive_frame failed: " + avError(receive));
             }
+            ++report.videoFramesDecoded;
 
             const auto frameFormat = static_cast<AVPixelFormat>(frame->format);
+            report.pixelFormat = pixelFormatName(frameFormat);
             if (!swsGuard || activeSwsFormat != frameFormat) {
                 SwsContext* sws = sws_getContext(
                     frame->width,
@@ -1774,16 +2047,25 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
 
             if (!renderer.pumpMessages()) {
                 running = false;
+                report.completionReason = "window_closed";
                 break;
             }
 
             renderer.renderFrame(bgraFrame->data[0], frameWidth, frameHeight, bgraFrame->linesize[0]);
+            ++report.videoFramesRendered;
+            if (report.firstFrameMs < 0) {
+                report.firstFrameMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - wallStart)
+                                          .count();
+            }
+            sampleProcessTelemetry(report.process);
             av_frame_unref(frame.get());
 
             if (durationMs > 0) {
                 const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - wallStart).count();
                 if (elapsedMs >= durationMs) {
                     running = false;
+                    report.completionReason = "duration_limit";
                     break;
                 }
             }
@@ -1812,6 +2094,8 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
         }
         if (converted > 0) {
             audioOutput->writeInterleaved(audioBuffer.data(), converted);
+            report.audioSampleFramesWritten += static_cast<uint64_t>(converted);
+            sampleProcessTelemetry(report.process);
         }
     };
 
@@ -1828,6 +2112,7 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
             if (receive < 0) {
                 throw std::runtime_error("avcodec_receive_frame failed for audio: " + avError(receive));
             }
+            ++report.audioFramesDecoded;
 
             const auto frameSampleFormat = static_cast<AVSampleFormat>(audioFrame->format);
             const int frameSampleRate = audioFrame->sample_rate > 0 ? audioFrame->sample_rate : audioCodec->sample_rate;
@@ -1866,7 +2151,12 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
         }
     };
 
-    while (running && renderer.pumpMessages()) {
+    while (running) {
+        if (!renderer.pumpMessages()) {
+            report.completionReason = "window_closed";
+            break;
+        }
+
         result = av_read_frame(format.get(), packet.get());
         if (result == AVERROR_EOF) {
             avcodec_send_packet(codec.get(), nullptr);
@@ -1875,6 +2165,9 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
                 avcodec_send_packet(audioCodec.get(), nullptr);
                 receiveAudioFrames();
                 flushAudioResampler();
+            }
+            if (report.completionReason == "unknown") {
+                report.completionReason = "eof";
             }
             break;
         }
@@ -1904,9 +2197,24 @@ void playVideo(const std::string& path, const std::optional<std::string>& subtit
 
         av_packet_unref(packet.get());
     }
+
+    if (report.completionReason == "unknown") {
+        report.completionReason = "stopped";
+    }
+    report.success = true;
+    finishProcessTelemetry(report.process, wallStart);
+    if (reportPath) {
+        writePlaybackReport(*reportPath, report);
+        std::cerr << "Playback report: " << *reportPath << "\n";
+    }
 }
 #else
-void playVideo(const std::string&, const std::optional<std::string>&, int64_t, int64_t)
+void playVideo(
+    const std::string&,
+    const std::optional<std::string>&,
+    int64_t,
+    int64_t,
+    const std::optional<std::string>&)
 {
     throw std::runtime_error("Video playback requires building with the FFmpeg development SDK.");
 }
@@ -1923,6 +2231,7 @@ struct CliOptions {
     Mode mode = Mode::Help;
     std::string mediaPath;
     std::optional<std::string> subtitlePath;
+    std::optional<std::string> reportPath;
     int64_t seekMs = 0;
     int64_t durationMs = 15000;
 };
@@ -1935,7 +2244,7 @@ void printUsage()
         << "Usage:\n"
         << "  CueSeekerWindowsPlaybackLab --inspect <media-file> [--subtitle <ass-file>]\n"
         << "  CueSeekerWindowsPlaybackLab --render-test\n"
-        << "  CueSeekerWindowsPlaybackLab --play <media-file> [--subtitle <ass-file>] [--seek-ms ms] [--duration-ms ms]\n"
+        << "  CueSeekerWindowsPlaybackLab --play <media-file> [--subtitle <ass-file>] [--seek-ms ms] [--duration-ms ms] [--report-path json-file]\n"
         << "\n"
         << "Inspect reports embedded subtitle streams, attachments, and optional external ASS probe results.\n"
         << "The first --play path uses FFmpeg software video decode, D3D11 presentation,\n"
@@ -1993,6 +2302,13 @@ CliOptions parseArgs(int argc, wchar_t** argv)
             options.subtitlePath = wideToUtf8(argv[++i]);
             continue;
         }
+        if (arg == L"--report-path") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--report-path requires a JSON file path");
+            }
+            options.reportPath = wideToUtf8(argv[++i]);
+            continue;
+        }
 
         throw std::runtime_error("Unknown argument: " + wideToUtf8(arg));
     }
@@ -2000,17 +2316,36 @@ CliOptions parseArgs(int argc, wchar_t** argv)
     return options;
 }
 
+void writePlaybackFailureReport(const CliOptions& options, std::string_view error)
+{
+    if (!options.reportPath) {
+        return;
+    }
+
+    PlaybackReport report;
+    report.mediaPath = options.mediaPath;
+    report.subtitlePath = options.subtitlePath;
+    report.seekMs = options.seekMs;
+    report.requestedDurationMs = options.durationMs;
+    report.success = false;
+    report.failureStage = "exception";
+    report.error = std::string(error);
+    report.completionReason = "failed";
+    writePlaybackReport(*options.reportPath, report);
+}
+
 } // namespace
 
 int wmain(int argc, wchar_t** argv)
 {
+    CliOptions options;
     try {
 #if CUESEEKER_HAS_FFMPEG_SDK
         avformat_network_init();
 #endif
         ComInit com;
 
-        const CliOptions options = parseArgs(argc, argv);
+        options = parseArgs(argc, argv);
         switch (options.mode) {
         case CliOptions::Mode::Help:
             printUsage();
@@ -2022,7 +2357,7 @@ int wmain(int argc, wchar_t** argv)
             runRenderTest();
             return 0;
         case CliOptions::Mode::Play:
-            playVideo(options.mediaPath, options.subtitlePath, options.seekMs, options.durationMs);
+            playVideo(options.mediaPath, options.subtitlePath, options.seekMs, options.durationMs, options.reportPath);
             return 0;
         }
 
@@ -2030,6 +2365,14 @@ int wmain(int argc, wchar_t** argv)
         return 2;
     } catch (const std::exception& error) {
         std::cerr << "CueSeekerWindowsPlaybackLab failed: " << error.what() << "\n";
+        if (options.mode == CliOptions::Mode::Play && options.reportPath) {
+            try {
+                writePlaybackFailureReport(options, error.what());
+                std::cerr << "Playback failure report: " << *options.reportPath << "\n";
+            } catch (const std::exception& reportError) {
+                std::cerr << "CueSeekerWindowsPlaybackLab report write failed: " << reportError.what() << "\n";
+            }
+        }
         return 1;
     }
 }
