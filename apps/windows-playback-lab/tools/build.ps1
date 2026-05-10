@@ -10,6 +10,11 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $labDir = Resolve-Path (Join-Path $scriptDir "..")
 $buildDir = Join-Path $labDir "build"
+$envHelper = Join-Path $labDir "deps\ffmpeg-release-full-shared\cueseeker-ffmpeg-env.ps1"
+
+if (Test-Path $envHelper) {
+    . $envHelper
+}
 
 function Normalize-ProcessPathEnvironment {
     $variables = [System.Environment]::GetEnvironmentVariables("Process")
@@ -109,6 +114,12 @@ if (-not [string]::IsNullOrWhiteSpace($Generator)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($Platform) -and $Generator -match "Visual Studio") {
     $configureArgs += @("-A", $Platform)
+}
+if (-not [string]::IsNullOrWhiteSpace($env:FFMPEG_ROOT)) {
+    $configureArgs += @("-DFFMPEG_ROOT=$env:FFMPEG_ROOT")
+}
+if (-not [string]::IsNullOrWhiteSpace($env:LIBASS_ROOT)) {
+    $configureArgs += @("-DLIBASS_ROOT=$env:LIBASS_ROOT")
 }
 
 & $cmake @configureArgs

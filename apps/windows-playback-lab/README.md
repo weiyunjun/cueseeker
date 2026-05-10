@@ -65,6 +65,19 @@ Expected layout examples:
 %LIBASS_ROOT%\lib\ass.lib
 ```
 
+The helper below can install Gyan's official release full shared FFmpeg package
+under the ignored local `deps/` directory, verify its SHA-256 file, extract it,
+and generate MSVC import libraries from the FFmpeg DLL exports:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/install-ffmpeg-shared.ps1
+. apps/windows-playback-lab/deps/ffmpeg-release-full-shared/cueseeker-ffmpeg-env.ps1
+```
+
+That package provides the FFmpeg headers and DLLs needed for `--inspect` and
+`--play`. If the package also contains `libass` headers and DLLs, the helper
+generates `ass.lib` and enables direct `libass` SDK probing too.
+
 ## Environment Check
 
 ```powershell
@@ -89,6 +102,26 @@ powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/build.p
 
 The helper can also use Visual Studio's bundled CMake when `cmake.exe` is not
 available in the shell `PATH`.
+
+Generate a small legal fixture for local validation:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/make-fixture.ps1
+```
+
+Then rebuild and run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/build.ps1
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/run-lab.ps1 apps/windows-playback-lab/out/fixtures/windows-lab-sample.mkv
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/run-lab.ps1 apps/windows-playback-lab/out/fixtures/windows-lab-sample.mkv -Play -SeekMs 1000 -DurationMs 2500
+```
+
+Or run the full local smoke path:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/verify-smoke.ps1
+```
 
 ## Run
 

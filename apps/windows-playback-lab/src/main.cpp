@@ -27,10 +27,12 @@
 #include <thread>
 #include <vector>
 
-#if CUESEEKER_HAS_LIBASS_SDK
+#if CUESEEKER_HAS_LIBASS_HEADER
 extern "C" {
 #include <ass/ass.h>
 }
+#elif CUESEEKER_HAS_LIBASS_SDK
+extern "C" int ass_library_version(void);
 #endif
 
 #if CUESEEKER_HAS_FFMPEG_SDK

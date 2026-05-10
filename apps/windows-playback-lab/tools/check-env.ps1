@@ -5,6 +5,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$labDir = Resolve-Path (Join-Path $scriptDir "..")
+$envHelper = Join-Path $labDir "deps\ffmpeg-release-full-shared\cueseeker-ffmpeg-env.ps1"
+
+if (Test-Path $envHelper) {
+    . $envHelper
+}
+
 function Normalize-ProcessPathEnvironment {
     $variables = [System.Environment]::GetEnvironmentVariables("Process")
     $pathKeys = @($variables.Keys | Where-Object { $_ -ieq "PATH" })
@@ -190,6 +198,7 @@ if ([string]::IsNullOrWhiteSpace($ffmpegRoot) -and $ffmpeg) {
 $ffmpegHeader = if ($ffmpegRoot) { Join-Path $ffmpegRoot "include\libavformat\avformat.h" } else { "" }
 $ffmpegAvformatCandidates = if ($ffmpegRoot) {
     @(
+        (Join-Path $ffmpegRoot "msvc-lib\avformat.lib"),
         (Join-Path $ffmpegRoot "lib\avformat.lib"),
         (Join-Path $ffmpegRoot "lib\libavformat.lib")
     )
@@ -198,6 +207,7 @@ $ffmpegAvformatCandidates = if ($ffmpegRoot) {
 }
 $ffmpegAvcodecCandidates = if ($ffmpegRoot) {
     @(
+        (Join-Path $ffmpegRoot "msvc-lib\avcodec.lib"),
         (Join-Path $ffmpegRoot "lib\avcodec.lib"),
         (Join-Path $ffmpegRoot "lib\libavcodec.lib")
     )
@@ -215,6 +225,7 @@ $libassRoot = $env:LIBASS_ROOT
 $libassHeader = if ($libassRoot) { Join-Path $libassRoot "include\ass\ass.h" } else { "" }
 $libassLibCandidates = if ($libassRoot) {
     @(
+        (Join-Path $libassRoot "msvc-lib\ass.lib"),
         (Join-Path $libassRoot "lib\ass.lib"),
         (Join-Path $libassRoot "lib\libass.lib")
     )

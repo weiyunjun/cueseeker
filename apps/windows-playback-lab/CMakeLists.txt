@@ -15,7 +15,7 @@ macro(cueseeker_find_library out_var library_name)
         ${out_var}
         NAMES ${library_name} lib${library_name}
         HINTS ${FFMPEG_ROOT} ${LIBASS_ROOT}
-        PATH_SUFFIXES lib lib/x64 lib/Win64
+        PATH_SUFFIXES msvc-lib lib lib/x64 lib/Win64
     )
 
 endmacro()
@@ -54,10 +54,10 @@ else()
 endif()
 
 set(CUESEEKER_HAS_LIBASS_SDK OFF)
-if(LIBASS_INCLUDE_DIR AND LIBASS_LIBRARY)
+if(LIBASS_LIBRARY)
     set(CUESEEKER_HAS_LIBASS_SDK ON)
 else()
-    message(WARNING "libass development package was not found. Building Windows lab without libass SDK probing.")
+    message(WARNING "libass import library was not found. Building Windows lab without libass probing.")
 endif()
 
 add_executable(CueSeekerWindowsPlaybackLab
@@ -71,6 +71,7 @@ target_compile_definitions(CueSeekerWindowsPlaybackLab PRIVATE
     _UNICODE
     CUESEEKER_HAS_FFMPEG_SDK=$<BOOL:${CUESEEKER_HAS_FFMPEG_SDK}>
     CUESEEKER_HAS_LIBASS_SDK=$<BOOL:${CUESEEKER_HAS_LIBASS_SDK}>
+    CUESEEKER_HAS_LIBASS_HEADER=$<BOOL:${LIBASS_INCLUDE_DIR}>
 )
 
 if(CUESEEKER_HAS_FFMPEG_SDK)
@@ -79,7 +80,9 @@ if(CUESEEKER_HAS_FFMPEG_SDK)
 endif()
 
 if(CUESEEKER_HAS_LIBASS_SDK)
-    target_include_directories(CueSeekerWindowsPlaybackLab PRIVATE ${LIBASS_INCLUDE_DIR})
+    if(LIBASS_INCLUDE_DIR)
+        target_include_directories(CueSeekerWindowsPlaybackLab PRIVATE ${LIBASS_INCLUDE_DIR})
+    endif()
     target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE ${LIBASS_LIBRARY})
 endif()
 
@@ -87,6 +90,7 @@ target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE
     d3d11
     dxgi
     d3dcompiler
+    dxguid
     ole32
     propsys
 )

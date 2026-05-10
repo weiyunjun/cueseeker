@@ -34,6 +34,7 @@ migrate_working_dir/
 /coverage/
 apps/windows-playback-lab/build/
 apps/windows-playback-lab/out/
+apps/windows-playback-lab/deps/
 
 # Symbolication related
 app.*.symbols
