@@ -907,7 +907,7 @@ private struct LibraryEpisodeGrid: View {
     var body: some View {
         LazyVGrid(
             columns: columns,
-            alignment: .leading,
+            alignment: .center,
             spacing: LibraryLayout.episodeGridVerticalSpacing
         ) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
@@ -965,7 +965,7 @@ private struct LibraryEpisodeButton: View {
 }
 
 private enum LibraryLayout {
-    static let folderRowInnerHorizontalPadding: CGFloat = 4
+    static let folderRowInnerHorizontalPadding: CGFloat = 12
     static let folderRowVerticalPadding: CGFloat = 8
     static let folderRowOuterLeadingPadding: CGFloat = 12
     static let folderRowOuterTrailingPadding: CGFloat = 12
@@ -973,7 +973,7 @@ private enum LibraryLayout {
     static let episodeButtonHeight: CGFloat = 36
     static let episodeGridHorizontalSpacing: CGFloat = 8
     static let episodeGridVerticalSpacing: CGFloat = 8
-    static let episodeGridLeadingPadding: CGFloat = 40
+    static let episodeGridLeadingPadding: CGFloat = 12
     static let episodeGridTrailingPadding: CGFloat = 12
     static let episodeGridTopPadding: CGFloat = 6
     static let episodeGridBottomPadding: CGFloat = 10
