@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -171,6 +172,47 @@ std::string jsonEscape(std::string_view value)
         }
     }
     return out.str();
+}
+
+enum class ConsoleStream {
+    Stdout,
+    Stderr,
+};
+
+void writeConsoleUtf8(ConsoleStream stream, std::string_view text)
+{
+    const DWORD stdHandle = stream == ConsoleStream::Stdout ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE;
+    HANDLE handle = GetStdHandle(stdHandle);
+    DWORD mode = 0;
+    if (handle != nullptr && handle != INVALID_HANDLE_VALUE && GetConsoleMode(handle, &mode)) {
+        try {
+            const std::wstring wide = utf8ToWide(text);
+            const wchar_t* cursor = wide.data();
+            size_t remaining = wide.size();
+            while (remaining > 0) {
+                const DWORD chunk = static_cast<DWORD>(std::min<size_t>(remaining, 32767));
+                DWORD written = 0;
+                if (!WriteConsoleW(handle, cursor, chunk, &written, nullptr) || written == 0) {
+                    break;
+                }
+                cursor += written;
+                remaining -= written;
+            }
+            if (remaining == 0) {
+                return;
+            }
+        } catch (...) {
+        }
+    }
+
+    FILE* file = stream == ConsoleStream::Stdout ? stdout : stderr;
+    std::fwrite(text.data(), 1, text.size(), file);
+    std::fflush(file);
+}
+
+void writeStderrUtf8(std::string_view text)
+{
+    writeConsoleUtf8(ConsoleStream::Stderr, text);
 }
 
 void writeUtf8TextFile(const std::string& path, std::string_view contents)
@@ -1957,23 +1999,25 @@ void playVideo(
         frameHeight,
         1);
 
-    std::cerr << "CueSeeker Windows Playback Lab selected decode path: software\n";
+    writeStderrUtf8("CueSeeker Windows Playback Lab selected decode path: software\n");
     if (audioOutput) {
-        std::cerr << "Audio output: WASAPI shared mode on " << audioOutput->endpointName() << "\n";
-        std::cerr << "Audio mix: " << audioOutput->outputDescription() << "\n";
+        writeStderrUtf8("Audio output: WASAPI shared mode on " + audioOutput->endpointName() + "\n");
+        writeStderrUtf8("Audio mix: " + audioOutput->outputDescription() + "\n");
     } else {
-        std::cerr << "Audio output: no audio stream found; playback is video-only.\n";
+        writeStderrUtf8("Audio output: no audio stream found; playback is video-only.\n");
     }
 #if CUESEEKER_HAS_LIBASS_HEADER
     if (subtitleOverlay) {
-        std::cerr << "ASS overlay: external subtitle enabled from " << subtitleOverlay->subtitlePath()
-                  << " (" << subtitleOverlay->eventCount() << " events, "
-                  << subtitleOverlay->styleCount() << " styles)\n";
+        std::ostringstream out;
+        out << "ASS overlay: external subtitle enabled from " << subtitleOverlay->subtitlePath()
+            << " (" << subtitleOverlay->eventCount() << " events, "
+            << subtitleOverlay->styleCount() << " styles)\n";
+        writeStderrUtf8(out.str());
     } else {
-        std::cerr << "ASS overlay: no external ASS subtitle path provided.\n";
+        writeStderrUtf8("ASS overlay: no external ASS subtitle path provided.\n");
     }
 #else
-    std::cerr << "ASS overlay: libass SDK is not linked in this build.\n";
+    writeStderrUtf8("ASS overlay: libass SDK is not linked in this build.\n");
 #endif
 
     startProcessTelemetry(report.process);
@@ -2205,7 +2249,7 @@ void playVideo(
     finishProcessTelemetry(report.process, wallStart);
     if (reportPath) {
         writePlaybackReport(*reportPath, report);
-        std::cerr << "Playback report: " << *reportPath << "\n";
+        writeStderrUtf8("Playback report: " + *reportPath + "\n");
     }
 }
 #else
@@ -2364,13 +2408,13 @@ int wmain(int argc, wchar_t** argv)
         printUsage();
         return 2;
     } catch (const std::exception& error) {
-        std::cerr << "CueSeekerWindowsPlaybackLab failed: " << error.what() << "\n";
+        writeStderrUtf8(std::string("CueSeekerWindowsPlaybackLab failed: ") + error.what() + "\n");
         if (options.mode == CliOptions::Mode::Play && options.reportPath) {
             try {
                 writePlaybackFailureReport(options, error.what());
-                std::cerr << "Playback failure report: " << *options.reportPath << "\n";
+                writeStderrUtf8("Playback failure report: " + *options.reportPath + "\n");
             } catch (const std::exception& reportError) {
-                std::cerr << "CueSeekerWindowsPlaybackLab report write failed: " << reportError.what() << "\n";
+                writeStderrUtf8(std::string("CueSeekerWindowsPlaybackLab report write failed: ") + reportError.what() + "\n");
             }
         }
         return 1;
