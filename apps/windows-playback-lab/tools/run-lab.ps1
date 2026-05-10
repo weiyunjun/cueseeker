@@ -15,6 +15,7 @@ param(
 
     [int]$SeekMs = 0,
     [int]$DurationMs = 15000,
+    [string]$SubtitlePath = "",
     [string]$Configuration = "Debug"
 )
 
@@ -43,10 +44,15 @@ if ($RenderTest) {
     exit $LASTEXITCODE
 }
 
+$labArgs = @()
+if (-not [string]::IsNullOrWhiteSpace($SubtitlePath)) {
+    $labArgs += @("--subtitle", $SubtitlePath)
+}
+
 if ($Play) {
-    & $exe --play $MediaPath --seek-ms $SeekMs --duration-ms $DurationMs
+    & $exe --play $MediaPath --seek-ms $SeekMs --duration-ms $DurationMs @labArgs
     exit $LASTEXITCODE
 }
 
-& $exe --inspect $MediaPath
+& $exe --inspect $MediaPath @labArgs
 exit $LASTEXITCODE

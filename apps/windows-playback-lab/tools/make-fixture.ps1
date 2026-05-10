@@ -44,10 +44,18 @@ Set-Content -Path $assPath -Value $ass -Encoding UTF8
     -i "testsrc2=size=1280x720:rate=30" `
     -f lavfi `
     -i "sine=frequency=880:sample_rate=48000" `
+    -i $assPath `
     -t $DurationSeconds `
+    -map 0:v:0 `
+    -map 1:a:0 `
+    -map 2:s:0 `
     -c:v libx264 `
     -pix_fmt yuv420p `
     -c:a aac `
+    -c:s ass `
+    -attach $assPath `
+    -metadata:s:t:0 mimetype="text/x-ass" `
+    -metadata:s:t:0 filename="windows-lab-sample.ass" `
     -metadata title="CueSeeker Windows playback lab fixture" `
     $videoPath
 
@@ -56,4 +64,3 @@ if ($LASTEXITCODE -ne 0) { throw "ffmpeg fixture generation failed with exit cod
 Write-Host "Fixture media:"
 Write-Host "  video: $videoPath"
 Write-Host "  subtitle: $assPath"
-

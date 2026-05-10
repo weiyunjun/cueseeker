@@ -12,10 +12,13 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -25,6 +28,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <vector>
 
@@ -163,6 +167,14 @@ std::string jsonEscape(std::string_view value)
     return out.str();
 }
 
+std::string lowerAscii(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
 void throwIfFailed(HRESULT hr, const char* context)
 {
     if (FAILED(hr)) {
@@ -222,6 +234,25 @@ std::string sampleFormatName(AVSampleFormat format)
 {
     const char* name = av_get_sample_fmt_name(format);
     return name ? name : "unknown";
+}
+
+std::string streamMetadata(AVStream* stream, const char* key)
+{
+    AVDictionaryEntry* entry = av_dict_get(stream->metadata, key, nullptr, 0);
+    return entry && entry->value ? entry->value : "";
+}
+
+int64_t streamDurationMs(AVStream* stream)
+{
+    if (stream->duration == AV_NOPTS_VALUE) {
+        return -1;
+    }
+    return av_rescale_q(stream->duration, stream->time_base, AVRational { 1, 1000 });
+}
+
+bool isAssCompatibleSubtitleCodec(AVCodecID codecId)
+{
+    return codecId == AV_CODEC_ID_ASS || codecId == AV_CODEC_ID_SSA;
 }
 #endif
 
@@ -423,6 +454,175 @@ void printFfmpegBuildReport(std::ostream& out)
     out << "  },\n";
 }
 
+#if CUESEEKER_HAS_LIBASS_HEADER
+struct AssLibraryDeleter {
+    void operator()(ASS_Library* library) const
+    {
+        ass_library_done(library);
+    }
+};
+
+struct AssRendererDeleter {
+    void operator()(ASS_Renderer* renderer) const
+    {
+        ass_renderer_done(renderer);
+    }
+};
+
+struct AssTrackDeleter {
+    void operator()(ASS_Track* track) const
+    {
+        ass_free_track(track);
+    }
+};
+
+void ignoreAssMessage(int, const char*, va_list, void*)
+{
+}
+
+std::string assTrackTypeName(int trackType)
+{
+    switch (trackType) {
+    case 1:
+        return "ass";
+    case 2:
+        return "ssa";
+    default:
+        return "unknown";
+    }
+}
+#endif
+
+void printExternalAssError(
+    std::ostream& out,
+    const std::string& path,
+    bool readable,
+    std::optional<uintmax_t> sizeBytes,
+    std::string_view errorCode,
+    std::string_view error)
+{
+    out << "    \"external_ass\": {\n";
+    out << "      \"provided\": true,\n";
+    out << "      \"path\": \"" << jsonEscape(path) << "\",\n";
+    out << "      \"path_classification\": \"local_or_mounted_path\",\n";
+    out << "      \"readable\": " << (readable ? "true" : "false") << ",\n";
+    if (sizeBytes) {
+        out << "      \"size_bytes\": " << static_cast<unsigned long long>(*sizeBytes) << ",\n";
+    }
+    out << "      \"libass_parse_ok\": false,\n";
+    out << "      \"error_code\": \"" << jsonEscape(errorCode) << "\",\n";
+    out << "      \"error\": \"" << jsonEscape(error) << "\"\n";
+    out << "    },\n";
+}
+
+void printExternalAssReport(std::ostream& out, const std::optional<std::string>& subtitlePath)
+{
+    if (!subtitlePath) {
+        out << "    \"external_ass\": {\n";
+        out << "      \"provided\": false\n";
+        out << "    },\n";
+        return;
+    }
+
+    constexpr uintmax_t maxAssProbeBytes = 32ull * 1024ull * 1024ull;
+    const std::string& path = *subtitlePath;
+
+#if !CUESEEKER_HAS_LIBASS_HEADER
+    printExternalAssError(
+        out,
+        path,
+        false,
+        std::nullopt,
+        "libass_unavailable",
+        "libass headers and runtime were not linked into this build");
+#else
+    const std::filesystem::path filePath = std::filesystem::path(utf8ToWide(path));
+    std::error_code ec;
+    const bool exists = std::filesystem::exists(filePath, ec);
+    if (ec) {
+        printExternalAssError(out, path, false, std::nullopt, "file_status_failed", ec.message());
+        return;
+    }
+    if (!exists) {
+        printExternalAssError(out, path, false, std::nullopt, "file_not_found", "Subtitle file was not found");
+        return;
+    }
+    const bool regularFile = std::filesystem::is_regular_file(filePath, ec);
+    if (ec) {
+        printExternalAssError(out, path, false, std::nullopt, "file_status_failed", ec.message());
+        return;
+    }
+    if (!regularFile) {
+        printExternalAssError(out, path, false, std::nullopt, "not_regular_file", "Subtitle path is not a regular file");
+        return;
+    }
+
+    const uintmax_t sizeBytes = std::filesystem::file_size(filePath, ec);
+    if (ec) {
+        printExternalAssError(out, path, false, std::nullopt, "file_size_failed", ec.message());
+        return;
+    }
+    if (sizeBytes == 0) {
+        printExternalAssError(out, path, true, sizeBytes, "file_empty", "Subtitle file is empty");
+        return;
+    }
+    if (sizeBytes > maxAssProbeBytes) {
+        printExternalAssError(out, path, false, sizeBytes, "file_too_large", "Subtitle file exceeds the bootstrap probe size limit");
+        return;
+    }
+
+    std::ifstream input(filePath, std::ios::binary);
+    if (!input) {
+        printExternalAssError(out, path, false, sizeBytes, "file_open_failed", "Subtitle file could not be opened");
+        return;
+    }
+
+    std::vector<char> bytes(static_cast<size_t>(sizeBytes) + 1);
+    input.read(bytes.data(), static_cast<std::streamsize>(sizeBytes));
+    if (input.gcount() != static_cast<std::streamsize>(sizeBytes)) {
+        printExternalAssError(out, path, false, sizeBytes, "file_read_failed", "Subtitle file could not be read completely");
+        return;
+    }
+    bytes[static_cast<size_t>(sizeBytes)] = '\0';
+
+    std::unique_ptr<ASS_Library, AssLibraryDeleter> library(ass_library_init());
+    if (!library) {
+        printExternalAssError(out, path, true, sizeBytes, "libass_init_failed", "ass_library_init failed");
+        return;
+    }
+    ass_set_message_cb(library.get(), ignoreAssMessage, nullptr);
+
+    std::unique_ptr<ASS_Renderer, AssRendererDeleter> renderer(ass_renderer_init(library.get()));
+    if (!renderer) {
+        printExternalAssError(out, path, true, sizeBytes, "libass_renderer_failed", "ass_renderer_init failed");
+        return;
+    }
+
+    std::unique_ptr<ASS_Track, AssTrackDeleter> track(
+        ass_read_memory(library.get(), bytes.data(), static_cast<size_t>(sizeBytes), nullptr));
+    if (!track) {
+        printExternalAssError(out, path, true, sizeBytes, "libass_parse_failed", "ass_read_memory failed");
+        return;
+    }
+
+    out << "    \"external_ass\": {\n";
+    out << "      \"provided\": true,\n";
+    out << "      \"path\": \"" << jsonEscape(path) << "\",\n";
+    out << "      \"path_classification\": \"local_or_mounted_path\",\n";
+    out << "      \"readable\": true,\n";
+    out << "      \"size_bytes\": " << static_cast<unsigned long long>(sizeBytes) << ",\n";
+    out << "      \"libass_parse_ok\": true,\n";
+    out << "      \"renderer_init_ok\": true,\n";
+    out << "      \"track_type\": \"" << assTrackTypeName(track->track_type) << "\",\n";
+    out << "      \"styles\": " << track->n_styles << ",\n";
+    out << "      \"events\": " << track->n_events << ",\n";
+    out << "      \"play_res_x\": " << track->PlayResX << ",\n";
+    out << "      \"play_res_y\": " << track->PlayResY << ",\n";
+    out << "      \"wrap_style\": " << track->WrapStyle << "\n";
+    out << "    },\n";
+#endif
+}
+
 #if CUESEEKER_HAS_FFMPEG_SDK
 void printStreamReport(std::ostream& out, AVFormatContext* format)
 {
@@ -464,11 +664,81 @@ void printStreamReport(std::ostream& out, AVFormatContext* format)
 
     out << "\n";
     out << "    ]\n";
+    out << "  },\n";
+}
+
+bool isFontAttachment(std::string filename, std::string mimeType)
+{
+    filename = lowerAscii(std::move(filename));
+    mimeType = lowerAscii(std::move(mimeType));
+
+    return mimeType.find("font") != std::string::npos ||
+        filename.ends_with(".ttf") ||
+        filename.ends_with(".otf") ||
+        filename.ends_with(".ttc") ||
+        filename.ends_with(".otc");
+}
+
+void printSubtitleReport(std::ostream& out, AVFormatContext* format, const std::optional<std::string>& subtitlePath)
+{
+    out << "  \"subtitles\": {\n";
+    printExternalAssReport(out, subtitlePath);
+
+    out << "    \"embedded_streams\": [\n";
+    bool firstSubtitle = true;
+    for (unsigned int i = 0; i < format->nb_streams; ++i) {
+        AVStream* stream = format->streams[i];
+        AVCodecParameters* codecpar = stream->codecpar;
+        if (codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE) {
+            continue;
+        }
+        if (!firstSubtitle) {
+            out << ",\n";
+        }
+        firstSubtitle = false;
+        out << "      {\n";
+        out << "        \"index\": " << i << ",\n";
+        out << "        \"codec\": \"" << codecName(codecpar->codec_id) << "\",\n";
+        out << "        \"ass_compatible_header\": " << (isAssCompatibleSubtitleCodec(codecpar->codec_id) ? "true" : "false") << ",\n";
+        out << "        \"codec_private_size\": " << codecpar->extradata_size << ",\n";
+        out << "        \"duration_ms\": " << streamDurationMs(stream) << ",\n";
+        out << "        \"language\": \"" << jsonEscape(streamMetadata(stream, "language")) << "\",\n";
+        out << "        \"title\": \"" << jsonEscape(streamMetadata(stream, "title")) << "\"\n";
+        out << "      }";
+    }
+    out << "\n";
+    out << "    ],\n";
+
+    out << "    \"attachments\": [\n";
+    bool firstAttachment = true;
+    for (unsigned int i = 0; i < format->nb_streams; ++i) {
+        AVStream* stream = format->streams[i];
+        AVCodecParameters* codecpar = stream->codecpar;
+        if (codecpar->codec_type != AVMEDIA_TYPE_ATTACHMENT) {
+            continue;
+        }
+        if (!firstAttachment) {
+            out << ",\n";
+        }
+        firstAttachment = false;
+        const std::string filename = streamMetadata(stream, "filename");
+        const std::string mimeType = streamMetadata(stream, "mimetype");
+        out << "      {\n";
+        out << "        \"index\": " << i << ",\n";
+        out << "        \"codec\": \"" << codecName(codecpar->codec_id) << "\",\n";
+        out << "        \"attachment_size\": " << codecpar->extradata_size << ",\n";
+        out << "        \"filename\": \"" << jsonEscape(filename) << "\",\n";
+        out << "        \"mimetype\": \"" << jsonEscape(mimeType) << "\",\n";
+        out << "        \"font_candidate\": " << (isFontAttachment(filename, mimeType) ? "true" : "false") << "\n";
+        out << "      }";
+    }
+    out << "\n";
+    out << "    ]\n";
     out << "  }\n";
 }
 #endif
 
-void inspectMedia(const std::string& path)
+void inspectMedia(const std::string& path, const std::optional<std::string>& subtitlePath)
 {
 #if CUESEEKER_HAS_FFMPEG_SDK
     AVFormatContext* rawFormat = nullptr;
@@ -490,7 +760,14 @@ void inspectMedia(const std::string& path)
     std::cout << "  \"schema\": \"cueseeker.windows_playback_lab.report.v0\",\n";
     std::cout << "  \"request\": {\n";
     std::cout << "    \"path\": \"" << jsonEscape(path) << "\",\n";
-    std::cout << "    \"path_classification\": \"local_or_mounted_path\"\n";
+    std::cout << "    \"path_classification\": \"local_or_mounted_path\"";
+    if (subtitlePath) {
+        std::cout << ",\n";
+        std::cout << "    \"subtitle_path\": \"" << jsonEscape(*subtitlePath) << "\",\n";
+        std::cout << "    \"subtitle_path_classification\": \"local_or_mounted_path\"\n";
+    } else {
+        std::cout << "\n";
+    }
     std::cout << "  },\n";
     printPlatformReport(std::cout);
     printD3DReport(std::cout);
@@ -498,13 +775,21 @@ void inspectMedia(const std::string& path)
     printLibassReport(std::cout);
     printFfmpegBuildReport(std::cout);
     printStreamReport(std::cout, format.get());
+    printSubtitleReport(std::cout, format.get(), subtitlePath);
     std::cout << "}\n";
 #else
     std::cout << "{\n";
     std::cout << "  \"schema\": \"cueseeker.windows_playback_lab.report.v0\",\n";
     std::cout << "  \"request\": {\n";
     std::cout << "    \"path\": \"" << jsonEscape(path) << "\",\n";
-    std::cout << "    \"path_classification\": \"local_or_mounted_path\"\n";
+    std::cout << "    \"path_classification\": \"local_or_mounted_path\"";
+    if (subtitlePath) {
+        std::cout << ",\n";
+        std::cout << "    \"subtitle_path\": \"" << jsonEscape(*subtitlePath) << "\",\n";
+        std::cout << "    \"subtitle_path_classification\": \"local_or_mounted_path\"\n";
+    } else {
+        std::cout << "\n";
+    }
     std::cout << "  },\n";
     printPlatformReport(std::cout);
     printD3DReport(std::cout);
@@ -1451,6 +1736,7 @@ struct CliOptions {
 
     Mode mode = Mode::Help;
     std::string mediaPath;
+    std::optional<std::string> subtitlePath;
     int64_t seekMs = 0;
     int64_t durationMs = 15000;
 };
@@ -1461,10 +1747,11 @@ void printUsage()
         << "CueSeekerWindowsPlaybackLab\n"
         << "\n"
         << "Usage:\n"
-        << "  CueSeekerWindowsPlaybackLab --inspect <media-file>\n"
+        << "  CueSeekerWindowsPlaybackLab --inspect <media-file> [--subtitle <ass-file>]\n"
         << "  CueSeekerWindowsPlaybackLab --render-test\n"
         << "  CueSeekerWindowsPlaybackLab --play <media-file> [--seek-ms ms] [--duration-ms ms]\n"
         << "\n"
+        << "Inspect reports embedded subtitle streams, attachments, and optional external ASS probe results.\n"
         << "The first --play path uses FFmpeg software video decode, D3D11 presentation,\n"
         << "and WASAPI shared-mode audio output when the media has an audio stream.\n"
         << "D3D11VA/DXVA and libass overlay are intentionally next steps.\n";
@@ -1513,6 +1800,13 @@ CliOptions parseArgs(int argc, wchar_t** argv)
             options.durationMs = std::wcstoll(argv[++i], nullptr, 10);
             continue;
         }
+        if (arg == L"--subtitle") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--subtitle requires an ASS subtitle file");
+            }
+            options.subtitlePath = wideToUtf8(argv[++i]);
+            continue;
+        }
 
         throw std::runtime_error("Unknown argument: " + wideToUtf8(arg));
     }
@@ -1536,7 +1830,7 @@ int wmain(int argc, wchar_t** argv)
             printUsage();
             return 0;
         case CliOptions::Mode::Inspect:
-            inspectMedia(options.mediaPath);
+            inspectMedia(options.mediaPath, options.subtitlePath);
             return 0;
         case CliOptions::Mode::RenderTest:
             runRenderTest();

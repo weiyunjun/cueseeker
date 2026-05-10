@@ -13,6 +13,7 @@ $labDir = Resolve-Path (Join-Path $scriptDir "..")
 $fixtureDir = Join-Path $labDir "out\fixtures"
 $reportDir = Join-Path $labDir "out\reports"
 $videoPath = Join-Path $fixtureDir "windows-lab-sample.mkv"
+$subtitlePath = Join-Path $fixtureDir "windows-lab-sample.ass"
 $reportPath = Join-Path $reportDir "windows-lab-sample-inspect.json"
 
 New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
@@ -39,11 +40,24 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "== Inspect =="
-$inspectOutput = & (Join-Path $scriptDir "run-lab.ps1") $videoPath -Configuration $Configuration
+$inspectOutput = & (Join-Path $scriptDir "run-lab.ps1") $videoPath -SubtitlePath $subtitlePath -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) {
     throw "Inspect failed with exit code $LASTEXITCODE."
 }
 $inspectOutput | Tee-Object -FilePath $reportPath
+$inspectReport = ($inspectOutput | Out-String) | ConvertFrom-Json
+if (-not $inspectReport.subtitles.external_ass.libass_parse_ok) {
+    throw "External ASS probe did not parse successfully."
+}
+if ($inspectReport.subtitles.external_ass.events -lt 1) {
+    throw "External ASS probe did not report any subtitle events."
+}
+if (@($inspectReport.subtitles.embedded_streams).Count -lt 1) {
+    throw "Inspect did not report the embedded ASS subtitle stream."
+}
+if (@($inspectReport.subtitles.attachments).Count -lt 1) {
+    throw "Inspect did not report the fixture attachment."
+}
 
 if (-not $SkipPlay) {
     Write-Host ""
@@ -57,4 +71,3 @@ if (-not $SkipPlay) {
 Write-Host ""
 Write-Host "Smoke verification complete."
 Write-Host ("  report: {0}" -f $reportPath)
-

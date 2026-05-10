@@ -22,6 +22,8 @@ Implemented when FFmpeg and `libass` development packages are available:
 
 - FFmpeg media open and stream inspection.
 - `libass` version probing.
+- External ASS subtitle probing through `libass`.
+- Embedded subtitle stream and attachment metadata reporting.
 - Basic software video decode through FFmpeg with BGRA upload to a D3D11
   textured quad.
 - Basic audio decode and resampling through FFmpeg with shared-mode WASAPI
@@ -121,11 +123,14 @@ Generate a small legal fixture for local validation:
 powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/make-fixture.ps1
 ```
 
+The fixture includes H.264 video, AAC audio, an embedded ASS subtitle stream,
+an attachment, and a matching external `.ass` file for subtitle probe testing.
+
 Then rebuild and run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/build.ps1
-powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/run-lab.ps1 apps/windows-playback-lab/out/fixtures/windows-lab-sample.mkv
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/run-lab.ps1 apps/windows-playback-lab/out/fixtures/windows-lab-sample.mkv -SubtitlePath apps/windows-playback-lab/out/fixtures/windows-lab-sample.ass
 powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/run-lab.ps1 apps/windows-playback-lab/out/fixtures/windows-lab-sample.mkv -Play -SeekMs 1000 -DurationMs 2500
 ```
 
@@ -141,6 +146,12 @@ Inspect a media file:
 
 ```powershell
 apps/windows-playback-lab/build/Debug/CueSeekerWindowsPlaybackLab.exe --inspect "D:\media\sample.mkv"
+```
+
+Inspect a media file with an external ASS subtitle probe:
+
+```powershell
+apps/windows-playback-lab/build/Debug/CueSeekerWindowsPlaybackLab.exe --inspect "D:\media\sample.mkv" --subtitle "D:\media\sample.ass"
 ```
 
 Run a D3D11 rendering smoke test:
