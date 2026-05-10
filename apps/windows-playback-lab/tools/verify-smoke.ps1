@@ -62,7 +62,7 @@ if (@($inspectReport.subtitles.attachments).Count -lt 1) {
 if (-not $SkipPlay) {
     Write-Host ""
     Write-Host "== Play =="
-    & (Join-Path $scriptDir "run-lab.ps1") $videoPath -Play -SeekMs $SeekMs -DurationMs $DurationMs -Configuration $Configuration
+    & (Join-Path $scriptDir "run-lab.ps1") $videoPath -Play -SubtitlePath $subtitlePath -SeekMs $SeekMs -DurationMs $DurationMs -Configuration $Configuration
     if ($LASTEXITCODE -ne 0) {
         throw "Playback smoke failed with exit code $LASTEXITCODE."
     }

@@ -491,6 +491,55 @@ std::string assTrackTypeName(int trackType)
         return "unknown";
     }
 }
+
+std::filesystem::path subtitlePathFromUtf8(const std::string& path)
+{
+    return std::filesystem::path(utf8ToWide(path));
+}
+
+std::vector<char> readAssProbeFile(const std::string& path, uintmax_t maxBytes)
+{
+    const std::filesystem::path filePath = subtitlePathFromUtf8(path);
+    std::error_code ec;
+    const bool exists = std::filesystem::exists(filePath, ec);
+    if (ec) {
+        throw std::runtime_error("Subtitle file status failed: " + ec.message());
+    }
+    if (!exists) {
+        throw std::runtime_error("Subtitle file was not found");
+    }
+    const bool regularFile = std::filesystem::is_regular_file(filePath, ec);
+    if (ec) {
+        throw std::runtime_error("Subtitle file status failed: " + ec.message());
+    }
+    if (!regularFile) {
+        throw std::runtime_error("Subtitle path is not a regular file");
+    }
+
+    const uintmax_t sizeBytes = std::filesystem::file_size(filePath, ec);
+    if (ec) {
+        throw std::runtime_error("Subtitle file size failed: " + ec.message());
+    }
+    if (sizeBytes == 0) {
+        throw std::runtime_error("Subtitle file is empty");
+    }
+    if (sizeBytes > maxBytes) {
+        throw std::runtime_error("Subtitle file exceeds the bootstrap probe size limit");
+    }
+
+    std::ifstream input(filePath, std::ios::binary);
+    if (!input) {
+        throw std::runtime_error("Subtitle file could not be opened");
+    }
+
+    std::vector<char> bytes(static_cast<size_t>(sizeBytes) + 1);
+    input.read(bytes.data(), static_cast<std::streamsize>(sizeBytes));
+    if (input.gcount() != static_cast<std::streamsize>(sizeBytes)) {
+        throw std::runtime_error("Subtitle file could not be read completely");
+    }
+    bytes[static_cast<size_t>(sizeBytes)] = '\0';
+    return bytes;
+}
 #endif
 
 void printExternalAssError(
@@ -536,7 +585,7 @@ void printExternalAssReport(std::ostream& out, const std::optional<std::string>&
         "libass_unavailable",
         "libass headers and runtime were not linked into this build");
 #else
-    const std::filesystem::path filePath = std::filesystem::path(utf8ToWide(path));
+    const std::filesystem::path filePath = subtitlePathFromUtf8(path);
     std::error_code ec;
     const bool exists = std::filesystem::exists(filePath, ec);
     if (ec) {
@@ -1345,6 +1394,114 @@ private:
     bool started_ = false;
 };
 
+#if CUESEEKER_HAS_LIBASS_HEADER
+class AssOverlay {
+public:
+    void initialize(const std::string& subtitlePath, int frameWidth, int frameHeight)
+    {
+        constexpr uintmax_t maxAssProbeBytes = 32ull * 1024ull * 1024ull;
+        subtitlePath_ = subtitlePath;
+        fileBytes_ = readAssProbeFile(subtitlePath, maxAssProbeBytes);
+
+        library_.reset(ass_library_init());
+        if (!library_) {
+            throw std::runtime_error("ass_library_init failed for subtitle overlay");
+        }
+        ass_set_message_cb(library_.get(), ignoreAssMessage, nullptr);
+        ass_set_extract_fonts(library_.get(), 1);
+
+        renderer_.reset(ass_renderer_init(library_.get()));
+        if (!renderer_) {
+            throw std::runtime_error("ass_renderer_init failed for subtitle overlay");
+        }
+
+        track_.reset(ass_read_memory(library_.get(), fileBytes_.data(), fileBytes_.size() - 1, nullptr));
+        if (!track_) {
+            throw std::runtime_error("ass_read_memory failed for subtitle overlay");
+        }
+
+        ass_set_frame_size(renderer_.get(), frameWidth, frameHeight);
+        ass_set_storage_size(renderer_.get(), frameWidth, frameHeight);
+        ass_set_fonts(renderer_.get(), nullptr, "Arial", ASS_FONTPROVIDER_AUTODETECT, nullptr, 1);
+    }
+
+    void composite(uint8_t* bgra, int frameWidth, int frameHeight, int stride, int64_t mediaMs)
+    {
+        if (!renderer_ || !track_) {
+            return;
+        }
+
+        int detectChange = 0;
+        ASS_Image* image = ass_render_frame(renderer_.get(), track_.get(), mediaMs, &detectChange);
+        for (const ASS_Image* current = image; current != nullptr; current = current->next) {
+            blendImage(current, bgra, frameWidth, frameHeight, stride);
+        }
+    }
+
+    int eventCount() const
+    {
+        return track_ ? track_->n_events : 0;
+    }
+
+    int styleCount() const
+    {
+        return track_ ? track_->n_styles : 0;
+    }
+
+    const std::string& subtitlePath() const
+    {
+        return subtitlePath_;
+    }
+
+private:
+    static void blendImage(const ASS_Image* image, uint8_t* bgra, int frameWidth, int frameHeight, int stride)
+    {
+        if (!image || image->w <= 0 || image->h <= 0) {
+            return;
+        }
+
+        const int sourceX = std::max(0, -image->dst_x);
+        const int sourceY = std::max(0, -image->dst_y);
+        const int destX = std::max(0, image->dst_x);
+        const int destY = std::max(0, image->dst_y);
+        const int blendWidth = std::min(image->w - sourceX, frameWidth - destX);
+        const int blendHeight = std::min(image->h - sourceY, frameHeight - destY);
+        if (blendWidth <= 0 || blendHeight <= 0) {
+            return;
+        }
+
+        const int sourceR = static_cast<int>((image->color >> 24) & 0xff);
+        const int sourceG = static_cast<int>((image->color >> 16) & 0xff);
+        const int sourceB = static_cast<int>((image->color >> 8) & 0xff);
+        const int sourceAlpha = 255 - static_cast<int>(image->color & 0xff);
+
+        for (int y = 0; y < blendHeight; ++y) {
+            const uint8_t* mask = image->bitmap + static_cast<size_t>(sourceY + y) * image->stride + sourceX;
+            uint8_t* dest = bgra + static_cast<size_t>(destY + y) * stride + static_cast<size_t>(destX) * 4;
+            for (int x = 0; x < blendWidth; ++x) {
+                const int alpha = (static_cast<int>(mask[x]) * sourceAlpha + 127) / 255;
+                if (alpha <= 0) {
+                    dest += 4;
+                    continue;
+                }
+
+                dest[0] = static_cast<uint8_t>((sourceB * alpha + dest[0] * (255 - alpha) + 127) / 255);
+                dest[1] = static_cast<uint8_t>((sourceG * alpha + dest[1] * (255 - alpha) + 127) / 255);
+                dest[2] = static_cast<uint8_t>((sourceR * alpha + dest[2] * (255 - alpha) + 127) / 255);
+                dest[3] = 255;
+                dest += 4;
+            }
+        }
+    }
+
+    std::unique_ptr<ASS_Library, AssLibraryDeleter> library_;
+    std::unique_ptr<ASS_Renderer, AssRendererDeleter> renderer_;
+    std::unique_ptr<ASS_Track, AssTrackDeleter> track_;
+    std::vector<char> fileBytes_;
+    std::string subtitlePath_;
+};
+#endif
+
 int findBestVideoStream(AVFormatContext* format)
 {
     const int streamIndex = av_find_best_stream(format, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
@@ -1360,7 +1517,7 @@ int findBestAudioStream(AVFormatContext* format)
     return streamIndex >= 0 ? streamIndex : -1;
 }
 
-void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
+void playVideo(const std::string& path, const std::optional<std::string>& subtitlePath, int64_t seekMs, int64_t durationMs)
 {
     AVFormatContext* rawFormat = nullptr;
     int result = avformat_open_input(&rawFormat, path.c_str(), nullptr, nullptr);
@@ -1490,6 +1647,18 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
         throw std::runtime_error("Video stream has invalid dimensions");
     }
 
+#if CUESEEKER_HAS_LIBASS_HEADER
+    std::unique_ptr<AssOverlay> subtitleOverlay;
+    if (subtitlePath) {
+        subtitleOverlay = std::make_unique<AssOverlay>();
+        subtitleOverlay->initialize(*subtitlePath, frameWidth, frameHeight);
+    }
+#else
+    if (subtitlePath) {
+        throw std::runtime_error("ASS subtitle overlay requires building with the libass development SDK.");
+    }
+#endif
+
     D3D11Renderer renderer;
     renderer.initialize(
         std::min(frameWidth, 1280),
@@ -1525,7 +1694,17 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
     } else {
         std::cerr << "Audio output: no audio stream found; playback is video-only.\n";
     }
-    std::cerr << "ASS overlay is not implemented in this bootstrap.\n";
+#if CUESEEKER_HAS_LIBASS_HEADER
+    if (subtitleOverlay) {
+        std::cerr << "ASS overlay: external subtitle enabled from " << subtitleOverlay->subtitlePath()
+                  << " (" << subtitleOverlay->eventCount() << " events, "
+                  << subtitleOverlay->styleCount() << " styles)\n";
+    } else {
+        std::cerr << "ASS overlay: no external ASS subtitle path provided.\n";
+    }
+#else
+    std::cerr << "ASS overlay: libass SDK is not linked in this build.\n";
+#endif
 
     const auto wallStart = std::chrono::steady_clock::now();
     std::optional<double> mediaStart;
@@ -1585,6 +1764,13 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
             if (relativeMedia > relativeWall && relativeMedia - relativeWall < 1.0) {
                 std::this_thread::sleep_for(std::chrono::duration<double>(relativeMedia - relativeWall));
             }
+
+#if CUESEEKER_HAS_LIBASS_HEADER
+            if (subtitleOverlay) {
+                const int64_t subtitleMs = static_cast<int64_t>(std::llround(mediaSeconds * 1000.0));
+                subtitleOverlay->composite(bgraFrame->data[0], frameWidth, frameHeight, bgraFrame->linesize[0], subtitleMs);
+            }
+#endif
 
             if (!renderer.pumpMessages()) {
                 running = false;
@@ -1720,7 +1906,7 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
     }
 }
 #else
-void playVideo(const std::string&, int64_t, int64_t)
+void playVideo(const std::string&, const std::optional<std::string>&, int64_t, int64_t)
 {
     throw std::runtime_error("Video playback requires building with the FFmpeg development SDK.");
 }
@@ -1749,12 +1935,12 @@ void printUsage()
         << "Usage:\n"
         << "  CueSeekerWindowsPlaybackLab --inspect <media-file> [--subtitle <ass-file>]\n"
         << "  CueSeekerWindowsPlaybackLab --render-test\n"
-        << "  CueSeekerWindowsPlaybackLab --play <media-file> [--seek-ms ms] [--duration-ms ms]\n"
+        << "  CueSeekerWindowsPlaybackLab --play <media-file> [--subtitle <ass-file>] [--seek-ms ms] [--duration-ms ms]\n"
         << "\n"
         << "Inspect reports embedded subtitle streams, attachments, and optional external ASS probe results.\n"
         << "The first --play path uses FFmpeg software video decode, D3D11 presentation,\n"
-        << "and WASAPI shared-mode audio output when the media has an audio stream.\n"
-        << "D3D11VA/DXVA and libass overlay are intentionally next steps.\n";
+        << "WASAPI shared-mode audio output, and optional external ASS overlay.\n"
+        << "D3D11VA/DXVA remains an intentionally separate next step.\n";
 }
 
 CliOptions parseArgs(int argc, wchar_t** argv)
@@ -1836,7 +2022,7 @@ int wmain(int argc, wchar_t** argv)
             runRenderTest();
             return 0;
         case CliOptions::Mode::Play:
-            playVideo(options.mediaPath, options.seekMs, options.durationMs);
+            playVideo(options.mediaPath, options.subtitlePath, options.seekMs, options.durationMs);
             return 0;
         }
 
