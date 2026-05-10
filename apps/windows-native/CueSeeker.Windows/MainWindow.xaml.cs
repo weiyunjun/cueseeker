@@ -41,13 +41,11 @@ public sealed partial class MainWindow : Window
 
     private void PlaybackSurface_Loaded(object sender, RoutedEventArgs e)
     {
-        if (sender is not SwapChainPanel panel) {
+        if (sender is not SwapChainPanel) {
             return;
         }
 
-        PlaybackSurfaceStatusText.Text = playbackHost.TryCaptureSwapChainPanel(panel, out nint panelNative)
-            ? $"SwapChainPanel ready: 0x{panelNative.ToInt64():X}"
-            : "SwapChainPanel native pointer unavailable";
+        CapturePlaybackSurface();
     }
 
     private async void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -408,12 +406,30 @@ public sealed partial class MainWindow : Window
         SubtitleFolderButton.IsEnabled = true;
         string reportPath = Path.Combine(Path.GetDirectoryName(SubtitleDatabase.DefaultPath)!, "last-playback.json");
         PlaybackStatusText.Text = $"{source}: starting {Path.GetFileName(videoPath)} at {FormatMilliseconds(seekMilliseconds)}";
+        PlaybackOverlayPanel.Visibility = Visibility.Visible;
+        if (!CapturePlaybackSurface()) {
+            PlaybackStatusText.Text = $"{source}: playback failed: embedded playback surface is not ready.";
+            return;
+        }
+
+        PlaybackOverlayPanel.Visibility = Visibility.Collapsed;
         try {
             _ = await playbackHost.PlayAsync(videoPath, subtitlePath, reportPath, seekMilliseconds, decodePreference);
+            PlaybackOverlayPanel.Visibility = Visibility.Visible;
             PlaybackStatusText.Text = $"{source}: playback ended. Report: {reportPath}";
         } catch (Exception error) {
+            PlaybackOverlayPanel.Visibility = Visibility.Visible;
             PlaybackStatusText.Text = $"{source}: playback failed: {error.Message}";
         }
+    }
+
+    private bool CapturePlaybackSurface()
+    {
+        bool captured = playbackHost.TryCaptureSwapChainPanel(PlaybackSurface, out _);
+        PlaybackSurfaceStatusText.Text = captured
+            ? "Embedded playback surface ready"
+            : "Embedded playback surface unavailable";
+        return captured;
     }
 
     private static void RevealInExplorer(string path)

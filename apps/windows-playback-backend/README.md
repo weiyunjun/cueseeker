@@ -10,9 +10,14 @@ Current exported API:
 
 - `CueSeekerPlaybackInspectJson`
 - `CueSeekerPlaybackPlay`
+- `CueSeekerPlaybackCreateSwapChainPanelPresenter`
+- `CueSeekerPlaybackDestroyPresenter`
 - `CueSeekerPlaybackRunRenderTest`
 - `CueSeekerPlaybackFreeString`
 
-The first DLL extraction still uses the existing lab window presenter for video
-output. The next backend step is to add a WinUI `SwapChainPanel` presenter so
-the Windows app can render video inside its own visual tree.
+`CueSeekerPlaybackPlay` accepts an optional WinUI `SwapChainPanel` native
+pointer and render size. The Windows app first creates a native presenter on
+the UI thread with `CueSeekerPlaybackCreateSwapChainPanelPresenter`, then passes
+that presenter to `CueSeekerPlaybackPlay` for background playback. The presenter
+owns a DXGI composition swap chain attached to the app visual tree. The lab CLI
+still omits those fields and uses the standalone diagnostics window.

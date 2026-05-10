@@ -3,6 +3,7 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <dxgi.h>
+#include <dxgi1_2.h>
 #include <propkeydef.h>
 #include <functiondiscoverykeys_devpkey.h>
 #include <mmdeviceapi.h>
@@ -1283,6 +1284,10 @@ struct Vertex {
     float v;
 };
 
+struct __declspec(uuid("63aad0b8-7c24-40ff-85a8-640d944cc325")) CueSeekerSwapChainPanelNative : IUnknown {
+    virtual HRESULT STDMETHODCALLTYPE SetSwapChain(IDXGISwapChain* swapChain) = 0;
+};
+
 LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
     switch (message) {
@@ -1296,8 +1301,11 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
 
 class D3D11Renderer {
 public:
-    void initialize(int width, int height, const wchar_t* title)
+    void initializeWindow(int width, int height, const wchar_t* title)
     {
+        targetWidth_ = std::max(1, width);
+        targetHeight_ = std::max(1, height);
+
         HINSTANCE instance = GetModuleHandleW(nullptr);
         WNDCLASSW klass = {};
         klass.lpfnWndProc = windowProc;
@@ -1326,13 +1334,29 @@ public:
             throw std::runtime_error("CreateWindowExW failed");
         }
 
-        createDeviceAndSwapChain(width, height);
+        createWindowDeviceAndSwapChain(targetWidth_, targetHeight_);
         createPipeline();
         ShowWindow(hwnd_, SW_SHOW);
     }
 
+    void initializeSwapChainPanel(void* panelNativePointer, int width, int height)
+    {
+        if (!panelNativePointer) {
+            throw std::runtime_error("SwapChainPanel native pointer is required for embedded playback");
+        }
+
+        targetWidth_ = std::max(1, width);
+        targetHeight_ = std::max(1, height);
+        createCompositionDeviceAndSwapChain(panelNativePointer, targetWidth_, targetHeight_);
+        createPipeline();
+    }
+
     bool pumpMessages()
     {
+        if (!hwnd_) {
+            return true;
+        }
+
         MSG message = {};
         while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
             if (message.message == WM_QUIT) {
@@ -1377,10 +1401,15 @@ public:
         context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
 
         D3D11_VIEWPORT viewport = {};
-        RECT client = {};
-        GetClientRect(hwnd_, &client);
-        viewport.Width = static_cast<float>(std::max<LONG>(1, client.right - client.left));
-        viewport.Height = static_cast<float>(std::max<LONG>(1, client.bottom - client.top));
+        if (hwnd_) {
+            RECT client = {};
+            GetClientRect(hwnd_, &client);
+            viewport.Width = static_cast<float>(std::max<LONG>(1, client.right - client.left));
+            viewport.Height = static_cast<float>(std::max<LONG>(1, client.bottom - client.top));
+        } else {
+            viewport.Width = static_cast<float>(targetWidth_);
+            viewport.Height = static_cast<float>(targetHeight_);
+        }
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
         context_->RSSetViewports(1, &viewport);
@@ -1390,7 +1419,7 @@ public:
     }
 
 private:
-    void createDeviceAndSwapChain(int width, int height)
+    void createWindowDeviceAndSwapChain(int width, int height)
     {
         DXGI_SWAP_CHAIN_DESC desc = {};
         desc.BufferDesc.Width = width;
@@ -1430,6 +1459,69 @@ private:
                 &selectedLevel,
                 &context_),
             "D3D11CreateDeviceAndSwapChain");
+
+        ComPtr<ID3D11Texture2D> backBuffer;
+        throwIfFailed(swapChain_->GetBuffer(0, IID_PPV_ARGS(&backBuffer)), "GetBuffer");
+        throwIfFailed(device_->CreateRenderTargetView(backBuffer.Get(), nullptr, &renderTarget_), "CreateRenderTargetView");
+    }
+
+    void createCompositionDeviceAndSwapChain(void* panelNativePointer, int width, int height)
+    {
+        const D3D_FEATURE_LEVEL levels[] = {
+            D3D_FEATURE_LEVEL_12_1,
+            D3D_FEATURE_LEVEL_12_0,
+            D3D_FEATURE_LEVEL_11_1,
+            D3D_FEATURE_LEVEL_11_0,
+            D3D_FEATURE_LEVEL_10_1,
+            D3D_FEATURE_LEVEL_10_0,
+        };
+
+        D3D_FEATURE_LEVEL selectedLevel = D3D_FEATURE_LEVEL_10_0;
+        throwIfFailed(
+            D3D11CreateDevice(
+                nullptr,
+                D3D_DRIVER_TYPE_HARDWARE,
+                nullptr,
+                D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                levels,
+                static_cast<UINT>(std::size(levels)),
+                D3D11_SDK_VERSION,
+                &device_,
+                &selectedLevel,
+                &context_),
+            "D3D11CreateDevice");
+
+        ComPtr<IDXGIDevice> dxgiDevice;
+        throwIfFailed(device_.As(&dxgiDevice), "QueryInterface(IDXGIDevice)");
+
+        ComPtr<IDXGIAdapter> adapter;
+        throwIfFailed(dxgiDevice->GetAdapter(&adapter), "IDXGIDevice::GetAdapter");
+
+        ComPtr<IDXGIFactory2> factory;
+        throwIfFailed(adapter->GetParent(IID_PPV_ARGS(&factory)), "IDXGIAdapter::GetParent(IDXGIFactory2)");
+
+        DXGI_SWAP_CHAIN_DESC1 desc = {};
+        desc.Width = static_cast<UINT>(width);
+        desc.Height = static_cast<UINT>(height);
+        desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        desc.Stereo = FALSE;
+        desc.SampleDesc.Count = 1;
+        desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        desc.BufferCount = 2;
+        desc.Scaling = DXGI_SCALING_STRETCH;
+        desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+        desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+
+        ComPtr<IDXGISwapChain1> compositionSwapChain;
+        throwIfFailed(
+            factory->CreateSwapChainForComposition(device_.Get(), &desc, nullptr, &compositionSwapChain),
+            "IDXGIFactory2::CreateSwapChainForComposition");
+        throwIfFailed(compositionSwapChain.As(&swapChain_), "QueryInterface(IDXGISwapChain)");
+
+        ComPtr<CueSeekerSwapChainPanelNative> panel;
+        auto* panelUnknown = static_cast<IUnknown*>(panelNativePointer);
+        throwIfFailed(panelUnknown->QueryInterface(IID_PPV_ARGS(&panel)), "QueryInterface(CueSeekerSwapChainPanelNative)");
+        throwIfFailed(panel->SetSwapChain(swapChain_.Get()), "CueSeekerSwapChainPanelNative::SetSwapChain");
 
         ComPtr<ID3D11Texture2D> backBuffer;
         throwIfFailed(swapChain_->GetBuffer(0, IID_PPV_ARGS(&backBuffer)), "GetBuffer");
@@ -1572,12 +1664,14 @@ float4 ps_main(PSIn input) : SV_TARGET {
     ComPtr<ID3D11ShaderResourceView> frameView_;
     int frameWidth_ = 0;
     int frameHeight_ = 0;
+    int targetWidth_ = 1;
+    int targetHeight_ = 1;
 };
 
 void runRenderTest()
 {
     D3D11Renderer renderer;
-    renderer.initialize(960, 540, L"CueSeeker Windows Playback Lab - D3D11 Render Test");
+    renderer.initializeWindow(960, 540, L"CueSeeker Windows Playback Lab - D3D11 Render Test");
 
     const auto start = std::chrono::steady_clock::now();
     while (renderer.pumpMessages()) {
@@ -1970,7 +2064,11 @@ void playVideo(
     int64_t seekMs,
     int64_t durationMs,
     DecodePreference decodePreference,
-    const std::optional<std::string>& reportPath)
+    const std::optional<std::string>& reportPath,
+    void* swapChainPanel,
+    int renderWidth,
+    int renderHeight,
+    void* rendererPresenter)
 {
     PlaybackReport report;
     report.mediaPath = path;
@@ -2201,13 +2299,25 @@ void playVideo(
     }
 #endif
 
-    D3D11Renderer renderer;
-    renderer.initialize(
-        std::min(frameWidth, 1280),
-        std::min(frameHeight, 720),
-        report.decodePathUsed == "d3d11va"
-            ? L"CueSeeker Windows Playback Lab - D3D11VA video path"
-            : L"CueSeeker Windows Playback Lab - software video path");
+    D3D11Renderer windowRenderer;
+    D3D11Renderer* renderer = nullptr;
+    if (rendererPresenter) {
+        renderer = static_cast<D3D11Renderer*>(rendererPresenter);
+    } else if (swapChainPanel) {
+        windowRenderer.initializeSwapChainPanel(
+            swapChainPanel,
+            renderWidth > 0 ? renderWidth : std::min(frameWidth, 1280),
+            renderHeight > 0 ? renderHeight : std::min(frameHeight, 720));
+        renderer = &windowRenderer;
+    } else {
+        windowRenderer.initializeWindow(
+            std::min(frameWidth, 1280),
+            std::min(frameHeight, 720),
+            report.decodePathUsed == "d3d11va"
+                ? L"CueSeeker Windows Playback Lab - D3D11VA video path"
+                : L"CueSeeker Windows Playback Lab - software video path");
+        renderer = &windowRenderer;
+    }
 
     std::unique_ptr<AVFrame, FrameDeleter> frame(av_frame_alloc());
     std::unique_ptr<AVFrame, FrameDeleter> hardwareTransferFrame(av_frame_alloc());
@@ -2339,13 +2449,13 @@ void playVideo(
             }
 #endif
 
-            if (!renderer.pumpMessages()) {
+            if (!renderer->pumpMessages()) {
                 running = false;
                 report.completionReason = "window_closed";
                 break;
             }
 
-            renderer.renderFrame(bgraFrame->data[0], frameWidth, frameHeight, bgraFrame->linesize[0]);
+            renderer->renderFrame(bgraFrame->data[0], frameWidth, frameHeight, bgraFrame->linesize[0]);
             ++report.videoFramesRendered;
             if (report.firstFrameMs < 0) {
                 report.firstFrameMs = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -2447,7 +2557,7 @@ void playVideo(
     };
 
     while (running) {
-        if (!renderer.pumpMessages()) {
+        if (!renderer->pumpMessages()) {
             report.completionReason = "window_closed";
             break;
         }
@@ -2510,7 +2620,11 @@ void playVideo(
     int64_t,
     int64_t,
     DecodePreference,
-    const std::optional<std::string>&)
+    const std::optional<std::string>&,
+    void*,
+    int,
+    int,
+    void*)
 {
     throw std::runtime_error("Video playback requires building with the FFmpeg development SDK.");
 }
@@ -2737,12 +2851,50 @@ int CueSeekerPlaybackPlay(const CueSeekerPlaybackOptions* options, char** errorM
             options->seek_ms,
             options->duration_ms,
             decodePreferenceFromApi(options->decode_preference),
-            optionalUtf8FromWide(options->report_path));
+            optionalUtf8FromWide(options->report_path),
+            options->swap_chain_panel,
+            options->render_width,
+            options->render_height,
+            options->renderer_presenter);
         return 0;
     } catch (const std::exception& error) {
         setOutputString(errorMessage, error.what());
         return 1;
     }
+}
+
+int CueSeekerPlaybackCreateSwapChainPanelPresenter(
+    void* swapChainPanel,
+    int32_t renderWidth,
+    int32_t renderHeight,
+    void** rendererPresenter,
+    char** errorMessage)
+{
+    if (rendererPresenter) {
+        *rendererPresenter = nullptr;
+    }
+    if (errorMessage) {
+        *errorMessage = nullptr;
+    }
+
+    try {
+        if (!rendererPresenter) {
+            throw std::runtime_error("renderer_presenter output is required");
+        }
+
+        auto renderer = std::make_unique<D3D11Renderer>();
+        renderer->initializeSwapChainPanel(swapChainPanel, renderWidth, renderHeight);
+        *rendererPresenter = renderer.release();
+        return 0;
+    } catch (const std::exception& error) {
+        setOutputString(errorMessage, error.what());
+        return 1;
+    }
+}
+
+void CueSeekerPlaybackDestroyPresenter(void* rendererPresenter)
+{
+    delete static_cast<D3D11Renderer*>(rendererPresenter);
 }
 
 int CueSeekerPlaybackRunRenderTest(char** errorMessage)
@@ -2794,7 +2946,11 @@ int wmain(int argc, wchar_t** argv)
                 options.seekMs,
                 options.durationMs,
                 options.decodePreference,
-                options.reportPath);
+                options.reportPath,
+                nullptr,
+                0,
+                0,
+                nullptr);
             return 0;
         }
 

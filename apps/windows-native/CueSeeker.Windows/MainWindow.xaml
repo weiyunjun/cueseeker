@@ -46,7 +46,7 @@
                     Background="Black">
                     <Grid>
                         <SwapChainPanel x:Name="PlaybackSurface" Loaded="PlaybackSurface_Loaded" />
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                        <StackPanel x:Name="PlaybackOverlayPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
                             <TextBlock
                                 x:Name="PlaybackSurfaceStatusText"
                                 HorizontalAlignment="Center"

@@ -6,6 +6,11 @@ namespace CueSeeker.Windows.Playback;
 
 internal sealed class NativePlaybackHost
 {
+    private nint swapChainPanelNative;
+    private int renderWidth = 1280;
+    private int renderHeight = 720;
+    private static nint nativeLibraryHandle;
+
     public bool IsNativeLibraryAvailable {
         get {
             return EnsureNativeLibraryLoaded();
@@ -20,6 +25,10 @@ internal sealed class NativePlaybackHost
         }
 
         nativePointer = winrtObject.NativeObject.ThisPtr;
+        if (nativePointer != 0) {
+            swapChainPanelNative = nativePointer;
+            UpdateRenderTargetSize(panel);
+        }
         return nativePointer != 0;
     }
 
@@ -48,40 +57,70 @@ internal sealed class NativePlaybackHost
         DecodePreference decodePreference,
         long durationMilliseconds = 0)
     {
-        EnsureNativeLibraryLoaded();
-        return await Task.Run(() => {
-            NativePlaybackOptions options = new() {
-                MediaPath = mediaPath,
-                SubtitlePath = subtitlePath,
-                ReportPath = reportPath,
-                SeekMilliseconds = seekMilliseconds,
-                DurationMilliseconds = durationMilliseconds,
-                DecodePreference = decodePreference,
-            };
+        if (!EnsureNativeLibraryLoaded()) {
+            throw new InvalidOperationException("Native playback backend is not available.");
+        }
+        if (swapChainPanelNative == 0) {
+            throw new InvalidOperationException("Embedded playback surface is not ready.");
+        }
 
-            nint error = 0;
-            try {
-                int result = CueSeekerPlaybackPlay(ref options, out error);
-                if (result != 0) {
-                    throw new InvalidOperationException(ReadUtf8(error) ?? "Native playback failed.");
-                }
-
-                return reportPath ?? string.Empty;
-            } finally {
-                CueSeekerPlaybackFreeString(error);
+        nint panelNative = swapChainPanelNative;
+        int targetWidth = renderWidth;
+        int targetHeight = renderHeight;
+        nint presenter = 0;
+        nint createError = 0;
+        try {
+            int createResult = CueSeekerPlaybackCreateSwapChainPanelPresenter(panelNative, targetWidth, targetHeight, out presenter, out createError);
+            if (createResult != 0) {
+                throw new InvalidOperationException(ReadUtf8(createError) ?? "Native playback presenter creation failed.");
             }
-        });
+
+            return await Task.Run(() => {
+                NativePlaybackOptions options = new() {
+                    MediaPath = mediaPath,
+                    SubtitlePath = subtitlePath,
+                    ReportPath = reportPath,
+                    SeekMilliseconds = seekMilliseconds,
+                    DurationMilliseconds = durationMilliseconds,
+                    DecodePreference = decodePreference,
+                    SwapChainPanel = panelNative,
+                    RenderWidth = targetWidth,
+                    RenderHeight = targetHeight,
+                    RendererPresenter = presenter,
+                };
+
+                nint error = 0;
+                try {
+                    int result = CueSeekerPlaybackPlay(ref options, out error);
+                    if (result != 0) {
+                        throw new InvalidOperationException(ReadUtf8(error) ?? "Native playback failed.");
+                    }
+
+                    return reportPath ?? string.Empty;
+                } finally {
+                    CueSeekerPlaybackFreeString(error);
+                }
+            });
+        } finally {
+            CueSeekerPlaybackFreeString(createError);
+            if (presenter != 0) {
+                CueSeekerPlaybackDestroyPresenter(presenter);
+            }
+        }
     }
 
     private static bool EnsureNativeLibraryLoaded()
     {
-        if (NativeLibrary.TryLoad("CueSeekerPlaybackNative.dll", out nint directHandle)) {
-            NativeLibrary.Free(directHandle);
+        if (nativeLibraryHandle != 0) {
+            return true;
+        }
+
+        if (NativeLibrary.TryLoad("CueSeekerPlaybackNative.dll", out nativeLibraryHandle)) {
             return true;
         }
 
         string? nativePath = FindNativeLibraryPath();
-        return nativePath is not null && NativeLibrary.TryLoad(nativePath, out _);
+        return nativePath is not null && NativeLibrary.TryLoad(nativePath, out nativeLibraryHandle);
     }
 
     private static string? FindNativeLibraryPath()
@@ -104,6 +143,15 @@ internal sealed class NativePlaybackHost
         return null;
     }
 
+    private void UpdateRenderTargetSize(SwapChainPanel panel)
+    {
+        double scale = panel.XamlRoot?.RasterizationScale ?? 1.0;
+        int width = (int)Math.Round(panel.ActualWidth * scale);
+        int height = (int)Math.Round(panel.ActualHeight * scale);
+        renderWidth = width > 0 ? width : renderWidth;
+        renderHeight = height > 0 ? height : renderHeight;
+    }
+
     private static string? ReadUtf8(nint value)
     {
         return value == 0 ? null : Marshal.PtrToStringUTF8(value);
@@ -120,6 +168,17 @@ internal sealed class NativePlaybackHost
     private static extern int CueSeekerPlaybackPlay(
         ref NativePlaybackOptions options,
         out nint errorMessage);
+
+    [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int CueSeekerPlaybackCreateSwapChainPanelPresenter(
+        nint swapChainPanel,
+        int renderWidth,
+        int renderHeight,
+        out nint rendererPresenter,
+        out nint errorMessage);
+
+    [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void CueSeekerPlaybackDestroyPresenter(nint rendererPresenter);
 
     [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
     private static extern void CueSeekerPlaybackFreeString(nint value);
@@ -139,6 +198,10 @@ internal sealed class NativePlaybackHost
         public long SeekMilliseconds;
         public long DurationMilliseconds;
         public DecodePreference DecodePreference;
+        public nint SwapChainPanel;
+        public int RenderWidth;
+        public int RenderHeight;
+        public nint RendererPresenter;
     }
 }
 

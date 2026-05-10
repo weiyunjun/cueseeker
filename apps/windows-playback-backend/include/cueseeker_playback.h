@@ -30,6 +30,10 @@ typedef struct CueSeekerPlaybackOptions {
     int64_t seek_ms;
     int64_t duration_ms;
     CueSeekerPlaybackDecodePreference decode_preference;
+    void* swap_chain_panel;
+    int32_t render_width;
+    int32_t render_height;
+    void* renderer_presenter;
 } CueSeekerPlaybackOptions;
 
 CUESEEKER_PLAYBACK_API int CueSeekerPlaybackInspectJson(
@@ -41,6 +45,15 @@ CUESEEKER_PLAYBACK_API int CueSeekerPlaybackInspectJson(
 CUESEEKER_PLAYBACK_API int CueSeekerPlaybackPlay(
     const CueSeekerPlaybackOptions* options,
     char** error_message);
+
+CUESEEKER_PLAYBACK_API int CueSeekerPlaybackCreateSwapChainPanelPresenter(
+    void* swap_chain_panel,
+    int32_t render_width,
+    int32_t render_height,
+    void** renderer_presenter,
+    char** error_message);
+
+CUESEEKER_PLAYBACK_API void CueSeekerPlaybackDestroyPresenter(void* renderer_presenter);
 
 CUESEEKER_PLAYBACK_API int CueSeekerPlaybackRunRenderTest(char** error_message);
 
