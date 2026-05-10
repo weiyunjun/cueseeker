@@ -59,28 +59,48 @@ private enum ActivePlaybackSource: Equatable {
     case shiori
 }
 
-struct SearchResultFileGroup: Identifiable, Equatable {
+struct SearchResultEpisode: Identifiable, Equatable {
     let subtitlePath: String
     let subtitleDisplayTitle: String
+    let rank: Int
+    let episodeLabel: String
     let totalCount: Int
     let results: [SubtitleSearchResult]
-    let isCollapsed: Bool
 
     var id: String { subtitlePath }
-
-    var displayCount: String {
-        totalCount > 99 ? "99+" : "\(totalCount)"
-    }
 }
 
-struct ShioriFileGroup: Identifiable, Equatable {
+struct SearchResultShow: Identifiable, Equatable {
+    let folderPath: String
+    let title: String
+    let totalCount: Int
+    let episodes: [SearchResultEpisode]
+    let isCollapsed: Bool
+
+    var id: String { folderPath }
+}
+
+struct ShioriEpisode: Identifiable, Equatable {
     let subtitlePath: String
     let subtitleDisplayTitle: String
+    let rank: Int
+    let episodeLabel: String
     let shioris: [Shiori]
-    let isCollapsed: Bool
 
     var id: String { subtitlePath }
     var totalCount: Int { shioris.count }
+}
+
+struct ShioriShow: Identifiable, Equatable {
+    let folderPath: String
+    let title: String
+    let episodes: [ShioriEpisode]
+    let isCollapsed: Bool
+
+    var id: String { folderPath }
+    var totalCount: Int {
+        episodes.reduce(0) { $0 + $1.totalCount }
+    }
 }
 
 struct LibraryVideoRow: Identifiable {
@@ -244,13 +264,13 @@ final class AppState: ObservableObject {
     @Published var hasMoreSearchResults = false
     @Published var libraryStatus: LibraryStatus = .idle
     @Published var libraryVideos: [LibraryVideo] = []
-    @Published var collapsedSearchResultGroupPaths: Set<String> = []
-    @Published var collapsedShioriGroupPaths: Set<String> = []
+    @Published var collapsedSearchResultShowFolderPaths: Set<String> = []
+    @Published var collapsedShioriShowFolderPaths: Set<String> = []
     @Published private(set) var libraryFolderGroups: [LibraryFolderGroup] = []
     @Published private(set) var libraryPresentationRevision = 0
-    @Published private(set) var searchResultGroups: [SearchResultFileGroup] = []
+    @Published private(set) var searchResultShows: [SearchResultShow] = []
     @Published private(set) var shioris: [Shiori] = []
-    @Published private(set) var shioriFileGroups: [ShioriFileGroup] = []
+    @Published private(set) var shioriShows: [ShioriShow] = []
     @Published private(set) var renderedSearchResultCount = 0
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
@@ -275,12 +295,12 @@ final class AppState: ObservableObject {
         player
     }
 
-    var hasSearchResultGroups: Bool {
-        !searchResultGroups.isEmpty
+    var hasSearchResultShows: Bool {
+        !searchResultShows.isEmpty
     }
 
-    var hasShioriFileGroups: Bool {
-        !shioriFileGroups.isEmpty
+    var hasShioriShows: Bool {
+        !shioriShows.isEmpty
     }
 
     var shioriCount: Int {
@@ -288,7 +308,7 @@ final class AppState: ObservableObject {
     }
 
     var shioriFileCount: Int {
-        shioriFileGroups.count
+        shioriShows.reduce(0) { $0 + $1.episodes.count }
     }
 
     var searchResultFileCount: Int {
@@ -314,12 +334,52 @@ final class AppState: ObservableObject {
         }
     }
 
-    private static func makeSearchResultGroups(
+    private struct EpisodeIdentity {
+        let folderPath: String
+        let folderTitle: String
+        let alias: SubtitleAlias?
+    }
+
+    private static func episodeIdentities(forSubtitlePaths paths: some Sequence<String>) -> [String: EpisodeIdentity] {
+        var identities: [String: EpisodeIdentity] = [:]
+        for path in paths where identities[path] == nil {
+            let alias = SubtitleDisplayTitleResolver.alias(forSubtitlePath: path)
+            let folderURL = URL(fileURLWithPath: path).deletingLastPathComponent().standardizedFileURL
+            let folderPath = alias?.folderPath ?? folderURL.path
+            let folderTitle = alias?.folderTitle ?? folderURL.lastPathComponent
+            identities[path] = EpisodeIdentity(
+                folderPath: folderPath,
+                folderTitle: folderTitle.isEmpty ? folderPath : folderTitle,
+                alias: alias
+            )
+        }
+        return identities
+    }
+
+    private static func episodeLabel(for identity: EpisodeIdentity, subtitlePath: String) -> String {
+        if let alias = identity.alias {
+            return "Episode \(alias.paddedRank)"
+        }
+        return URL(fileURLWithPath: subtitlePath).lastPathComponent
+    }
+
+    private static func sortEpisodesByRank<T>(_ episodes: [T], rank: (T) -> Int, subtitlePath: (T) -> String) -> [T] {
+        episodes.sorted { lhs, rhs in
+            let lhsRank = rank(lhs)
+            let rhsRank = rank(rhs)
+            if lhsRank != rhsRank {
+                return lhsRank < rhsRank
+            }
+            return subtitlePath(lhs).localizedStandardCompare(subtitlePath(rhs)) == .orderedAscending
+        }
+    }
+
+    private static func makeSearchResultShows(
         results searchResults: [SubtitleSearchResult],
         fileSummaries searchFileSummaries: [SubtitleSearchFileSummary],
         expandedRowsByPath: [String: [SubtitleSearchResult]],
-        collapsedGroupPaths: Set<String>
-    ) -> [SearchResultFileGroup] {
+        collapsedShowFolderPaths: Set<String>
+    ) -> [SearchResultShow] {
         let resultsByPath = Dictionary(grouping: searchResults, by: \.subtitlePath)
         guard !searchFileSummaries.isEmpty || !resultsByPath.isEmpty else {
             return []
@@ -333,51 +393,116 @@ final class AppState: ObservableObject {
             .filter { !summaryPaths.contains($0) }
             .sorted(by: Self.searchResultGroupPathSort)
 
-        return (orderedPaths + extraPaths).map { path in
+        let allPaths = orderedPaths + extraPaths
+        let identities = episodeIdentities(forSubtitlePaths: allPaths)
+
+        let episodes: [SearchResultEpisode] = allPaths.map { path in
+            let identity = identities[path]!
             let summary = summaryByPath[path]
             let groupRows = expandedRowsByPath[path] ?? resultsByPath[path] ?? []
             let results = groupRows.sorted(by: Self.searchResultSort)
-            return SearchResultFileGroup(
+            let displayTitle = summary?.subtitleDisplayTitle
+                ?? identity.alias?.displayTitle
+                ?? URL(fileURLWithPath: path).lastPathComponent
+            return SearchResultEpisode(
                 subtitlePath: path,
-                subtitleDisplayTitle: summary?.subtitleDisplayTitle
-                    ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path),
+                subtitleDisplayTitle: displayTitle,
+                rank: identity.alias?.rank ?? 0,
+                episodeLabel: episodeLabel(for: identity, subtitlePath: path),
                 totalCount: summary?.matchCount ?? results.count,
-                results: results,
-                isCollapsed: collapsedGroupPaths.contains(path)
+                results: results
+            )
+        }
+
+        let episodesByFolder: [String: [SearchResultEpisode]] = Dictionary(grouping: episodes) { episode in
+            identities[episode.subtitlePath]!.folderPath
+        }
+
+        let folderTitleByFolder: [String: String] = Dictionary(grouping: allPaths, by: { identities[$0]!.folderPath })
+            .mapValues { paths in
+                paths.lazy.compactMap { identities[$0]?.folderTitle }.first ?? paths[0]
+            }
+
+        let orderedFolderPaths: [String] = {
+            var seen = Set<String>()
+            var ordered: [String] = []
+            for path in allPaths {
+                let folderPath = identities[path]!.folderPath
+                if seen.insert(folderPath).inserted {
+                    ordered.append(folderPath)
+                }
+            }
+            return ordered
+        }()
+
+        return orderedFolderPaths.map { folderPath in
+            let folderEpisodes = sortEpisodesByRank(
+                episodesByFolder[folderPath] ?? [],
+                rank: { $0.rank },
+                subtitlePath: { $0.subtitlePath }
+            )
+            let totalCount = folderEpisodes.reduce(0) { $0 + $1.totalCount }
+            return SearchResultShow(
+                folderPath: folderPath,
+                title: folderTitleByFolder[folderPath] ?? folderPath,
+                totalCount: totalCount,
+                episodes: folderEpisodes,
+                isCollapsed: collapsedShowFolderPaths.contains(folderPath)
             )
         }
     }
 
-    private static func makeShioriFileGroups(
+    private static func makeShioriShows(
         from shioris: [Shiori],
-        collapsedGroupPaths: Set<String>
-    ) -> [ShioriFileGroup] {
+        collapsedShowFolderPaths: Set<String>
+    ) -> [ShioriShow] {
         let shiorisByPath = Dictionary(grouping: shioris, by: \.subtitlePath)
-        let displayTitlesByPath = Dictionary(
-            uniqueKeysWithValues: shiorisByPath.keys.map { path in
-                (
-                    path,
-                    SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path)
-                )
-            }
-        )
-
-        return shiorisByPath.keys.sorted { lhs, rhs in
-            let lhsDisplayTitle = displayTitlesByPath[lhs] ?? URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsDisplayTitle = displayTitlesByPath[rhs] ?? URL(fileURLWithPath: rhs).lastPathComponent
-            let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
-            if displayTitleComparison != .orderedSame {
-                return displayTitleComparison == .orderedAscending
-            }
-
-            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        guard !shiorisByPath.isEmpty else {
+            return []
         }
-        .map { path in
-            ShioriFileGroup(
+
+        let identities = episodeIdentities(forSubtitlePaths: shiorisByPath.keys)
+
+        let episodes: [ShioriEpisode] = shiorisByPath.map { path, shioris in
+            let identity = identities[path]!
+            let displayTitle = identity.alias?.displayTitle ?? URL(fileURLWithPath: path).lastPathComponent
+            return ShioriEpisode(
                 subtitlePath: path,
-                subtitleDisplayTitle: displayTitlesByPath[path] ?? URL(fileURLWithPath: path).lastPathComponent,
-                shioris: (shiorisByPath[path] ?? []).sorted(by: Self.shioriSort),
-                isCollapsed: collapsedGroupPaths.contains(path)
+                subtitleDisplayTitle: displayTitle,
+                rank: identity.alias?.rank ?? 0,
+                episodeLabel: episodeLabel(for: identity, subtitlePath: path),
+                shioris: shioris.sorted(by: Self.shioriSort)
+            )
+        }
+
+        let episodesByFolder: [String: [ShioriEpisode]] = Dictionary(grouping: episodes) { episode in
+            identities[episode.subtitlePath]!.folderPath
+        }
+
+        let folderTitleByFolder: [String: String] = Dictionary(grouping: shiorisByPath.keys, by: { identities[$0]!.folderPath })
+            .mapValues { paths in
+                paths.lazy.compactMap { identities[$0]?.folderTitle }.first ?? paths.first ?? ""
+            }
+
+        return episodesByFolder.keys.sorted { lhs, rhs in
+            let lhsTitle = folderTitleByFolder[lhs] ?? lhs
+            let rhsTitle = folderTitleByFolder[rhs] ?? rhs
+            let comparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsTitle, rhsTitle)
+            if comparison != .orderedSame {
+                return comparison == .orderedAscending
+            }
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }.map { folderPath in
+            let folderEpisodes = sortEpisodesByRank(
+                episodesByFolder[folderPath] ?? [],
+                rank: { $0.rank },
+                subtitlePath: { $0.subtitlePath }
+            )
+            return ShioriShow(
+                folderPath: folderPath,
+                title: folderTitleByFolder[folderPath] ?? folderPath,
+                episodes: folderEpisodes,
+                isCollapsed: collapsedShowFolderPaths.contains(folderPath)
             )
         }
     }
@@ -835,38 +960,47 @@ final class AppState: ObservableObject {
         )
     }
 
-    func toggleSearchResultGroup(_ subtitlePath: String) {
+    func toggleSearchResultShow(_ folderPath: String) {
         UIInvalidationProbe.mark(
-            "ACTION UI.SearchResultGroup.toggled",
-            details: "collapsedBefore=\(collapsedSearchResultGroupPaths.contains(subtitlePath))"
+            "ACTION UI.SearchResultShow.toggled",
+            details: "collapsedBefore=\(collapsedSearchResultShowFolderPaths.contains(folderPath))"
         )
-        if collapsedSearchResultGroupPaths.contains(subtitlePath) {
-            collapsedSearchResultGroupPaths.remove(subtitlePath)
-            rebuildSearchResultGroups()
-            revealInitialSearchResultGroupPage(for: subtitlePath)
+        if collapsedSearchResultShowFolderPaths.contains(folderPath) {
+            collapsedSearchResultShowFolderPaths.remove(folderPath)
+            rebuildSearchResultShows()
+            revealEpisodePagesIfNeeded(in: folderPath)
         } else {
-            collapsedSearchResultGroupPaths.insert(subtitlePath)
-            rebuildSearchResultGroups()
+            collapsedSearchResultShowFolderPaths.insert(folderPath)
+            rebuildSearchResultShows()
         }
     }
 
-    func collapseAllSearchResultGroups() {
-        let groupPaths = Set(searchResultGroups.map(\.id))
-        guard !groupPaths.isEmpty else {
+    func collapseAllSearchResultShows() {
+        let folderPaths = Set(searchResultShows.map(\.id))
+        guard !folderPaths.isEmpty else {
             return
         }
 
-        let collapsedPaths = collapsedSearchResultGroupPaths.union(groupPaths)
-        guard collapsedPaths != collapsedSearchResultGroupPaths else {
+        let collapsedPaths = collapsedSearchResultShowFolderPaths.union(folderPaths)
+        guard collapsedPaths != collapsedSearchResultShowFolderPaths else {
             return
         }
 
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResults.collapseAll",
-            details: "groups=\(groupPaths.count)"
+            details: "shows=\(folderPaths.count)"
         )
-        collapsedSearchResultGroupPaths = collapsedPaths
-        rebuildSearchResultGroups()
+        collapsedSearchResultShowFolderPaths = collapsedPaths
+        rebuildSearchResultShows()
+    }
+
+    private func revealEpisodePagesIfNeeded(in folderPath: String) {
+        guard let show = searchResultShows.first(where: { $0.folderPath == folderPath }) else {
+            return
+        }
+        for episode in show.episodes where episode.results.count < episode.totalCount {
+            revealInitialSearchResultGroupPage(for: episode.subtitlePath)
+        }
     }
 
     func refreshLibrary() {
@@ -953,17 +1087,17 @@ final class AppState: ObservableObject {
 
     private func applyShioris(_ nextShioris: [Shiori]) {
         shioris = nextShioris.sorted(by: Self.shioriSort)
-        rebuildShioriFileGroups()
+        rebuildShioriShows()
     }
 
-    private func rebuildShioriFileGroups() {
-        shioriFileGroups = Self.makeShioriFileGroups(
+    private func rebuildShioriShows() {
+        shioriShows = Self.makeShioriShows(
             from: shioris,
-            collapsedGroupPaths: collapsedShioriGroupPaths
+            collapsedShowFolderPaths: collapsedShioriShowFolderPaths
         )
         UIInvalidationProbe.count(
             "UI.ShioriPresentation.rebuilt",
-            details: "groups=\(shioriFileGroups.count) rows=\(shioris.count)"
+            details: "shows=\(shioriShows.count) rows=\(shioris.count)"
         )
     }
 
@@ -1030,7 +1164,7 @@ final class AppState: ObservableObject {
                 searchResultTotalCount = page.totalCount
                 searchFileSummaries = page.fileSummaries
                 hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
-                rebuildSearchResultGroups()
+                rebuildSearchResultShows()
                 searchStatus = .completed
             } catch is CancellationError {
                 return
@@ -1489,36 +1623,36 @@ final class AppState: ObservableObject {
         saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
     }
 
-    func toggleShioriGroup(_ subtitlePath: String) {
+    func toggleShioriShow(_ folderPath: String) {
         UIInvalidationProbe.mark(
-            "ACTION UI.ShioriGroup.toggled",
-            details: "collapsedBefore=\(collapsedShioriGroupPaths.contains(subtitlePath))"
+            "ACTION UI.ShioriShow.toggled",
+            details: "collapsedBefore=\(collapsedShioriShowFolderPaths.contains(folderPath))"
         )
-        if collapsedShioriGroupPaths.contains(subtitlePath) {
-            collapsedShioriGroupPaths.remove(subtitlePath)
+        if collapsedShioriShowFolderPaths.contains(folderPath) {
+            collapsedShioriShowFolderPaths.remove(folderPath)
         } else {
-            collapsedShioriGroupPaths.insert(subtitlePath)
+            collapsedShioriShowFolderPaths.insert(folderPath)
         }
-        rebuildShioriFileGroups()
+        rebuildShioriShows()
     }
 
-    func collapseAllShioriGroups() {
-        let groupPaths = Set(shioriFileGroups.map(\.id))
-        guard !groupPaths.isEmpty else {
+    func collapseAllShioriShows() {
+        let folderPaths = Set(shioriShows.map(\.id))
+        guard !folderPaths.isEmpty else {
             return
         }
 
-        let collapsedPaths = collapsedShioriGroupPaths.union(groupPaths)
-        guard collapsedPaths != collapsedShioriGroupPaths else {
+        let collapsedPaths = collapsedShioriShowFolderPaths.union(folderPaths)
+        guard collapsedPaths != collapsedShioriShowFolderPaths else {
             return
         }
 
         UIInvalidationProbe.mark(
             "ACTION UI.Shiori.collapseAll",
-            details: "groups=\(groupPaths.count)"
+            details: "shows=\(folderPaths.count)"
         )
-        collapsedShioriGroupPaths = collapsedPaths
-        rebuildShioriFileGroups()
+        collapsedShioriShowFolderPaths = collapsedPaths
+        rebuildShioriShows()
     }
 
     private func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) {
@@ -1577,7 +1711,7 @@ final class AppState: ObservableObject {
             searchResults = []
             expandedSearchResultGroupRowsByPath = [:]
             loadedGlobalSearchResultCount = 0
-            rebuildSearchResultGroups()
+            rebuildSearchResultShows()
         }
 
         updateSearchQuery(searchQuery)
@@ -1622,12 +1756,12 @@ final class AppState: ObservableObject {
         searchResultTotalCount = searchFileSummaries.reduce(0) { $0 + $1.matchCount }
         loadedGlobalSearchResultCount = searchResults.count
         hasMoreSearchResults = false
-        collapsedSearchResultGroupPaths = collapsedSearchResultGroupPaths.filter { !Self.path($0, isUnder: folder) }
+        collapsedSearchResultShowFolderPaths = collapsedSearchResultShowFolderPaths.filter { !Self.path($0, isUnder: folder) }
         removeLibraryPresentation(under: folder)
         expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath.filter { path, _ in
             !Self.path(path, isUnder: folder)
         }
-        rebuildSearchResultGroups()
+        rebuildSearchResultShows()
         let groupTaskPaths = searchResultGroupTasks.keys.filter { Self.path($0, isUnder: folder) }
         for path in groupTaskPaths {
             searchResultGroupTasks[path]?.cancel()
@@ -1727,7 +1861,7 @@ final class AppState: ObservableObject {
             .filter { $0.subtitlePath == subtitlePath }
             .sorted(by: Self.searchResultSort)
         expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
-        rebuildSearchResultGroups()
+        rebuildSearchResultShows()
 
         searchResultGroupTasks[subtitlePath]?.cancel()
 
@@ -1766,7 +1900,7 @@ final class AppState: ObservableObject {
 
                 self.expandedSearchResultGroupRowsByPath[subtitlePath] = results
                 self.searchResultGroupTasks.removeValue(forKey: subtitlePath)
-                self.rebuildSearchResultGroups()
+                self.rebuildSearchResultShows()
             } catch is CancellationError {
                 return
             } catch {
@@ -1786,7 +1920,7 @@ final class AppState: ObservableObject {
         searchResults = Array(searchResults.prefix(Self.searchPageSize))
         loadedGlobalSearchResultCount = searchResults.count
         hasMoreSearchResults = loadedGlobalSearchResultCount < searchResultTotalCount
-        rebuildSearchResultGroups()
+        rebuildSearchResultShows()
     }
 
     private func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
@@ -1800,25 +1934,26 @@ final class AppState: ObservableObject {
         searchResultTotalCount = 0
         searchFileSummaries = []
         hasMoreSearchResults = false
-        collapsedSearchResultGroupPaths = []
+        collapsedSearchResultShowFolderPaths = []
         expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
-        rebuildSearchResultGroups()
+        rebuildSearchResultShows()
     }
 
-    private func rebuildSearchResultGroups() {
-        searchResultGroups = Self.makeSearchResultGroups(
+    private func rebuildSearchResultShows() {
+        searchResultShows = Self.makeSearchResultShows(
             results: searchResults,
             fileSummaries: searchFileSummaries,
             expandedRowsByPath: expandedSearchResultGroupRowsByPath,
-            collapsedGroupPaths: collapsedSearchResultGroupPaths
+            collapsedShowFolderPaths: collapsedSearchResultShowFolderPaths
         )
-        renderedSearchResultCount = searchResultGroups.reduce(0) { count, group in
-            group.isCollapsed ? count : count + group.results.count
+        renderedSearchResultCount = searchResultShows.reduce(0) { count, show in
+            guard !show.isCollapsed else { return count }
+            return count + show.episodes.reduce(0) { $0 + $1.results.count }
         }
         UIInvalidationProbe.count(
             "UI.SearchPresentation.rebuilt",
-            details: "groups=\(searchResultGroups.count) rows=\(renderedSearchResultCount)"
+            details: "shows=\(searchResultShows.count) rows=\(renderedSearchResultCount)"
         )
     }
 

@@ -150,69 +150,102 @@ Requirements:
 
 Search results must show enough information for the user to choose the correct match.
 
-Search results should be grouped by subtitle file.
+Search results should be grouped in three levels: Show → Episode → Hit. A
+Show is the immediate parent folder of one or more matched subtitle files. An
+Episode is a single subtitle file inside a Show, identified by its
+contract-based alias rank. A Hit is one matched cue group inside an Episode.
 
-Each subtitle-file group should display:
+Show group rules:
 
-- A friendly display title derived from the subtitle file's immediate parent
-  folder name and its one-based natural-sort rank among same-extension sibling
-  subtitle files when that title can be derived.
-- The total matching cue-group count for that subtitle file as plain text
-  appended after the display title, separated by two spaces, using `1 result` for a
-  single match and `N results` otherwise.
-- A collapsed or expanded state indicator.
+- Show identity is the parent folder path of its member subtitle files.
+- The Show title is the last path component of that parent folder.
+- The Show row renders the Show title on the first line and the total
+  matching cue-group count across the Show on the second line as plain text,
+  using `1 result` for a single match and `N results` otherwise.
+- A single disclosure chevron on the right indicates collapsed or expanded
+  state. The chevron rotates between `0°` (collapsed) and `90°` (expanded)
+  over `160ms` with an ease curve when toggled.
+- The full Show row is the click target that toggles expand or collapse. The
+  Show row is never the selected row; selection lives on Hit rows only.
+- Show grouping identity must remain based on parent folder path, not the
+  Show title.
+- Show ordering should be stable and based on the Show title using
+  Finder-like localized standard comparison. The full parent folder path is
+  the secondary stable ordering key when titles tie.
 
-Friendly subtitle-file group title rules:
+Episode header rules:
 
-- The display title format is `Parent Folder Name - NN`.
-- `Parent Folder Name` is the immediate parent folder's last path component.
-- `NN` is the subtitle file's one-based rank among visible regular sibling
-  subtitle files with the same final subtitle extension.
-- The sequence number is zero-padded to at least two digits, expanding to the
-  sibling count's digit width when needed.
-- Sibling ordering should use macOS Finder-like localized standard comparison,
-  so numeric filename runs sort by numeric value, such as `aa2.ass` before
-  `aa11.ass`.
-- Rank derivation is scoped to the immediate parent directory and final subtitle
-  extension. `.srt` and `.ass` files are ranked independently.
-- If the friendly display title cannot be derived, the group should fall back
-  to the source subtitle filename.
-- Search grouping identity must remain based on subtitle path, not the friendly
-  display title.
+- An Episode header is the section heading for a single subtitle file inside
+  an expanded Show. It is purely visual: it does not collapse, does not
+  respond to hover, and does not draw a chevron.
+- The header label on the left is `Episode NN`. `NN` is the subtitle file's
+  one-based natural-sort rank among visible regular sibling subtitle files
+  with the same final subtitle extension inside the parent folder. The rank
+  is supplied by the existing contract-based alias rule
+  (`SubtitleDisplayTitleResolver`).
+- `NN` is zero-padded to at least two digits and expands to the sibling
+  count's digit width when needed.
+- Sibling ordering uses macOS Finder-like localized standard comparison, so
+  numeric filename runs sort by numeric value, such as `aa2.ass` before
+  `aa11.ass`. `.srt` and `.ass` files are ranked independently.
+- The header right side renders the per-Episode result count as plain text,
+  using `1 result` for a single match and `N results` otherwise.
+- The Show name is not repeated in the Episode header.
+- The Episode header does not depend on filename parsing and never falls
+  back. Every member subtitle file always has a rank from the alias contract.
+- Episode ordering inside a Show follows the same Finder-like rank ordering
+  used to derive `NN`.
 
-The visible group header should not render a separate per-file count badge or
-additional count component. The per-file total should remain part of the header
-text. The search layer should still retain per-file total counts for
-lazy-loading rules, future sorting behavior, and internal consistency checks.
+The visible Show row and Episode header should not render separate count
+badges. Counts are plain text appended to the row text. The search layer
+should still retain per-file totals for lazy-loading and internal consistency
+checks.
 
-Subtitle-file groups should be expanded by default, but only the first 100
-matching cue-group rows should be visible after the initial search. Scrolling to
-the bottom of the visible rows should reveal the next 100 cue-group rows when
+Show groups should be expanded by default, but only the first 100 matching
+cue-group rows should be visible after the initial search. Scrolling to the
+bottom of the visible rows should reveal the next 100 cue-group rows when
 more results exist.
 
-Collapsing a group should only affect row visibility and must not affect search
-result counts, search scope, or playback identity. Expanding a collapsed
-subtitle-file group is an explicit lazy-loading trigger: the group should show
-at most the first 100 matching cue-group rows for that subtitle file, even when
-those rows are outside the currently visible global result batch.
+Collapsing a Show should only affect row visibility and must not affect
+search result counts, search scope, or playback identity. Expanding a
+collapsed Show is an explicit lazy-loading trigger: the Show should show at
+most the first 100 matching cue-group rows distributed across its Episodes,
+even when those rows are outside the currently visible global result batch.
 
-The Search view should provide a single control that collapses or expands all
-subtitle-file groups for the current query. Collapsing all groups should hide
-all subtitle rows while keeping headers visible. Expanding all groups is an
-explicit lazy-loading trigger that reveals at most one global 100-result batch,
-not 100 rows per subtitle file. This control must not change total result
-counts or per-file match totals.
+The Search view should provide a single control that collapses or expands
+all Shows for the current query. Collapsing all Shows should hide all
+subtitle rows while keeping Show rows visible. Expanding all Shows is an
+explicit lazy-loading trigger that reveals at most one global 100-result
+batch, not 100 rows per Show. This control must not change total result
+counts or per-Show match totals.
 
 The collapse or expand-all control should use English labels, currently
-`Collapse All Results` and `Expand All Results`, and its label should be based
-on the last global collapse or expand action rather than on manual per-header
-toggle state.
+`Collapse All Results` and `Expand All Results`, and its label should be
+based on the last global collapse or expand action rather than on manual
+per-Show toggle state.
 
-Search result rows display:
+Hit row content:
 
-- Subtitle text.
-- Highlighted query matches.
-- The result start timestamp.
+- Subtitle text. Original-language and translation cue lines are rendered
+  in the same row when both are present.
+- Inline highlighting of query matches inside the original-language line.
+- Hit rows do not render a cue start timestamp. Time order inside an
+  Episode is conveyed by row order alone.
+
+Hit row visual layering:
+
+- Hit row hover and selected backgrounds left-align with the Episode header
+  text. The row's own internal left padding then offsets the row text further
+  to the right, so the cue text reads as visually nested under the Episode
+  header even on a selected row.
+- Selected rows use the macOS system accent color
+  (`NSColor.controlAccentColor`, surfaced through `Color.accentColor` in
+  SwiftUI). When the user changes their system accent color, the selected
+  background reflects that color. A future settings option may expose a
+  custom accent override; the first implementation does not include that.
+- Selected row text is white. Hover row text uses the normal label color.
+- Selected row keyword highlights use the on-selected highlight token (see
+  §UI Design for token values).
 
 For grouped subtitle results:
 
@@ -223,7 +256,7 @@ For grouped subtitle results:
   product rule explicitly defines that behavior.
 - Do not impose a fixed product-level line count cap on displayed cue lines.
 
-Clicking a result must open or update the central Playback Area and trigger
+Clicking a Hit row must open or update the central Playback Area and trigger
 playback for the matching video at the subtitle start timestamp.
 
 The Playback Area displays additional context:
@@ -263,8 +296,10 @@ When implemented, Library should support:
   natural ordering used by friendly Search result group titles, so ordinary
   text sorts like `a-z` and numeric filename runs sort naturally.
 - Display each folder as a two-line row: the folder display name on the first
-  line and an episode-count subtitle on the second line, with a chevron
-  disclosure indicator on the right.
+  line and an episode-count subtitle on the second line, with a single
+  disclosure chevron on the right that rotates between `0°` (collapsed) and
+  `90°` (expanded) over `160ms` with an ease curve when toggled. The same
+  chevron animation is shared with the right-sidebar Show row.
 - Read `N episodes` as the folder subtitle when no Library-launched playback is
   active for any video in this folder, and read `N episodes · Playing M` when
   Library-launched playback is active for a video in this folder, where `M` is
@@ -481,14 +516,19 @@ Initial Shiori panel behavior:
 - The current right-side saved-content placeholder becomes the Shiori mode.
 - The Shiori mode uses a saved-content icon in the titlebar and should be named
   `Shiori` in user-facing English text.
-- Shiori rows should be grouped by subtitle file, following the Search result
+- Shiori rows should be grouped by Show → Episode → Hit, mirroring the Search
   grouping pattern where practical.
-- Shiori groups are expanded by default.
+- Shiori Show groups are expanded by default. The Show row, Episode header,
+  hover background, and selected background follow the same rules as Search
+  Hit rows. Episode headers in Shiori use `N shioris` or `1 shiori` for
+  per-Episode counts.
 - The Shiori panel summary should read `<count> shioris in <count> files`.
 - The Shiori panel should expose a fixed `Collapse All` control. The control
-  does not become `Expand All`; after a global collapse, users expand groups
-  individually.
-- Shiori rows display saved subtitle text and the subtitle start timestamp.
+  does not become `Expand All`; after a global collapse, users expand Show
+  groups individually.
+- Shiori Hit rows display saved subtitle text only. Like Search Hit rows
+  they do not render the cue start timestamp. Shiori rows do not carry a
+  query, so keyword highlights do not apply.
 - Clicking a Shiori row should open or update playback for the saved video at
   the saved subtitle start timestamp.
 

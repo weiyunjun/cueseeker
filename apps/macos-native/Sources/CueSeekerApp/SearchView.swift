@@ -319,10 +319,10 @@ struct SearchView: View {
 
                     Spacer()
 
-                    if appState.hasSearchResultGroups {
+                    if appState.hasSearchResultShows {
                         Button {
                             appState.clearSearchFocus()
-                            appState.collapseAllSearchResultGroups()
+                            appState.collapseAllSearchResultShows()
                         } label: {
                             Text("Collapse All")
                                 .foregroundStyle(.secondary)
@@ -343,10 +343,10 @@ struct SearchView: View {
 
             Spacer()
 
-            if appState.hasShioriFileGroups {
+            if appState.hasShioriShows {
                 Button {
                     appState.clearSearchFocus()
-                    appState.collapseAllShioriGroups()
+                    appState.collapseAllShioriShows()
                 } label: {
                     Text("Collapse All")
                         .foregroundStyle(.secondary)
@@ -383,18 +383,18 @@ struct SearchView: View {
     private var shioriList: some View {
         UIInvalidationProbe.count(
             "UI.ShioriRows.rendered",
-            details: "groups=\(appState.shioriFileGroups.count) rows=\(appState.shioriCount)"
+            details: "shows=\(appState.shioriShows.count) rows=\(appState.shioriCount)"
         )
 
         return ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(appState.shioriFileGroups) { group in
-                    ShioriGroupView(
-                        group: group,
+                ForEach(appState.shioriShows) { show in
+                    ShioriShowView(
+                        show: show,
                         selectedShiori: appState.selectedShiori,
                         onToggle: {
                             appState.clearSearchFocus()
-                            appState.toggleShioriGroup(group.subtitlePath)
+                            appState.toggleShioriShow(show.folderPath)
                         },
                         onOpenShiori: { shiori in
                             appState.clearSearchFocus()
@@ -411,19 +411,19 @@ struct SearchView: View {
     private var resultsList: some View {
         UIInvalidationProbe.count(
             "UI.SearchRows.rendered",
-            details: "groups=\(appState.searchResultGroups.count) rows=\(appState.renderedSearchResultCount)"
+            details: "shows=\(appState.searchResultShows.count) rows=\(appState.renderedSearchResultCount)"
         )
 
         return ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(appState.searchResultGroups) { group in
-                    SearchResultGroupView(
-                        group: group,
+                ForEach(appState.searchResultShows) { show in
+                    SearchResultShowView(
+                        show: show,
                         query: appState.searchQuery,
                         selectedResult: appState.selectedSearchResult,
                         onToggle: {
                             appState.clearSearchFocus()
-                            appState.toggleSearchResultGroup(group.subtitlePath)
+                            appState.toggleSearchResultShow(show.folderPath)
                         },
                         onOpenResult: { result in
                             appState.clearSearchFocus()
@@ -845,10 +845,12 @@ private struct LibraryFolderHeader: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+            Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 14, height: 14, alignment: .center)
+                .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                .animation(.easeInOut(duration: 0.16), value: isCollapsed)
         }
         .padding(.horizontal, LibraryLayout.folderRowInnerHorizontalPadding)
         .padding(.vertical, LibraryLayout.folderRowVerticalPadding)
@@ -960,43 +962,76 @@ private enum LibraryLayout {
     static let episodeGridBottomPadding: CGFloat = 10
 }
 
-private struct SearchResultGroupHeader: View {
-    let group: SearchResultFileGroup
-    let isSelected: Bool
+private struct SidebarShowRow: View {
+    let title: String
+    let countText: String
+    let isExpanded: Bool
     let onToggle: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
-        Text(headerText)
-            .font(.system(size: SearchTypography.groupHeaderSize))
-            .lineLimit(nil)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.vertical, 7)
-            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Text(countText)
+                    .font(.system(size: SearchTypography.detailSize))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowAction(onToggle)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: RightSidebarLayout.showChevronSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 14, height: 14, alignment: .center)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .animation(.easeInOut(duration: 0.16), value: isExpanded)
+        }
+        .padding(.horizontal, RightSidebarLayout.showRowInnerHorizontalPadding)
+        .padding(.vertical, RightSidebarLayout.showRowVerticalPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: RightSidebarLayout.showRowCornerRadius)
+                .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+        )
+        .padding(.horizontal, RightSidebarLayout.showRowOuterHorizontalPadding)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .listRowAction(onToggle)
         .focusable(false)
-    }
-
-    private var headerText: AttributedString {
-        var displayTitle = AttributedString(displayTitleWithSoftWrapOpportunities(group.subtitleDisplayTitle))
-        displayTitle.foregroundColor = isSelected ? .primary : Color.primary.opacity(0.76)
-
-        var count = AttributedString("  \(resultCountText)")
-        count.foregroundColor = Color.secondary
-
-        displayTitle.append(count)
-        return displayTitle
-    }
-
-    private var resultCountText: String {
-        "\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")"
     }
 }
 
-private struct SearchResultGroupView: View {
-    let group: SearchResultFileGroup
+private struct SidebarEpisodeHeader: View {
+    let label: String
+    let countText: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.system(size: SearchTypography.detailSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Text(countText)
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.leading, RightSidebarLayout.episodeHeaderLeadingPadding)
+        .padding(.trailing, RightSidebarLayout.resultRowOuterTrailingPadding)
+        .padding(.top, RightSidebarLayout.episodeHeaderTopPadding)
+        .padding(.bottom, RightSidebarLayout.episodeHeaderBottomPadding)
+    }
+}
+
+private struct SearchResultShowView: View {
+    let show: SearchResultShow
     let query: String
     let selectedResult: SubtitleSearchResult?
     let onToggle: () -> Void
@@ -1004,212 +1039,96 @@ private struct SearchResultGroupView: View {
     let onResultAppear: (SubtitleSearchResult) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            SearchResultGroupHeader(
-                group: group,
-                isSelected: selectedResult?.subtitlePath == group.subtitlePath,
+        VStack(alignment: .leading, spacing: 0) {
+            SidebarShowRow(
+                title: show.title,
+                countText: countText,
+                isExpanded: !show.isCollapsed,
                 onToggle: onToggle
             )
 
-            if !group.isCollapsed {
-                ForEach(group.results, id: \.entryID) { result in
-                    let isSelected = selectedResult?.entryID == result.entryID
+            if !show.isCollapsed {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(show.episodes) { episode in
+                        VStack(alignment: .leading, spacing: 0) {
+                            SidebarEpisodeHeader(
+                                label: episode.episodeLabel,
+                                countText: countText(for: episode.totalCount)
+                            )
 
-                    SearchResultRow(
-                        result: result,
-                        query: query,
-                        isSelected: isSelected
-                    )
-                    .listRowAction {
-                        onOpenResult(result)
-                    }
-                    .focusable(false)
-                    .onAppear {
-                        onResultAppear(result)
+                            ForEach(episode.results, id: \.entryID) { result in
+                                SearchResultRow(
+                                    result: result,
+                                    query: query,
+                                    isSelected: selectedResult?.entryID == result.entryID
+                                )
+                                .listRowAction { onOpenResult(result) }
+                                .focusable(false)
+                                .onAppear { onResultAppear(result) }
+                            }
+                        }
                     }
                 }
+                .padding(.leading, RightSidebarLayout.episodeBlockLeadingIndent)
             }
         }
-        .overlay(alignment: .topLeading) {
-            SearchResultGroupRail(
-                isCollapsed: group.isCollapsed,
-                showsLine: !group.isCollapsed && !group.results.isEmpty,
-                onToggle: onToggle
-            )
-        }
+    }
+
+    private var countText: String {
+        countText(for: show.totalCount)
+    }
+
+    private func countText(for count: Int) -> String {
+        "\(count) \(count == 1 ? "result" : "results")"
     }
 }
 
-private struct ShioriGroupHeader: View {
-    let group: ShioriFileGroup
-    let isSelected: Bool
-    let onToggle: () -> Void
-
-    var body: some View {
-        Text(headerText)
-            .font(.system(size: SearchTypography.groupHeaderSize))
-            .lineLimit(nil)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.vertical, 7)
-            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowAction(onToggle)
-        .focusable(false)
-    }
-
-    private var headerText: AttributedString {
-        var displayTitle = AttributedString(displayTitleWithSoftWrapOpportunities(group.subtitleDisplayTitle))
-        displayTitle.foregroundColor = isSelected ? .primary : Color.primary.opacity(0.76)
-
-        var count = AttributedString("  \(shioriCountText)")
-        count.foregroundColor = Color.secondary
-
-        displayTitle.append(count)
-        return displayTitle
-    }
-
-    private var shioriCountText: String {
-        "\(group.totalCount) \(group.totalCount == 1 ? "shiori" : "shioris")"
-    }
-}
-
-private struct ShioriGroupView: View {
-    let group: ShioriFileGroup
+private struct ShioriShowView: View {
+    let show: ShioriShow
     let selectedShiori: Shiori?
     let onToggle: () -> Void
     let onOpenShiori: (Shiori) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            ShioriGroupHeader(
-                group: group,
-                isSelected: selectedShiori?.subtitlePath == group.subtitlePath,
+        VStack(alignment: .leading, spacing: 0) {
+            SidebarShowRow(
+                title: show.title,
+                countText: countText,
+                isExpanded: !show.isCollapsed,
                 onToggle: onToggle
             )
 
-            if !group.isCollapsed {
-                ForEach(group.shioris) { shiori in
-                    ShioriRowView(
-                        shiori: shiori,
-                        isSelected: selectedShiori?.id == shiori.id
-                    )
-                    .listRowAction {
-                        onOpenShiori(shiori)
-                    }
-                    .focusable(false)
-                }
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            SearchResultGroupRail(
-                isCollapsed: group.isCollapsed,
-                showsLine: !group.isCollapsed && !group.shioris.isEmpty,
-                onToggle: onToggle
-            )
-        }
-    }
-}
+            if !show.isCollapsed {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(show.episodes) { episode in
+                        VStack(alignment: .leading, spacing: 0) {
+                            SidebarEpisodeHeader(
+                                label: episode.episodeLabel,
+                                countText: countText(for: episode.totalCount)
+                            )
 
-private struct ShioriRowView: View {
-    let shiori: Shiori
-    let isSelected: Bool
-    @State private var isHovered = false
-
-    var body: some View {
-        let rowTextColor: Color = isSelected ? .primary : Color.primary.opacity(0.76)
-        let rowBackgroundColor: Color = if isSelected {
-            Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
-        } else if isHovered {
-            Color(nsColor: .unemphasizedSelectedContentBackgroundColor).opacity(0.55)
-        } else {
-            Color.clear
-        }
-
-        VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.system(size: SearchTypography.bodySize))
-                            .foregroundStyle(rowTextColor)
-                            .lineSpacing(4)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
+                            ForEach(episode.shioris) { shiori in
+                                ShioriRowView(
+                                    shiori: shiori,
+                                    isSelected: selectedShiori?.id == shiori.id
+                                )
+                                .listRowAction { onOpenShiori(shiori) }
+                                .focusable(false)
+                            }
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text(formatTimestamp(shiori.startMilliseconds))
-                    .font(.system(size: SearchTypography.detailSize))
-                    .monospacedDigit()
-                    .foregroundStyle(rowTextColor)
-                    .lineLimit(1)
-            }
-            .padding(.vertical, 10)
-            .padding(.leading, SearchLayout.resultTextLeadingPadding)
-            .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(rowBackgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-    }
-
-    private var displayLines: [String] {
-        shiori.cueLines.isEmpty ? [shiori.content] : shiori.cueLines
-    }
-}
-
-private struct SearchResultGroupRail: View {
-    let isCollapsed: Bool
-    let showsLine: Bool
-    let onToggle: () -> Void
-
-    var body: some View {
-        GeometryReader { geometry in
-            let lineTop = SearchLayout.groupRailChevronTopPadding
-                + SearchLayout.groupRailChevronSize
-                + SearchLayout.groupRailLineTopSpacing
-            let lineHeight = max(CGFloat.zero, geometry.size.height - lineTop)
-            let lineX = SearchLayout.resultOuterHorizontalPadding
-                + SearchLayout.groupDisclosureWidth / 2
-
-            ZStack(alignment: .topLeading) {
-                if showsLine && lineHeight > 0 {
-                    Rectangle()
-                        .fill(.tertiary)
-                        .opacity(0.55)
-                        .frame(width: SearchLayout.groupRailLineWidth, height: lineHeight)
-                        .offset(
-                            x: lineX - SearchLayout.groupRailLineWidth / 2,
-                            y: lineTop
-                        )
-                }
-
-                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                    .font(.system(size: SearchLayout.groupRailChevronSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(
-                        width: SearchLayout.groupDisclosureWidth,
-                        height: SearchLayout.groupRailChevronSize,
-                        alignment: .center
-                    )
-                    .listRowAction(onToggle)
-                    .accessibilityLabel(isCollapsed ? "Expand group" : "Collapse group")
-                .focusable(false)
-                .offset(
-                    x: SearchLayout.resultOuterHorizontalPadding,
-                    y: SearchLayout.groupRailChevronTopPadding
-                )
+                .padding(.leading, RightSidebarLayout.episodeBlockLeadingIndent)
             }
         }
-        .frame(width: SearchLayout.resultSelectionLeadingPadding)
+    }
+
+    private var countText: String {
+        countText(for: show.totalCount)
+    }
+
+    private func countText(for count: Int) -> String {
+        "\(count) \(count == 1 ? "shiori" : "shioris")"
     }
 }
 
@@ -1220,44 +1139,42 @@ private struct SearchResultRow: View {
     @State private var isHovered = false
 
     var body: some View {
-        let rowTextColor: Color = isSelected ? .primary : Color.primary.opacity(0.76)
-        let rowBackgroundColor: Color = if isSelected {
-            Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+        let textColor: Color = isSelected ? .white : .primary
+        let bgColor: Color = if isSelected {
+            Color.accentColor
         } else if isHovered {
-            Color(nsColor: .unemphasizedSelectedContentBackgroundColor).opacity(0.55)
+            Color.primary.opacity(0.06)
         } else {
             Color.clear
         }
+        let highlightState: SearchHighlightState = isSelected
+            ? .selected
+            : (isHovered ? .hover : .default)
 
-        VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                        Text(highlightedContent(line, query: query, textColor: rowTextColor, isSelected: isSelected))
-                            .font(.system(size: SearchTypography.bodySize))
-                            .foregroundStyle(rowTextColor)
-                            .lineSpacing(4)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text(formatTimestamp(result.startMilliseconds))
-                    .font(.system(size: SearchTypography.detailSize))
-                    .monospacedDigit()
-                    .foregroundStyle(rowTextColor)
-                    .lineLimit(1)
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                Text(highlightedContent(
+                    line,
+                    query: query,
+                    textColor: textColor,
+                    state: highlightState
+                ))
+                .font(.system(size: SearchTypography.bodySize))
+                .foregroundStyle(textColor)
+                .lineSpacing(4)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 10)
-            .padding(.leading, SearchLayout.resultTextLeadingPadding)
-            .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(rowBackgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
         }
+        .padding(.horizontal, RightSidebarLayout.resultRowInnerHorizontalPadding)
+        .padding(.vertical, RightSidebarLayout.resultRowVerticalPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: RightSidebarLayout.resultRowCornerRadius)
+                .fill(bgColor)
+        )
+        .padding(.leading, RightSidebarLayout.resultRowOuterLeadingPadding)
+        .padding(.trailing, RightSidebarLayout.resultRowOuterTrailingPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
@@ -1269,6 +1186,81 @@ private struct SearchResultRow: View {
             .filter { !$0.isEmpty }
         return lines.isEmpty ? [result.content] : lines
     }
+}
+
+private struct ShioriRowView: View {
+    let shiori: Shiori
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        let textColor: Color = isSelected ? .white : .primary
+        let bgColor: Color = if isSelected {
+            Color.accentColor
+        } else if isHovered {
+            Color.primary.opacity(0.06)
+        } else {
+            Color.clear
+        }
+
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .font(.system(size: SearchTypography.bodySize))
+                    .foregroundStyle(textColor)
+                    .lineSpacing(4)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, RightSidebarLayout.resultRowInnerHorizontalPadding)
+        .padding(.vertical, RightSidebarLayout.resultRowVerticalPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: RightSidebarLayout.resultRowCornerRadius)
+                .fill(bgColor)
+        )
+        .padding(.leading, RightSidebarLayout.resultRowOuterLeadingPadding)
+        .padding(.trailing, RightSidebarLayout.resultRowOuterTrailingPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+    }
+
+    private var displayLines: [String] {
+        shiori.cueLines.isEmpty ? [shiori.content] : shiori.cueLines
+    }
+}
+
+private enum SearchHighlightState {
+    case `default`
+    case hover
+    case selected
+}
+
+private enum SearchHighlightTokens {
+    static let `default` = Color(red: 1.0, green: 224.0 / 255.0, blue: 102.0 / 255.0)
+    static let hover = Color(red: 1.0, green: 203.0 / 255.0, blue: 31.0 / 255.0)
+    static let onSelected = Color.white.opacity(0.30)
+}
+
+private enum RightSidebarLayout {
+    static let showRowOuterHorizontalPadding: CGFloat = 8
+    static let showRowInnerHorizontalPadding: CGFloat = 12
+    static let showRowVerticalPadding: CGFloat = 8
+    static let showRowCornerRadius: CGFloat = 8
+    static let showChevronSize: CGFloat = 11
+
+    static let episodeBlockLeadingIndent: CGFloat = 8
+    static let episodeHeaderLeadingPadding: CGFloat = 12
+    static let episodeHeaderTopPadding: CGFloat = 8
+    static let episodeHeaderBottomPadding: CGFloat = 4
+
+    static let resultRowOuterLeadingPadding: CGFloat = 12
+    static let resultRowOuterTrailingPadding: CGFloat = 8
+    static let resultRowInnerHorizontalPadding: CGFloat = 10
+    static let resultRowVerticalPadding: CGFloat = 7
+    static let resultRowCornerRadius: CGFloat = 6
 }
 
 private struct ResizerView: NSViewRepresentable {
@@ -1369,24 +1361,24 @@ private enum SearchLayout {
     static let resultTextLeadingPadding: CGFloat = resultTextHorizontalPadding
 }
 
-private func displayTitleWithSoftWrapOpportunities(_ displayTitle: String) -> String {
-    let zeroWidthSpace = "\u{200B}"
-    let softBreakCharacters: Set<Character> = ["]", ".", "_", "-"]
-    var wrapped = ""
-
-    for character in displayTitle {
-        wrapped.append(character)
-        if softBreakCharacters.contains(character) {
-            wrapped.append(zeroWidthSpace)
-        }
-    }
-
-    return wrapped
-}
-
-private func highlightedContent(_ content: String, query: String, textColor: Color, isSelected: Bool = false) -> AttributedString {
+private func highlightedContent(
+    _ content: String,
+    query: String,
+    textColor: Color,
+    state: SearchHighlightState
+) -> AttributedString {
     var highlighted = AttributedString(content)
     let terms = highlightTerms(from: query)
+
+    let bg: Color
+    switch state {
+    case .default:
+        bg = SearchHighlightTokens.default
+    case .hover:
+        bg = SearchHighlightTokens.hover
+    case .selected:
+        bg = SearchHighlightTokens.onSelected
+    }
 
     for term in terms {
         var searchRange = content.startIndex..<content.endIndex
@@ -1399,7 +1391,7 @@ private func highlightedContent(_ content: String, query: String, textColor: Col
             if let lowerBound = AttributedString.Index(match.lowerBound, within: highlighted),
                let upperBound = AttributedString.Index(match.upperBound, within: highlighted) {
                 highlighted[lowerBound..<upperBound].inlinePresentationIntent = .stronglyEmphasized
-                highlighted[lowerBound..<upperBound].backgroundColor = Color.yellow.opacity(isSelected ? 0.7 : 0.4)
+                highlighted[lowerBound..<upperBound].backgroundColor = bg
                 highlighted[lowerBound..<upperBound].foregroundColor = textColor
             }
 
@@ -1423,18 +1415,5 @@ private func highlightTerms(from query: String) -> [String] {
                 .filter { !$0.isEmpty }
         )
     )
-}
-
-private func formatTimestamp(_ milliseconds: Int) -> String {
-    let totalSeconds = milliseconds / 1_000
-    let hours = totalSeconds / 3_600
-    let minutes = (totalSeconds % 3_600) / 60
-    let seconds = totalSeconds % 60
-
-    if hours > 0 {
-        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-    }
-
-    return String(format: "%02d:%02d", minutes, seconds)
 }
 

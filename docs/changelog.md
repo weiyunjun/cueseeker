@@ -6,6 +6,17 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted and implemented the right-sidebar Show / Episode / Hit three-level
+  grouping: Search and Shiori results now group by parent folder (Show) then by
+  contract-based alias rank (Episode `NN`) before each Hit row. Show rows
+  render a two-line title + count layout matching the Library folder row, with
+  a single chevron that rotates `0°↔90°` over `160ms` when toggled. The Library
+  folder chevron is unified to the same animation. Episode headers are
+  non-interactive section headings. Hit rows drop the cue start timestamp;
+  their selected and hover backgrounds left-align with the Episode header text
+  and use the macOS system accent color (white text), while keyword highlights
+  use a three-state token set (`#FFE066` default, `#FFCB1F` hover, `30%` white
+  on selected) that follows the parent row state.
 - Accepted the revised Library row direction: Library folder rows drop the
   leading first-letter avatar, use a two-line layout with an
   `N episodes`/`N episodes · Playing M` subtitle, and toggle expand or collapse

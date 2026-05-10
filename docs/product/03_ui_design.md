@@ -146,7 +146,11 @@ Accepted first Library panel direction:
 - Folder rows must not display a leading first-letter or first-character avatar
   block. The folder display name is the leftmost element, hugging the panel's
   normal left padding.
-- A chevron on the right of the folder row indicates expand or collapse state.
+- A single chevron on the right of the folder row indicates expand or
+  collapse state. The chevron rotates between `0°` (collapsed) and `90°`
+  (expanded) over `160ms` with an ease curve when toggled. This animation
+  is shared with the right-sidebar Show row so the two sidebars use one
+  disclosure language.
   The full folder row is the click target that toggles expand or collapse.
 - Expanded folders show a numbered button grid using each video's one-based
   natural-sort sibling rank. The grid does not display file names, durations,
@@ -220,7 +224,8 @@ Accepted M1 search presentation:
 - Search result scrolling loads additional matches lazily in 100-result pages.
 - Expanding all result groups from the all-collapsed state reveals at most one
   global 100-result batch.
-- Search results are grouped under subtitle-file headers.
+- Search results are grouped under Show rows with Episode headers nested
+  inside expanded Shows.
 - Selecting a search result opens or updates the central Playback Area without
   leaving the CueSeeker workbench.
 - Search results use refined macOS-native typography and highlight query
@@ -229,104 +234,136 @@ Accepted M1 search presentation:
 
 ## 6. Search Result Group
 
-Each subtitle-file group should be compact and scannable.
+Search results in the right-sidebar render under a three-level structure:
+Show → Episode → Hit. A Show is a parent folder containing one or more
+matched subtitle files. An Episode is a single subtitle file inside a Show.
+A Hit is one matched cue group inside an Episode.
 
-The group header should display:
+Show row presentation:
 
-- A disclosure triangle on the left.
-- A friendly subtitle group title followed by two spaces and the per-file
-  result count as plain text, for example `葬送的芙莉莲 - 05  3 results` or
-  `葬送的芙莉莲 - 05  1 result`.
+- A two-line left column. The Show title (the parent folder's last path
+  component) is on the first line. The total matching cue-group count
+  across the Show is on the second line as plain text such as `9 results`
+  or `1 result`.
+- The Show title uses the same weight and tone as the Library folder title
+  so the two sidebars share one heading vocabulary.
+- A single disclosure chevron on the right indicates collapsed or expanded
+  state. The chevron rotates between `0°` (collapsed) and `90°` (expanded)
+  over `160ms` with an ease curve when toggled.
+- The full Show row is a single click target that toggles expand or
+  collapse. Hover state shows a soft fill across the full row width.
+- The Show row is never the selected row. Selection lives on Hit rows only.
 
-The group header should be clickable as a single target and should toggle
-collapse or expansion. The disclosure triangle indicates state; it does not need
-to be the only clickable control.
+Episode header presentation:
 
-Groups should be expanded by default.
+- A non-interactive section heading inside an expanded Show. It does not
+  collapse, does not respond to hover, and does not draw a chevron.
+- The label on the left is `Episode NN`, where `NN` is the subtitle file's
+  one-based natural-sort rank among visible regular sibling subtitle files
+  with the same final subtitle extension inside the parent folder. The rank
+  is supplied by the existing contract-based alias rule, so every Episode
+  always has a unique rank with no fallback path.
+- `NN` is zero-padded to at least two digits and expands to the sibling
+  count's digit width when needed.
+- Sibling ordering uses macOS Finder-like localized standard comparison.
+  `.srt` and `.ass` files are ranked independently.
+- The header right side renders the per-Episode result count as plain text
+  such as `4 results` or `1 result`.
+- The Show name is not repeated in the Episode header.
 
-The grouped Search header should not render a per-file count badge or a
-separate right-aligned count component. Per-file match totals should appear as
-plain text appended to the display title, while also remaining available in search
-state for loading and future sorting behavior.
+Visible Show rows and Episode headers should not render separate count
+badges or right-aligned count components built from chip backgrounds.
+Counts are plain text appended to the row text. Per-Show and per-Episode
+totals remain available in search state for loading rules and future
+sorting behavior.
 
-Friendly group titles should use the immediate parent folder name plus the
-subtitle file's one-based natural-sort rank among visible regular sibling
-subtitle files with the same final subtitle extension. The rank should use
-Finder-like localized standard comparison so numeric filename runs sort by
-numeric value.
+Hierarchy and indent:
 
-The display title format is `Parent Folder Name - NN`, with the numeric suffix
-zero-padded to at least two digits. If the friendly title cannot be derived, the
-header should fall back to the raw subtitle filename. Fallback filenames may
-wrap across multiple lines and may include invisible soft wrap opportunities
-after common filename delimiters such as `]`, `.`, `_`, and `-` so long
-bracketed names use available width more naturally without changing the visible
-filename.
+- Three indented edges convey the Show → Episode → Hit hierarchy.
+- The Show title sits at the panel's outer left padding.
+- Episode header text and Hit row backgrounds (hover or selected) sit at a
+  deeper indent. Their left edges align with each other.
+- Hit row text sits one further padding step inside the row background, so
+  even on a selected row the cue text reads as nested under the Episode
+  header.
+- Initial indent magnitudes follow the existing right-panel scale and the
+  design reference. Exact pixel values may be tuned during implementation.
 
-Group title text and result-row subtitle text should align on the same left
-edge. The disclosure triangle should live in the left-side control space so it
-does not add extra indentation to result-row subtitle text. The exact spacing
-may be refined during implementation.
+Show ordering should be stable and based on the Show title using
+Finder-like localized standard comparison. The full parent folder path is
+the secondary stable ordering key when titles tie. Episode ordering inside
+a Show follows the same Finder-like rank ordering used to derive `NN`.
 
-Expanding a collapsed group should display at most the first 100 matching rows
-for that subtitle file.
-
-Group ordering should be stable and based on the friendly display title when it
-is available. If two groups have the same display title, or if a group falls
-back to the source subtitle filename, the full subtitle path should be used as
-the secondary stable ordering key.
+Expanding a collapsed Show should display at most the first 100 matching
+cue-group rows distributed across its Episodes, even when those rows are
+outside the currently visible global result batch.
 
 ## 7. Search Result Row
 
-Each result row should be compact and scannable.
+Each Hit row should be compact and scannable.
 
-Current M1 row content:
+Hit row content:
 
-- Subtitle text as the primary content.
-- Query match highlighting.
-- Start timestamp at the right side.
+- Subtitle text as the primary content. Original-language and translation
+  cue lines are rendered in the same row when both are present.
+- Inline highlighting of query matches inside the original-language line.
+- Hit rows do not render a cue start timestamp. Time order inside an
+  Episode is conveyed by row order alone.
 
-Current result-row color behavior:
+Hit row color behavior:
 
-- Selected rows use the macOS unemphasized selected-content background.
-- Selected subtitle text and selected start timestamps use the same primary
-  text color.
-- Unselected subtitle text and unselected start timestamps use the same
-  slightly muted primary text color so rows remain readable without competing
-  with the selected row.
+- Selected Hit rows use the macOS system accent color
+  (`NSColor.controlAccentColor`, surfaced through `Color.accentColor` in
+  SwiftUI). When the user changes their system accent color, the selected
+  background reflects that color. A future settings option may expose a
+  custom accent override; the first implementation does not include that.
+- Selected row text is white. Unselected row text uses a slightly muted
+  primary label color so rows remain readable without competing with the
+  selected row.
+- Hover row background uses a soft gray fill consistent with native macOS
+  list rows.
+
+Keyword highlight tokens (light mode):
+
+| Row state | Highlight background | Highlight foreground | Weight |
+|---|---|---|---|
+| Default | `#FFE066` | label primary | 500 |
+| Hover | `#FFCB1F` | label primary | 500 |
+| Selected | `rgba(255,255,255,0.30)` | white | 600 |
+
+The keyword highlight inverts to a translucent-white fill with bolder white
+text on a selected row so the matched substring stays the most prominent
+token in the line while staying inside the accent-color envelope.
+Dark-mode equivalents are deferred to a later iteration.
 
 Grouped cue result rows should display every cue line in the matched group,
-ordered by derived display order when available. Grouped rows may use dynamic
-height and must not deduplicate same-looking cue lines or impose a fixed
-product-level line count cap.
+ordered by derived display order when available. Grouped rows may use
+dynamic height and must not deduplicate same-looking cue lines or impose a
+fixed product-level line count cap.
 
-Rows inside the same subtitle-file group should be ordered by subtitle
-timestamp ascending.
+Rows inside the same Episode should be ordered by subtitle timestamp
+ascending.
 
-Rows should have stable height or predictable dynamic height. Long subtitle text should not break the layout.
+Rows should have stable height or predictable dynamic height. Long subtitle
+text should not break the layout.
 
-The row should remain fully clickable. The video file name is not currently shown
-in the search result row.
+The row should remain fully clickable. The video file name is not currently
+shown in the Hit row.
 
 Layout and Selection Behavior:
 
-- The selected-row background starts on the same left edge as the group
-  disclosure triangle.
-- Result-row subtitle text starts on the same left edge as the subtitle file
-  name.
-- The selected-row background and group header text area keep their right edges
-  aligned.
-- Rows do not use horizontal dividers. Row separation should come from internal
-  padding, group headers, and readable text spacing.
-- When a row is selected, it renders a macOS unemphasized gray rounded
-  rectangle background while preserving the normal primary subtitle text color.
-- Query-match highlighting should use a lighter yellow background on unselected
-  rows and a stronger yellow background on selected rows.
-- The right-side start timestamp should be visually secondary to subtitle text:
-  tertiary on unselected rows and secondary on selected rows.
+- The selected-row and hover-row background left edge aligns with the
+  enclosing Episode header text left edge, not with the row text. The row's
+  internal left padding then offsets the row text further to the right, so
+  the cue text reads as visually nested under the Episode header even on a
+  selected row.
+- Selected-row background and Episode header text area keep their right
+  edges aligned.
+- Rows do not use horizontal dividers. Row separation should come from
+  internal padding, Episode headers, and readable text spacing.
 - Internal wrapped subtitle lines, including SRT line breaks and ASS `\N`
-  line breaks rendered inside a single cue line, should use 4pt line spacing so
-  bilingual subtitle text does not appear cramped.
+  line breaks rendered inside a single cue line, should use 4pt line
+  spacing so bilingual subtitle text does not appear cramped.
 
 ## 8. Playback Area And Search Panel
 
