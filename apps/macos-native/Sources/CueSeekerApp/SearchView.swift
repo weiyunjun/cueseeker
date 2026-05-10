@@ -171,7 +171,7 @@ struct SearchView: View {
                             )
                         }
                     }
-                    .frame(width: geo.size.width)
+                    .frame(width: max(0, geo.size.width - 16), alignment: .leading)
                     .padding(.top, 4)
                     .padding(.bottom, 8)
                 }
@@ -407,7 +407,7 @@ struct SearchView: View {
                         )
                     }
                 }
-                .frame(width: geo.size.width)
+                .frame(width: max(0, geo.size.width - 16), alignment: .leading)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
             }
@@ -449,7 +449,7 @@ struct SearchView: View {
                             .padding(.vertical, 12)
                     }
                 }
-                .frame(width: geo.size.width)
+                .frame(width: max(0, geo.size.width - 16), alignment: .leading)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
             }
@@ -965,16 +965,16 @@ private struct LibraryEpisodeButton: View {
 }
 
 private enum LibraryLayout {
-    static let folderRowInnerHorizontalPadding: CGFloat = 12
+    static let folderRowInnerHorizontalPadding: CGFloat = 4
     static let folderRowVerticalPadding: CGFloat = 8
     static let folderRowOuterLeadingPadding: CGFloat = 12
-    static let folderRowOuterTrailingPadding: CGFloat = 28
+    static let folderRowOuterTrailingPadding: CGFloat = 12
     static let episodeButtonMinimumWidth: CGFloat = 44
     static let episodeButtonHeight: CGFloat = 36
     static let episodeGridHorizontalSpacing: CGFloat = 8
     static let episodeGridVerticalSpacing: CGFloat = 8
-    static let episodeGridLeadingPadding: CGFloat = 48
-    static let episodeGridTrailingPadding: CGFloat = 28
+    static let episodeGridLeadingPadding: CGFloat = 40
+    static let episodeGridTrailingPadding: CGFloat = 12
     static let episodeGridTopPadding: CGFloat = 6
     static let episodeGridBottomPadding: CGFloat = 10
 }
@@ -992,7 +992,7 @@ private struct SearchResultGroupHeader: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 7)
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + 16)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .listRowAction(onToggle)
         .focusable(false)
@@ -1072,7 +1072,7 @@ private struct ShioriGroupHeader: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 7)
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + 16)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .listRowAction(onToggle)
         .focusable(false)
@@ -1164,7 +1164,7 @@ private struct ShioriRowView: View {
             .background(rowBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + 16)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -1267,7 +1267,7 @@ private struct SearchResultRow: View {
             .background(rowBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + 16)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -1388,7 +1388,7 @@ private enum SearchLayout {
     static let groupRailLineWidth: CGFloat = 1.5
     static let resultContentLeadingOffset: CGFloat = 5
     static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth + resultContentLeadingOffset
-    static let resultTextHorizontalPadding: CGFloat = 14
+    static let resultTextHorizontalPadding: CGFloat = 10
     static let resultTextLeadingPadding: CGFloat = resultTextHorizontalPadding
 }
 
