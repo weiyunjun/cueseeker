@@ -48,6 +48,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/channel_layout.h>
+#include <libavutil/hwcontext.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/samplefmt.h>
@@ -302,6 +303,41 @@ struct ProcessTelemetry {
     int64_t wallElapsedMs = 0;
 };
 
+enum class DecodePreference {
+    Auto,
+    Software,
+    D3D11VA,
+};
+
+std::string decodePreferenceName(DecodePreference preference)
+{
+    switch (preference) {
+    case DecodePreference::Auto:
+        return "auto";
+    case DecodePreference::Software:
+        return "software";
+    case DecodePreference::D3D11VA:
+        return "d3d11va";
+    default:
+        return "unknown";
+    }
+}
+
+DecodePreference parseDecodePreference(std::string value)
+{
+    value = lowerAscii(std::move(value));
+    if (value == "auto") {
+        return DecodePreference::Auto;
+    }
+    if (value == "software") {
+        return DecodePreference::Software;
+    }
+    if (value == "d3d11va" || value == "dxva") {
+        return DecodePreference::D3D11VA;
+    }
+    throw std::runtime_error("Unknown --decode value: " + value);
+}
+
 void startProcessTelemetry(ProcessTelemetry& telemetry)
 {
     telemetry.start = captureProcessTelemetry();
@@ -339,6 +375,8 @@ struct PlaybackReport {
     std::string completionReason = "unknown";
     std::string decodePathRequested = "software";
     std::string decodePathUsed = "software";
+    bool fallbackUsed = false;
+    std::string fallbackReason;
     int videoStreamIndex = -1;
     std::string videoCodec = "unknown";
     std::string videoDecoder = "unknown";
@@ -359,6 +397,7 @@ struct PlaybackReport {
     int64_t firstFrameMs = -1;
     uint64_t videoFramesDecoded = 0;
     uint64_t videoFramesRendered = 0;
+    uint64_t hardwareFrameTransfers = 0;
     uint64_t audioFramesDecoded = 0;
     uint64_t audioSampleFramesWritten = 0;
     ProcessTelemetry process;
@@ -397,7 +436,14 @@ void writePlaybackReport(const std::string& reportPath, const PlaybackReport& re
     out << "  \"decode\": {\n";
     out << "    \"path_requested\": \"" << jsonEscape(report.decodePathRequested) << "\",\n";
     out << "    \"path_used\": \"" << jsonEscape(report.decodePathUsed) << "\",\n";
-    out << "    \"fallback_used\": false\n";
+    out << "    \"fallback_used\": " << (report.fallbackUsed ? "true" : "false") << ",\n";
+    if (report.fallbackReason.empty()) {
+        out << "    \"fallback_reason\": null,\n";
+    } else {
+        out << "    \"fallback_reason\": \"" << jsonEscape(report.fallbackReason) << "\",\n";
+    }
+    out << "    \"hardware_frame_transfer_used\": " << (report.hardwareFrameTransfers > 0 ? "true" : "false") << ",\n";
+    out << "    \"hardware_frame_transfers\": " << report.hardwareFrameTransfers << "\n";
     out << "  },\n";
     out << "  \"video\": {\n";
     out << "    \"stream_index\": " << report.videoStreamIndex << ",\n";
@@ -533,6 +579,32 @@ int64_t streamDurationMs(AVStream* stream)
 bool isAssCompatibleSubtitleCodec(AVCodecID codecId)
 {
     return codecId == AV_CODEC_ID_ASS || codecId == AV_CODEC_ID_SSA;
+}
+
+std::string hwDeviceTypeName(AVHWDeviceType type)
+{
+    const char* name = av_hwdevice_get_type_name(type);
+    return name ? name : "unknown";
+}
+
+bool decoderSupportsHardwareConfig(const AVCodec* decoder, AVHWDeviceType deviceType, AVPixelFormat pixelFormat)
+{
+    if (!decoder) {
+        return false;
+    }
+
+    for (int index = 0;; ++index) {
+        const AVCodecHWConfig* config = avcodec_get_hw_config(decoder, index);
+        if (!config) {
+            break;
+        }
+        if ((config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) != 0 &&
+            config->device_type == deviceType &&
+            config->pix_fmt == pixelFormat) {
+            return true;
+        }
+    }
+    return false;
 }
 #endif
 
@@ -996,6 +1068,67 @@ void printStreamReport(std::ostream& out, AVFormatContext* format)
     out << "  },\n";
 }
 
+void printHardwareDecodeReport(std::ostream& out, AVFormatContext* format)
+{
+    out << "  \"hardware_decode\": {\n";
+
+    out << "    \"ffmpeg_device_types\": [";
+    bool firstDeviceType = true;
+    AVHWDeviceType deviceType = AV_HWDEVICE_TYPE_NONE;
+    while ((deviceType = av_hwdevice_iterate_types(deviceType)) != AV_HWDEVICE_TYPE_NONE) {
+        if (!firstDeviceType) {
+            out << ", ";
+        }
+        firstDeviceType = false;
+        out << "\"" << jsonEscape(hwDeviceTypeName(deviceType)) << "\"";
+    }
+    out << "],\n";
+
+    AVBufferRef* rawDevice = nullptr;
+    const int deviceResult = av_hwdevice_ctx_create(&rawDevice, AV_HWDEVICE_TYPE_D3D11VA, nullptr, nullptr, 0);
+    std::unique_ptr<AVBufferRef, void (*)(AVBufferRef*)> device(rawDevice, [](AVBufferRef* ref) {
+        av_buffer_unref(&ref);
+    });
+
+    out << "    \"d3d11va\": {\n";
+    out << "      \"device_create_ok\": " << (deviceResult >= 0 ? "true" : "false") << ",\n";
+    if (deviceResult < 0) {
+        out << "      \"device_error\": \"" << jsonEscape(avError(deviceResult)) << "\",\n";
+    } else {
+        out << "      \"device_error\": null,\n";
+    }
+    out << "      \"video_streams\": [\n";
+
+    bool firstVideo = true;
+    for (unsigned int i = 0; i < format->nb_streams; ++i) {
+        AVStream* stream = format->streams[i];
+        AVCodecParameters* codecpar = stream->codecpar;
+        if (codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
+            continue;
+        }
+        const AVCodec* decoder = avcodec_find_decoder(codecpar->codec_id);
+        if (!firstVideo) {
+            out << ",\n";
+        }
+        firstVideo = false;
+        out << "        {\n";
+        out << "          \"index\": " << i << ",\n";
+        out << "          \"codec\": \"" << jsonEscape(codecName(codecpar->codec_id)) << "\",\n";
+        out << "          \"decoder\": \"" << jsonEscape(decoder && decoder->name ? decoder->name : "none") << "\",\n";
+        out << "          \"software_decoder_available\": " << (decoder ? "true" : "false") << ",\n";
+        out << "          \"d3d11va_config_available\": "
+            << (decoderSupportsHardwareConfig(decoder, AV_HWDEVICE_TYPE_D3D11VA, AV_PIX_FMT_D3D11) ? "true" : "false") << ",\n";
+        out << "          \"dxva2_config_available\": "
+            << (decoderSupportsHardwareConfig(decoder, AV_HWDEVICE_TYPE_DXVA2, AV_PIX_FMT_DXVA2_VLD) ? "true" : "false") << "\n";
+        out << "        }";
+    }
+
+    out << "\n";
+    out << "      ]\n";
+    out << "    }\n";
+    out << "  },\n";
+}
+
 bool isFontAttachment(std::string filename, std::string mimeType)
 {
     filename = lowerAscii(std::move(filename));
@@ -1103,6 +1236,7 @@ void inspectMedia(const std::string& path, const std::optional<std::string>& sub
     printWasapiReport(std::cout);
     printLibassReport(std::cout);
     printFfmpegBuildReport(std::cout);
+    printHardwareDecodeReport(std::cout, format.get());
     printStreamReport(std::cout, format.get());
     printSubtitleReport(std::cout, format.get(), subtitlePath);
     std::cout << "}\n";
@@ -1478,6 +1612,30 @@ struct SwrContextDeleter {
     }
 };
 
+struct BufferRefDeleter {
+    void operator()(AVBufferRef* ref) const
+    {
+        av_buffer_unref(&ref);
+    }
+};
+
+struct HardwarePixelFormatSelection {
+    AVPixelFormat pixelFormat = AV_PIX_FMT_D3D11;
+    bool selected = false;
+};
+
+AVPixelFormat selectHardwarePixelFormat(AVCodecContext* context, const AVPixelFormat* formats)
+{
+    auto* selection = static_cast<HardwarePixelFormatSelection*>(context->opaque);
+    for (const AVPixelFormat* format = formats; *format != AV_PIX_FMT_NONE; ++format) {
+        if (selection && *format == selection->pixelFormat) {
+            selection->selected = true;
+            return *format;
+        }
+    }
+    return formats[0];
+}
+
 class WasapiAudioOutput {
 public:
     ~WasapiAudioOutput()
@@ -1802,6 +1960,7 @@ void playVideo(
     const std::optional<std::string>& subtitlePath,
     int64_t seekMs,
     int64_t durationMs,
+    DecodePreference decodePreference,
     const std::optional<std::string>& reportPath)
 {
     PlaybackReport report;
@@ -1809,6 +1968,7 @@ void playVideo(
     report.subtitlePath = subtitlePath;
     report.seekMs = seekMs;
     report.requestedDurationMs = durationMs;
+    report.decodePathRequested = decodePreferenceName(decodePreference);
 
     AVFormatContext* rawFormat = nullptr;
     int result = avformat_open_input(&rawFormat, path.c_str(), nullptr, nullptr);
@@ -1835,19 +1995,80 @@ void playVideo(
     }
     report.videoDecoder = decoder->name ? decoder->name : "unknown";
 
-    std::unique_ptr<AVCodecContext, CodecContextDeleter> codec(avcodec_alloc_context3(decoder));
-    if (!codec) {
-        throw std::runtime_error("avcodec_alloc_context3 failed");
-    }
+    std::unique_ptr<AVCodecContext, CodecContextDeleter> codec;
+    std::unique_ptr<AVBufferRef, BufferRefDeleter> hardwareDevice;
+    std::unique_ptr<HardwarePixelFormatSelection> hardwarePixelFormat;
 
-    result = avcodec_parameters_to_context(codec.get(), stream->codecpar);
-    if (result < 0) {
-        throw std::runtime_error("avcodec_parameters_to_context failed: " + avError(result));
-    }
+    auto createVideoCodecContext = [&]() {
+        std::unique_ptr<AVCodecContext, CodecContextDeleter> context(avcodec_alloc_context3(decoder));
+        if (!context) {
+            throw std::runtime_error("avcodec_alloc_context3 failed");
+        }
 
-    result = avcodec_open2(codec.get(), decoder, nullptr);
-    if (result < 0) {
-        throw std::runtime_error("avcodec_open2 failed: " + avError(result));
+        result = avcodec_parameters_to_context(context.get(), stream->codecpar);
+        if (result < 0) {
+            throw std::runtime_error("avcodec_parameters_to_context failed: " + avError(result));
+        }
+        return context;
+    };
+
+    auto openSoftwareDecoder = [&]() {
+        codec = createVideoCodecContext();
+        result = avcodec_open2(codec.get(), decoder, nullptr);
+        if (result < 0) {
+            throw std::runtime_error("avcodec_open2 failed: " + avError(result));
+        }
+        report.decodePathUsed = "software";
+    };
+
+    auto tryOpenD3D11Decoder = [&]() -> std::optional<std::string> {
+        if (!decoderSupportsHardwareConfig(decoder, AV_HWDEVICE_TYPE_D3D11VA, AV_PIX_FMT_D3D11)) {
+            return "decoder does not advertise d3d11va device-frame support";
+        }
+
+        AVBufferRef* rawDevice = nullptr;
+        const int deviceResult = av_hwdevice_ctx_create(&rawDevice, AV_HWDEVICE_TYPE_D3D11VA, nullptr, nullptr, 0);
+        if (deviceResult < 0) {
+            return "av_hwdevice_ctx_create(d3d11va) failed: " + avError(deviceResult);
+        }
+        std::unique_ptr<AVBufferRef, BufferRefDeleter> candidateDevice(rawDevice);
+
+        std::unique_ptr<AVCodecContext, CodecContextDeleter> candidateCodec = createVideoCodecContext();
+        AVBufferRef* codecDeviceRef = av_buffer_ref(candidateDevice.get());
+        if (!codecDeviceRef) {
+            return "av_buffer_ref failed for d3d11va device";
+        }
+        candidateCodec->hw_device_ctx = codecDeviceRef;
+
+        auto candidatePixelFormat = std::make_unique<HardwarePixelFormatSelection>();
+        candidatePixelFormat->pixelFormat = AV_PIX_FMT_D3D11;
+        candidateCodec->opaque = candidatePixelFormat.get();
+        candidateCodec->get_format = selectHardwarePixelFormat;
+
+        const int openResult = avcodec_open2(candidateCodec.get(), decoder, nullptr);
+        if (openResult < 0) {
+            return "avcodec_open2 failed for d3d11va: " + avError(openResult);
+        }
+
+        hardwareDevice = std::move(candidateDevice);
+        hardwarePixelFormat = std::move(candidatePixelFormat);
+        codec = std::move(candidateCodec);
+        report.decodePathUsed = "d3d11va";
+        return std::nullopt;
+    };
+
+    if (decodePreference == DecodePreference::Software) {
+        openSoftwareDecoder();
+    } else {
+        const std::optional<std::string> d3d11Error = tryOpenD3D11Decoder();
+        if (d3d11Error) {
+            if (decodePreference == DecodePreference::D3D11VA) {
+                throw std::runtime_error("D3D11VA decode was requested but could not be opened: " + *d3d11Error);
+            }
+            report.fallbackUsed = true;
+            report.fallbackReason = *d3d11Error;
+            openSoftwareDecoder();
+        }
     }
 
     const int audioStreamIndex = findBestAudioStream(format.get());
@@ -1975,13 +2196,16 @@ void playVideo(
     renderer.initialize(
         std::min(frameWidth, 1280),
         std::min(frameHeight, 720),
-        L"CueSeeker Windows Playback Lab - software video path");
+        report.decodePathUsed == "d3d11va"
+            ? L"CueSeeker Windows Playback Lab - D3D11VA video path"
+            : L"CueSeeker Windows Playback Lab - software video path");
 
     std::unique_ptr<AVFrame, FrameDeleter> frame(av_frame_alloc());
+    std::unique_ptr<AVFrame, FrameDeleter> hardwareTransferFrame(av_frame_alloc());
     std::unique_ptr<AVFrame, FrameDeleter> bgraFrame(av_frame_alloc());
     std::unique_ptr<AVFrame, FrameDeleter> audioFrame(audioCodec ? av_frame_alloc() : nullptr);
     std::unique_ptr<AVPacket, PacketDeleter> packet(av_packet_alloc());
-    if (!frame || !bgraFrame || !packet || (audioCodec && !audioFrame)) {
+    if (!frame || !hardwareTransferFrame || !bgraFrame || !packet || (audioCodec && !audioFrame)) {
         throw std::runtime_error("Failed to allocate FFmpeg frame or packet");
     }
 
@@ -1999,7 +2223,10 @@ void playVideo(
         frameHeight,
         1);
 
-    writeStderrUtf8("CueSeeker Windows Playback Lab selected decode path: software\n");
+    writeStderrUtf8("CueSeeker Windows Playback Lab selected decode path: " + report.decodePathUsed + "\n");
+    if (report.fallbackUsed) {
+        writeStderrUtf8("Decode fallback: " + report.fallbackReason + "\n");
+    }
     if (audioOutput) {
         writeStderrUtf8("Audio output: WASAPI shared mode on " + audioOutput->endpointName() + "\n");
         writeStderrUtf8("Audio mix: " + audioOutput->outputDescription() + "\n");
@@ -2038,12 +2265,26 @@ void playVideo(
             }
             ++report.videoFramesDecoded;
 
-            const auto frameFormat = static_cast<AVPixelFormat>(frame->format);
+            AVFrame* renderFrame = frame.get();
+            auto frameFormat = static_cast<AVPixelFormat>(frame->format);
+            if (frameFormat == AV_PIX_FMT_D3D11) {
+                av_frame_unref(hardwareTransferFrame.get());
+                const int transferResult = av_hwframe_transfer_data(hardwareTransferFrame.get(), frame.get(), 0);
+                if (transferResult < 0) {
+                    throw std::runtime_error("av_hwframe_transfer_data failed: " + avError(transferResult));
+                }
+                renderFrame = hardwareTransferFrame.get();
+                frameFormat = static_cast<AVPixelFormat>(renderFrame->format);
+                ++report.hardwareFrameTransfers;
+            }
+
             report.pixelFormat = pixelFormatName(frameFormat);
+            const int sourceWidth = renderFrame->width > 0 ? renderFrame->width : frameWidth;
+            const int sourceHeight = renderFrame->height > 0 ? renderFrame->height : frameHeight;
             if (!swsGuard || activeSwsFormat != frameFormat) {
                 SwsContext* sws = sws_getContext(
-                    frame->width,
-                    frame->height,
+                    sourceWidth,
+                    sourceHeight,
                     frameFormat,
                     frameWidth,
                     frameHeight,
@@ -2061,10 +2302,10 @@ void playVideo(
 
             sws_scale(
                 swsGuard.get(),
-                frame->data,
-                frame->linesize,
+                renderFrame->data,
+                renderFrame->linesize,
                 0,
-                frameHeight,
+                sourceHeight,
                 bgraFrame->data,
                 bgraFrame->linesize);
 
@@ -2104,6 +2345,7 @@ void playVideo(
             }
             sampleProcessTelemetry(report.process);
             av_frame_unref(frame.get());
+            av_frame_unref(hardwareTransferFrame.get());
 
             if (durationMs > 0) {
                 const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - wallStart).count();
@@ -2258,6 +2500,7 @@ void playVideo(
     const std::optional<std::string>&,
     int64_t,
     int64_t,
+    DecodePreference,
     const std::optional<std::string>&)
 {
     throw std::runtime_error("Video playback requires building with the FFmpeg development SDK.");
@@ -2276,6 +2519,7 @@ struct CliOptions {
     std::string mediaPath;
     std::optional<std::string> subtitlePath;
     std::optional<std::string> reportPath;
+    DecodePreference decodePreference = DecodePreference::Auto;
     int64_t seekMs = 0;
     int64_t durationMs = 15000;
 };
@@ -2288,7 +2532,7 @@ void printUsage()
         << "Usage:\n"
         << "  CueSeekerWindowsPlaybackLab --inspect <media-file> [--subtitle <ass-file>]\n"
         << "  CueSeekerWindowsPlaybackLab --render-test\n"
-        << "  CueSeekerWindowsPlaybackLab --play <media-file> [--subtitle <ass-file>] [--seek-ms ms] [--duration-ms ms] [--report-path json-file]\n"
+        << "  CueSeekerWindowsPlaybackLab --play <media-file> [--subtitle <ass-file>] [--decode auto|software|d3d11va] [--seek-ms ms] [--duration-ms ms] [--report-path json-file]\n"
         << "\n"
         << "Inspect reports embedded subtitle streams, attachments, and optional external ASS probe results.\n"
         << "The first --play path uses FFmpeg software video decode, D3D11 presentation,\n"
@@ -2353,6 +2597,13 @@ CliOptions parseArgs(int argc, wchar_t** argv)
             options.reportPath = wideToUtf8(argv[++i]);
             continue;
         }
+        if (arg == L"--decode") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("--decode requires auto, software, or d3d11va");
+            }
+            options.decodePreference = parseDecodePreference(wideToUtf8(argv[++i]));
+            continue;
+        }
 
         throw std::runtime_error("Unknown argument: " + wideToUtf8(arg));
     }
@@ -2371,6 +2622,7 @@ void writePlaybackFailureReport(const CliOptions& options, std::string_view erro
     report.subtitlePath = options.subtitlePath;
     report.seekMs = options.seekMs;
     report.requestedDurationMs = options.durationMs;
+    report.decodePathRequested = decodePreferenceName(options.decodePreference);
     report.success = false;
     report.failureStage = "exception";
     report.error = std::string(error);
@@ -2401,7 +2653,13 @@ int wmain(int argc, wchar_t** argv)
             runRenderTest();
             return 0;
         case CliOptions::Mode::Play:
-            playVideo(options.mediaPath, options.subtitlePath, options.seekMs, options.durationMs, options.reportPath);
+            playVideo(
+                options.mediaPath,
+                options.subtitlePath,
+                options.seekMs,
+                options.durationMs,
+                options.decodePreference,
+                options.reportPath);
             return 0;
         }
 

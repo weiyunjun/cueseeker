@@ -59,6 +59,12 @@ if (@($inspectReport.subtitles.embedded_streams).Count -lt 1) {
 if (@($inspectReport.subtitles.attachments).Count -lt 1) {
     throw "Inspect did not report the fixture attachment."
 }
+if (-not $inspectReport.hardware_decode.d3d11va.device_create_ok) {
+    throw "Inspect did not create a D3D11VA hardware device."
+}
+if (-not @($inspectReport.hardware_decode.d3d11va.video_streams)[0].d3d11va_config_available) {
+    throw "Inspect did not report D3D11VA support for the fixture video stream."
+}
 
 if (-not $SkipPlay) {
     Write-Host ""
@@ -71,8 +77,17 @@ if (-not $SkipPlay) {
     if (-not $playbackReport.playback.success) {
         throw "Playback report did not mark playback as successful."
     }
-    if ($playbackReport.decode.path_used -ne "software") {
-        throw "Playback report did not record the expected software decode path."
+    if ($playbackReport.decode.path_requested -ne "auto") {
+        throw "Playback report did not record the expected auto decode request."
+    }
+    if (@("software", "d3d11va") -notcontains $playbackReport.decode.path_used) {
+        throw "Playback report did not record a supported decode path."
+    }
+    if ($playbackReport.decode.path_used -eq "d3d11va" -and $playbackReport.decode.hardware_frame_transfers -lt 1) {
+        throw "Playback report selected D3D11VA but did not record transferred hardware frames."
+    }
+    if ($playbackReport.decode.fallback_used -and [string]::IsNullOrWhiteSpace($playbackReport.decode.fallback_reason)) {
+        throw "Playback report recorded fallback without a reason."
     }
     if ($playbackReport.video.frames_rendered -lt 1) {
         throw "Playback report did not record rendered video frames."
