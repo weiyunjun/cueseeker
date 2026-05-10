@@ -24,11 +24,12 @@ Implemented when FFmpeg and `libass` development packages are available:
 - `libass` version probing.
 - Basic software video decode through FFmpeg with BGRA upload to a D3D11
   textured quad.
+- Basic audio decode and resampling through FFmpeg with shared-mode WASAPI
+  output to the default Windows render endpoint.
 
 Not implemented yet:
 
 - D3D11VA/DXVA hardware decode.
-- WASAPI audio output.
 - `libass` subtitle overlay composition.
 - Structured playback event stream.
 - Long-play stability and seek stress tests.
@@ -137,7 +138,7 @@ Run a D3D11 rendering smoke test:
 apps/windows-playback-lab/build/Debug/CueSeekerWindowsPlaybackLab.exe --render-test
 ```
 
-Play video frames through the first software decode path:
+Play video and audio through the first software decode path:
 
 ```powershell
 apps/windows-playback-lab/build/Debug/CueSeekerWindowsPlaybackLab.exe --play "D:\media\sample.mkv" --seek-ms 30000 --duration-ms 15000
@@ -145,6 +146,6 @@ apps/windows-playback-lab/build/Debug/CueSeekerWindowsPlaybackLab.exe --play "D:
 
 Without the FFmpeg development package, `--inspect` still reports system, D3D11,
 WASAPI, and dependency status, but media stream inspection and `--play` are
-disabled. The first playback path intentionally reports that audio output and
-subtitle overlay are not implemented yet. It is a video/rendering foundation for
-W0, not the final Windows playback engine.
+disabled. The first playback path intentionally keeps subtitle overlay,
+hardware decode, and structured event diagnostics as follow-up work. It is a
+decode/render/audio foundation for W0, not the final Windows playback engine.

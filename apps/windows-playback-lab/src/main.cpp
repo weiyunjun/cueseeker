@@ -6,6 +6,7 @@
 #include <propkeydef.h>
 #include <functiondiscoverykeys_devpkey.h>
 #include <mmdeviceapi.h>
+#include <mmreg.h>
 #include <propsys.h>
 #include <wrl/client.h>
 
@@ -40,9 +41,11 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
+#include <libavutil/channel_layout.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/samplefmt.h>
+#include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 }
 #endif
@@ -854,6 +857,209 @@ struct PacketDeleter {
     }
 };
 
+struct SwrContextDeleter {
+    void operator()(SwrContext* context) const
+    {
+        swr_free(&context);
+    }
+};
+
+class WasapiAudioOutput {
+public:
+    ~WasapiAudioOutput()
+    {
+        if (started_ && audioClient_) {
+            audioClient_->Stop();
+        }
+        if (mixFormat_) {
+            CoTaskMemFree(mixFormat_);
+        }
+    }
+
+    void initialize()
+    {
+        ComPtr<IMMDeviceEnumerator> enumerator;
+        throwIfFailed(
+            CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator)),
+            "CoCreateInstance(MMDeviceEnumerator)");
+
+        ComPtr<IMMDevice> endpoint;
+        throwIfFailed(enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &endpoint), "GetDefaultAudioEndpoint");
+        endpointName_ = readEndpointName(endpoint.Get());
+
+        throwIfFailed(endpoint->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, &audioClient_), "IMMDevice::Activate(IAudioClient)");
+        throwIfFailed(audioClient_->GetMixFormat(&mixFormat_), "IAudioClient::GetMixFormat");
+        if (!mixFormat_) {
+            throw std::runtime_error("IAudioClient::GetMixFormat returned no mix format");
+        }
+
+        outputSampleFormat_ = chooseOutputSampleFormat(mixFormat_);
+        const int sampleBytes = av_get_bytes_per_sample(outputSampleFormat_);
+        bytesPerFrame_ = sampleBytes * static_cast<int>(mixFormat_->nChannels);
+        if (sampleBytes <= 0 || bytesPerFrame_ <= 0 || bytesPerFrame_ != mixFormat_->nBlockAlign) {
+            std::ostringstream out;
+            out << "Unsupported WASAPI mix block alignment: tag=" << waveFormatName(mixFormat_->wFormatTag)
+                << ", channels=" << mixFormat_->nChannels
+                << ", bits=" << mixFormat_->wBitsPerSample
+                << ", block_align=" << mixFormat_->nBlockAlign;
+            throw std::runtime_error(out.str());
+        }
+
+        constexpr REFERENCE_TIME bufferDuration = 10'000'000; // 1 second in 100 ns units.
+        throwIfFailed(
+            audioClient_->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, bufferDuration, 0, mixFormat_, nullptr),
+            "IAudioClient::Initialize(shared)");
+        throwIfFailed(audioClient_->GetBufferSize(&bufferFrameCount_), "IAudioClient::GetBufferSize");
+        throwIfFailed(audioClient_->GetService(IID_PPV_ARGS(&renderClient_)), "IAudioClient::GetService(IAudioRenderClient)");
+    }
+
+    void writeInterleaved(const uint8_t* data, int frameCount)
+    {
+        if (frameCount <= 0) {
+            return;
+        }
+        if (!data) {
+            throw std::runtime_error("WASAPI write received null audio data");
+        }
+        if (!started_) {
+            throwIfFailed(audioClient_->Start(), "IAudioClient::Start");
+            started_ = true;
+        }
+
+        int framesRemaining = frameCount;
+        const uint8_t* cursor = data;
+        while (framesRemaining > 0) {
+            UINT32 padding = 0;
+            throwIfFailed(audioClient_->GetCurrentPadding(&padding), "IAudioClient::GetCurrentPadding");
+            const UINT32 available = bufferFrameCount_ > padding ? bufferFrameCount_ - padding : 0;
+            if (available == 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                continue;
+            }
+
+            const UINT32 framesToWrite = std::min<UINT32>(available, static_cast<UINT32>(framesRemaining));
+            BYTE* destination = nullptr;
+            throwIfFailed(renderClient_->GetBuffer(framesToWrite, &destination), "IAudioRenderClient::GetBuffer");
+            std::memcpy(destination, cursor, static_cast<size_t>(framesToWrite) * bytesPerFrame_);
+            throwIfFailed(renderClient_->ReleaseBuffer(framesToWrite, 0), "IAudioRenderClient::ReleaseBuffer");
+
+            cursor += static_cast<size_t>(framesToWrite) * bytesPerFrame_;
+            framesRemaining -= static_cast<int>(framesToWrite);
+        }
+    }
+
+    int sampleRate() const
+    {
+        return static_cast<int>(mixFormat_->nSamplesPerSec);
+    }
+
+    int channels() const
+    {
+        return static_cast<int>(mixFormat_->nChannels);
+    }
+
+    int bytesPerFrame() const
+    {
+        return bytesPerFrame_;
+    }
+
+    AVSampleFormat sampleFormat() const
+    {
+        return outputSampleFormat_;
+    }
+
+    std::string endpointName() const
+    {
+        return endpointName_;
+    }
+
+    std::string outputDescription() const
+    {
+        std::ostringstream out;
+        out << waveFormatName(mixFormat_->wFormatTag)
+            << ", " << channels() << " channels"
+            << ", " << sampleRate() << " Hz"
+            << ", " << mixFormat_->wBitsPerSample << " bits"
+            << ", ffmpeg sample format " << sampleFormatName(outputSampleFormat_);
+        return out.str();
+    }
+
+private:
+    static std::string readEndpointName(IMMDevice* endpoint)
+    {
+        ComPtr<IPropertyStore> props;
+        if (FAILED(endpoint->OpenPropertyStore(STGM_READ, &props))) {
+            return "unknown";
+        }
+
+        PROPVARIANT value;
+        PropVariantInit(&value);
+        std::string friendlyName = "unknown";
+        if (SUCCEEDED(props->GetValue(PKEY_Device_FriendlyName, &value)) && value.vt == VT_LPWSTR) {
+            friendlyName = wideToUtf8(value.pwszVal);
+        }
+        PropVariantClear(&value);
+        return friendlyName;
+    }
+
+    static bool matchesExtensibleSubtype(const WAVEFORMATEX* format, WORD waveFormatTag)
+    {
+        if (format->wFormatTag != WAVE_FORMAT_EXTENSIBLE ||
+            format->cbSize < sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX)) {
+            return false;
+        }
+
+        const auto* extensible = reinterpret_cast<const WAVEFORMATEXTENSIBLE*>(format);
+        const GUID& subtype = extensible->SubFormat;
+        return subtype.Data1 == waveFormatTag &&
+            subtype.Data2 == 0x0000 &&
+            subtype.Data3 == 0x0010 &&
+            subtype.Data4[0] == 0x80 &&
+            subtype.Data4[1] == 0x00 &&
+            subtype.Data4[2] == 0x00 &&
+            subtype.Data4[3] == 0xaa &&
+            subtype.Data4[4] == 0x00 &&
+            subtype.Data4[5] == 0x38 &&
+            subtype.Data4[6] == 0x9b &&
+            subtype.Data4[7] == 0x71;
+    }
+
+    static AVSampleFormat chooseOutputSampleFormat(const WAVEFORMATEX* format)
+    {
+        const bool isFloat = format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ||
+            matchesExtensibleSubtype(format, WAVE_FORMAT_IEEE_FLOAT);
+        const bool isPcm = format->wFormatTag == WAVE_FORMAT_PCM ||
+            matchesExtensibleSubtype(format, WAVE_FORMAT_PCM);
+
+        if (isFloat && format->wBitsPerSample == 32) {
+            return AV_SAMPLE_FMT_FLT;
+        }
+        if (isPcm && format->wBitsPerSample == 16) {
+            return AV_SAMPLE_FMT_S16;
+        }
+        if (isPcm && format->wBitsPerSample == 32) {
+            return AV_SAMPLE_FMT_S32;
+        }
+
+        std::ostringstream out;
+        out << "Unsupported WASAPI mix format for bootstrap audio output: tag="
+            << waveFormatName(format->wFormatTag)
+            << ", channels=" << format->nChannels
+            << ", sample_rate=" << format->nSamplesPerSec
+            << ", bits=" << format->wBitsPerSample;
+        throw std::runtime_error(out.str());
+    }
+
+    ComPtr<IAudioClient> audioClient_;
+    ComPtr<IAudioRenderClient> renderClient_;
+    WAVEFORMATEX* mixFormat_ = nullptr;
+    UINT32 bufferFrameCount_ = 0;
+    int bytesPerFrame_ = 0;
+    AVSampleFormat outputSampleFormat_ = AV_SAMPLE_FMT_NONE;
+    std::string endpointName_ = "unknown";
+    bool started_ = false;
+};
+
 int findBestVideoStream(AVFormatContext* format)
 {
     const int streamIndex = av_find_best_stream(format, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
@@ -861,6 +1067,12 @@ int findBestVideoStream(AVFormatContext* format)
         throw std::runtime_error("No playable video stream found: " + avError(streamIndex));
     }
     return streamIndex;
+}
+
+int findBestAudioStream(AVFormatContext* format)
+{
+    const int streamIndex = av_find_best_stream(format, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
+    return streamIndex >= 0 ? streamIndex : -1;
 }
 
 void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
@@ -902,10 +1114,88 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
         throw std::runtime_error("avcodec_open2 failed: " + avError(result));
     }
 
+    const int audioStreamIndex = findBestAudioStream(format.get());
+    AVStream* audioStream = audioStreamIndex >= 0 ? format->streams[audioStreamIndex] : nullptr;
+    std::unique_ptr<AVCodecContext, CodecContextDeleter> audioCodec;
+    std::unique_ptr<WasapiAudioOutput> audioOutput;
+    std::unique_ptr<SwrContext, SwrContextDeleter> audioSwr;
+
+    if (audioStream) {
+        const AVCodec* audioDecoder = avcodec_find_decoder(audioStream->codecpar->codec_id);
+        if (!audioDecoder) {
+            throw std::runtime_error("No decoder found for audio codec " + codecName(audioStream->codecpar->codec_id));
+        }
+
+        audioCodec.reset(avcodec_alloc_context3(audioDecoder));
+        if (!audioCodec) {
+            throw std::runtime_error("avcodec_alloc_context3 failed for audio");
+        }
+
+        result = avcodec_parameters_to_context(audioCodec.get(), audioStream->codecpar);
+        if (result < 0) {
+            throw std::runtime_error("avcodec_parameters_to_context failed for audio: " + avError(result));
+        }
+
+        result = avcodec_open2(audioCodec.get(), audioDecoder, nullptr);
+        if (result < 0) {
+            throw std::runtime_error("avcodec_open2 failed for audio: " + avError(result));
+        }
+        if (audioCodec->sample_rate <= 0 || audioCodec->sample_fmt == AV_SAMPLE_FMT_NONE) {
+            throw std::runtime_error("Audio stream has invalid sample format or sample rate");
+        }
+
+        audioOutput = std::make_unique<WasapiAudioOutput>();
+        audioOutput->initialize();
+
+        AVChannelLayout inputLayout = {};
+        if (audioCodec->ch_layout.nb_channels > 0) {
+            result = av_channel_layout_copy(&inputLayout, &audioCodec->ch_layout);
+        } else if (audioStream->codecpar->ch_layout.nb_channels > 0) {
+            result = av_channel_layout_copy(&inputLayout, &audioStream->codecpar->ch_layout);
+        } else {
+            result = AVERROR(EINVAL);
+        }
+        if (result < 0) {
+            throw std::runtime_error("Audio stream has no usable channel layout: " + avError(result));
+        }
+
+        AVChannelLayout outputLayout = {};
+        av_channel_layout_default(&outputLayout, audioOutput->channels());
+        SwrContext* rawSwr = nullptr;
+        result = swr_alloc_set_opts2(
+            &rawSwr,
+            &outputLayout,
+            audioOutput->sampleFormat(),
+            audioOutput->sampleRate(),
+            &inputLayout,
+            audioCodec->sample_fmt,
+            audioCodec->sample_rate,
+            0,
+            nullptr);
+        av_channel_layout_uninit(&inputLayout);
+        av_channel_layout_uninit(&outputLayout);
+        if (result < 0 || !rawSwr) {
+            if (rawSwr) {
+                swr_free(&rawSwr);
+            }
+            throw std::runtime_error("swr_alloc_set_opts2 failed: " + avError(result));
+        }
+
+        result = swr_init(rawSwr);
+        if (result < 0) {
+            swr_free(&rawSwr);
+            throw std::runtime_error("swr_init failed: " + avError(result));
+        }
+        audioSwr.reset(rawSwr);
+    }
+
     if (seekMs > 0) {
         const int64_t target = av_rescale_q(seekMs, AVRational { 1, 1000 }, stream->time_base);
         if (av_seek_frame(format.get(), streamIndex, target, AVSEEK_FLAG_BACKWARD) >= 0) {
             avcodec_flush_buffers(codec.get());
+            if (audioCodec) {
+                avcodec_flush_buffers(audioCodec.get());
+            }
         }
     }
 
@@ -923,8 +1213,9 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
 
     std::unique_ptr<AVFrame, FrameDeleter> frame(av_frame_alloc());
     std::unique_ptr<AVFrame, FrameDeleter> bgraFrame(av_frame_alloc());
+    std::unique_ptr<AVFrame, FrameDeleter> audioFrame(audioCodec ? av_frame_alloc() : nullptr);
     std::unique_ptr<AVPacket, PacketDeleter> packet(av_packet_alloc());
-    if (!frame || !bgraFrame || !packet) {
+    if (!frame || !bgraFrame || !packet || (audioCodec && !audioFrame)) {
         throw std::runtime_error("Failed to allocate FFmpeg frame or packet");
     }
 
@@ -943,7 +1234,12 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
         1);
 
     std::cerr << "CueSeeker Windows Playback Lab selected decode path: software\n";
-    std::cerr << "Audio output is not implemented in this bootstrap.\n";
+    if (audioOutput) {
+        std::cerr << "Audio output: WASAPI shared mode on " << audioOutput->endpointName() << "\n";
+        std::cerr << "Audio mix: " << audioOutput->outputDescription() << "\n";
+    } else {
+        std::cerr << "Audio output: no audio stream found; playback is video-only.\n";
+    }
     std::cerr << "ASS overlay is not implemented in this bootstrap.\n";
 
     const auto wallStart = std::chrono::steady_clock::now();
@@ -1023,11 +1319,92 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
         }
     };
 
+    auto writeResampledAudio = [&](int outputFrames, const uint8_t** inputData, int inputFrames) {
+        if (outputFrames <= 0) {
+            return;
+        }
+        const int bufferSize = av_samples_get_buffer_size(
+            nullptr,
+            audioOutput->channels(),
+            outputFrames,
+            audioOutput->sampleFormat(),
+            1);
+        if (bufferSize < 0) {
+            throw std::runtime_error("av_samples_get_buffer_size failed: " + avError(bufferSize));
+        }
+
+        std::vector<uint8_t> audioBuffer(static_cast<size_t>(bufferSize));
+        uint8_t* outputData[] = { audioBuffer.data() };
+        const int converted = swr_convert(audioSwr.get(), outputData, outputFrames, inputData, inputFrames);
+        if (converted < 0) {
+            throw std::runtime_error("swr_convert failed: " + avError(converted));
+        }
+        if (converted > 0) {
+            audioOutput->writeInterleaved(audioBuffer.data(), converted);
+        }
+    };
+
+    auto receiveAudioFrames = [&]() {
+        if (!audioCodec || !audioOutput || !audioSwr) {
+            return;
+        }
+
+        while (running) {
+            const int receive = avcodec_receive_frame(audioCodec.get(), audioFrame.get());
+            if (receive == AVERROR(EAGAIN) || receive == AVERROR_EOF) {
+                break;
+            }
+            if (receive < 0) {
+                throw std::runtime_error("avcodec_receive_frame failed for audio: " + avError(receive));
+            }
+
+            const auto frameSampleFormat = static_cast<AVSampleFormat>(audioFrame->format);
+            const int frameSampleRate = audioFrame->sample_rate > 0 ? audioFrame->sample_rate : audioCodec->sample_rate;
+            if (frameSampleFormat != audioCodec->sample_fmt || frameSampleRate != audioCodec->sample_rate) {
+                throw std::runtime_error("Dynamic audio format changes are not implemented in this bootstrap");
+            }
+
+            const int64_t delayed = swr_get_delay(audioSwr.get(), audioCodec->sample_rate);
+            const int outputFrames = static_cast<int>(av_rescale_rnd(
+                delayed + audioFrame->nb_samples,
+                audioOutput->sampleRate(),
+                audioCodec->sample_rate,
+                AV_ROUND_UP));
+            const uint8_t** inputData = const_cast<const uint8_t**>(audioFrame->extended_data);
+            writeResampledAudio(outputFrames, inputData, audioFrame->nb_samples);
+            av_frame_unref(audioFrame.get());
+        }
+    };
+
+    auto flushAudioResampler = [&]() {
+        if (!audioCodec || !audioOutput || !audioSwr) {
+            return;
+        }
+
+        while (running) {
+            const int64_t delayed = swr_get_delay(audioSwr.get(), audioCodec->sample_rate);
+            const int outputFrames = static_cast<int>(av_rescale_rnd(
+                delayed,
+                audioOutput->sampleRate(),
+                audioCodec->sample_rate,
+                AV_ROUND_UP));
+            if (outputFrames <= 0) {
+                break;
+            }
+            writeResampledAudio(outputFrames, nullptr, 0);
+        }
+    };
+
     while (running && renderer.pumpMessages()) {
         result = av_read_frame(format.get(), packet.get());
         if (result == AVERROR_EOF) {
             avcodec_send_packet(codec.get(), nullptr);
             receiveFrames();
+            if (audioCodec) {
+                avcodec_send_packet(audioCodec.get(), nullptr);
+                receiveAudioFrames();
+                flushAudioResampler();
+            }
             break;
         }
         if (result < 0) {
@@ -1040,6 +1417,18 @@ void playVideo(const std::string& path, int64_t seekMs, int64_t durationMs)
                 throw std::runtime_error("avcodec_send_packet failed: " + avError(send));
             }
             receiveFrames();
+        }
+
+        if (audioCodec && packet->stream_index == audioStreamIndex) {
+            int send = avcodec_send_packet(audioCodec.get(), packet.get());
+            if (send == AVERROR(EAGAIN)) {
+                receiveAudioFrames();
+                send = avcodec_send_packet(audioCodec.get(), packet.get());
+            }
+            if (send < 0) {
+                throw std::runtime_error("avcodec_send_packet failed for audio: " + avError(send));
+            }
+            receiveAudioFrames();
         }
 
         av_packet_unref(packet.get());
@@ -1076,8 +1465,9 @@ void printUsage()
         << "  CueSeekerWindowsPlaybackLab --render-test\n"
         << "  CueSeekerWindowsPlaybackLab --play <media-file> [--seek-ms ms] [--duration-ms ms]\n"
         << "\n"
-        << "The first --play path uses FFmpeg software video decode and D3D11 presentation.\n"
-        << "WASAPI audio output, D3D11VA/DXVA, and libass overlay are intentionally next steps.\n";
+        << "The first --play path uses FFmpeg software video decode, D3D11 presentation,\n"
+        << "and WASAPI shared-mode audio output when the media has an audio stream.\n"
+        << "D3D11VA/DXVA and libass overlay are intentionally next steps.\n";
 }
 
 CliOptions parseArgs(int argc, wchar_t** argv)
