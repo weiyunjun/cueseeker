@@ -742,49 +742,50 @@ private struct SearchField: View {
     @Binding var isFocused: Bool
 
     var body: some View {
-        ZStack {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+
+            SearchTextView(
+                text: Binding(
+                    get: { text },
+                    set: { text = $0 }
+                ),
+                placeholder: "Search subtitles",
+                isFocused: $isFocused
+            )
+            .frame(height: 22)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(nsColor: .textBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(
+                    isFocused ? Color.accentColor : Color.primary.opacity(0.08),
+                    lineWidth: isFocused ? 1.5 : 1
+                )
+        )
+        .padding(3)
+        .background(
             RoundedRectangle(cornerRadius: 9)
                 .fill(isFocused ? Color.accentColor.opacity(0.18) : Color.clear)
-
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-
-                SearchTextView(
-                    text: Binding(
-                        get: { text },
-                        set: { text = $0 }
-                    ),
-                    placeholder: "Search subtitles",
-                    isFocused: $isFocused
-                )
-                .frame(height: 22)
-
-                if !text.isEmpty {
-                    Button {
-                        text = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Color(nsColor: .textBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(
-                        isFocused ? Color.accentColor : Color.primary.opacity(0.08),
-                        lineWidth: isFocused ? 1.5 : 1
-                    )
-            }
-            .padding(3)
-        }
+        )
     }
 }
 
