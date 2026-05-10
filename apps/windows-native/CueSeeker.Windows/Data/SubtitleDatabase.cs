@@ -5,6 +5,9 @@ namespace CueSeeker.Windows.Data;
 
 internal sealed class SubtitleDatabase
 {
+    public const int CurrentSchemaVersion = 2;
+    public const int ConfiguredBusyTimeoutMilliseconds = 5_000;
+
     private readonly string databasePath;
 
     public SubtitleDatabase(string databasePath)
@@ -23,25 +26,28 @@ internal sealed class SubtitleDatabase
         }
     }
 
+    public static double UnixSeconds(DateTimeOffset value)
+    {
+        return (value.ToUniversalTime() - DateTimeOffset.UnixEpoch).TotalSeconds;
+    }
+
     public void Migrate()
     {
         using SqliteConnection connection = OpenConnection();
-        using SqliteCommand command = connection.CreateCommand();
-        command.CommandText =
+        int previousVersion = SchemaVersion(connection);
+        EnsureSearchPathsTable(connection);
+        if (previousVersion < CurrentSchemaVersion) {
+            DropDerivedSubtitleIndexTables(connection);
+        }
+
+        Execute(connection,
             """
-            PRAGMA foreign_keys = ON;
-
-            CREATE TABLE IF NOT EXISTS search_paths (
-                path TEXT PRIMARY KEY NOT NULL,
-                added_at TEXT NOT NULL
-            );
-
             CREATE TABLE IF NOT EXISTS subtitle_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 subtitle_path TEXT NOT NULL UNIQUE,
                 format TEXT NOT NULL,
                 file_size INTEGER,
-                modified_at TEXT,
+                modified_at REAL,
                 indexed_at TEXT NOT NULL
             );
 
@@ -49,32 +55,63 @@ internal sealed class SubtitleDatabase
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT NOT NULL UNIQUE,
                 video_name TEXT NOT NULL,
-                duration REAL
+                file_size INTEGER,
+                modified_at REAL,
+                duration REAL,
+                video_codec TEXT,
+                audio_codec TEXT,
+                native_video_candidate INTEGER,
+                native_audio_candidate INTEGER,
+                native_compatibility_reason TEXT,
+                native_failure_reason TEXT,
+                compatibility_evaluated_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS subtitle_video_matches (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                subtitle_file_id INTEGER NOT NULL REFERENCES subtitle_files(id) ON DELETE CASCADE,
-                video_file_id INTEGER NOT NULL REFERENCES video_files(id) ON DELETE CASCADE,
+                subtitle_file_id INTEGER NOT NULL,
+                video_file_id INTEGER NOT NULL,
                 match_method TEXT NOT NULL,
                 confidence REAL NOT NULL,
-                is_active INTEGER NOT NULL,
-                UNIQUE(subtitle_file_id, video_file_id)
+                is_active INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY(subtitle_file_id, video_file_id),
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE,
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS subtitle_cue_groups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                subtitle_file_id INTEGER NOT NULL REFERENCES subtitle_files(id) ON DELETE CASCADE,
+                subtitle_file_id INTEGER NOT NULL,
+                subtitle_path TEXT NOT NULL,
+                seq INTEGER,
+                start_time TEXT NOT NULL,
+                end_time TEXT NOT NULL,
                 start_ms INTEGER NOT NULL,
                 end_ms INTEGER NOT NULL,
-                search_content TEXT NOT NULL
+                search_content TEXT NOT NULL,
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS subtitle_cue_lines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cue_group_id INTEGER NOT NULL REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE,
+                cue_group_id INTEGER NOT NULL,
+                event_index INTEGER NOT NULL,
+                source_format TEXT NOT NULL,
+                source_style TEXT,
+                source_layer INTEGER,
+                start_time TEXT NOT NULL,
+                end_time TEXT NOT NULL,
+                start_ms INTEGER NOT NULL,
+                end_ms INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                display_x REAL,
+                display_y REAL,
                 display_order INTEGER NOT NULL,
-                text TEXT NOT NULL
+                FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
+            );
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_groups_fts USING fts5(
+                content,
+                cue_group_id UNINDEXED
             );
 
             CREATE TABLE IF NOT EXISTS library_video_rows (
@@ -105,13 +142,23 @@ internal sealed class SubtitleDatabase
                 UNIQUE(subtitle_path, start_ms, end_ms)
             );
 
-            CREATE INDEX IF NOT EXISTS idx_subtitle_files_subtitle_path ON subtitle_files(subtitle_path);
-            CREATE INDEX IF NOT EXISTS idx_cue_groups_subtitle_file_id ON subtitle_cue_groups(subtitle_file_id);
-            CREATE INDEX IF NOT EXISTS idx_cue_lines_group_order ON subtitle_cue_lines(cue_group_id, display_order);
-            CREATE INDEX IF NOT EXISTS idx_library_video_rows_folder_order ON library_video_rows(folder_order, video_order);
-            """;
-        command.ExecuteNonQuery();
-        RebuildLibraryPresentationSnapshot(connection);
+            CREATE INDEX IF NOT EXISTS idx_subtitle_files_subtitle_path
+                ON subtitle_files(subtitle_path);
+            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_groups_subtitle_path
+                ON subtitle_cue_groups(subtitle_path);
+            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_groups_start_ms
+                ON subtitle_cue_groups(start_ms);
+            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_group_order
+                ON subtitle_cue_lines(cue_group_id, display_order, event_index);
+            CREATE INDEX IF NOT EXISTS idx_library_video_rows_folder_order
+                ON library_video_rows(folder_order, video_order);
+            """);
+
+        if (previousVersion < CurrentSchemaVersion) {
+            RebuildLibraryPresentationSnapshot(connection);
+        }
+
+        Execute(connection, $"PRAGMA user_version = {CurrentSchemaVersion};");
     }
 
     public IReadOnlyList<string> SearchPaths()
@@ -131,30 +178,46 @@ internal sealed class SubtitleDatabase
     {
         using SqliteConnection connection = OpenConnection();
         using SqliteCommand command = connection.CreateCommand();
+        string now = DateTimeOffset.UtcNow.ToString("O");
         command.CommandText =
             """
-            INSERT INTO search_paths(path, added_at)
-            VALUES ($path, $added_at)
-            ON CONFLICT(path) DO UPDATE SET added_at = excluded.added_at;
+            INSERT INTO search_paths(type, path, created_at, updated_at)
+            VALUES ('local', $path, $created_at, $updated_at)
+            ON CONFLICT(path) DO UPDATE SET
+                type = excluded.type,
+                updated_at = excluded.updated_at;
             """;
         command.Parameters.AddWithValue("$path", PathContract.NormalizePath(folder));
-        command.Parameters.AddWithValue("$added_at", DateTimeOffset.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("$created_at", now);
+        command.Parameters.AddWithValue("$updated_at", now);
         command.ExecuteNonQuery();
     }
 
     public void RemoveSearchPath(string folder)
     {
-        string normalized = PathContract.NormalizePath(folder);
+        RemoveIndexedData(folder, new HashSet<string>(StringComparer.OrdinalIgnoreCase), removeSearchPath: true);
+        RebuildLibraryPresentationSnapshot();
+    }
+
+    public IReadOnlyList<SubtitleFileMetadata> SubtitleFiles()
+    {
         using SqliteConnection connection = OpenConnection();
-        DeleteIndexedSubtitlesWhere(connection, path => PathContract.PathIsUnderFolder(path, normalized));
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT sf.subtitle_path, sf.format, sf.file_size, sf.modified_at, vf.path
+            FROM subtitle_files sf
+            LEFT JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            LEFT JOIN video_files vf ON vf.id = m.video_file_id;
+            """;
 
-        using SqliteCommand deletePath = connection.CreateCommand();
-        deletePath.CommandText = "DELETE FROM search_paths WHERE path = $path;";
-        deletePath.Parameters.AddWithValue("$path", normalized);
-        deletePath.ExecuteNonQuery();
+        using SqliteDataReader reader = command.ExecuteReader();
+        List<SubtitleFileMetadata> files = [];
+        while (reader.Read()) {
+            files.Add(ReadSubtitleFileMetadata(reader));
+        }
 
-        DeleteOrphanedVideoFiles(connection);
-        RebuildLibraryPresentationSnapshot(connection);
+        return files;
     }
 
     public SubtitleFileMetadata? SubtitleFile(string subtitlePath)
@@ -171,16 +234,7 @@ internal sealed class SubtitleDatabase
             """;
         command.Parameters.AddWithValue("$subtitle_path", PathContract.NormalizePath(subtitlePath));
         using SqliteDataReader reader = command.ExecuteReader();
-        if (!reader.Read()) {
-            return null;
-        }
-
-        return new SubtitleFileMetadata(
-            reader.GetString(0),
-            SubtitleFormatExtensions.FromRawValue(reader.GetString(1)),
-            reader.IsDBNull(2) ? null : reader.GetInt64(2),
-            reader.IsDBNull(3) ? null : reader.GetString(3),
-            reader.IsDBNull(4) ? null : reader.GetString(4));
+        return reader.Read() ? ReadSubtitleFileMetadata(reader) : null;
     }
 
     public void ReplaceCueGroups(
@@ -191,82 +245,36 @@ internal sealed class SubtitleDatabase
         long? fileSize,
         DateTimeOffset? modifiedAt)
     {
+        string normalizedSubtitlePath = PathContract.NormalizePath(subtitlePath);
+        string normalizedVideoPath = PathContract.NormalizePath(videoPath);
         using SqliteConnection connection = OpenConnection();
-        long subtitleFileId = UpsertSubtitleFile(connection, subtitlePath, format, fileSize, modifiedAt);
-        long videoFileId = UpsertVideoFile(connection, videoPath);
+        BeginImmediateTransaction(connection);
+        try {
+            DeleteIndexedSubtitlePath(connection, normalizedSubtitlePath);
 
-        using (SqliteCommand deactivate = connection.CreateCommand()) {
-            deactivate.CommandText = "UPDATE subtitle_video_matches SET is_active = 0 WHERE subtitle_file_id = $subtitle_file_id;";
-            deactivate.Parameters.AddWithValue("$subtitle_file_id", subtitleFileId);
-            deactivate.ExecuteNonQuery();
-        }
+            long subtitleFileId = UpsertSubtitleFile(connection, normalizedSubtitlePath, format, fileSize, modifiedAt);
+            long videoFileId = UpsertVideoFile(connection, normalizedVideoPath);
+            UpsertSubtitleVideoMatch(connection, subtitleFileId, videoFileId);
 
-        using (SqliteCommand match = connection.CreateCommand()) {
-            match.CommandText =
-                """
-                INSERT INTO subtitle_video_matches(subtitle_file_id, video_file_id, match_method, confidence, is_active)
-                VALUES ($subtitle_file_id, $video_file_id, 'same-directory-basename', 1.0, 1)
-                ON CONFLICT(subtitle_file_id, video_file_id) DO UPDATE SET
-                    match_method = excluded.match_method,
-                    confidence = excluded.confidence,
-                    is_active = excluded.is_active;
-                """;
-            match.Parameters.AddWithValue("$subtitle_file_id", subtitleFileId);
-            match.Parameters.AddWithValue("$video_file_id", videoFileId);
-            match.ExecuteNonQuery();
-        }
-
-        using (SqliteCommand deleteGroups = connection.CreateCommand()) {
-            deleteGroups.CommandText = "DELETE FROM subtitle_cue_groups WHERE subtitle_file_id = $subtitle_file_id;";
-            deleteGroups.Parameters.AddWithValue("$subtitle_file_id", subtitleFileId);
-            deleteGroups.ExecuteNonQuery();
-        }
-
-        foreach (SubtitleCueGroup group in cueGroups) {
-            long groupId;
-            using (SqliteCommand insertGroup = connection.CreateCommand()) {
-                insertGroup.CommandText =
-                    """
-                    INSERT INTO subtitle_cue_groups(subtitle_file_id, start_ms, end_ms, search_content)
-                    VALUES ($subtitle_file_id, $start_ms, $end_ms, $search_content);
-                    """;
-                insertGroup.Parameters.AddWithValue("$subtitle_file_id", subtitleFileId);
-                insertGroup.Parameters.AddWithValue("$start_ms", group.StartMilliseconds);
-                insertGroup.Parameters.AddWithValue("$end_ms", group.EndMilliseconds);
-                insertGroup.Parameters.AddWithValue("$search_content", group.SearchContent);
-                insertGroup.ExecuteNonQuery();
+            foreach (SubtitleCueGroup group in cueGroups) {
+                long groupId = InsertCueGroup(connection, subtitleFileId, normalizedSubtitlePath, group);
+                foreach (SubtitleCueLine line in group.CueLines) {
+                    InsertCueLine(connection, groupId, line);
+                }
+                InsertFtsRow(connection, groupId, group.SearchContent);
             }
 
-            using (SqliteCommand selectGroupId = connection.CreateCommand()) {
-                selectGroupId.CommandText = "SELECT last_insert_rowid();";
-                groupId = (long)(selectGroupId.ExecuteScalar() ?? 0L);
-            }
-
-            for (int index = 0; index < group.CueLines.Count; index++) {
-                using SqliteCommand insertLine = connection.CreateCommand();
-                insertLine.CommandText =
-                    """
-                    INSERT INTO subtitle_cue_lines(cue_group_id, display_order, text)
-                    VALUES ($cue_group_id, $display_order, $text);
-                    """;
-                insertLine.Parameters.AddWithValue("$cue_group_id", groupId);
-                insertLine.Parameters.AddWithValue("$display_order", index);
-                insertLine.Parameters.AddWithValue("$text", group.CueLines[index]);
-                insertLine.ExecuteNonQuery();
-            }
+            DeleteOrphanedVideoFiles(connection);
+            Execute(connection, "COMMIT;");
+        } catch {
+            TryRollback(connection);
+            throw;
         }
-
-        RebuildLibraryPresentationSnapshot(connection);
     }
 
     public void RemoveStaleEntries(string folder, ISet<string> keptSubtitlePaths)
     {
-        string normalizedFolder = PathContract.NormalizePath(folder);
-        HashSet<string> kept = new(keptSubtitlePaths.Select(PathContract.NormalizePath), StringComparer.OrdinalIgnoreCase);
-        using SqliteConnection connection = OpenConnection();
-        DeleteIndexedSubtitlesWhere(connection, path => PathContract.PathIsUnderFolder(path, normalizedFolder) && !kept.Contains(path));
-        DeleteOrphanedVideoFiles(connection);
-        RebuildLibraryPresentationSnapshot(connection);
+        RemoveIndexedData(folder, keptSubtitlePaths, removeSearchPath: false);
     }
 
     public IReadOnlyList<LibraryFolderPresentation> LibraryPresentation()
@@ -323,56 +331,163 @@ internal sealed class SubtitleDatabase
 
     public SubtitleSearchPage SearchPage(string query, int limit)
     {
-        SearchQueryPlan? plan = SearchQueryPlan.Create(query);
+        SearchQueryPlan? plan = SearchQueryPlan.Create(query, limit);
         if (plan is null) {
             return new SubtitleSearchPage([], 0, []);
         }
 
-        HashSet<string> folders = SearchPaths().ToHashSet(StringComparer.OrdinalIgnoreCase);
-        List<SearchCandidate> candidates = LoadSearchCandidates()
-            .Where(candidate => folders.Count == 0 || folders.Any(folder => PathContract.PathIsUnderFolder(candidate.SubtitlePath, folder)))
-            .Where(candidate => candidate.CueLines.Any(plan.LineMatches))
-            .ToList();
+        try {
+            using SqliteConnection connection = OpenConnection();
+            IReadOnlyList<string> pathPrefixes = SearchPaths()
+                .Select(path => PathContract.NormalizePath(path) + Path.DirectorySeparatorChar)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            int candidateBatchLimit = SearchQueryPlan.SearchCandidateBatchLimit(limit);
+            int candidateOffset = 0;
+            List<SubtitleSearchResult> results = [];
 
-        Dictionary<string, string> displayTitles = candidates
-            .Select(candidate => candidate.SubtitlePath)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(path => path, SubtitleDisplayTitleResolver.DisplayTitle, StringComparer.OrdinalIgnoreCase);
+            while (true) {
+                List<SearchCandidate> candidates = LoadSearchCandidates(connection, plan, pathPrefixes, candidateBatchLimit, candidateOffset);
+                if (candidates.Count == 0) {
+                    break;
+                }
 
-        List<SubtitleSearchResult> sorted = candidates
-            .OrderBy(candidate => displayTitles[candidate.SubtitlePath], NaturalSort.Comparer)
-            .ThenBy(candidate => candidate.StartMilliseconds)
-            .ThenBy(candidate => candidate.SubtitlePath, NaturalSort.Comparer)
-            .Select(candidate => candidate.ToResult())
-            .ToList();
+                candidateOffset += candidates.Count;
+                foreach (SearchCandidate candidate in candidates) {
+                    if (SearchResult(connection, candidate, plan) is { } result) {
+                        results.Add(result);
+                    }
+                }
 
-        List<SubtitleSearchFileSummary> summaries = candidates
-            .GroupBy(candidate => candidate.SubtitlePath, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new SubtitleSearchFileSummary(
-                group.Key,
-                Path.GetFileName(group.Key),
-                displayTitles[group.Key],
-                group.Count()))
-            .OrderBy(summary => summary.SubtitleDisplayTitle, NaturalSort.Comparer)
-            .ThenBy(summary => summary.SubtitlePath, NaturalSort.Comparer)
-            .ToList();
+                if (candidates.Count < candidateBatchLimit) {
+                    break;
+                }
+            }
 
-        return new SubtitleSearchPage(sorted.Take(limit).ToList(), sorted.Count, summaries);
+            List<SubtitleSearchResult> sorted = SortedSearchResults(results);
+            List<SubtitleSearchResult> pageResults = sorted.Take(limit).ToList();
+            return new SubtitleSearchPage(pageResults, sorted.Count, FileSummaries(sorted));
+        } catch (SqliteException) {
+            return new SubtitleSearchPage([], 0, []);
+        }
+    }
+
+    public void RebuildLibraryPresentationSnapshot()
+    {
+        using SqliteConnection connection = OpenConnection();
+        RebuildLibraryPresentationSnapshot(connection);
     }
 
     private SqliteConnection OpenConnection()
     {
         SqliteConnection connection = new($"Data Source={databasePath}");
         connection.Open();
-        using SqliteCommand pragma = connection.CreateCommand();
-        pragma.CommandText = "PRAGMA foreign_keys = ON;";
-        pragma.ExecuteNonQuery();
+        Execute(connection, "PRAGMA foreign_keys = ON;");
+        Execute(connection, $"PRAGMA busy_timeout = {ConfiguredBusyTimeoutMilliseconds};");
         return connection;
+    }
+
+    private static int SchemaVersion(SqliteConnection connection)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "PRAGMA user_version;";
+        return Convert.ToInt32(command.ExecuteScalar() ?? 0);
+    }
+
+    private static void EnsureSearchPathsTable(SqliteConnection connection)
+    {
+        if (!TableExists(connection, "search_paths")) {
+            CreateSearchPathsTable(connection);
+            return;
+        }
+
+        HashSet<string> columns = ColumnNames(connection, "search_paths");
+        if (columns.IsSupersetOf(["id", "type", "path", "created_at", "updated_at"])) {
+            return;
+        }
+
+        string legacyName = $"search_paths_legacy_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        Execute(connection, $"ALTER TABLE search_paths RENAME TO {legacyName};");
+        CreateSearchPathsTable(connection);
+
+        string now = DateTimeOffset.UtcNow.ToString("O");
+        string createdAtExpression = columns.Contains("added_at") ? "COALESCE(added_at, $now)" : "$now";
+        using (SqliteCommand migrate = connection.CreateCommand()) {
+            migrate.CommandText =
+                $"""
+                INSERT OR IGNORE INTO search_paths(type, path, created_at, updated_at)
+                SELECT 'local', path, {createdAtExpression}, {createdAtExpression}
+                FROM {legacyName}
+                WHERE path IS NOT NULL;
+                """;
+            migrate.Parameters.AddWithValue("$now", now);
+            migrate.ExecuteNonQuery();
+        }
+
+        Execute(connection, $"DROP TABLE {legacyName};");
+    }
+
+    private static void CreateSearchPathsTable(SqliteConnection connection)
+    {
+        Execute(connection,
+            """
+            CREATE TABLE IF NOT EXISTS search_paths (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL DEFAULT 'local',
+                path TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """);
+    }
+
+    private static bool TableExists(SqliteConnection connection, string table)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $name;";
+        command.Parameters.AddWithValue("$name", table);
+        return command.ExecuteScalar() is not null;
+    }
+
+    private static HashSet<string> ColumnNames(SqliteConnection connection, string table)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({table});";
+        using SqliteDataReader reader = command.ExecuteReader();
+        HashSet<string> columns = new(StringComparer.OrdinalIgnoreCase);
+        while (reader.Read()) {
+            columns.Add(reader.GetString(1));
+        }
+
+        return columns;
+    }
+
+    private static void DropDerivedSubtitleIndexTables(SqliteConnection connection)
+    {
+        Execute(connection,
+            """
+            DROP TABLE IF EXISTS subtitle_cue_groups_fts;
+            DROP TABLE IF EXISTS subtitle_cue_lines;
+            DROP TABLE IF EXISTS subtitle_cue_groups;
+            DROP TABLE IF EXISTS subtitle_video_matches;
+            DROP TABLE IF EXISTS library_video_rows;
+            DROP TABLE IF EXISTS video_files;
+            DROP TABLE IF EXISTS subtitle_files;
+            """);
+    }
+
+    private static SubtitleFileMetadata ReadSubtitleFileMetadata(SqliteDataReader reader)
+    {
+        return new SubtitleFileMetadata(
+            reader.GetString(0),
+            SubtitleFormatExtensions.FromRawValue(reader.GetString(1)),
+            reader.IsDBNull(2) ? null : reader.GetInt64(2),
+            reader.IsDBNull(3) ? null : reader.GetDouble(3),
+            reader.IsDBNull(4) ? null : reader.GetString(4));
     }
 
     private static long UpsertSubtitleFile(SqliteConnection connection, string subtitlePath, SubtitleFormat format, long? fileSize, DateTimeOffset? modifiedAt)
     {
-        string normalized = PathContract.NormalizePath(subtitlePath);
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
             """
@@ -382,42 +497,127 @@ internal sealed class SubtitleDatabase
                 format = excluded.format,
                 file_size = excluded.file_size,
                 modified_at = excluded.modified_at,
-                indexed_at = excluded.indexed_at;
+                indexed_at = excluded.indexed_at
+            RETURNING id;
             """;
-        command.Parameters.AddWithValue("$subtitle_path", normalized);
+        command.Parameters.AddWithValue("$subtitle_path", subtitlePath);
         command.Parameters.AddWithValue("$format", format.RawValue());
-        command.Parameters.AddWithValue("$file_size", fileSize.HasValue ? fileSize.Value : (object)DBNull.Value);
-        command.Parameters.AddWithValue("$modified_at", modifiedAt?.ToString("O") ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$file_size", fileSize.HasValue ? fileSize.Value : DBNull.Value);
+        command.Parameters.AddWithValue("$modified_at", modifiedAt.HasValue ? UnixSeconds(modifiedAt.Value) : DBNull.Value);
         command.Parameters.AddWithValue("$indexed_at", DateTimeOffset.UtcNow.ToString("O"));
-        command.ExecuteNonQuery();
-
-        using SqliteCommand select = connection.CreateCommand();
-        select.CommandText = "SELECT id FROM subtitle_files WHERE subtitle_path = $subtitle_path;";
-        select.Parameters.AddWithValue("$subtitle_path", normalized);
-        return (long)(select.ExecuteScalar() ?? 0L);
+        return Convert.ToInt64(command.ExecuteScalar() ?? 0L);
     }
 
     private static long UpsertVideoFile(SqliteConnection connection, string videoPath)
     {
-        string normalized = PathContract.NormalizePath(videoPath);
+        FileInfo fileInfo = new(videoPath);
+        long? fileSize = fileInfo.Exists ? fileInfo.Length : null;
+        DateTimeOffset? modifiedAt = fileInfo.Exists ? new DateTimeOffset(fileInfo.LastWriteTimeUtc) : null;
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO video_files(path, video_name)
-            VALUES ($path, $video_name)
-            ON CONFLICT(path) DO UPDATE SET video_name = excluded.video_name;
+            INSERT INTO video_files(path, video_name, file_size, modified_at)
+            VALUES ($path, $video_name, $file_size, $modified_at)
+            ON CONFLICT(path) DO UPDATE SET
+                video_name = excluded.video_name,
+                file_size = excluded.file_size,
+                modified_at = excluded.modified_at
+            RETURNING id;
             """;
-        command.Parameters.AddWithValue("$path", normalized);
-        command.Parameters.AddWithValue("$video_name", Path.GetFileName(normalized));
-        command.ExecuteNonQuery();
-
-        using SqliteCommand select = connection.CreateCommand();
-        select.CommandText = "SELECT id FROM video_files WHERE path = $path;";
-        select.Parameters.AddWithValue("$path", normalized);
-        return (long)(select.ExecuteScalar() ?? 0L);
+        command.Parameters.AddWithValue("$path", videoPath);
+        command.Parameters.AddWithValue("$video_name", Path.GetFileName(videoPath));
+        command.Parameters.AddWithValue("$file_size", fileSize.HasValue ? fileSize.Value : DBNull.Value);
+        command.Parameters.AddWithValue("$modified_at", modifiedAt.HasValue ? UnixSeconds(modifiedAt.Value) : DBNull.Value);
+        return Convert.ToInt64(command.ExecuteScalar() ?? 0L);
     }
 
-    private void RebuildLibraryPresentationSnapshot(SqliteConnection connection)
+    private static void UpsertSubtitleVideoMatch(SqliteConnection connection, long subtitleFileId, long videoFileId)
+    {
+        using (SqliteCommand clearActive = connection.CreateCommand()) {
+            clearActive.CommandText = "UPDATE subtitle_video_matches SET is_active = 0 WHERE subtitle_file_id = $subtitle_file_id;";
+            clearActive.Parameters.AddWithValue("$subtitle_file_id", subtitleFileId);
+            clearActive.ExecuteNonQuery();
+        }
+
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO subtitle_video_matches(subtitle_file_id, video_file_id, match_method, confidence, is_active)
+            VALUES ($subtitle_file_id, $video_file_id, 'same-directory-basename', 1.0, 1)
+            ON CONFLICT(subtitle_file_id, video_file_id) DO UPDATE SET
+                match_method = excluded.match_method,
+                confidence = excluded.confidence,
+                is_active = excluded.is_active;
+            """;
+        command.Parameters.AddWithValue("$subtitle_file_id", subtitleFileId);
+        command.Parameters.AddWithValue("$video_file_id", videoFileId);
+        command.ExecuteNonQuery();
+    }
+
+    private static long InsertCueGroup(SqliteConnection connection, long subtitleFileId, string subtitlePath, SubtitleCueGroup group)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO subtitle_cue_groups(subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content)
+            VALUES ($subtitle_file_id, $subtitle_path, $seq, $start_time, $end_time, $start_ms, $end_ms, $search_content);
+            SELECT last_insert_rowid();
+            """;
+        command.Parameters.AddWithValue("$subtitle_file_id", subtitleFileId);
+        command.Parameters.AddWithValue("$subtitle_path", subtitlePath);
+        command.Parameters.AddWithValue("$seq", group.SequenceNumber.HasValue ? group.SequenceNumber.Value : DBNull.Value);
+        command.Parameters.AddWithValue("$start_time", group.StartTimecode);
+        command.Parameters.AddWithValue("$end_time", group.EndTimecode);
+        command.Parameters.AddWithValue("$start_ms", group.StartMilliseconds);
+        command.Parameters.AddWithValue("$end_ms", group.EndMilliseconds);
+        command.Parameters.AddWithValue("$search_content", group.SearchContent);
+        return Convert.ToInt64(command.ExecuteScalar() ?? 0L);
+    }
+
+    private static void InsertCueLine(SqliteConnection connection, long cueGroupId, SubtitleCueLine line)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO subtitle_cue_lines(
+                cue_group_id, event_index, source_format, source_style, source_layer,
+                start_time, end_time, start_ms, end_ms, content,
+                display_x, display_y, display_order)
+            VALUES (
+                $cue_group_id, $event_index, $source_format, $source_style, $source_layer,
+                $start_time, $end_time, $start_ms, $end_ms, $content,
+                $display_x, $display_y, $display_order);
+            """;
+        command.Parameters.AddWithValue("$cue_group_id", cueGroupId);
+        command.Parameters.AddWithValue("$event_index", line.EventIndex);
+        command.Parameters.AddWithValue("$source_format", line.SourceFormat.RawValue());
+        command.Parameters.AddWithValue("$source_style", line.SourceStyle is null ? DBNull.Value : line.SourceStyle);
+        command.Parameters.AddWithValue("$source_layer", line.SourceLayer.HasValue ? line.SourceLayer.Value : DBNull.Value);
+        command.Parameters.AddWithValue("$start_time", line.StartTimecode);
+        command.Parameters.AddWithValue("$end_time", line.EndTimecode);
+        command.Parameters.AddWithValue("$start_ms", line.StartMilliseconds);
+        command.Parameters.AddWithValue("$end_ms", line.EndMilliseconds);
+        command.Parameters.AddWithValue("$content", line.Content);
+        command.Parameters.AddWithValue("$display_x", line.DisplayX.HasValue ? line.DisplayX.Value : DBNull.Value);
+        command.Parameters.AddWithValue("$display_y", line.DisplayY.HasValue ? line.DisplayY.Value : DBNull.Value);
+        command.Parameters.AddWithValue("$display_order", line.DisplayOrder);
+        command.ExecuteNonQuery();
+    }
+
+    private static void InsertFtsRow(SqliteConnection connection, long cueGroupId, string content)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
+            VALUES ($content, $cue_group_id);
+            """;
+        command.Parameters.AddWithValue("$content", SearchQueryPlan.SegmentCjkForFts(content));
+        command.Parameters.AddWithValue("$cue_group_id", cueGroupId);
+        command.ExecuteNonQuery();
+    }
+
+    private static void RebuildLibraryPresentationSnapshot(SqliteConnection connection)
     {
         IReadOnlyList<LibraryVideo> videos = IndexedLibraryVideos(connection);
         List<IGrouping<string, LibraryVideo>> grouped = videos
@@ -426,49 +626,52 @@ internal sealed class SubtitleDatabase
             .ThenBy(group => group.Key, NaturalSort.Comparer)
             .ToList();
 
-        using SqliteCommand delete = connection.CreateCommand();
-        delete.CommandText = "DELETE FROM library_video_rows;";
-        delete.ExecuteNonQuery();
+        BeginImmediateTransaction(connection);
+        try {
+            Execute(connection, "DELETE FROM library_video_rows;");
+            string updatedAt = DateTimeOffset.UtcNow.ToString("O");
+            foreach ((IGrouping<string, LibraryVideo> group, int folderOrder) in grouped.Select((group, index) => (group, index))) {
+                string folderPath = group.Key;
+                string folderTitle = Path.GetFileName(folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                List<LibraryVideo> groupVideos = group.OrderBy(video => video.VideoName, NaturalSort.Comparer)
+                    .ThenBy(video => video.VideoPath, NaturalSort.Comparer)
+                    .ToList();
+                int rankWidth = Math.Max(2, groupVideos.Count.ToString().Length);
 
-        string updatedAt = DateTimeOffset.UtcNow.ToString("O");
-        for (int folderOrder = 0; folderOrder < grouped.Count; folderOrder++) {
-            IGrouping<string, LibraryVideo> group = grouped[folderOrder];
-            string folderPath = group.Key;
-            string folderTitle = Path.GetFileName(folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            List<LibraryVideo> groupVideos = group.OrderBy(video => video.VideoName, NaturalSort.Comparer)
-                .ThenBy(video => video.VideoPath, NaturalSort.Comparer)
-                .ToList();
-            int rankWidth = Math.Max(2, groupVideos.Count.ToString().Length);
-
-            for (int videoOrder = 0; videoOrder < groupVideos.Count; videoOrder++) {
-                LibraryVideo video = groupVideos[videoOrder];
-                string sequence = (videoOrder + 1).ToString().PadLeft(rankWidth, '0');
-                using SqliteCommand insert = connection.CreateCommand();
-                insert.CommandText =
-                    """
-                    INSERT INTO library_video_rows(
-                        video_path, video_name, duration, subtitle_path, subtitle_format,
-                        folder_path, folder_title, display_title, file_extension,
-                        folder_order, video_order, updated_at)
-                    VALUES (
-                        $video_path, $video_name, $duration, $subtitle_path, $subtitle_format,
-                        $folder_path, $folder_title, $display_title, $file_extension,
-                        $folder_order, $video_order, $updated_at);
-                    """;
-                insert.Parameters.AddWithValue("$video_path", video.VideoPath);
-                insert.Parameters.AddWithValue("$video_name", video.VideoName);
-                insert.Parameters.AddWithValue("$duration", video.Duration.HasValue ? video.Duration.Value : (object)DBNull.Value);
-                insert.Parameters.AddWithValue("$subtitle_path", video.SubtitlePath);
-                insert.Parameters.AddWithValue("$subtitle_format", video.SubtitleFormat.RawValue());
-                insert.Parameters.AddWithValue("$folder_path", folderPath);
-                insert.Parameters.AddWithValue("$folder_title", folderTitle);
-                insert.Parameters.AddWithValue("$display_title", $"{folderTitle} - {sequence}");
-                insert.Parameters.AddWithValue("$file_extension", Path.GetExtension(video.VideoPath).TrimStart('.').ToLowerInvariant());
-                insert.Parameters.AddWithValue("$folder_order", folderOrder);
-                insert.Parameters.AddWithValue("$video_order", videoOrder);
-                insert.Parameters.AddWithValue("$updated_at", updatedAt);
-                insert.ExecuteNonQuery();
+                foreach ((LibraryVideo video, int videoOrder) in groupVideos.Select((video, index) => (video, index))) {
+                    using SqliteCommand insert = connection.CreateCommand();
+                    insert.CommandText =
+                        """
+                        INSERT INTO library_video_rows(
+                            video_path, video_name, duration, subtitle_path, subtitle_format,
+                            folder_path, folder_title, display_title, file_extension,
+                            folder_order, video_order, updated_at)
+                        VALUES (
+                            $video_path, $video_name, $duration, $subtitle_path, $subtitle_format,
+                            $folder_path, $folder_title, $display_title, $file_extension,
+                            $folder_order, $video_order, $updated_at);
+                        """;
+                    string sequence = (videoOrder + 1).ToString().PadLeft(rankWidth, '0');
+                    insert.Parameters.AddWithValue("$video_path", video.VideoPath);
+                    insert.Parameters.AddWithValue("$video_name", video.VideoName);
+                    insert.Parameters.AddWithValue("$duration", video.Duration.HasValue ? video.Duration.Value : DBNull.Value);
+                    insert.Parameters.AddWithValue("$subtitle_path", video.SubtitlePath);
+                    insert.Parameters.AddWithValue("$subtitle_format", video.SubtitleFormat.RawValue());
+                    insert.Parameters.AddWithValue("$folder_path", folderPath);
+                    insert.Parameters.AddWithValue("$folder_title", folderTitle);
+                    insert.Parameters.AddWithValue("$display_title", $"{folderTitle} - {sequence}");
+                    insert.Parameters.AddWithValue("$file_extension", Path.GetExtension(video.VideoPath).TrimStart('.').ToLowerInvariant());
+                    insert.Parameters.AddWithValue("$folder_order", folderOrder);
+                    insert.Parameters.AddWithValue("$video_order", videoOrder);
+                    insert.Parameters.AddWithValue("$updated_at", updatedAt);
+                    insert.ExecuteNonQuery();
+                }
             }
+
+            Execute(connection, "COMMIT;");
+        } catch {
+            TryRollback(connection);
+            throw;
         }
     }
 
@@ -506,80 +709,278 @@ internal sealed class SubtitleDatabase
             .ToList();
     }
 
-    private List<SearchCandidate> LoadSearchCandidates()
+    private static List<SearchCandidate> LoadSearchCandidates(SqliteConnection connection, SearchQueryPlan plan, IReadOnlyList<string> pathPrefixes, int limit, int offset)
     {
-        using SqliteConnection connection = OpenConnection();
+        string scopeCondition = pathPrefixes.Count == 0
+            ? string.Empty
+            : "AND (" + string.Join(" OR ", pathPrefixes.Select((_, index) => $"substr(sf.subtitle_path, 1, $prefix_len_{index}) = $prefix_{index}")) + ")";
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
-            """
+            $"""
             SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.start_ms, g.end_ms, g.search_content,
-                   l.display_order, l.text
-            FROM subtitle_cue_groups g
+                   g.start_ms, g.end_ms, g.search_content
+            FROM subtitle_cue_groups_fts f
+            JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
-            LEFT JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
-            ORDER BY sf.subtitle_path ASC, g.start_ms ASC, g.end_ms ASC, l.display_order ASC;
+            WHERE subtitle_cue_groups_fts MATCH $fts_query
+            {scopeCondition}
+            ORDER BY vf.video_name ASC, g.start_ms ASC, g.id ASC
+            LIMIT $limit OFFSET $offset;
             """;
+        command.Parameters.AddWithValue("$fts_query", plan.FtsQuery);
+        for (int index = 0; index < pathPrefixes.Count; index++) {
+            command.Parameters.AddWithValue($"$prefix_len_{index}", pathPrefixes[index].Length);
+            command.Parameters.AddWithValue($"$prefix_{index}", pathPrefixes[index]);
+        }
+        command.Parameters.AddWithValue("$limit", limit);
+        command.Parameters.AddWithValue("$offset", offset);
 
         using SqliteDataReader reader = command.ExecuteReader();
-        Dictionary<long, SearchCandidateBuilder> builders = [];
+        List<SearchCandidate> candidates = [];
         while (reader.Read()) {
-            long id = reader.GetInt64(0);
-            if (!builders.TryGetValue(id, out SearchCandidateBuilder? builder)) {
-                builder = new SearchCandidateBuilder(
-                    id,
-                    reader.GetString(1),
-                    SubtitleFormatExtensions.FromRawValue(reader.GetString(2)),
-                    reader.GetString(3),
-                    reader.GetString(4),
-                    checked((int)reader.GetInt64(5)),
-                    checked((int)reader.GetInt64(6)),
-                    reader.GetString(7));
-                builders[id] = builder;
-            }
-
-            if (!reader.IsDBNull(9)) {
-                builder.Lines.Add(reader.GetString(9));
-            }
+            candidates.Add(new SearchCandidate(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                SubtitleFormatExtensions.FromRawValue(reader.GetString(2)),
+                reader.GetString(3),
+                reader.GetString(4),
+                checked((int)reader.GetInt64(5)),
+                checked((int)reader.GetInt64(6)),
+                reader.GetString(7)));
         }
 
-        return builders.Values.Select(builder => builder.Build()).ToList();
+        return candidates;
     }
 
-    private static void DeleteIndexedSubtitlesWhere(SqliteConnection connection, Func<string, bool> predicate)
+    private static SubtitleSearchResult? SearchResult(SqliteConnection connection, SearchCandidate candidate, SearchQueryPlan plan)
     {
-        List<string> paths = [];
-        using (SqliteCommand select = connection.CreateCommand()) {
-            select.CommandText = "SELECT subtitle_path FROM subtitle_files;";
-            using SqliteDataReader reader = select.ExecuteReader();
-            while (reader.Read()) {
-                string path = reader.GetString(0);
-                if (predicate(path)) {
-                    paths.Add(path);
-                }
-            }
+        IReadOnlyList<string> cueLines = CueLines(connection, candidate.EntryId);
+        IReadOnlyList<string> searchableLines = cueLines.Count == 0 ? [candidate.Content] : cueLines;
+        if (!searchableLines.Any(plan.LineMatches)) {
+            return null;
         }
 
-        foreach (string path in paths) {
-            using SqliteCommand delete = connection.CreateCommand();
-            delete.CommandText = "DELETE FROM subtitle_files WHERE subtitle_path = $subtitle_path;";
-            delete.Parameters.AddWithValue("$subtitle_path", path);
-            delete.ExecuteNonQuery();
+        return new SubtitleSearchResult(
+            candidate.EntryId,
+            candidate.SubtitlePath,
+            candidate.SubtitleFormat,
+            candidate.VideoPath,
+            candidate.VideoName,
+            candidate.StartMilliseconds,
+            candidate.EndMilliseconds,
+            candidate.Content,
+            cueLines);
+    }
+
+    private static IReadOnlyList<string> CueLines(SqliteConnection connection, long cueGroupId)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT content
+            FROM subtitle_cue_lines
+            WHERE cue_group_id = $cue_group_id
+            ORDER BY display_order ASC, event_index ASC, id ASC;
+            """;
+        command.Parameters.AddWithValue("$cue_group_id", cueGroupId);
+        using SqliteDataReader reader = command.ExecuteReader();
+        List<string> lines = [];
+        while (reader.Read()) {
+            lines.Add(reader.GetString(0));
         }
+
+        return lines;
+    }
+
+    private static List<SubtitleSearchResult> SortedSearchResults(IReadOnlyList<SubtitleSearchResult> results)
+    {
+        Dictionary<string, string> displayTitles = DisplayTitlesByPath(results.Select(result => result.SubtitlePath));
+        return results
+            .OrderBy(result => displayTitles[result.SubtitlePath], Comparer<string>.Create(SubtitleDisplayTitleResolver.CompareDisplayTitles))
+            .ThenBy(result => result.SubtitlePath, NaturalSort.Comparer)
+            .ThenBy(result => result.StartMilliseconds)
+            .ThenBy(result => result.EndMilliseconds)
+            .ThenBy(result => result.EntryId)
+            .ToList();
+    }
+
+    private static IReadOnlyList<SubtitleSearchFileSummary> FileSummaries(IReadOnlyList<SubtitleSearchResult> results)
+    {
+        Dictionary<string, string> displayTitles = DisplayTitlesByPath(results.Select(result => result.SubtitlePath));
+        return results
+            .GroupBy(result => result.SubtitlePath, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new SubtitleSearchFileSummary(
+                group.Key,
+                Path.GetFileName(group.Key),
+                displayTitles[group.Key],
+                group.Count()))
+            .OrderBy(summary => summary.SubtitleDisplayTitle, Comparer<string>.Create(SubtitleDisplayTitleResolver.CompareDisplayTitles))
+            .ThenBy(summary => summary.SubtitlePath, NaturalSort.Comparer)
+            .ToList();
+    }
+
+    private static Dictionary<string, string> DisplayTitlesByPath(IEnumerable<string> subtitlePaths)
+    {
+        return subtitlePaths
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(path => path, SubtitleDisplayTitleResolver.DisplayTitle, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void RemoveIndexedData(string folder, ISet<string> subtitleFiles, bool removeSearchPath)
+    {
+        string normalizedFolder = PathContract.NormalizePath(folder);
+        List<string> prefixes = FolderPathPrefixes(normalizedFolder);
+        List<string> keepPaths = subtitleFiles
+            .Select(PathContract.NormalizePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        string keepCondition = keepPaths.Count == 0
+            ? string.Empty
+            : "AND sf.subtitle_path NOT IN (" + string.Join(", ", keepPaths.Select((_, index) => $"$keep_{index}")) + ")";
+        string libraryKeepCondition = keepPaths.Count == 0
+            ? string.Empty
+            : "AND subtitle_path NOT IN (" + string.Join(", ", keepPaths.Select((_, index) => $"$keep_{index}")) + ")";
+
+        using SqliteConnection connection = OpenConnection();
+        BeginImmediateTransaction(connection);
+        try {
+            using (SqliteCommand deleteFts = connection.CreateCommand()) {
+                deleteFts.CommandText =
+                    $"""
+                    DELETE FROM subtitle_cue_groups_fts
+                    WHERE cue_group_id IN (
+                        SELECT g.id
+                        FROM subtitle_cue_groups g
+                        JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                        WHERE ({PrefixCondition("sf.subtitle_path", prefixes)}) {keepCondition}
+                    );
+                    """;
+                BindFolderParameters(deleteFts, normalizedFolder, prefixes, keepPaths);
+                deleteFts.ExecuteNonQuery();
+            }
+
+            using (SqliteCommand deleteLibraryRows = connection.CreateCommand()) {
+                deleteLibraryRows.CommandText =
+                    $"""
+                    DELETE FROM library_video_rows
+                    WHERE ({PrefixCondition("subtitle_path", prefixes)}) {libraryKeepCondition};
+                    """;
+                BindFolderParameters(deleteLibraryRows, normalizedFolder, prefixes, keepPaths);
+                deleteLibraryRows.ExecuteNonQuery();
+            }
+
+            using (SqliteCommand deleteFiles = connection.CreateCommand()) {
+                deleteFiles.CommandText =
+                    $"""
+                    DELETE FROM subtitle_files
+                    WHERE id IN (
+                        SELECT sf.id
+                        FROM subtitle_files sf
+                        WHERE ({PrefixCondition("sf.subtitle_path", prefixes)}) {keepCondition}
+                    );
+                    """;
+                BindFolderParameters(deleteFiles, normalizedFolder, prefixes, keepPaths);
+                deleteFiles.ExecuteNonQuery();
+            }
+
+            if (removeSearchPath) {
+                using SqliteCommand deleteSearchPath = connection.CreateCommand();
+                deleteSearchPath.CommandText = "DELETE FROM search_paths WHERE path = $path;";
+                deleteSearchPath.Parameters.AddWithValue("$path", normalizedFolder);
+                deleteSearchPath.ExecuteNonQuery();
+            }
+
+            DeleteOrphanedVideoFiles(connection);
+            Execute(connection, "COMMIT;");
+        } catch {
+            TryRollback(connection);
+            throw;
+        }
+    }
+
+    private static void DeleteIndexedSubtitlePath(SqliteConnection connection, string subtitlePath)
+    {
+        using (SqliteCommand deleteFts = connection.CreateCommand()) {
+            deleteFts.CommandText =
+                """
+                DELETE FROM subtitle_cue_groups_fts
+                WHERE cue_group_id IN (
+                    SELECT g.id
+                    FROM subtitle_cue_groups g
+                    JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                    WHERE sf.subtitle_path = $subtitle_path
+                );
+                """;
+            deleteFts.Parameters.AddWithValue("$subtitle_path", subtitlePath);
+            deleteFts.ExecuteNonQuery();
+        }
+
+        using SqliteCommand deleteFile = connection.CreateCommand();
+        deleteFile.CommandText = "DELETE FROM subtitle_files WHERE subtitle_path = $subtitle_path;";
+        deleteFile.Parameters.AddWithValue("$subtitle_path", subtitlePath);
+        deleteFile.ExecuteNonQuery();
     }
 
     private static void DeleteOrphanedVideoFiles(SqliteConnection connection)
     {
-        using SqliteCommand command = connection.CreateCommand();
-        command.CommandText =
+        Execute(connection,
             """
             DELETE FROM video_files
             WHERE id NOT IN (
                 SELECT DISTINCT video_file_id FROM subtitle_video_matches
             );
-            """;
+            """);
+    }
+
+    private static List<string> FolderPathPrefixes(string normalizedFolder)
+    {
+        return new[] {
+                normalizedFolder + Path.DirectorySeparatorChar,
+                normalizedFolder + Path.AltDirectorySeparatorChar,
+            }
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string PrefixCondition(string columnExpression, IReadOnlyList<string> prefixes)
+    {
+        List<string> conditions = [$"{columnExpression} = $folder"];
+        conditions.AddRange(prefixes.Select((_, index) => $"substr({columnExpression}, 1, $prefix_len_{index}) = $prefix_{index}"));
+        return string.Join(" OR ", conditions);
+    }
+
+    private static void BindFolderParameters(SqliteCommand command, string normalizedFolder, IReadOnlyList<string> prefixes, IReadOnlyList<string> keepPaths)
+    {
+        command.Parameters.AddWithValue("$folder", normalizedFolder);
+        for (int index = 0; index < prefixes.Count; index++) {
+            command.Parameters.AddWithValue($"$prefix_len_{index}", prefixes[index].Length);
+            command.Parameters.AddWithValue($"$prefix_{index}", prefixes[index]);
+        }
+
+        for (int index = 0; index < keepPaths.Count; index++) {
+            command.Parameters.AddWithValue($"$keep_{index}", keepPaths[index]);
+        }
+    }
+
+    private static void BeginImmediateTransaction(SqliteConnection connection)
+    {
+        Execute(connection, "BEGIN IMMEDIATE TRANSACTION;");
+    }
+
+    private static void TryRollback(SqliteConnection connection)
+    {
+        try {
+            Execute(connection, "ROLLBACK;");
+        } catch (SqliteException) {
+        }
+    }
+
+    private static void Execute(SqliteConnection connection, string sql)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = sql;
         command.ExecuteNonQuery();
     }
 
@@ -591,50 +992,12 @@ internal sealed class SubtitleDatabase
         string VideoName,
         int StartMilliseconds,
         int EndMilliseconds,
-        string Content,
-        IReadOnlyList<string> CueLines)
-    {
-        public SubtitleSearchResult ToResult()
-        {
-            return new SubtitleSearchResult(EntryId, SubtitlePath, SubtitleFormat, VideoPath, VideoName, StartMilliseconds, EndMilliseconds, Content, CueLines);
-        }
-    }
-
-    private sealed class SearchCandidateBuilder
-    {
-        public SearchCandidateBuilder(long entryId, string subtitlePath, SubtitleFormat subtitleFormat, string videoPath, string videoName, int startMilliseconds, int endMilliseconds, string content)
-        {
-            EntryId = entryId;
-            SubtitlePath = subtitlePath;
-            SubtitleFormat = subtitleFormat;
-            VideoPath = videoPath;
-            VideoName = videoName;
-            StartMilliseconds = startMilliseconds;
-            EndMilliseconds = endMilliseconds;
-            Content = content;
-        }
-
-        private long EntryId { get; }
-        private string SubtitlePath { get; }
-        private SubtitleFormat SubtitleFormat { get; }
-        private string VideoPath { get; }
-        private string VideoName { get; }
-        private int StartMilliseconds { get; }
-        private int EndMilliseconds { get; }
-        private string Content { get; }
-        public List<string> Lines { get; } = [];
-
-        public SearchCandidate Build()
-        {
-            IReadOnlyList<string> lines = Lines.Count == 0 ? [Content] : Lines;
-            return new SearchCandidate(EntryId, SubtitlePath, SubtitleFormat, VideoPath, VideoName, StartMilliseconds, EndMilliseconds, Content, lines);
-        }
-    }
+        string Content);
 }
 
 internal sealed record SubtitleFileMetadata(
     string SubtitlePath,
     SubtitleFormat Format,
     long? FileSize,
-    string? ModifiedAt,
+    double? ModifiedAtSeconds,
     string? VideoPath);

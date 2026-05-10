@@ -22,7 +22,8 @@ internal static class SubtitleDisplayTitleResolver
                 .Where(path => {
                     FileAttributes attributes = File.GetAttributes(path);
                     return (attributes & FileAttributes.Directory) == 0
-                        && (attributes & FileAttributes.Hidden) == 0;
+                        && (attributes & FileAttributes.Hidden) == 0
+                        && (attributes & FileAttributes.ReparsePoint) == 0;
                 })
                 .OrderBy(path => Path.GetFileName(path), NaturalSort.Comparer)
                 .ThenBy(path => path, NaturalSort.Comparer)
@@ -41,5 +42,10 @@ internal static class SubtitleDisplayTitleResolver
         } catch (UnauthorizedAccessException) {
             return fallback;
         }
+    }
+
+    public static int CompareDisplayTitles(string left, string right)
+    {
+        return NaturalSort.Compare(left, right);
     }
 }

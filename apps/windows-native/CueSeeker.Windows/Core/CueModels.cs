@@ -1,10 +1,27 @@
 namespace CueSeeker.Windows.Core;
 
 internal sealed record SubtitleCueGroup(
+    int? SequenceNumber,
+    string StartTimecode,
+    string EndTimecode,
     int StartMilliseconds,
     int EndMilliseconds,
     string SearchContent,
-    IReadOnlyList<string> CueLines);
+    IReadOnlyList<SubtitleCueLine> CueLines);
+
+internal sealed record SubtitleCueLine(
+    int EventIndex,
+    SubtitleFormat SourceFormat,
+    string? SourceStyle,
+    int? SourceLayer,
+    string StartTimecode,
+    string EndTimecode,
+    int StartMilliseconds,
+    int EndMilliseconds,
+    string Content,
+    double? DisplayX,
+    double? DisplayY,
+    int DisplayOrder);
 
 internal sealed record SubtitleIndexingFailure(string Path, string Reason);
 

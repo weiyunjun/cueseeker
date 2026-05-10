@@ -16,6 +16,9 @@ internal sealed class SubtitleIndexer
         SubtitleIndexingResult result = new();
         IReadOnlyList<string> subtitleFiles = scanner.ScanSubtitleFiles(folder);
         result.ScannedSubtitleFiles = subtitleFiles.Count;
+
+        Dictionary<string, SubtitleFileMetadata> existingFiles = database.SubtitleFiles()
+            .ToDictionary(metadata => metadata.SubtitlePath, StringComparer.OrdinalIgnoreCase);
         HashSet<string> keptSubtitlePaths = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (string subtitleFile in subtitleFiles) {
@@ -27,13 +30,11 @@ internal sealed class SubtitleIndexer
 
             FileInfo fileInfo = new(subtitleFile);
             long? fileSize = fileInfo.Exists ? fileInfo.Length : null;
-            DateTimeOffset? modifiedAt = fileInfo.Exists ? fileInfo.LastWriteTimeUtc : null;
-            SubtitleFileMetadata? metadata = database.SubtitleFile(subtitleFile);
-            if (metadata is not null
-                && metadata.VideoPath is not null
-                && metadata.VideoPath.Equals(videoFile, StringComparison.OrdinalIgnoreCase)
-                && metadata.FileSize == fileSize
-                && metadata.ModifiedAt == modifiedAt?.ToString("O")) {
+            DateTimeOffset? modifiedAt = fileInfo.Exists ? new DateTimeOffset(fileInfo.LastWriteTimeUtc) : null;
+            double? modifiedAtSeconds = modifiedAt.HasValue ? SubtitleDatabase.UnixSeconds(modifiedAt.Value) : null;
+
+            if (existingFiles.TryGetValue(PathContract.NormalizePath(subtitleFile), out SubtitleFileMetadata? metadata)
+                && IsUnchanged(metadata, videoFile, fileSize, modifiedAtSeconds)) {
                 keptSubtitlePaths.Add(PathContract.NormalizePath(subtitleFile));
                 result.SkippedUnchangedSubtitleFiles++;
                 continue;
@@ -66,6 +67,20 @@ internal sealed class SubtitleIndexer
         }
 
         database.RemoveStaleEntries(folder, keptSubtitlePaths);
+        database.RebuildLibraryPresentationSnapshot();
         return result;
+    }
+
+    private static bool IsUnchanged(SubtitleFileMetadata metadata, string videoFile, long? fileSize, double? modifiedAtSeconds)
+    {
+        if (metadata.VideoPath is null
+            || !metadata.VideoPath.Equals(videoFile, StringComparison.OrdinalIgnoreCase)
+            || metadata.FileSize != fileSize
+            || !metadata.ModifiedAtSeconds.HasValue
+            || !modifiedAtSeconds.HasValue) {
+            return false;
+        }
+
+        return Math.Abs(metadata.ModifiedAtSeconds.Value - modifiedAtSeconds.Value) < 0.001;
     }
 }

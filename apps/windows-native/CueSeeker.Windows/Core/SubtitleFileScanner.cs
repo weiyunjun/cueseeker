@@ -13,22 +13,51 @@ internal sealed class SubtitleFileScanner
             return [];
         }
 
-        return Directory.EnumerateFiles(folder, "*.*", SearchOption.AllDirectories)
-            .Where(path => SupportedSubtitleExtensions.Contains(Path.GetExtension(path)))
-            .Where(path => !IsHidden(path))
-            .OrderBy(path => path, NaturalSort.Comparer)
-            .Select(PathContract.NormalizePath)
+        List<string> subtitleFiles = [];
+        Stack<string> pendingDirectories = new();
+        pendingDirectories.Push(PathContract.NormalizePath(folder));
+
+        while (pendingDirectories.Count > 0) {
+            string directory = pendingDirectories.Pop();
+            foreach (string child in EnumerateFileSystemEntries(directory)) {
+                FileAttributes attributes;
+                try {
+                    attributes = File.GetAttributes(child);
+                } catch (IOException) {
+                    continue;
+                } catch (UnauthorizedAccessException) {
+                    continue;
+                }
+
+                if ((attributes & FileAttributes.Hidden) != 0 || (attributes & FileAttributes.ReparsePoint) != 0) {
+                    continue;
+                }
+
+                if ((attributes & FileAttributes.Directory) != 0) {
+                    pendingDirectories.Push(child);
+                    continue;
+                }
+
+                if (SupportedSubtitleExtensions.Contains(Path.GetExtension(child))) {
+                    subtitleFiles.Add(PathContract.NormalizePath(child));
+                }
+            }
+        }
+
+        return subtitleFiles
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(path => path, StringComparer.Ordinal)
             .ToList();
     }
 
-    private static bool IsHidden(string path)
+    private static IEnumerable<string> EnumerateFileSystemEntries(string directory)
     {
         try {
-            return (File.GetAttributes(path) & FileAttributes.Hidden) != 0;
+            return Directory.EnumerateFileSystemEntries(directory);
         } catch (IOException) {
-            return true;
+            return [];
         } catch (UnauthorizedAccessException) {
-            return true;
+            return [];
         }
     }
 }
