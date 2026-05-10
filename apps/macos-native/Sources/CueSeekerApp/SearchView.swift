@@ -150,29 +150,31 @@ struct SearchView: View {
             details: "groups=\(appState.libraryFolderGroups.count) rows=\(rowCount)"
         )
 
-        return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(appState.libraryFolderGroups) { group in
-                        let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
-                        LibraryFolderGroupView(
-                            group: group,
-                            isCollapsed: isCollapsed,
-                            libraryPlayingVideoPath: appState.libraryPlayingVideoPath,
-                            onToggle: {
-                                appState.clearSearchFocus()
-                                toggleLibraryFolderGroup(group.folderPath, proxy: proxy)
-                            },
-                            onOpenVideo: { video in
-                                appState.clearSearchFocus()
-                                appState.openLibraryVideo(video)
-                            }
-                        )
+        return GeometryReader { geo in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(appState.libraryFolderGroups) { group in
+                            let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
+                            LibraryFolderGroupView(
+                                group: group,
+                                isCollapsed: isCollapsed,
+                                libraryPlayingVideoPath: appState.libraryPlayingVideoPath,
+                                onToggle: {
+                                    appState.clearSearchFocus()
+                                    toggleLibraryFolderGroup(group.folderPath, proxy: proxy)
+                                },
+                                onOpenVideo: { video in
+                                    appState.clearSearchFocus()
+                                    appState.openLibraryVideo(video)
+                                }
+                            )
+                        }
                     }
+                    .frame(width: geo.size.width)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
                 }
-                .padding(.top, 4)
-                .padding(.bottom, 8)
-                .padding(.trailing, 16) // ScrollView scrollbar width reserve
             }
         }
     }
@@ -387,26 +389,28 @@ struct SearchView: View {
             details: "groups=\(appState.shioriFileGroups.count) rows=\(appState.shioriCount)"
         )
 
-        return ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(appState.shioriFileGroups) { group in
-                    ShioriGroupView(
-                        group: group,
-                        selectedShiori: appState.selectedShiori,
-                        onToggle: {
-                            appState.clearSearchFocus()
-                            appState.toggleShioriGroup(group.subtitlePath)
-                        },
-                        onOpenShiori: { shiori in
-                            appState.clearSearchFocus()
-                            appState.openShiori(shiori)
-                        }
-                    )
+        return GeometryReader { geo in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(appState.shioriFileGroups) { group in
+                        ShioriGroupView(
+                            group: group,
+                            selectedShiori: appState.selectedShiori,
+                            onToggle: {
+                                appState.clearSearchFocus()
+                                appState.toggleShioriGroup(group.subtitlePath)
+                            },
+                            onOpenShiori: { shiori in
+                                appState.clearSearchFocus()
+                                appState.openShiori(shiori)
+                            }
+                        )
+                    }
                 }
+                .frame(width: geo.size.width)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
             }
-            .padding(.top, 4)
-            .padding(.bottom, 8)
-            .padding(.trailing, 16) // ScrollView scrollbar width reserve
         }
     }
 
@@ -416,37 +420,39 @@ struct SearchView: View {
             details: "groups=\(appState.searchResultGroups.count) rows=\(appState.renderedSearchResultCount)"
         )
 
-        return ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(appState.searchResultGroups) { group in
-                    SearchResultGroupView(
-                        group: group,
-                        query: appState.searchQuery,
-                        selectedResult: appState.selectedSearchResult,
-                        onToggle: {
-                            appState.clearSearchFocus()
-                            appState.toggleSearchResultGroup(group.subtitlePath)
-                        },
-                        onOpenResult: { result in
-                            appState.clearSearchFocus()
-                            appState.openSearchResult(result)
-                        },
-                        onResultAppear: { result in
-                            appState.loadMoreSearchResultsIfNeeded(currentResult: result)
-                        }
-                    )
-                }
+        return GeometryReader { geo in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(appState.searchResultGroups) { group in
+                        SearchResultGroupView(
+                            group: group,
+                            query: appState.searchQuery,
+                            selectedResult: appState.selectedSearchResult,
+                            onToggle: {
+                                appState.clearSearchFocus()
+                                appState.toggleSearchResultGroup(group.subtitlePath)
+                            },
+                            onOpenResult: { result in
+                                appState.clearSearchFocus()
+                                appState.openSearchResult(result)
+                            },
+                            onResultAppear: { result in
+                                appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                            }
+                        )
+                    }
 
-                if case .searching = appState.searchStatus, !appState.searchResults.isEmpty {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                    if case .searching = appState.searchStatus, !appState.searchResults.isEmpty {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
                 }
+                .frame(width: geo.size.width)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
             }
-            .padding(.top, 4)
-            .padding(.bottom, 8)
-            .padding(.trailing, 16) // ScrollView scrollbar width reserve
         }
     }
 
@@ -778,13 +784,8 @@ private struct SearchField: View {
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(
                     isFocused ? Color.accentColor : Color.primary.opacity(0.08),
-                    lineWidth: isFocused ? 1.5 : 1
+                    lineWidth: isFocused ? 2 : 1
                 )
-        )
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 9)
-                .fill(isFocused ? Color.accentColor.opacity(0.18) : Color.clear)
         )
     }
 }
@@ -874,7 +875,8 @@ private struct LibraryFolderHeader: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
         )
-        .padding(.horizontal, LibraryLayout.folderRowOuterHorizontalPadding)
+        .padding(.leading, LibraryLayout.folderRowOuterLeadingPadding)
+        .padding(.trailing, LibraryLayout.folderRowOuterTrailingPadding)
         .onHover { isHovered = $0 }
         .listRowAction(onToggle)
         .focusable(false)
@@ -965,13 +967,14 @@ private struct LibraryEpisodeButton: View {
 private enum LibraryLayout {
     static let folderRowInnerHorizontalPadding: CGFloat = 12
     static let folderRowVerticalPadding: CGFloat = 8
-    static let folderRowOuterHorizontalPadding: CGFloat = 8
+    static let folderRowOuterLeadingPadding: CGFloat = 12
+    static let folderRowOuterTrailingPadding: CGFloat = 28
     static let episodeButtonMinimumWidth: CGFloat = 44
     static let episodeButtonHeight: CGFloat = 36
     static let episodeGridHorizontalSpacing: CGFloat = 8
     static let episodeGridVerticalSpacing: CGFloat = 8
-    static let episodeGridLeadingPadding: CGFloat = 28
-    static let episodeGridTrailingPadding: CGFloat = 20
+    static let episodeGridLeadingPadding: CGFloat = 48
+    static let episodeGridTrailingPadding: CGFloat = 28
     static let episodeGridTopPadding: CGFloat = 6
     static let episodeGridBottomPadding: CGFloat = 10
 }
@@ -989,7 +992,7 @@ private struct SearchResultGroupHeader: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 7)
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .listRowAction(onToggle)
         .focusable(false)
@@ -1069,7 +1072,7 @@ private struct ShioriGroupHeader: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 7)
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .listRowAction(onToggle)
         .focusable(false)
@@ -1161,7 +1164,7 @@ private struct ShioriRowView: View {
             .background(rowBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + 16)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -1264,7 +1267,7 @@ private struct SearchResultRow: View {
             .background(rowBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+            .padding(.trailing, SearchLayout.resultOuterHorizontalPadding + 16)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
