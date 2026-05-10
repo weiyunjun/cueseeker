@@ -43,21 +43,25 @@ Not implemented yet:
 
 ## Local Tooling
 
-The project targets Windows App SDK `1.8.260317003`, the latest stable release
-listed by Microsoft Learn at the time this scaffold was created. Building this
-project requires a .NET SDK and Windows App SDK restore support. The current
-local machine only has the .NET runtime installed, so the C++ backend can be
-validated locally before this WinUI project is built.
+The project targets Windows App SDK `1.8.260317003`, .NET 8, and Windows SDK
+`10.0.26100.0` for compilation. The app keeps
+`TargetPlatformMinVersion=10.0.19041.0`, but local WinUI/CsWinRT builds require
+the compile-time Windows SDK to be installed.
+
+The WinUI project pins x64 through `PlatformTarget=x64` and
+`RuntimeIdentifier=win-x64`. For command-line validation, run the `.csproj`
+directly and do not pass `Platform=x64` to `dotnet run`; `dotnet run` looks for
+the non-solution output path when launching the app.
 
 ## Manual Validation
 
-After installing a .NET 8 SDK, build the native backend, then build and run the
-Windows app:
+After installing a .NET 8 SDK and Windows SDK `10.0.26100.0`, build the native
+backend, then build and run the Windows app:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/build.ps1 -Configuration Debug
-dotnet build apps/windows-native/CueSeeker.Windows.sln -c Debug -p:Platform=x64
-dotnet run --project apps/windows-native/CueSeeker.Windows/CueSeeker.Windows.csproj -c Debug -p:Platform=x64
+dotnet build apps/windows-native/CueSeeker.Windows/CueSeeker.Windows.csproj -c Debug
+dotnet run --project apps/windows-native/CueSeeker.Windows/CueSeeker.Windows.csproj -c Debug
 ```
 
 Then validate:
