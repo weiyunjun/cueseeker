@@ -118,7 +118,7 @@ public sealed partial class MainWindow : Window
             };
             picker.FileTypeFilter.Add("*");
             InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
-            Windows.Storage.StorageFolder? folder = await picker.PickSingleFolderAsync();
+            global::Windows.Storage.StorageFolder? folder = await picker.PickSingleFolderAsync();
             if (folder is null) {
                 return;
             }
@@ -269,8 +269,8 @@ public sealed partial class MainWindow : Window
                     },
                 },
             };
-            if (folderButton.Content is Grid grid && grid.Children.Count > 1) {
-                Grid.SetColumn(grid.Children[1], 1);
+            if (folderButton.Content is Grid grid && grid.Children.Count > 1 && grid.Children[1] is FrameworkElement folderText) {
+                Grid.SetColumn(folderText, 1);
             }
             folderButton.Click += (_, _) => {
                 if (!expandedLibraryFolders.Add(group.FolderPath)) {

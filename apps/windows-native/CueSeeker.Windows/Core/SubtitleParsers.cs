@@ -59,7 +59,7 @@ internal static partial class SubtitleParsers
                 continue;
             }
 
-            if (inEvents && line.StartsWith('[']) && line.EndsWith(']')) {
+            if (inEvents && line.StartsWith('[') && line.EndsWith(']')) {
                 inEvents = false;
             }
 

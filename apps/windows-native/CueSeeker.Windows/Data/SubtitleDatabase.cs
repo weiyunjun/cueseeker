@@ -500,7 +500,7 @@ internal sealed class SubtitleDatabase
         }
 
         return videosByPath.Values
-            .OrderBy(video => Path.GetDirectoryName(video.VideoPath), NaturalSort.Comparer)
+            .OrderBy(video => Path.GetDirectoryName(video.VideoPath) ?? string.Empty, NaturalSort.Comparer)
             .ThenBy(video => video.VideoName, NaturalSort.Comparer)
             .ThenBy(video => video.VideoPath, NaturalSort.Comparer)
             .ToList();
