@@ -76,8 +76,19 @@ powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/install
 ```
 
 That package provides the FFmpeg headers and DLLs needed for `--inspect` and
-`--play`. If the package also contains `libass` headers and DLLs, the helper
-generates `ass.lib` and enables direct `libass` SDK probing too.
+`--play`.
+
+The helper below installs the MSYS2 UCRT64 `libass` package and its runtime
+dependencies under the ignored local `deps/` directory, extracts the public
+headers and DLLs, and generates a MSVC import library from `libass-*.dll`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/install-libass-msys2.ps1
+. apps/windows-playback-lab/deps/msys2-ucrt64-libass/cueseeker-libass-env.ps1
+```
+
+The build, environment check, and run helpers automatically load both local
+environment helpers when they exist.
 
 ## Environment Check
 

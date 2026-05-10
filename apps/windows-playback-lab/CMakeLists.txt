@@ -54,10 +54,10 @@ else()
 endif()
 
 set(CUESEEKER_HAS_LIBASS_SDK OFF)
-if(LIBASS_LIBRARY)
+if(LIBASS_INCLUDE_DIR AND LIBASS_LIBRARY)
     set(CUESEEKER_HAS_LIBASS_SDK ON)
 else()
-    message(WARNING "libass import library was not found. Building Windows lab without libass probing.")
+    message(WARNING "libass development package was not found. Building Windows lab without libass probing.")
 endif()
 
 add_executable(CueSeekerWindowsPlaybackLab
@@ -80,9 +80,7 @@ if(CUESEEKER_HAS_FFMPEG_SDK)
 endif()
 
 if(CUESEEKER_HAS_LIBASS_SDK)
-    if(LIBASS_INCLUDE_DIR)
-        target_include_directories(CueSeekerWindowsPlaybackLab PRIVATE ${LIBASS_INCLUDE_DIR})
-    endif()
+    target_include_directories(CueSeekerWindowsPlaybackLab PRIVATE ${LIBASS_INCLUDE_DIR})
     target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE ${LIBASS_LIBRARY})
 endif()
 

@@ -23,10 +23,15 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $labDir = Resolve-Path (Join-Path $scriptDir "..")
 $exe = Join-Path $labDir "build\$Configuration\CueSeekerWindowsPlaybackLab.exe"
-$envHelper = Join-Path $labDir "deps\ffmpeg-release-full-shared\cueseeker-ffmpeg-env.ps1"
+$envHelpers = @(
+    (Join-Path $labDir "deps\ffmpeg-release-full-shared\cueseeker-ffmpeg-env.ps1"),
+    (Join-Path $labDir "deps\msys2-ucrt64-libass\cueseeker-libass-env.ps1")
+)
 
-if (Test-Path $envHelper) {
-    . $envHelper
+foreach ($envHelper in $envHelpers) {
+    if (Test-Path $envHelper) {
+        . $envHelper
+    }
 }
 
 if (-not (Test-Path $exe)) {
