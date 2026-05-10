@@ -11,6 +11,8 @@
 #include <propsys.h>
 #include <wrl/client.h>
 
+#include "cueseeker_playback.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cctype>
@@ -1200,8 +1202,9 @@ void printSubtitleReport(std::ostream& out, AVFormatContext* format, const std::
 }
 #endif
 
-void inspectMedia(const std::string& path, const std::optional<std::string>& subtitlePath)
+std::string inspectMediaJson(const std::string& path, const std::optional<std::string>& subtitlePath)
 {
+    std::ostringstream out;
 #if CUESEEKER_HAS_FFMPEG_SDK
     AVFormatContext* rawFormat = nullptr;
     const int openResult = avformat_open_input(&rawFormat, path.c_str(), nullptr, nullptr);
@@ -1218,53 +1221,59 @@ void inspectMedia(const std::string& path, const std::optional<std::string>& sub
         throw std::runtime_error("avformat_find_stream_info failed: " + avError(infoResult));
     }
 
-    std::cout << "{\n";
-    std::cout << "  \"schema\": \"cueseeker.windows_playback_lab.report.v0\",\n";
-    std::cout << "  \"request\": {\n";
-    std::cout << "    \"path\": \"" << jsonEscape(path) << "\",\n";
-    std::cout << "    \"path_classification\": \"local_or_mounted_path\"";
+    out << "{\n";
+    out << "  \"schema\": \"cueseeker.windows_playback_lab.report.v0\",\n";
+    out << "  \"request\": {\n";
+    out << "    \"path\": \"" << jsonEscape(path) << "\",\n";
+    out << "    \"path_classification\": \"local_or_mounted_path\"";
     if (subtitlePath) {
-        std::cout << ",\n";
-        std::cout << "    \"subtitle_path\": \"" << jsonEscape(*subtitlePath) << "\",\n";
-        std::cout << "    \"subtitle_path_classification\": \"local_or_mounted_path\"\n";
+        out << ",\n";
+        out << "    \"subtitle_path\": \"" << jsonEscape(*subtitlePath) << "\",\n";
+        out << "    \"subtitle_path_classification\": \"local_or_mounted_path\"\n";
     } else {
-        std::cout << "\n";
+        out << "\n";
     }
-    std::cout << "  },\n";
-    printPlatformReport(std::cout);
-    printD3DReport(std::cout);
-    printWasapiReport(std::cout);
-    printLibassReport(std::cout);
-    printFfmpegBuildReport(std::cout);
-    printHardwareDecodeReport(std::cout, format.get());
-    printStreamReport(std::cout, format.get());
-    printSubtitleReport(std::cout, format.get(), subtitlePath);
-    std::cout << "}\n";
+    out << "  },\n";
+    printPlatformReport(out);
+    printD3DReport(out);
+    printWasapiReport(out);
+    printLibassReport(out);
+    printFfmpegBuildReport(out);
+    printHardwareDecodeReport(out, format.get());
+    printStreamReport(out, format.get());
+    printSubtitleReport(out, format.get(), subtitlePath);
+    out << "}\n";
 #else
-    std::cout << "{\n";
-    std::cout << "  \"schema\": \"cueseeker.windows_playback_lab.report.v0\",\n";
-    std::cout << "  \"request\": {\n";
-    std::cout << "    \"path\": \"" << jsonEscape(path) << "\",\n";
-    std::cout << "    \"path_classification\": \"local_or_mounted_path\"";
+    out << "{\n";
+    out << "  \"schema\": \"cueseeker.windows_playback_lab.report.v0\",\n";
+    out << "  \"request\": {\n";
+    out << "    \"path\": \"" << jsonEscape(path) << "\",\n";
+    out << "    \"path_classification\": \"local_or_mounted_path\"";
     if (subtitlePath) {
-        std::cout << ",\n";
-        std::cout << "    \"subtitle_path\": \"" << jsonEscape(*subtitlePath) << "\",\n";
-        std::cout << "    \"subtitle_path_classification\": \"local_or_mounted_path\"\n";
+        out << ",\n";
+        out << "    \"subtitle_path\": \"" << jsonEscape(*subtitlePath) << "\",\n";
+        out << "    \"subtitle_path_classification\": \"local_or_mounted_path\"\n";
     } else {
-        std::cout << "\n";
+        out << "\n";
     }
-    std::cout << "  },\n";
-    printPlatformReport(std::cout);
-    printD3DReport(std::cout);
-    printWasapiReport(std::cout);
-    printLibassReport(std::cout);
-    printFfmpegBuildReport(std::cout);
-    std::cout << "  \"media\": {\n";
-    std::cout << "    \"inspect_supported\": false,\n";
-    std::cout << "    \"error\": \"FFmpeg development SDK was not linked into this build\"\n";
-    std::cout << "  }\n";
-    std::cout << "}\n";
+    out << "  },\n";
+    printPlatformReport(out);
+    printD3DReport(out);
+    printWasapiReport(out);
+    printLibassReport(out);
+    printFfmpegBuildReport(out);
+    out << "  \"media\": {\n";
+    out << "    \"inspect_supported\": false,\n";
+    out << "    \"error\": \"FFmpeg development SDK was not linked into this build\"\n";
+    out << "  }\n";
+    out << "}\n";
 #endif
+    return out.str();
+}
+
+void inspectMedia(const std::string& path, const std::optional<std::string>& subtitlePath)
+{
+    std::cout << inspectMediaJson(path, subtitlePath);
 }
 
 struct Vertex {
@@ -2507,6 +2516,7 @@ void playVideo(
 }
 #endif
 
+#if !CUESEEKER_PLAYBACK_NATIVE_LIBRARY
 struct CliOptions {
     enum class Mode {
         Help,
@@ -2629,9 +2639,134 @@ void writePlaybackFailureReport(const CliOptions& options, std::string_view erro
     report.completionReason = "failed";
     writePlaybackReport(*options.reportPath, report);
 }
+#endif
+
+char* allocateUtf8String(std::string_view value)
+{
+    auto* result = static_cast<char*>(std::malloc(value.size() + 1));
+    if (!result) {
+        return nullptr;
+    }
+    std::memcpy(result, value.data(), value.size());
+    result[value.size()] = '\0';
+    return result;
+}
+
+void setOutputString(char** target, std::string_view value)
+{
+    if (!target) {
+        return;
+    }
+    *target = allocateUtf8String(value);
+}
+
+std::optional<std::string> optionalUtf8FromWide(const wchar_t* value)
+{
+    if (!value || value[0] == L'\0') {
+        return std::nullopt;
+    }
+    return wideToUtf8(value);
+}
+
+DecodePreference decodePreferenceFromApi(CueSeekerPlaybackDecodePreference preference)
+{
+    switch (preference) {
+    case CUESEEKER_PLAYBACK_DECODE_AUTO:
+        return DecodePreference::Auto;
+    case CUESEEKER_PLAYBACK_DECODE_SOFTWARE:
+        return DecodePreference::Software;
+    case CUESEEKER_PLAYBACK_DECODE_D3D11VA:
+        return DecodePreference::D3D11VA;
+    default:
+        throw std::runtime_error("Unknown playback decode preference");
+    }
+}
 
 } // namespace
 
+int CueSeekerPlaybackInspectJson(
+    const wchar_t* mediaPath,
+    const wchar_t* subtitlePath,
+    char** reportJson,
+    char** errorMessage)
+{
+    if (reportJson) {
+        *reportJson = nullptr;
+    }
+    if (errorMessage) {
+        *errorMessage = nullptr;
+    }
+
+    try {
+        if (!mediaPath || mediaPath[0] == L'\0') {
+            throw std::runtime_error("media_path is required");
+        }
+#if CUESEEKER_HAS_FFMPEG_SDK
+        avformat_network_init();
+#endif
+        ComInit com;
+        const std::string report = inspectMediaJson(wideToUtf8(mediaPath), optionalUtf8FromWide(subtitlePath));
+        setOutputString(reportJson, report);
+        if (reportJson && !*reportJson) {
+            throw std::runtime_error("Could not allocate inspect report string");
+        }
+        return 0;
+    } catch (const std::exception& error) {
+        setOutputString(errorMessage, error.what());
+        return 1;
+    }
+}
+
+int CueSeekerPlaybackPlay(const CueSeekerPlaybackOptions* options, char** errorMessage)
+{
+    if (errorMessage) {
+        *errorMessage = nullptr;
+    }
+
+    try {
+        if (!options || !options->media_path || options->media_path[0] == L'\0') {
+            throw std::runtime_error("media_path is required");
+        }
+#if CUESEEKER_HAS_FFMPEG_SDK
+        avformat_network_init();
+#endif
+        ComInit com;
+        playVideo(
+            wideToUtf8(options->media_path),
+            optionalUtf8FromWide(options->subtitle_path),
+            options->seek_ms,
+            options->duration_ms,
+            decodePreferenceFromApi(options->decode_preference),
+            optionalUtf8FromWide(options->report_path));
+        return 0;
+    } catch (const std::exception& error) {
+        setOutputString(errorMessage, error.what());
+        return 1;
+    }
+}
+
+int CueSeekerPlaybackRunRenderTest(char** errorMessage)
+{
+    if (errorMessage) {
+        *errorMessage = nullptr;
+    }
+
+    try {
+        ComInit com;
+        runRenderTest();
+        return 0;
+    } catch (const std::exception& error) {
+        setOutputString(errorMessage, error.what());
+        return 1;
+    }
+}
+
+void CueSeekerPlaybackFreeString(char* value)
+{
+    std::free(value);
+}
+
+#if !CUESEEKER_PLAYBACK_NATIVE_LIBRARY
 int wmain(int argc, wchar_t** argv)
 {
     CliOptions options;
@@ -2678,3 +2813,4 @@ int wmain(int argc, wchar_t** argv)
         return 1;
     }
 }
+#endif

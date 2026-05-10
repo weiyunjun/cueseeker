@@ -35,6 +35,8 @@ migrate_working_dir/
 apps/windows-playback-lab/build/
 apps/windows-playback-lab/out/
 apps/windows-playback-lab/deps/
+apps/windows-native/**/bin/
+apps/windows-native/**/obj/
 
 # Symbolication related
 app.*.symbols

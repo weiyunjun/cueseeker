@@ -7,6 +7,10 @@ to validate the playback foundation first: media inspection, Direct3D rendering,
 Windows audio capability probing, FFmpeg decode behavior, `libass` availability,
 and structured diagnostics.
 
+The playback core now lives in `apps/windows-playback-backend/` and builds as
+`CueSeekerPlaybackNative.dll`. This lab is a command-line diagnostics harness
+over that backend, not the production Windows app integration boundary.
+
 ## Current Scope
 
 Implemented in this bootstrap:

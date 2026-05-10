@@ -22,6 +22,7 @@ endmacro()
 
 set(FFMPEG_ROOT "$ENV{FFMPEG_ROOT}" CACHE PATH "FFmpeg development package root")
 set(LIBASS_ROOT "$ENV{LIBASS_ROOT}" CACHE PATH "libass development package root")
+set(CUESEEKER_PLAYBACK_BACKEND_DIR "${CMAKE_CURRENT_LIST_DIR}/../windows-playback-backend")
 
 find_path(
     FFMPEG_INCLUDE_DIR
@@ -60,31 +61,37 @@ else()
     message(WARNING "libass development package was not found. Building Windows lab without libass probing.")
 endif()
 
-add_executable(CueSeekerWindowsPlaybackLab
-    src/main.cpp
+add_library(CueSeekerPlaybackNative SHARED
+    ${CUESEEKER_PLAYBACK_BACKEND_DIR}/src/playback_native.cpp
 )
 
-target_compile_definitions(CueSeekerWindowsPlaybackLab PRIVATE
+target_include_directories(CueSeekerPlaybackNative PUBLIC
+    ${CUESEEKER_PLAYBACK_BACKEND_DIR}/include
+)
+
+target_compile_definitions(CueSeekerPlaybackNative PRIVATE
     NOMINMAX
     WIN32_LEAN_AND_MEAN
     UNICODE
     _UNICODE
+    CUESEEKER_PLAYBACK_NATIVE_EXPORTS
+    CUESEEKER_PLAYBACK_NATIVE_LIBRARY=1
     CUESEEKER_HAS_FFMPEG_SDK=$<BOOL:${CUESEEKER_HAS_FFMPEG_SDK}>
     CUESEEKER_HAS_LIBASS_SDK=$<BOOL:${CUESEEKER_HAS_LIBASS_SDK}>
     CUESEEKER_HAS_LIBASS_HEADER=$<BOOL:${LIBASS_INCLUDE_DIR}>
 )
 
 if(CUESEEKER_HAS_FFMPEG_SDK)
-    target_include_directories(CueSeekerWindowsPlaybackLab PRIVATE ${FFMPEG_INCLUDE_DIR})
-    target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE ${FFMPEG_LIBRARIES})
+    target_include_directories(CueSeekerPlaybackNative PRIVATE ${FFMPEG_INCLUDE_DIR})
+    target_link_libraries(CueSeekerPlaybackNative PRIVATE ${FFMPEG_LIBRARIES})
 endif()
 
 if(CUESEEKER_HAS_LIBASS_SDK)
-    target_include_directories(CueSeekerWindowsPlaybackLab PRIVATE ${LIBASS_INCLUDE_DIR})
-    target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE ${LIBASS_LIBRARY})
+    target_include_directories(CueSeekerPlaybackNative PRIVATE ${LIBASS_INCLUDE_DIR})
+    target_link_libraries(CueSeekerPlaybackNative PRIVATE ${LIBASS_LIBRARY})
 endif()
 
-target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE
+target_link_libraries(CueSeekerPlaybackNative PRIVATE
     d3d11
     dxgi
     d3dcompiler
@@ -94,6 +101,20 @@ target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE
     propsys
 )
 
+add_executable(CueSeekerWindowsPlaybackLab
+    src/lab_main.cpp
+)
+
+target_compile_definitions(CueSeekerWindowsPlaybackLab PRIVATE
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+    UNICODE
+    _UNICODE
+)
+
+target_link_libraries(CueSeekerWindowsPlaybackLab PRIVATE CueSeekerPlaybackNative)
+
 if(MSVC)
+    target_compile_options(CueSeekerPlaybackNative PRIVATE /W4 /permissive-)
     target_compile_options(CueSeekerWindowsPlaybackLab PRIVATE /W4 /permissive-)
 endif()
