@@ -167,6 +167,78 @@ additional test hardware.
 The first Windows release should not claim compatibility with hardware profiles
 that have not been tested.
 
+## Near-Term Lab-to-App Plan
+
+The current W0 lab has proven a basic software playback path: FFmpeg demuxing
+and software video decode, D3D11 presentation, WASAPI shared-mode audio output,
+external ASS parsing, and external ASS overlay through `libass`.
+
+The next work should avoid trying to make the standalone lab perfect before the
+Windows app can exercise it. Previous project experience suggests that many
+important defects only appear once playback is driven by real app state,
+navigation, file selection, subtitle selection, window lifetime, and user
+commands. A standalone lab that appears perfect is not sufficient evidence for
+product readiness.
+
+Near-term work should therefore proceed in this order:
+
+1. Add a structured playback report for `--play`.
+   The report should identify the selected streams, requested decode path,
+   actual decode path, audio endpoint, subtitle source, first-frame timing,
+   decoded/rendered frame counts, and failure stage.
+2. Add lightweight performance sampling.
+   The lab should report process memory and coarse CPU observations for a short
+   playback window. This is a baseline signal, not a benchmark suite.
+3. Add D3D11VA/DXVA capability probing.
+   The probe should identify available hardware decode support by adapter,
+   codec, and profile where practical, without claiming compatibility beyond
+   tested hardware.
+4. Add an initial D3D11VA playback path with software fallback.
+   The report must explicitly state whether playback used hardware decode or
+   software decode.
+5. Run a small real-media smoke set.
+   Developer-local media roots, currently including `D:\影视`, may be used for
+   manual validation. These files are local test inputs, not repository
+   fixtures, not a compatibility guarantee, and not a reason to delay app
+   integration for broad matrix work.
+6. Define the first app integration boundary.
+   Once basic hard decode, software fallback, audio output, and subtitle overlay
+   work against a few representative files, the lab should be wrapped behind
+   CueSeeker-owned playback request/report concepts so the Windows app can start
+   driving real playback scenarios.
+
+The first app integration boundary does not need every advanced player feature.
+It should be enough to open a media file, select or pass an external ASS
+subtitle, start playback, observe the selected decode path, and receive a
+structured failure or summary report.
+
+## W0 Testing Boundaries
+
+W0 testing should be evidence-driven but intentionally bounded.
+
+The lab should answer these questions before app integration begins:
+
+- Can a representative H.264 or HEVC file open and display video?
+- Does the playback path use D3D11VA/DXVA when requested or when auto-selected?
+- Does software decode fallback work when hardware decode is unavailable or
+  fails?
+- Does WASAPI audio output start and continue during a short playback window?
+- Does an external ASS subtitle file load and appear on video?
+- Does the playback report capture decode path, basic timing, CPU/memory signal,
+  and failure stage?
+
+The lab should not spend W0 trying to exhaustively solve:
+
+- Every codec, profile, container, subtitle style, and attachment case.
+- Long-play stability across a large library.
+- Perfect synchronization and frame pacing under every load.
+- Full app-like lifecycle behavior outside the app.
+- Final UI behavior, settings persistence, or production packaging.
+
+Those issues should be revisited after the Windows app can drive the backend,
+because the app integration will expose lifecycle, threading, windowing, and
+state-management problems that the standalone lab cannot faithfully reproduce.
+
 ## Security Strategy
 
 The Windows backend should assume that media and subtitle files may be
@@ -224,6 +296,15 @@ Expected implementation scope:
 - Windows-native audio output.
 - `libass` overlay proof.
 - Structured compatibility report output.
+
+W0 should be considered sufficient for the first app integration attempt when a
+small representative sample set can demonstrate:
+
+- Basic playback success with video, audio, and external ASS overlay.
+- A visible report of whether playback used hardware decode or software decode.
+- A working software fallback path.
+- Coarse CPU and memory observations for short playback windows.
+- Structured failure stages for unsupported or failed samples.
 
 ### W1: Windows Playback Engine
 
