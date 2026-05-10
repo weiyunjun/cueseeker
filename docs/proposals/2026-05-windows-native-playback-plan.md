@@ -256,6 +256,28 @@ Expected implementation scope:
 - Windows-specific file access and folder management.
 - Windows packaging and release preparation.
 
+## W0 Bootstrap Decisions
+
+The initial Windows playback lab bootstrap uses the following decisions so
+implementation can begin without waiting for the full Windows client design:
+
+- Lab code lives under `apps/windows-playback-lab/`.
+- The lab is a focused C++ playback and diagnostics workspace, not a WinUI
+  product shell.
+- The initial build entry point is CMake targeting MSVC and the Windows SDK.
+- FFmpeg and `libass` must be supplied as development packages with headers and
+  link libraries, discovered through `FFMPEG_ROOT` and `LIBASS_ROOT`.
+- Windows system media and rendering APIs should come from the Windows SDK.
+- The initial audio path is WASAPI shared mode because it is Windows-native,
+  suitable for basic playback validation, and keeps latency or exclusive-mode
+  tuning out of W0.
+- The initial validation target is Windows 11 on the available Intel CPU and
+  Nvidia GPU machine. Other Windows hardware profiles must be added through
+  explicit compatibility reports before compatibility is claimed.
+- `ffprobe`, `ffmpeg`, and `ffplay` may be used by scripts as environment
+  diagnostics or comparison references. They must not become the planned
+  production playback backend for the Windows app.
+
 ## Open Questions
 
 - Should the Windows native playback backend live in the same repository as the
