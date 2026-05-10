@@ -8,21 +8,38 @@ Playback should flow through `CueSeekerPlaybackNative.dll`.
 
 ## Current Bootstrap
 
-Implemented in this first scaffold:
+Implemented in the current bootstrap:
 
 - WinUI 3 application project structure.
-- A three-region placeholder layout matching the planned Windows shell shape:
-  directory list, video surface, and search area.
+- A three-region shell matching the planned Windows app shape: left Library,
+  center playback surface, and right Search/Shiori panel.
+- A fixed Settings footer row at the bottom of the left sidebar.
+- A Settings surface with `Library` and `Decode` categories.
+- `Library` Settings folder management and `Index Now`.
+- A Windows SQLite database with macOS-aligned table names and core semantics
+  for search paths, subtitle files, video files, subtitle-video matches, cue
+  groups, cue lines, Library rows, and Shiori records.
+- Subtitle scanning for `.srt` and `.ass`.
+- Same-directory basename video matching with simple language-suffix removal.
+- Derived display aliases based on parent folder plus natural-sort sibling
+  rank.
+- Library hydration from persisted playable-video rows.
+- Search over indexed cue groups with line-level match validation.
+- Search result selection that resolves video path, subtitle path, and
+  `start_ms`, then calls `CueSeekerPlaybackNative.dll`.
 - A central `SwapChainPanel` reserved for native Direct3D presentation.
 - A C# native playback host that can locate `CueSeekerPlaybackNative.dll`,
-  capture the `SwapChainPanel` native WinRT pointer, and call the native inspect
-  API.
+  capture the `SwapChainPanel` native WinRT pointer, call the native inspect
+  API, and start native playback requests.
 
 Not implemented yet:
 
 - Binding the C++ backend swap chain to the `SwapChainPanel`.
-- Database, folder settings, indexing, and search services.
-- Playback controls, shortcuts, bookmarks, or subtitle text actions.
+- In-app swapchain presentation; the current native playback API still presents
+  through the backend's existing Win32 playback window.
+- Playback controls, shortcuts, Shiori save/remove actions, or subtitle text
+  copy actions.
+- Full macOS parity for advanced indexing/search edge cases.
 
 ## Local Tooling
 
@@ -31,3 +48,26 @@ listed by Microsoft Learn at the time this scaffold was created. Building this
 project requires a .NET SDK and Windows App SDK restore support. The current
 local machine only has the .NET runtime installed, so the C++ backend can be
 validated locally before this WinUI project is built.
+
+## Manual Validation
+
+After installing a .NET 8 SDK, build the native backend, then build and run the
+Windows app:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File apps/windows-playback-lab/tools/build.ps1 -Configuration Debug
+dotnet build apps/windows-native/CueSeeker.Windows.sln -c Debug -p:Platform=x64
+dotnet run --project apps/windows-native/CueSeeker.Windows/CueSeeker.Windows.csproj -c Debug -p:Platform=x64
+```
+
+Then validate:
+
+1. Open `Settings` from the left sidebar footer.
+2. In `Library`, add a media folder such as `D:\影视`.
+3. Run `Index Now`.
+4. Confirm the left Library shows folder rows and numbered episode buttons.
+5. Search for subtitle text in the right Search panel.
+6. Click a Search result and confirm native playback starts at that cue
+   timestamp with the selected external subtitle file.
+7. Check `%LOCALAPPDATA%\CueSeeker\Windows\last-playback.json` for the selected
+   decode path and playback report.
