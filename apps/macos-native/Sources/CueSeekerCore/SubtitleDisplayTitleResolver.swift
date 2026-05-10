@@ -1,37 +1,12 @@
 import Foundation
 
-public struct SubtitleAlias: Equatable, Sendable {
-    public let folderPath: String
-    public let folderTitle: String
-    public let rank: Int
-    public let total: Int
-    public let paddedRank: String
-
-    public var displayTitle: String {
-        "\(folderTitle) - \(paddedRank)"
-    }
-
-    public var episodeLabel: String {
-        "Episode \(paddedRank)"
-    }
-}
-
 public enum SubtitleDisplayTitleResolver {
     public static func displayTitle(
         forSubtitlePath subtitlePath: String,
         fileManager: FileManager = .default
     ) -> String {
-        guard let alias = alias(forSubtitlePath: subtitlePath, fileManager: fileManager) else {
-            return URL(fileURLWithPath: subtitlePath).lastPathComponent
-        }
-        return alias.displayTitle
-    }
-
-    public static func alias(
-        forSubtitlePath subtitlePath: String,
-        fileManager: FileManager = .default
-    ) -> SubtitleAlias? {
         let subtitleURL = URL(fileURLWithPath: subtitlePath)
+        let fallbackTitle = subtitleURL.lastPathComponent
         let parentURL = subtitleURL.deletingLastPathComponent()
         let parentTitle = parentURL.lastPathComponent
         let subtitleExtension = subtitleURL.pathExtension.lowercased()
@@ -39,7 +14,7 @@ public enum SubtitleDisplayTitleResolver {
         guard !parentTitle.isEmpty,
               SubtitleFileScanner.supportedSubtitleExtensions.contains(subtitleExtension)
         else {
-            return nil
+            return fallbackTitle
         }
 
         let resourceKeys: [URLResourceKey] = [
@@ -55,7 +30,7 @@ public enum SubtitleDisplayTitleResolver {
                 options: [.skipsHiddenFiles]
             )
         } catch {
-            return nil
+            return fallbackTitle
         }
 
         let sameExtensionSubtitleFiles = siblings.filter { sibling in
@@ -74,21 +49,13 @@ public enum SubtitleDisplayTitleResolver {
         guard let rankIndex = sameExtensionSubtitleFiles.firstIndex(where: {
             $0.standardizedFileURL.path == subtitleURL.standardizedFileURL.path
         }) else {
-            return nil
+            return fallbackTitle
         }
 
-        let total = sameExtensionSubtitleFiles.count
         let rank = rankIndex + 1
-        let width = max(2, String(total).count)
-        let paddedRank = String(format: "%0*d", width, rank)
-
-        return SubtitleAlias(
-            folderPath: parentURL.standardizedFileURL.path,
-            folderTitle: parentTitle,
-            rank: rank,
-            total: total,
-            paddedRank: paddedRank
-        )
+        let width = max(2, String(sameExtensionSubtitleFiles.count).count)
+        let sequence = String(format: "%0*d", width, rank)
+        return "\(parentTitle) - \(sequence)"
     }
 
     public static func compareDisplayTitles(_ lhs: String, _ rhs: String) -> ComparisonResult {

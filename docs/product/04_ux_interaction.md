@@ -62,72 +62,65 @@ Expected behavior:
 
 Grouped result behavior:
 
-- Search results should be grouped in three levels: Show → Episode → Hit.
-  A Show is the parent folder of one or more matched subtitle files. An
-  Episode is one subtitle file inside a Show, identified by its
-  contract-based alias rank. A Hit is one matched cue group inside an
-  Episode.
-- Show groups should be expanded by default.
-- Clicking a Show row should collapse or expand that Show. The Show row's
-  disclosure chevron is a single icon that rotates between `0°` (collapsed)
-  and `90°` (expanded) over `160ms` with an ease curve when toggled. The
-  same chevron animation is shared with the Library folder row.
-- Episode headers are non-interactive section headings. They do not collapse,
-  do not respond to hover, and do not draw a chevron.
-- Collapsing a Show should only hide that Show's loaded rows and Episode
-  headers. It must not change result counts, search scope, or selection
-  identity.
-- Result lazy loading should remain based on matched cue groups, not on
-  Shows or Episodes.
+- Search results should be grouped by subtitle file in a single flat level.
+  The right sidebar does not aggregate subtitle files under a parent-folder
+  Show layer; the rejected Show / Episode / Hit proposal is preserved in
+  `docs/proposals/` for context.
+- Groups should be expanded by default.
+- Clicking a subtitle-file header should collapse or expand that group. The
+  group's disclosure chevron lives in the left rail and rotates between
+  `0°` (collapsed) and `90°` (expanded) over `160ms` with an ease curve
+  when toggled. The same chevron animation is shared with the Library
+  folder row.
+- Collapsing a group should only hide that group's loaded rows. It must
+  not change result counts, search scope, or selection identity.
+- Result lazy loading should remain based on matched cue groups, not
+  subtitle file groups.
 - Result lazy loading should use 100 cue-group results as the initial
   visible budget and 100 cue-group results for each incremental load.
 - Lazy loading should trigger only from these user-visible actions:
   scrolling to the bottom when more global rows can be shown, clicking the
-  expand-all control when all Shows are collapsed, or expanding an
-  individual Show row.
-- Per-Show and per-Episode match totals should remain available in search
-  grouping state for lazy-loading and future sorting behavior. The Show row
-  renders the total result count as plain text on its second line. Each
-  Episode header renders the per-Episode count as plain text on the right
-  side. Neither row uses a count badge or separate count component.
-- The Show title is the immediate parent folder's last path component.
-  Episode labels are `Episode NN`, where `NN` is the subtitle file's
-  one-based Finder-like natural-sort rank among visible regular sibling
-  subtitle files with the same final subtitle extension. Episode labels
-  always have a rank from the alias contract; there is no fallback path.
-- Users can change the displayed Show title by renaming the parent folder
+  expand-all control when all groups are collapsed, or expanding an
+  individual subtitle-file header.
+- Per-file match totals should remain available in search grouping state
+  for lazy-loading and future sorting behavior. Header presentation should
+  append the per-file total to the friendly subtitle group title as plain
+  text and must not render a per-file count badge or separate count
+  component.
+- The friendly subtitle group title should use the immediate parent folder
+  name plus the subtitle file's one-based Finder-like natural-sort rank
+  among visible regular sibling subtitle files with the same final
+  subtitle extension, such as `葬送的芙莉莲 - 05`.
+- Users can change the displayed work title by renaming the parent folder
   without changing the subtitle or video filenames.
 - The full subtitle path remains available through the Playback Area file
   actions and internal result state for source identity and diagnostics.
-- The collapse or expand-all control should toggle all Show groups in the
-  current query at once.
+- The collapse or expand-all control should toggle all subtitle-file
+  groups in the current query at once.
 - The collapse or expand-all control should track only its own global
-  action state. Manually collapsing or expanding a single Show row should
-  not change that control's label.
-- Collapsing all Shows should reduce visible subtitle rows and Episode
-  headers to zero while keeping Show rows visible.
-- Expanding all Shows should reveal at most one global 100-result batch. It
-  should not reveal 100 rows per Show, and it should not restore previously
-  scrolled-in rows beyond the current 100-row budget solely because those
-  rows were visible before collapse.
-- Expanding an individual Show row should reveal at most the first 100
-  matching rows for that Show, distributed across its Episodes. If the
-  Show has fewer matches, all of its matches should be visible.
+  action state. Manually collapsing or expanding a single subtitle-file
+  header should not change that control's label.
+- Collapsing all groups should reduce visible subtitle rows to zero while
+  keeping subtitle-file headers visible.
+- Expanding all groups should reveal at most one global 100-result batch.
+  It should not reveal 100 rows per subtitle file, and it should not
+  restore previously scrolled-in rows beyond the current 100-row budget
+  solely because those rows were visible before collapse.
+- Expanding an individual subtitle-file header should reveal at most the
+  first 100 matching rows for that subtitle file. If the file has fewer
+  matches, all of its matches should be visible.
 - Collapse actions should not trigger a search, fetch another lazy-loading
   page, change the lazy-loading cursor, or mutate result counts.
 
-Hit row visual rules:
+Result row visual rules:
 
-- Hit row hover and selected backgrounds left-align with the enclosing
-  Episode header text. The row's internal left padding then offsets the
-  row text further to the right, so the cue text reads as visually nested
-  under the Episode header even on a selected row.
-- Selected Hit rows use the macOS system accent color
+- Selected result rows use the macOS system accent color
   (`NSColor.controlAccentColor`, surfaced through `Color.accentColor`),
   reflecting the user's system accent color choice. A future settings
   option may expose a custom accent override.
-- Hit rows do not render a cue start timestamp. Time order inside an
-  Episode is conveyed by row order alone.
+- Result rows do not render a cue start timestamp. Within a subtitle-file
+  group rows are ordered by ascending cue start time, so spatial order
+  conveys time order without a dedicated column.
 
 Search focus behavior:
 
@@ -215,11 +208,12 @@ When the user selects a result:
   system accent color (`Color.accentColor`). Selected row text becomes
   white. Selected row keyword highlights invert to a translucent-white fill
   with bolder white text. The row uses no divider lines.
-- The selected row does not show a cue start timestamp. Time order inside
-  an Episode is conveyed by row order alone.
+- The selected row does not show a cue start timestamp. Within a
+  subtitle-file group rows are ordered by ascending cue start time, so
+  spatial order conveys time order without a dedicated column.
 - Unselected rows use a slightly muted primary label color for subtitle
   text, preserving hierarchy without making unselected results as faint as
-  Show rows or Episode headers.
+  group headers.
 - Search result subtitle text should keep internal SRT and ASS line breaks
   readable with extra wrapped-line spacing, especially for bilingual cue text.
 - The app should remain in the CueSeeker workbench and open or update the
@@ -246,11 +240,11 @@ When the user selects a result:
 - **Titlebar Buttons**: Toolbar toggle buttons use a subtle gray background on hover to indicate interactivity.
 - **Search Field**: The focused Search field uses a gray outline rather than the
   system accent color.
-- **Search Results**: Interactive Hit rows emphasize the selection state
-  over hover. The selected background uses the macOS system accent color,
-  left-aligned with the enclosing Episode header text. Hit rows use no
-  divider lines, keep readable bilingual line spacing, and do not render a
-  cue start timestamp.
+- **Search Results**: Interactive result rows emphasize the selection
+  state over hover. The selected background uses the macOS system accent
+  color and aligns with the group disclosure rail's left edge. Result rows
+  use no divider lines, keep readable bilingual line spacing, and do not
+  render a cue start timestamp.
 
 ## 7. Playback Interaction
 
@@ -380,10 +374,10 @@ Library behavior:
 - Folder rows must not display a leading first-letter or first-character avatar
   block.
 - The full folder row should be the click target that toggles expand or
-  collapse. The right-side chevron is a visual indicator only and rotates
-  between `0°` (collapsed) and `90°` (expanded) over `160ms` with an ease
-  curve when toggled. The same chevron animation is shared with the
-  right-sidebar Show row.
+  collapse. The chevron is a visual indicator only and rotates between
+  `0°` (collapsed) and `90°` (expanded) over `160ms` with an ease curve
+  when toggled. The same chevron animation is shared with the
+  right-sidebar group disclosure rail.
 - Videos inside a folder should be sorted with the same Finder-like natural
   ordering used to derive the row rank.
 - Expanded folders should show a numbered episode-button grid where each

@@ -6,17 +6,25 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Accepted and implemented the right-sidebar Show / Episode / Hit three-level
-  grouping: Search and Shiori results now group by parent folder (Show) then by
-  contract-based alias rank (Episode `NN`) before each Hit row. Show rows
-  render a two-line title + count layout matching the Library folder row, with
-  a single chevron that rotates `0°↔90°` over `160ms` when toggled. The Library
-  folder chevron is unified to the same animation. Episode headers are
-  non-interactive section headings. Hit rows drop the cue start timestamp;
-  their selected and hover backgrounds left-align with the Episode header text
-  and use the macOS system accent color (white text), while keyword highlights
-  use a three-state token set (`#FFE066` default, `#FFCB1F` hover, `30%` white
-  on selected) that follows the parent row state.
+- Rejected the right-sidebar Show / Episode / Hit three-level grouping that
+  shipped in commit `9a49d8e` after a same-cycle review. Two structural
+  reasons drove the revert: the parent-folder Show layer is redundant header
+  chrome in a search context (the matched cue text is what users scan, the
+  subtitle file alias plus content is enough, and not every subtitle file has
+  matches so the Show layer is partially populated and unstable), and
+  aggregating a season's worth of matches under one heading creates render
+  and attention problems that the existing flat layout already handles via
+  the global `Collapse All` control. The proposal at
+  `docs/proposals/2026-05-right-sidebar-show-episode-grouping.md` is
+  preserved as Rejected with a revision note for context.
+- Retained the row visual updates introduced alongside the rejected
+  proposal: Search and Shiori result rows drop the cue start timestamp;
+  selected rows use the macOS system accent color (`Color.accentColor`)
+  with white text; keyword highlights use a three-state token set
+  (`#FFE066` default, `#FFCB1F` hover, `30%` white on selected) that
+  follows the parent row state. Disclosure chevrons in the right-sidebar
+  group rail and the Library folder header are unified to a single-icon
+  rotation animation (`0°↔90°` over `160ms`).
 - Accepted the revised Library row direction: Library folder rows drop the
   leading first-letter avatar, use a two-line layout with an
   `N episodes`/`N episodes · Playing M` subtitle, and toggle expand or collapse

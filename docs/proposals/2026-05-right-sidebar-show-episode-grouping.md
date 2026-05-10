@@ -1,6 +1,44 @@
 # Right Sidebar Show / Episode / Hit Grouping
 
-Status: Proposed
+Status: Rejected
+
+## Revision Note (after implementation review)
+
+The Show / Episode / Hit grouping was implemented in commit `9a49d8e` and then
+withdrawn by the user during the same review cycle for two reasons:
+
+1. **The Show layer (parent folder) is structurally redundant in the right
+   sidebar.** In the left Library panel, the parent folder is the user's
+   primary navigation handle and the contract-based alias rank always exists
+   for every video — those serial numbers are stable and the folder name
+   repeats across many rows, so the two-line layout (folder + `N episodes`)
+   earns its space. In the right sidebar the user is searching for
+   keyword-bearing content; the matched cue text is the focus, the subtitle
+   file alias plus the cue text is sufficient context, and the parent folder
+   name is redundant header chrome. Not every subtitle file in a folder will
+   have matches, so the Show layer is partially populated and unstable.
+2. **Performance and attention.** A Show row that aggregates a full season's
+   matches can render dozens of cue rows under one heading, increasing
+   visual noise and pulling user focus away from the matched content. The
+   previous flat subtitle-file group layout combined with the global
+   `Collapse All` control already handles this case without a Show layer.
+
+The accepted direction is to keep the previous flat subtitle-file group
+structure (header `Parent Folder Name - NN  N results` plus left disclosure
+rail with a chevron and a vertical line under expanded groups) while keeping
+the row visual updates introduced alongside this proposal: Hit rows drop the
+cue start timestamp, the selected row uses the macOS system accent color
+with white text, and keyword highlights use the three-state token set
+(`#FFE066` / `#FFCB1F` / `30%` white on selected). Disclosure chevrons
+across the workbench are unified to a single-icon rotation animation
+(`0°↔90°` over `160ms`).
+
+The text below records the originally proposed direction. It is preserved as
+historical context per the proposals workflow.
+
+---
+
+Status (original): Proposed
 
 ## Background
 

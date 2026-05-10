@@ -101,8 +101,9 @@ Design implications:
 - The Search result list must remain useful at the minimum window width.
 - The Playback Inspector cannot assume a very wide right panel.
 - Long subtitle text must wrap predictably.
-- Hit rows no longer render a cue start timestamp. Time order inside an
-  Episode is conveyed by row order alone.
+- Result rows no longer render a cue start timestamp. Within a
+  subtitle-file group rows are ordered by ascending cue start time, so
+  spatial order conveys time order without a dedicated column.
 
 ## 5. Search Results Pane
 
@@ -299,10 +300,8 @@ Current list padding:
 - Top: `4`.
 - Bottom: `8`.
 
-Each result belongs to an Episode (subtitle file) inside a Show (parent
-folder). The list renders Show rows at the top level; each expanded Show
-contains Episode headers and Hit rows. Show rendering is delegated to the
-view module that owns the right-sidebar Show / Episode / Hit hierarchy.
+Each result belongs to a subtitle-file group. Groups are rendered in
+`SearchResultGroupView` with a left disclosure rail.
 
 The list supports lazy loading:
 
@@ -310,105 +309,112 @@ The list supports lazy loading:
 - Prefetch threshold: `10`.
 - When the user scrolls near the end of loaded results and more results exist,
   the app fetches another page.
-- Search result lazy loading is based on matched cue groups, not Shows or
-  Episodes.
+- Search result lazy loading is based on matched cue groups, not subtitle
+  file groups.
 
 ## 9. Search Result Grouping
 
-Results are grouped in three levels: Show → Episode → Hit.
+Results are grouped by subtitle file in a single flat level. The right
+sidebar does not aggregate subtitle files under a parent-folder layer (the
+rejected Show / Episode / Hit proposal lives in `docs/proposals/` for
+context).
 
-A Show is the parent folder of one or more matched subtitle files. An
-Episode is one subtitle file inside a Show, identified by its
-contract-based alias rank. A Hit is one matched cue group inside an
-Episode.
-
-Each Show has:
-
-- `showId` (the parent folder path)
-- `title` (the parent folder's last path component)
-- `totalCount` (total matched cue groups across the Show)
-- ordered `episodes`
-- `isCollapsed`
-
-Each Episode has:
+Each group has:
 
 - `subtitlePath`
-- `rank` (one-based, supplied by the contract-based alias rule)
-- `label` (`Episode NN`, zero-padded)
-- `totalCount` (per-Episode matched cue groups)
+- `subtitleDisplayTitle`
+- `totalCount`
 - loaded `results`
+- `isCollapsed`
 
-Show ordering uses Finder-like localized standard comparison on the Show
-title, with the parent folder path as the secondary stable ordering key.
-Episode ordering inside a Show follows the same Finder-like rank ordering
-used to derive `NN`.
+Groups are derived from search page file summaries plus any loaded or
+expanded results. Group ordering is stable and based on search summary
+order plus sorted extra paths when needed.
 
-### 9.1 Show Row
+### 9.1 Group Header
 
-The Show row is a full-width click target with a two-line left column.
+The group header is a full-width button.
 
-Row content:
+Header content:
 
 ```text
-Show Title                                [▾]
-N results
+Subtitle Display Title  N results
 ```
 
 Example:
 
 ```text
-葬送的芙莉莲                              [▾]
-67 results
+葬送的芙莉莲 - 05  3 results
 ```
 
 Visual details:
 
-- Show title and count occupy the left column. The title uses the same
-  weight and tone as the Library folder title; the count uses the same
-  secondary tone as the Library folder subtitle.
-- A single disclosure chevron sits on the right.
-- The chevron rotates between `0°` (collapsed) and `90°` (expanded) over
-  `160ms` with an ease curve when toggled. The same chevron animation is
-  shared with the Library folder row.
-- The full row is clickable as a single target. Hover state shows a soft
-  fill across the full row width.
-- The Show row is never the selected row.
+- Text size: 13 pt.
+- Header vertical padding: `7`.
+- Leading padding aligns with result text, not with the chevron rail.
+- Trailing padding: `12`.
+- Header can wrap across multiple lines.
+- Header is clickable as a single target.
+- Button style is static, so it avoids default button chrome.
 
-### 9.2 Episode Header
+Text color:
 
-The Episode header is a non-interactive section heading inside an expanded
-Show.
+- If the selected result belongs to the group: primary.
+- Otherwise: primary at about 76% opacity.
+- Count text: secondary.
 
-Header content:
+Long title behavior:
 
-```text
-Episode 01                          4 results
-```
+- Display titles may include zero-width soft wrap opportunities after `]`,
+  `.`, `_`, and `-`.
+- This helps long raw fallback filenames wrap without visually changing
+  the filename.
 
-Visual details:
+### 9.2 Group Rail
 
-- Label on the left: `Episode NN`, secondary tone, semibold.
-- Per-Episode count on the right: tertiary tone, plain text.
-- No chevron. No hover. No click target. The Show name is not repeated.
+Each group has a left rail overlay.
 
-### 9.3 Show Collapse Behavior
+The rail contains:
 
-Clicking the Show row toggles that Show.
+- Disclosure chevron button.
+- Optional vertical line when the group is expanded and has rows.
+
+Chevron:
+
+- A single chevron icon (right-pointing) that rotates between `0°`
+  (collapsed) and `90°` (expanded) over `160ms` with an ease curve when
+  toggled. The same animation is shared with the Library folder row.
+- Size: 10 pt semibold.
+- Secondary foreground.
+- Tapping toggles group collapse/expand.
+
+Rail line:
+
+- Tertiary fill at 55% opacity.
+- Width: `1.5`.
+- Begins below the chevron.
+- Helps visually connect rows under the same file group.
+
+The rail reserves left-side space so group titles and result text can
+align cleanly.
+
+### 9.3 Group Collapse Behavior
+
+Clicking the group header or chevron toggles that group.
 
 When collapsing:
 
-- The Show row remains visible.
-- Loaded rows and Episode headers are hidden.
+- The group header remains visible.
+- Loaded rows are hidden.
 - Result counts do not change.
 - Search does not re-run.
 - Selection identity is preserved.
 
 When expanding:
 
-- If needed, the app reveals an initial page distributed across the Show's
-  Episodes.
-- Expanding an individual Show should reveal at most the first 100 matching
-  rows across the Show.
+- If needed, the app reveals an initial page for that subtitle file.
+- Expanding an individual group should reveal at most the first 100
+  matching rows for that file.
 
 ## 10. Search Result Row
 
@@ -426,14 +432,12 @@ Rounded row background area
 
 Current row layout:
 
-- The row no longer renders a cue start timestamp. Time order inside an
-  Episode is conveyed by row order alone.
-- The row's hover and selected backgrounds left-align with the enclosing
-  Episode header text. The row's internal left padding then offsets the cue
-  text further to the right, so the cue text reads as visually nested
-  under the Episode header even on a selected row.
-- Row text leading and trailing padding stay generous so long cue lines
-  wrap predictably.
+- The row no longer renders a cue start timestamp. Within a subtitle-file
+  group rows are ordered by ascending cue start time, so spatial order
+  conveys time order without a dedicated column.
+- The row's hover and selected backgrounds align with the group disclosure
+  rail's left edge. Row text leading and trailing padding stay generous so
+  long cue lines wrap predictably.
 - Row selected/hover background corner radius: `8`.
 
 Typography:
@@ -663,9 +667,9 @@ Primary user flow:
 User types query
 → app debounces 250 ms
 → database returns first search page
-→ results are grouped by Show → Episode → Hit
-→ user scans Show rows, expands a Show, scans Episode sections and Hit rows
-→ user clicks a Hit row
+→ results are grouped by subtitle file
+→ user scans group headers and result rows
+→ user clicks a result row
 → Search focus clears
 → Playback Inspector opens if collapsed
 → selected row gets the system accent color background
@@ -840,9 +844,8 @@ These are not bugs; they are areas where future UI exploration may help.
 - The right inspector has little information architecture beyond video and
   buttons.
 - The resize divider is subtle and may be hard to discover.
-- The Show / Episode / Hit hierarchy relies on indented row backgrounds
-  and text weight; spacing and surface treatment may be refined further as
-  the design matures.
+- Group hierarchy relies on the disclosure rail and text weight; spacing
+  and surface treatment may be refined further as the design matures.
 - File buttons are useful but could better communicate Finder reveal behavior.
 - There is no visible quick filter, sort, or scope affordance.
 - Search result rows are readable but could better support very long bilingual
@@ -856,7 +859,7 @@ When proposing new UI directions, keep these constraints:
 - Do not turn the screen into a marketing page, landing page, or media gallery.
 - Preserve native macOS interaction expectations.
 - Preserve dense result scanning.
-- Preserve the Show → Episode → Hit grouped hierarchy.
+- Preserve grouped subtitle-file headers with a left disclosure rail.
 - Preserve query highlighting.
 - Preserve right-side contextual playback.
 - Preserve no-navigation result preview.
