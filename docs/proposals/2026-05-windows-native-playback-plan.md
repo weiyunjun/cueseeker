@@ -240,11 +240,13 @@ Initial Windows app integration should follow these decisions:
   cues. The Windows right-side mode button should remain present as `Shiori`
   during the bootstrap even if the first implementation shows an empty
   development state before durable Shiori integration is wired.
-- The first Windows Settings entry may be placed in the center playback area,
-  immediately after the temporary `Subtitle Folder` button, until final Windows
-  window chrome and command placement are designed. The button should open a
-  Settings surface whose layout follows the accepted macOS standalone Settings
-  model: a two-column window with `Library` and `Decode` categories.
+- The first Windows Settings entry should live as a fixed footer row at the
+  bottom of the left Library/sidebar area. The placement should follow the
+  reference sidebar pattern: a gear icon and `Settings` label anchored below the
+  main Library content, not a control inside the playback surface. The button
+  should open a Settings surface whose layout follows the accepted macOS
+  standalone Settings model: a two-column window with `Library` and `Decode`
+  categories.
 - Windows `Library` Settings should provide folder management and the `Index
   Now` action using the same indexing behavior as macOS. Windows `Decode`
   Settings should manage the persisted decode preference used by the native
@@ -258,6 +260,49 @@ Initial Windows app integration should follow these decisions:
 
 These decisions define the first Windows app integration boundary. They do not
 change the current macOS technical route or the accepted product semantics.
+
+## Windows Client Bootstrap Implementation Sequence
+
+The first usable Windows client should be built in small vertical slices so the
+app can exercise real indexing, search, and playback behavior before advanced
+polish.
+
+Recommended sequence:
+
+1. Translate the accepted Windows design into a WinUI layout skeleton using
+   standard window behavior. Defer custom titlebar and Mica work.
+2. Build the main three-area shell: left Library/sidebar, center playback
+   surface, and right Search/Shiori panel.
+3. Add the fixed left-sidebar Settings footer row with a gear icon and
+   `Settings` label.
+4. Add the Settings window shell with `Library` and `Decode` categories,
+   following the macOS standalone Settings structure.
+5. Establish the Windows app database location and SQLite access layer while
+   preserving the macOS schema and migration semantics.
+6. Wire `Library` Settings folder management: add folder, remove folder with
+   confirmation, show configured folders, and run `Index Now`.
+7. Port or mirror the macOS indexing behavior for subtitle files, playable
+   videos, cue groups, search projection, and indexed Library rows.
+8. Hydrate the left Library from the persisted indexed playable-video model.
+   The Windows UI should not synthesize temporary grouping rules.
+9. Implement the right Search panel against the indexed database, including
+   grouped result presentation and selection state.
+10. Connect Search result selection to playback intent resolution: identify the
+    matching video, source subtitle file, and selected cue group's `start_ms`.
+11. Bind the WinUI playback surface to the native Windows playback backend so
+    playback happens inside the app instead of the standalone lab window.
+12. Implement open-or-seek behavior: open the matching video when needed, or
+    seek within the current video when practical, then start playback at the
+    selected cue timestamp.
+13. Pass the selected external subtitle file to the native backend and verify
+    `libass` overlay inside the app surface.
+14. Surface the selected decode path, hardware/software fallback, and playback
+    failure report in developer-visible UI or logs.
+15. Keep the Shiori right-side mode button present as `Shiori`; the initial
+    panel may be empty until durable Shiori actions are wired.
+16. Run a bounded end-to-end validation with local media: add a folder, index,
+    populate Library, search subtitles, click a result, play in-app, seek to the
+    cue timestamp, render subtitles, and confirm the playback report.
 
 ## W0 Testing Boundaries
 
