@@ -139,7 +139,7 @@ struct SearchView: View {
             Spacer()
         }
         .padding(.leading, 12)
-        .padding(.trailing, 14)
+        .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
         .frame(height: 36)
     }
 
@@ -172,6 +172,7 @@ struct SearchView: View {
                 }
                 .padding(.top, 4)
                 .padding(.bottom, 8)
+                .padding(.trailing, 16) // ScrollView scrollbar width reserve
             }
         }
     }
@@ -405,6 +406,7 @@ struct SearchView: View {
             }
             .padding(.top, 4)
             .padding(.bottom, 8)
+            .padding(.trailing, 16) // ScrollView scrollbar width reserve
         }
     }
 
@@ -444,6 +446,7 @@ struct SearchView: View {
             }
             .padding(.top, 4)
             .padding(.bottom, 8)
+            .padding(.trailing, 16) // ScrollView scrollbar width reserve
         }
     }
 
@@ -739,38 +742,48 @@ private struct SearchField: View {
     @Binding var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.secondary)
+        ZStack {
+            RoundedRectangle(cornerRadius: 9)
+                .fill(isFocused ? Color.accentColor.opacity(0.18) : Color.clear)
 
-            SearchTextView(
-                text: Binding(
-                    get: { text },
-                    set: { text = $0 }
-                ),
-                placeholder: "Search subtitles",
-                isFocused: $isFocused
-            )
-            .frame(height: 22)
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
 
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                SearchTextView(
+                    text: Binding(
+                        get: { text },
+                        set: { text = $0 }
+                    ),
+                    placeholder: "Search subtitles",
+                    isFocused: $isFocused
+                )
+                .frame(height: 22)
+
+                if !text.isEmpty {
+                    Button {
+                        text = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 36)
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isFocused ? Color(nsColor: .separatorColor).opacity(0.8) : Color.clear, lineWidth: isFocused ? 4 : 0)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color(nsColor: .textBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(
+                        isFocused ? Color.accentColor : Color.primary.opacity(0.08),
+                        lineWidth: isFocused ? 1.5 : 1
+                    )
+            }
+            .padding(3)
         }
     }
 }
@@ -831,6 +844,13 @@ private struct LibraryFolderHeader: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 14, height: 14, alignment: .center)
+                .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                .animation(.easeInOut(duration: 0.16), value: isCollapsed)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(folderTitle)
                     .font(.system(size: SearchTypography.bodySize, weight: .semibold))
@@ -844,13 +864,6 @@ private struct LibraryFolderHeader: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 14, height: 14, alignment: .center)
-                .rotationEffect(.degrees(isCollapsed ? 0 : 90))
-                .animation(.easeInOut(duration: 0.16), value: isCollapsed)
         }
         .padding(.horizontal, LibraryLayout.folderRowInnerHorizontalPadding)
         .padding(.vertical, LibraryLayout.folderRowVerticalPadding)
@@ -1185,7 +1198,7 @@ private struct SearchResultGroupRail: View {
                         )
                 }
 
-                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                Image(systemName: "chevron.right")
                     .font(.system(size: SearchLayout.groupRailChevronSize, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(
@@ -1193,6 +1206,8 @@ private struct SearchResultGroupRail: View {
                         height: SearchLayout.groupRailChevronSize,
                         alignment: .center
                     )
+                    .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                    .animation(.easeInOut(duration: 0.16), value: isCollapsed)
                     .listRowAction(onToggle)
                     .accessibilityLabel(isCollapsed ? "Expand group" : "Collapse group")
                 .focusable(false)

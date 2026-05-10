@@ -293,9 +293,13 @@ When implemented, Library should support:
   text sorts like `a-z` and numeric filename runs sort naturally.
 - Display each folder as a two-line row: the folder display name on the first
   line and an episode-count subtitle on the second line, with a single
-  disclosure chevron on the right that rotates between `0°` (collapsed) and
+  disclosure chevron on the left that rotates between `0°` (collapsed) and
   `90°` (expanded) over `160ms` with an ease curve when toggled. The same
-  chevron animation is shared with the right-sidebar group disclosure rail.
+  left-side chevron position and rotation animation are shared with the
+  right-sidebar group disclosure rail; the unified left chevron expresses
+  that both sidebars use the same disclosure language even though Library
+  drives top-down navigation and the search panel drives bottom-up
+  keyword discovery.
 - Read `N episodes` as the folder subtitle when no Library-launched playback is
   active for any video in this folder, and read `N episodes · Playing M` when
   Library-launched playback is active for a video in this folder, where `M` is

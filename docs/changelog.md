@@ -25,6 +25,25 @@ This changelog does not replace Git history. Git records concrete file changes. 
   follows the parent row state. Disclosure chevrons in the right-sidebar
   group rail and the Library folder header are unified to a single-icon
   rotation animation (`0°↔90°` over `160ms`).
+- Moved the Library folder disclosure chevron to the left of the folder
+  row to match the right-sidebar group disclosure rail. The shared
+  left-side chevron position expresses a unified disclosure language
+  across both sidebars even though Library drives top-down navigation
+  and the search panel drives bottom-up keyword discovery.
+- Redesigned the Search field to match the design spec: a `6pt` rounded
+  pill with a `1pt` separator border by default; on focus a `1.5pt`
+  accent inner stroke plus a `3pt` accent outer ring at `18%` opacity. A
+  constant `3pt` outer padding prevents layout jitter when focus toggles.
+  Internal padding is `8pt` horizontal and `6pt` vertical, with `6pt`
+  gap between the leading magnifying glass, input, and trailing clear
+  glyph (both `13pt`).
+- Reserved scrollbar position uniformly across both sidebars. The
+  Library list and the right-sidebar Search/Shiori lists each apply a
+  `16pt` trailing inset to their scrollable container, and each pane
+  header uses a matching `28pt` total trailing padding (`12pt` content
+  margin plus the `16pt` reserve) so list rows align with their
+  surrounding header chrome and visual left/right margins remain equal
+  when the scrollbar appears.
 - Accepted the revised Library row direction: Library folder rows drop the
   leading first-letter avatar, use a two-line layout with an
   `N episodes`/`N episodes · Playing M` subtitle, and toggle expand or collapse

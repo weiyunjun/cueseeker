@@ -146,11 +146,13 @@ Accepted first Library panel direction:
 - Folder rows must not display a leading first-letter or first-character avatar
   block. The folder display name is the leftmost element, hugging the panel's
   normal left padding.
-- A single chevron on the right of the folder row indicates expand or
+- A single chevron on the left of the folder row indicates expand or
   collapse state. The chevron rotates between `0°` (collapsed) and `90°`
   (expanded) over `160ms` with an ease curve when toggled. This animation
-  is shared with the right-sidebar group disclosure rail so the two
-  sidebars use one disclosure language.
+  and left-side position are shared with the right-sidebar group
+  disclosure rail; the unified left chevron expresses that both sidebars
+  use the same disclosure language even though Library drives top-down
+  navigation and the search panel drives bottom-up keyword discovery.
   The full folder row is the click target that toggles expand or collapse.
 - Expanded folders show a numbered button grid using each video's one-based
   natural-sort sibling rank. The grid does not display file names, durations,
@@ -209,7 +211,16 @@ Accepted player-first Search presentation:
 
 Accepted M1 search presentation:
 
-- The search field is a custom `NSTextView` wrapper (`SearchTextView`) allowing a 36pt high field, a 4pt gray focus outline, zero baseline jitter, a leading magnifying-glass icon, and an inline clear button.
+- The search field is a custom `NSTextView` wrapper (`SearchTextView`)
+  allowing zero baseline jitter, a leading magnifying-glass icon, and an
+  inline clear button. The field uses a `6pt` corner radius pill with a
+  `1pt` separator border by default. On focus it switches to a `1.5pt`
+  accent-color stroke plus a `3pt` accent-color outer ring at `18%`
+  opacity for the focus indicator. The pill maintains a constant `3pt`
+  outer padding so the focused outer ring does not introduce layout
+  jitter. Internal padding is `8pt` horizontal and `6pt` vertical, with
+  `6pt` gap between the search glyph, input, and clear glyph; both
+  glyphs render at `13pt`.
 - The area below the search field shows muted result-count text for the current
   query, such as `Found 42 results`.
 - During grouped lazy-loading validation, the result-count row may temporarily

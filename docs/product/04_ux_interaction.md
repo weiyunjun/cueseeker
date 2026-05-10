@@ -192,6 +192,15 @@ Responsiveness boundaries:
   interaction.
 - Search field focus is Search Panel interaction state. Changing focus should
   not invalidate Library content or playback content.
+- Side-panel scrollable lists must reserve room for the macOS scrollbar
+  on the trailing edge so that list content keeps equal visual left and
+  right margins when the scrollbar appears. The reservation rule is
+  applied uniformly to the Library list and to the right-sidebar Search
+  and Shiori result lists: each scrollable container uses an additional
+  `16pt` trailing inset on top of its own row padding, and each pane's
+  header uses a matching `28pt` total trailing padding (`12pt` content
+  margin plus the same `16pt` reserve) so headers align with the list
+  rows below them.
 - The visible playback clock used by SwiftUI controls may update at a lower
   frequency than the native video playback clock. This must not affect native
   video playback smoothness or seek accuracy.
@@ -238,8 +247,11 @@ When the user selects a result:
 ## 6. Visual Feedback and Hover
 
 - **Titlebar Buttons**: Toolbar toggle buttons use a subtle gray background on hover to indicate interactivity.
-- **Search Field**: The focused Search field uses a gray outline rather than the
-  system accent color.
+- **Search Field**: The Search field is a `6pt` rounded pill with a
+  `1pt` separator border by default. On focus it shows a `1.5pt` accent
+  inner stroke plus a `3pt` accent outer ring at `18%` opacity; a
+  constant `3pt` outer padding prevents layout jitter on focus state
+  changes.
 - **Search Results**: Interactive result rows emphasize the selection
   state over hover. The selected background uses the macOS system accent
   color and aligns with the group disclosure rail's left edge. Result rows
@@ -374,10 +386,11 @@ Library behavior:
 - Folder rows must not display a leading first-letter or first-character avatar
   block.
 - The full folder row should be the click target that toggles expand or
-  collapse. The chevron is a visual indicator only and rotates between
-  `0°` (collapsed) and `90°` (expanded) over `160ms` with an ease curve
-  when toggled. The same chevron animation is shared with the
-  right-sidebar group disclosure rail.
+  collapse. The chevron sits on the left of the folder row as a visual
+  indicator and rotates between `0°` (collapsed) and `90°` (expanded) over
+  `160ms` with an ease curve when toggled. The same chevron animation and
+  left-side position are shared with the right-sidebar group disclosure
+  rail.
 - Videos inside a folder should be sorted with the same Finder-like natural
   ordering used to derive the row rank.
 - Expanded folders should show a numbered episode-button grid where each
