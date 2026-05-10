@@ -857,8 +857,7 @@ private struct LibraryFolderHeader: View {
                 Text(folderTitle)
                     .font(.system(size: SearchTypography.bodySize, weight: .semibold))
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(subtitleText)
                     .font(.system(size: SearchTypography.detailSize))
@@ -937,7 +936,7 @@ private struct LibraryEpisodeButton: View {
             .font(.system(size: SearchTypography.bodySize, weight: .medium))
             .monospacedDigit()
             .foregroundStyle(textColor)
-            .frame(maxWidth: .infinity, minHeight: LibraryLayout.episodeButtonHeight)
+            .frame(width: LibraryLayout.episodeButtonMinimumWidth, height: LibraryLayout.episodeButtonHeight)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(backgroundColor)
@@ -973,8 +972,8 @@ private enum LibraryLayout {
     static let episodeButtonHeight: CGFloat = 36
     static let episodeGridHorizontalSpacing: CGFloat = 8
     static let episodeGridVerticalSpacing: CGFloat = 8
-    static let episodeGridLeadingPadding: CGFloat = 12
-    static let episodeGridTrailingPadding: CGFloat = 12
+    static let episodeGridLeadingPadding: CGFloat = 32
+    static let episodeGridTrailingPadding: CGFloat = 32
     static let episodeGridTopPadding: CGFloat = 6
     static let episodeGridBottomPadding: CGFloat = 10
 }
