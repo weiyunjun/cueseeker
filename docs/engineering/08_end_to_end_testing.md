@@ -305,6 +305,7 @@ Validate the first shared-core migration slice without switching the macOS
 production path. This test confirms that Rust shared-core parsing and matching
 produce the same fixture results as the current macOS Swift implementation for:
 
+- Recursive subtitle folder scanning.
 - Subtitle-to-video matching.
 - SRT parsing.
 - ASS parsing and exact-time grouping.
@@ -339,6 +340,8 @@ Failure examples:
 - Rust parser output differs from the `.expected.tsv` rows.
 - Swift fixture tests fail, which means the shared fixture no longer represents
   current macOS behavior.
+- Scanner output differs from `scanning/expected-subtitles.txt` or
+  `scanning/expected-srt.txt`.
 - Video matching returns a path different from `video-matching/cases.tsv`.
 
 ### Optional macOS App Regression Smoke

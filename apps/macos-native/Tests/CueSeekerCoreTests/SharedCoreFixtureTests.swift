@@ -61,6 +61,51 @@ func sharedVideoMatchingFixtureMatchesCurrentMacOSMatcher() throws {
     }
 }
 
+@Test
+func sharedSubtitleScanningFixtureMatchesCurrentMacOSScanner() throws {
+    let root = try sharedFixtureRoot()
+    let scanningRoot = root.appendingPathComponent("scanning")
+    let scanner = SubtitleFileScanner()
+    let scanRoot = scanningRoot.appendingPathComponent("library")
+
+    #expect(
+        scanner.scanSubtitleFiles(in: scanRoot).map { relativePath(from: scanningRoot, to: $0) }
+            == (try expectedRows(at: root.appendingPathComponent("scanning/expected-subtitles.txt")))
+    )
+    #expect(
+        scanner.scanSRTFiles(in: scanRoot).map { relativePath(from: scanningRoot, to: $0) }
+            == (try expectedRows(at: root.appendingPathComponent("scanning/expected-srt.txt")))
+    )
+}
+
+@Test
+func sharedSubtitleScannerSkipsSymlinkDirectories() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerScannerContractTests-\(UUID().uuidString)")
+    let real = root.appendingPathComponent("Real")
+    let linked = root.appendingPathComponent("Linked")
+
+    try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+    try "subtitle".write(
+        to: real.appendingPathComponent("LinkedOnly.srt"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: real)
+
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let scanner = SubtitleFileScanner()
+    let results = scanner.scanSubtitleFiles(in: root)
+
+    #expect(
+        results.map(\.standardizedFileURL)
+            == [real.appendingPathComponent("LinkedOnly.srt").standardizedFileURL]
+    )
+}
+
 private func sharedFixtureRoot() throws -> URL {
     var cursor = URL(fileURLWithPath: #filePath)
     while cursor.path != "/" {

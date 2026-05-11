@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use cueseeker_shared_core::VideoMatcher;
 use cueseeker_shared_core::subtitles::{SubtitleCueGroup, SubtitleFormat, ass, srt};
+use cueseeker_shared_core::{SubtitleFileScanner, VideoMatcher};
 
 #[test]
 fn srt_parser_matches_shared_fixture() {
@@ -54,6 +54,23 @@ fn video_matching_matches_shared_fixture() {
     }
 }
 
+#[test]
+fn subtitle_scanner_matches_shared_fixture() {
+    let root = fixture_root();
+    let scanning_root = root.join("scanning");
+    let scanner = SubtitleFileScanner::default();
+    let scan_root = scanning_root.join("library");
+
+    assert_eq!(
+        relative_paths(&scanning_root, scanner.scan_subtitle_files(&scan_root)),
+        expected_rows(&root.join("scanning/expected-subtitles.txt"))
+    );
+    assert_eq!(
+        relative_paths(&scanning_root, scanner.scan_srt_files(&scan_root)),
+        expected_rows(&root.join("scanning/expected-srt.txt"))
+    );
+}
+
 fn fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -70,6 +87,10 @@ fn expected_rows(path: &Path) -> Vec<String> {
         })
         .map(ToOwned::to_owned)
         .collect()
+}
+
+fn relative_paths(root: &Path, paths: Vec<PathBuf>) -> Vec<String> {
+    paths.iter().map(|path| relative_path(root, path)).collect()
 }
 
 fn cue_group_rows(groups: &[SubtitleCueGroup]) -> Vec<String> {

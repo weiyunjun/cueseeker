@@ -9,6 +9,7 @@ shared-core tests should read the same input files and expected outputs.
 Current coverage:
 
 - Subtitle-to-video matching by same-directory basename.
+- Recursive subtitle folder scanning.
 - Simple language-suffix subtitle matching.
 - SRT parsing, malformed block skipping, missing sequence numbers, multi-line
   text, and CJK text.
@@ -23,3 +24,5 @@ line event_index format style layer start_time end_time start_ms end_ms content 
 ```
 
 Empty fields represent `nil`/`None`. Text uses `\n`, `\t`, and `\\` escaping.
+Expected path output files use one relative path per row. `NONE` in
+video-matching cases represents an expected no-match result.
