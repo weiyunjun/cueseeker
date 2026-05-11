@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted Search-result sequence playback for the native workbench: Search now
+  commits only on Return with Escape restoring uncommitted edits, clicked
+  results play as subtitle-bounded moments, one-second black-and-silent
+  transitions advance through the committed result sequence, same-subtitle-file
+  overlap continuity skips transitions only for `0ms <= b - c <= 1000ms`, and
+  committing a new query during playback invalidates later automatic
+  advancement after the current result fades out.
 - Added persistent Search timing diagnostics for development builds: every
   Search request records query, database, state assignment, grouping, status,
   first visible result-row timing, and internal `searchPage` database phases

@@ -128,6 +128,10 @@ Requirements:
   continue revealing matches while avoiding an unbounded first render.
 - The Search view should show the total matching cue-group count for the current
   query near the search field.
+- The Search field has a draft value and a committed query value. Editing the
+  draft alone must not run Search or mutate the result area. Pressing Return
+  commits the draft and runs Search. Pressing Escape restores the draft to the
+  current committed query.
 - Search results must be scoped to the currently selected subtitle folders.
 - Stale index rows outside the currently selected folders must not appear in
   Search.
@@ -253,7 +257,11 @@ For grouped subtitle results:
 - Do not impose a fixed product-level line count cap on displayed cue lines.
 
 Clicking a Result row must open or update the central Playback Area and trigger
-playback for the matching video at the subtitle start timestamp.
+playback for the matching video at the subtitle start timestamp. The clicked row
+starts a committed-result playback sequence that plays each selected cue group
+through its end timestamp, uses the documented Search-result transition rules,
+and advances selection through the remaining committed results until the
+sequence ends or is invalidated by a later committed query.
 
 The Playback Area displays additional context:
 

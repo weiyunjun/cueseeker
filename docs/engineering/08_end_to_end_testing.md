@@ -174,10 +174,11 @@ queued UI updates and log lines can settle.
 
 1. Start playback from Library.
 2. Let playback run idle for 30 seconds.
-3. Focus Search and type a short query that returns results.
+3. Focus Search, type a short query that returns results, and press Return.
 4. Verify Search results are expanded by default for the new query.
 5. Click `Collapse All` in Search and verify all current result groups collapse.
-6. Modify the query and verify the new Search results are expanded by default.
+6. Modify the query, press Return, and verify the new Search results are
+   expanded by default.
 7. Expand and collapse one Library folder.
 8. Click an episode button inside an expanded Library folder.
 9. Click a Search result for the currently indexed Library.
@@ -233,9 +234,12 @@ these criteria:
   but `UI.LibraryPresentationSnapshot.rebuilt`,
   `UI.SearchPresentation.rebuilt`, and `UI.PlaybackRenderContainer.created`
   must not increase.
-- During Search query input, Search counters may increase, but Library
-  presentation snapshot rebuilds must remain `0`, and the playback render
-  container must not be recreated.
+- During Search query input before Return, Search counters must not increase,
+  Library presentation snapshot rebuilds must remain `0`, and the playback
+  render container must not be recreated.
+- After Return commits a Search query, Search counters may increase, but
+  Library presentation snapshot rebuilds must remain `0`, and the playback
+  render container must not be recreated.
 - New Search results must be expanded by default. The Search panel may expose a
   fixed `Collapse All` command for the current result set, but must not retain a
   global collapsed mode across a new query.
@@ -296,3 +300,148 @@ After the invalidation-domain work is accepted:
 - Remove or gate any temporary probes added for the investigation.
 - Update this document if the accepted event names or pass/fail thresholds
   change.
+
+## 4. Search Result Sequence Playback
+
+### Goal
+
+Validate the committed Search interaction and Search-result sequence playback
+flow.
+
+This test validates that:
+
+- Search runs only when Return commits the Search field draft.
+- Escape restores uncommitted Search field edits to the current committed query.
+- Clicking a Search result plays that result as a bounded subtitle review
+  moment.
+- One-second fade transitions continue the underlying video while picture fades
+  to black and audio fades to silence.
+- Same-subtitle-filename overlap continuity skips the fade only when the
+  adjacent windows `[a,b]` and `[c,d]` satisfy `0ms <= b - c <= 1000ms`.
+- Committing a new query during active sequence playback invalidates automatic
+  advancement after the current result fades out.
+
+### Required Instrumentation
+
+No diagnostic flag is required for the first acceptance run. The test is
+primarily visual and auditory.
+
+If runtime logs are needed while debugging, use the default performance log
+stream and launch with:
+
+```bash
+CUESEEKER_PERF_UI=1 CUESEEKER_PERF_PLAYBACK=1
+```
+
+Normal runs without diagnostic flags should not emit `com.cueseeker.perf` logs.
+
+### Launch
+
+Terminal A, optional log stream:
+
+```bash
+/usr/bin/log stream --style compact --predicate 'subsystem == "com.cueseeker.perf"'
+```
+
+Terminal B, normal launch:
+
+```bash
+cd /Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native
+swift run CueSeeker
+```
+
+Diagnostic launch, only if requested:
+
+```bash
+cd /Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native
+CUESEEKER_PERF_UI=1 CUESEEKER_PERF_PLAYBACK=1 swift run CueSeeker
+```
+
+### Preconditions
+
+Use an indexed Library with playable local videos and at least one query that
+returns multiple results in the same subtitle file.
+
+For full coverage, choose or create result pairs with:
+
+- A normal non-continuous pair where the next result does not satisfy
+  `0ms <= b - c <= 1000ms`.
+- A same-subtitle-filename pair satisfying `0ms <= b - c <= 1000ms`.
+- A query whose last result is near the end of its video, when available.
+
+The user's personal media library is acceptable for this manual end-to-end
+check. Automated tests must still use fixtures.
+
+### Actions
+
+Perform these actions in order.
+
+1. Focus Search and type a query. Verify that results do not change before
+   Return.
+2. Press Escape. Verify the field restores to the current committed query.
+3. Type the query again and press Return. Verify results appear and the summary
+   reflects the committed query.
+4. Click a result with a non-continuous next result. Verify playback starts at
+   the clicked result, the row is selected, and playback does not continue past
+   the selected cue except for the one-second fade.
+5. Watch the transition. Verify the video continues underneath while the picture
+   fades to black and audio fades to silence, then the next result becomes
+   selected and starts playback.
+6. Click or wait into a same-subtitle-filename pair satisfying
+   `0ms <= b - c <= 1000ms`. Verify there is no black fade, playback remains
+   continuous, and selection switches when playback reaches `c`.
+7. Start another sequence, edit the Search field, and do not press Return.
+   Verify the current playback sequence continues normally.
+8. While a result is playing, commit a different query with Return. Verify the
+   current result finishes and fades to black, then playback stays black and
+   silent instead of advancing.
+9. If a near-end-of-video result is available, play it and verify the
+   one-second fade completes even when less than one second of media remains
+   after the cue end.
+
+### Evidence to Paste Back
+
+Paste a short note with:
+
+- The committed query used for the sequence.
+- Whether Return-only Search and Escape restore passed.
+- The observed non-continuous transition behavior.
+- The observed same-subtitle-filename continuity behavior, including the two
+  timing windows when practical.
+- Whether committing a new query stopped advancement after fade-out.
+- Any visible or audible mismatch, delayed seek, missing black frame, selection
+  mismatch, or unexpected continuation.
+
+If diagnostic logs were requested, paste the log block from app launch through
+two seconds after the last tested action. If no matching output appears during a
+normal run, state `no matching perf output`.
+
+### Acceptance Criteria
+
+The Search result sequence playback test passes only if:
+
+- Typing without Return does not change results, counts, selection, or active
+  sequence playback.
+- Escape restores uncommitted edits to the current committed query.
+- Return commits the draft and replaces the Search results.
+- The clicked result starts at its start timestamp and remains selected until
+  sequence logic advances it.
+- Non-continuous adjacent results fade picture and audio out over one second
+  before the next result opens or seeks.
+- The fade completes even when the current media has less than one second
+  remaining after the cue end.
+- Same-subtitle-filename adjacent results skip the fade only for
+  `0ms <= b - c <= 1000ms`, and selection switches at `c`.
+- Committing a new query during playback does not interrupt the current result,
+  but prevents automatic advancement after that result fades out.
+
+### Failure Handling
+
+If the test fails, identify whether the failure is Search commit state,
+sequence invalidation, fade execution, same-file continuity, or row selection.
+Do not broaden playback refactors until the failing responsibility is isolated.
+
+### Cleanup
+
+Keep any added diagnostic probes default-off. Remove temporary probes once the
+acceptance failure they were added for is understood.

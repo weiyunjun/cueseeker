@@ -13,6 +13,8 @@ Click subtitle search result
 Open or update the central Playback Area
 Open matching local video inside the app
 Seek to subtitle start timestamp
+Play the selected subtitle result through its end timestamp
+Fade picture and sound out for one second before advancing when needed
 Play or pause as needed
 ```
 
@@ -41,6 +43,13 @@ Required:
 - Pause playback.
 - Toggle play/pause from the video surface.
 - Seek when a different subtitle result in the same video is selected.
+- Play Search-result selections as subtitle-bounded review moments rather than
+  unbounded video playback.
+- Continue the underlying video during one-second Search-result transitions
+  while the picture fades to black and audio fades to silence.
+- Automatically advance from a clicked Search result through the remaining
+  committed Search result sequence unless the sequence is invalidated by a later
+  committed query.
 - Continue playback when the right-side Search Panel is collapsed.
 - Pause playback when the user leaves the CueSeeker workbench for another
   documented top-level section.
@@ -166,6 +175,17 @@ Current implementation:
   native failure and may persist the failure reason for that media file.
 - Selecting a result in the same video should prefer seek behavior when
   practical.
+- Search-result sequence continuity is based on adjacent results with the same
+  subtitle filename. For two adjacent timing windows `[a,b]` and `[c,d]`, no
+  transition is used when `0ms <= b - c <= 1000ms`; playback continues and the
+  selected result changes when the player reaches `c`. All other adjacent
+  Search-result transitions use the one-second black-and-silent fade before the
+  next result opens or seeks.
+- Search-result sequence invalidation is tied to committed Search queries. If
+  the Search field draft changes without Return, the current sequence remains
+  valid. If Return commits a new query while a result is playing, the current
+  cue finishes normally and fades out, then playback remains black and silent
+  instead of advancing.
 - The previous `wid` style embedding and external player-window approach are not
   acceptable as the primary playback implementation.
 
@@ -246,6 +266,9 @@ Grouped search result behavior:
   matched source subtitle file.
 - The playback target is the cue group start time even when the displayed search
   preview contains several ASS lines.
+- During Search-result sequence playback, ASS subtitle preparation should remain
+  tied to the currently selected result and may prepare a window around that
+  result without blocking the transition scheduler.
 - If the source subtitle file changes, reindexing should rebuild the cue groups
   and refresh the subtitle-to-video mapping before later search results are
   used for playback.

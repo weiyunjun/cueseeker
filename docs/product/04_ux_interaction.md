@@ -37,7 +37,7 @@ On first launch, if no folders are configured:
 
 ## 3. Search Interaction
 
-Search should feel immediate.
+Search should feel deliberate once a review sequence is active.
 
 Expected behavior:
 
@@ -52,13 +52,24 @@ Expected behavior:
 - Collapsing the Search Panel should preserve the current query, result state,
   selected result, and playback context.
 - Collapsing the Search Panel must not pause playback.
-- Typing updates results after a short debounce.
+- Typing edits the Search field draft only. Pressing Return commits the draft
+  query, runs Search, and replaces the Search result area. Pressing Escape while
+  the Search field contains uncommitted edits restores the draft to the current
+  committed query.
 - Empty search shows an empty or guidance state.
 - Invalid search syntax should not crash the app.
 - Search results should not flicker unnecessarily.
 - Search should show a muted total result count below the search field when a
   query has results.
-- Repeating the same query should not trigger expensive work without reason.
+- Repeating the same committed query should not trigger expensive work without
+  reason.
+- Changing the Search field draft must not change the visible Search results,
+  result groups, total count, selected result, or active Search playback
+  sequence until the draft is committed with Return.
+- If a committed query changes while a Search result sequence is playing, the
+  currently playing subtitle result continues through its normal end and fade
+  handling. After the fade completes, the old sequence is invalidated and must
+  not automatically advance into either the old or new result set.
 
 Grouped result behavior:
 
@@ -237,6 +248,27 @@ When the user selects a result:
   the playback target and begin asynchronous source ASS rendering preparation.
 - Result selection and Playback Area updates should remain responsive even when
   source ASS rendering is slow or unavailable.
+- Selecting a Search result creates a playback sequence from the committed
+  Search results as they were visible for that committed query. The clicked row
+  is the first sequence item, and the selected row advances automatically as the
+  sequence advances.
+- Search result playback normally plays only the selected cue group, from its
+  start timestamp through its end timestamp. At the end timestamp, playback
+  enters a one-second transition where the current video continues underneath
+  while the picture fades to full black and audio fades to silence.
+- After the one-second transition completes, playback automatically opens or
+  seeks to the next Search result in the sequence and selects that row. After
+  the final Search result completes its one-second transition, playback remains
+  on a black, silent frame.
+- For adjacent Search results from the same subtitle filename, with timing
+  windows `[a,b]` and `[c,d]`, no transition is scheduled when
+  `0ms <= b - c <= 1000ms`. In that case playback continues through the overlap
+  and the selected row switches when playback reaches `c`. Search result
+  adjacency is based on the committed result order, and the continuity test is
+  based on subtitle filename rather than matched video path.
+- If a video ends less than one second after a Search result's end timestamp,
+  the one-second fade still completes; the Playback Area may hold the last
+  available video frame under the black overlay while the transition finishes.
 - The Playback Area should expose `Video Folder` and `Subtitle Folder`
   buttons below the video instead of read-only path metadata.
 - Clicking `Video Folder` should open Finder to the matched video's containing
