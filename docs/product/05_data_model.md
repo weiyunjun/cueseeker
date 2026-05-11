@@ -369,7 +369,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `10`.
+- Schema version: `11`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -389,6 +389,10 @@ Current native schema:
 - Version 10 adds persisted Shiori subtitle-cue records keyed by subtitle path
   and cue time range. It preserves Shiori rows when indexed folder content is
   removed or rebuilt.
+- Version 11 adds a denormalized `line_count` column to `subtitle_cue_groups`
+  so Search can skip the per-candidate `subtitle_cue_lines` lookup for
+  single-line groups. The column is derived index data: it is backfilled from
+  `subtitle_cue_lines` counts during migration and written by indexing.
 
 ## 15. Flutter Data Compatibility
 

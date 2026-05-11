@@ -739,6 +739,69 @@ func migrationInvalidatesOldASSRenderSegmentAlgorithmVersion() throws {
 }
 
 @Test
+func migrationToSchemaVersion11BackfillsCueGroupLineCount() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try createVersionTenDatabaseWithMixedCueGroupLineCounts(at: databaseURL)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+
+    let lineCountByGroupID = try readCueGroupLineCounts(at: databaseURL)
+    #expect(lineCountByGroupID[1] == 1)
+    #expect(lineCountByGroupID[2] == 2)
+    #expect(lineCountByGroupID[3] == 3)
+}
+
+@Test
+func insertingCueGroupsRecordsTheirLineCount() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Mixed.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Mixed.mkv")
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [
+            testCueGroup(
+                startMilliseconds: 0,
+                endMilliseconds: 1_000,
+                content: "single",
+                eventIndex: 0
+            ),
+            SubtitleCueGroup(
+                sequenceNumber: nil,
+                startTimecode: "1000",
+                endTimecode: "2000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                searchContent: "top\nbottom",
+                cueLines: [
+                    testCueLine(eventIndex: 1, startMilliseconds: 1_000, endMilliseconds: 2_000, content: "top", displayOrder: 0),
+                    testCueLine(eventIndex: 2, startMilliseconds: 1_000, endMilliseconds: 2_000, content: "bottom", displayOrder: 1)
+                ]
+            )
+        ]
+    )
+
+    let counts = try readCueGroupLineCounts(at: databaseURL)
+    #expect(counts.values.sorted() == [1, 2])
+}
+
+@Test
 func replacingEntriesRemovesStaleFTSRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -1894,6 +1957,127 @@ private func createVersionFourDatabaseWithASSRenderSegments(at url: URL, subtitl
         PRAGMA user_version = 4;
         """
     )
+}
+
+private func createVersionTenDatabaseWithMixedCueGroupLineCounts(at url: URL) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(
+        database,
+        """
+        CREATE TABLE subtitle_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_path TEXT NOT NULL UNIQUE,
+            format TEXT NOT NULL,
+            file_size INTEGER,
+            modified_at REAL,
+            indexed_at TEXT NOT NULL
+        );
+
+        CREATE TABLE subtitle_cue_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER NOT NULL,
+            subtitle_path TEXT NOT NULL,
+            seq INTEGER,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            search_content TEXT NOT NULL
+        );
+
+        CREATE TABLE subtitle_cue_lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cue_group_id INTEGER NOT NULL,
+            event_index INTEGER NOT NULL,
+            source_format TEXT NOT NULL,
+            source_style TEXT,
+            source_layer INTEGER,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            display_x REAL,
+            display_y REAL,
+            display_order INTEGER NOT NULL
+        );
+
+        INSERT INTO subtitle_files(subtitle_path, format, file_size, modified_at, indexed_at)
+        VALUES ('/Media/Sample.ass', 'ass', 1024, 0, '2026-05-04T00:00:00Z');
+
+        INSERT INTO subtitle_cue_groups(id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content)
+        VALUES (1, 1, '/Media/Sample.ass', NULL, '0', '1000', 0, 1000, 'single line');
+
+        INSERT INTO subtitle_cue_groups(id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content)
+        VALUES (2, 1, '/Media/Sample.ass', NULL, '1000', '2000', 1000, 2000, 'left\nright');
+
+        INSERT INTO subtitle_cue_groups(id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content)
+        VALUES (3, 1, '/Media/Sample.ass', NULL, '2000', '3000', 2000, 3000, 'top\nmid\nbot');
+
+        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
+        VALUES (1, 0, 'ass', '0', '1000', 0, 1000, 'single line', 0);
+
+        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
+        VALUES (2, 0, 'ass', '1000', '2000', 1000, 2000, 'left', 0);
+
+        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
+        VALUES (2, 1, 'ass', '1000', '2000', 1000, 2000, 'right', 1);
+
+        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
+        VALUES (3, 0, 'ass', '2000', '3000', 2000, 3000, 'top', 0);
+
+        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
+        VALUES (3, 1, 'ass', '2000', '3000', 2000, 3000, 'mid', 1);
+
+        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
+        VALUES (3, 2, 'ass', '2000', '3000', 2000, 3000, 'bot', 2);
+
+        PRAGMA user_version = 10;
+        """
+    )
+}
+
+private func readCueGroupLineCounts(at url: URL) throws -> [Int64: Int] {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(database, "SELECT id, line_count FROM subtitle_cue_groups;", -1, &statement, nil) == SQLITE_OK,
+          let statement
+    else {
+        let message = String(cString: sqlite3_errmsg(database))
+        throw SQLiteFixtureError.executeFailed(message)
+    }
+
+    defer {
+        sqlite3_finalize(statement)
+    }
+
+    var result: [Int64: Int] = [:]
+    while sqlite3_step(statement) == SQLITE_ROW {
+        let id = sqlite3_column_int64(statement, 0)
+        let count = Int(sqlite3_column_int64(statement, 1))
+        result[id] = count
+    }
+    return result
 }
 
 private func executeSQLite(_ database: OpaquePointer?, _ sql: String) throws {

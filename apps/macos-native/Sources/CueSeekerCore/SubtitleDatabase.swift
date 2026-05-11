@@ -181,7 +181,7 @@ public struct ASSFontResourceManifest: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase {
-    public static let currentSchemaVersion: Int = 10
+    public static let currentSchemaVersion: Int = 11
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -259,6 +259,7 @@ public final class SubtitleDatabase {
                 start_ms INTEGER NOT NULL,
                 end_ms INTEGER NOT NULL,
                 search_content TEXT NOT NULL,
+                line_count INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
             );
 
@@ -393,7 +394,36 @@ public final class SubtitleDatabase {
             try rebuildLibraryPresentationSnapshot()
         }
 
+        if previousVersion >= 3 && previousVersion < 11,
+           try !columnExists(table: "subtitle_cue_groups", column: "line_count") {
+            try database.execute(
+                """
+                ALTER TABLE subtitle_cue_groups
+                ADD COLUMN line_count INTEGER NOT NULL DEFAULT 1;
+                """
+            )
+            try database.execute(
+                """
+                UPDATE subtitle_cue_groups
+                SET line_count = MAX(1, (
+                    SELECT COUNT(*) FROM subtitle_cue_lines
+                    WHERE cue_group_id = subtitle_cue_groups.id
+                ));
+                """
+            )
+        }
+
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
+    }
+
+    private func columnExists(table: String, column: String) throws -> Bool {
+        let statement = try database.prepare("PRAGMA table_info(\(table));")
+        while try statement.step() {
+            if statement.stringColumn(1) == column {
+                return true
+            }
+        }
+        return false
     }
 
     public func schemaVersion() throws -> Int {
@@ -884,7 +914,7 @@ public final class SubtitleDatabase {
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                       g.start_ms, g.end_ms, g.search_content
+                       g.start_ms, g.end_ms, g.search_content, g.line_count
                 FROM subtitle_cue_groups_fts f
                 JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
@@ -931,7 +961,8 @@ public final class SubtitleDatabase {
                             videoName: statement.stringColumn(4),
                             startMilliseconds: statement.intColumn(5),
                             endMilliseconds: statement.intColumn(6),
-                            searchContent: statement.stringColumn(7)
+                            searchContent: statement.stringColumn(7),
+                            lineCount: statement.intColumn(8)
                         )
                     )
                 }
@@ -942,12 +973,19 @@ public final class SubtitleDatabase {
 
                 candidateOffset += candidates.count
 
-                let linesByCueGroupID = try cueLines(
-                    forCueGroupIDs: candidates.map(\.cueGroupID)
-                )
+                let multiLineCueGroupIDs = candidates
+                    .filter { $0.lineCount > 1 }
+                    .map(\.cueGroupID)
+                let linesByCueGroupID = try cueLines(forCueGroupIDs: multiLineCueGroupIDs)
                 for candidate in candidates {
-                    let lines = linesByCueGroupID[candidate.cueGroupID] ?? []
-                    if let result = searchResult(for: candidate, lines: lines, matching: plan) {
+                    let lineContents: [String]
+                    if candidate.lineCount > 1 {
+                        let lines = linesByCueGroupID[candidate.cueGroupID] ?? []
+                        lineContents = lines.isEmpty ? [candidate.searchContent] : lines.map(\.content)
+                    } else {
+                        lineContents = [candidate.searchContent]
+                    }
+                    if let result = searchResult(for: candidate, lineContents: lineContents, matching: plan) {
                         results.append(result)
                     }
                 }
@@ -1415,6 +1453,7 @@ public final class SubtitleDatabase {
         let startMilliseconds: Int
         let endMilliseconds: Int
         let searchContent: String
+        let lineCount: Int
     }
 
     private struct CueGroupSelection {
@@ -1438,13 +1477,10 @@ public final class SubtitleDatabase {
 
     private func searchResult(
         for candidate: SearchCandidate,
-        lines cueLines: [SubtitleCueLine],
+        lineContents: [String],
         matching plan: SearchQueryPlan
     ) -> SubtitleSearchResult? {
-        let lineContents = cueLines.map(\.content)
-        let searchableLines = lineContents.isEmpty ? [candidate.searchContent] : lineContents
-
-        guard searchableLines.contains(where: { Self.line($0, matches: plan.lineMatchRule) }) else {
+        guard lineContents.contains(where: { Self.line($0, matches: plan.lineMatchRule) }) else {
             return nil
         }
 
@@ -2018,9 +2054,10 @@ public final class SubtitleDatabase {
                 end_time,
                 start_ms,
                 end_ms,
-                search_content
+                search_content,
+                line_count
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
         )
 
@@ -2036,6 +2073,7 @@ public final class SubtitleDatabase {
         try statement.bind(group.startMilliseconds, at: 6)
         try statement.bind(group.endMilliseconds, at: 7)
         try statement.bind(group.searchContent, at: 8)
+        try statement.bind(max(1, group.cueLines.count), at: 9)
         try statement.run()
 
         return database.lastInsertRowID()
