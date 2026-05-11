@@ -12,6 +12,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private let nativePlayer = SFXNativePlaybackPlayer()
     private var currentRequest: PlaybackRequest?
     private var storedVolume: Double = 100
+    private var outputVolumeMultiplier: Double = 1
     private var storedSpeed: Double = 1.0
     private var subtitlesVisible = true
     private var activeSubtitleSource: PlaybackSubtitleSource?
@@ -32,7 +33,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public override init() {
         super.init()
         nativePlayer.delegate = self
-        nativePlayer.volume = Float(storedVolume / 100)
+        applyNativeVolume()
         nativePlayer.decodeMode = decodeMode.nativeDecodeMode
     }
 
@@ -135,7 +136,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         switch name {
         case "volume":
             storedVolume = min(max(value, 0), 100)
-            nativePlayer.volume = Float(storedVolume / 100)
+            applyNativeVolume()
             delegate?.player(self, didChangeProperty: "volume", value: .double(storedVolume))
         case "speed":
             storedSpeed = min(max(value, 0.5), 2.0)
@@ -167,6 +168,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         } else {
             throw PlaybackError.nativePropertyUnsupported(name: name)
         }
+    }
+
+    public func setOutputVolumeMultiplier(_ multiplier: Double) {
+        outputVolumeMultiplier = min(max(multiplier.isFinite ? multiplier : 1, 0), 1)
+        applyNativeVolume()
     }
 
     @MainActor public func attachActiveRenderView() {
@@ -224,6 +230,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     private func emitPauseState(isPaused: Bool) {
         delegate?.player(self, didChangeProperty: "pause", value: .bool(isPaused))
+    }
+
+    private func applyNativeVolume() {
+        nativePlayer.volume = Float((storedVolume / 100) * outputVolumeMultiplier)
     }
 }
 

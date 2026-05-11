@@ -110,6 +110,14 @@ private struct LibraryPlaybackHistorySnapshot: Sendable {
     let duration: Double?
 }
 
+private struct SearchPlaybackSequence {
+    let id: UUID
+    let committedQuery: String
+    var results: [SubtitleSearchResult]
+    var currentIndex: Int
+    var isInvalidated: Bool
+}
+
 private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
     private let database: SubtitleDatabase?
     private let queue = DispatchQueue(
@@ -230,11 +238,15 @@ final class AppState: ObservableObject {
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 1000
     private static let searchPrefetchThreshold = 10
+    private static let searchResultTransitionMilliseconds = 1_000
+    private static let searchPlaybackPollNanoseconds: UInt64 = 25_000_000
+    private static let searchResultTransitionSteps = 20
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
 
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
-    @Published var searchQuery = ""
+    @Published var searchDraft = ""
+    @Published private(set) var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
     @Published var searchResultTotalCount = 0
@@ -408,6 +420,7 @@ final class AppState: ObservableObject {
     private var libraryTask: Task<Void, Never>?
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var searchPlaybackTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
     private var windowFrameBeforeUserZoom: NSRect?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
@@ -425,6 +438,7 @@ final class AppState: ObservableObject {
         }
     }
     private var loadedGlobalSearchResultCount = 0
+    private var searchPlaybackSequence: SearchPlaybackSequence?
     private var isSearching: Bool {
         if case .searching = searchStatus {
             return true
@@ -833,13 +847,44 @@ final class AppState: ObservableObject {
         }
     }
 
-    func updateSearchQuery(_ query: String) {
+    func updateSearchDraft(_ query: String) {
         UIInvalidationProbe.mark(
             "ACTION UI.SearchQuery.changed",
             details: "length=\(query.count)"
         )
+        searchDraft = query
+    }
+
+    func commitSearchDraft() {
+        let query = searchDraft
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCommittedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard trimmedQuery != trimmedCommittedQuery || searchStatus == .idle else {
+            return
+        }
+
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchQuery.committed",
+            details: "length=\(trimmedQuery.count)"
+        )
+        if searchPlaybackSequence != nil, trimmedQuery != trimmedCommittedQuery {
+            invalidateSearchPlaybackSequenceAfterCurrentResult()
+        }
         searchQuery = query
-        startSearch(query: query, offset: 0, appending: false, debounce: true)
+        startSearch(query: query, offset: 0, appending: false, debounce: false)
+    }
+
+    func restoreSearchDraft() {
+        guard searchDraft != searchQuery else {
+            return
+        }
+
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchQuery.restored",
+            details: "length=\(searchQuery.count)"
+        )
+        searchDraft = searchQuery
     }
 
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
@@ -1245,16 +1290,7 @@ final class AppState: ObservableObject {
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
         )
-        saveCurrentLibraryPlaybackHistory()
-        stopLibraryPlaybackHistoryTracking()
-        activePlaybackSource = .search
-        selectedSearchResult = result
-        selectedShiori = nil
-        selectedLibraryVideo = nil
-        Task { @MainActor in
-            await Task.yield()
-            play(result)
-        }
+        startSearchPlaybackSequence(startingAt: result)
     }
 
     func openLibraryVideo(_ video: LibraryVideo) {
@@ -1308,10 +1344,24 @@ final class AppState: ObservableObject {
     }
 
     func play(_ result: SubtitleSearchResult) {
+        cancelSearchPlaybackSequence(resetTransitionEffects: true)
+        playSearchResult(result, resetsTransitionEffects: true)
+    }
+
+    private func playSearchResult(
+        _ result: SubtitleSearchResult,
+        resetsTransitionEffects: Bool
+    ) {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
         playbackStatus = .opening
+        selectedSearchResult = result
+        selectedShiori = nil
+        selectedLibraryVideo = nil
+        if resetsTransitionEffects {
+            resetSearchPlaybackTransitionEffects()
+        }
         let subtitleCues = playbackSubtitleCues(for: result)
         playbackViewModel?.setSubtitleCues(
             subtitleCues,
@@ -1345,6 +1395,7 @@ final class AppState: ObservableObject {
     }
 
     func play(_ video: LibraryVideo) {
+        cancelSearchPlaybackSequence(resetTransitionEffects: true)
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none
         playbackStatus = .opening
@@ -1392,6 +1443,7 @@ final class AppState: ObservableObject {
     }
 
     func play(_ shiori: Shiori) {
+        cancelSearchPlaybackSequence(resetTransitionEffects: true)
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
@@ -1459,7 +1511,7 @@ final class AppState: ObservableObject {
             resumePlayback()
         case .idle:
             if let selectedSearchResult {
-                play(selectedSearchResult)
+                startSearchPlaybackSequence(startingAt: selectedSearchResult)
             } else if let selectedLibraryVideo {
                 play(selectedLibraryVideo)
             } else if let selectedShiori {
@@ -1474,6 +1526,365 @@ final class AppState: ObservableObject {
         let willPlay = !(playbackViewModel?.isPlaying ?? false)
         togglePlayback()
         playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
+    }
+
+    private func startSearchPlaybackSequence(startingAt result: SubtitleSearchResult) {
+        saveCurrentLibraryPlaybackHistory()
+        stopLibraryPlaybackHistoryTracking()
+        cancelSearchPlaybackSequence(resetTransitionEffects: true)
+
+        let sequenceResults = searchPlaybackResults(startingAt: result)
+        let sequenceID = UUID()
+        searchPlaybackSequence = SearchPlaybackSequence(
+            id: sequenceID,
+            committedQuery: searchQuery,
+            results: sequenceResults,
+            currentIndex: 0,
+            isInvalidated: false
+        )
+        activePlaybackSource = .search
+        selectedSearchResult = result
+        selectedShiori = nil
+        selectedLibraryVideo = nil
+
+        searchPlaybackTask = Task { [weak self] in
+            await self?.runSearchPlaybackSequence(id: sequenceID)
+        }
+    }
+
+    private func searchPlaybackResults(startingAt result: SubtitleSearchResult) -> [SubtitleSearchResult] {
+        let groupedResults = searchResultGroups.flatMap(\.results)
+        let orderedResults = groupedResults.isEmpty ? searchResults : groupedResults
+        let deduplicatedResults = orderedResults.reduce(into: [SubtitleSearchResult]()) { partialResult, candidate in
+            guard !partialResult.contains(where: { $0.entryID == candidate.entryID }) else {
+                return
+            }
+
+            partialResult.append(candidate)
+        }
+
+        guard let index = deduplicatedResults.firstIndex(where: { $0.entryID == result.entryID }) else {
+            return [result]
+        }
+
+        return Array(deduplicatedResults[index...])
+    }
+
+    private func runSearchPlaybackSequence(id: UUID) async {
+        var shouldOpenCurrentResult = true
+
+        while !Task.isCancelled, isActiveSearchPlaybackSequence(id) {
+            guard let sequence = searchPlaybackSequence,
+                  sequence.id == id,
+                  sequence.results.indices.contains(sequence.currentIndex)
+            else {
+                return
+            }
+
+            let currentResult = sequence.results[sequence.currentIndex]
+
+            if shouldOpenCurrentResult {
+                playSearchResult(currentResult, resetsTransitionEffects: true)
+            }
+
+            await loadMoreSearchPlaybackResultsIfNeeded(sequenceID: id)
+
+            guard let refreshedSequence = searchPlaybackSequence,
+                  refreshedSequence.id == id,
+                  refreshedSequence.results.indices.contains(refreshedSequence.currentIndex)
+            else {
+                return
+            }
+
+            let refreshedCurrentResult = refreshedSequence.results[refreshedSequence.currentIndex]
+            let refreshedNextIndex = refreshedSequence.currentIndex + 1
+            let refreshedNextResult = refreshedSequence.results.indices.contains(refreshedNextIndex)
+                ? refreshedSequence.results[refreshedNextIndex]
+                : nil
+
+            if let nextResult = refreshedNextResult,
+               !refreshedSequence.isInvalidated,
+               SearchResultPlaybackSequencer.shouldPlayContinuously(current: refreshedCurrentResult, next: nextResult) {
+                guard await waitUntilPlaybackTime(
+                    milliseconds: nextResult.startMilliseconds,
+                    sequenceID: id,
+                    stopsWhenInvalidated: true
+                ) else {
+                    return
+                }
+
+                if isSearchPlaybackSequenceInvalidated(id) {
+                    guard await waitUntilPlaybackTime(
+                        milliseconds: refreshedCurrentResult.endMilliseconds,
+                        sequenceID: id,
+                        stopsWhenInvalidated: false
+                    ) else {
+                        return
+                    }
+
+                    guard await runSearchPlaybackFade(sequenceID: id) else {
+                        return
+                    }
+                    finishSearchPlaybackSequence(id: id)
+                    return
+                }
+
+                activateContinuousSearchResult(nextResult, at: refreshedNextIndex, sequenceID: id)
+                shouldOpenCurrentResult = false
+                continue
+            }
+
+            guard await waitUntilPlaybackTime(
+                milliseconds: refreshedCurrentResult.endMilliseconds,
+                sequenceID: id,
+                stopsWhenInvalidated: false
+            ) else {
+                return
+            }
+
+            guard await runSearchPlaybackFade(sequenceID: id) else {
+                return
+            }
+
+            guard isActiveSearchPlaybackSequence(id) else {
+                return
+            }
+
+            guard let currentSequence = searchPlaybackSequence,
+                  currentSequence.id == id,
+                  !currentSequence.isInvalidated,
+                  currentSequence.results.indices.contains(refreshedNextIndex)
+            else {
+                finishSearchPlaybackSequence(id: id)
+                return
+            }
+
+            searchPlaybackSequence?.currentIndex = refreshedNextIndex
+            shouldOpenCurrentResult = true
+        }
+    }
+
+    private func loadMoreSearchPlaybackResultsIfNeeded(sequenceID: UUID) async {
+        guard let sequence = searchPlaybackSequence,
+              sequence.id == sequenceID,
+              !sequence.isInvalidated,
+              sequence.currentIndex >= sequence.results.count - 1,
+              hasMoreSearchResults,
+              !isSearching
+        else {
+            return
+        }
+
+        let trimmedQuery = sequence.committedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty, !selectedFolders.isEmpty else {
+            return
+        }
+
+        guard let database = subtitleDatabase else {
+            return
+        }
+
+        let folders = selectedFolders
+        let offset = loadedGlobalSearchResultCount
+        let pageSize = Self.searchPageSize
+
+        do {
+            searchStatus = .searching
+            let page = try await Task.detached(priority: .userInitiated) {
+                try database.searchPage(
+                    trimmedQuery,
+                    limit: pageSize,
+                    offset: offset,
+                    under: folders
+                )
+            }.value
+
+            guard !Task.isCancelled,
+                  let currentSequence = searchPlaybackSequence,
+                  currentSequence.id == sequenceID,
+                  !currentSequence.isInvalidated,
+                  currentSequence.committedQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery
+            else {
+                return
+            }
+
+            appendGlobalSearchResults(page.results)
+            loadedGlobalSearchResultCount = max(
+                loadedGlobalSearchResultCount,
+                offset + page.results.count
+            )
+            searchResultTotalCount = page.totalCount
+            searchFileSummaries = page.fileSummaries
+            hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
+            rebuildSearchResultGroups()
+            appendSearchPlaybackSequenceResults(page.results, sequenceID: sequenceID)
+            searchStatus = .completed
+        } catch {
+            guard !Task.isCancelled else {
+                return
+            }
+
+            searchStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
+    private func appendSearchPlaybackSequenceResults(
+        _ results: [SubtitleSearchResult],
+        sequenceID: UUID
+    ) {
+        guard var sequence = searchPlaybackSequence, sequence.id == sequenceID else {
+            return
+        }
+
+        let existingEntryIDs = Set(sequence.results.map(\.entryID))
+        sequence.results.append(contentsOf: results.filter { !existingEntryIDs.contains($0.entryID) })
+        searchPlaybackSequence = sequence
+    }
+
+    private func activateContinuousSearchResult(
+        _ result: SubtitleSearchResult,
+        at index: Int,
+        sequenceID: UUID
+    ) {
+        guard isActiveSearchPlaybackSequence(sequenceID) else {
+            return
+        }
+
+        searchPlaybackSequence?.currentIndex = index
+        activePlaybackSource = .search
+        selectedSearchResult = result
+        selectedShiori = nil
+        selectedLibraryVideo = nil
+        playbackStatus = .playing
+
+        let currentMilliseconds = max(
+            0,
+            Int(((playbackViewModel?.currentTime ?? Double(result.startMilliseconds) / 1_000) * 1_000).rounded(.down))
+        )
+        playbackViewModel?.setSubtitleCues(
+            playbackSubtitleCues(for: result),
+            currentTimeMilliseconds: currentMilliseconds
+        )
+        player?.loadSubtitleSource(playbackSubtitleSource(for: result))
+    }
+
+    private func waitUntilPlaybackTime(
+        milliseconds: Int,
+        sequenceID: UUID,
+        stopsWhenInvalidated: Bool
+    ) async -> Bool {
+        let targetMilliseconds = max(0, milliseconds)
+
+        while !Task.isCancelled, isActiveSearchPlaybackSequence(sequenceID) {
+            if stopsWhenInvalidated, isSearchPlaybackSequenceInvalidated(sequenceID) {
+                return true
+            }
+
+            if hasPlaybackReached(milliseconds: targetMilliseconds) {
+                return true
+            }
+
+            if case .failed = playbackStatus {
+                return false
+            }
+
+            do {
+                try await Task.sleep(nanoseconds: Self.searchPlaybackPollNanoseconds)
+            } catch {
+                return false
+            }
+        }
+
+        return false
+    }
+
+    private func hasPlaybackReached(milliseconds: Int) -> Bool {
+        guard let playbackViewModel else {
+            return false
+        }
+
+        let targetSeconds = Double(max(0, milliseconds)) / 1_000
+        if playbackViewModel.currentTime + 0.015 >= targetSeconds {
+            return true
+        }
+
+        return !playbackViewModel.isPlaying
+            && playbackViewModel.duration > 0
+            && playbackViewModel.currentTime >= playbackViewModel.duration - 0.05
+    }
+
+    private func runSearchPlaybackFade(sequenceID: UUID) async -> Bool {
+        let stepDelayNanoseconds = UInt64(Self.searchResultTransitionMilliseconds / Self.searchResultTransitionSteps)
+            * 1_000_000
+
+        for step in 0...Self.searchResultTransitionSteps {
+            guard !Task.isCancelled, isActiveSearchPlaybackSequence(sequenceID) else {
+                return false
+            }
+
+            let progress = Double(step) / Double(Self.searchResultTransitionSteps)
+            playbackViewModel?.setTransitionBlackoutOpacity(progress)
+            player?.setOutputVolumeMultiplier(1 - progress)
+
+            guard step < Self.searchResultTransitionSteps else {
+                break
+            }
+
+            do {
+                try await Task.sleep(nanoseconds: stepDelayNanoseconds)
+            } catch {
+                return false
+            }
+        }
+
+        playbackViewModel?.setTransitionBlackoutOpacity(1)
+        player?.setOutputVolumeMultiplier(0)
+        return true
+    }
+
+    private func finishSearchPlaybackSequence(id: UUID) {
+        guard isActiveSearchPlaybackSequence(id) else {
+            return
+        }
+
+        do {
+            try player?.setPaused(true)
+            playbackStatus = .paused
+        } catch {
+            playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+        searchPlaybackTask = nil
+        searchPlaybackSequence = nil
+    }
+
+    private func invalidateSearchPlaybackSequenceAfterCurrentResult() {
+        searchPlaybackSequence?.isInvalidated = true
+    }
+
+    private func cancelSearchPlaybackSequence(resetTransitionEffects: Bool) {
+        searchPlaybackTask?.cancel()
+        searchPlaybackTask = nil
+        searchPlaybackSequence = nil
+        if resetTransitionEffects {
+            resetSearchPlaybackTransitionEffects()
+        }
+    }
+
+    private func resetSearchPlaybackTransitionEffects() {
+        playbackViewModel?.setTransitionBlackoutOpacity(0)
+        player?.setOutputVolumeMultiplier(1)
+    }
+
+    private func isActiveSearchPlaybackSequence(_ id: UUID) -> Bool {
+        searchPlaybackSequence?.id == id
+    }
+
+    private func isSearchPlaybackSequenceInvalidated(_ id: UUID) -> Bool {
+        guard let searchPlaybackSequence, searchPlaybackSequence.id == id else {
+            return false
+        }
+
+        return searchPlaybackSequence.isInvalidated
     }
 
     @discardableResult
@@ -1665,6 +2076,7 @@ final class AppState: ObservableObject {
 
     func stopPlayback() {
         do {
+            cancelSearchPlaybackSequence(resetTransitionEffects: true)
             saveCurrentLibraryPlaybackHistory()
             stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()
@@ -1776,7 +2188,7 @@ final class AppState: ObservableObject {
             rebuildSearchResultGroups()
         }
 
-        updateSearchQuery(searchQuery)
+        startSearch(query: searchQuery, offset: 0, appending: false, debounce: false)
     }
 
     private func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
