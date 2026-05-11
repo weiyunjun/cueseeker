@@ -1075,13 +1075,15 @@ final class AppState: ObservableObject {
                 }
 
                 SearchPerformanceLogger.mark(searchPerformanceRun, "database_search_started")
+                let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
                 let page = try await Task.detached(priority: .userInitiated) {
                     let databaseSearchStart = SearchPerformanceLogger.now()
                     let page = try database.searchPage(
                         trimmedQuery,
                         limit: pageSize,
                         offset: offset,
-                        under: folders
+                        under: folders,
+                        diagnostics: diagnosticsSink
                     )
                     SearchPerformanceLogger.mark(
                         searchPerformanceRun,

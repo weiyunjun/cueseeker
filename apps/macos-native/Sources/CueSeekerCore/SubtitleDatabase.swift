@@ -878,14 +878,44 @@ public final class SubtitleDatabase: @unchecked Sendable {
         limit: Int = 50,
         offset: Int = 0,
         under folders: [URL]? = nil,
-        inSubtitlePath subtitlePath: String? = nil
+        inSubtitlePath subtitlePath: String? = nil,
+        diagnostics: SubtitleSearchDiagnosticSink? = nil
     ) throws -> SubtitleSearchPage {
+        let searchPageStart = Self.diagnosticNow()
+
+        func emit(
+            _ name: String,
+            since start: UInt64,
+            fields: [SubtitleSearchDiagnosticField] = []
+        ) {
+            diagnostics?(
+                SubtitleSearchDiagnosticEvent(
+                    name: name,
+                    phaseMilliseconds: Self.diagnosticMilliseconds(between: start, and: Self.diagnosticNow()),
+                    fields: fields
+                )
+            )
+        }
+
+        let planStart = Self.diagnosticNow()
         guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
+            emit("query_plan_empty", since: planStart)
             return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
         }
+        emit(
+            "query_plan",
+            since: planStart,
+            fields: [
+                .init("ftsQueryLength", plan.ftsQuery.count),
+                .init("lineRule", Self.lineMatchRuleName(plan.lineMatchRule))
+            ]
+        )
+
+        let scopeStart = Self.diagnosticNow()
         let offset = max(0, offset)
         let subtitlePathFilter = subtitlePath
         if let subtitlePathFilter, subtitlePathFilter.isEmpty {
+            emit("scope_empty_subtitle_path", since: scopeStart)
             return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
         }
 
@@ -893,24 +923,48 @@ public final class SubtitleDatabase: @unchecked Sendable {
         if let folders {
             let prefixes = Self.folderPathPrefixes(for: folders)
             guard !prefixes.isEmpty else {
+                emit("scope_empty_folders", since: scopeStart)
                 return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
             }
             pathPrefixes = prefixes
         } else {
             pathPrefixes = nil
         }
+        emit(
+            "scope_resolved",
+            since: scopeStart,
+            fields: [
+                .init("pathPrefixes", pathPrefixes?.count ?? 0),
+                .init("hasSubtitlePathFilter", subtitlePathFilter == nil ? "false" : "true")
+            ]
+        )
 
         do {
+            let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
             var candidateOffset = 0
             var results: [SubtitleSearchResult] = []
+            var batchIndex = 0
+            var totalCandidates = 0
+            var totalMultiLineCandidates = 0
+            var totalCueLineRows = 0
             let scopeCondition = pathPrefixes.map {
                 let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
                     .joined(separator: " OR ")
                 return "AND (\(conditions))"
             } ?? ""
             let subtitlePathCondition = subtitlePathFilter.map { _ in "AND sf.subtitle_path = ?" } ?? ""
+            emit(
+                "setup",
+                since: setupStart,
+                fields: [
+                    .init("candidateBatchLimit", candidateBatchLimit),
+                    .init("scopeCondition", scopeCondition.isEmpty ? "none" : "path"),
+                    .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true")
+                ]
+            )
 
+            let prepareStart = Self.diagnosticNow()
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
@@ -927,8 +981,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 LIMIT ? OFFSET ?;
                 """
             )
+            emit("statement_prepare", since: prepareStart)
 
             while true {
+                batchIndex += 1
+                let queryStart = Self.diagnosticNow()
                 try statement.reset()
                 try statement.clearBindings()
 
@@ -966,17 +1023,44 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         )
                     )
                 }
+                emit(
+                    "fts_batch",
+                    since: queryStart,
+                    fields: [
+                        .init("batch", batchIndex),
+                        .init("candidateOffset", candidateOffset),
+                        .init("candidateBatchLimit", candidateBatchLimit),
+                        .init("candidates", candidates.count)
+                    ]
+                )
 
                 guard !candidates.isEmpty else {
                     break
                 }
 
                 candidateOffset += candidates.count
+                totalCandidates += candidates.count
 
                 let multiLineCueGroupIDs = candidates
                     .filter { $0.lineCount > 1 }
                     .map(\.cueGroupID)
+                totalMultiLineCandidates += multiLineCueGroupIDs.count
+                let cueLinesStart = Self.diagnosticNow()
                 let linesByCueGroupID = try cueLines(forCueGroupIDs: multiLineCueGroupIDs)
+                let cueLineRows = linesByCueGroupID.values.reduce(0) { $0 + $1.count }
+                totalCueLineRows += cueLineRows
+                emit(
+                    "cue_lines",
+                    since: cueLinesStart,
+                    fields: [
+                        .init("batch", batchIndex),
+                        .init("multiLineCandidates", multiLineCueGroupIDs.count),
+                        .init("cueLineRows", cueLineRows)
+                    ]
+                )
+
+                let validationStart = Self.diagnosticNow()
+                let acceptedBefore = results.count
                 for candidate in candidates {
                     let lineContents: [String]
                     if candidate.lineCount > 1 {
@@ -989,20 +1073,82 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         results.append(result)
                     }
                 }
+                let accepted = results.count - acceptedBefore
+                emit(
+                    "line_validation",
+                    since: validationStart,
+                    fields: [
+                        .init("batch", batchIndex),
+                        .init("candidates", candidates.count),
+                        .init("accepted", accepted),
+                        .init("rejected", candidates.count - accepted),
+                        .init("acceptedSoFar", results.count)
+                    ]
+                )
 
                 if candidates.count < candidateBatchLimit {
                     break
                 }
             }
 
+            let sortStart = Self.diagnosticNow()
             let sortedResults = Self.sortedSearchResults(results)
+            emit(
+                "sort_results",
+                since: sortStart,
+                fields: [
+                    .init("results", sortedResults.count),
+                    .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count)
+                ]
+            )
+
+            let pageStart = Self.diagnosticNow()
             let pageResults = Array(sortedResults.dropFirst(offset).prefix(limit))
+            emit(
+                "page_slice",
+                since: pageStart,
+                fields: [
+                    .init("offset", offset),
+                    .init("limit", limit),
+                    .init("pageResults", pageResults.count)
+                ]
+            )
+
+            let summariesStart = Self.diagnosticNow()
+            let fileSummaries = Self.fileSummaries(for: sortedResults)
+            emit(
+                "file_summaries",
+                since: summariesStart,
+                fields: [
+                    .init("summaries", fileSummaries.count),
+                    .init("results", sortedResults.count)
+                ]
+            )
+
+            emit(
+                "search_page_complete",
+                since: searchPageStart,
+                fields: [
+                    .init("batches", batchIndex),
+                    .init("totalCandidates", totalCandidates),
+                    .init("multiLineCandidates", totalMultiLineCandidates),
+                    .init("cueLineRows", totalCueLineRows),
+                    .init("accepted", sortedResults.count),
+                    .init("pageResults", pageResults.count),
+                    .init("summaries", fileSummaries.count)
+                ]
+            )
             return SubtitleSearchPage(
                 results: pageResults,
                 totalCount: sortedResults.count,
-                fileSummaries: Self.fileSummaries(for: sortedResults)
+                fileSummaries: fileSummaries
             )
         } catch {
+            emit(
+                "failed",
+                since: searchPageStart,
+                fields: [.init("error", error.localizedDescription)]
+            )
             return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
         }
     }
@@ -1473,6 +1619,27 @@ public final class SubtitleDatabase: @unchecked Sendable {
         case orderedLatinTokens([String])
         case cjkSubstring(String)
         case explicitFTS(String)
+    }
+
+    private static func diagnosticNow() -> UInt64 {
+        DispatchTime.now().uptimeNanoseconds
+    }
+
+    private static func diagnosticMilliseconds(between start: UInt64, and end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+
+    private static func lineMatchRuleName(_ rule: LineMatchRule) -> String {
+        switch rule {
+        case .latinPrefix:
+            return "latinPrefix"
+        case .orderedLatinTokens:
+            return "orderedLatinTokens"
+        case .cjkSubstring:
+            return "cjkSubstring"
+        case .explicitFTS:
+            return "explicitFTS"
+        }
     }
 
     private func searchResult(

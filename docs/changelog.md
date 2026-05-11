@@ -8,8 +8,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 - Added persistent Search timing diagnostics for development builds: every
   Search request records query, database, state assignment, grouping, status,
-  and first visible result-row timing into project-local, human-readable logs
-  under `logs/search-timing/`, with explicit
+  first visible result-row timing, and internal `searchPage` database phases
+  into project-local, one-line logs under `logs/search-timing/`, with explicit
   diagnostic flag enablement for non-development diagnostic runs.
 - Accepted the shared-core architecture direction: CueSeeker will keep native
   macOS and Windows UI shells, keep playback rendering platform-native, prefer

@@ -8,5 +8,12 @@ Search timing logs are written to:
 logs/search-timing/search-timing-YYYY-MM-DD.log
 ```
 
-Each Search event is written as a readable multi-line block so timing from
-different development machines can be compared directly from the project folder.
+Each Search event is written on one readable line so timing from different
+development machines can be compared directly from the project folder or pasted
+into an AI debugging session.
+
+Example:
+
+```text
+2026-05-11 19:48:00.100 +08:00 run=2 sequence=17 event=db.fts_batch elapsed=713.02ms phase=420.31ms queryLength=2 offset=0 limit=1000 appending=false debounce=true folders=1 batch=1 candidateOffset=0 candidateBatchLimit=2000 candidates=1428
+```

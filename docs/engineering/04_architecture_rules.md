@@ -239,9 +239,10 @@ Rules:
   during development builds and may be enabled explicitly in other builds with
   `CUESEEKER_PERF_SEARCH=1`, `CUESEEKER_PERF_UI=1`, or `CUESEEKER_PERF=1`.
   They must be written under the project log directory
-  `logs/search-timing/` as append-only, human-readable `.log` files so local
-  development sessions can be compared across machines. Search timing logs
-  should not be stored inside user-selected subtitle folders.
+  `logs/search-timing/` as append-only, one-event-per-line `.log` files so local
+  development sessions can be compared across machines and pasted directly into
+  AI debugging sessions. Search timing logs should not be stored inside
+  user-selected subtitle folders.
 - The workbench container should own layout coordination only. Library,
   Playback, and Search presentation views should receive scoped state so Search
   focus, Search results, playback clock updates, and side-panel resize gestures
