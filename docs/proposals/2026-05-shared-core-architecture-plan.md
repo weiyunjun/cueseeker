@@ -1,6 +1,6 @@
 # Shared Core Architecture Plan
 
-Status: Draft
+Status: Accepted
 
 ## Background
 
@@ -39,6 +39,35 @@ semantics toward shared contracts and, where practical, shared source code.
   GStreamer, or another third-party player framework.
 - Do not make the shared core responsible for video decoding, native rendering,
   audio output, or platform window management.
+
+## Accepted Direction
+
+CueSeeker will move toward native UI per platform, a shared core for product
+semantics, and platform-native playback backends.
+
+Accepted rules:
+
+- macOS keeps its native SwiftUI and AppKit shell.
+- Windows keeps its native C# and WinUI 3 shell.
+- macOS and Windows playback rendering, audio output, hardware decode,
+  fullscreen, native surfaces, DPI behavior, and window management remain
+  platform-specific.
+- Shared core is the preferred home for database, indexing, Search, Library,
+  Shiori, and playback-intent semantics.
+- Rust is the preferred shared-core implementation language.
+- The first shared-core migration phase is limited to database, folder
+  indexing, subtitle parsing, subtitle-to-video matching, Search, Library,
+  Shiori, and playback intent resolution.
+- The first shared-core migration phase must not migrate native playback
+  rendering, video decode, audio output, or native renderer surface ownership.
+- The current macOS implementation is the behavioral fact standard until this
+  proposal or a later accepted document explicitly changes the product
+  semantics.
+- Shared-core migration is macOS-first: macOS must complete shared-core
+  validation and manual acceptance before Windows consumes the shared core as
+  the product path.
+- Windows architecture work should pause at the bootstrap boundary during the
+  macOS shared-core migration, except for blocker-level playback or build fixes.
 
 ## Proposed Architecture
 
@@ -291,14 +320,13 @@ Primary reference files:
 - Add small repository fixtures where needed for behavior that currently exists
   only in larger local media libraries.
 
-### Phase 1: Shared Contract Package
+### Phase 1: macOS Baseline Fixtures
 
-- Define versioned contract types for folders, indexed resources, cue groups,
-  cue lines, Library snapshots, Shiori rows, playback intents, playback events,
-  and playback errors.
-- Prefer JSON-compatible contract shapes at the app boundary during bootstrap
-  unless a measured performance issue requires a more compact ABI.
-- Keep per-frame playback data out of the shared core boundary.
+- Convert the current macOS behavior into shared fixtures and expected outputs.
+- Cover subtitle/video matching, SRT parsing, ASS parsing and grouping,
+  indexing, Search, Library snapshots, Shiori identity, and playback intent.
+- Keep these fixtures app-shell independent so they can later run against the
+  Rust shared core, macOS adapters, and Windows adapters.
 
 ### Phase 2: Shared Core Scaffold
 
@@ -306,25 +334,22 @@ Primary reference files:
 - Start with pure domain behavior and SQLite access.
 - Expose a C ABI or other stable bridge only after the internal Rust API is
   covered by fixtures.
+- Prefer JSON-compatible contract shapes at the app boundary during bootstrap
+  unless a measured performance issue requires a more compact ABI.
+- Keep per-frame playback data out of the shared core boundary.
 
-### Phase 3: Database, Indexing, and Search
+### Phase 3: macOS Shadow Validation
 
 - Move schema creation, migration, subtitle scanning, video matching, SRT/ASS
   parsing, indexing, Library snapshot generation, and Search behavior into the
   shared core.
-- Windows should consume this shared core first because its current app-layer
-  indexing/search code is bootstrap code.
-- macOS should keep its current implementation until shared-core outputs match
-  macOS baseline fixtures.
-
-### Phase 4: macOS Shadow Validation
-
 - Add a macOS comparison path that can run the shared core against selected
   fixtures and compare results with the current Swift implementation.
 - Do not switch the production macOS app module until the relevant fixture set
   is equal or an explicit product decision accepts a behavior change.
+- Windows does not participate in manual acceptance during this phase.
 
-### Phase 5: macOS Module Replacement
+### Phase 4: macOS Module Replacement
 
 - Replace macOS modules behind narrow adapters, one responsibility at a time.
 - Suggested order:
@@ -334,8 +359,35 @@ Primary reference files:
   4. Library snapshot hydration.
   5. Shiori persistence.
   6. Playback intent resolution.
+- After each replacement, run the corresponding macOS automated regression
+  tests and the scoped macOS manual smoke checks.
 
-### Phase 6: Playback Contract Alignment
+### Phase 5: macOS Product Acceptance
+
+- Run the full macOS manual acceptance path after all first-phase shared-core
+  modules are active in the macOS app.
+- Confirm adding folders, indexing, Library display, Search, Search
+  click-to-playback, Library playback resume, Shiori save/open/remove, Settings
+  state isolation, and basic playback controls still behave as expected.
+- Treat successful macOS acceptance as the point where the shared core becomes
+  the product fact for the migrated domain modules.
+
+### Phase 6: Windows Shared-Core Integration
+
+- Resume Windows architecture work only after macOS acceptance.
+- Remove or bypass Windows bootstrap implementations of database, indexing,
+  Search, Library, Shiori, and playback-intent semantics.
+- Wire WinUI Settings to shared-core folder management and indexing.
+- Wire WinUI Library to shared-core Library snapshots.
+- Wire WinUI Search to shared-core query and result contracts.
+- Wire Search, Library, and Shiori actions through shared-core playback intent
+  resolution, then pass the resolved request to the Windows native playback
+  backend.
+- Limit Windows manual acceptance at this stage to platform integration issues:
+  paths, encoding, process lifetime, DPI, WinUI state, native renderer surface,
+  D3D/WASAPI/libass playback, and Windows-specific failure reporting.
+
+### Phase 7: Playback Contract Alignment
 
 - Keep macOS and Windows playback backends separate.
 - Define a shared playback command and event vocabulary.
@@ -349,6 +401,12 @@ Primary reference files:
 Any change that touches shared core contracts, database semantics, indexing,
 search, Library, Shiori, or playback intent resolution must trigger macOS
 regression testing.
+
+During the shared-core migration, the project owner should not need to perform
+full manual acceptance on both platforms at every step. The required manual
+acceptance platform is macOS until Phase 5 is complete. Windows manual
+acceptance resumes in Phase 6, after the shared core has been accepted through
+the macOS app.
 
 ### Required Automated Retests
 
@@ -415,21 +473,20 @@ regression testing.
 - UI-only platform changes do not require shared-core retests unless they alter
   state ownership, command routing, or product semantics.
 
-## Acceptance Criteria
+## Implementation Acceptance Criteria
 
-This architecture adjustment can move from draft proposal to accepted
-engineering direction when:
+The first shared-core migration phase is complete when:
 
-- The project owner accepts native UI plus shared core as the target architecture.
-- The project owner accepts that playback rendering remains platform-native.
-- The macOS baseline in this document is confirmed or corrected.
-- A first shared fixture set is defined.
-- Windows can consume shared database/index/search behavior without losing the
-  accepted Windows native playback direction.
-- macOS can run shared-core comparison tests before replacing Swift modules.
-- Any intentional behavior difference from current macOS is documented before it
-  becomes implementation behavior.
+- The shared core implements the accepted first-phase domain modules.
+- macOS production code uses the shared core for the migrated modules.
+- macOS automated regression tests pass for database, indexing, Search,
+  Library, Shiori, and playback intent.
+- macOS manual acceptance passes for the required smoke-test path.
+- Any intentional behavior difference from the previous macOS implementation is
+  documented before it becomes product behavior.
+- Windows has not been required to carry parallel architecture acceptance during
+  the macOS migration.
 
 ## Decision
 
-Pending.
+Accepted.

@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the shared-core architecture direction: CueSeeker will keep native
+  macOS and Windows UI shells, keep playback rendering platform-native, prefer
+  Rust for shared product-domain behavior, and limit the first shared-core
+  migration phase to database, indexing, Search, Library, Shiori, and playback
+  intent. The migration is macOS-first, so Windows architecture-level shared
+  core integration resumes only after the migrated behavior passes macOS
+  production acceptance.
 - Rejected the right-sidebar Show / Episode / Hit three-level grouping that
   shipped in commit `9a49d8e` after a same-cycle review. Two structural
   reasons drove the revert: the parent-folder Show layer is redundant header

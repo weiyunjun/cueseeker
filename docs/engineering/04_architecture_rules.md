@@ -19,7 +19,37 @@ Core principles:
 - Keep persistent data local unless a future proposal explicitly changes that rule.
 - Make hard-to-reverse technical decisions through ADRs before production implementation depends on them.
 - Keep modules isolated enough that indexing, search, persistence, and playback can be tested independently.
-- Avoid introducing remote services, sync layers, or cross-platform abstractions during the early native rewrite.
+- Avoid introducing remote services, sync layers, or broad cross-platform
+  abstractions without an accepted proposal or ADR. The accepted shared-core
+  direction below is the explicit exception for CueSeeker product-domain
+  behavior.
+
+## 2.1 Shared Core Direction
+
+The shared-core architecture direction is accepted in
+`docs/proposals/2026-05-shared-core-architecture-plan.md`.
+
+Rules:
+
+- CueSeeker should keep native UI shells per platform.
+- CueSeeker should move shared product-domain behavior into a shared core where
+  doing so prevents macOS and Windows from reimplementing the same rules.
+- Rust is the preferred shared-core implementation language.
+- The first shared-core migration phase is limited to database, folder
+  indexing, subtitle parsing, subtitle-to-video matching, Search, Library,
+  Shiori, and playback intent resolution.
+- The first shared-core migration phase must not migrate playback rendering,
+  video decode, audio output, native renderer surface ownership, fullscreen
+  behavior, DPI behavior, or platform window management.
+- macOS is the first acceptance platform for shared-core migration. Windows
+  should not require parallel manual architecture acceptance until the migrated
+  shared-core behavior has passed macOS production acceptance.
+- The current macOS implementation is the behavioral fact standard for the
+  migrated shared-core domain modules until a later accepted document changes
+  that behavior.
+- Windows should consume the shared core only after macOS acceptance of the
+  migrated domain modules, except for isolated build or blocker-level playback
+  fixes that do not change shared product semantics.
 
 ## 3. Target Platform
 

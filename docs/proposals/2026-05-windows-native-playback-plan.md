@@ -107,7 +107,12 @@ The broader cross-platform domain architecture adjustment is tracked in
 `docs/proposals/2026-05-shared-core-architecture-plan.md`. The Windows app
 should avoid treating bootstrap C# implementations of database, indexing,
 Library, Search, Shiori, and playback-intent behavior as the final product
-boundary when the shared-core proposal supersedes them.
+boundary. Shared-core migration is macOS-first: Windows architecture-level
+integration of database, indexing, Search, Library, Shiori, and playback-intent
+semantics should resume only after the migrated shared core has passed macOS
+production acceptance. During that migration window, Windows work should stay
+focused on blocker-level build or playback fixes that do not change shared
+product semantics.
 
 The Windows playback backend should expose CueSeeker-owned concepts rather than
 third-party-player concepts:
