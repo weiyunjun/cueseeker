@@ -29,6 +29,8 @@ func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
     #expect(try database.busyTimeoutMilliseconds() == SubtitleDatabase.configuredBusyTimeoutMilliseconds)
     #expect(try database.journalMode().lowercased() == "wal")
     #expect(try database.synchronousMode() == 1)
+    #expect(try database.cacheSize() == -SubtitleDatabase.configuredCacheSizeKibibytes)
+    #expect(try database.mmapSize() == SubtitleDatabase.configuredMmapSizeBytes)
 }
 
 @Test

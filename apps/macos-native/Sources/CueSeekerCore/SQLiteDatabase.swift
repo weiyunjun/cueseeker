@@ -26,6 +26,8 @@ public enum SQLiteDatabaseError: Error, Equatable, CustomStringConvertible {
 
 final class SQLiteDatabase {
     static let busyTimeoutMilliseconds: Int32 = 5_000
+    static let cacheSizeKibibytes: Int = 20_000
+    static let mmapSizeBytes: Int = 256 * 1024 * 1024
 
     private var handle: OpaquePointer?
 
@@ -115,6 +117,8 @@ final class SQLiteDatabase {
         try execute("PRAGMA journal_mode = WAL")
         try execute("PRAGMA synchronous = NORMAL")
         try execute("PRAGMA foreign_keys = ON")
+        try execute("PRAGMA cache_size = -\(Self.cacheSizeKibibytes)")
+        try execute("PRAGMA mmap_size = \(Self.mmapSizeBytes)")
     }
 }
 

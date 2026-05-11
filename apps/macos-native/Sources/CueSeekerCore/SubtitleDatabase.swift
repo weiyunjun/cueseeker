@@ -183,6 +183,8 @@ public struct ASSFontResourceManifest: Equatable, Sendable {
 public final class SubtitleDatabase {
     public static let currentSchemaVersion: Int = 10
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
+    public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
+    public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
 
     private let database: SQLiteDatabase
 
@@ -413,6 +415,14 @@ public final class SubtitleDatabase {
 
     public func synchronousMode() throws -> Int {
         try database.intPragma("synchronous")
+    }
+
+    public func cacheSize() throws -> Int {
+        try database.intPragma("cache_size")
+    }
+
+    public func mmapSize() throws -> Int {
+        try database.intPragma("mmap_size")
     }
 
     @discardableResult
