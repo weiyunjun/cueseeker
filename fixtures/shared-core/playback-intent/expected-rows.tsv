@@ -1,0 +1,6 @@
+# case	status	start_ms	subtitle_format	matched_video	fonts_path	window_start	window_end	cache_path
+negative-start	ok	0	none	NONE	NONE	NONE	NONE	NONE
+missing-video	missingVideoFile
+invalid-url	invalidVideoURL
+ass-default-matched	ok	1000	ass	/Media/Playback/Episode.mkv	NONE	NONE	NONE	NONE
+ass-preserves-details	ok	1000	ass	/Media/Playback/Episode.mkv	/Media/Playback/PreparedFonts	500	9000	/Media/Playback/render-cache.sqlite

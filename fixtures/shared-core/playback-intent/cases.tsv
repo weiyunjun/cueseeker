@@ -1,0 +1,6 @@
+# case	video_url_kind	video_path	exists	start_ms	subtitle_format	subtitle_path	matched_video_path	fonts_path	window_start	window_end	cache_path	expected_status
+negative-start	file	/Media/Playback/Existing.mp4	true	-250	none	NONE	NONE	NONE	NONE	NONE	NONE	ok
+missing-video	file	/Media/Playback/Missing.mp4	false	1000	none	NONE	NONE	NONE	NONE	NONE	NONE	missingVideoFile
+invalid-url	remote	https://example.invalid/video.mp4	false	1000	none	NONE	NONE	NONE	NONE	NONE	NONE	invalidVideoURL
+ass-default-matched	file	/Media/Playback/Episode.mkv	true	1000	ass	/Media/Playback/Episode.ass	NONE	NONE	NONE	NONE	NONE	ok
+ass-preserves-details	file	/Media/Playback/Episode.mkv	true	1000	ass	/Media/Playback/Episode.ass	/Media/Playback/Episode.mkv	/Media/Playback/PreparedFonts	500	9000	/Media/Playback/render-cache.sqlite	ok

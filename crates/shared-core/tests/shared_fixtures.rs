@@ -3,8 +3,10 @@ use std::path::{Path, PathBuf};
 
 use cueseeker_shared_core::subtitles::{SubtitleCueGroup, SubtitleFormat, ass, srt};
 use cueseeker_shared_core::{
-    LibraryFolderPresentation, LibraryVideo, SubtitleFileScanner, SubtitleIndexer,
-    SubtitleSearchPage, VideoMatcher, library_presentation_snapshot, search_projection,
+    LibraryFolderPresentation, LibraryVideo, PlaybackRequestError, PlaybackRequestInput,
+    PlaybackSubtitleSource, PlaybackSubtitleSourceFormat, PlaybackSubtitleTimeWindow, ShioriStore,
+    ShioriUpsert, SubtitleFileScanner, SubtitleIndexer, SubtitleSearchPage, VideoMatcher,
+    library_presentation_snapshot, resolve_playback_request, search_projection, shiori_cue_lines,
 };
 
 #[test]
@@ -109,6 +111,78 @@ fn library_presentation_matches_shared_fixture() {
     assert_eq!(
         library_presentation_rows(&snapshot),
         expected_rows(&library_root.join("expected-presentation.tsv"))
+    );
+}
+
+#[test]
+fn shiori_matches_shared_fixture() {
+    let root = fixture_root().join("shiori");
+    let mut store = ShioriStore::default();
+    apply_shiori_operations(&mut store, &root.join("operations.tsv"));
+
+    assert_eq!(
+        shiori_rows(&store.records()),
+        expected_rows(&root.join("expected-rows.tsv"))
+    );
+}
+
+#[test]
+fn playback_intent_matches_shared_fixture() {
+    let root = fixture_root().join("playback-intent");
+
+    assert_eq!(
+        playback_rows(&root.join("cases.tsv")),
+        expected_rows(&root.join("expected-rows.tsv"))
+    );
+}
+
+#[test]
+fn phase1_shared_contract_smoke_covers_all_domains() {
+    let root = fixture_root();
+
+    assert_eq!(
+        cue_group_rows(&srt::parse_cue_groups(
+            &fs::read_to_string(root.join("subtitles/srt-baseline.srt")).unwrap()
+        )),
+        expected_rows(&root.join("subtitles/srt-baseline.expected.tsv"))
+    );
+    assert_eq!(
+        cue_group_rows(&ass::parse_cue_groups(
+            &fs::read_to_string(root.join("subtitles/ass-baseline.ass")).unwrap()
+        )),
+        expected_rows(&root.join("subtitles/ass-baseline.expected.tsv"))
+    );
+    assert_eq!(
+        indexing_projection_rows(
+            &root.join("indexing"),
+            &SubtitleIndexer::default().project_folder(&root.join("indexing/library"))
+        ),
+        expected_rows(&root.join("indexing/expected-projection.tsv"))
+    );
+    assert_eq!(
+        search_rows(
+            &root.join("search"),
+            &SubtitleIndexer::default().project_folder(&root.join("search/library")),
+            &search_cases(&root.join("search/cases.tsv"))
+        ),
+        expected_rows(&root.join("search/expected-results.tsv"))
+    );
+
+    let indexed_videos = library_indexed_videos(&root.join("library/indexed-videos.tsv"));
+    assert_eq!(
+        library_presentation_rows(&library_presentation_snapshot(&indexed_videos)),
+        expected_rows(&root.join("library/expected-presentation.tsv"))
+    );
+
+    let mut store = ShioriStore::default();
+    apply_shiori_operations(&mut store, &root.join("shiori/operations.tsv"));
+    assert_eq!(
+        shiori_rows(&store.records()),
+        expected_rows(&root.join("shiori/expected-rows.tsv"))
+    );
+    assert_eq!(
+        playback_rows(&root.join("playback-intent/cases.tsv")),
+        expected_rows(&root.join("playback-intent/expected-rows.tsv"))
     );
 }
 
@@ -350,6 +424,158 @@ fn library_presentation_rows(snapshot: &[LibraryFolderPresentation]) -> Vec<Stri
     rows
 }
 
+fn apply_shiori_operations(store: &mut ShioriStore, path: &Path) {
+    for line in expected_rows(path) {
+        let fields: Vec<&str> = line.split('\t').collect();
+        assert_eq!(fields.len(), 9, "invalid Shiori operation row: {line}");
+
+        match fields[0] {
+            "upsert" => {
+                store.upsert(ShioriUpsert {
+                    subtitle_path: fields[1].to_string(),
+                    subtitle_format: parse_subtitle_format(fields[2]),
+                    start_milliseconds: fields[3].parse().unwrap(),
+                    end_milliseconds: fields[4].parse().unwrap(),
+                    video_path: fields[5].to_string(),
+                    video_name: fields[6].to_string(),
+                    content: unescape_text(fields[7]),
+                    created_at: fields[8].to_string(),
+                });
+            }
+            "remove" => {
+                store.remove(
+                    fields[1],
+                    fields[3].parse().unwrap(),
+                    fields[4].parse().unwrap(),
+                );
+            }
+            _ => panic!("unknown Shiori operation: {}", fields[0]),
+        }
+    }
+}
+
+fn shiori_rows(records: &[cueseeker_shared_core::Shiori]) -> Vec<String> {
+    records
+        .iter()
+        .map(|record| {
+            [
+                "shiori".to_string(),
+                record.id.to_string(),
+                record.subtitle_path.clone(),
+                format_subtitle_format(record.subtitle_format),
+                record.video_path.clone(),
+                record.video_name.clone(),
+                record.start_milliseconds.to_string(),
+                record.end_milliseconds.to_string(),
+                escape_text(&record.content),
+                record.is_valid.to_string(),
+                record.created_at.clone(),
+                shiori_cue_lines(&record.content).join("|"),
+            ]
+            .join("\t")
+        })
+        .collect()
+}
+
+fn playback_rows(path: &Path) -> Vec<String> {
+    expected_rows(path)
+        .into_iter()
+        .map(|line| {
+            let fields: Vec<&str> = line.split('\t').collect();
+            assert_eq!(fields.len(), 13, "invalid playback case row: {line}");
+            let case_name = fields[0];
+            let input = PlaybackRequestInput {
+                video_url: fields[2].to_string(),
+                is_file_url: fields[1] == "file",
+                video_exists: fields[3] == "true",
+                start_milliseconds: fields[4].parse().unwrap(),
+                subtitle_source: playback_subtitle_source(&fields),
+            };
+
+            match resolve_playback_request(input) {
+                Ok(request) => {
+                    let subtitle_source = request.subtitle_source;
+                    [
+                        case_name.to_string(),
+                        "ok".to_string(),
+                        request.start_milliseconds.to_string(),
+                        playback_subtitle_format(&subtitle_source),
+                        subtitle_source
+                            .as_ref()
+                            .and_then(|source| source.matched_video_url.clone())
+                            .unwrap_or_else(|| "NONE".to_string()),
+                        subtitle_source
+                            .as_ref()
+                            .and_then(|source| source.font_resource_directory_url.clone())
+                            .unwrap_or_else(|| "NONE".to_string()),
+                        subtitle_source
+                            .as_ref()
+                            .and_then(|source| source.preparation_time_window.as_ref())
+                            .map(|window| window.start_milliseconds.to_string())
+                            .unwrap_or_else(|| "NONE".to_string()),
+                        subtitle_source
+                            .as_ref()
+                            .and_then(|source| source.preparation_time_window.as_ref())
+                            .map(|window| window.end_milliseconds.to_string())
+                            .unwrap_or_else(|| "NONE".to_string()),
+                        subtitle_source
+                            .as_ref()
+                            .and_then(|source| source.render_cache_database_url.clone())
+                            .unwrap_or_else(|| "NONE".to_string()),
+                    ]
+                    .join("\t")
+                }
+                Err(PlaybackRequestError::MissingVideoFile(_)) => {
+                    [case_name.to_string(), "missingVideoFile".to_string()].join("\t")
+                }
+                Err(PlaybackRequestError::InvalidVideoUrl(_)) => {
+                    [case_name.to_string(), "invalidVideoURL".to_string()].join("\t")
+                }
+            }
+        })
+        .collect()
+}
+
+fn playback_subtitle_source(fields: &[&str]) -> Option<PlaybackSubtitleSource> {
+    if fields[5] == "none" {
+        return None;
+    }
+
+    Some(PlaybackSubtitleSource {
+        url: fields[6].to_string(),
+        format: PlaybackSubtitleSourceFormat::Ass,
+        matched_video_url: optional_fixture_string(fields[7]),
+        font_resource_directory_url: optional_fixture_string(fields[8]),
+        preparation_time_window: if fields[9] == "NONE" {
+            None
+        } else {
+            Some(PlaybackSubtitleTimeWindow::new(
+                fields[9].parse().unwrap(),
+                fields[10].parse().unwrap(),
+            ))
+        },
+        render_cache_database_url: optional_fixture_string(fields[11]),
+    })
+}
+
+fn playback_subtitle_format(source: &Option<PlaybackSubtitleSource>) -> String {
+    match source {
+        Some(PlaybackSubtitleSource {
+            format: PlaybackSubtitleSourceFormat::Ass,
+            ..
+        }) => "ass".to_string(),
+        None => "none".to_string(),
+    }
+}
+
+fn optional_fixture_string(value: &str) -> Option<String> {
+    if value == "NONE" {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
 fn format_subtitle_format(format: SubtitleFormat) -> String {
     match format {
         SubtitleFormat::Srt => "srt".to_string(),
@@ -381,6 +607,30 @@ fn escape_text(text: &str) -> String {
     text.replace('\\', "\\\\")
         .replace('\n', "\\n")
         .replace('\t', "\\t")
+}
+
+fn unescape_text(text: &str) -> String {
+    let mut result = String::new();
+    let mut chars = text.chars().peekable();
+
+    while let Some(character) = chars.next() {
+        if character == '\\' {
+            match chars.next() {
+                Some('n') => result.push('\n'),
+                Some('t') => result.push('\t'),
+                Some('\\') => result.push('\\'),
+                Some(other) => {
+                    result.push('\\');
+                    result.push(other);
+                }
+                None => result.push('\\'),
+            }
+        } else {
+            result.push(character);
+        }
+    }
+
+    result
 }
 
 fn relative_path(root: &Path, path: &Path) -> String {

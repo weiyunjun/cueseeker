@@ -188,6 +188,32 @@ func sharedLibraryPresentationFixtureMatchesCurrentMacOSDatabase() throws {
     #expect(actual == expected)
 }
 
+@Test
+func sharedShioriFixtureMatchesCurrentMacOSDatabase() throws {
+    let root = try sharedFixtureRoot()
+    let shioriRoot = root.appendingPathComponent("shiori")
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSharedShiori-\(UUID().uuidString).sqlite")
+
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    try applyShioriOperations(
+        at: shioriRoot.appendingPathComponent("operations.tsv"),
+        to: database
+    )
+
+    let actual = shioriRows(try database.shioris())
+    let expected = try expectedRows(
+        at: shioriRoot.appendingPathComponent("expected-rows.tsv")
+    )
+
+    #expect(actual == expected)
+}
+
 private func sharedFixtureRoot() throws -> URL {
     var cursor = URL(fileURLWithPath: #filePath)
     while cursor.path != "/" {
@@ -357,6 +383,65 @@ private func libraryPresentationRows(_ folders: [LibraryFolderPresentation]) thr
     return rows
 }
 
+private func applyShioriOperations(at url: URL, to database: SubtitleDatabase) throws {
+    let dateFormatter = ISO8601DateFormatter()
+    for line in try expectedRows(at: url) {
+        let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+            .map(String.init)
+        try #require(fields.count == 9)
+
+        let subtitleFile = URL(fileURLWithPath: fields[1])
+        let startMilliseconds = try #require(Int(fields[3]))
+        let endMilliseconds = try #require(Int(fields[4]))
+
+        switch fields[0] {
+        case "upsert":
+            let format = try #require(SubtitleFormat(rawValue: fields[2]))
+            let createdAt = try #require(dateFormatter.date(from: fields[8]))
+            _ = try database.upsertShiori(
+                subtitleFile: subtitleFile,
+                subtitleFormat: format,
+                videoFile: URL(fileURLWithPath: fields[5]),
+                videoName: fields[6],
+                selection: SubtitleCueTextSelection(
+                    cueGroupID: 0,
+                    startMilliseconds: startMilliseconds,
+                    endMilliseconds: endMilliseconds,
+                    lines: unescapeText(fields[7]).components(separatedBy: .newlines)
+                ),
+                createdAt: createdAt
+            )
+        case "remove":
+            _ = try database.removeShiori(
+                subtitleFile: subtitleFile,
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds
+            )
+        default:
+            Issue.record("Unknown Shiori operation: \(fields[0])")
+        }
+    }
+}
+
+private func shioriRows(_ shioris: [Shiori]) -> [String] {
+    shioris.map { shiori in
+        [
+            "shiori",
+            String(shiori.id),
+            shiori.subtitlePath,
+            shiori.subtitleFormat.rawValue,
+            shiori.videoPath,
+            shiori.videoName,
+            String(shiori.startMilliseconds),
+            String(shiori.endMilliseconds),
+            escapeText(shiori.content),
+            String(shiori.isValid),
+            shiori.createdAt,
+            shiori.cueLines.joined(separator: "|")
+        ].joined(separator: "\t")
+    }
+}
+
 private func indexingProjectionRows(root: URL, folder: URL) throws -> [String] {
     let scanner = SubtitleFileScanner()
     let matcher = VideoMatcher()
@@ -481,6 +566,33 @@ private func escapeText(_ text: String) -> String {
         .replacingOccurrences(of: "\\", with: "\\\\")
         .replacingOccurrences(of: "\n", with: "\\n")
         .replacingOccurrences(of: "\t", with: "\\t")
+}
+
+private func unescapeText(_ text: String) -> String {
+    var result = ""
+    var iterator = text.makeIterator()
+
+    while let character = iterator.next() {
+        if character == "\\" {
+            switch iterator.next() {
+            case "n":
+                result.append("\n")
+            case "t":
+                result.append("\t")
+            case "\\":
+                result.append("\\")
+            case .some(let escaped):
+                result.append("\\")
+                result.append(escaped)
+            case .none:
+                result.append("\\")
+            }
+        } else {
+            result.append(character)
+        }
+    }
+
+    return result
 }
 
 private func formatOptionalDouble(_ value: Double?) -> String {

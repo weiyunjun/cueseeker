@@ -310,6 +310,9 @@ produce the same fixture results as the current macOS Swift implementation for:
   groups.
 - Search query matching over indexed cue groups.
 - Library presentation snapshot generation from indexed video metadata.
+- Shiori identity, duplicate upsert, removal, and presentation rows.
+- Playback request/intent validation for local file URLs, missing files,
+  negative start times, and ASS subtitle source metadata.
 - Subtitle-to-video matching.
 - SRT parsing.
 - ASS parsing and exact-time grouping.
@@ -330,7 +333,7 @@ Run from the repository root:
 ```bash
 cd /Users/weiyunjun/Documents/Code/CueSeeker
 cargo test -p cueseeker-shared-core
-swift test --package-path apps/macos-native --filter SharedCoreFixture
+swift test --package-path apps/macos-native --filter 'SharedCoreFixture|SharedCorePlaybackFixture'
 ```
 
 Expected observations:
@@ -350,6 +353,8 @@ Failure examples:
 - Search output differs from `search/expected-results.tsv`.
 - Library presentation output differs from
   `library/expected-presentation.tsv`.
+- Shiori output differs from `shiori/expected-rows.tsv`.
+- Playback request output differs from `playback-intent/expected-rows.tsv`.
 - Video matching returns a path different from `video-matching/cases.tsv`.
 
 ### Optional macOS App Regression Smoke
@@ -386,7 +391,7 @@ For automated checks, paste:
 cargo test -p cueseeker-shared-core
 <full test summary>
 
-swift test --package-path apps/macos-native --filter SharedCoreFixture
+swift test --package-path apps/macos-native --filter 'SharedCoreFixture|SharedCorePlaybackFixture'
 <full test summary>
 ```
 
@@ -404,4 +409,5 @@ This Phase 1 fixture smoke passes when:
 - Rust shared-core fixture tests pass.
 - Swift shared fixture tests pass against the same expected output files.
 - Any optional app smoke uses the existing Swift production path and shows no
-  regression in indexing, Library display rows, Search, or click-to-playback.
+  regression in indexing, Library display rows, Search, Shiori save/open/remove,
+  or click-to-playback.

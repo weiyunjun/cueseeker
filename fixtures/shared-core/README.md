@@ -17,6 +17,11 @@ Current coverage:
 - Library presentation snapshot rows from indexed video metadata, including
   duplicate video folding, natural ordering, display titles, file extensions,
   duration propagation, and subtitle format propagation.
+- Shiori upsert/remove semantics, including cue identity, duplicate metadata
+  updates, `created_at` preservation, timestamp clamping, sorting, and cue-line
+  derivation.
+- Playback request/intent inputs, including local file validation, missing-file
+  rejection, start-time clamping, and ASS subtitle source metadata.
 - Simple language-suffix subtitle matching.
 - SRT parsing, malformed block skipping, missing sequence numbers, multi-line
   text, and CJK text.
@@ -33,4 +38,6 @@ line event_index format style layer start_time end_time start_ms end_ms content 
 Empty fields represent `nil`/`None`. Text uses `\n`, `\t`, and `\\` escaping.
 Expected path output files use one relative path per row. `NONE` in
 video-matching cases represents an expected no-match result. `NONE` in Library
-fixture duration input represents an expected missing duration.
+fixture duration input represents an expected missing duration. `NONE` in
+Playback fixture input represents an absent optional URL, time window, render
+cache, or subtitle source.
