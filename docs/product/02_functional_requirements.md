@@ -124,7 +124,7 @@ Requirements:
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.
 - Results should be limited to avoid rendering excessive rows.
-- Search should load results incrementally in pages of 100 so broad queries can
+- Search should load results incrementally in pages of 1000 so broad queries can
   continue revealing matches while avoiding an unbounded first render.
 - The Search view should show the total matching cue-group count for the current
   query near the search field.
