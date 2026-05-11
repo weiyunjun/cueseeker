@@ -243,17 +243,23 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            VStack(alignment: .leading, spacing: 18) {
-                SettingsSwitchRow(
+            VStack(alignment: .leading, spacing: 22) {
+                SettingsAutoplayRow(
                     title: "Search result autoplay",
                     detail: "Advance through Search results after the clicked cue finishes.",
-                    isOn: $appState.isSearchResultAutoplayEnabled
+                    countTitle: "Subtitle count",
+                    countDetail: "Selected cue plus following cues.",
+                    isOn: $appState.isSearchResultAutoplayEnabled,
+                    count: $appState.searchResultAutoplaySubtitleCount
                 )
 
-                SettingsSwitchRow(
+                SettingsAutoplayRow(
                     title: "Shiori result autoplay",
                     detail: "Advance through Shiori rows after the clicked saved cue finishes.",
-                    isOn: $appState.isShioriResultAutoplayEnabled
+                    countTitle: "Subtitle count",
+                    countDetail: "Selected saved cue plus following cues.",
+                    isOn: $appState.isShioriResultAutoplayEnabled,
+                    count: $appState.shioriResultAutoplaySubtitleCount
                 )
             }
 
@@ -446,6 +452,61 @@ private struct SettingsSwitchRow: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .accessibilityLabel(title)
+        }
+    }
+}
+
+private struct SettingsAutoplayRow: View {
+    let title: String
+    let detail: String
+    let countTitle: String
+    let countDetail: String
+    @Binding var isOn: Bool
+    @Binding var count: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsSwitchRow(
+                title: title,
+                detail: detail,
+                isOn: $isOn
+            )
+
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(countTitle)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Text(countDetail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                TextField("", text: countTextBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 72)
+                    .multilineTextAlignment(.trailing)
+                    .disabled(!isOn)
+                    .accessibilityLabel("\(title) \(countTitle)")
+            }
+            .padding(.leading, 12)
+            .opacity(isOn ? 1 : 0.45)
+        }
+    }
+
+    private var countTextBinding: Binding<String> {
+        Binding {
+            String(count)
+        } set: { nextValue in
+            let digits = nextValue.filter(\.isNumber)
+            guard let parsedCount = Int(digits) else {
+                count = SearchResultPlaybackSequencer.minimumSubtitleCount
+                return
+            }
+
+            count = AppState.clampedAutoplaySubtitleCount(parsedCount)
         }
     }
 }

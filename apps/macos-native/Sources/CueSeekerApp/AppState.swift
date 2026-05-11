@@ -114,6 +114,8 @@ private struct SearchPlaybackSequence {
     let id: UUID
     let committedQuery: String
     var results: [SubtitleSearchResult]
+    let advancesAutomatically: Bool
+    let autoplaySubtitleCount: Int
     var currentIndex: Int
     var isInvalidated: Bool
 }
@@ -121,6 +123,7 @@ private struct SearchPlaybackSequence {
 private struct ShioriPlaybackSequence {
     let id: UUID
     let shioris: [Shiori]
+    let autoplaySubtitleCount: Int
     var currentIndex: Int
     var isInvalidated: Bool
 }
@@ -244,6 +247,9 @@ final class AppState: ObservableObject {
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let searchResultAutoplayEnabledKey = "searchResultAutoplayEnabled"
     private static let shioriResultAutoplayEnabledKey = "shioriResultAutoplayEnabled"
+    private static let searchResultAutoplaySubtitleCountKey = "searchResultAutoplaySubtitleCount"
+    private static let shioriResultAutoplaySubtitleCountKey = "shioriResultAutoplaySubtitleCount"
+    static let defaultAutoplaySubtitleCount = 3
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 1000
     private static let searchPrefetchThreshold = 10
@@ -289,17 +295,33 @@ final class AppState: ObservableObject {
     @Published var isSearchResultAutoplayEnabled = true {
         didSet {
             userDefaults.set(isSearchResultAutoplayEnabled, forKey: Self.searchResultAutoplayEnabledKey)
-            if !isSearchResultAutoplayEnabled {
-                invalidateSearchPlaybackSequenceAfterCurrentResult()
-            }
         }
     }
     @Published var isShioriResultAutoplayEnabled = true {
         didSet {
             userDefaults.set(isShioriResultAutoplayEnabled, forKey: Self.shioriResultAutoplayEnabledKey)
-            if !isShioriResultAutoplayEnabled {
-                invalidateShioriPlaybackSequenceAfterCurrentResult()
+        }
+    }
+    @Published var searchResultAutoplaySubtitleCount = defaultAutoplaySubtitleCount {
+        didSet {
+            let clampedCount = Self.clampedAutoplaySubtitleCount(searchResultAutoplaySubtitleCount)
+            guard clampedCount == searchResultAutoplaySubtitleCount else {
+                searchResultAutoplaySubtitleCount = clampedCount
+                return
             }
+
+            userDefaults.set(clampedCount, forKey: Self.searchResultAutoplaySubtitleCountKey)
+        }
+    }
+    @Published var shioriResultAutoplaySubtitleCount = defaultAutoplaySubtitleCount {
+        didSet {
+            let clampedCount = Self.clampedAutoplaySubtitleCount(shioriResultAutoplaySubtitleCount)
+            guard clampedCount == shioriResultAutoplaySubtitleCount else {
+                shioriResultAutoplaySubtitleCount = clampedCount
+                return
+            }
+
+            userDefaults.set(clampedCount, forKey: Self.shioriResultAutoplaySubtitleCountKey)
         }
     }
 
@@ -488,7 +510,9 @@ final class AppState: ObservableObject {
             "searchPanelWidth": 480.0,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.searchResultAutoplayEnabledKey: true,
-            Self.shioriResultAutoplayEnabledKey: true
+            Self.shioriResultAutoplayEnabledKey: true,
+            Self.searchResultAutoplaySubtitleCountKey: Self.defaultAutoplaySubtitleCount,
+            Self.shioriResultAutoplaySubtitleCountKey: Self.defaultAutoplaySubtitleCount
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
 
@@ -496,6 +520,14 @@ final class AppState: ObservableObject {
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         isSearchResultAutoplayEnabled = userDefaults.bool(forKey: Self.searchResultAutoplayEnabledKey)
         isShioriResultAutoplayEnabled = userDefaults.bool(forKey: Self.shioriResultAutoplayEnabledKey)
+        searchResultAutoplaySubtitleCount = Self.loadAutoplaySubtitleCount(
+            from: userDefaults,
+            key: Self.searchResultAutoplaySubtitleCountKey
+        )
+        shioriResultAutoplaySubtitleCount = Self.loadAutoplaySubtitleCount(
+            from: userDefaults,
+            key: Self.shioriResultAutoplaySubtitleCountKey
+        )
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -1572,14 +1604,20 @@ final class AppState: ObservableObject {
         cancelSearchPlaybackSequence(resetTransitionEffects: true)
         cancelShioriPlaybackSequence(resetTransitionEffects: true)
 
-        let sequenceResults = isSearchResultAutoplayEnabled
+        let isAutoplayEnabled = isSearchResultAutoplayEnabled
+        let sequenceResults = isAutoplayEnabled
             ? searchPlaybackResults(startingAt: result)
             : [result]
+        let autoplaySubtitleCount = isAutoplayEnabled
+            ? Self.clampedAutoplaySubtitleCount(searchResultAutoplaySubtitleCount)
+            : SearchResultPlaybackSequencer.minimumSubtitleCount
         let sequenceID = UUID()
         searchPlaybackSequence = SearchPlaybackSequence(
             id: sequenceID,
             committedQuery: searchQuery,
             results: sequenceResults,
+            advancesAutomatically: isAutoplayEnabled,
+            autoplaySubtitleCount: autoplaySubtitleCount,
             currentIndex: 0,
             isInvalidated: false
         )
@@ -1617,13 +1655,18 @@ final class AppState: ObservableObject {
         cancelSearchPlaybackSequence(resetTransitionEffects: true)
         cancelShioriPlaybackSequence(resetTransitionEffects: true)
 
-        let sequenceShioris = isShioriResultAutoplayEnabled
+        let isAutoplayEnabled = isShioriResultAutoplayEnabled
+        let sequenceShioris = isAutoplayEnabled
             ? shioriPlaybackResults(startingAt: shiori)
             : [shiori]
+        let autoplaySubtitleCount = isAutoplayEnabled
+            ? Self.clampedAutoplaySubtitleCount(shioriResultAutoplaySubtitleCount)
+            : SearchResultPlaybackSequencer.minimumSubtitleCount
         let sequenceID = UUID()
         shioriPlaybackSequence = ShioriPlaybackSequence(
             id: sequenceID,
             shioris: sequenceShioris,
+            autoplaySubtitleCount: autoplaySubtitleCount,
             currentIndex: 0,
             isInvalidated: false
         )
@@ -1686,10 +1729,18 @@ final class AppState: ObservableObject {
             let refreshedNextResult = refreshedSequence.results.indices.contains(refreshedNextIndex)
                 ? refreshedSequence.results[refreshedNextIndex]
                 : nil
+            let currentWindow = resultPlaybackWindow(
+                for: refreshedCurrentResult,
+                subtitleCount: refreshedSequence.autoplaySubtitleCount
+            )
 
             if let nextResult = refreshedNextResult,
                !refreshedSequence.isInvalidated,
-               SearchResultPlaybackSequencer.shouldPlayContinuously(current: refreshedCurrentResult, next: nextResult) {
+               SearchResultPlaybackSequencer.shouldPlayContinuously(
+                    current: refreshedCurrentResult,
+                    currentWindow: currentWindow,
+                    next: nextResult
+               ) {
                 guard await waitUntilPlaybackTime(
                     milliseconds: nextResult.startMilliseconds,
                     sequenceID: id,
@@ -1700,7 +1751,7 @@ final class AppState: ObservableObject {
 
                 if isSearchPlaybackSequenceInvalidated(id) {
                     guard await waitUntilPlaybackTime(
-                        milliseconds: refreshedCurrentResult.endMilliseconds,
+                        milliseconds: currentWindow.endMilliseconds,
                         sequenceID: id,
                         stopsWhenInvalidated: false
                     ) else {
@@ -1720,7 +1771,7 @@ final class AppState: ObservableObject {
             }
 
             guard await waitUntilPlaybackTime(
-                milliseconds: refreshedCurrentResult.endMilliseconds,
+                milliseconds: currentWindow.endMilliseconds,
                 sequenceID: id,
                 stopsWhenInvalidated: false
             ) else {
@@ -1765,6 +1816,10 @@ final class AppState: ObservableObject {
             let nextShiori = sequence.shioris.indices.contains(nextIndex)
                 ? sequence.shioris[nextIndex]
                 : nil
+            let currentWindow = resultPlaybackWindow(
+                for: currentShiori,
+                subtitleCount: sequence.autoplaySubtitleCount
+            )
 
             if shouldOpenCurrentShiori {
                 playShiori(currentShiori, resetsTransitionEffects: true)
@@ -1772,7 +1827,11 @@ final class AppState: ObservableObject {
 
             if let nextShiori,
                !sequence.isInvalidated,
-               SearchResultPlaybackSequencer.shouldPlayContinuously(current: currentShiori, next: nextShiori) {
+               SearchResultPlaybackSequencer.shouldPlayContinuously(
+                    current: currentShiori,
+                    currentWindow: currentWindow,
+                    next: nextShiori
+               ) {
                 guard await waitUntilShioriPlaybackTime(
                     milliseconds: nextShiori.startMilliseconds,
                     sequenceID: id,
@@ -1783,7 +1842,7 @@ final class AppState: ObservableObject {
 
                 if isShioriPlaybackSequenceInvalidated(id) {
                     guard await waitUntilShioriPlaybackTime(
-                        milliseconds: currentShiori.endMilliseconds,
+                        milliseconds: currentWindow.endMilliseconds,
                         sequenceID: id,
                         stopsWhenInvalidated: false
                     ) else {
@@ -1803,7 +1862,7 @@ final class AppState: ObservableObject {
             }
 
             guard await waitUntilShioriPlaybackTime(
-                milliseconds: currentShiori.endMilliseconds,
+                milliseconds: currentWindow.endMilliseconds,
                 sequenceID: id,
                 stopsWhenInvalidated: false
             ) else {
@@ -1835,6 +1894,7 @@ final class AppState: ObservableObject {
     private func loadMoreSearchPlaybackResultsIfNeeded(sequenceID: UUID) async {
         guard let sequence = searchPlaybackSequence,
               sequence.id == sequenceID,
+              sequence.advancesAutomatically,
               !sequence.isInvalidated,
               sequence.currentIndex >= sequence.results.count - 1,
               hasMoreSearchResults,
@@ -2750,6 +2810,69 @@ final class AppState: ObservableObject {
         aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
     }
 
+    private func resultPlaybackWindow(
+        for result: SubtitleSearchResult,
+        subtitleCount: Int
+    ) -> ResultAutoplayWindow {
+        resultPlaybackWindow(
+            forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+            startMilliseconds: result.startMilliseconds,
+            endMilliseconds: result.endMilliseconds,
+            subtitleCount: subtitleCount
+        )
+    }
+
+    private func resultPlaybackWindow(
+        for shiori: Shiori,
+        subtitleCount: Int
+    ) -> ResultAutoplayWindow {
+        resultPlaybackWindow(
+            forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
+            startMilliseconds: shiori.startMilliseconds,
+            endMilliseconds: shiori.endMilliseconds,
+            subtitleCount: subtitleCount
+        )
+    }
+
+    private func resultPlaybackWindow(
+        forSubtitleFile subtitleFile: URL,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        subtitleCount: Int
+    ) -> ResultAutoplayWindow {
+        let subtitleCount = Self.clampedAutoplaySubtitleCount(subtitleCount)
+        guard let database = subtitleDatabase else {
+            return SearchResultPlaybackSequencer.playbackWindow(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds,
+                availableCueTimings: [],
+                subtitleCount: subtitleCount
+            )
+        }
+
+        do {
+            let cueTimings = try database.cueTimings(
+                forSubtitleFile: subtitleFile,
+                startingAtMilliseconds: startMilliseconds,
+                limit: subtitleCount + 1
+            )
+            return SearchResultPlaybackSequencer.playbackWindow(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds,
+                availableCueTimings: cueTimings,
+                subtitleCount: subtitleCount
+            )
+        } catch {
+            print("Failed to load autoplay subtitle window: \(error)")
+            return SearchResultPlaybackSequencer.playbackWindow(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds,
+                availableCueTimings: [],
+                subtitleCount: subtitleCount
+            )
+        }
+    }
+
     private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
         playbackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
@@ -2988,6 +3111,17 @@ final class AppState: ObservableObject {
         }
 
         return mode
+    }
+
+    private static func loadAutoplaySubtitleCount(
+        from userDefaults: UserDefaults,
+        key: String
+    ) -> Int {
+        clampedAutoplaySubtitleCount(userDefaults.integer(forKey: key))
+    }
+
+    static func clampedAutoplaySubtitleCount(_ count: Int) -> Int {
+        SearchResultPlaybackSequencer.clampedSubtitleCount(count)
     }
 
     private static func defaultDatabaseURL() -> URL {

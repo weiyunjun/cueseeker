@@ -576,7 +576,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         startingAtMilliseconds startMilliseconds: Int,
         limit: Int
     ) throws -> [SubtitleCueTiming] {
-        let limit = min(max(0, limit), 100)
+        let limit = min(max(0, limit), SearchResultPlaybackSequencer.maximumSubtitleCount + 1)
         guard limit > 0 else {
             return []
         }
