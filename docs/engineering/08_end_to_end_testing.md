@@ -306,6 +306,8 @@ production path. This test confirms that Rust shared-core parsing and matching
 produce the same fixture results as the current macOS Swift implementation for:
 
 - Recursive subtitle folder scanning.
+- Minimal indexing projection from scanned subtitles to matched videos and cue
+  groups.
 - Subtitle-to-video matching.
 - SRT parsing.
 - ASS parsing and exact-time grouping.
@@ -342,6 +344,7 @@ Failure examples:
   current macOS behavior.
 - Scanner output differs from `scanning/expected-subtitles.txt` or
   `scanning/expected-srt.txt`.
+- Indexing projection output differs from `indexing/expected-projection.tsv`.
 - Video matching returns a path different from `video-matching/cases.tsv`.
 
 ### Optional macOS App Regression Smoke

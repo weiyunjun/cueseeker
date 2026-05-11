@@ -106,6 +106,21 @@ func sharedSubtitleScannerSkipsSymlinkDirectories() throws {
     )
 }
 
+@Test
+func sharedSubtitleIndexingProjectionFixtureMatchesCurrentMacOSModules() throws {
+    let root = try sharedFixtureRoot()
+    let indexingRoot = root.appendingPathComponent("indexing")
+    let actual = try indexingProjectionRows(
+        root: indexingRoot,
+        folder: indexingRoot.appendingPathComponent("library")
+    )
+    let expected = try expectedRows(
+        at: root.appendingPathComponent("indexing/expected-projection.tsv")
+    )
+
+    #expect(actual == expected)
+}
+
 private func sharedFixtureRoot() throws -> URL {
     var cursor = URL(fileURLWithPath: #filePath)
     while cursor.path != "/" {
@@ -117,6 +132,80 @@ private func sharedFixtureRoot() throws -> URL {
     }
 
     throw SharedFixtureError.notFound
+}
+
+private func indexingProjectionRows(root: URL, folder: URL) throws -> [String] {
+    let scanner = SubtitleFileScanner()
+    let matcher = VideoMatcher()
+    let subtitleFiles = scanner.scanSubtitleFiles(in: folder)
+    var indexedFiles: [(subtitle: URL, video: URL, format: SubtitleFormat, cueGroups: [SubtitleCueGroup])] = []
+    var skippedMissingVideo = 0
+    var skippedUnreadableSubtitle = 0
+    var failedFiles: [String] = []
+
+    for subtitleFile in subtitleFiles {
+        guard let videoFile = matcher.matchingVideo(for: subtitleFile) else {
+            skippedMissingVideo += 1
+            continue
+        }
+
+        let contents: String
+        do {
+            contents = try String(contentsOf: subtitleFile)
+        } catch {
+            skippedUnreadableSubtitle += 1
+            failedFiles.append(subtitleFile.path)
+            continue
+        }
+
+        guard let format = subtitleFormat(for: subtitleFile) else {
+            continue
+        }
+
+        let cueGroups: [SubtitleCueGroup]
+        switch format {
+        case .srt:
+            cueGroups = SRTParser.parseCueGroups(contents)
+        case .ass:
+            cueGroups = ASSParser.parseCueGroups(contents)
+        }
+
+        indexedFiles.append((subtitleFile, videoFile, format, cueGroups))
+    }
+
+    var rows = [[
+        "summary",
+        String(subtitleFiles.count),
+        String(indexedFiles.count),
+        String(indexedFiles.reduce(0) { $0 + $1.cueGroups.count }),
+        String(skippedMissingVideo),
+        String(skippedUnreadableSubtitle),
+        String(failedFiles.count)
+    ].joined(separator: "\t")]
+
+    for file in indexedFiles {
+        rows.append([
+            "file",
+            relativePath(from: root, to: file.subtitle),
+            relativePath(from: root, to: file.video),
+            file.format.rawValue,
+            String(file.cueGroups.count)
+        ].joined(separator: "\t"))
+        rows.append(contentsOf: cueGroupRows(file.cueGroups))
+    }
+
+    return rows
+}
+
+private func subtitleFormat(for url: URL) -> SubtitleFormat? {
+    switch url.pathExtension.lowercased() {
+    case "srt":
+        return .srt
+    case "ass":
+        return .ass
+    default:
+        return nil
+    }
 }
 
 private func expectedRows(at url: URL) throws -> [String] {

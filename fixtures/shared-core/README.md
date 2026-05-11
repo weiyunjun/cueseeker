@@ -10,6 +10,8 @@ Current coverage:
 
 - Subtitle-to-video matching by same-directory basename.
 - Recursive subtitle folder scanning.
+- Minimal indexing projection from scanned subtitles to matched videos and cue
+  groups.
 - Simple language-suffix subtitle matching.
 - SRT parsing, malformed block skipping, missing sequence numbers, multi-line
   text, and CJK text.

@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cueseeker_shared_core::subtitles::{SubtitleCueGroup, SubtitleFormat, ass, srt};
-use cueseeker_shared_core::{SubtitleFileScanner, VideoMatcher};
+use cueseeker_shared_core::{SubtitleFileScanner, SubtitleIndexer, VideoMatcher};
 
 #[test]
 fn srt_parser_matches_shared_fixture() {
@@ -71,6 +71,18 @@ fn subtitle_scanner_matches_shared_fixture() {
     );
 }
 
+#[test]
+fn subtitle_indexing_projection_matches_shared_fixture() {
+    let root = fixture_root();
+    let indexing_root = root.join("indexing");
+    let projection = SubtitleIndexer::default().project_folder(&indexing_root.join("library"));
+
+    assert_eq!(
+        indexing_projection_rows(&indexing_root, &projection),
+        expected_rows(&root.join("indexing/expected-projection.tsv"))
+    );
+}
+
 fn fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -135,6 +147,40 @@ fn cue_group_rows(groups: &[SubtitleCueGroup]) -> Vec<String> {
                 .join("\t"),
             );
         }
+    }
+
+    rows
+}
+
+fn indexing_projection_rows(
+    root: &Path,
+    projection: &cueseeker_shared_core::SubtitleIndexingProjection,
+) -> Vec<String> {
+    let mut rows = vec![
+        [
+            "summary".to_string(),
+            projection.result.scanned_subtitle_files.to_string(),
+            projection.result.indexed_subtitle_files.to_string(),
+            projection.result.indexed_subtitle_entries.to_string(),
+            projection.result.skipped_missing_video.to_string(),
+            projection.result.skipped_unreadable_subtitle.to_string(),
+            projection.result.failed_files.len().to_string(),
+        ]
+        .join("\t"),
+    ];
+
+    for file in &projection.indexed_files {
+        rows.push(
+            [
+                "file".to_string(),
+                relative_path(root, &file.subtitle_path),
+                relative_path(root, &file.video_path),
+                format_subtitle_format(file.format),
+                file.cue_groups.len().to_string(),
+            ]
+            .join("\t"),
+        );
+        rows.extend(cue_group_rows(&file.cue_groups));
     }
 
     rows
