@@ -50,6 +50,11 @@ public sealed partial class MainWindow : Window
         CapturePlaybackSurface();
     }
 
+    private void PlaybackHost_Loaded(object sender, RoutedEventArgs e)
+    {
+        UpdatePlaybackFrameSize(PlaybackHost.ActualWidth, PlaybackHost.ActualHeight);
+    }
+
     private void PlaybackHost_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePlaybackFrameSize(e.NewSize.Width, e.NewSize.Height);
@@ -415,6 +420,7 @@ public sealed partial class MainWindow : Window
         string reportPath = Path.Combine(Path.GetDirectoryName(SubtitleDatabase.DefaultPath)!, "last-playback.json");
         PlaybackStatusText.Text = $"{source}: starting {Path.GetFileName(videoPath)} at {FormatMilliseconds(seekMilliseconds)}";
         PlaybackOverlayPanel.Visibility = Visibility.Visible;
+        UpdatePlaybackFrameSize(PlaybackHost.ActualWidth, PlaybackHost.ActualHeight);
         if (!CapturePlaybackSurface()) {
             if (requestId == playbackRequestId) {
                 PlaybackStatusText.Text = $"{source}: playback failed: embedded playback surface is not ready.";
@@ -463,6 +469,14 @@ public sealed partial class MainWindow : Window
 
         PlaybackFrame.Width = width;
         PlaybackFrame.Height = height;
+        PlaybackFrame.Clip = new RectangleGeometry {
+            Rect = new global::Windows.Foundation.Rect(0, 0, width, height),
+        };
+        PlaybackSurface.Width = width;
+        PlaybackSurface.Height = height;
+        PlaybackSurface.Clip = new RectangleGeometry {
+            Rect = new global::Windows.Foundation.Rect(0, 0, width, height),
+        };
         CapturePlaybackSurface();
     }
 

@@ -207,8 +207,10 @@ internal sealed class NativePlaybackHost
     private void UpdateRenderTargetSize(SwapChainPanel panel)
     {
         double scale = panel.XamlRoot?.RasterizationScale ?? 1.0;
-        int width = (int)Math.Round(panel.ActualWidth * scale);
-        int height = (int)Math.Round(panel.ActualHeight * scale);
+        double logicalWidth = panel.ActualWidth > 0 ? panel.ActualWidth : (double.IsNaN(panel.Width) ? 0 : panel.Width);
+        double logicalHeight = panel.ActualHeight > 0 ? panel.ActualHeight : (double.IsNaN(panel.Height) ? 0 : panel.Height);
+        int width = (int)Math.Round(logicalWidth * scale);
+        int height = (int)Math.Round(logicalHeight * scale);
         renderWidth = width > 0 ? width : renderWidth;
         renderHeight = height > 0 ? height : renderHeight;
     }

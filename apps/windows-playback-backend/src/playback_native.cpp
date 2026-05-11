@@ -1816,10 +1816,11 @@ public:
         throwIfFailed(audioClient_->GetService(IID_PPV_ARGS(&renderClient_)), "IAudioClient::GetService(IAudioRenderClient)");
     }
 
-    void writeInterleaved(const uint8_t* data, int frameCount)
+    template <typename StopRequested>
+    bool writeInterleaved(const uint8_t* data, int frameCount, StopRequested stopRequested)
     {
         if (frameCount <= 0) {
-            return;
+            return true;
         }
         if (!data) {
             throw std::runtime_error("WASAPI write received null audio data");
@@ -1832,6 +1833,10 @@ public:
         int framesRemaining = frameCount;
         const uint8_t* cursor = data;
         while (framesRemaining > 0) {
+            if (stopRequested()) {
+                return false;
+            }
+
             UINT32 padding = 0;
             throwIfFailed(audioClient_->GetCurrentPadding(&padding), "IAudioClient::GetCurrentPadding");
             const UINT32 available = bufferFrameCount_ > padding ? bufferFrameCount_ - padding : 0;
@@ -1849,6 +1854,7 @@ public:
             cursor += static_cast<size_t>(framesToWrite) * bytesPerFrame_;
             framesRemaining -= static_cast<int>(framesToWrite);
         }
+        return true;
     }
 
     int sampleRate() const
@@ -2400,9 +2406,34 @@ void playVideo(
     bool running = true;
     std::unique_ptr<SwsContext, void (*)(SwsContext*)> swsGuard(nullptr, sws_freeContext);
     AVPixelFormat activeSwsFormat = AV_PIX_FMT_NONE;
+    auto stopPlayback = [&]() {
+        running = false;
+        report.completionReason = "stopped";
+    };
+    auto sleepForMediaSync = [&](double seconds) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::duration<double>(seconds);
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (renderer->stopRequested()) {
+                stopPlayback();
+                return false;
+            }
+            const auto remaining = deadline - std::chrono::steady_clock::now();
+            if (remaining > std::chrono::milliseconds(10)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            } else {
+                std::this_thread::sleep_for(remaining);
+            }
+        }
+        return true;
+    };
 
     auto receiveFrames = [&]() {
         while (true) {
+            if (renderer->stopRequested()) {
+                stopPlayback();
+                break;
+            }
+
             const int receive = avcodec_receive_frame(codec.get(), frame.get());
             if (receive == AVERROR(EAGAIN) || receive == AVERROR_EOF) {
                 break;
@@ -2467,7 +2498,9 @@ void playVideo(
             const double relativeMedia = mediaSeconds - *mediaStart;
             const double relativeWall = std::chrono::duration<double>(std::chrono::steady_clock::now() - wallStart).count();
             if (relativeMedia > relativeWall && relativeMedia - relativeWall < 1.0) {
-                std::this_thread::sleep_for(std::chrono::duration<double>(relativeMedia - relativeWall));
+                if (!sleepForMediaSync(relativeMedia - relativeWall)) {
+                    break;
+                }
             }
 
 #if CUESEEKER_HAS_LIBASS_HEADER
@@ -2478,8 +2511,12 @@ void playVideo(
 #endif
 
             if (!renderer->pumpMessages()) {
-                running = false;
-                report.completionReason = renderer->stopRequested() ? "stopped" : "window_closed";
+                if (renderer->stopRequested()) {
+                    stopPlayback();
+                } else {
+                    running = false;
+                    report.completionReason = "window_closed";
+                }
                 break;
             }
 
@@ -2507,7 +2544,7 @@ void playVideo(
 
     auto writeResampledAudio = [&](int outputFrames, const uint8_t** inputData, int inputFrames) {
         if (outputFrames <= 0) {
-            return;
+            return true;
         }
         const int bufferSize = av_samples_get_buffer_size(
             nullptr,
@@ -2526,10 +2563,14 @@ void playVideo(
             throw std::runtime_error("swr_convert failed: " + avError(converted));
         }
         if (converted > 0) {
-            audioOutput->writeInterleaved(audioBuffer.data(), converted);
+            if (!audioOutput->writeInterleaved(audioBuffer.data(), converted, [&]() { return renderer->stopRequested(); })) {
+                stopPlayback();
+                return false;
+            }
             report.audioSampleFramesWritten += static_cast<uint64_t>(converted);
             sampleProcessTelemetry(report.process);
         }
+        return true;
     };
 
     auto receiveAudioFrames = [&]() {
@@ -2560,7 +2601,9 @@ void playVideo(
                 audioCodec->sample_rate,
                 AV_ROUND_UP));
             const uint8_t** inputData = const_cast<const uint8_t**>(audioFrame->extended_data);
-            writeResampledAudio(outputFrames, inputData, audioFrame->nb_samples);
+            if (!writeResampledAudio(outputFrames, inputData, audioFrame->nb_samples)) {
+                break;
+            }
             av_frame_unref(audioFrame.get());
         }
     };
@@ -2580,7 +2623,9 @@ void playVideo(
             if (outputFrames <= 0) {
                 break;
             }
-            writeResampledAudio(outputFrames, nullptr, 0);
+            if (!writeResampledAudio(outputFrames, nullptr, 0)) {
+                break;
+            }
         }
     };
 

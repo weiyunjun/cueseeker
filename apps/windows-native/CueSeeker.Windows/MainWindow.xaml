@@ -39,7 +39,7 @@
             </Border>
 
             <Grid Grid.Column="1" RowDefinitions="*,Auto" Padding="16">
-                <Grid x:Name="PlaybackHost" SizeChanged="PlaybackHost_SizeChanged">
+                <Grid x:Name="PlaybackHost" Loaded="PlaybackHost_Loaded" SizeChanged="PlaybackHost_SizeChanged">
                     <Border
                         x:Name="PlaybackFrame"
                         HorizontalAlignment="Center"
@@ -49,7 +49,11 @@
                         BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
                         Background="Black">
                         <Grid>
-                            <SwapChainPanel x:Name="PlaybackSurface" Loaded="PlaybackSurface_Loaded" />
+                            <SwapChainPanel
+                                x:Name="PlaybackSurface"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Top"
+                                Loaded="PlaybackSurface_Loaded" />
                             <StackPanel x:Name="PlaybackOverlayPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
                                 <TextBlock
                                     x:Name="PlaybackSurfaceStatusText"
