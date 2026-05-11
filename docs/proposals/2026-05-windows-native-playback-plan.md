@@ -103,6 +103,12 @@ Shared Project Assets
   Playback compatibility samples and reports
 ```
 
+The broader cross-platform domain architecture adjustment is tracked in
+`docs/proposals/2026-05-shared-core-architecture-plan.md`. The Windows app
+should avoid treating bootstrap C# implementations of database, indexing,
+Library, Search, Shiori, and playback-intent behavior as the final product
+boundary when the shared-core proposal supersedes them.
+
 The Windows playback backend should expose CueSeeker-owned concepts rather than
 third-party-player concepts:
 
