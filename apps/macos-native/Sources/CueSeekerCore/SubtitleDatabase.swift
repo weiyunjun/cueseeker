@@ -871,23 +871,26 @@ public final class SubtitleDatabase {
             } ?? ""
             let subtitlePathCondition = subtitlePathFilter.map { _ in "AND sf.subtitle_path = ?" } ?? ""
 
+            let statement = try database.prepare(
+                """
+                SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                       g.start_ms, g.end_ms, g.search_content
+                FROM subtitle_cue_groups_fts f
+                JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
+                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                JOIN video_files vf ON vf.id = m.video_file_id
+                WHERE subtitle_cue_groups_fts MATCH ?
+                \(scopeCondition)
+                \(subtitlePathCondition)
+                ORDER BY vf.video_name ASC, g.start_ms ASC, g.id ASC
+                LIMIT ? OFFSET ?;
+                """
+            )
+
             while true {
-                let statement = try database.prepare(
-                    """
-                    SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                           g.start_ms, g.end_ms, g.search_content
-                    FROM subtitle_cue_groups_fts f
-                    JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-                    JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                    JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-                    JOIN video_files vf ON vf.id = m.video_file_id
-                    WHERE subtitle_cue_groups_fts MATCH ?
-                    \(scopeCondition)
-                    \(subtitlePathCondition)
-                    ORDER BY vf.video_name ASC, g.start_ms ASC, g.id ASC
-                    LIMIT ? OFFSET ?;
-                    """
-                )
+                try statement.reset()
+                try statement.clearBindings()
 
                 try statement.bind(plan.ftsQuery, at: 1)
                 var bindIndex: Int32 = 2
