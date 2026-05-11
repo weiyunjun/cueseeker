@@ -7,11 +7,37 @@ public enum SearchResultPlaybackSequencer {
         current: SubtitleSearchResult,
         next: SubtitleSearchResult
     ) -> Bool {
-        guard subtitleFilename(for: current.subtitlePath) == subtitleFilename(for: next.subtitlePath) else {
+        shouldPlayContinuously(
+            currentSubtitlePath: current.subtitlePath,
+            currentEndMilliseconds: current.endMilliseconds,
+            nextSubtitlePath: next.subtitlePath,
+            nextStartMilliseconds: next.startMilliseconds
+        )
+    }
+
+    public static func shouldPlayContinuously(
+        current: Shiori,
+        next: Shiori
+    ) -> Bool {
+        shouldPlayContinuously(
+            currentSubtitlePath: current.subtitlePath,
+            currentEndMilliseconds: current.endMilliseconds,
+            nextSubtitlePath: next.subtitlePath,
+            nextStartMilliseconds: next.startMilliseconds
+        )
+    }
+
+    private static func shouldPlayContinuously(
+        currentSubtitlePath: String,
+        currentEndMilliseconds: Int,
+        nextSubtitlePath: String,
+        nextStartMilliseconds: Int
+    ) -> Bool {
+        guard subtitleFilename(for: currentSubtitlePath) == subtitleFilename(for: nextSubtitlePath) else {
             return false
         }
 
-        let overlapMilliseconds = current.endMilliseconds - next.startMilliseconds
+        let overlapMilliseconds = currentEndMilliseconds - nextStartMilliseconds
         return overlapMilliseconds >= 0 && overlapMilliseconds <= continuityWindowMilliseconds
     }
 

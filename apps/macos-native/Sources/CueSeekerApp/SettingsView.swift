@@ -6,6 +6,7 @@ import CueSeekerPlayback
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case library
     case decode
+    case autoplay
 
     var id: String { rawValue }
 
@@ -15,6 +16,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "Library"
         case .decode:
             "Decode"
+        case .autoplay:
+            "Autoplay"
         }
     }
 
@@ -24,6 +27,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "folder"
         case .decode:
             "play.rectangle"
+        case .autoplay:
+            "play.circle"
         }
     }
 }
@@ -112,6 +117,8 @@ struct SettingsView: View {
             librarySettingsContent
         case .decode:
             decodeSettingsContent
+        case .autoplay:
+            autoplaySettingsContent
         }
     }
 
@@ -216,6 +223,38 @@ struct SettingsView: View {
                 Spacer()
 
                 DecodeModeSegmentedControl(selection: $appState.playbackDecodeMode)
+            }
+
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(contentBackground)
+    }
+
+    private var autoplaySettingsContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Autoplay")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text("Choose which result lists advance automatically after the selected cue fades out.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 18) {
+                SettingsSwitchRow(
+                    title: "Search result autoplay",
+                    detail: "Advance through Search results after the clicked cue finishes.",
+                    isOn: $appState.isSearchResultAutoplayEnabled
+                )
+
+                SettingsSwitchRow(
+                    title: "Shiori result autoplay",
+                    detail: "Advance through Shiori rows after the clicked saved cue finishes.",
+                    isOn: $appState.isShioriResultAutoplayEnabled
+                )
             }
 
             Spacer()
@@ -383,5 +422,30 @@ private struct DecodeModeSegmentedControl: View {
                 .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+private struct SettingsSwitchRow: View {
+    let title: String
+    let detail: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .accessibilityLabel(title)
+        }
     }
 }
