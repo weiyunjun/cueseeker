@@ -865,7 +865,7 @@ public final class SubtitleDatabase {
             var candidateOffset = 0
             var results: [SubtitleSearchResult] = []
             let scopeCondition = pathPrefixes.map {
-                let conditions = $0.map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
+                let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
                     .joined(separator: " OR ")
                 return "AND (\(conditions))"
             } ?? ""
@@ -896,9 +896,9 @@ public final class SubtitleDatabase {
                 var bindIndex: Int32 = 2
                 if let pathPrefixes {
                     for prefix in pathPrefixes {
-                        try statement.bind(prefix.count, at: bindIndex)
-                        bindIndex += 1
                         try statement.bind(prefix, at: bindIndex)
+                        bindIndex += 1
+                        try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
                         bindIndex += 1
                     }
                 }
