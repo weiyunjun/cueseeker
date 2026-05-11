@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "crates/shared-core",
+]
+resolver = "3"
