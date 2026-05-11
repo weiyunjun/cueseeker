@@ -464,6 +464,7 @@ Current Settings categories:
 
 - `Library`.
 - `Decode`.
+- `Autoplay`.
 
 `Library` settings requirements:
 
@@ -478,7 +479,19 @@ Current Settings categories:
 - Choose a persisted playback decode mode from `hardware`, `software`, and
   `auto`.
 
-Future settings may include playback, database, logging, and privacy options.
+`Autoplay` settings requirements:
+
+- Expose a persisted `Search result autoplay` switch.
+- Expose a persisted `Shiori result autoplay` switch.
+- Use the native macOS switch-style toggle where practical.
+- When Search result autoplay is disabled, clicking a Search result still plays
+  only the selected cue and runs the one-second fade, then remains black and
+  silent instead of advancing to the next Search result.
+- When Shiori result autoplay is disabled, clicking a Shiori row still plays
+  only the selected saved cue and runs the one-second fade, then remains black
+  and silent instead of advancing to the next Shiori row.
+
+Future settings may include database, logging, and privacy options.
 
 ## 12. Shiori
 
@@ -538,6 +551,10 @@ Initial Shiori panel behavior:
   query, so keyword highlights do not apply.
 - Clicking a Shiori row should open or update playback for the saved video
   at the saved subtitle start timestamp.
+- Shiori rows may participate in autoplay using the visible Shiori row order.
+  When Shiori result autoplay is enabled, playback advances through later
+  Shiori rows after each selected cue fades out. When disabled, a clicked Shiori
+  row plays only that saved cue, fades out, and stops black and silent.
 
 Shiori actions may later appear in Search results, Timeline rows, contextual
 menus, and future hover controls after those entry points are documented. Shiori

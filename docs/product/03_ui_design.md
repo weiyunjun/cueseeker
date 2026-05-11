@@ -545,6 +545,7 @@ Current Settings categories:
 
 - `Library`.
 - `Decode`.
+- `Autoplay`.
 
 The `Library` category should allow local folder management.
 
@@ -561,6 +562,11 @@ Required `Library` elements:
 The `Decode` category should expose an app-drawn segmented control for
 `hardware`, `software`, and `auto`, avoiding native menu services during the
 normal Settings window lifecycle.
+
+The `Autoplay` category should sit below `Decode` in the Settings category
+list. It should expose native switch-style toggles for `Search result autoplay`
+and `Shiori result autoplay`, with concise secondary text explaining the
+behavior.
 
 Settings should be functional and clear before they are visually refined.
 Opening, focusing, or closing Settings should not pause playback, switch the

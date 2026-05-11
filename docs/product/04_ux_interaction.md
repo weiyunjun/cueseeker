@@ -575,6 +575,11 @@ Expected behavior:
   selected folders, remove folders with confirmation, and show indexing status.
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
+- `Autoplay` appears below `Decode` and contains switch-style controls for
+  Search result autoplay and Shiori result autoplay.
+- Disabling Search result autoplay or Shiori result autoplay does not change the
+  clicked-row playback shape: the selected cue still plays through its end and
+  fades out, but the sequence stops black and silent instead of advancing.
 - Opening, focusing, switching categories within, or closing Settings must not
   pause playback, switch away from the CueSeeker workbench, collapse either
   side panel, or clear the selected Search result.

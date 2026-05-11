@@ -186,6 +186,14 @@ Current implementation:
   valid. If Return commits a new query while a result is playing, the current
   cue finishes normally and fades out, then playback remains black and silent
   instead of advancing.
+- Search-result autoplay is controlled by the persisted `Search result autoplay`
+  setting. When disabled, a clicked Search result still plays only the selected
+  cue and fades out, but does not advance.
+- Shiori-result autoplay is controlled by the persisted `Shiori result autoplay`
+  setting. When enabled, a clicked Shiori row creates a playback sequence from
+  that row through the remaining visible Shiori rows. When disabled, a clicked
+  Shiori row still plays only the selected saved cue and fades out, but does not
+  advance.
 - The previous `wid` style embedding and external player-window approach are not
   acceptable as the primary playback implementation.
 

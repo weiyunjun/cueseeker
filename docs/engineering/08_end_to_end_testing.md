@@ -320,6 +320,8 @@ This test validates that:
   adjacent windows `[a,b]` and `[c,d]` satisfy `0ms <= b - c <= 1000ms`.
 - Committing a new query during active sequence playback invalidates automatic
   advancement after the current result fades out.
+- The Autoplay Settings switches control whether Search and Shiori result
+  playback advances after the current cue fades out.
 
 ### Required Instrumentation
 
@@ -368,6 +370,7 @@ For full coverage, choose or create result pairs with:
   `0ms <= b - c <= 1000ms`.
 - A same-subtitle-filename pair satisfying `0ms <= b - c <= 1000ms`.
 - A query whose last result is near the end of its video, when available.
+- At least two Shiori rows in the visible Shiori panel.
 
 The user's personal media library is acceptable for this manual end-to-end
 check. Automated tests must still use fixtures.
@@ -398,6 +401,15 @@ Perform these actions in order.
 9. If a near-end-of-video result is available, play it and verify the
    one-second fade completes even when less than one second of media remains
    after the cue end.
+10. Open Settings, choose `Autoplay`, disable `Search result autoplay`, and
+    click a Search result. Verify the selected cue plays and fades out, then
+    remains black and silent without advancing.
+11. Enable `Search result autoplay` again and verify Search result advancement
+    resumes.
+12. Disable `Shiori result autoplay`, click a Shiori row, and verify the saved
+    cue plays and fades out without advancing.
+13. Enable `Shiori result autoplay`, click the same Shiori row, and verify
+    playback advances to the next visible Shiori row after fade-out.
 
 ### Evidence to Paste Back
 
@@ -409,6 +421,8 @@ Paste a short note with:
 - The observed same-subtitle-filename continuity behavior, including the two
   timing windows when practical.
 - Whether committing a new query stopped advancement after fade-out.
+- Whether both Autoplay switches changed advancement behavior without changing
+  the clicked cue's bounded playback and fade-out.
 - Any visible or audible mismatch, delayed seek, missing black frame, selection
   mismatch, or unexpected continuation.
 
@@ -434,6 +448,14 @@ The Search result sequence playback test passes only if:
   `0ms <= b - c <= 1000ms`, and selection switches at `c`.
 - Committing a new query during playback does not interrupt the current result,
   but prevents automatic advancement after that result fades out.
+- With `Search result autoplay` off, Search result playback stops black and
+  silent after the clicked cue fades out.
+- With `Search result autoplay` on, Search result playback advances after
+  fade-out when a next result exists.
+- With `Shiori result autoplay` off, Shiori playback stops black and silent
+  after the clicked saved cue fades out.
+- With `Shiori result autoplay` on, Shiori playback advances through later
+  visible Shiori rows after fade-out.
 
 ### Failure Handling
 

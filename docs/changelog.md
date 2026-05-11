@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted configurable result autoplay in Settings: a new `Autoplay` category
+  below `Decode` exposes switch-style controls for Search result autoplay and
+  Shiori result autoplay. Disabling either setting preserves bounded cue
+  playback and fade-out for the clicked row, then stops black and silent instead
+  of advancing.
 - Accepted Search-result sequence playback for the native workbench: Search now
   commits only on Return with Escape restoring uncommitted edits, clicked
   results play as subtitle-bounded moments, one-second black-and-silent
