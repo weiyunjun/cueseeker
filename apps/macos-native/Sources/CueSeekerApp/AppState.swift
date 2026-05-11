@@ -111,15 +111,14 @@ private struct LibraryPlaybackHistorySnapshot: Sendable {
 }
 
 private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
-    private let databaseURL: URL
+    private let database: SubtitleDatabase?
     private let queue = DispatchQueue(
         label: "app.cueseeker.library-playback-history",
         qos: .utility
     )
-    private var didMigrate = false
 
-    init(databaseURL: URL) {
-        self.databaseURL = databaseURL
+    init(database: SubtitleDatabase?) {
+        self.database = database
     }
 
     func save(_ snapshot: LibraryPlaybackHistorySnapshot) {
@@ -135,12 +134,11 @@ private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
     }
 
     private func write(_ snapshot: LibraryPlaybackHistorySnapshot) {
+        guard let database else {
+            return
+        }
+
         do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            if !didMigrate {
-                try database.migrate()
-                didMigrate = true
-            }
             try database.upsertLibraryPlaybackHistory(
                 videoFile: URL(fileURLWithPath: snapshot.videoPath),
                 positionMilliseconds: snapshot.positionMilliseconds,
@@ -269,6 +267,7 @@ final class AppState: ObservableObject {
     }
 
     let databaseURL: URL
+    private var subtitleDatabase: SubtitleDatabase?
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
@@ -447,15 +446,36 @@ final class AppState: ObservableObject {
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
-        libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(databaseURL: self.databaseURL)
 
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
 
+        let openedDatabase: SubtitleDatabase?
+        let initialError: Error?
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
+            openedDatabase = database
+            initialError = nil
+        } catch {
+            openedDatabase = nil
+            initialError = error
+        }
+
+        self.subtitleDatabase = openedDatabase
+        libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedDatabase)
+
+        if let initialError {
+            startupError = Self.errorMessage(for: initialError)
+            return
+        }
+
+        guard let database = openedDatabase else {
+            return
+        }
+
+        do {
             try database.reconcileIndexedContent(activeFolders: selectedFolders)
             try hydrateLibrarySynchronously(from: database)
             try hydrateShiorisSynchronously(from: database)
@@ -490,9 +510,11 @@ final class AppState: ObservableObject {
 
     func removeFolder(_ folder: URL) {
         let folder = folder.standardizedFileURL
+        guard let database = subtitleDatabase else {
+            startupError = "Database is not initialized"
+            return
+        }
         do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
             try database.removeIndexedFolder(folder)
         } catch {
             startupError = "Failed to remove folder index: \(Self.errorMessage(for: error))"
@@ -687,11 +709,13 @@ final class AppState: ObservableObject {
         clearSearchAndPlaybackState(under: folder)
         indexingStatus = .indexing(folder)
 
-        let databaseURL = databaseURL
+        guard let database = subtitleDatabase else {
+            indexingStatus = .failed(folder, "Database is not initialized")
+            return
+        }
         indexingTask = Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
-                    let database = try SubtitleDatabase(path: databaseURL)
                     let indexer = SubtitleIndexer()
                     let result = try indexer.index(folder: folder, into: database)
                     _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
@@ -734,7 +758,10 @@ final class AppState: ObservableObject {
             totalFolders: folders.count
         )
 
-        let databaseURL = databaseURL
+        guard let database = subtitleDatabase else {
+            indexingStatus = .failed(firstFolder, "Database is not initialized")
+            return
+        }
         indexingTask = Task {
             var aggregateResult: SubtitleIndexingResult?
 
@@ -751,7 +778,6 @@ final class AppState: ObservableObject {
 
                 do {
                     let result = try await Task.detached(priority: .userInitiated) {
-                        let database = try SubtitleDatabase(path: databaseURL)
                         let indexer = SubtitleIndexer()
                         let result = try indexer.index(folder: folder, into: database)
                         _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
@@ -785,8 +811,6 @@ final class AppState: ObservableObject {
 
             do {
                 try await Task.detached(priority: .userInitiated) {
-                    let database = try SubtitleDatabase(path: databaseURL)
-                    try database.migrate()
                     try database.rebuildLibraryPresentationSnapshot()
                 }.value
             } catch {
@@ -880,12 +904,14 @@ final class AppState: ObservableObject {
         }
 
         libraryStatus = .loading
-        let databaseURL = databaseURL
+        guard let database = subtitleDatabase else {
+            applyLibraryPresentation([])
+            libraryStatus = .failed("Database is not initialized")
+            return
+        }
         libraryTask = Task {
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
-                    let database = try SubtitleDatabase(path: databaseURL)
-                    try database.migrate()
                     return try database.libraryPresentation(under: folders)
                 }.value
 
@@ -994,7 +1020,10 @@ final class AppState: ObservableObject {
 
         searchStatus = .searching
 
-        let databaseURL = databaseURL
+        guard let database = subtitleDatabase else {
+            searchStatus = .failed("Database is not initialized")
+            return
+        }
         let pageSize = Self.searchPageSize
         searchTask = Task {
             do {
@@ -1003,8 +1032,6 @@ final class AppState: ObservableObject {
                 }
 
                 let page = try await Task.detached(priority: .userInitiated) {
-                    let database = try SubtitleDatabase(path: databaseURL)
-                    try database.migrate()
                     return try database.searchPage(
                         trimmedQuery,
                         limit: pageSize,
@@ -1293,10 +1320,12 @@ final class AppState: ObservableObject {
 
         let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
 
-        do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
+        guard let database = subtitleDatabase else {
+            playbackViewModel.showSubtitleCopyFeedback(copied: false)
+            return false
+        }
 
+        do {
             guard let selection = try database.cueTextSelection(
                 forSubtitleFile: URL(fileURLWithPath: currentPlaybackSubtitlePath),
                 atMilliseconds: milliseconds
@@ -1336,10 +1365,12 @@ final class AppState: ObservableObject {
             ?? videoFile.lastPathComponent
         let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
 
-        do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
+        guard let database = subtitleDatabase else {
+            playbackViewModel.showShioriFeedback(.unavailable)
+            return false
+        }
 
+        do {
             guard let selection = try database.cueTextSelection(
                 forSubtitleFile: subtitleFile,
                 atMilliseconds: milliseconds
@@ -1584,9 +1615,10 @@ final class AppState: ObservableObject {
     }
 
     private func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
+        guard let database = subtitleDatabase else {
+            return 0
+        }
         do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
             return try database.libraryPlaybackHistory(
                 forVideoFile: URL(fileURLWithPath: video.videoPath)
             )?.positionMilliseconds ?? 0
@@ -1737,13 +1769,13 @@ final class AppState: ObservableObject {
         }
 
         let folders = selectedFolders
-        let databaseURL = databaseURL
+        guard let database = subtitleDatabase else {
+            return
+        }
         let pageSize = Self.searchPageSize
         searchResultGroupTasks[subtitlePath] = Task { [weak self] in
             do {
                 let results = try await Task.detached(priority: .userInitiated) {
-                    let database = try SubtitleDatabase(path: databaseURL)
-                    try database.migrate()
                     return try database.search(
                         trimmedQuery,
                         limit: pageSize,
@@ -1892,9 +1924,11 @@ final class AppState: ObservableObject {
             return []
         }
 
+        guard let database = subtitleDatabase else {
+            return []
+        }
+
         do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
             let entries = try database.entries(
                 forSubtitleFile: subtitleFile
             )
@@ -2004,9 +2038,10 @@ final class AppState: ObservableObject {
     }
 
     private func assFontResourceDirectory(subtitleFile: URL, videoFile: URL) -> URL? {
+        guard let database = subtitleDatabase else {
+            return nil
+        }
         do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
             guard let manifest = try database.assFontResourceManifest(
                 forSubtitleFile: subtitleFile,
                 videoFile: videoFile
@@ -2041,9 +2076,11 @@ final class AppState: ObservableObject {
             endMilliseconds: fallbackEndMilliseconds
         )
 
+        guard let database = subtitleDatabase else {
+            return fallback
+        }
+
         do {
-            let database = try SubtitleDatabase(path: databaseURL)
-            try database.migrate()
             let timings = try database.cueTimings(
                 forSubtitleFile: subtitleFile,
                 startingAtMilliseconds: startMilliseconds,

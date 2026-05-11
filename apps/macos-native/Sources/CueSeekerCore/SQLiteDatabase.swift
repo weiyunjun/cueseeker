@@ -24,7 +24,7 @@ public enum SQLiteDatabaseError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-final class SQLiteDatabase {
+final class SQLiteDatabase: @unchecked Sendable {
     static let busyTimeoutMilliseconds: Int32 = 5_000
     static let cacheSizeKibibytes: Int = 20_000
     static let mmapSizeBytes: Int = 256 * 1024 * 1024

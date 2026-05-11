@@ -180,7 +180,7 @@ public struct ASSFontResourceManifest: Equatable, Sendable {
     public let preparedAt: String
 }
 
-public final class SubtitleDatabase {
+public final class SubtitleDatabase: @unchecked Sendable {
     public static let currentSchemaVersion: Int = 11
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
