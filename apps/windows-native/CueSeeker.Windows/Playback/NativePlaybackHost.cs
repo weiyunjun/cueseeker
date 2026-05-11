@@ -173,6 +173,41 @@ internal sealed class NativePlaybackHost
         }
     }
 
+    public bool TryResizeActivePresenter(out string? errorMessage)
+    {
+        errorMessage = null;
+        nint presenterToResize;
+        int targetWidth;
+        int targetHeight;
+        float targetScale;
+        playbackStateGate.Wait();
+        try {
+            presenterToResize = activePresenter;
+            targetWidth = renderWidth;
+            targetHeight = renderHeight;
+            targetScale = renderScale;
+        } finally {
+            playbackStateGate.Release();
+        }
+
+        if (presenterToResize == 0) {
+            return true;
+        }
+
+        nint error = 0;
+        try {
+            int result = CueSeekerPlaybackResizePresenter(presenterToResize, targetWidth, targetHeight, targetScale, out error);
+            if (result == 0) {
+                return true;
+            }
+
+            errorMessage = ReadUtf8(error) ?? "Native playback presenter resize failed.";
+            return false;
+        } finally {
+            CueSeekerPlaybackFreeString(error);
+        }
+    }
+
     private static bool EnsureNativeLibraryLoaded()
     {
         if (nativeLibraryHandle != 0) {
@@ -213,8 +248,8 @@ internal sealed class NativePlaybackHost
         if (!double.IsFinite(scale) || scale <= 0) {
             scale = 1.0;
         }
-        double logicalWidth = panel.ActualWidth > 0 ? panel.ActualWidth : (double.IsNaN(panel.Width) ? 0 : panel.Width);
-        double logicalHeight = panel.ActualHeight > 0 ? panel.ActualHeight : (double.IsNaN(panel.Height) ? 0 : panel.Height);
+        double logicalWidth = !double.IsNaN(panel.Width) && panel.Width > 0 ? panel.Width : panel.ActualWidth;
+        double logicalHeight = !double.IsNaN(panel.Height) && panel.Height > 0 ? panel.Height : panel.ActualHeight;
         int width = (int)Math.Round(logicalWidth * scale);
         int height = (int)Math.Round(logicalHeight * scale);
         renderWidth = width > 0 ? width : renderWidth;
@@ -250,6 +285,14 @@ internal sealed class NativePlaybackHost
 
     [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
     private static extern void CueSeekerPlaybackDestroyPresenter(nint rendererPresenter);
+
+    [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int CueSeekerPlaybackResizePresenter(
+        nint rendererPresenter,
+        int renderWidth,
+        int renderHeight,
+        float renderScale,
+        out nint errorMessage);
 
     [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
     private static extern void CueSeekerPlaybackStopPresenter(nint rendererPresenter);

@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     private DecodePreference decodePreference;
     private string? currentVideoPath;
     private string? currentSubtitlePath;
+    private PlaybackTarget? currentPlaybackTarget;
     private int playbackRequestId;
 
     public MainWindow()
@@ -412,7 +413,13 @@ public sealed partial class MainWindow : Window
 
     private async Task StartPlaybackAsync(string videoPath, string subtitlePath, int seekMilliseconds, string source)
     {
+        PlaybackTarget target = new(videoPath, subtitlePath, seekMilliseconds);
+        if (currentPlaybackTarget is PlaybackTarget currentTarget && SamePlaybackTarget(currentTarget, target)) {
+            return;
+        }
+
         int requestId = Interlocked.Increment(ref playbackRequestId);
+        currentPlaybackTarget = target;
         currentVideoPath = videoPath;
         currentSubtitlePath = subtitlePath;
         VideoFolderButton.IsEnabled = true;
@@ -423,6 +430,7 @@ public sealed partial class MainWindow : Window
         UpdatePlaybackFrameSize(PlaybackHost.ActualWidth, PlaybackHost.ActualHeight);
         if (!CapturePlaybackSurface()) {
             if (requestId == playbackRequestId) {
+                ClearPlaybackTarget(target);
                 PlaybackStatusText.Text = $"{source}: playback failed: embedded playback surface is not ready.";
             }
             return;
@@ -434,12 +442,14 @@ public sealed partial class MainWindow : Window
             if (requestId != playbackRequestId) {
                 return;
             }
+            ClearPlaybackTarget(target);
             PlaybackOverlayPanel.Visibility = Visibility.Visible;
             PlaybackStatusText.Text = $"{source}: playback ended. Report: {reportPath}";
         } catch (Exception error) {
             if (requestId != playbackRequestId) {
                 return;
             }
+            ClearPlaybackTarget(target);
             PlaybackOverlayPanel.Visibility = Visibility.Visible;
             PlaybackStatusText.Text = $"{source}: playback failed: {error.Message}";
         }
@@ -451,6 +461,9 @@ public sealed partial class MainWindow : Window
         PlaybackSurfaceStatusText.Text = captured
             ? "Embedded playback surface ready"
             : "Embedded playback surface unavailable";
+        if (captured && !playbackHost.TryResizeActivePresenter(out string? resizeError)) {
+            PlaybackSurfaceStatusText.Text = $"Embedded playback resize failed: {resizeError}";
+        }
         return captured;
     }
 
@@ -479,6 +492,22 @@ public sealed partial class MainWindow : Window
         };
         CapturePlaybackSurface();
     }
+
+    private void ClearPlaybackTarget(PlaybackTarget target)
+    {
+        if (currentPlaybackTarget is PlaybackTarget currentTarget && SamePlaybackTarget(currentTarget, target)) {
+            currentPlaybackTarget = null;
+        }
+    }
+
+    private static bool SamePlaybackTarget(PlaybackTarget left, PlaybackTarget right)
+    {
+        return left.SeekMilliseconds == right.SeekMilliseconds
+            && StringComparer.OrdinalIgnoreCase.Equals(left.VideoPath, right.VideoPath)
+            && StringComparer.OrdinalIgnoreCase.Equals(left.SubtitlePath, right.SubtitlePath);
+    }
+
+    private readonly record struct PlaybackTarget(string VideoPath, string SubtitlePath, int SeekMilliseconds);
 
     private static void RevealInExplorer(string path)
     {

@@ -30,6 +30,7 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -1354,6 +1355,51 @@ public:
         createPipeline();
     }
 
+    void resizeSwapChainPanel(int width, int height, float scale)
+    {
+        if (!swapChain_ || hwnd_) {
+            return;
+        }
+
+        const int nextWidth = std::max(1, width);
+        const int nextHeight = std::max(1, height);
+        const float nextScale = std::isfinite(scale) && scale > 0.0f ? scale : 1.0f;
+
+        std::lock_guard<std::mutex> lock(renderMutex_);
+        if (targetWidth_ == nextWidth && targetHeight_ == nextHeight && std::abs(compositionScale_ - nextScale) < 0.0001f) {
+            return;
+        }
+
+        const int previousWidth = targetWidth_;
+        const int previousHeight = targetHeight_;
+        const float previousScale = compositionScale_;
+        targetWidth_ = nextWidth;
+        targetHeight_ = nextHeight;
+        compositionScale_ = nextScale;
+
+        if (context_) {
+            context_->ClearState();
+        }
+        renderTarget_.Reset();
+
+        const HRESULT resizeResult = swapChain_->ResizeBuffers(
+            0,
+            static_cast<UINT>(targetWidth_),
+            static_cast<UINT>(targetHeight_),
+            DXGI_FORMAT_UNKNOWN,
+            0);
+        if (FAILED(resizeResult)) {
+            targetWidth_ = previousWidth;
+            targetHeight_ = previousHeight;
+            compositionScale_ = previousScale;
+            createRenderTargetView();
+            throwIfFailed(resizeResult, "IDXGISwapChain::ResizeBuffers");
+        }
+
+        applyCompositionScaleTransform(compositionScale_);
+        createRenderTargetView();
+    }
+
     void requestStop()
     {
         stopRequested_.store(true, std::memory_order_release);
@@ -1387,6 +1433,7 @@ public:
 
     void renderColor(float r, float g, float b)
     {
+        std::lock_guard<std::mutex> lock(renderMutex_);
         const float color[] = { r, g, b, 1.0f };
         context_->ClearRenderTargetView(renderTarget_.Get(), color);
         swapChain_->Present(1, 0);
@@ -1394,6 +1441,7 @@ public:
 
     void renderFrame(const uint8_t* bgra, int width, int height, int stride)
     {
+        std::lock_guard<std::mutex> lock(renderMutex_);
         ensureFrameTexture(width, height);
 
         D3D11_MAPPED_SUBRESOURCE mapped = {};
@@ -1489,9 +1537,7 @@ private:
                 &context_),
             "D3D11CreateDeviceAndSwapChain");
 
-        ComPtr<ID3D11Texture2D> backBuffer;
-        throwIfFailed(swapChain_->GetBuffer(0, IID_PPV_ARGS(&backBuffer)), "GetBuffer");
-        throwIfFailed(device_->CreateRenderTargetView(backBuffer.Get(), nullptr, &renderTarget_), "CreateRenderTargetView");
+        createRenderTargetView();
     }
 
     void createCompositionDeviceAndSwapChain(void* panelNativePointer, int width, int height, float scale)
@@ -1547,19 +1593,29 @@ private:
             "IDXGIFactory2::CreateSwapChainForComposition");
         throwIfFailed(compositionSwapChain.As(&swapChain_), "QueryInterface(IDXGISwapChain)");
 
-        ComPtr<IDXGISwapChain2> swapChain2;
-        throwIfFailed(compositionSwapChain.As(&swapChain2), "QueryInterface(IDXGISwapChain2)");
-        const float inverseScale = scale > 0.0f ? 1.0f / scale : 1.0f;
-        DXGI_MATRIX_3X2_F transform = {};
-        transform._11 = inverseScale;
-        transform._22 = inverseScale;
-        throwIfFailed(swapChain2->SetMatrixTransform(&transform), "IDXGISwapChain2::SetMatrixTransform");
+        applyCompositionScaleTransform(scale);
 
         ComPtr<CueSeekerSwapChainPanelNative> panel;
         auto* panelUnknown = static_cast<IUnknown*>(panelNativePointer);
         throwIfFailed(panelUnknown->QueryInterface(IID_PPV_ARGS(&panel)), "QueryInterface(CueSeekerSwapChainPanelNative)");
         throwIfFailed(panel->SetSwapChain(swapChain_.Get()), "CueSeekerSwapChainPanelNative::SetSwapChain");
 
+        createRenderTargetView();
+    }
+
+    void applyCompositionScaleTransform(float scale)
+    {
+        ComPtr<IDXGISwapChain2> swapChain2;
+        throwIfFailed(swapChain_.As(&swapChain2), "QueryInterface(IDXGISwapChain2)");
+        const float inverseScale = scale > 0.0f ? 1.0f / scale : 1.0f;
+        DXGI_MATRIX_3X2_F transform = {};
+        transform._11 = inverseScale;
+        transform._22 = inverseScale;
+        throwIfFailed(swapChain2->SetMatrixTransform(&transform), "IDXGISwapChain2::SetMatrixTransform");
+    }
+
+    void createRenderTargetView()
+    {
         ComPtr<ID3D11Texture2D> backBuffer;
         throwIfFailed(swapChain_->GetBuffer(0, IID_PPV_ARGS(&backBuffer)), "GetBuffer");
         throwIfFailed(device_->CreateRenderTargetView(backBuffer.Get(), nullptr, &renderTarget_), "CreateRenderTargetView");
@@ -1704,6 +1760,7 @@ float4 ps_main(PSIn input) : SV_TARGET {
     int targetWidth_ = 1;
     int targetHeight_ = 1;
     float compositionScale_ = 1.0f;
+    std::mutex renderMutex_;
     std::atomic_bool stopRequested_ = false;
 };
 
@@ -2974,6 +3031,30 @@ int CueSeekerPlaybackCreateSwapChainPanelPresenter(
         auto renderer = std::make_unique<D3D11Renderer>();
         renderer->initializeSwapChainPanel(swapChainPanel, renderWidth, renderHeight, renderScale);
         *rendererPresenter = renderer.release();
+        return 0;
+    } catch (const std::exception& error) {
+        setOutputString(errorMessage, error.what());
+        return 1;
+    }
+}
+
+int CueSeekerPlaybackResizePresenter(
+    void* rendererPresenter,
+    int32_t renderWidth,
+    int32_t renderHeight,
+    float renderScale,
+    char** errorMessage)
+{
+    if (errorMessage) {
+        *errorMessage = nullptr;
+    }
+
+    try {
+        if (!rendererPresenter) {
+            throw std::runtime_error("renderer_presenter is required");
+        }
+
+        static_cast<D3D11Renderer*>(rendererPresenter)->resizeSwapChainPanel(renderWidth, renderHeight, renderScale);
         return 0;
     } catch (const std::exception& error) {
         setOutputString(errorMessage, error.what());

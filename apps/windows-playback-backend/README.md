@@ -11,6 +11,7 @@ Current exported API:
 - `CueSeekerPlaybackInspectJson`
 - `CueSeekerPlaybackPlay`
 - `CueSeekerPlaybackCreateSwapChainPanelPresenter`
+- `CueSeekerPlaybackResizePresenter`
 - `CueSeekerPlaybackDestroyPresenter`
 - `CueSeekerPlaybackStopPresenter`
 - `CueSeekerPlaybackRunRenderTest`
@@ -24,5 +25,8 @@ first creates a native presenter on the UI thread with
 composition swap chain attached to the app visual tree and applies the inverse
 scale transform required for high-DPI `SwapChainPanel` rendering. The lab CLI
 still omits those fields and uses the standalone diagnostics window.
+The app calls `CueSeekerPlaybackResizePresenter` when the WinUI playback
+surface changes size so the active DXGI back buffer stays aligned with the
+current app layout.
 The app calls `CueSeekerPlaybackStopPresenter` before replacing an active
 session so the previous playback loop can exit and release resources.
