@@ -437,6 +437,7 @@ struct SearchView: View {
                                 appState.openSearchResult(result)
                             },
                             onResultAppear: { result in
+                                appState.markSearchResultVisible(result)
                                 appState.loadMoreSearchResultsIfNeeded(currentResult: result)
                             }
                         )
@@ -1474,4 +1475,3 @@ private func formatTimestamp(_ milliseconds: Int) -> String {
 
     return String(format: "%02d:%02d", minutes, seconds)
 }
-

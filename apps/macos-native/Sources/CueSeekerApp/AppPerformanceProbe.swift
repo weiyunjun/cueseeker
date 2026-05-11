@@ -453,17 +453,13 @@ enum AppPerformanceProbe {
     }
 
     private static func automaticSampleFileURL(sequence: UInt64) -> URL {
-        let directory = FileManager.default
-            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent("CueSeeker", isDirectory: true)
         let filename = String(
             format: "main-thread-stall-%@-%03llu.sample.txt",
             sampleTimestamp(),
             sequence
         )
 
-        return directory.appendingPathComponent(filename)
+        return AppLogDirectory.fileURL(in: "main-thread-samples", filename: filename)
     }
 
     private static func sampleTimestamp() -> String {

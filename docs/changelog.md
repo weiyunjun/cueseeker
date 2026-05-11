@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added persistent Search timing diagnostics for development builds: every
+  Search request records query, database, state assignment, grouping, status,
+  and first visible result-row timing into app-owned JSONL logs under
+  `~/Library/Logs/CueSeeker/search-timing/`, with explicit
+  diagnostic flag enablement for non-development diagnostic runs.
 - Accepted the shared-core architecture direction: CueSeeker will keep native
   macOS and Windows UI shells, keep playback rendering platform-native, prefer
   Rust for shared product-domain behavior, and limit the first shared-core

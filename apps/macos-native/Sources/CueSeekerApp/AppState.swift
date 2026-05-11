@@ -411,6 +411,8 @@ final class AppState: ObservableObject {
     private var videoSizeTransitionTask: Task<Void, Never>?
     private var windowFrameBeforeUserZoom: NSRect?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
+    private var activeSearchPerformanceRun: SearchPerformanceRun?
+    private var pendingSearchVisibleEntryIDs: Set<Int64> = []
     private var activePlaybackSource: ActivePlaybackSource = .none {
         didSet {
             if case .library(let videoPath) = activePlaybackSource {
@@ -1002,48 +1004,109 @@ final class AppState: ObservableObject {
         searchTask?.cancel()
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let folders = selectedFolders
+        let pageSize = Self.searchPageSize
+        if let activeSearchPerformanceRun {
+            SearchPerformanceLogger.mark(activeSearchPerformanceRun, "search_superseded_by_new_search")
+        }
+        let searchPerformanceRun = SearchPerformanceLogger.startRun(
+            queryLength: trimmedQuery.count,
+            offset: offset,
+            limit: pageSize,
+            appending: appending,
+            debounce: debounce,
+            folderCount: folders.count
+        )
+        activeSearchPerformanceRun = searchPerformanceRun
+        pendingSearchVisibleEntryIDs = []
+
         if !appending {
+            let resetStart = SearchPerformanceLogger.now()
             resetSearchResultLoadingState()
+            SearchPerformanceLogger.mark(
+                searchPerformanceRun,
+                "search_state_reset",
+                phaseStart: resetStart,
+                groupCount: searchResultGroups.count,
+                renderedRowCount: renderedSearchResultCount,
+                status: "reset"
+            )
         }
 
         guard !trimmedQuery.isEmpty else {
             searchStatus = .idle
+            SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_empty_query", status: "idle")
+            clearSearchPerformanceRunIfActive(searchPerformanceRun)
             return
         }
 
-        let folders = selectedFolders
         guard !folders.isEmpty else {
             searchStatus = .completed
             selectedSearchResult = nil
+            SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_no_folders", status: "completed")
+            clearSearchPerformanceRunIfActive(searchPerformanceRun)
             return
         }
 
         searchStatus = .searching
+        SearchPerformanceLogger.mark(searchPerformanceRun, "search_status_searching", status: "searching")
 
         guard let database = subtitleDatabase else {
             searchStatus = .failed("Database is not initialized")
+            SearchPerformanceLogger.mark(
+                searchPerformanceRun,
+                "search_failed_no_database",
+                status: "failed",
+                error: "Database is not initialized"
+            )
+            clearSearchPerformanceRunIfActive(searchPerformanceRun)
             return
         }
-        let pageSize = Self.searchPageSize
         searchTask = Task {
             do {
                 if debounce {
+                    let debounceStart = SearchPerformanceLogger.now()
                     try await Task.sleep(nanoseconds: 250_000_000)
+                    SearchPerformanceLogger.mark(
+                        searchPerformanceRun,
+                        "search_debounce_finished",
+                        phaseStart: debounceStart
+                    )
                 }
 
+                SearchPerformanceLogger.mark(searchPerformanceRun, "database_search_started")
                 let page = try await Task.detached(priority: .userInitiated) {
-                    return try database.searchPage(
+                    let databaseSearchStart = SearchPerformanceLogger.now()
+                    let page = try database.searchPage(
                         trimmedQuery,
                         limit: pageSize,
                         offset: offset,
                         under: folders
                     )
+                    SearchPerformanceLogger.mark(
+                        searchPerformanceRun,
+                        "database_search_returned",
+                        phaseStart: databaseSearchStart,
+                        resultCount: page.results.count,
+                        totalCount: page.totalCount,
+                        fileSummaryCount: page.fileSummaries.count
+                    )
+                    return page
                 }.value
+                SearchPerformanceLogger.mark(
+                    searchPerformanceRun,
+                    "database_page_received_on_main",
+                    resultCount: page.results.count,
+                    totalCount: page.totalCount,
+                    fileSummaryCount: page.fileSummaries.count
+                )
 
                 guard !Task.isCancelled else {
+                    SearchPerformanceLogger.mark(searchPerformanceRun, "search_cancelled_after_database")
                     return
                 }
 
+                let stateAssignStart = SearchPerformanceLogger.now()
                 if appending {
                     appendGlobalSearchResults(page.results)
                     loadedGlobalSearchResultCount = max(
@@ -1057,22 +1120,122 @@ final class AppState: ObservableObject {
                 searchResultTotalCount = page.totalCount
                 searchFileSummaries = page.fileSummaries
                 hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
+                SearchPerformanceLogger.mark(
+                    searchPerformanceRun,
+                    "search_state_assigned",
+                    phaseStart: stateAssignStart,
+                    resultCount: searchResults.count,
+                    totalCount: searchResultTotalCount,
+                    fileSummaryCount: searchFileSummaries.count
+                )
+
+                let rebuildStart = SearchPerformanceLogger.now()
                 rebuildSearchResultGroups()
+                SearchPerformanceLogger.mark(
+                    searchPerformanceRun,
+                    "search_groups_rebuilt",
+                    phaseStart: rebuildStart,
+                    resultCount: searchResults.count,
+                    totalCount: searchResultTotalCount,
+                    fileSummaryCount: searchFileSummaries.count,
+                    groupCount: searchResultGroups.count,
+                    renderedRowCount: renderedSearchResultCount
+                )
+                prepareSearchPerformanceVisibility(
+                    for: searchPerformanceRun,
+                    resultsAwaitingFirstAppearance: page.results
+                )
+
+                let completionStart = SearchPerformanceLogger.now()
                 searchStatus = .completed
+                SearchPerformanceLogger.mark(
+                    searchPerformanceRun,
+                    "search_status_completed",
+                    phaseStart: completionStart,
+                    resultCount: searchResults.count,
+                    totalCount: searchResultTotalCount,
+                    fileSummaryCount: searchFileSummaries.count,
+                    groupCount: searchResultGroups.count,
+                    renderedRowCount: renderedSearchResultCount,
+                    status: "completed"
+                )
+                if page.results.isEmpty {
+                    SearchPerformanceLogger.mark(searchPerformanceRun, "search_no_result_rows_to_render")
+                    clearSearchPerformanceRunIfActive(searchPerformanceRun)
+                }
             } catch is CancellationError {
+                SearchPerformanceLogger.mark(searchPerformanceRun, "search_cancelled")
                 return
             } catch {
                 guard !Task.isCancelled else {
+                    SearchPerformanceLogger.mark(searchPerformanceRun, "search_cancelled_after_error")
                     return
                 }
 
                 if !appending {
+                    let resetStart = SearchPerformanceLogger.now()
                     resetSearchResultLoadingState()
+                    SearchPerformanceLogger.mark(
+                        searchPerformanceRun,
+                        "search_state_reset_after_error",
+                        phaseStart: resetStart,
+                        groupCount: searchResultGroups.count,
+                        renderedRowCount: renderedSearchResultCount
+                    )
                 }
                 hasMoreSearchResults = false
-                searchStatus = .failed(Self.errorMessage(for: error))
+                let message = Self.errorMessage(for: error)
+                searchStatus = .failed(message)
+                SearchPerformanceLogger.mark(
+                    searchPerformanceRun,
+                    "search_failed",
+                    status: "failed",
+                    error: message
+                )
+                clearSearchPerformanceRunIfActive(searchPerformanceRun)
             }
         }
+    }
+
+    func markSearchResultVisible(_ result: SubtitleSearchResult) {
+        guard let activeSearchPerformanceRun,
+              pendingSearchVisibleEntryIDs.contains(result.entryID)
+        else {
+            return
+        }
+
+        pendingSearchVisibleEntryIDs = []
+        SearchPerformanceLogger.mark(
+            activeSearchPerformanceRun,
+            "first_result_row_appeared",
+            resultCount: searchResults.count,
+            totalCount: searchResultTotalCount,
+            fileSummaryCount: searchFileSummaries.count,
+            groupCount: searchResultGroups.count,
+            renderedRowCount: renderedSearchResultCount,
+            entryID: result.entryID
+        )
+        clearSearchPerformanceRunIfActive(activeSearchPerformanceRun)
+    }
+
+    private func prepareSearchPerformanceVisibility(
+        for run: SearchPerformanceRun?,
+        resultsAwaitingFirstAppearance results: [SubtitleSearchResult]
+    ) {
+        guard let run, activeSearchPerformanceRun?.id == run.id else {
+            return
+        }
+
+        pendingSearchVisibleEntryIDs = Set(results.map(\.entryID))
+    }
+
+    private func clearSearchPerformanceRunIfActive(_ run: SearchPerformanceRun?) {
+        guard let run, activeSearchPerformanceRun?.id == run.id else {
+            return
+        }
+
+        activeSearchPerformanceRun = nil
+        pendingSearchVisibleEntryIDs = []
     }
 
     func openSearchResult(_ result: SubtitleSearchResult) {

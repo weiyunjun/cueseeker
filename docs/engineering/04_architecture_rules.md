@@ -231,9 +231,16 @@ Rules:
   `CUESEEKER_PERF_RUNLOOP=1` for the run-loop observer,
   `CUESEEKER_PERF_AUTOSAMPLE=1` for automatic `/usr/bin/sample` capture,
   `CUESEEKER_PERF_LAYOUT=1` for SwiftUI/AppKit layout probes,
+  `CUESEEKER_PERF_SEARCH=1` for persisted Search timing logs,
   `CUESEEKER_PERF_UI=1` for UI invalidation counters, and
   `CUESEEKER_PERF_PLAYBACK=1` for playback slow-path logs. These flags are
   diagnostic tooling, not product behavior.
+- Lightweight Search timing logs should be recorded for every Search request
+  during development builds and may be enabled explicitly in other builds with
+  `CUESEEKER_PERF_SEARCH=1`, `CUESEEKER_PERF_UI=1`, or `CUESEEKER_PERF=1`.
+  They must be written under the app-owned log directory
+  `~/Library/Logs/CueSeeker/search-timing/` as append-only JSONL files, not
+  inside the source repository or user-selected subtitle folders.
 - The workbench container should own layout coordination only. Library,
   Playback, and Search presentation views should receive scoped state so Search
   focus, Search results, playback clock updates, and side-panel resize gestures
