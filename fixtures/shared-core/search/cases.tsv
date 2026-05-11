@@ -1,0 +1,8 @@
+# name	query	limit	offset
+empty	<EMPTY>	50	0
+prefix	spi	50	0
+ordered	alpha beta	50	0
+cjk	好世	50	0
+kana	ライン	50	0
+cross_line_single	crossalpha	50	0
+cross_line_reject	crossalpha crossbeta	50	0

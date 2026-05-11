@@ -308,6 +308,7 @@ produce the same fixture results as the current macOS Swift implementation for:
 - Recursive subtitle folder scanning.
 - Minimal indexing projection from scanned subtitles to matched videos and cue
   groups.
+- Search query matching over indexed cue groups.
 - Subtitle-to-video matching.
 - SRT parsing.
 - ASS parsing and exact-time grouping.
@@ -345,6 +346,7 @@ Failure examples:
 - Scanner output differs from `scanning/expected-subtitles.txt` or
   `scanning/expected-srt.txt`.
 - Indexing projection output differs from `indexing/expected-projection.tsv`.
+- Search output differs from `search/expected-results.tsv`.
 - Video matching returns a path different from `video-matching/cases.tsv`.
 
 ### Optional macOS App Regression Smoke

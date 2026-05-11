@@ -12,6 +12,8 @@ Current coverage:
 - Recursive subtitle folder scanning.
 - Minimal indexing projection from scanned subtitles to matched videos and cue
   groups.
+- Search query matching over indexed cue groups, including Latin prefix, ordered
+  Latin tokens, CJK substring, kana substring, and line-level validation.
 - Simple language-suffix subtitle matching.
 - SRT parsing, malformed block skipping, missing sequence numbers, multi-line
   text, and CJK text.

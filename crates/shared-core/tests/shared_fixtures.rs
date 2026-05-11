@@ -2,7 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cueseeker_shared_core::subtitles::{SubtitleCueGroup, SubtitleFormat, ass, srt};
-use cueseeker_shared_core::{SubtitleFileScanner, SubtitleIndexer, VideoMatcher};
+use cueseeker_shared_core::{
+    SubtitleFileScanner, SubtitleIndexer, SubtitleSearchPage, VideoMatcher, search_projection,
+};
 
 #[test]
 fn srt_parser_matches_shared_fixture() {
@@ -80,6 +82,19 @@ fn subtitle_indexing_projection_matches_shared_fixture() {
     assert_eq!(
         indexing_projection_rows(&indexing_root, &projection),
         expected_rows(&root.join("indexing/expected-projection.tsv"))
+    );
+}
+
+#[test]
+fn subtitle_search_matches_shared_fixture() {
+    let root = fixture_root();
+    let search_root = root.join("search");
+    let projection = SubtitleIndexer::default().project_folder(&search_root.join("library"));
+    let cases = search_cases(&search_root.join("cases.tsv"));
+
+    assert_eq!(
+        search_rows(&search_root, &projection, &cases),
+        expected_rows(&search_root.join("expected-results.tsv"))
     );
 }
 
@@ -181,6 +196,75 @@ fn indexing_projection_rows(
             .join("\t"),
         );
         rows.extend(cue_group_rows(&file.cue_groups));
+    }
+
+    rows
+}
+
+fn search_cases(path: &Path) -> Vec<(String, String, usize, usize)> {
+    fs::read_to_string(path)
+        .unwrap()
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        })
+        .map(|line| {
+            let fields: Vec<&str> = line.split('\t').collect();
+            assert_eq!(fields.len(), 4, "invalid search case row: {line}");
+            (
+                fields[0].to_string(),
+                if fields[1] == "<EMPTY>" {
+                    String::new()
+                } else {
+                    fields[1].to_string()
+                },
+                fields[2].parse().unwrap(),
+                fields[3].parse().unwrap(),
+            )
+        })
+        .collect()
+}
+
+fn search_rows(
+    root: &Path,
+    projection: &cueseeker_shared_core::SubtitleIndexingProjection,
+    cases: &[(String, String, usize, usize)],
+) -> Vec<String> {
+    let mut rows = Vec::new();
+
+    for (name, query, limit, offset) in cases {
+        let page = search_projection(projection, query, *limit, *offset);
+        rows.extend(search_page_rows(root, name, &page));
+    }
+
+    rows
+}
+
+fn search_page_rows(root: &Path, case_name: &str, page: &SubtitleSearchPage) -> Vec<String> {
+    let mut rows = vec![
+        [
+            "case".to_string(),
+            case_name.to_string(),
+            page.total_count.to_string(),
+        ]
+        .join("\t"),
+    ];
+
+    for result in &page.results {
+        rows.push(
+            [
+                "result".to_string(),
+                relative_path(root, Path::new(&result.subtitle_path)),
+                relative_path(root, Path::new(&result.video_path)),
+                format_subtitle_format(result.subtitle_format),
+                result.start_milliseconds.to_string(),
+                result.end_milliseconds.to_string(),
+                escape_text(&result.content),
+                escape_text(&result.cue_lines.join("\n")),
+            ]
+            .join("\t"),
+        );
     }
 
     rows

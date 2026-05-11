@@ -1,5 +1,6 @@
 pub mod subtitle_indexer;
 pub mod subtitle_scanner;
+pub mod subtitle_search;
 pub mod subtitles;
 pub mod video_matching;
 
@@ -8,5 +9,6 @@ pub use subtitle_indexer::{
     SubtitleIndexingResult,
 };
 pub use subtitle_scanner::{SubtitleFileScanner, supported_subtitle_extensions};
+pub use subtitle_search::{SubtitleSearchPage, SubtitleSearchResult, search_projection};
 pub use subtitles::{SubtitleCueGroup, SubtitleCueLine, SubtitleEntry, SubtitleFormat, ass, srt};
 pub use video_matching::{VideoMatcher, default_video_extensions};

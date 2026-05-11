@@ -121,6 +121,33 @@ func sharedSubtitleIndexingProjectionFixtureMatchesCurrentMacOSModules() throws 
     #expect(actual == expected)
 }
 
+@Test
+func sharedSearchFixtureMatchesCurrentMacOSDatabase() throws {
+    let root = try sharedFixtureRoot()
+    let searchRoot = root.appendingPathComponent("search")
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSharedSearch-\(UUID().uuidString).sqlite")
+
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: searchRoot.appendingPathComponent("library"), into: database)
+
+    let actual = try searchRows(
+        root: searchRoot,
+        database: database,
+        casesURL: searchRoot.appendingPathComponent("cases.tsv")
+    )
+    let expected = try expectedRows(
+        at: searchRoot.appendingPathComponent("expected-results.tsv")
+    )
+
+    #expect(actual == expected)
+}
+
 private func sharedFixtureRoot() throws -> URL {
     var cursor = URL(fileURLWithPath: #filePath)
     while cursor.path != "/" {
@@ -132,6 +159,73 @@ private func sharedFixtureRoot() throws -> URL {
     }
 
     throw SharedFixtureError.notFound
+}
+
+private func searchRows(root: URL, database: SubtitleDatabase, casesURL: URL) throws -> [String] {
+    let cases = try searchCases(at: casesURL)
+    var rows: [String] = []
+
+    for searchCase in cases {
+        let page = try database.searchPage(
+            searchCase.query,
+            limit: searchCase.limit,
+            offset: searchCase.offset
+        )
+        rows.append([
+            "case",
+            searchCase.name,
+            String(page.totalCount)
+        ].joined(separator: "\t"))
+
+        for result in page.results {
+            rows.append([
+                "result",
+                relativePath(from: root, to: URL(fileURLWithPath: result.subtitlePath)),
+                relativePath(from: root, to: URL(fileURLWithPath: result.videoPath)),
+                result.subtitleFormat.rawValue,
+                String(result.startMilliseconds),
+                String(result.endMilliseconds),
+                escapeText(result.content),
+                escapeText(result.cueLines.joined(separator: "\n"))
+            ].joined(separator: "\t"))
+        }
+    }
+
+    return rows
+}
+
+private func searchCases(at url: URL) throws -> [SharedSearchCase] {
+    try String(contentsOf: url, encoding: .utf8)
+        .components(separatedBy: .newlines)
+        .compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else {
+                return nil
+            }
+
+            let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+                .map(String.init)
+            guard fields.count == 4,
+                  let limit = Int(fields[2]),
+                  let offset = Int(fields[3])
+            else {
+                return nil
+            }
+
+            return SharedSearchCase(
+                name: fields[0],
+                query: fields[1] == "<EMPTY>" ? "" : fields[1],
+                limit: limit,
+                offset: offset
+            )
+        }
+}
+
+private struct SharedSearchCase {
+    let name: String
+    let query: String
+    let limit: Int
+    let offset: Int
 }
 
 private func indexingProjectionRows(root: URL, folder: URL) throws -> [String] {
