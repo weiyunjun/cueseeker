@@ -313,6 +313,151 @@ Primary reference files:
 
 ## Migration Plan
 
+## Recovery Plan After Scaffold Revert
+
+Status: Active migration procedure.
+
+The initial Rust scaffold and distributed fixture batch has been reverted. The
+next shared-core attempt must restart from the macOS implementation at commit
+`26a52f0` plus this documented procedure.
+
+The reason for the restart is structural: isolated module fixtures can show that
+small pieces are locally correct, but they cannot prove that the product path is
+correct when indexing, database state, Library, Search, Shiori, playback intent,
+and native playback behavior interact. During this migration, distributed
+end-to-end checks are not an acceptance method. They may be used only as
+debugging aids after a full vertical acceptance failure has identified the
+failing domain.
+
+### Recovery Rules
+
+- Do not migrate playback runtime ownership into the shared core.
+- Do not move video decode, audio output, frame queues, sample buffers, pixel
+  buffers, renderer surfaces, fullscreen, DPI, resize, or per-frame subtitle
+  rendering into Rust.
+- Do not add a Rust shared-core implementation before the macOS control baseline
+  has been captured.
+- Do not accept isolated parser, matcher, Search, Library, Shiori, or playback
+  intent tests as migration acceptance.
+- Do not switch macOS production code to Rust until the full macOS vertical
+  shadow run is equal to the Swift baseline.
+- Windows must not consume the shared core until macOS has passed production
+  replacement and manual acceptance.
+
+### macOS Control Baseline
+
+Before rebuilding the shared core, capture a control baseline from the current
+native macOS implementation.
+
+The baseline must include:
+
+- A real fixture media folder that exercises SRT, ASS, language-suffix matching,
+  Library rows, Search results, Shiori, and playback intent.
+- A full data snapshot produced by one run of the current macOS path:
+  scanning, matching, parsing, database writes, stale cleanup, Search, Library,
+  Shiori, and playback intent.
+- A native playback memory profile using the current macOS playback backend.
+  The memory profile must cover continuous playback long enough to expose the
+  historical leak pattern where memory rises every few seconds.
+- The exact media file, decode mode, subtitle type, playback duration, sampling
+  interval, starting memory, maximum memory, ending memory, and observed memory
+  delta.
+
+This baseline is the control group. Any future shared-core change that changes
+the full data snapshot or worsens the playback memory profile fails migration
+acceptance until the difference is explained and accepted.
+
+### Full Vertical Snapshot
+
+The primary acceptance artifact is one full vertical snapshot, not separate
+module outputs.
+
+The snapshot must be generated from one fixture folder and must include:
+
+```text
+selected folders
+search paths
+subtitle files
+video files
+subtitle-video matches
+cue groups
+cue lines
+ASS render segment metadata
+ASS font-resource manifest metadata
+Search pages and file summaries
+Library presentation rows
+Library playback history rows
+Shiori rows
+playback intents for Search, Library, and Shiori actions
+```
+
+The Swift macOS implementation produces the baseline snapshot first. Rust may
+only be accepted for a domain after the Rust path can reproduce the same full
+vertical snapshot, or after an intentional product behavior change is documented
+before implementation.
+
+### Revised Phase Order
+
+1. Capture the macOS control baseline and native playback memory profile.
+2. Build a snapshot exporter for the current Swift macOS path.
+3. Define the Rust shared-core boundary from the snapshot schema, not from
+   isolated module convenience.
+4. Implement Rust schema and migration support first.
+5. Implement Rust folder indexing, including unchanged-file skip, stale cleanup,
+   ASS render segment metadata, font-resource manifest metadata, and video
+   metadata propagation.
+6. Implement Rust Search, Library, Shiori, and playback intent against the same
+   persistent database state.
+7. Run Rust in macOS shadow mode and compare the full vertical snapshot against
+   the Swift baseline.
+8. Replace macOS production modules behind narrow adapters only after shadow
+   equality is reached.
+9. Re-run the native playback memory profile after each production replacement
+   that can affect playback intent, subtitle source selection, ASS preparation,
+   or app state routing.
+10. Start Windows shared-core integration only after macOS production
+    replacement and manual acceptance pass.
+
+### Windows Scope After Shared Core
+
+After the shared core is accepted through macOS, Windows should still implement
+only platform-specific ownership:
+
+- WinUI shell, navigation, panel state, and visual presentation.
+- Windows file pickers, path permissions, settings storage, and process
+  lifecycle.
+- C#/WinUI adapters that call the shared core and map returned models to
+  ViewModels.
+- Windows native playback backend, renderer hosting, D3D surface ownership,
+  fullscreen, DPI, WASAPI audio, and Windows `libass` overlay integration.
+- Keyboard focus, shortcuts, logging, installer, signing, crash reporting, and
+  Windows-specific diagnostics.
+
+Windows must not independently implement database semantics, migrations,
+indexing semantics, subtitle parsing semantics, subtitle-to-video matching,
+Search semantics, Library semantics, Shiori semantics, or playback intent
+semantics once those domains are accepted in the shared core.
+
+### Memory Regression Gate
+
+Playback memory is a platform-backend gate, not a shared-core domain. However,
+shared-core migration can still fail this gate if it changes playback intent,
+subtitle source selection, ASS preparation windows, Shiori opening, Library
+resume behavior, or app state routing in a way that causes the native playback
+backend to retain more resources.
+
+Every macOS production replacement phase must answer:
+
+- Did the native playback backend code change?
+- Did playback intent or subtitle source selection change?
+- Did ASS source, font-resource, render-cache, or preparation-window selection
+  change?
+- Did Search, Library, or Shiori selection routing change?
+- Does the memory profile remain within the accepted control baseline?
+
+If the answer to the final question is no, the migration step is rejected even
+when all data snapshots match.
+
 ### Phase 0: Contract Freeze
 
 - Document shared-core boundaries and macOS baseline behavior.

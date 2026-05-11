@@ -1,3 +1,0 @@
-# row_type	id	subtitle_path	subtitle_format	video_path	video_name	start_ms	end_ms	content	is_valid	created_at	cue_lines
-shiori	1	/Media/Show/Episode 1.srt	srt	/Media/Show/Episode 1 Remux.mkv	Episode 1 Remux.mkv	1000	3000	Updated saved line.	true	2023-11-14T22:13:20Z	Updated saved line.
-shiori	3	/Media/Show/Episode 2.ass	ass	/Media/Show/Episode 2.mkv	Episode 2.mkv	0	250	top\nbottom	true	2023-11-14T22:15:00Z	top|bottom

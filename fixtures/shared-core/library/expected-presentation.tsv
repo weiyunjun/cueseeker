@@ -1,8 +1,0 @@
-# row_type	folder_path	folder_title	video_path	video_name	duration	subtitle_path	subtitle_format	display_title	file_extension
-folder	/Media/Another Show	Another Show
-video	/Media/Another Show	Another Show	/Media/Another Show/Episode 1.mp4	Episode 1.mp4	88	/Media/Another Show/Episode 1.srt	srt	Another Show - 01	mp4
-folder	/Media/Show 2	Show 2
-video	/Media/Show 2	Show 2	/Media/Show 2/Episode 2.mkv	Episode 2.mkv	125.4	/Media/Show 2/Episode 2.en.srt	srt	Show 2 - 01	mkv
-video	/Media/Show 2	Show 2	/Media/Show 2/Episode 11.mkv	Episode 11.mkv		/Media/Show 2/Episode 11.srt	srt	Show 2 - 02	mkv
-folder	/Media/Show 11	Show 11
-video	/Media/Show 11	Show 11	/Media/Show 11/Episode 1.mkv	Episode 1.mkv		/Media/Show 11/Episode 1.ass	ass	Show 11 - 01	mkv

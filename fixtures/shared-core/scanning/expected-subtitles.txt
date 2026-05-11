@@ -1,3 +1,0 @@
-library/Movie.srt
-library/Nested/Episode.SRT
-library/Nested/Episode.ass

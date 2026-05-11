@@ -1,5 +1,0 @@
-# operation	subtitle_path	subtitle_format	start_ms	end_ms	video_path	video_name	content	created_at
-upsert	/Media/Show/Episode 1.srt	srt	1000	3000	/Media/Show/Episode 1.mkv	Episode 1.mkv	First saved line.\nSecond saved line.	2023-11-14T22:13:20Z
-upsert	/Media/Show/Episode 1.srt	srt	1000	3000	/Media/Show/Episode 1 Remux.mkv	Episode 1 Remux.mkv	Updated saved line.	2027-01-15T08:00:00Z
-upsert	/Media/Show/Episode 2.ass	ass	-500	250	/Media/Show/Episode 2.mkv	Episode 2.mkv	top\nbottom	2023-11-14T22:15:00Z
-remove	/Media/Show/Missing.srt	srt	0	1000	/Media/Show/Missing.mkv	Missing.mkv	Missing	2023-11-14T22:16:00Z

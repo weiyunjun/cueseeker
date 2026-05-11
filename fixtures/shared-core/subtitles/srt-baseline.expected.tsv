@@ -1,7 +1,0 @@
-# CueSeeker cue groups v1
-group	1	00:00:01,000	00:00:03,500	1000	3500	Hello world.
-line	0	srt			00:00:01,000	00:00:03,500	1000	3500	Hello world.			0
-group	2	00:01:00.250	00:01:02.750	60250	62750	First subtitle line.\nSecond subtitle line.
-line	1	srt			00:01:00.250	00:01:02.750	60250	62750	First subtitle line.\nSecond subtitle line.			0
-group		00:02:03,004	00:02:05,006	123004	125006	日本語の行
-line	2	srt			00:02:03,004	00:02:05,006	123004	125006	日本語の行			0

@@ -1,7 +1,0 @@
-# subtitle_path	expected_video_path
-media/Exact.srt	media/Exact.mkv
-media/Language.en.srt	media/Language.mp4
-media/Regional.zh-Hans.ass	media/Regional.avi
-media/Suffix.scjp.ass	media/Suffix.webm
-media/NoMatch.srt	NONE
-media/Language.english.srt	NONE
