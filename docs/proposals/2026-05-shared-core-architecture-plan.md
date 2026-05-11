@@ -438,6 +438,45 @@ indexing semantics, subtitle parsing semantics, subtitle-to-video matching,
 Search semantics, Library semantics, Shiori semantics, or playback intent
 semantics once those domains are accepted in the shared core.
 
+### macOS-First Feature Development
+
+After the shared core is accepted through macOS, macOS may continue as the
+primary product development platform while Windows UI and UX work pauses for
+WinUI research. Windows does not need to mirror every macOS feature immediately
+during that pause, but Windows must not become a second independent source of
+product semantics.
+
+Every new feature must be classified before implementation:
+
+- Product semantics must be implemented in the shared core first. This includes
+  database state, indexing rules, matching rules, Search behavior, Library
+  behavior, Shiori identity and persistence, alias contracts, and playback
+  intent resolution.
+- Platform UI and UX belong to the platform app shell. macOS layout, panel
+  behavior, menus, animations, AppKit fullscreen behavior, and keyboard routing
+  may be implemented in SwiftUI or AppKit without requiring immediate Windows
+  UI work.
+- Platform playback execution belongs to the platform playback backend. Video
+  surfaces, hardware decode, audio output, ASS overlay lifecycle, fullscreen,
+  DPI, resize, and playback memory lifecycle must remain outside the shared
+  core.
+- Cross-platform playback features should put only their durable product
+  contract in the shared core. For example, a frame export feature may define an
+  export intent, timestamp, subtitle source, and output contract in the shared
+  core, while macOS and Windows execute the actual seek, decode, render,
+  composite, encode, and file write through their native playback backends.
+
+If a new feature contains product semantics that are not yet modeled by the
+shared core, the shared-core contract and fixtures must be added before the
+macOS production path relies on that behavior. Swift-only implementations are
+acceptable only for platform-specific UI, platform integration, or native
+playback execution.
+
+When classification is unclear, document the boundary decision before
+implementation. The default bias is to keep durable product meaning in the
+shared core and keep presentation, windowing, and playback execution in the
+platform layer.
+
 ### Memory Regression Gate
 
 Playback memory is a platform-backend gate, not a shared-core domain. However,
