@@ -2,6 +2,22 @@
 
 Status: Accepted
 
+Implementation status: Paused.
+
+Rust shared-core implementation is paused while CueSeeker continues native
+macOS product polishing. The accepted architecture direction remains valid, but
+the project should not add new Rust shared-core scaffold, fixtures, FFI,
+shadow-mode code, or production replacement until the project owner explicitly
+restarts this migration.
+
+During the pause, macOS code must still be written along future shared-core
+boundaries. Durable product semantics should remain isolated in the macOS
+product-domain layer so they can later move to Rust if Windows reuse makes that
+necessary. SwiftUI/AppKit should own presentation and platform interaction;
+native playback should own media execution; neither layer should become the only
+place where database, indexing, Search, Library, Shiori, alias, or playback
+intent semantics are enforced.
+
 ## Background
 
 CueSeeker now has an active native macOS implementation and an early Windows

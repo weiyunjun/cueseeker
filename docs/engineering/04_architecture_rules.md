@@ -35,6 +35,9 @@ Rules:
 - CueSeeker should move shared product-domain behavior into a shared core where
   doing so prevents macOS and Windows from reimplementing the same rules.
 - Rust is the preferred shared-core implementation language.
+- Rust shared-core implementation work is paused while the native macOS product
+  is still being polished. During this pause, macOS code must still be written
+  along the future shared-core boundary so later extraction remains practical.
 - The first shared-core migration phase is limited to database, folder
   indexing, subtitle parsing, subtitle-to-video matching, Search, Library,
   Shiori, and playback intent resolution.
@@ -50,6 +53,42 @@ Rules:
 - Windows should consume the shared core only after macOS acceptance of the
   migrated domain modules, except for isolated build or blocker-level playback
   fixes that do not change shared product semantics.
+
+## 2.2 Future Shared-Core Boundary While macOS Leads
+
+macOS remains the primary product-development platform while Rust shared-core
+implementation is paused. This pause must not turn macOS-only code into a
+catch-all implementation where future shared-core semantics are buried in UI or
+playback execution.
+
+Rules:
+
+- New macOS features must be classified before implementation as product
+  semantics, platform UI and UX, platform integration, or playback execution.
+- Product semantics must live in `CueSeekerCore` or a similarly isolated
+  product-domain module, even when implemented in Swift first. This includes
+  database state, migrations, indexing rules, matching rules, parser search
+  projections, Search behavior, Library behavior, Shiori identity and
+  persistence, alias contracts, and playback intent resolution.
+- SwiftUI and AppKit code may coordinate workflows and render view models, but
+  must not become the only place where database, indexing, Search, Library,
+  Shiori, naming, alias, or playback-intent rules are enforced.
+- `CueSeekerPlayback` and native playback code may own media open, decode,
+  render, audio, subtitle overlay execution, fullscreen, resize, and memory
+  lifecycle, but must not own Search, Library, Shiori, indexing, matching, or
+  product identity semantics.
+- Playback features that may later become cross-platform must split durable
+  product meaning from platform execution. The durable intent or command shape
+  belongs in the product-domain layer; actual seek, decode, render, composite,
+  file export, and native resource release remain in the platform playback
+  backend.
+- Do not add new Rust shared-core scaffold, fixtures, FFI, shadow-mode code, or
+  production replacement while this pause is active unless the project owner
+  explicitly restarts the shared-core migration.
+- When the correct boundary is unclear, document the decision before
+  implementation. The default bias is to keep durable product meaning in the
+  product-domain layer and keep presentation, OS integration, and playback
+  execution in platform layers.
 
 ## 3. Target Platform
 
@@ -124,6 +163,9 @@ Rules:
 - Search must read from the database/index layer, not directly from arbitrary subtitle files.
 - Playback must receive a resolved local video path and timestamp, not perform subtitle parsing itself.
 - UI state may coordinate workflows, but it must not be the only place where indexing or database rules are enforced.
+- Any new macOS product behavior that could later be shared with Windows must
+  be implemented behind a product-domain boundary instead of being embedded
+  directly in SwiftUI views, AppKit bridges, or native playback classes.
 
 ## 6. Data Flow
 
