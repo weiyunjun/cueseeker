@@ -1817,6 +1817,7 @@ final class AppState: ObservableObject {
         let stepDelayNanoseconds = UInt64(Self.searchResultTransitionMilliseconds / Self.searchResultTransitionSteps)
             * 1_000_000
 
+        player?.setVideoOutputFrozen(true)
         for step in 0...Self.searchResultTransitionSteps {
             guard !Task.isCancelled, isActiveSearchPlaybackSequence(sequenceID) else {
                 return false
@@ -1871,6 +1872,7 @@ final class AppState: ObservableObject {
     }
 
     private func resetSearchPlaybackTransitionEffects() {
+        player?.setVideoOutputFrozen(false)
         playbackViewModel?.setTransitionBlackoutOpacity(0)
         player?.setOutputVolumeMultiplier(1)
     }

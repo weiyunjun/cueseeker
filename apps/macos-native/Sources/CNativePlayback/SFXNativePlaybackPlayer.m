@@ -410,6 +410,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)setPaused:(BOOL)paused;
 - (void)setVolume:(float)volume;
 - (void)setPlaybackRate:(float)playbackRate;
+- (void)setVideoOutputFrozen:(BOOL)videoOutputFrozen;
 @property (nonatomic, copy, readonly) NSString *path;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
@@ -500,6 +501,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     atomic_bool _finishingForAutomaticRecycle;
     atomic_bool _paused;
     atomic_bool _playing;
+    atomic_bool _videoOutputFrozen;
 }
 
 - (instancetype)initWithPath:(NSString *)path
@@ -543,6 +545,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     atomic_init(&_finishingForAutomaticRecycle, false);
     atomic_init(&_paused, false);
     atomic_init(&_playing, false);
+    atomic_init(&_videoOutputFrozen, false);
 
     if (![self prepareWithError:error]) {
         [self teardown];
@@ -953,6 +956,13 @@ static int SFXOutputChannelCount(int inputChannels) {
     dispatch_async(dispatch_get_main_queue(), ^{
         audioPlayer.volume = volume;
     });
+}
+
+- (void)setVideoOutputFrozen:(BOOL)videoOutputFrozen {
+    atomic_store(&_videoOutputFrozen, videoOutputFrozen);
+    if (videoOutputFrozen) {
+        [self clearPendingPixelBufferSubmission];
+    }
 }
 
 - (void)setPlaybackRate:(float)playbackRate {
@@ -1649,29 +1659,33 @@ static int SFXOutputChannelCount(int inputChannels) {
         NSInteger automaticRecycleMilliseconds = -1;
         if (_videoFrame->format == SFXHardwarePixelFormat) {
             [self paceVideoFrame:_videoFrame stream:videoStream];
-            CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
-            [self enqueuePixelBuffer:pixelBuffer
-                     presentationTime:presentationTime
-             automaticRecycleMilliseconds:automaticRecycleMilliseconds];
+            if (!atomic_load(&_videoOutputFrozen)) {
+                CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
+                [self enqueuePixelBuffer:pixelBuffer
+                         presentationTime:presentationTime
+                 automaticRecycleMilliseconds:automaticRecycleMilliseconds];
+            }
         } else if (!_usingHardwareDecode) {
             [self paceVideoFrame:_videoFrame stream:videoStream];
-            CVPixelBufferRef pixelBuffer = [self copyPixelBufferForSoftwareFrame:_videoFrame];
-            if (pixelBuffer == NULL) {
-                NSString *formatName = SFXPixelFormatName((enum AVPixelFormat)_videoFrame->format);
-                [self notifyFailure:[NSString stringWithFormat:
-                    @"Software video frame conversion failed for %@.",
-                    formatName
-                ]];
-                atomic_store(&_cancelled, true);
-                av_frame_unref(_videoFrame);
-                break;
-            }
+            if (!atomic_load(&_videoOutputFrozen)) {
+                automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:mediaSeconds];
+                CVPixelBufferRef pixelBuffer = [self copyPixelBufferForSoftwareFrame:_videoFrame];
+                if (pixelBuffer == NULL) {
+                    NSString *formatName = SFXPixelFormatName((enum AVPixelFormat)_videoFrame->format);
+                    [self notifyFailure:[NSString stringWithFormat:
+                        @"Software video frame conversion failed for %@.",
+                        formatName
+                    ]];
+                    atomic_store(&_cancelled, true);
+                    av_frame_unref(_videoFrame);
+                    break;
+                }
 
-            automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:mediaSeconds];
-            [self enqueuePixelBuffer:pixelBuffer
-                     presentationTime:presentationTime
-             automaticRecycleMilliseconds:automaticRecycleMilliseconds];
-            CVPixelBufferRelease(pixelBuffer);
+                [self enqueuePixelBuffer:pixelBuffer
+                         presentationTime:presentationTime
+                 automaticRecycleMilliseconds:automaticRecycleMilliseconds];
+                CVPixelBufferRelease(pixelBuffer);
+            }
         }
 
         if (mediaSeconds >= 0) {
@@ -1841,7 +1855,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     }
 
     AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
-    if (atomic_load(&_cancelled) || displayLayer == nil) {
+    if (atomic_load(&_cancelled) || atomic_load(&_videoOutputFrozen) || displayLayer == nil) {
         CVPixelBufferRelease(pixelBuffer);
         return;
     }
@@ -2142,6 +2156,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     float _volume;
     float _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
+    BOOL _videoOutputFrozen;
     BOOL _didRecycleInitialSoftwareSession;
 }
 
@@ -2156,6 +2171,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     _volume = 1.0;
     _playbackRate = 1.0;
     _decodeMode = SFXNativePlaybackDecodeModeAuto;
+    _videoOutputFrozen = NO;
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
     return self;
 }
@@ -2200,6 +2216,10 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     return _decodeMode;
 }
 
+- (BOOL)isVideoOutputFrozen {
+    return _videoOutputFrozen;
+}
+
 - (void)setVolume:(float)volume {
     _volume = fmaxf(0.0, fminf(volume, 1.0));
     [_session setVolume:_volume];
@@ -2223,9 +2243,15 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     }
 }
 
+- (void)setVideoOutputFrozen:(BOOL)videoOutputFrozen {
+    _videoOutputFrozen = videoOutputFrozen;
+    [_session setVideoOutputFrozen:videoOutputFrozen];
+}
+
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
            error:(NSError **)error {
+    self.videoOutputFrozen = NO;
     return [self openPath:path
         startMilliseconds:startMilliseconds
        flushDisplayBeforeStart:NO
@@ -2264,6 +2290,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 }
 
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error {
+    self.videoOutputFrozen = NO;
     if (_currentPath == nil) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(40, @"Native playback has no current file to seek.");
@@ -2313,6 +2340,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 }
 
 - (void)stop {
+    self.videoOutputFrozen = NO;
     [self stopAndFlushDisplay:YES];
 }
 

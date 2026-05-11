@@ -175,6 +175,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         applyNativeVolume()
     }
 
+    public func setVideoOutputFrozen(_ isFrozen: Bool) {
+        nativePlayer.isVideoOutputFrozen = isFrozen
+    }
+
     @MainActor public func attachActiveRenderView() {
         guard let container = renderView as? PlaybackRenderContainerView else {
             return
