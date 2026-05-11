@@ -128,10 +128,6 @@ Requirements:
   continue revealing matches while avoiding an unbounded first render.
 - The Search view should show the total matching cue-group count for the current
   query near the search field.
-- The Search field has a draft value and a committed query value. Editing the
-  draft alone must not run Search or mutate the result area. Pressing Return
-  commits the draft and runs Search. Pressing Escape restores the draft to the
-  current committed query.
 - Search results must be scoped to the currently selected subtitle folders.
 - Stale index rows outside the currently selected folders must not appear in
   Search.
@@ -257,12 +253,7 @@ For grouped subtitle results:
 - Do not impose a fixed product-level line count cap on displayed cue lines.
 
 Clicking a Result row must open or update the central Playback Area and trigger
-playback for the matching video at the subtitle start timestamp. The clicked row
-starts a committed-result playback sequence that plays each selected cue group
-through its configured autoplay subtitle window, uses the documented
-Search-result transition rules, and advances selection through the remaining
-committed results until the sequence ends or is invalidated by a later committed
-query.
+playback for the matching video at the subtitle start timestamp.
 
 The Playback Area displays additional context:
 
@@ -465,7 +456,6 @@ Current Settings categories:
 
 - `Library`.
 - `Decode`.
-- `Autoplay`.
 
 `Library` settings requirements:
 
@@ -480,28 +470,7 @@ Current Settings categories:
 - Choose a persisted playback decode mode from `hardware`, `software`, and
   `auto`.
 
-`Autoplay` settings requirements:
-
-- Expose a persisted `Search result autoplay` switch.
-- Expose a persisted `Shiori result autoplay` switch.
-- Expose persisted subtitle-count controls under each autoplay switch. The count
-  must be a positive integer in the range `1...999`, default to `3`, and mean
-  the clicked cue plus up to `count - 1` following cues from the same subtitle
-  file.
-- Disable and visually dim each subtitle-count control while its corresponding
-  autoplay switch is off.
-- Autoplay setting changes must not rewrite the currently executing playback
-  rule. They apply after the current rule finishes or after another operation,
-  such as manually clicking a different Search or Shiori row, ends it.
-- Use the native macOS switch-style toggle where practical.
-- When Search result autoplay is disabled, clicking a Search result still plays
-  only the selected cue and runs the one-second fade, then remains black and
-  silent instead of advancing to the next Search result.
-- When Shiori result autoplay is disabled, clicking a Shiori row still plays
-  only the selected saved cue and runs the one-second fade, then remains black
-  and silent instead of advancing to the next Shiori row.
-
-Future settings may include database, logging, and privacy options.
+Future settings may include playback, database, logging, and privacy options.
 
 ## 12. Shiori
 
@@ -561,10 +530,6 @@ Initial Shiori panel behavior:
   query, so keyword highlights do not apply.
 - Clicking a Shiori row should open or update playback for the saved video
   at the saved subtitle start timestamp.
-- Shiori rows may participate in autoplay using the visible Shiori row order.
-  When Shiori result autoplay is enabled, playback advances through later
-  Shiori rows after each selected cue fades out. When disabled, a clicked Shiori
-  row plays only that saved cue, fades out, and stops black and silent.
 
 Shiori actions may later appear in Search results, Timeline rows, contextual
 menus, and future hover controls after those entry points are documented. Shiori

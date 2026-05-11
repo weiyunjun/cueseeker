@@ -73,10 +73,6 @@ struct PlaybackVideoView: View {
 
                 PlaybackFeedbackOverlay(feedback: viewModel.feedback)
             }
-
-            Color.black
-                .opacity(viewModel.transitionBlackoutOpacity)
-                .allowsHitTesting(false)
         }
         .onHover { hover in
             isControlsVisible = hover

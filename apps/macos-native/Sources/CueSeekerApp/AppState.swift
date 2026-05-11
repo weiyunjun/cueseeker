@@ -110,24 +110,6 @@ private struct LibraryPlaybackHistorySnapshot: Sendable {
     let duration: Double?
 }
 
-private struct SearchPlaybackSequence {
-    let id: UUID
-    let committedQuery: String
-    var results: [SubtitleSearchResult]
-    let advancesAutomatically: Bool
-    let autoplaySubtitleCount: Int
-    var currentIndex: Int
-    var isInvalidated: Bool
-}
-
-private struct ShioriPlaybackSequence {
-    let id: UUID
-    let shioris: [Shiori]
-    let autoplaySubtitleCount: Int
-    var currentIndex: Int
-    var isInvalidated: Bool
-}
-
 private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
     private let database: SubtitleDatabase?
     private let queue = DispatchQueue(
@@ -245,23 +227,14 @@ final class WorkbenchLayoutState: ObservableObject {
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
-    private static let searchResultAutoplayEnabledKey = "searchResultAutoplayEnabled"
-    private static let shioriResultAutoplayEnabledKey = "shioriResultAutoplayEnabled"
-    private static let searchResultAutoplaySubtitleCountKey = "searchResultAutoplaySubtitleCount"
-    private static let shioriResultAutoplaySubtitleCountKey = "shioriResultAutoplaySubtitleCount"
-    static let defaultAutoplaySubtitleCount = 3
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 1000
     private static let searchPrefetchThreshold = 10
-    private static let searchResultTransitionMilliseconds = 1_000
-    private static let searchPlaybackPollNanoseconds: UInt64 = 25_000_000
-    private static let searchResultTransitionSteps = 20
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
 
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
-    @Published var searchDraft = ""
-    @Published private(set) var searchQuery = ""
+    @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
     @Published var searchResultTotalCount = 0
@@ -290,38 +263,6 @@ final class AppState: ObservableObject {
         didSet {
             userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
             player?.decodeMode = playbackDecodeMode
-        }
-    }
-    @Published var isSearchResultAutoplayEnabled = true {
-        didSet {
-            userDefaults.set(isSearchResultAutoplayEnabled, forKey: Self.searchResultAutoplayEnabledKey)
-        }
-    }
-    @Published var isShioriResultAutoplayEnabled = true {
-        didSet {
-            userDefaults.set(isShioriResultAutoplayEnabled, forKey: Self.shioriResultAutoplayEnabledKey)
-        }
-    }
-    @Published var searchResultAutoplaySubtitleCount = defaultAutoplaySubtitleCount {
-        didSet {
-            let clampedCount = Self.clampedAutoplaySubtitleCount(searchResultAutoplaySubtitleCount)
-            guard clampedCount == searchResultAutoplaySubtitleCount else {
-                searchResultAutoplaySubtitleCount = clampedCount
-                return
-            }
-
-            userDefaults.set(clampedCount, forKey: Self.searchResultAutoplaySubtitleCountKey)
-        }
-    }
-    @Published var shioriResultAutoplaySubtitleCount = defaultAutoplaySubtitleCount {
-        didSet {
-            let clampedCount = Self.clampedAutoplaySubtitleCount(shioriResultAutoplaySubtitleCount)
-            guard clampedCount == shioriResultAutoplaySubtitleCount else {
-                shioriResultAutoplaySubtitleCount = clampedCount
-                return
-            }
-
-            userDefaults.set(clampedCount, forKey: Self.shioriResultAutoplaySubtitleCountKey)
         }
     }
 
@@ -467,8 +408,6 @@ final class AppState: ObservableObject {
     private var libraryTask: Task<Void, Never>?
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
-    private var searchPlaybackTask: Task<Void, Never>?
-    private var shioriPlaybackTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
     private var windowFrameBeforeUserZoom: NSRect?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
@@ -486,8 +425,6 @@ final class AppState: ObservableObject {
         }
     }
     private var loadedGlobalSearchResultCount = 0
-    private var searchPlaybackSequence: SearchPlaybackSequence?
-    private var shioriPlaybackSequence: ShioriPlaybackSequence?
     private var isSearching: Bool {
         if case .searching = searchStatus {
             return true
@@ -508,26 +445,12 @@ final class AppState: ObservableObject {
             "libraryPanelWidth": 310.0,
             "isSearchPanelVisible": true,
             "searchPanelWidth": 480.0,
-            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
-            Self.searchResultAutoplayEnabledKey: true,
-            Self.shioriResultAutoplayEnabledKey: true,
-            Self.searchResultAutoplaySubtitleCountKey: Self.defaultAutoplaySubtitleCount,
-            Self.shioriResultAutoplaySubtitleCountKey: Self.defaultAutoplaySubtitleCount
+            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
 
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
-        isSearchResultAutoplayEnabled = userDefaults.bool(forKey: Self.searchResultAutoplayEnabledKey)
-        isShioriResultAutoplayEnabled = userDefaults.bool(forKey: Self.shioriResultAutoplayEnabledKey)
-        searchResultAutoplaySubtitleCount = Self.loadAutoplaySubtitleCount(
-            from: userDefaults,
-            key: Self.searchResultAutoplaySubtitleCountKey
-        )
-        shioriResultAutoplaySubtitleCount = Self.loadAutoplaySubtitleCount(
-            from: userDefaults,
-            key: Self.shioriResultAutoplaySubtitleCountKey
-        )
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -910,44 +833,13 @@ final class AppState: ObservableObject {
         }
     }
 
-    func updateSearchDraft(_ query: String) {
+    func updateSearchQuery(_ query: String) {
         UIInvalidationProbe.mark(
             "ACTION UI.SearchQuery.changed",
             details: "length=\(query.count)"
         )
-        searchDraft = query
-    }
-
-    func commitSearchDraft() {
-        let query = searchDraft
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedCommittedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard trimmedQuery != trimmedCommittedQuery || searchStatus == .idle else {
-            return
-        }
-
-        UIInvalidationProbe.mark(
-            "ACTION UI.SearchQuery.committed",
-            details: "length=\(trimmedQuery.count)"
-        )
-        if searchPlaybackSequence != nil, trimmedQuery != trimmedCommittedQuery {
-            invalidateSearchPlaybackSequenceAfterCurrentResult()
-        }
         searchQuery = query
-        startSearch(query: query, offset: 0, appending: false, debounce: false)
-    }
-
-    func restoreSearchDraft() {
-        guard searchDraft != searchQuery else {
-            return
-        }
-
-        UIInvalidationProbe.mark(
-            "ACTION UI.SearchQuery.restored",
-            details: "length=\(searchQuery.count)"
-        )
-        searchDraft = searchQuery
+        startSearch(query: query, offset: 0, appending: false, debounce: true)
     }
 
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
@@ -1353,7 +1245,16 @@ final class AppState: ObservableObject {
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
         )
-        startSearchPlaybackSequence(startingAt: result)
+        saveCurrentLibraryPlaybackHistory()
+        stopLibraryPlaybackHistoryTracking()
+        activePlaybackSource = .search
+        selectedSearchResult = result
+        selectedShiori = nil
+        selectedLibraryVideo = nil
+        Task { @MainActor in
+            await Task.yield()
+            play(result)
+        }
     }
 
     func openLibraryVideo(_ video: LibraryVideo) {
@@ -1378,7 +1279,16 @@ final class AppState: ObservableObject {
             "ACTION UI.Shiori.opened",
             details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
         )
-        startShioriPlaybackSequence(startingAt: shiori)
+        saveCurrentLibraryPlaybackHistory()
+        stopLibraryPlaybackHistoryTracking()
+        activePlaybackSource = .shiori
+        selectedShiori = shiori
+        selectedSearchResult = nil
+        selectedLibraryVideo = nil
+        Task { @MainActor in
+            await Task.yield()
+            play(shiori)
+        }
     }
 
     func revealCurrentVideoFile() {
@@ -1398,25 +1308,10 @@ final class AppState: ObservableObject {
     }
 
     func play(_ result: SubtitleSearchResult) {
-        cancelSearchPlaybackSequence(resetTransitionEffects: true)
-        cancelShioriPlaybackSequence(resetTransitionEffects: true)
-        playSearchResult(result, resetsTransitionEffects: true)
-    }
-
-    private func playSearchResult(
-        _ result: SubtitleSearchResult,
-        resetsTransitionEffects: Bool
-    ) {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
         playbackStatus = .opening
-        selectedSearchResult = result
-        selectedShiori = nil
-        selectedLibraryVideo = nil
-        if resetsTransitionEffects {
-            resetResultPlaybackTransitionEffects()
-        }
         let subtitleCues = playbackSubtitleCues(for: result)
         playbackViewModel?.setSubtitleCues(
             subtitleCues,
@@ -1450,8 +1345,6 @@ final class AppState: ObservableObject {
     }
 
     func play(_ video: LibraryVideo) {
-        cancelSearchPlaybackSequence(resetTransitionEffects: true)
-        cancelShioriPlaybackSequence(resetTransitionEffects: true)
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none
         playbackStatus = .opening
@@ -1499,25 +1392,10 @@ final class AppState: ObservableObject {
     }
 
     func play(_ shiori: Shiori) {
-        cancelSearchPlaybackSequence(resetTransitionEffects: true)
-        cancelShioriPlaybackSequence(resetTransitionEffects: true)
-        playShiori(shiori, resetsTransitionEffects: true)
-    }
-
-    private func playShiori(
-        _ shiori: Shiori,
-        resetsTransitionEffects: Bool
-    ) {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
         playbackStatus = .opening
-        selectedShiori = shiori
-        selectedSearchResult = nil
-        selectedLibraryVideo = nil
-        if resetsTransitionEffects {
-            resetResultPlaybackTransitionEffects()
-        }
         let subtitleCues = playbackSubtitleCues(for: shiori)
         playbackViewModel?.setSubtitleCues(
             subtitleCues,
@@ -1581,11 +1459,11 @@ final class AppState: ObservableObject {
             resumePlayback()
         case .idle:
             if let selectedSearchResult {
-                startSearchPlaybackSequence(startingAt: selectedSearchResult)
+                play(selectedSearchResult)
             } else if let selectedLibraryVideo {
                 play(selectedLibraryVideo)
             } else if let selectedShiori {
-                startShioriPlaybackSequence(startingAt: selectedShiori)
+                play(selectedShiori)
             }
         case .opening, .failed:
             break
@@ -1596,634 +1474,6 @@ final class AppState: ObservableObject {
         let willPlay = !(playbackViewModel?.isPlaying ?? false)
         togglePlayback()
         playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
-    }
-
-    private func startSearchPlaybackSequence(startingAt result: SubtitleSearchResult) {
-        saveCurrentLibraryPlaybackHistory()
-        stopLibraryPlaybackHistoryTracking()
-        cancelSearchPlaybackSequence(resetTransitionEffects: true)
-        cancelShioriPlaybackSequence(resetTransitionEffects: true)
-
-        let isAutoplayEnabled = isSearchResultAutoplayEnabled
-        let sequenceResults = isAutoplayEnabled
-            ? searchPlaybackResults(startingAt: result)
-            : [result]
-        let autoplaySubtitleCount = isAutoplayEnabled
-            ? Self.clampedAutoplaySubtitleCount(searchResultAutoplaySubtitleCount)
-            : SearchResultPlaybackSequencer.minimumSubtitleCount
-        let sequenceID = UUID()
-        searchPlaybackSequence = SearchPlaybackSequence(
-            id: sequenceID,
-            committedQuery: searchQuery,
-            results: sequenceResults,
-            advancesAutomatically: isAutoplayEnabled,
-            autoplaySubtitleCount: autoplaySubtitleCount,
-            currentIndex: 0,
-            isInvalidated: false
-        )
-        activePlaybackSource = .search
-        selectedSearchResult = result
-        selectedShiori = nil
-        selectedLibraryVideo = nil
-
-        searchPlaybackTask = Task { [weak self] in
-            await self?.runSearchPlaybackSequence(id: sequenceID)
-        }
-    }
-
-    private func searchPlaybackResults(startingAt result: SubtitleSearchResult) -> [SubtitleSearchResult] {
-        let groupedResults = searchResultGroups.flatMap(\.results)
-        let orderedResults = groupedResults.isEmpty ? searchResults : groupedResults
-        let deduplicatedResults = orderedResults.reduce(into: [SubtitleSearchResult]()) { partialResult, candidate in
-            guard !partialResult.contains(where: { $0.entryID == candidate.entryID }) else {
-                return
-            }
-
-            partialResult.append(candidate)
-        }
-
-        guard let index = deduplicatedResults.firstIndex(where: { $0.entryID == result.entryID }) else {
-            return [result]
-        }
-
-        return Array(deduplicatedResults[index...])
-    }
-
-    private func startShioriPlaybackSequence(startingAt shiori: Shiori) {
-        saveCurrentLibraryPlaybackHistory()
-        stopLibraryPlaybackHistoryTracking()
-        cancelSearchPlaybackSequence(resetTransitionEffects: true)
-        cancelShioriPlaybackSequence(resetTransitionEffects: true)
-
-        let isAutoplayEnabled = isShioriResultAutoplayEnabled
-        let sequenceShioris = isAutoplayEnabled
-            ? shioriPlaybackResults(startingAt: shiori)
-            : [shiori]
-        let autoplaySubtitleCount = isAutoplayEnabled
-            ? Self.clampedAutoplaySubtitleCount(shioriResultAutoplaySubtitleCount)
-            : SearchResultPlaybackSequencer.minimumSubtitleCount
-        let sequenceID = UUID()
-        shioriPlaybackSequence = ShioriPlaybackSequence(
-            id: sequenceID,
-            shioris: sequenceShioris,
-            autoplaySubtitleCount: autoplaySubtitleCount,
-            currentIndex: 0,
-            isInvalidated: false
-        )
-        activePlaybackSource = .shiori
-        selectedShiori = shiori
-        selectedSearchResult = nil
-        selectedLibraryVideo = nil
-
-        shioriPlaybackTask = Task { [weak self] in
-            await self?.runShioriPlaybackSequence(id: sequenceID)
-        }
-    }
-
-    private func shioriPlaybackResults(startingAt shiori: Shiori) -> [Shiori] {
-        let groupedShioris = shioriFileGroups.flatMap(\.shioris)
-        let orderedShioris = groupedShioris.isEmpty ? shioris : groupedShioris
-        let deduplicatedShioris = orderedShioris.reduce(into: [Shiori]()) { partialResult, candidate in
-            guard !partialResult.contains(where: { $0.id == candidate.id }) else {
-                return
-            }
-
-            partialResult.append(candidate)
-        }
-
-        guard let index = deduplicatedShioris.firstIndex(where: { $0.id == shiori.id }) else {
-            return [shiori]
-        }
-
-        return Array(deduplicatedShioris[index...])
-    }
-
-    private func runSearchPlaybackSequence(id: UUID) async {
-        var shouldOpenCurrentResult = true
-
-        while !Task.isCancelled, isActiveSearchPlaybackSequence(id) {
-            guard let sequence = searchPlaybackSequence,
-                  sequence.id == id,
-                  sequence.results.indices.contains(sequence.currentIndex)
-            else {
-                return
-            }
-
-            let currentResult = sequence.results[sequence.currentIndex]
-
-            if shouldOpenCurrentResult {
-                playSearchResult(currentResult, resetsTransitionEffects: true)
-            }
-
-            await loadMoreSearchPlaybackResultsIfNeeded(sequenceID: id)
-
-            guard let refreshedSequence = searchPlaybackSequence,
-                  refreshedSequence.id == id,
-                  refreshedSequence.results.indices.contains(refreshedSequence.currentIndex)
-            else {
-                return
-            }
-
-            let refreshedCurrentResult = refreshedSequence.results[refreshedSequence.currentIndex]
-            let refreshedNextIndex = refreshedSequence.currentIndex + 1
-            let refreshedNextResult = refreshedSequence.results.indices.contains(refreshedNextIndex)
-                ? refreshedSequence.results[refreshedNextIndex]
-                : nil
-            let currentWindow = resultPlaybackWindow(
-                for: refreshedCurrentResult,
-                subtitleCount: refreshedSequence.autoplaySubtitleCount
-            )
-
-            if let nextResult = refreshedNextResult,
-               !refreshedSequence.isInvalidated,
-               SearchResultPlaybackSequencer.shouldPlayContinuously(
-                    current: refreshedCurrentResult,
-                    currentWindow: currentWindow,
-                    next: nextResult
-               ) {
-                guard await waitUntilPlaybackTime(
-                    milliseconds: nextResult.startMilliseconds,
-                    sequenceID: id,
-                    stopsWhenInvalidated: true
-                ) else {
-                    return
-                }
-
-                if isSearchPlaybackSequenceInvalidated(id) {
-                    guard await waitUntilPlaybackTime(
-                        milliseconds: currentWindow.endMilliseconds,
-                        sequenceID: id,
-                        stopsWhenInvalidated: false
-                    ) else {
-                        return
-                    }
-
-                    guard await runSearchPlaybackFade(sequenceID: id) else {
-                        return
-                    }
-                    finishSearchPlaybackSequence(id: id)
-                    return
-                }
-
-                activateContinuousSearchResult(nextResult, at: refreshedNextIndex, sequenceID: id)
-                shouldOpenCurrentResult = false
-                continue
-            }
-
-            guard await waitUntilPlaybackTime(
-                milliseconds: currentWindow.endMilliseconds,
-                sequenceID: id,
-                stopsWhenInvalidated: false
-            ) else {
-                return
-            }
-
-            guard await runSearchPlaybackFade(sequenceID: id) else {
-                return
-            }
-
-            guard isActiveSearchPlaybackSequence(id) else {
-                return
-            }
-
-            guard let currentSequence = searchPlaybackSequence,
-                  currentSequence.id == id,
-                  !currentSequence.isInvalidated,
-                  currentSequence.results.indices.contains(refreshedNextIndex)
-            else {
-                finishSearchPlaybackSequence(id: id)
-                return
-            }
-
-            searchPlaybackSequence?.currentIndex = refreshedNextIndex
-            shouldOpenCurrentResult = true
-        }
-    }
-
-    private func runShioriPlaybackSequence(id: UUID) async {
-        var shouldOpenCurrentShiori = true
-
-        while !Task.isCancelled, isActiveShioriPlaybackSequence(id) {
-            guard let sequence = shioriPlaybackSequence,
-                  sequence.id == id,
-                  sequence.shioris.indices.contains(sequence.currentIndex)
-            else {
-                return
-            }
-
-            let currentShiori = sequence.shioris[sequence.currentIndex]
-            let nextIndex = sequence.currentIndex + 1
-            let nextShiori = sequence.shioris.indices.contains(nextIndex)
-                ? sequence.shioris[nextIndex]
-                : nil
-            let currentWindow = resultPlaybackWindow(
-                for: currentShiori,
-                subtitleCount: sequence.autoplaySubtitleCount
-            )
-
-            if shouldOpenCurrentShiori {
-                playShiori(currentShiori, resetsTransitionEffects: true)
-            }
-
-            if let nextShiori,
-               !sequence.isInvalidated,
-               SearchResultPlaybackSequencer.shouldPlayContinuously(
-                    current: currentShiori,
-                    currentWindow: currentWindow,
-                    next: nextShiori
-               ) {
-                guard await waitUntilShioriPlaybackTime(
-                    milliseconds: nextShiori.startMilliseconds,
-                    sequenceID: id,
-                    stopsWhenInvalidated: true
-                ) else {
-                    return
-                }
-
-                if isShioriPlaybackSequenceInvalidated(id) {
-                    guard await waitUntilShioriPlaybackTime(
-                        milliseconds: currentWindow.endMilliseconds,
-                        sequenceID: id,
-                        stopsWhenInvalidated: false
-                    ) else {
-                        return
-                    }
-
-                    guard await runShioriPlaybackFade(sequenceID: id) else {
-                        return
-                    }
-                    finishShioriPlaybackSequence(id: id)
-                    return
-                }
-
-                activateContinuousShiori(nextShiori, at: nextIndex, sequenceID: id)
-                shouldOpenCurrentShiori = false
-                continue
-            }
-
-            guard await waitUntilShioriPlaybackTime(
-                milliseconds: currentWindow.endMilliseconds,
-                sequenceID: id,
-                stopsWhenInvalidated: false
-            ) else {
-                return
-            }
-
-            guard await runShioriPlaybackFade(sequenceID: id) else {
-                return
-            }
-
-            guard isActiveShioriPlaybackSequence(id) else {
-                return
-            }
-
-            guard let currentSequence = shioriPlaybackSequence,
-                  currentSequence.id == id,
-                  !currentSequence.isInvalidated,
-                  currentSequence.shioris.indices.contains(nextIndex)
-            else {
-                finishShioriPlaybackSequence(id: id)
-                return
-            }
-
-            shioriPlaybackSequence?.currentIndex = nextIndex
-            shouldOpenCurrentShiori = true
-        }
-    }
-
-    private func loadMoreSearchPlaybackResultsIfNeeded(sequenceID: UUID) async {
-        guard let sequence = searchPlaybackSequence,
-              sequence.id == sequenceID,
-              sequence.advancesAutomatically,
-              !sequence.isInvalidated,
-              sequence.currentIndex >= sequence.results.count - 1,
-              hasMoreSearchResults,
-              !isSearching
-        else {
-            return
-        }
-
-        let trimmedQuery = sequence.committedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty, !selectedFolders.isEmpty else {
-            return
-        }
-
-        guard let database = subtitleDatabase else {
-            return
-        }
-
-        let folders = selectedFolders
-        let offset = loadedGlobalSearchResultCount
-        let pageSize = Self.searchPageSize
-
-        do {
-            searchStatus = .searching
-            let page = try await Task.detached(priority: .userInitiated) {
-                try database.searchPage(
-                    trimmedQuery,
-                    limit: pageSize,
-                    offset: offset,
-                    under: folders
-                )
-            }.value
-
-            guard !Task.isCancelled,
-                  let currentSequence = searchPlaybackSequence,
-                  currentSequence.id == sequenceID,
-                  !currentSequence.isInvalidated,
-                  currentSequence.committedQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery
-            else {
-                return
-            }
-
-            appendGlobalSearchResults(page.results)
-            loadedGlobalSearchResultCount = max(
-                loadedGlobalSearchResultCount,
-                offset + page.results.count
-            )
-            searchResultTotalCount = page.totalCount
-            searchFileSummaries = page.fileSummaries
-            hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
-            rebuildSearchResultGroups()
-            appendSearchPlaybackSequenceResults(page.results, sequenceID: sequenceID)
-            searchStatus = .completed
-        } catch {
-            guard !Task.isCancelled else {
-                return
-            }
-
-            searchStatus = .failed(Self.errorMessage(for: error))
-        }
-    }
-
-    private func appendSearchPlaybackSequenceResults(
-        _ results: [SubtitleSearchResult],
-        sequenceID: UUID
-    ) {
-        guard var sequence = searchPlaybackSequence, sequence.id == sequenceID else {
-            return
-        }
-
-        let existingEntryIDs = Set(sequence.results.map(\.entryID))
-        sequence.results.append(contentsOf: results.filter { !existingEntryIDs.contains($0.entryID) })
-        searchPlaybackSequence = sequence
-    }
-
-    private func activateContinuousSearchResult(
-        _ result: SubtitleSearchResult,
-        at index: Int,
-        sequenceID: UUID
-    ) {
-        guard isActiveSearchPlaybackSequence(sequenceID) else {
-            return
-        }
-
-        searchPlaybackSequence?.currentIndex = index
-        activePlaybackSource = .search
-        selectedSearchResult = result
-        selectedShiori = nil
-        selectedLibraryVideo = nil
-        playbackStatus = .playing
-
-        let currentMilliseconds = max(
-            0,
-            Int(((playbackViewModel?.currentTime ?? Double(result.startMilliseconds) / 1_000) * 1_000).rounded(.down))
-        )
-        playbackViewModel?.setSubtitleCues(
-            playbackSubtitleCues(for: result),
-            currentTimeMilliseconds: currentMilliseconds
-        )
-        player?.loadSubtitleSource(playbackSubtitleSource(for: result))
-    }
-
-    private func activateContinuousShiori(
-        _ shiori: Shiori,
-        at index: Int,
-        sequenceID: UUID
-    ) {
-        guard isActiveShioriPlaybackSequence(sequenceID) else {
-            return
-        }
-
-        shioriPlaybackSequence?.currentIndex = index
-        activePlaybackSource = .shiori
-        selectedShiori = shiori
-        selectedSearchResult = nil
-        selectedLibraryVideo = nil
-        playbackStatus = .playing
-
-        let currentMilliseconds = max(
-            0,
-            Int(((playbackViewModel?.currentTime ?? Double(shiori.startMilliseconds) / 1_000) * 1_000).rounded(.down))
-        )
-        playbackViewModel?.setSubtitleCues(
-            playbackSubtitleCues(for: shiori),
-            currentTimeMilliseconds: currentMilliseconds
-        )
-        player?.loadSubtitleSource(playbackSubtitleSource(for: shiori))
-    }
-
-    private func waitUntilPlaybackTime(
-        milliseconds: Int,
-        sequenceID: UUID,
-        stopsWhenInvalidated: Bool
-    ) async -> Bool {
-        let targetMilliseconds = max(0, milliseconds)
-
-        while !Task.isCancelled, isActiveSearchPlaybackSequence(sequenceID) {
-            if stopsWhenInvalidated, isSearchPlaybackSequenceInvalidated(sequenceID) {
-                return true
-            }
-
-            if hasPlaybackReached(milliseconds: targetMilliseconds) {
-                return true
-            }
-
-            if case .failed = playbackStatus {
-                return false
-            }
-
-            do {
-                try await Task.sleep(nanoseconds: Self.searchPlaybackPollNanoseconds)
-            } catch {
-                return false
-            }
-        }
-
-        return false
-    }
-
-    private func waitUntilShioriPlaybackTime(
-        milliseconds: Int,
-        sequenceID: UUID,
-        stopsWhenInvalidated: Bool
-    ) async -> Bool {
-        let targetMilliseconds = max(0, milliseconds)
-
-        while !Task.isCancelled, isActiveShioriPlaybackSequence(sequenceID) {
-            if stopsWhenInvalidated, isShioriPlaybackSequenceInvalidated(sequenceID) {
-                return true
-            }
-
-            if hasPlaybackReached(milliseconds: targetMilliseconds) {
-                return true
-            }
-
-            if case .failed = playbackStatus {
-                return false
-            }
-
-            do {
-                try await Task.sleep(nanoseconds: Self.searchPlaybackPollNanoseconds)
-            } catch {
-                return false
-            }
-        }
-
-        return false
-    }
-
-    private func hasPlaybackReached(milliseconds: Int) -> Bool {
-        guard let playbackViewModel else {
-            return false
-        }
-
-        let targetSeconds = Double(max(0, milliseconds)) / 1_000
-        if playbackViewModel.currentTime + 0.015 >= targetSeconds {
-            return true
-        }
-
-        return !playbackViewModel.isPlaying
-            && playbackViewModel.duration > 0
-            && playbackViewModel.currentTime >= playbackViewModel.duration - 0.05
-    }
-
-    private func runSearchPlaybackFade(sequenceID: UUID) async -> Bool {
-        await runResultPlaybackFade {
-            self.isActiveSearchPlaybackSequence(sequenceID)
-        }
-    }
-
-    private func runShioriPlaybackFade(sequenceID: UUID) async -> Bool {
-        await runResultPlaybackFade {
-            self.isActiveShioriPlaybackSequence(sequenceID)
-        }
-    }
-
-    private func runResultPlaybackFade(isActive: () -> Bool) async -> Bool {
-        let stepDelayNanoseconds = UInt64(Self.searchResultTransitionMilliseconds / Self.searchResultTransitionSteps)
-            * 1_000_000
-
-        player?.setVideoOutputFrozen(true)
-        for step in 0...Self.searchResultTransitionSteps {
-            guard !Task.isCancelled, isActive() else {
-                return false
-            }
-
-            let progress = Double(step) / Double(Self.searchResultTransitionSteps)
-            playbackViewModel?.setTransitionBlackoutOpacity(progress)
-            player?.setOutputVolumeMultiplier(1 - progress)
-
-            guard step < Self.searchResultTransitionSteps else {
-                break
-            }
-
-            do {
-                try await Task.sleep(nanoseconds: stepDelayNanoseconds)
-            } catch {
-                return false
-            }
-        }
-
-        playbackViewModel?.setTransitionBlackoutOpacity(1)
-        player?.setOutputVolumeMultiplier(0)
-        return true
-    }
-
-    private func finishSearchPlaybackSequence(id: UUID) {
-        guard isActiveSearchPlaybackSequence(id) else {
-            return
-        }
-
-        do {
-            try player?.setPaused(true)
-            playbackStatus = .paused
-        } catch {
-            playbackStatus = .failed(Self.errorMessage(for: error))
-        }
-        searchPlaybackTask = nil
-        searchPlaybackSequence = nil
-    }
-
-    private func finishShioriPlaybackSequence(id: UUID) {
-        guard isActiveShioriPlaybackSequence(id) else {
-            return
-        }
-
-        do {
-            try player?.setPaused(true)
-            playbackStatus = .paused
-        } catch {
-            playbackStatus = .failed(Self.errorMessage(for: error))
-        }
-        shioriPlaybackTask = nil
-        shioriPlaybackSequence = nil
-    }
-
-    private func invalidateSearchPlaybackSequenceAfterCurrentResult() {
-        searchPlaybackSequence?.isInvalidated = true
-    }
-
-    private func invalidateShioriPlaybackSequenceAfterCurrentResult() {
-        shioriPlaybackSequence?.isInvalidated = true
-    }
-
-    private func cancelSearchPlaybackSequence(resetTransitionEffects: Bool) {
-        searchPlaybackTask?.cancel()
-        searchPlaybackTask = nil
-        searchPlaybackSequence = nil
-        if resetTransitionEffects {
-            resetResultPlaybackTransitionEffects()
-        }
-    }
-
-    private func cancelShioriPlaybackSequence(resetTransitionEffects: Bool) {
-        shioriPlaybackTask?.cancel()
-        shioriPlaybackTask = nil
-        shioriPlaybackSequence = nil
-        if resetTransitionEffects {
-            resetResultPlaybackTransitionEffects()
-        }
-    }
-
-    private func resetResultPlaybackTransitionEffects() {
-        player?.setVideoOutputFrozen(false)
-        playbackViewModel?.setTransitionBlackoutOpacity(0)
-        player?.setOutputVolumeMultiplier(1)
-    }
-
-    private func isActiveSearchPlaybackSequence(_ id: UUID) -> Bool {
-        searchPlaybackSequence?.id == id
-    }
-
-    private func isSearchPlaybackSequenceInvalidated(_ id: UUID) -> Bool {
-        guard let searchPlaybackSequence, searchPlaybackSequence.id == id else {
-            return false
-        }
-
-        return searchPlaybackSequence.isInvalidated
-    }
-
-    private func isActiveShioriPlaybackSequence(_ id: UUID) -> Bool {
-        shioriPlaybackSequence?.id == id
-    }
-
-    private func isShioriPlaybackSequenceInvalidated(_ id: UUID) -> Bool {
-        guard let shioriPlaybackSequence, shioriPlaybackSequence.id == id else {
-            return false
-        }
-
-        return shioriPlaybackSequence.isInvalidated
     }
 
     @discardableResult
@@ -2415,8 +1665,6 @@ final class AppState: ObservableObject {
 
     func stopPlayback() {
         do {
-            cancelSearchPlaybackSequence(resetTransitionEffects: true)
-            cancelShioriPlaybackSequence(resetTransitionEffects: true)
             saveCurrentLibraryPlaybackHistory()
             stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()
@@ -2528,7 +1776,7 @@ final class AppState: ObservableObject {
             rebuildSearchResultGroups()
         }
 
-        startSearch(query: searchQuery, offset: 0, appending: false, debounce: false)
+        updateSearchQuery(searchQuery)
     }
 
     private func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
@@ -2810,69 +2058,6 @@ final class AppState: ObservableObject {
         aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
     }
 
-    private func resultPlaybackWindow(
-        for result: SubtitleSearchResult,
-        subtitleCount: Int
-    ) -> ResultAutoplayWindow {
-        resultPlaybackWindow(
-            forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
-            startMilliseconds: result.startMilliseconds,
-            endMilliseconds: result.endMilliseconds,
-            subtitleCount: subtitleCount
-        )
-    }
-
-    private func resultPlaybackWindow(
-        for shiori: Shiori,
-        subtitleCount: Int
-    ) -> ResultAutoplayWindow {
-        resultPlaybackWindow(
-            forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
-            startMilliseconds: shiori.startMilliseconds,
-            endMilliseconds: shiori.endMilliseconds,
-            subtitleCount: subtitleCount
-        )
-    }
-
-    private func resultPlaybackWindow(
-        forSubtitleFile subtitleFile: URL,
-        startMilliseconds: Int,
-        endMilliseconds: Int,
-        subtitleCount: Int
-    ) -> ResultAutoplayWindow {
-        let subtitleCount = Self.clampedAutoplaySubtitleCount(subtitleCount)
-        guard let database = subtitleDatabase else {
-            return SearchResultPlaybackSequencer.playbackWindow(
-                startMilliseconds: startMilliseconds,
-                endMilliseconds: endMilliseconds,
-                availableCueTimings: [],
-                subtitleCount: subtitleCount
-            )
-        }
-
-        do {
-            let cueTimings = try database.cueTimings(
-                forSubtitleFile: subtitleFile,
-                startingAtMilliseconds: startMilliseconds,
-                limit: subtitleCount + 1
-            )
-            return SearchResultPlaybackSequencer.playbackWindow(
-                startMilliseconds: startMilliseconds,
-                endMilliseconds: endMilliseconds,
-                availableCueTimings: cueTimings,
-                subtitleCount: subtitleCount
-            )
-        } catch {
-            print("Failed to load autoplay subtitle window: \(error)")
-            return SearchResultPlaybackSequencer.playbackWindow(
-                startMilliseconds: startMilliseconds,
-                endMilliseconds: endMilliseconds,
-                availableCueTimings: [],
-                subtitleCount: subtitleCount
-            )
-        }
-    }
-
     private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
         playbackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
@@ -3111,17 +2296,6 @@ final class AppState: ObservableObject {
         }
 
         return mode
-    }
-
-    private static func loadAutoplaySubtitleCount(
-        from userDefaults: UserDefaults,
-        key: String
-    ) -> Int {
-        clampedAutoplaySubtitleCount(userDefaults.integer(forKey: key))
-    }
-
-    static func clampedAutoplaySubtitleCount(_ count: Int) -> Int {
-        SearchResultPlaybackSequencer.clampedSubtitleCount(count)
     }
 
     private static func defaultDatabaseURL() -> URL {

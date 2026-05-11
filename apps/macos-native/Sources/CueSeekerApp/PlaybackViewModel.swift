@@ -38,7 +38,6 @@ public final class PlaybackViewModel: ObservableObject {
     @Published public var volume: Double = 100
     @Published public var playbackSpeed: Double = 1.0
     @Published public var areSubtitlesVisible: Bool = true
-    @Published public private(set) var transitionBlackoutOpacity: Double = 0
     @Published public private(set) var activeSubtitleText: String?
     @Published var feedback: PlaybackFeedback?
 
@@ -187,15 +186,6 @@ public final class PlaybackViewModel: ObservableObject {
     public func clearSubtitleCues() {
         subtitleTrack = .empty
         refreshActiveSubtitleText()
-    }
-
-    public func setTransitionBlackoutOpacity(_ opacity: Double) {
-        let nextOpacity = min(max(opacity.isFinite ? opacity : 0, 0), 1)
-        guard transitionBlackoutOpacity != nextOpacity else {
-            return
-        }
-
-        transitionBlackoutOpacity = nextOpacity
     }
 
     func showSubtitleCopyFeedback(copied: Bool) {

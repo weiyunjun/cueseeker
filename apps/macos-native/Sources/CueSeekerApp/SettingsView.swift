@@ -6,7 +6,6 @@ import CueSeekerPlayback
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case library
     case decode
-    case autoplay
 
     var id: String { rawValue }
 
@@ -16,8 +15,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "Library"
         case .decode:
             "Decode"
-        case .autoplay:
-            "Autoplay"
         }
     }
 
@@ -27,8 +24,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "folder"
         case .decode:
             "play.rectangle"
-        case .autoplay:
-            "play.circle"
         }
     }
 }
@@ -117,8 +112,6 @@ struct SettingsView: View {
             librarySettingsContent
         case .decode:
             decodeSettingsContent
-        case .autoplay:
-            autoplaySettingsContent
         }
     }
 
@@ -223,44 +216,6 @@ struct SettingsView: View {
                 Spacer()
 
                 DecodeModeSegmentedControl(selection: $appState.playbackDecodeMode)
-            }
-
-            Spacer()
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(contentBackground)
-    }
-
-    private var autoplaySettingsContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Autoplay")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                Text("Choose which result lists advance automatically after the selected cue fades out.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(alignment: .leading, spacing: 22) {
-                SettingsAutoplayRow(
-                    title: "Search result autoplay",
-                    detail: "Advance through Search results after the clicked cue finishes.",
-                    countTitle: "Subtitle count",
-                    countDetail: "Selected cue plus following cues.",
-                    isOn: $appState.isSearchResultAutoplayEnabled,
-                    count: $appState.searchResultAutoplaySubtitleCount
-                )
-
-                SettingsAutoplayRow(
-                    title: "Shiori result autoplay",
-                    detail: "Advance through Shiori rows after the clicked saved cue finishes.",
-                    countTitle: "Subtitle count",
-                    countDetail: "Selected saved cue plus following cues.",
-                    isOn: $appState.isShioriResultAutoplayEnabled,
-                    count: $appState.shioriResultAutoplaySubtitleCount
-                )
             }
 
             Spacer()
@@ -428,85 +383,5 @@ private struct DecodeModeSegmentedControl: View {
                 .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
-    }
-}
-
-private struct SettingsSwitchRow: View {
-    let title: String
-    let detail: String
-    @Binding var isOn: Bool
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .accessibilityLabel(title)
-        }
-    }
-}
-
-private struct SettingsAutoplayRow: View {
-    let title: String
-    let detail: String
-    let countTitle: String
-    let countDetail: String
-    @Binding var isOn: Bool
-    @Binding var count: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SettingsSwitchRow(
-                title: title,
-                detail: detail,
-                isOn: $isOn
-            )
-
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(countTitle)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    Text(countDetail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                TextField("", text: countTextBinding)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 72)
-                    .multilineTextAlignment(.trailing)
-                    .disabled(!isOn)
-                    .accessibilityLabel("\(title) \(countTitle)")
-            }
-            .padding(.leading, 12)
-            .opacity(isOn ? 1 : 0.45)
-        }
-    }
-
-    private var countTextBinding: Binding<String> {
-        Binding {
-            String(count)
-        } set: { nextValue in
-            let digits = nextValue.filter(\.isNumber)
-            guard let parsedCount = Int(digits) else {
-                count = SearchResultPlaybackSequencer.minimumSubtitleCount
-                return
-            }
-
-            count = AppState.clampedAutoplaySubtitleCount(parsedCount)
-        }
     }
 }

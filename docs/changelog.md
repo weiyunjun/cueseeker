@@ -6,24 +6,6 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Accepted autoplay subtitle window sizing: result autoplay now uses a persisted
-  positive subtitle-count setting, defaulting to `3`, so each clicked Search or
-  Shiori row plays the selected cue plus up to the next two cues from the same
-  subtitle file before deciding whether to fade or continue into the next result.
-  Count changes are bounded to `1...999` and apply only to newly started or
-  manually restarted autoplay rules.
-- Accepted configurable result autoplay in Settings: a new `Autoplay` category
-  below `Decode` exposes switch-style controls for Search result autoplay and
-  Shiori result autoplay. Disabling either setting preserves bounded cue
-  playback and fade-out for the clicked row, then stops black and silent instead
-  of advancing.
-- Accepted Search-result sequence playback for the native workbench: Search now
-  commits only on Return with Escape restoring uncommitted edits, clicked
-  results play as subtitle-bounded moments, one-second black-and-silent
-  transitions advance through the committed result sequence, same-subtitle-file
-  overlap continuity skips transitions only for `0ms <= b - c <= 1000ms`, and
-  committing a new query during playback invalidates later automatic
-  advancement after the current result fades out.
 - Added persistent Search timing diagnostics for development builds: every
   Search request records query, database, state assignment, grouping, status,
   first visible result-row timing, and internal `searchPage` database phases

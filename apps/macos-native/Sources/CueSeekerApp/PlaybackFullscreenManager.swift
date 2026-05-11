@@ -541,10 +541,6 @@ private struct PlaybackFullscreenOverlayView: View {
             )
 
             PlaybackFeedbackOverlay(feedback: viewModel.feedback)
-
-            Color.black
-                .opacity(viewModel.transitionBlackoutOpacity)
-                .allowsHitTesting(false)
         }
         .background(Color.clear)
         .onContinuousHover { phase in

@@ -33,7 +33,6 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 @property (nonatomic) float volume;
 @property (nonatomic) float playbackRate;
 @property (nonatomic) SFXNativePlaybackDecodeMode decodeMode;
-@property (nonatomic, getter=isVideoOutputFrozen) BOOL videoOutputFrozen;
 
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
