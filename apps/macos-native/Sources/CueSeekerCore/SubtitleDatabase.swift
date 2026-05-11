@@ -942,8 +942,12 @@ public final class SubtitleDatabase {
 
                 candidateOffset += candidates.count
 
+                let linesByCueGroupID = try cueLines(
+                    forCueGroupIDs: candidates.map(\.cueGroupID)
+                )
                 for candidate in candidates {
-                    if let result = try searchResult(for: candidate, matching: plan) {
+                    let lines = linesByCueGroupID[candidate.cueGroupID] ?? []
+                    if let result = searchResult(for: candidate, lines: lines, matching: plan) {
                         results.append(result)
                     }
                 }
@@ -1434,9 +1438,9 @@ public final class SubtitleDatabase {
 
     private func searchResult(
         for candidate: SearchCandidate,
+        lines cueLines: [SubtitleCueLine],
         matching plan: SearchQueryPlan
-    ) throws -> SubtitleSearchResult? {
-        let cueLines = try cueLines(forCueGroupID: candidate.cueGroupID)
+    ) -> SubtitleSearchResult? {
         let lineContents = cueLines.map(\.content)
         let searchableLines = lineContents.isEmpty ? [candidate.searchContent] : lineContents
 
@@ -2263,6 +2267,51 @@ public final class SubtitleDatabase {
         }
 
         return lines
+    }
+
+    private func cueLines(forCueGroupIDs cueGroupIDs: [Int64]) throws -> [Int64: [SubtitleCueLine]] {
+        guard !cueGroupIDs.isEmpty else {
+            return [:]
+        }
+
+        let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
+        let statement = try database.prepare(
+            """
+            SELECT cue_group_id, event_index, source_format, source_style, source_layer,
+                   start_time, end_time, start_ms, end_ms, content,
+                   display_x, display_y, display_order
+            FROM subtitle_cue_lines
+            WHERE cue_group_id IN (\(placeholders))
+            ORDER BY cue_group_id ASC, display_order ASC, event_index ASC, id ASC;
+            """
+        )
+
+        for (offset, cueGroupID) in cueGroupIDs.enumerated() {
+            try statement.bind(cueGroupID, at: Int32(offset + 1))
+        }
+
+        var linesByCueGroupID: [Int64: [SubtitleCueLine]] = [:]
+        linesByCueGroupID.reserveCapacity(cueGroupIDs.count)
+        while try statement.step() {
+            let cueGroupID = statement.int64Column(0)
+            let line = SubtitleCueLine(
+                eventIndex: statement.intColumn(1),
+                sourceFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
+                sourceStyle: statement.nullableStringColumn(3),
+                sourceLayer: statement.nullableIntColumn(4),
+                startTimecode: statement.stringColumn(5),
+                endTimecode: statement.stringColumn(6),
+                startMilliseconds: statement.intColumn(7),
+                endMilliseconds: statement.intColumn(8),
+                content: statement.stringColumn(9),
+                displayX: statement.nullableDoubleColumn(10),
+                displayY: statement.nullableDoubleColumn(11),
+                displayOrder: statement.intColumn(12)
+            )
+            linesByCueGroupID[cueGroupID, default: []].append(line)
+        }
+
+        return linesByCueGroupID
     }
 
     private func deleteIndexedSubtitlePath(_ subtitlePath: String) throws {
