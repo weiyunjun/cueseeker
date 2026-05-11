@@ -4,6 +4,7 @@
 #include <d3dcompiler.h>
 #include <dxgi.h>
 #include <dxgi1_2.h>
+#include <dxgi1_3.h>
 #include <propkeydef.h>
 #include <functiondiscoverykeys_devpkey.h>
 #include <mmdeviceapi.h>
@@ -1340,7 +1341,7 @@ public:
         ShowWindow(hwnd_, SW_SHOW);
     }
 
-    void initializeSwapChainPanel(void* panelNativePointer, int width, int height)
+    void initializeSwapChainPanel(void* panelNativePointer, int width, int height, float scale)
     {
         if (!panelNativePointer) {
             throw std::runtime_error("SwapChainPanel native pointer is required for embedded playback");
@@ -1348,7 +1349,8 @@ public:
 
         targetWidth_ = std::max(1, width);
         targetHeight_ = std::max(1, height);
-        createCompositionDeviceAndSwapChain(panelNativePointer, targetWidth_, targetHeight_);
+        compositionScale_ = std::isfinite(scale) && scale > 0.0f ? scale : 1.0f;
+        createCompositionDeviceAndSwapChain(panelNativePointer, targetWidth_, targetHeight_, compositionScale_);
         createPipeline();
     }
 
@@ -1492,7 +1494,7 @@ private:
         throwIfFailed(device_->CreateRenderTargetView(backBuffer.Get(), nullptr, &renderTarget_), "CreateRenderTargetView");
     }
 
-    void createCompositionDeviceAndSwapChain(void* panelNativePointer, int width, int height)
+    void createCompositionDeviceAndSwapChain(void* panelNativePointer, int width, int height, float scale)
     {
         const D3D_FEATURE_LEVEL levels[] = {
             D3D_FEATURE_LEVEL_12_1,
@@ -1544,6 +1546,14 @@ private:
             factory->CreateSwapChainForComposition(device_.Get(), &desc, nullptr, &compositionSwapChain),
             "IDXGIFactory2::CreateSwapChainForComposition");
         throwIfFailed(compositionSwapChain.As(&swapChain_), "QueryInterface(IDXGISwapChain)");
+
+        ComPtr<IDXGISwapChain2> swapChain2;
+        throwIfFailed(compositionSwapChain.As(&swapChain2), "QueryInterface(IDXGISwapChain2)");
+        const float inverseScale = scale > 0.0f ? 1.0f / scale : 1.0f;
+        DXGI_MATRIX_3X2_F transform = {};
+        transform._11 = inverseScale;
+        transform._22 = inverseScale;
+        throwIfFailed(swapChain2->SetMatrixTransform(&transform), "IDXGISwapChain2::SetMatrixTransform");
 
         ComPtr<CueSeekerSwapChainPanelNative> panel;
         auto* panelUnknown = static_cast<IUnknown*>(panelNativePointer);
@@ -1693,6 +1703,7 @@ float4 ps_main(PSIn input) : SV_TARGET {
     int frameHeight_ = 0;
     int targetWidth_ = 1;
     int targetHeight_ = 1;
+    float compositionScale_ = 1.0f;
     std::atomic_bool stopRequested_ = false;
 };
 
@@ -2102,6 +2113,7 @@ void playVideo(
     void* swapChainPanel,
     int renderWidth,
     int renderHeight,
+    float renderScale,
     void* rendererPresenter)
 {
     PlaybackReport report;
@@ -2341,7 +2353,8 @@ void playVideo(
         windowRenderer.initializeSwapChainPanel(
             swapChainPanel,
             renderWidth > 0 ? renderWidth : std::min(frameWidth, 1280),
-            renderHeight > 0 ? renderHeight : std::min(frameHeight, 720));
+            renderHeight > 0 ? renderHeight : std::min(frameHeight, 720),
+            renderScale);
         renderer = &windowRenderer;
     } else {
         windowRenderer.initializeWindow(
@@ -2697,6 +2710,7 @@ void playVideo(
     void*,
     int,
     int,
+    float,
     void*)
 {
     throw std::runtime_error("Video playback requires building with the FFmpeg development SDK.");
@@ -2928,6 +2942,7 @@ int CueSeekerPlaybackPlay(const CueSeekerPlaybackOptions* options, char** errorM
             options->swap_chain_panel,
             options->render_width,
             options->render_height,
+            options->render_scale,
             options->renderer_presenter);
         return 0;
     } catch (const std::exception& error) {
@@ -2940,6 +2955,7 @@ int CueSeekerPlaybackCreateSwapChainPanelPresenter(
     void* swapChainPanel,
     int32_t renderWidth,
     int32_t renderHeight,
+    float renderScale,
     void** rendererPresenter,
     char** errorMessage)
 {
@@ -2956,7 +2972,7 @@ int CueSeekerPlaybackCreateSwapChainPanelPresenter(
         }
 
         auto renderer = std::make_unique<D3D11Renderer>();
-        renderer->initializeSwapChainPanel(swapChainPanel, renderWidth, renderHeight);
+        renderer->initializeSwapChainPanel(swapChainPanel, renderWidth, renderHeight, renderScale);
         *rendererPresenter = renderer.release();
         return 0;
     } catch (const std::exception& error) {
@@ -3030,6 +3046,7 @@ int wmain(int argc, wchar_t** argv)
                 nullptr,
                 0,
                 0,
+                1.0f,
                 nullptr);
             return 0;
         }

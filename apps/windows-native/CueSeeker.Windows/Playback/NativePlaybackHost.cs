@@ -12,6 +12,7 @@ internal sealed class NativePlaybackHost
     private nint activePresenter;
     private int renderWidth = 1280;
     private int renderHeight = 720;
+    private float renderScale = 1.0f;
     private Task? activePlaybackTask;
     private static nint nativeLibraryHandle;
 
@@ -77,9 +78,10 @@ internal sealed class NativePlaybackHost
             nint panelNative = swapChainPanelNative;
             int targetWidth = renderWidth;
             int targetHeight = renderHeight;
+            float targetScale = renderScale;
             nint createError = 0;
             try {
-                int createResult = CueSeekerPlaybackCreateSwapChainPanelPresenter(panelNative, targetWidth, targetHeight, out presenter, out createError);
+                int createResult = CueSeekerPlaybackCreateSwapChainPanelPresenter(panelNative, targetWidth, targetHeight, targetScale, out presenter, out createError);
                 if (createResult != 0) {
                     throw new InvalidOperationException(ReadUtf8(createError) ?? "Native playback presenter creation failed.");
                 }
@@ -98,6 +100,7 @@ internal sealed class NativePlaybackHost
                     SwapChainPanel = panelNative,
                     RenderWidth = targetWidth,
                     RenderHeight = targetHeight,
+                    RenderScale = targetScale,
                     RendererPresenter = presenter,
                 };
 
@@ -207,12 +210,16 @@ internal sealed class NativePlaybackHost
     private void UpdateRenderTargetSize(SwapChainPanel panel)
     {
         double scale = panel.XamlRoot?.RasterizationScale ?? 1.0;
+        if (!double.IsFinite(scale) || scale <= 0) {
+            scale = 1.0;
+        }
         double logicalWidth = panel.ActualWidth > 0 ? panel.ActualWidth : (double.IsNaN(panel.Width) ? 0 : panel.Width);
         double logicalHeight = panel.ActualHeight > 0 ? panel.ActualHeight : (double.IsNaN(panel.Height) ? 0 : panel.Height);
         int width = (int)Math.Round(logicalWidth * scale);
         int height = (int)Math.Round(logicalHeight * scale);
         renderWidth = width > 0 ? width : renderWidth;
         renderHeight = height > 0 ? height : renderHeight;
+        renderScale = (float)scale;
     }
 
     private static string? ReadUtf8(nint value)
@@ -237,6 +244,7 @@ internal sealed class NativePlaybackHost
         nint swapChainPanel,
         int renderWidth,
         int renderHeight,
+        float renderScale,
         out nint rendererPresenter,
         out nint errorMessage);
 
@@ -267,6 +275,7 @@ internal sealed class NativePlaybackHost
         public nint SwapChainPanel;
         public int RenderWidth;
         public int RenderHeight;
+        public float RenderScale;
         public nint RendererPresenter;
     }
 }

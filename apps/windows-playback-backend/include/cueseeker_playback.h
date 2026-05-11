@@ -33,6 +33,7 @@ typedef struct CueSeekerPlaybackOptions {
     void* swap_chain_panel;
     int32_t render_width;
     int32_t render_height;
+    float render_scale;
     void* renderer_presenter;
 } CueSeekerPlaybackOptions;
 
@@ -50,6 +51,7 @@ CUESEEKER_PLAYBACK_API int CueSeekerPlaybackCreateSwapChainPanelPresenter(
     void* swap_chain_panel,
     int32_t render_width,
     int32_t render_height,
+    float render_scale,
     void** renderer_presenter,
     char** error_message);
 

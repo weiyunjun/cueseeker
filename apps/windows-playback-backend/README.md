@@ -17,10 +17,12 @@ Current exported API:
 - `CueSeekerPlaybackFreeString`
 
 `CueSeekerPlaybackPlay` accepts an optional WinUI `SwapChainPanel` native
-pointer and render size. The Windows app first creates a native presenter on
-the UI thread with `CueSeekerPlaybackCreateSwapChainPanelPresenter`, then passes
-that presenter to `CueSeekerPlaybackPlay` for background playback. The presenter
-owns a DXGI composition swap chain attached to the app visual tree. The lab CLI
+pointer, physical render size, and XAML rasterization scale. The Windows app
+first creates a native presenter on the UI thread with
+`CueSeekerPlaybackCreateSwapChainPanelPresenter`, then passes that presenter to
+`CueSeekerPlaybackPlay` for background playback. The presenter owns a DXGI
+composition swap chain attached to the app visual tree and applies the inverse
+scale transform required for high-DPI `SwapChainPanel` rendering. The lab CLI
 still omits those fields and uses the standalone diagnostics window.
 The app calls `CueSeekerPlaybackStopPresenter` before replacing an active
 session so the previous playback loop can exit and release resources.
