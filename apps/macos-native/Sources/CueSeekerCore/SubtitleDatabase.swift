@@ -1711,7 +1711,7 @@ public final class SubtitleDatabase {
     }
 
     private static func expandedSQLLimit(for limit: Int) -> Int {
-        let (expanded, overflow) = limit.multipliedReportingOverflow(by: 5)
+        let (expanded, overflow) = limit.multipliedReportingOverflow(by: 2)
         if overflow {
             return Int(Int32.max)
         }
