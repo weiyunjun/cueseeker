@@ -148,6 +148,46 @@ func sharedSearchFixtureMatchesCurrentMacOSDatabase() throws {
     #expect(actual == expected)
 }
 
+@Test
+func sharedLibraryPresentationFixtureMatchesCurrentMacOSDatabase() throws {
+    let root = try sharedFixtureRoot()
+    let libraryRoot = root.appendingPathComponent("library")
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSharedLibrary-\(UUID().uuidString).sqlite")
+
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    for row in try libraryIndexedVideos(at: libraryRoot.appendingPathComponent("indexed-videos.tsv")) {
+        try database.replaceCueGroups(
+            subtitleFile: URL(fileURLWithPath: row.subtitlePath),
+            videoFile: URL(fileURLWithPath: row.videoPath),
+            format: row.format,
+            cueGroups: [sharedLibraryCueGroup(format: row.format)]
+        )
+        if let duration = row.duration {
+            try database.updateVideoDuration(
+                videoFile: URL(fileURLWithPath: row.videoPath),
+                duration: duration
+            )
+        }
+    }
+
+    try database.rebuildLibraryPresentationSnapshot()
+    let actual = try libraryPresentationRows(
+        try database.libraryPresentation(under: [URL(fileURLWithPath: "/Media")])
+    )
+    let expected = try expectedRows(
+        at: libraryRoot.appendingPathComponent("expected-presentation.tsv")
+    )
+
+    #expect(actual == expected)
+}
+
 private func sharedFixtureRoot() throws -> URL {
     var cursor = URL(fileURLWithPath: #filePath)
     while cursor.path != "/" {
@@ -226,6 +266,95 @@ private struct SharedSearchCase {
     let query: String
     let limit: Int
     let offset: Int
+}
+
+private func libraryIndexedVideos(at url: URL) throws -> [SharedLibraryVideoRow] {
+    try String(contentsOf: url, encoding: .utf8)
+        .components(separatedBy: .newlines)
+        .compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else {
+                return nil
+            }
+
+            let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+                .map(String.init)
+            guard fields.count == 4,
+                  let format = SubtitleFormat(rawValue: fields[2])
+            else {
+                return nil
+            }
+
+            return SharedLibraryVideoRow(
+                subtitlePath: fields[0],
+                videoPath: fields[1],
+                format: format,
+                duration: fields[3] == "NONE" ? nil : Double(fields[3])
+            )
+        }
+}
+
+private struct SharedLibraryVideoRow {
+    let subtitlePath: String
+    let videoPath: String
+    let format: SubtitleFormat
+    let duration: Double?
+}
+
+private func sharedLibraryCueGroup(format: SubtitleFormat) -> SubtitleCueGroup {
+    SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "00:00:01,000",
+        endTimecode: "00:00:02,000",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        searchContent: "library fixture",
+        cueLines: [
+            SubtitleCueLine(
+                eventIndex: 0,
+                sourceFormat: format,
+                sourceStyle: nil,
+                sourceLayer: nil,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                content: "library fixture",
+                displayX: nil,
+                displayY: nil,
+                displayOrder: 0
+            )
+        ]
+    )
+}
+
+private func libraryPresentationRows(_ folders: [LibraryFolderPresentation]) throws -> [String] {
+    var rows: [String] = []
+
+    for folder in folders {
+        rows.append([
+            "folder",
+            folder.folderPath,
+            folder.folderTitle
+        ].joined(separator: "\t"))
+
+        for video in folder.videos {
+            rows.append([
+                "video",
+                folder.folderPath,
+                folder.folderTitle,
+                video.videoPath,
+                video.videoName,
+                formatOptionalDouble(video.duration),
+                video.subtitlePath,
+                video.subtitleFormat.rawValue,
+                video.displayTitle,
+                video.fileExtension
+            ].joined(separator: "\t"))
+        }
+    }
+
+    return rows
 }
 
 private func indexingProjectionRows(root: URL, folder: URL) throws -> [String] {

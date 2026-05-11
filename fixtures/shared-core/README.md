@@ -14,6 +14,9 @@ Current coverage:
   groups.
 - Search query matching over indexed cue groups, including Latin prefix, ordered
   Latin tokens, CJK substring, kana substring, and line-level validation.
+- Library presentation snapshot rows from indexed video metadata, including
+  duplicate video folding, natural ordering, display titles, file extensions,
+  duration propagation, and subtitle format propagation.
 - Simple language-suffix subtitle matching.
 - SRT parsing, malformed block skipping, missing sequence numbers, multi-line
   text, and CJK text.
@@ -29,4 +32,5 @@ line event_index format style layer start_time end_time start_ms end_ms content 
 
 Empty fields represent `nil`/`None`. Text uses `\n`, `\t`, and `\\` escaping.
 Expected path output files use one relative path per row. `NONE` in
-video-matching cases represents an expected no-match result.
+video-matching cases represents an expected no-match result. `NONE` in Library
+fixture duration input represents an expected missing duration.

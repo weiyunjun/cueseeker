@@ -1,9 +1,14 @@
+pub mod library;
 pub mod subtitle_indexer;
 pub mod subtitle_scanner;
 pub mod subtitle_search;
 pub mod subtitles;
 pub mod video_matching;
 
+pub use library::{
+    LibraryFolderPresentation, LibraryVideo, LibraryVideoPresentation,
+    library_presentation_snapshot, library_videos,
+};
 pub use subtitle_indexer::{
     IndexedSubtitleFile, SubtitleIndexer, SubtitleIndexingFailure, SubtitleIndexingProjection,
     SubtitleIndexingResult,

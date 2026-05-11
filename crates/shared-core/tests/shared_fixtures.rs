@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 
 use cueseeker_shared_core::subtitles::{SubtitleCueGroup, SubtitleFormat, ass, srt};
 use cueseeker_shared_core::{
-    SubtitleFileScanner, SubtitleIndexer, SubtitleSearchPage, VideoMatcher, search_projection,
+    LibraryFolderPresentation, LibraryVideo, SubtitleFileScanner, SubtitleIndexer,
+    SubtitleSearchPage, VideoMatcher, library_presentation_snapshot, search_projection,
 };
 
 #[test]
@@ -95,6 +96,19 @@ fn subtitle_search_matches_shared_fixture() {
     assert_eq!(
         search_rows(&search_root, &projection, &cases),
         expected_rows(&search_root.join("expected-results.tsv"))
+    );
+}
+
+#[test]
+fn library_presentation_matches_shared_fixture() {
+    let root = fixture_root();
+    let library_root = root.join("library");
+    let indexed_videos = library_indexed_videos(&library_root.join("indexed-videos.tsv"));
+    let snapshot = library_presentation_snapshot(&indexed_videos);
+
+    assert_eq!(
+        library_presentation_rows(&snapshot),
+        expected_rows(&library_root.join("expected-presentation.tsv"))
     );
 }
 
@@ -270,10 +284,84 @@ fn search_page_rows(root: &Path, case_name: &str, page: &SubtitleSearchPage) -> 
     rows
 }
 
+fn library_indexed_videos(path: &Path) -> Vec<LibraryVideo> {
+    fs::read_to_string(path)
+        .unwrap()
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        })
+        .map(|line| {
+            let fields: Vec<&str> = line.split('\t').collect();
+            assert_eq!(fields.len(), 4, "invalid library row: {line}");
+            let video_path = fields[1].to_string();
+            LibraryVideo {
+                video_name: Path::new(&video_path)
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned(),
+                video_path,
+                duration: if fields[3] == "NONE" {
+                    None
+                } else {
+                    Some(fields[3].parse().unwrap())
+                },
+                subtitle_path: fields[0].to_string(),
+                subtitle_format: parse_subtitle_format(fields[2]),
+            }
+        })
+        .collect()
+}
+
+fn library_presentation_rows(snapshot: &[LibraryFolderPresentation]) -> Vec<String> {
+    let mut rows = Vec::new();
+
+    for folder in snapshot {
+        rows.push(
+            [
+                "folder".to_string(),
+                folder.folder_path.clone(),
+                folder.folder_title.clone(),
+            ]
+            .join("\t"),
+        );
+
+        for video in &folder.videos {
+            rows.push(
+                [
+                    "video".to_string(),
+                    folder.folder_path.clone(),
+                    folder.folder_title.clone(),
+                    video.video_path.clone(),
+                    video.video_name.clone(),
+                    format_optional_number(video.duration),
+                    video.subtitle_path.clone(),
+                    format_subtitle_format(video.subtitle_format),
+                    video.display_title.clone(),
+                    video.file_extension.clone(),
+                ]
+                .join("\t"),
+            );
+        }
+    }
+
+    rows
+}
+
 fn format_subtitle_format(format: SubtitleFormat) -> String {
     match format {
         SubtitleFormat::Srt => "srt".to_string(),
         SubtitleFormat::Ass => "ass".to_string(),
+    }
+}
+
+fn parse_subtitle_format(format: &str) -> SubtitleFormat {
+    match format {
+        "srt" => SubtitleFormat::Srt,
+        "ass" => SubtitleFormat::Ass,
+        _ => panic!("unknown subtitle format: {format}"),
     }
 }
 

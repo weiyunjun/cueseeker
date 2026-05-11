@@ -309,6 +309,7 @@ produce the same fixture results as the current macOS Swift implementation for:
 - Minimal indexing projection from scanned subtitles to matched videos and cue
   groups.
 - Search query matching over indexed cue groups.
+- Library presentation snapshot generation from indexed video metadata.
 - Subtitle-to-video matching.
 - SRT parsing.
 - ASS parsing and exact-time grouping.
@@ -347,6 +348,8 @@ Failure examples:
   `scanning/expected-srt.txt`.
 - Indexing projection output differs from `indexing/expected-projection.tsv`.
 - Search output differs from `search/expected-results.tsv`.
+- Library presentation output differs from
+  `library/expected-presentation.tsv`.
 - Video matching returns a path different from `video-matching/cases.tsv`.
 
 ### Optional macOS App Regression Smoke
@@ -401,4 +404,4 @@ This Phase 1 fixture smoke passes when:
 - Rust shared-core fixture tests pass.
 - Swift shared fixture tests pass against the same expected output files.
 - Any optional app smoke uses the existing Swift production path and shows no
-  regression in indexing, Search, or click-to-playback.
+  regression in indexing, Library display rows, Search, or click-to-playback.
