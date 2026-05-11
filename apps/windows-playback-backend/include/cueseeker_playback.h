@@ -55,6 +55,8 @@ CUESEEKER_PLAYBACK_API int CueSeekerPlaybackCreateSwapChainPanelPresenter(
 
 CUESEEKER_PLAYBACK_API void CueSeekerPlaybackDestroyPresenter(void* renderer_presenter);
 
+CUESEEKER_PLAYBACK_API void CueSeekerPlaybackStopPresenter(void* renderer_presenter);
+
 CUESEEKER_PLAYBACK_API int CueSeekerPlaybackRunRenderTest(char** error_message);
 
 CUESEEKER_PLAYBACK_API void CueSeekerPlaybackFreeString(char* value);

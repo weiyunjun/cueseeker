@@ -15,6 +15,7 @@
 #include "cueseeker_playback.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cctype>
 #include <cmath>
@@ -1351,8 +1352,22 @@ public:
         createPipeline();
     }
 
+    void requestStop()
+    {
+        stopRequested_.store(true, std::memory_order_release);
+    }
+
+    bool stopRequested() const
+    {
+        return stopRequested_.load(std::memory_order_acquire);
+    }
+
     bool pumpMessages()
     {
+        if (stopRequested()) {
+            return false;
+        }
+
         if (!hwnd_) {
             return true;
         }
@@ -1401,15 +1416,27 @@ public:
         context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
 
         D3D11_VIEWPORT viewport = {};
+        int destinationWidth = targetWidth_;
+        int destinationHeight = targetHeight_;
         if (hwnd_) {
             RECT client = {};
             GetClientRect(hwnd_, &client);
-            viewport.Width = static_cast<float>(std::max<LONG>(1, client.right - client.left));
-            viewport.Height = static_cast<float>(std::max<LONG>(1, client.bottom - client.top));
-        } else {
-            viewport.Width = static_cast<float>(targetWidth_);
-            viewport.Height = static_cast<float>(targetHeight_);
+            destinationWidth = static_cast<int>(std::max<LONG>(1, client.right - client.left));
+            destinationHeight = static_cast<int>(std::max<LONG>(1, client.bottom - client.top));
         }
+        const double sourceAspect = height > 0 ? static_cast<double>(width) / static_cast<double>(height) : 1.0;
+        const double destinationAspect = static_cast<double>(destinationWidth) / static_cast<double>(destinationHeight);
+        double viewportWidth = destinationWidth;
+        double viewportHeight = destinationHeight;
+        if (sourceAspect > destinationAspect) {
+            viewportHeight = viewportWidth / sourceAspect;
+        } else {
+            viewportWidth = viewportHeight * sourceAspect;
+        }
+        viewport.TopLeftX = static_cast<float>((destinationWidth - viewportWidth) * 0.5);
+        viewport.TopLeftY = static_cast<float>((destinationHeight - viewportHeight) * 0.5);
+        viewport.Width = static_cast<float>(std::max(1.0, viewportWidth));
+        viewport.Height = static_cast<float>(std::max(1.0, viewportHeight));
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
         context_->RSSetViewports(1, &viewport);
@@ -1666,6 +1693,7 @@ float4 ps_main(PSIn input) : SV_TARGET {
     int frameHeight_ = 0;
     int targetWidth_ = 1;
     int targetHeight_ = 1;
+    std::atomic_bool stopRequested_ = false;
 };
 
 void runRenderTest()
@@ -2451,7 +2479,7 @@ void playVideo(
 
             if (!renderer->pumpMessages()) {
                 running = false;
-                report.completionReason = "window_closed";
+                report.completionReason = renderer->stopRequested() ? "stopped" : "window_closed";
                 break;
             }
 
@@ -2558,7 +2586,7 @@ void playVideo(
 
     while (running) {
         if (!renderer->pumpMessages()) {
-            report.completionReason = "window_closed";
+            report.completionReason = renderer->stopRequested() ? "stopped" : "window_closed";
             break;
         }
 
@@ -2895,6 +2923,13 @@ int CueSeekerPlaybackCreateSwapChainPanelPresenter(
 void CueSeekerPlaybackDestroyPresenter(void* rendererPresenter)
 {
     delete static_cast<D3D11Renderer*>(rendererPresenter);
+}
+
+void CueSeekerPlaybackStopPresenter(void* rendererPresenter)
+{
+    if (rendererPresenter) {
+        static_cast<D3D11Renderer*>(rendererPresenter)->requestStop();
+    }
 }
 
 int CueSeekerPlaybackRunRenderTest(char** errorMessage)

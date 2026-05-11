@@ -6,9 +6,13 @@ namespace CueSeeker.Windows.Playback;
 
 internal sealed class NativePlaybackHost
 {
+    private readonly SemaphoreSlim playbackStartGate = new(1, 1);
+    private readonly SemaphoreSlim playbackStateGate = new(1, 1);
     private nint swapChainPanelNative;
+    private nint activePresenter;
     private int renderWidth = 1280;
     private int renderHeight = 720;
+    private Task? activePlaybackTask;
     private static nint nativeLibraryHandle;
 
     public bool IsNativeLibraryAvailable {
@@ -57,25 +61,33 @@ internal sealed class NativePlaybackHost
         DecodePreference decodePreference,
         long durationMilliseconds = 0)
     {
-        if (!EnsureNativeLibraryLoaded()) {
-            throw new InvalidOperationException("Native playback backend is not available.");
-        }
-        if (swapChainPanelNative == 0) {
-            throw new InvalidOperationException("Embedded playback surface is not ready.");
-        }
-
-        nint panelNative = swapChainPanelNative;
-        int targetWidth = renderWidth;
-        int targetHeight = renderHeight;
+        await playbackStartGate.WaitAsync();
         nint presenter = 0;
-        nint createError = 0;
+        Task<string>? playbackTask = null;
         try {
-            int createResult = CueSeekerPlaybackCreateSwapChainPanelPresenter(panelNative, targetWidth, targetHeight, out presenter, out createError);
-            if (createResult != 0) {
-                throw new InvalidOperationException(ReadUtf8(createError) ?? "Native playback presenter creation failed.");
+            await StopAsync();
+
+            if (!EnsureNativeLibraryLoaded()) {
+                throw new InvalidOperationException("Native playback backend is not available.");
+            }
+            if (swapChainPanelNative == 0) {
+                throw new InvalidOperationException("Embedded playback surface is not ready.");
             }
 
-            return await Task.Run(() => {
+            nint panelNative = swapChainPanelNative;
+            int targetWidth = renderWidth;
+            int targetHeight = renderHeight;
+            nint createError = 0;
+            try {
+                int createResult = CueSeekerPlaybackCreateSwapChainPanelPresenter(panelNative, targetWidth, targetHeight, out presenter, out createError);
+                if (createResult != 0) {
+                    throw new InvalidOperationException(ReadUtf8(createError) ?? "Native playback presenter creation failed.");
+                }
+            } finally {
+                CueSeekerPlaybackFreeString(createError);
+            }
+
+            playbackTask = Task.Run(() => {
                 NativePlaybackOptions options = new() {
                     MediaPath = mediaPath,
                     SubtitlePath = subtitlePath,
@@ -101,10 +113,59 @@ internal sealed class NativePlaybackHost
                     CueSeekerPlaybackFreeString(error);
                 }
             });
-        } finally {
-            CueSeekerPlaybackFreeString(createError);
+
+            await playbackStateGate.WaitAsync();
+            try {
+                activePresenter = presenter;
+                activePlaybackTask = playbackTask;
+            } finally {
+                playbackStateGate.Release();
+            }
+        } catch {
             if (presenter != 0) {
                 CueSeekerPlaybackDestroyPresenter(presenter);
+            }
+            throw;
+        } finally {
+            playbackStartGate.Release();
+        }
+
+        try {
+            return await playbackTask;
+        } finally {
+            await playbackStateGate.WaitAsync();
+            try {
+                if (activePresenter == presenter) {
+                    activePresenter = 0;
+                    activePlaybackTask = null;
+                }
+            } finally {
+                playbackStateGate.Release();
+            }
+            CueSeekerPlaybackDestroyPresenter(presenter);
+        }
+    }
+
+    public async Task StopAsync()
+    {
+        nint presenterToStop;
+        Task? taskToWait;
+        await playbackStateGate.WaitAsync();
+        try {
+            presenterToStop = activePresenter;
+            taskToWait = activePlaybackTask;
+            if (presenterToStop != 0) {
+                CueSeekerPlaybackStopPresenter(presenterToStop);
+            }
+        } finally {
+            playbackStateGate.Release();
+        }
+
+        if (taskToWait is not null) {
+            try {
+                await taskToWait;
+            } catch {
+                // Replacing playback should not surface the previous session's terminal error.
             }
         }
     }
@@ -179,6 +240,9 @@ internal sealed class NativePlaybackHost
 
     [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
     private static extern void CueSeekerPlaybackDestroyPresenter(nint rendererPresenter);
+
+    [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void CueSeekerPlaybackStopPresenter(nint rendererPresenter);
 
     [DllImport("CueSeekerPlaybackNative.dll", CallingConvention = CallingConvention.Cdecl)]
     private static extern void CueSeekerPlaybackFreeString(nint value);
