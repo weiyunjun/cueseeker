@@ -1,13 +1,8 @@
 import Foundation
 
 enum AppLogDirectory {
-    private static let appLogFolderName = "CueSeeker"
-
     static var baseURL: URL {
-        FileManager.default
-            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent(appLogFolderName, isDirectory: true)
+        projectRootURL.appendingPathComponent("logs", isDirectory: true)
     }
 
     static func directory(named name: String) -> URL {
@@ -16,5 +11,22 @@ enum AppLogDirectory {
 
     static func fileURL(in directoryName: String, filename: String) -> URL {
         directory(named: directoryName).appendingPathComponent(filename)
+    }
+
+    private static var projectRootURL: URL {
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+
+        while directory.path != "/" {
+            let macOSPackageURL = directory
+                .appendingPathComponent("apps", isDirectory: true)
+                .appendingPathComponent("macos-native", isDirectory: true)
+            if FileManager.default.fileExists(atPath: macOSPackageURL.path) {
+                return directory
+            }
+
+            directory.deleteLastPathComponent()
+        }
+
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
     }
 }

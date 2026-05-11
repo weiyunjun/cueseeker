@@ -12,7 +12,7 @@ struct SearchPerformanceRun: Sendable {
     let folderCount: Int
 }
 
-private struct SearchPerformanceLogEntry: Encodable, Sendable {
+private struct SearchPerformanceLogEntry: Sendable {
     let timestamp: String
     let sequence: UInt64
     let runID: UInt64
@@ -33,6 +33,46 @@ private struct SearchPerformanceLogEntry: Encodable, Sendable {
     let status: String?
     let entryID: Int64?
     let error: String?
+
+    var formattedLogBlock: String {
+        var lines = [
+            "[\(timestamp)] run=\(runID) sequence=\(sequence) event=\(event)",
+            formatMilliseconds("elapsed", elapsedMilliseconds)
+        ]
+
+        if let phaseMilliseconds {
+            lines.append(formatMilliseconds("phase", phaseMilliseconds))
+        }
+        lines.append("  queryLength: \(queryLength)")
+        lines.append("  offset: \(offset)")
+        lines.append("  limit: \(limit)")
+        lines.append("  appending: \(appending)")
+        lines.append("  debounce: \(debounce)")
+        lines.append("  folders: \(folderCount)")
+        append("results", resultCount, to: &lines)
+        append("total", totalCount, to: &lines)
+        append("fileSummaries", fileSummaryCount, to: &lines)
+        append("groups", groupCount, to: &lines)
+        append("renderedRows", renderedRowCount, to: &lines)
+        append("status", status, to: &lines)
+        append("entryID", entryID, to: &lines)
+        append("error", error, to: &lines)
+        lines.append("")
+
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    private func formatMilliseconds(_ label: String, _ value: Double) -> String {
+        String(format: "  %@: %.2f ms", label, value)
+    }
+
+    private func append<T>(_ label: String, _ value: T?, to lines: inout [String]) {
+        guard let value else {
+            return
+        }
+
+        lines.append("  \(label): \(value)")
+    }
 }
 
 private final class SearchPerformanceLoggerState: @unchecked Sendable {
@@ -63,7 +103,6 @@ private final class SearchPerformanceLogWriter: @unchecked Sendable {
         qos: .utility
     )
     private let logger = Logger(subsystem: "com.cueseeker.perf", category: "Search")
-    private let encoder = JSONEncoder()
     private var didAnnounceLogPath = false
 
     func write(_ entry: SearchPerformanceLogEntry) {
@@ -80,7 +119,7 @@ private final class SearchPerformanceLogWriter: @unchecked Sendable {
                 withIntermediateDirectories: true
             )
 
-            let data = try encoder.encode(entry)
+            let data = Data(entry.formattedLogBlock.utf8)
             if !FileManager.default.fileExists(atPath: fileURL.path) {
                 FileManager.default.createFile(atPath: fileURL.path, contents: nil)
             }
@@ -103,7 +142,7 @@ private final class SearchPerformanceLogWriter: @unchecked Sendable {
     private static func logFileURL() -> URL {
         AppLogDirectory.fileURL(
             in: "search-timing",
-            filename: "search-timing-\(dateStamp()).jsonl"
+            filename: "search-timing-\(dateStamp()).log"
         )
     }
 
@@ -208,8 +247,9 @@ enum SearchPerformanceLogger {
     }
 
     private static func timestampString() -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS ZZZZZ"
         return formatter.string(from: Date())
     }
 
