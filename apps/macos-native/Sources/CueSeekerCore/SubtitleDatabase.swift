@@ -883,7 +883,7 @@ public final class SubtitleDatabase {
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
-                ORDER BY vf.video_name ASC, g.start_ms ASC, g.id ASC
+                ORDER BY g.id ASC
                 LIMIT ? OFFSET ?;
                 """
             )
