@@ -11,6 +11,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   first visible result-row timing, and internal `searchPage` database phases
   into project-local, one-line logs under `logs/search-timing/`, with explicit
   diagnostic flag enablement for non-development diagnostic runs.
+- Recorded the current Search performance follow-up as deferred work: a
+  high-result CJK Search case spends most of its measured app time inside
+  `SubtitleDatabase.searchPage`, especially result sorting, and should be
+  optimized later without blocking unrelated feature development.
 - Accepted the shared-core architecture direction: CueSeeker will keep native
   macOS and Windows UI shells, keep playback rendering platform-native, prefer
   Rust for shared product-domain behavior, and limit the first shared-core
