@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted autoplay subtitle window sizing: result autoplay now uses a persisted
+  positive subtitle-count setting, defaulting to `3`, so each clicked Search or
+  Shiori row plays the selected cue plus up to the next two cues from the same
+  subtitle file before deciding whether to fade or continue into the next result.
+  Count changes are bounded to `1...999` and apply only to newly started or
+  manually restarted autoplay rules.
 - Accepted configurable result autoplay in Settings: a new `Autoplay` category
   below `Decode` exposes switch-style controls for Search result autoplay and
   Shiori result autoplay. Disabling either setting preserves bounded cue

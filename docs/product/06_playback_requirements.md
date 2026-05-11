@@ -50,6 +50,9 @@ Required:
 - Automatically advance from a clicked Search result through the remaining
   committed Search result sequence unless the sequence is invalidated by a later
   committed query.
+- Apply the configured autoplay subtitle count to result playback windows. The
+  default count is `3`, meaning the clicked result cue plus up to two following
+  subtitle cues from the same subtitle file.
 - Continue playback when the right-side Search Panel is collapsed.
 - Pause playback when the user leaves the CueSeeker workbench for another
   documented top-level section.
@@ -175,12 +178,15 @@ Current implementation:
   native failure and may persist the failure reason for that media file.
 - Selecting a result in the same video should prefer seek behavior when
   practical.
-- Search-result sequence continuity is based on adjacent results with the same
-  subtitle filename. For two adjacent timing windows `[a,b]` and `[c,d]`, no
-  transition is used when `0ms <= b - c <= 1000ms`; playback continues and the
-  selected result changes when the player reaches `c`. All other adjacent
-  Search-result transitions use the one-second black-and-silent fade before the
-  next result opens or seeks.
+- Search-result sequence continuity is based on adjacent committed results with
+  the same subtitle filename and the configured subtitle-count playback window.
+  If the next result starts inside the current window, playback continues and the
+  selected result changes when the player reaches the next result's start
+  timestamp. Otherwise, no transition is used only when the current window
+  reaches the subtitle cue immediately before the next result and that cue's end
+  timestamp `b` satisfies `0ms <= b - c <= 1000ms`, where `c` is the next
+  result's start timestamp. All other adjacent Search-result transitions use the
+  one-second black-and-silent fade before the next result opens or seeks.
 - Search-result sequence invalidation is tied to committed Search queries. If
   the Search field draft changes without Return, the current sequence remains
   valid. If Return commits a new query while a result is playing, the current
@@ -194,6 +200,11 @@ Current implementation:
   that row through the remaining visible Shiori rows. When disabled, a clicked
   Shiori row still plays only the selected saved cue and fades out, but does not
   advance.
+- Search and Shiori autoplay each have a persisted subtitle-count setting. The
+  count defaults to `3`, is clamped to `1...999`, and applies to newly started
+  playback rules. A currently executing playback rule keeps the autoplay enabled
+  state and count it captured when it started unless another user operation ends
+  the rule.
 - The previous `wid` style embedding and external player-window approach are not
   acceptable as the primary playback implementation.
 

@@ -566,7 +566,10 @@ normal Settings window lifecycle.
 The `Autoplay` category should sit below `Decode` in the Settings category
 list. It should expose native switch-style toggles for `Search result autoplay`
 and `Shiori result autoplay`, with concise secondary text explaining the
-behavior.
+behavior. Each switch should be followed by a subtitle-count input for that
+result type. The count field should accept only positive integers, clamp to
+`1...999`, default to `3`, and appear disabled/dimmed when its corresponding
+autoplay switch is off.
 
 Settings should be functional and clear before they are visually refined.
 Opening, focusing, or closing Settings should not pause playback, switch the

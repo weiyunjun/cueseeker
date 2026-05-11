@@ -252,20 +252,28 @@ When the user selects a result:
   Search results as they were visible for that committed query. The clicked row
   is the first sequence item, and the selected row advances automatically as the
   sequence advances.
-- Search result playback normally plays only the selected cue group, from its
-  start timestamp through its end timestamp. At the end timestamp, playback
-  enters a one-second transition where the current video continues underneath
-  while the picture fades to full black and audio fades to silence.
+- Search result playback normally plays the selected cue group plus the
+  configured number of following subtitle cues from the same subtitle file,
+  defaulting to `3` total cues. If fewer following cues exist, the playback
+  window ends at the last available cue.
+- At the playback window end timestamp, playback enters a one-second transition
+  where the current video continues underneath while the picture fades to full
+  black and audio fades to silence.
 - After the one-second transition completes, playback automatically opens or
   seeks to the next Search result in the sequence and selects that row. After
   the final Search result completes its one-second transition, playback remains
   on a black, silent frame.
-- For adjacent Search results from the same subtitle filename, with timing
-  windows `[a,b]` and `[c,d]`, no transition is scheduled when
-  `0ms <= b - c <= 1000ms`. In that case playback continues through the overlap
-  and the selected row switches when playback reaches `c`. Search result
-  adjacency is based on the committed result order, and the continuity test is
-  based on subtitle filename rather than matched video path.
+- For the next Search result from the same subtitle filename, no transition is
+  scheduled when the configured current playback window reaches the subtitle cue
+  immediately before the next result and that cue's end timestamp `b` satisfies
+  `0ms <= b - c <= 1000ms`, where `c` is the next result's start timestamp. In
+  that case playback remains continuous and the selected row switches when
+  playback reaches `c`. Search result adjacency is based on the committed result
+  order, and the continuity test is based on subtitle filename rather than
+  matched video path.
+- If the next result's start timestamp already falls inside the current playback
+  window, selection switches at that start timestamp and a new playback window is
+  calculated from that next result.
 - If a video ends less than one second after a Search result's end timestamp,
   the one-second fade still completes; the Playback Area may hold the last
   available video frame under the black overlay while the transition finishes.
@@ -577,9 +585,16 @@ Expected behavior:
   `software`, and `auto`.
 - `Autoplay` appears below `Decode` and contains switch-style controls for
   Search result autoplay and Shiori result autoplay.
+- Under each Autoplay switch, a positive integer count field controls how many
+  subtitle cues are included in that result type's autoplay window. It defaults
+  to `3`, accepts `1...999`, and is disabled while the corresponding autoplay
+  switch is off.
 - Disabling Search result autoplay or Shiori result autoplay does not change the
   clicked-row playback shape: the selected cue still plays through its end and
   fades out, but the sequence stops black and silent instead of advancing.
+- Autoplay switch or count edits apply to newly started playback rules. A running
+  rule keeps its captured settings until it finishes or another user action
+  ends it.
 - Opening, focusing, switching categories within, or closing Settings must not
   pause playback, switch away from the CueSeeker workbench, collapse either
   side panel, or clear the selected Search result.

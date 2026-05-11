@@ -259,9 +259,10 @@ For grouped subtitle results:
 Clicking a Result row must open or update the central Playback Area and trigger
 playback for the matching video at the subtitle start timestamp. The clicked row
 starts a committed-result playback sequence that plays each selected cue group
-through its end timestamp, uses the documented Search-result transition rules,
-and advances selection through the remaining committed results until the
-sequence ends or is invalidated by a later committed query.
+through its configured autoplay subtitle window, uses the documented
+Search-result transition rules, and advances selection through the remaining
+committed results until the sequence ends or is invalidated by a later committed
+query.
 
 The Playback Area displays additional context:
 
@@ -483,6 +484,15 @@ Current Settings categories:
 
 - Expose a persisted `Search result autoplay` switch.
 - Expose a persisted `Shiori result autoplay` switch.
+- Expose persisted subtitle-count controls under each autoplay switch. The count
+  must be a positive integer in the range `1...999`, default to `3`, and mean
+  the clicked cue plus up to `count - 1` following cues from the same subtitle
+  file.
+- Disable and visually dim each subtitle-count control while its corresponding
+  autoplay switch is off.
+- Autoplay setting changes must not rewrite the currently executing playback
+  rule. They apply after the current rule finishes or after another operation,
+  such as manually clicking a different Search or Shiori row, ends it.
 - Use the native macOS switch-style toggle where practical.
 - When Search result autoplay is disabled, clicking a Search result still plays
   only the selected cue and runs the one-second fade, then remains black and

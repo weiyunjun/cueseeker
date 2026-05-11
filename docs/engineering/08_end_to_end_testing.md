@@ -317,11 +317,15 @@ This test validates that:
 - One-second fade transitions continue the underlying video while picture fades
   to black and audio fades to silence.
 - Same-subtitle-filename overlap continuity skips the fade only when the
-  adjacent windows `[a,b]` and `[c,d]` satisfy `0ms <= b - c <= 1000ms`.
+  configured subtitle-count window reaches the cue immediately before the next
+  result and that cue's end timestamp `b` satisfies `0ms <= b - c <= 1000ms`.
 - Committing a new query during active sequence playback invalidates automatic
   advancement after the current result fades out.
 - The Autoplay Settings switches control whether Search and Shiori result
   playback advances after the current cue fades out.
+- The Autoplay subtitle-count fields control how many subtitle cues are included
+  in each Search or Shiori playback window, default to `3`, clamp to `1...999`,
+  and are disabled when the corresponding autoplay switch is off.
 
 ### Required Instrumentation
 
@@ -369,6 +373,8 @@ For full coverage, choose or create result pairs with:
 - A normal non-continuous pair where the next result does not satisfy
   `0ms <= b - c <= 1000ms`.
 - A same-subtitle-filename pair satisfying `0ms <= b - c <= 1000ms`.
+- A same-subtitle-filename pair where the next result is reached only because the
+  autoplay subtitle count includes intervening subtitle cues.
 - A query whose last result is near the end of its video, when available.
 - At least two Shiori rows in the visible Shiori panel.
 
@@ -390,9 +396,10 @@ Perform these actions in order.
 5. Watch the transition. Verify the video continues underneath while the picture
    fades to black and audio fades to silence, then the next result becomes
    selected and starts playback.
-6. Click or wait into a same-subtitle-filename pair satisfying
-   `0ms <= b - c <= 1000ms`. Verify there is no black fade, playback remains
-   continuous, and selection switches when playback reaches `c`.
+6. Click or wait into a same-subtitle-filename pair where the configured
+   subtitle-count window reaches the cue immediately before the next result and
+   satisfies `0ms <= b - c <= 1000ms`. Verify there is no black fade, playback
+   remains continuous, and selection switches when playback reaches `c`.
 7. Start another sequence, edit the Search field, and do not press Return.
    Verify the current playback sequence continues normally.
 8. While a result is playing, commit a different query with Return. Verify the
@@ -404,12 +411,14 @@ Perform these actions in order.
 10. Open Settings, choose `Autoplay`, disable `Search result autoplay`, and
     click a Search result. Verify the selected cue plays and fades out, then
     remains black and silent without advancing.
-11. Enable `Search result autoplay` again and verify Search result advancement
-    resumes.
+11. Enable `Search result autoplay` again, set its subtitle count to `3`, and
+    verify Search result advancement resumes with the clicked cue plus up to two
+    following cues.
 12. Disable `Shiori result autoplay`, click a Shiori row, and verify the saved
     cue plays and fades out without advancing.
-13. Enable `Shiori result autoplay`, click the same Shiori row, and verify
-    playback advances to the next visible Shiori row after fade-out.
+13. Enable `Shiori result autoplay`, set its subtitle count to `3`, click the
+    same Shiori row, and verify playback advances to the next visible Shiori row
+    after the configured subtitle window and fade-out.
 
 ### Evidence to Paste Back
 
@@ -423,6 +432,8 @@ Paste a short note with:
 - Whether committing a new query stopped advancement after fade-out.
 - Whether both Autoplay switches changed advancement behavior without changing
   the clicked cue's bounded playback and fade-out.
+- Whether the subtitle-count fields affected Search and Shiori playback windows
+  and were disabled while autoplay was off.
 - Any visible or audible mismatch, delayed seek, missing black frame, selection
   mismatch, or unexpected continuation.
 
@@ -444,18 +455,25 @@ The Search result sequence playback test passes only if:
   before the next result opens or seeks.
 - The fade completes even when the current media has less than one second
   remaining after the cue end.
-- Same-subtitle-filename adjacent results skip the fade only for
-  `0ms <= b - c <= 1000ms`, and selection switches at `c`.
+- Same-subtitle-filename adjacent results skip the fade only when the configured
+  subtitle-count window reaches the cue immediately before the next result and
+  `0ms <= b - c <= 1000ms`, with selection switching at `c`.
 - Committing a new query during playback does not interrupt the current result,
   but prevents automatic advancement after that result fades out.
 - With `Search result autoplay` off, Search result playback stops black and
   silent after the clicked cue fades out.
 - With `Search result autoplay` on, Search result playback advances after
   fade-out when a next result exists.
+- Search result subtitle-count edits are clamped to `1...999`, are disabled
+  while Search result autoplay is off, and apply to newly started rules rather
+  than mutating an active rule.
 - With `Shiori result autoplay` off, Shiori playback stops black and silent
   after the clicked saved cue fades out.
 - With `Shiori result autoplay` on, Shiori playback advances through later
   visible Shiori rows after fade-out.
+- Shiori subtitle-count edits are clamped to `1...999`, are disabled while
+  Shiori result autoplay is off, and apply to newly started rules rather than
+  mutating an active rule.
 
 ### Failure Handling
 
