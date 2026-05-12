@@ -16,6 +16,33 @@ The interface should prioritize:
 
 The app should avoid marketing-style layouts, decorative hero sections, and unnecessary visual complexity.
 
+## 1.1 Accepted Search-First Topbar Transition
+
+The accepted next UI direction is a Search-first transition toward a
+topbar-driven single-page work surface.
+
+This transition supersedes the Mode Rail and Shared Content Panel requirements
+for the Search workflow only. Library, Shiori, Settings, and other unmigrated
+surfaces may remain in their current locations until later documented migration
+steps replace them.
+
+First implementation requirements:
+
+- Add a fixed-width Search field to the topbar.
+- Treat text editing in the topbar Search field as a draft query.
+- Submit Search only when the user presses Return.
+- Show submitted Search results in the main content area.
+- Keep Search result grouping, result rows, selection behavior, and the global
+  `Collapse All` control consistent with the current Search result list.
+- Do not render a second Search field inside the Search results page.
+- Clicking a Search result opens a Search-launched playback page.
+- The playback page keeps the video at the source aspect ratio with fit
+  behavior and leaves command space below the video.
+- First-pass visual polish is explicitly secondary to complete functionality.
+
+The related accepted proposal is
+`docs/proposals/2026-05-topbar-search-single-page-workflow.md`.
+
 ## 2. Main Window
 
 The main window should be a persistent work surface.
@@ -201,6 +228,11 @@ Accepted first Library panel direction:
 The CueSeeker workbench is the primary screen. Search is a mode inside the
 shared left-side content panel.
 
+Search mode is being migrated first to the topbar Search workflow described in
+section 1.1. Requirements in this section that place Search inside the Shared
+Content Panel apply only to the pre-migration workbench and to any unmigrated
+surfaces that still use the panel model.
+
 Required elements:
 
 - Fixed Mode Rail.
@@ -217,6 +249,14 @@ Shared Content Panel is expanded. Search must have a clear restore path when
 the Shared Content Panel is collapsed.
 
 Accepted player-first Search presentation:
+
+- In the topbar Search transition, the topbar Search field is the only Search
+  entry point. The Search result page must not duplicate the Search field below
+  the topbar.
+- Search results keep the existing grouped result presentation and global
+  `Collapse All` behavior for the first implementation.
+- Selecting a Search result opens the Search-launched playback page instead of
+  keeping Search playback constrained to a side-panel workbench layout.
 
 - The main titlebar identifies the workbench as `CueSeeker`.
 - The embedded Playback Area remains central.
@@ -392,6 +432,12 @@ Layout and Selection Behavior:
 
 The CueSeeker workbench uses a player-first layout.
 
+For the Search-first topbar transition, Search-launched playback uses a
+dedicated main-content playback page. This playback page may hide or bypass the
+old Mode Rail and Shared Content Panel when convenient, while Library, Shiori,
+and Settings remain available through their current surfaces until they are
+migrated.
+
 The Playback Area is the central playback and result-detail surface. The Shared
 Content Panel is the left-side Library, Search, and Shiori surface selected by
 the fixed Mode Rail.
@@ -405,6 +451,21 @@ Playback Area required content:
 - Embedded video.
 - A `Video Folder` button.
 - A `Subtitle Folder` button.
+- For Search-launched playback, `Previous Result`, `Next Result`, `Results`,
+  and `Subtitles` buttons.
+
+Search-launched playback result navigation:
+
+- `Previous Result` and `Next Result` use the complete active Search result
+  order, exactly matching the Search results page order.
+- Result navigation is not scoped to the current video path or subtitle path.
+- Current playback time is used to identify the current Search-result anchor
+  before moving backward or forward in the complete result order.
+- The `Results` button opens upward and displays at least the previous,
+  current, and next Search results. It does not show `Collapse All`.
+- The `Subtitles` button opens upward and displays the current playback subtitle
+  file in timestamp order. It does not use keyword highlighting. The current
+  playback subtitle row uses selected-state context only.
 
 The Playback Area should not show read-only `Start Time`, `Video Path`, or
 `Subtitle Path` metadata labels and values under the video. The previous

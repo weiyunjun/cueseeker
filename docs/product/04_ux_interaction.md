@@ -18,6 +18,22 @@ Video plays at matching timestamp
 Collapse the shared content panel when focusing on playback
 ```
 
+The accepted next Search workflow is:
+
+```text
+Open app
+Type a query in the topbar Search field
+Press Return
+Review grouped Search results in the main content area
+Click result
+Search-launched playback opens in the main content area
+Use result navigation or context drawers below the video
+```
+
+This Search workflow supersedes the old side-panel Search entry point. Library,
+Shiori, and Settings may remain in their current surfaces until later migration
+work changes them.
+
 Known-content review may also start from Library:
 
 ```text
@@ -39,6 +55,21 @@ On first launch, if no folders are configured:
 ## 3. Search Interaction
 
 Search should feel immediate.
+
+Accepted topbar Search transition:
+
+- A fixed-width Search field belongs in the topbar.
+- Typing in the topbar Search field edits a draft query only.
+- Pressing Return submits the draft query as the active Search query.
+- Submitted Search results appear in the main content area.
+- The Search results page should not render a duplicate Search field below the
+  topbar.
+- The old side-panel Search entry should no longer be the active Search entry
+  point after this transition is implemented.
+- Library, Shiori, and Settings remain in their current surfaces for the first
+  Search UI pass.
+- First-pass Search UI polish is less important than complete Search-to-playback
+  functionality.
 
 Expected behavior:
 
@@ -270,6 +301,30 @@ When the user selects a result:
 - Clicking `Subtitle Folder` should open Finder to the source subtitle's
   containing folder and select the subtitle file.
 
+Search-launched playback result navigation:
+
+- `Previous Result` and `Next Result` navigate through the complete active
+  Search result order.
+- The order must match the Search results page order, including subtitle-file
+  group order and row order inside each group.
+- Navigation must not use a separate ordering scoped to the current video path
+  or subtitle path.
+- The current playback time identifies the current Search-result anchor. If
+  playback has advanced to a later Search hit, that later hit becomes the
+  current anchor before previous or next navigation is applied.
+- Navigation may cross subtitle files and videos.
+- The app should be able to show the current Search-result position and total
+  result count from the same ordered result source.
+
+The playback `Results` drawer should show at least the previous, current, and
+next Search results around the current anchor. The current row uses selected
+state. The drawer does not include `Collapse All`.
+
+The playback `Subtitles` drawer shows the current subtitle file in timestamp
+order. It does not apply keyword highlighting because it is context navigation,
+not query-match presentation. The row corresponding to the current playback
+subtitle uses selected state only.
+
 ## 6. Visual Feedback and Hover
 
 - **Mode Rail Buttons**: Library, Search, and Shiori icons in the fixed Mode
@@ -305,6 +360,19 @@ Required interactions:
   collapsed.
 - Reopening the Shared Content Panel should not automatically change playback
   state.
+
+Topbar Search playback interaction:
+
+- Selecting a Search result opens a Search-launched playback page in the main
+  content area.
+- The playback page keeps the video at the source aspect ratio with fit
+  behavior and stable space below for command buttons.
+- The first command row includes `Video Folder`, `Subtitle Folder`,
+  `Previous Result`, `Next Result`, `Results`, and `Subtitles`.
+- `Results` and `Subtitles` open upward from the command row and rotate their
+  chevron affordance upward while open.
+- `Results` is a nearby Search-result context drawer.
+- `Subtitles` is a current-subtitle-file context drawer.
 
 Keyboard interactions should not interfere with text input.
 

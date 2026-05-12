@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the topbar Search single-page workflow direction: the first Search
+  UI pass will add a fixed-width topbar Search field that submits only on
+  Return, show submitted results in the main content area without a duplicate
+  Search field, open Search-launched playback from result selection, preserve
+  source video aspect ratio with command space below, and navigate
+  Previous/Next through the complete active Search result order. Library,
+  Shiori, and Settings remain in their current surfaces until later migration
+  work.
 - Accepted ADR-0011 for playback fullscreen: CueSeeker will replace the
   dedicated playback fullscreen window with main-window video-only presentation
   using AppKit native fullscreen behavior. The new direction keeps the playback
