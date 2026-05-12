@@ -18,43 +18,38 @@ struct SearchView: View {
             return GeometryReader { geometry in
                 let modeRailWidth = SearchLayout.modeRailWidth
                 let contentPanelWidth = contentPanelWidth(for: geometry.size.width)
-                let reservedContentPanelWidth = layoutState.isContentPanelVisible ? contentPanelWidth : 0
-                let playbackWidth = max(
-                    0,
-                    geometry.size.width - modeRailWidth - reservedContentPanelWidth
-                )
                 let isSidebarOnLeft = layoutState.sidebarPosition == .left
-                let modeRailX = isSidebarOnLeft
-                    ? 0
-                    : max(0, geometry.size.width - modeRailWidth)
-                let contentPanelX = isSidebarOnLeft
-                    ? modeRailWidth
-                    : max(0, geometry.size.width - modeRailWidth - contentPanelWidth)
-                let playbackX = isSidebarOnLeft ? modeRailWidth + reservedContentPanelWidth : 0
-                let drawerEdge: DrawerPanelEdge = isSidebarOnLeft ? .leading : .trailing
 
-                ZStack(alignment: .topLeading) {
-                    modeRail
-                        .frame(width: modeRailWidth, height: geometry.size.height)
-                        .offset(x: modeRailX)
-                        .zIndex(3)
+                HStack(spacing: 0) {
+                    if isSidebarOnLeft {
+                        modeRail
+                            .frame(width: modeRailWidth, height: geometry.size.height)
+                            .zIndex(2)
 
-                    playbackArea
-                        .frame(width: playbackWidth, height: geometry.size.height)
-                        .offset(x: playbackX)
+                        contentPanelSlot(
+                            width: contentPanelWidth,
+                            availableWidth: geometry.size.width,
+                            isSidebarOnLeft: true
+                        )
+                        .zIndex(1)
 
-                    DrawerPanel(
-                        edge: drawerEdge,
-                        isVisible: layoutState.isContentPanelVisible,
-                        width: contentPanelWidth
-                    ) {
-                        contentPanel
-                    } divider: {
-                        contentPanelResizeDivider(availableWidth: geometry.size.width)
+                        playbackArea
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        playbackArea
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        contentPanelSlot(
+                            width: contentPanelWidth,
+                            availableWidth: geometry.size.width,
+                            isSidebarOnLeft: false
+                        )
+                        .zIndex(1)
+
+                        modeRail
+                            .frame(width: modeRailWidth, height: geometry.size.height)
+                            .zIndex(2)
                     }
-                    .frame(width: contentPanelWidth, height: geometry.size.height)
-                    .offset(x: contentPanelX)
-                    .zIndex(2)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
@@ -186,6 +181,31 @@ struct SearchView: View {
             width: SearchLayout.modeRailButtonSize,
             height: SearchLayout.modeRailButtonSize
         )
+    }
+
+    private func contentPanelSlot(
+        width: CGFloat,
+        availableWidth: CGFloat,
+        isSidebarOnLeft: Bool
+    ) -> some View {
+        let visibleWidth = layoutState.isContentPanelVisible ? width : 0
+        let panelAlignment: Alignment = isSidebarOnLeft ? .leading : .trailing
+        let dividerAlignment: Alignment = isSidebarOnLeft ? .trailing : .leading
+
+        return contentPanel
+            .frame(width: width)
+            .frame(maxHeight: .infinity)
+            .overlay(alignment: dividerAlignment) {
+                contentPanelResizeDivider(
+                    availableWidth: availableWidth,
+                    isSidebarOnLeft: isSidebarOnLeft
+                )
+            }
+            .allowsHitTesting(layoutState.isContentPanelVisible)
+            .accessibilityHidden(!layoutState.isContentPanelVisible)
+            .frame(width: visibleWidth, alignment: panelAlignment)
+            .frame(maxHeight: .infinity)
+            .clipped()
     }
 
     @ViewBuilder
@@ -667,10 +687,14 @@ struct SearchView: View {
         }
     }
 
-    private func contentPanelResizeDivider(availableWidth: CGFloat) -> some View {
+    private func contentPanelResizeDivider(
+        availableWidth: CGFloat,
+        isSidebarOnLeft: Bool
+    ) -> some View {
         let isActive = isContentPanelDividerHovered || isContentPanelDividerDragging
+        let lineAlignment: Alignment = isSidebarOnLeft ? .trailing : .leading
 
-        return ZStack(alignment: .trailing) {
+        return ZStack(alignment: lineAlignment) {
             Rectangle()
                 .fill(Color.black.opacity(0.001))
 
@@ -691,7 +715,8 @@ struct SearchView: View {
                     },
                     onDragChanged: { translationX in
                         let startWidth = contentPanelDragStartWidth ?? layoutState.contentPanelWidth
-                        let proposedWidth = startWidth + Double(translationX)
+                        let delta = isSidebarOnLeft ? translationX : -translationX
+                        let proposedWidth = startWidth + Double(delta)
                         appState.updateWorkbenchContentPanelWidth(
                             clampedContentPanelWidth(proposedWidth, availableWidth: availableWidth)
                         )
@@ -728,74 +753,6 @@ struct SearchView: View {
             max(width, SearchLayout.contentPanelMinimumWidth),
             maxWidth
         )
-    }
-}
-
-private enum DrawerPanelEdge {
-    case leading
-    case trailing
-
-    var alignment: Alignment {
-        switch self {
-        case .leading:
-            return .topLeading
-        case .trailing:
-            return .topTrailing
-        }
-    }
-
-    func hiddenOffset(for width: CGFloat) -> CGFloat {
-        switch self {
-        case .leading:
-            return -width
-        case .trailing:
-            return width
-        }
-    }
-
-    var dividerAlignment: Alignment {
-        switch self {
-        case .leading:
-            return .trailing
-        case .trailing:
-            return .leading
-        }
-    }
-}
-
-private struct DrawerPanel<Content: View, Divider: View>: View {
-    let edge: DrawerPanelEdge
-    let isVisible: Bool
-    let width: CGFloat
-    let content: Content
-    let divider: Divider
-
-    init(
-        edge: DrawerPanelEdge,
-        isVisible: Bool,
-        width: CGFloat,
-        @ViewBuilder content: () -> Content,
-        @ViewBuilder divider: () -> Divider
-    ) {
-        self.edge = edge
-        self.isVisible = isVisible
-        self.width = width
-        self.content = content()
-        self.divider = divider()
-    }
-
-    var body: some View {
-        AppPerformanceProbe.measure("DrawerPanel.body", thresholdMilliseconds: 4) {
-            content
-                .frame(width: width)
-                .frame(maxHeight: .infinity)
-                .overlay(alignment: edge.dividerAlignment) {
-                    divider
-                }
-                .offset(x: isVisible ? 0 : edge.hiddenOffset(for: width))
-                .allowsHitTesting(isVisible)
-                .accessibilityHidden(!isVisible)
-        }
     }
 }
 
