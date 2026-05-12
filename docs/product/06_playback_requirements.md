@@ -222,6 +222,15 @@ Rules:
 - ASS rendering failures should be surfaced explicitly. The app should not
   silently route failed ASS playback through ASS Lite or a native fallback
   renderer.
+- On macOS, ASS font names may use localized or file-derived names that
+  CoreText and `libass` do not resolve directly, such as
+  `Fontname=方正准圆_GBK` when the installed font exposes an English family or
+  PostScript name. Playback should build a system-font alias table lazily once
+  per app launch from CoreText font metadata and available font filenames, then
+  apply matching aliases only to the render-only ASS script passed to `libass`.
+  Original subtitle files, search projections, and durable subtitle data must
+  remain unchanged. Real-time font install or uninstall tracking is not
+  required for M2; restarting the app may refresh the alias table.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.

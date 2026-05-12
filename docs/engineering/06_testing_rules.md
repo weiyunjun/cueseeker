@@ -603,6 +603,12 @@ Required `libass` manual checks:
   rely on adjacent external font folders, such as a sibling `Fonts` directory.
   The check must verify the playback path, not only the isolated ASS rendering
   probe.
+- macOS system-font aliasing must be checked with a real installed font whose
+  ASS name differs from its CoreText family or PostScript name, such as
+  `方正准圆_GBK` resolving to `FZZhunYuan-M02`. The check must verify that
+  playback does not fall back to `Helvetica` or another unrelated face, and it
+  must cover both full-source ASS loading and indexed render-segment loading
+  when render segments are available.
 - Subtitle output maps to the displayed video rectangle.
 - Playback, seek, subtitle visibility toggling, Playback Area, and Theater
   Mode remain stable.
@@ -641,6 +647,9 @@ Required render timeline coverage:
 - Font-resource plumbing must be verified for both full-source ASS loading and
   indexed render-segment loading. A render segment must receive the same
   renderer font directory or extracted attachment cache as the full-source path.
+- Font-alias unit coverage should verify that ASS style `Fontname` fields and
+  inline `\fn...` override tags can be rewritten in a render-only script while
+  preserving the original subtitle source and search projection.
 - Playback subtitle source tests must verify that ASS playback can carry matched
   video identity and renderer font resource context without reintroducing an ASS
   renderer picker or native ASS fallback route.
