@@ -93,9 +93,9 @@ Current shell direction:
 - The previous titlebar Library toggle, right-side Search Panel toggle, and
   titlebar Search/Shiori mode buttons are no longer part of the current
   workbench shell.
-- The centered title should read `CueSeeker`. It should not read `Search`
-  because Search is a panel mode, not the main-window
-  workspace identity.
+- The first-pass topbar Search layout does not show a visible centered
+  `CueSeeker` title. The fixed-width Search field is centered in the custom
+  topbar instead.
 - Traffic lights are shifted 12pt to the right and vertically centered within the custom titlebar. To achieve this without fighting AppKit's native layout engine during window resizing, the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) are reparented (extracted from their system container and placed into a custom transparent `NSView` proxy). This preserves native hover effects and accurate hit testing.
 - The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
 - The `NSWindow` title should use the main workbench identity, `CueSeeker`, for
@@ -258,7 +258,8 @@ Accepted player-first Search presentation:
 - Selecting a Search result opens the Search-launched playback page instead of
   keeping Search playback constrained to a side-panel workbench layout.
 
-- The main titlebar identifies the workbench as `CueSeeker`.
+- The native window identity remains `CueSeeker`, but the visible custom
+  topbar centers the Search field instead of rendering a `CueSeeker` title.
 - The embedded Playback Area remains central.
 - Search controls and grouped Search results appear in the Shared Content Panel
   when Search mode is selected.

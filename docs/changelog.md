@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Fixed paused-seek playback toggling so Space or surface click can pause after
+  a seek auto-resumes playback, and centered the topbar Search field without a
+  visible `CueSeeker` title.
 - Accepted the topbar Search single-page workflow direction: the first Search
   UI pass will add a fixed-width topbar Search field that submits only on
   Return, show submitted results in the main content area without a duplicate

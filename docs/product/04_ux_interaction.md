@@ -75,8 +75,8 @@ Expected behavior:
 
 - Search controls and Search results live in Search mode inside the Shared
   Content Panel.
-- The main window title should be `CueSeeker`; Search is a panel workflow, not
-  the main-window workspace label.
+- The native window identity remains `CueSeeker`, but the visible custom
+  topbar centers the Search field instead of rendering a `CueSeeker` title.
 - The fixed Mode Rail contains Library, Search, and Shiori icons.
 - A Settings button may sit at the bottom of the fixed Mode Rail.
 - Clicking the selected Mode Rail icon collapses the Shared Content Panel with

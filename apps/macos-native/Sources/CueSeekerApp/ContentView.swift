@@ -63,16 +63,7 @@ private struct AppTopBar: View {
                 appState.beginTitlebarZoomTransitionFromUser(window: window)
             }
         )
-            .overlay {
-                Text("CueSeeker")
-                    .font(.system(
-                        size: AppShellLayout.titleFontSize,
-                        weight: AppShellLayout.titleFontWeight
-                    ))
-                    .foregroundStyle(.primary)
-                    .allowsHitTesting(false)
-            }
-            .overlay(alignment: .trailing) {
+            .overlay(alignment: .center) {
                 TopbarSearchField(
                     text: $searchDraft,
                     isFocused: $isSearchFocused,
@@ -82,7 +73,6 @@ private struct AppTopBar: View {
                     }
                 )
                 .frame(width: AppShellLayout.topbarSearchFieldWidth)
-                .padding(.trailing, AppShellLayout.topbarSearchTrailingPadding)
             }
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -117,7 +107,7 @@ private struct TopbarSearchField: View {
                 isFocused: $isFocused,
                 onSubmit: onSubmit
             )
-            .frame(height: 22)
+            .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22)
 
             if !text.isEmpty {
                 Button {
@@ -143,6 +133,10 @@ private struct TopbarSearchField: View {
                     lineWidth: isFocused ? 1.5 : 1
                 )
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isFocused = true
+        }
     }
 }
 
