@@ -91,8 +91,11 @@ struct SearchView: View {
                 )
 
                 Spacer()
+
+                settingsRailButton
             }
             .padding(.top, 16)
+            .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(nsColor: .controlBackgroundColor))
             .overlay(alignment: .trailing) {
@@ -140,6 +143,35 @@ struct SearchView: View {
         .foregroundStyle(isSelected ? Color.primary : Color.secondary)
         .help(help)
         .accessibilityLabel(help)
+        .frame(
+            width: SearchLayout.modeRailButtonSize,
+            height: SearchLayout.modeRailButtonSize
+        )
+    }
+
+    private var settingsRailButton: some View {
+        Button {
+            appState.performUserInitiatedAppCommand {
+                NotificationCenter.default.post(
+                    name: .cueSeekerShowSettings,
+                    object: nil
+                )
+            }
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 20, weight: .medium))
+                .frame(
+                    width: SearchLayout.modeRailButtonSize,
+                    height: SearchLayout.modeRailButtonSize
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(ModeRailButtonStyle(isSelected: false))
+        .allowsHitTesting(!layoutState.isVideoSizeTransitionInProgress)
+        .focusable(false)
+        .foregroundStyle(Color.secondary)
+        .help("Settings")
+        .accessibilityLabel("Settings")
         .frame(
             width: SearchLayout.modeRailButtonSize,
             height: SearchLayout.modeRailButtonSize

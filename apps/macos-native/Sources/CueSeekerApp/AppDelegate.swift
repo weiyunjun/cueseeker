@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 import CueSeekerCore
 
+extension Notification.Name {
+    static let cueSeekerShowSettings = Notification.Name("cueSeekerShowSettings")
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
@@ -15,6 +19,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         UIInvalidationProbe.markStartup()
         AppPerformanceProbe.startMainThreadWatchdog()
         AppPerformanceProbe.startMainRunLoopObserver()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(showSettingsFromNotification(_:)),
+            name: .cueSeekerShowSettings,
+            object: nil
+        )
         configureMainMenu()
         createMainWindow()
         configurePlaybackKeyboardShortcuts()
@@ -30,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSEvent.removeMonitor(keyDownMonitor)
             self.keyDownMonitor = nil
         }
+        NotificationCenter.default.removeObserver(self)
         appState.saveCurrentLibraryPlaybackHistorySynchronously()
         appState.playbackFullscreenManager.exitFullscreen()
     }
@@ -83,6 +94,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
             return handled ? nil : event
         }
+    }
+
+    @objc private func showSettingsFromNotification(_ notification: Notification) {
+        showSettings(notification.object)
     }
 
     @objc private func showSettings(_ sender: Any?) {
