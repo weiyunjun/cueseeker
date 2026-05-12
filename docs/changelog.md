@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted a Layout settings category with a `Sidebar Position` preference.
+  The default `Left` layout keeps `Mode Rail - Shared Content Panel - Playback
+  Area`; choosing `Right` moves the side controls to `Playback Area - Shared
+  Content Panel - Mode Rail` without resetting current workbench state.
 - Accepted a bottom Settings action in the fixed Mode Rail. The button mirrors
   the app-menu Settings command, opens or focuses the independent Settings
   window, and is not a workbench panel mode.

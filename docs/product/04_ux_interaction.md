@@ -54,6 +54,9 @@ Expected behavior:
   Panel is collapsed, the same action expands it.
 - Switching between Library, Search, and Shiori must not change the Shared
   Content Panel width.
+- The Shared Content Panel side is configurable in Settings. The default is
+  `Left`; choosing `Right` should immediately place the playback area first,
+  followed by the Shared Content Panel and then the Mode Rail.
 - Settings opens from `CueSeeker > Settings...` in the macOS app menu or from
   the Mode Rail bottom Settings button. The button opens or focuses the
   independent Settings window and must not act as a panel mode.
@@ -563,11 +566,15 @@ Expected behavior:
   and right content area.
 - The left category list uses the quiet gray settings/navigation background.
 - The right content area uses the white settings content background.
-- The only current categories are `Library` and `Decode`.
+- The current categories are `Library`, `Decode`, and `Layout`.
 - `Library` contains current Subtitle Folders management: add folders, index
   selected folders, remove folders with confirmation, and show indexing status.
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
+- `Layout` contains the `Sidebar Position` selector for `Left` and `Right`.
+- Changing `Sidebar Position` should not pause playback, reset Search results,
+  clear Shiori state, collapse Library groups, or change the Shared Content
+  Panel width.
 - Opening, focusing, switching categories within, or closing Settings must not
   pause playback, switch away from the CueSeeker workbench, collapse the Shared
   Content Panel, or clear the selected Search result.

@@ -48,6 +48,10 @@ Current shell direction:
   opens or focuses the independent Settings window; it is not a panel mode and
   must not change the Shared Content Panel's selected mode, width, or
   visibility.
+- The Mode Rail and Shared Content Panel side is user-configurable in Settings.
+  The default position is `Left`, rendering `Mode Rail - Shared Content Panel -
+  Playback Area`. The `Right` position renders `Playback Area - Shared Content
+  Panel - Mode Rail`.
 - The Shared Content Panel sits immediately to the right of the Mode Rail.
   Library, Search, and Shiori render inside this same panel, so switching modes
   must not change the panel width.
@@ -561,6 +565,7 @@ Current Settings categories:
 
 - `Library`.
 - `Decode`.
+- `Layout`.
 
 The `Library` category should allow local folder management.
 
@@ -577,6 +582,12 @@ Required `Library` elements:
 The `Decode` category should expose an app-drawn segmented control for
 `hardware`, `software`, and `auto`, avoiding native menu services during the
 normal Settings window lifecycle.
+
+The `Layout` category should expose the `Sidebar Position` setting with `Left`
+and `Right` choices. Changing this setting should immediately move the Mode
+Rail and Shared Content Panel to the selected side while preserving panel mode,
+panel visibility, panel width, playback state, and current Search/Shiori/Library
+state.
 
 Settings should be functional and clear before they are visually refined.
 Opening, focusing, or closing Settings should not pause playback, switch the
