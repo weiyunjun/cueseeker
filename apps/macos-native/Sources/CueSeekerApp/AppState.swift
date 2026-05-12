@@ -1517,7 +1517,7 @@ final class AppState: ObservableObject {
     func pausePlayback() {
         do {
             try player?.setPaused(true)
-            if case .playing = playbackStatus {
+            if hasPlaybackSelection {
                 playbackStatus = .paused
             }
             saveCurrentLibraryPlaybackHistory()
@@ -1529,7 +1529,7 @@ final class AppState: ObservableObject {
     func resumePlayback() {
         do {
             try player?.setPaused(false)
-            if case .paused = playbackStatus {
+            if hasPlaybackSelection {
                 playbackStatus = .playing
             }
         } catch {
@@ -1539,10 +1539,12 @@ final class AppState: ObservableObject {
 
     func togglePlayback() {
         switch playbackStatus {
-        case .playing:
-            pausePlayback()
-        case .paused:
-            resumePlayback()
+        case .playing, .paused:
+            if playbackViewModel?.isPlaying == true {
+                pausePlayback()
+            } else {
+                resumePlayback()
+            }
         case .idle:
             if let selectedSearchResult {
                 play(selectedSearchResult)
