@@ -44,6 +44,10 @@ Current shell direction:
   Mode Rail at the far left of the workbench, below the titlebar.
 - The Mode Rail is not horizontally resizable.
 - The Mode Rail should initially expose Library, Search, and Shiori icons only.
+- The Mode Rail may expose a bottom Settings button. Settings is an action that
+  opens or focuses the independent Settings window; it is not a panel mode and
+  must not change the Shared Content Panel's selected mode, width, or
+  visibility.
 - The Shared Content Panel sits immediately to the right of the Mode Rail.
   Library, Search, and Shiori render inside this same panel, so switching modes
   must not change the panel width.
@@ -89,7 +93,9 @@ surfaces inside the persistent workbench and are selected through the fixed
 Mode Rail.
 
 Settings should not be a main-window sidebar section. The formal Settings entry
-belongs in the macOS app menu and opens an independent Settings window.
+belongs in the macOS app menu and may also be mirrored by the Mode Rail bottom
+Settings button. Both entry points open or focus the same independent Settings
+window.
 
 If top-level navigation returns later, it should remain visually quiet and
 should not compete with Library, Search results, Shiori records, or playback.
@@ -536,6 +542,7 @@ sidebar section.
 Formal entry:
 
 - `CueSeeker > Settings...` in the macOS app menu.
+- Bottom Settings button in the Mode Rail.
 - The standard `Command-,` shortcut may also be exposed if practical.
 
 Window structure:

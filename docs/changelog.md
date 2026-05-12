@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted a bottom Settings action in the fixed Mode Rail. The button mirrors
+  the app-menu Settings command, opens or focuses the independent Settings
+  window, and is not a workbench panel mode.
 - Accepted the fixed Mode Rail and shared content panel workbench layout:
   Library, Search, and Shiori now belong behind a non-resizable left Mode Rail,
   render inside one resizable Shared Content Panel, preserve panel width across

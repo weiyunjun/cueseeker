@@ -47,14 +47,16 @@ Expected behavior:
 - The main window title should be `CueSeeker`; Search is a panel workflow, not
   the main-window workspace label.
 - The fixed Mode Rail contains Library, Search, and Shiori icons.
+- A Settings button may sit at the bottom of the fixed Mode Rail.
 - Clicking the selected Mode Rail icon collapses the Shared Content Panel with
   the existing drawer animation.
 - Clicking an unselected Mode Rail icon switches modes. If the Shared Content
   Panel is collapsed, the same action expands it.
 - Switching between Library, Search, and Shiori must not change the Shared
   Content Panel width.
-- Settings opens from `CueSeeker > Settings...` in the macOS app menu and does
-  not belong to the main-window sidebar.
+- Settings opens from `CueSeeker > Settings...` in the macOS app menu or from
+  the Mode Rail bottom Settings button. The button opens or focuses the
+  independent Settings window and must not act as a panel mode.
 - The Shared Content Panel can be collapsed when the user wants to focus on
   playback.
 - Collapsing the Shared Content Panel should preserve the current Search query,
@@ -554,6 +556,8 @@ Expected behavior:
 
 - The formal entry is `CueSeeker > Settings...` in the app menu.
 - The app may expose the standard `Command-,` shortcut if practical.
+- The Mode Rail bottom Settings button should open or focus the same Settings
+  window as the app-menu command.
 - Opening Settings should create or focus a single independent Settings window.
 - The Settings window should use a two-column structure: a left category list
   and right content area.
