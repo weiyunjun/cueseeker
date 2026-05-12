@@ -867,7 +867,7 @@ private struct SearchPlaybackPage: View {
 
                 if let activeDrawer {
                     drawerView(activeDrawer)
-                        .padding(12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -966,21 +966,32 @@ private struct SearchPlaybackPage: View {
             .padding(.horizontal, 12)
             .padding(.top, 10)
 
-            if let snapshot = appState.searchNavigationSnapshot {
+            if appState.searchResultGroups.isEmpty, appState.searchNavigationSnapshot == nil {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 28)
+            } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(appState.searchNavigationResultGroups) { group in
+                            ForEach(appState.searchResultGroups) { group in
                                 SearchResultGroupView(
                                     group: group,
                                     query: appState.searchQuery,
-                                    selectedResult: snapshot.current,
-                                    onToggle: {},
+                                    selectedResult: selectedSearchNavigationResult,
+                                    onToggle: {
+                                        appState.clearSearchFocus()
+                                        appState.toggleSearchResultGroup(group.subtitlePath)
+                                    },
                                     onOpenResult: { result in
                                         appState.clearSearchFocus()
                                         appState.openSearchResult(result)
                                     },
-                                    onResultAppear: { _ in }
+                                    onResultAppear: { result in
+                                        appState.markSearchResultVisible(result)
+                                        appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                                    }
                                 )
                             }
                         }
@@ -993,15 +1004,10 @@ private struct SearchPlaybackPage: View {
                         scrollToSelectedResult(using: proxy)
                     }
                 }
-            } else {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 28)
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: SearchPlaybackLayout.drawerHeight)
+        .frame(maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
@@ -1040,7 +1046,7 @@ private struct SearchPlaybackPage: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: SearchPlaybackLayout.drawerHeight)
+        .frame(maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
@@ -1061,8 +1067,12 @@ private struct SearchPlaybackPage: View {
         return "\(snapshot.totalCount) results"
     }
 
+    private var selectedSearchNavigationResult: SubtitleSearchResult? {
+        appState.searchNavigationSnapshot?.current ?? appState.selectedSearchResult
+    }
+
     private var selectedSearchNavigationEntryID: Int64? {
-        appState.searchNavigationSnapshot?.current?.entryID
+        selectedSearchNavigationResult?.entryID
     }
 
     private var selectedSubtitleEntryID: Int64? {
@@ -1172,10 +1182,6 @@ private struct SubtitleEntryRow: View {
         }
         return .clear
     }
-}
-
-private enum SearchPlaybackLayout {
-    static let drawerHeight: CGFloat = 220
 }
 
 private struct ModeRailButtonStyle: ButtonStyle {

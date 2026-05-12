@@ -462,16 +462,17 @@ Search-launched playback result navigation:
 - Result navigation is not scoped to the current video path or subtitle path.
 - Current playback time is used to identify the current Search-result anchor
   before moving backward or forward in the complete result order.
-- The `Results` button opens upward and displays at least the previous,
-  current, and next Search results in an overlay above the video. Opening this
+- The `Results` button opens upward and displays the same grouped Search result
+  content as the Search results page in an overlay above the video. Opening this
   overlay pauses playback and does not resize or push the video surface. The
-  current result is selected and scrolled into view. It does not show
-  `Collapse All`.
+  overlay fills the video area. The current result is selected and scrolled into
+  view. It does not show `Collapse All`.
 - The `Subtitles` button opens upward and displays the current playback subtitle
   file in timestamp order in an overlay above the video. Opening this overlay
-  pauses playback and does not resize or push the video surface. It does not use
-  keyword highlighting. The current playback subtitle row uses selected-state
-  context only and is scrolled into view.
+  pauses playback and does not resize or push the video surface. The overlay
+  fills the video area. It does not use keyword highlighting. The current
+  playback subtitle row uses selected-state context only and is scrolled into
+  view.
 
 The Playback Area should not show read-only `Start Time`, `Video Path`, or
 `Subtitle Path` metadata labels and values under the video. The previous

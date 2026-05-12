@@ -12,6 +12,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Updated Search-launched playback so context drawers appear as video overlays,
   pause playback when opened, scroll to the selected context, and Search submit
   pauses playback before leaving the playback page.
+- Expanded playback context overlays to fill the video area and made the
+  `Results` overlay use the same grouped result content as the Search results
+  page.
 - Accepted the topbar Search single-page workflow direction: the first Search
   UI pass will add a fixed-width topbar Search field that submits only on
   Return, show submitted results in the main content area without a duplicate
