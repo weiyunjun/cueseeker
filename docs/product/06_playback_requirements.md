@@ -363,6 +363,12 @@ Required behavior:
 - Playback commands should show transient feedback for Shiori save or removal,
   subtitle copy, subtitle visibility, play or pause, seek direction and amount,
   volume, and playback speed.
+- Continuous playback preferences must persist across app restarts. This
+  includes volume, the last nonzero volume used when restoring from mute,
+  subtitle visibility, and playback speed.
+- One-shot playback commands are not persisted as commands. Copying the current
+  subtitle to the clipboard is transient. Saving Shiori creates durable
+  user-authored data and therefore remains persisted.
 - Continuous playback time updates used by visible SwiftUI controls should be
   rate-limited enough to avoid invalidating unrelated workbench UI. Native video
   playback and source-faithful subtitle rendering should keep their own timing
@@ -372,6 +378,8 @@ Current implementation notes:
 
 - The speed preset menu remains `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - Keyboard speed changes adjust the current speed by `0.25x` and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
+- Muting volume remembers the previous nonzero volume. Unmuting restores that
+  previous listening level instead of resetting to `100%`.
 - Fullscreen chrome state suppresses the initial hover event emitted when the fullscreen window appears, then reveals controls and cursor only after real user activity.
 - Fullscreen entry hides the playback operation controls and cursor immediately for both keyboard and button entry paths.
 - Fullscreen playback shortcuts do not reveal the playback operation controls.

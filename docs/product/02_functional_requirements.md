@@ -425,9 +425,22 @@ Requirements:
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
+- Persist continuous playback preferences across app restarts. This includes
+  volume, last nonzero volume used for mute restore, subtitle visibility, and
+  playback speed.
 - ASS playback rendering should preserve timed source ASS events, including
   visual effects and vector drawing events. Search results should still expose
   readable dialogue or lyric text rather than raw effect commands.
+
+Persistence rule:
+
+- Non-one-shot user preferences that affect future playback or app behavior
+  must be persisted by default. One-shot commands such as copying current
+  subtitle text to the clipboard are not themselves persisted, while durable
+  user-authored data created by a command, such as Shiori records, must remain
+  persisted.
+- Muting volume should preserve the previous nonzero volume so unmuting restores
+  the user's last listening level rather than jumping to a generic default.
 
 Current subtitle copy requirements:
 
