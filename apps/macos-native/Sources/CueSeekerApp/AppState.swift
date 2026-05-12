@@ -251,6 +251,10 @@ final class WorkbenchLayoutState: ObservableObject {
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
+    private static let playbackVolumeKey = "playbackVolume"
+    private static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
+    private static let playbackSpeedKey = "playbackSpeed"
+    private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 1000
     private static let searchPrefetchThreshold = 10
@@ -458,7 +462,11 @@ final class AppState: ObservableObject {
             "workbenchContentPanelWidth": 420.0,
             "workbenchPanelMode": WorkbenchPanelMode.library.rawValue,
             "workbenchSidebarPosition": WorkbenchSidebarPosition.left.rawValue,
-            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
+            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
+            Self.playbackVolumeKey: 100.0,
+            Self.playbackLastNonzeroVolumeKey: 100.0,
+            Self.playbackSpeedKey: 1.0,
+            Self.playbackSubtitlesVisibleKey: true
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
 
@@ -497,7 +505,25 @@ final class AppState: ObservableObject {
             let player = PlaybackPlayer()
             player.decodeMode = playbackDecodeMode
             self.player = player
-            playbackViewModel = PlaybackViewModel(player: player)
+            playbackViewModel = PlaybackViewModel(
+                player: player,
+                initialVolume: Self.loadPlaybackVolume(from: userDefaults),
+                initialLastNonzeroVolume: Self.loadPlaybackLastNonzeroVolume(from: userDefaults),
+                initialPlaybackSpeed: Self.loadPlaybackSpeed(from: userDefaults),
+                initialSubtitlesVisible: userDefaults.bool(forKey: Self.playbackSubtitlesVisibleKey),
+                onVolumeChanged: { volume in
+                    userDefaults.set(volume, forKey: Self.playbackVolumeKey)
+                },
+                onLastNonzeroVolumeChanged: { volume in
+                    userDefaults.set(volume, forKey: Self.playbackLastNonzeroVolumeKey)
+                },
+                onPlaybackSpeedChanged: { speed in
+                    userDefaults.set(speed, forKey: Self.playbackSpeedKey)
+                },
+                onSubtitlesVisibleChanged: { isVisible in
+                    userDefaults.set(isVisible, forKey: Self.playbackSubtitlesVisibleKey)
+                }
+            )
         } catch {
             startupError = Self.errorMessage(for: error)
         }
@@ -2316,6 +2342,42 @@ final class AppState: ObservableObject {
         }
 
         return mode
+    }
+
+    private static func loadPlaybackVolume(from userDefaults: UserDefaults) -> Double {
+        clampedPlaybackVolume(
+            userDefaults.double(forKey: playbackVolumeKey),
+            fallback: 100
+        )
+    }
+
+    private static func loadPlaybackLastNonzeroVolume(from userDefaults: UserDefaults) -> Double {
+        let volume = clampedPlaybackVolume(
+            userDefaults.double(forKey: playbackLastNonzeroVolumeKey),
+            fallback: 100
+        )
+
+        return volume > 0 ? volume : 100
+    }
+
+    private static func loadPlaybackSpeed(from userDefaults: UserDefaults) -> Double {
+        let speed = userDefaults.double(forKey: playbackSpeedKey)
+        guard speed.isFinite else {
+            return 1.0
+        }
+
+        return min(
+            max(speed, PlaybackViewModel.minimumPlaybackSpeed),
+            PlaybackViewModel.maximumPlaybackSpeed
+        )
+    }
+
+    private static func clampedPlaybackVolume(_ volume: Double, fallback: Double) -> Double {
+        guard volume.isFinite else {
+            return fallback
+        }
+
+        return min(max(volume, 0), 100)
     }
 
     private static func defaultDatabaseURL() -> URL {

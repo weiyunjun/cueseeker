@@ -28,6 +28,8 @@ public final class PlaybackViewModel: ObservableObject {
     static let maximumPlaybackSpeed = 2.0
     static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
     private static let displayedCurrentTimePublishInterval: TimeInterval = 0.5
+    private static let defaultVolume = 100.0
+    private static let defaultPlaybackSpeed = 1.0
 
     public let player: PlaybackPlayer
 
@@ -44,12 +46,40 @@ public final class PlaybackViewModel: ObservableObject {
     private var feedbackClearTask: Task<Void, Never>?
     private var accumulatedForwardSeconds = 0
     private var accumulatedRewindSeconds = 0
+    private var lastNonzeroVolume = 100.0
     private var subtitleTrack = PlaybackSubtitleTrack.empty
     private var lastDisplayedCurrentTimePublishTimestamp: TimeInterval = 0
+    private let onVolumeChanged: (Double) -> Void
+    private let onLastNonzeroVolumeChanged: (Double) -> Void
+    private let onPlaybackSpeedChanged: (Double) -> Void
+    private let onSubtitlesVisibleChanged: (Bool) -> Void
 
-    public init(player: PlaybackPlayer) {
+    public init(
+        player: PlaybackPlayer,
+        initialVolume: Double = 100,
+        initialLastNonzeroVolume: Double = 100,
+        initialPlaybackSpeed: Double = 1.0,
+        initialSubtitlesVisible: Bool = true,
+        onVolumeChanged: @escaping (Double) -> Void = { _ in },
+        onLastNonzeroVolumeChanged: @escaping (Double) -> Void = { _ in },
+        onPlaybackSpeedChanged: @escaping (Double) -> Void = { _ in },
+        onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in }
+    ) {
         self.player = player
+        self.onVolumeChanged = onVolumeChanged
+        self.onLastNonzeroVolumeChanged = onLastNonzeroVolumeChanged
+        self.onPlaybackSpeedChanged = onPlaybackSpeedChanged
+        self.onSubtitlesVisibleChanged = onSubtitlesVisibleChanged
+
+        volume = Self.clampedVolume(initialVolume)
+        lastNonzeroVolume = Self.restorableVolume(
+            initialVolume > 0 ? initialVolume : initialLastNonzeroVolume
+        )
+        playbackSpeed = Self.clampedPlaybackSpeed(initialPlaybackSpeed)
+        areSubtitlesVisible = initialSubtitlesVisible
+
         self.player.delegate = self
+        applyInitialPlaybackPreferences()
     }
 
     public func togglePlayPause() {
@@ -122,11 +152,11 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     public func setVolume(_ value: Double, showsFeedback: Bool = true) {
-        let clampedValue = min(max(value, 0), 100)
+        let clampedValue = Self.clampedVolume(value)
 
         do {
             try player.setDoubleProperty("volume", value: clampedValue)
-            volume = clampedValue
+            applyVolumePreference(clampedValue)
             if showsFeedback {
                 showVolumeFeedback(clampedValue)
             }
@@ -134,20 +164,21 @@ public final class PlaybackViewModel: ObservableObject {
             print("Failed to set volume: \(error)")
         }
     }
+
+    public func toggleMute() {
+        setVolume(volume > 0 ? 0 : lastNonzeroVolume)
+    }
     
     public func adjustVolume(by delta: Double) {
         setVolume(volume + delta)
     }
 
     public func setSpeed(_ value: Double, showsFeedback: Bool = true) {
-        let clampedValue = min(
-            max(value, Self.minimumPlaybackSpeed),
-            Self.maximumPlaybackSpeed
-        )
+        let clampedValue = Self.clampedPlaybackSpeed(value)
 
         do {
             try player.setDoubleProperty("speed", value: clampedValue)
-            playbackSpeed = clampedValue
+            applyPlaybackSpeedPreference(clampedValue)
             if showsFeedback {
                 showSpeedFeedback(clampedValue)
             }
@@ -161,12 +192,17 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     public func toggleSubtitles() {
-        let newValue = !areSubtitlesVisible
+        setSubtitlesVisible(!areSubtitlesVisible)
+    }
 
+    public func setSubtitlesVisible(_ newValue: Bool, showsFeedback: Bool = true) {
         areSubtitlesVisible = newValue
         player.setSubtitlesVisible(newValue)
+        onSubtitlesVisibleChanged(newValue)
         refreshActiveSubtitleText()
-        showSubtitleFeedback(isVisible: newValue)
+        if showsFeedback {
+            showSubtitleFeedback(isVisible: newValue)
+        }
     }
 
     public func setSubtitleCues(
@@ -278,6 +314,72 @@ public final class PlaybackViewModel: ObservableObject {
         if activeSubtitleText != nextText {
             activeSubtitleText = nextText
         }
+    }
+
+    private func applyInitialPlaybackPreferences() {
+        do {
+            try player.setDoubleProperty("volume", value: volume)
+        } catch {
+            print("Failed to apply initial volume: \(error)")
+        }
+
+        do {
+            try player.setDoubleProperty("speed", value: playbackSpeed)
+        } catch {
+            print("Failed to apply initial speed: \(error)")
+        }
+
+        player.setSubtitlesVisible(areSubtitlesVisible)
+    }
+
+    private func applyVolumePreference(_ nextVolume: Double) {
+        let clampedVolume = Self.clampedVolume(nextVolume)
+        if volume != clampedVolume {
+            volume = clampedVolume
+        }
+        onVolumeChanged(clampedVolume)
+
+        guard clampedVolume > 0 else {
+            return
+        }
+
+        let restorableVolume = Self.restorableVolume(clampedVolume)
+        if lastNonzeroVolume != restorableVolume {
+            lastNonzeroVolume = restorableVolume
+        }
+        onLastNonzeroVolumeChanged(restorableVolume)
+    }
+
+    private func applyPlaybackSpeedPreference(_ nextSpeed: Double) {
+        let clampedSpeed = Self.clampedPlaybackSpeed(nextSpeed)
+        if playbackSpeed != clampedSpeed {
+            playbackSpeed = clampedSpeed
+        }
+        onPlaybackSpeedChanged(clampedSpeed)
+    }
+
+    private static func clampedVolume(_ value: Double) -> Double {
+        guard value.isFinite else {
+            return defaultVolume
+        }
+
+        return min(max(value, 0), 100)
+    }
+
+    private static func restorableVolume(_ value: Double) -> Double {
+        let clampedValue = clampedVolume(value)
+        return clampedValue > 0 ? clampedValue : defaultVolume
+    }
+
+    private static func clampedPlaybackSpeed(_ value: Double) -> Double {
+        guard value.isFinite else {
+            return defaultPlaybackSpeed
+        }
+
+        return min(
+            max(value, minimumPlaybackSpeed),
+            maximumPlaybackSpeed
+        )
     }
 
     private func updatePlaybackTime(

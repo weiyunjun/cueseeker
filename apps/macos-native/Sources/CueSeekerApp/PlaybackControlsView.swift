@@ -154,7 +154,7 @@ struct PlaybackControlsView: View {
     private var volumeControl: some View {
         HStack(spacing: 8) {
             Button(action: {
-                viewModel.setVolume(viewModel.volume > 0 ? 0 : 100)
+                viewModel.toggleMute()
             }) {
                 Image(systemName: volumeIcon)
                     .font(.system(size: 16))
@@ -167,7 +167,6 @@ struct PlaybackControlsView: View {
                 CustomVolumeSlider(volume: Binding(
                     get: { viewModel.volume },
                     set: { newValue in
-                        viewModel.volume = newValue
                         viewModel.setVolume(newValue, showsFeedback: false)
                     }
                 ))
