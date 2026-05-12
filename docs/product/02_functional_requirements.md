@@ -417,7 +417,9 @@ Requirements:
   collapsed.
 - Reopening the Shared Content Panel should not automatically change playback
   state.
-- Provide video-level fullscreen that does not put the app shell into macOS Full Screen.
+- Provide video-level fullscreen that presents a video-only experience using
+  AppKit native fullscreen behavior without exposing the normal app shell as the
+  fullscreen surface.
 - Provide a subtitle visibility toggle.
 - Provide a copy-current-subtitle command from playback controls and keyboard.
 - Provide playback speed control with preset choices from `0.5x` through `2.0x`.

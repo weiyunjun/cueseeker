@@ -461,9 +461,9 @@ Behavior:
   pause playback without stopping it when that section is documented.
 - Clicking `Video Folder` reveals the matched video file in Finder.
 - Clicking `Subtitle Folder` reveals the source subtitle file in Finder.
-- Playback fullscreen presents the video in a dedicated playback window that
-  enters AppKit's native Full Screen Space rather than fullscreening the main
-  CueSeeker workbench shell.
+- Playback fullscreen uses the main CueSeeker window's AppKit native fullscreen
+  behavior, then presents a video-only playback surface instead of the normal
+  workbench shell.
 - Playback fullscreen should follow standard macOS Space, Dock, menu bar, app
   switching, and system overlay behavior.
 - Transient playback feedback overlays appear above the video for play/pause, subtitle visibility, seek, volume, and speed changes.

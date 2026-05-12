@@ -187,10 +187,12 @@ Required M1 playback checks:
 
 Required M2 playback interaction checks:
 
-- Playback fullscreen affects only the video experience and does not put the
-  main workbench window into macOS Full Screen.
-- Playback fullscreen uses a dedicated playback window that enters AppKit's
-  native Full Screen Space.
+- Playback fullscreen affects only the video experience even though the main
+  workbench window may enter AppKit native fullscreen.
+- Playback fullscreen uses main-window video-only presentation and does not
+  create a dedicated playback fullscreen window for the standard path.
+- Playback fullscreen does not move the native playback render container across
+  windows during fullscreen entry or exit.
 - Dock, menu bar, desktop, wallpaper, Spaces, Mission Control, app switching,
   and system overlays follow standard macOS fullscreen behavior.
 - Fullscreen keyboard shortcuts execute playback commands without revealing the playback operation controls.
@@ -364,10 +366,11 @@ Required M2 playback interaction checks:
   titlebar double-click zoom, playback fullscreen `F`, fullscreen button
   enter/exit, and Escape fullscreen exit are serialized while an animation is
   active, without adding a post-animation cooldown.
-- Playback fullscreen animation checks should verify that the dedicated
-  playback window enters and exits AppKit Full Screen Space through AppKit
-  fullscreen lifecycle callbacks, keeps using the singleton render container,
-  and does not rely on a guessed fixed fullscreen delay.
+- Playback fullscreen animation checks should verify that main-window
+  video-only presentation enters and exits AppKit native fullscreen through
+  AppKit lifecycle callbacks, keeps using the singleton render container without
+  moving it across windows, and does not rely on a guessed fixed fullscreen
+  delay.
 - ASS timing-source changes are out of scope for the first workbench
   invalidation cleanup. If they are attempted later, manual checks must verify
   that selecting a Search result still updates selection, opens or seeks video,

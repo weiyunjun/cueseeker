@@ -324,9 +324,9 @@ M2 playback interaction model:
 - Playback actions should provide clear visual feedback, such as a lightweight operation HUD or animation when the user plays, pauses, seeks, or triggers another command.
 - Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
-- Playback fullscreen should use a dedicated playback window entering AppKit's
-  native Full Screen Space, then return the embedded video to the Playback Area
-  when closed.
+- Playback fullscreen should use the main CueSeeker window's AppKit native
+  fullscreen behavior, then switch that window into a video-only presentation
+  until playback fullscreen exits.
 - Entering and exiting playback fullscreen should feel like a standard macOS
   fullscreen transition, with the system managing Dock, menu bar, desktop,
   wallpaper, Space, app switching, and system overlay behavior.
@@ -335,8 +335,8 @@ M2 playback interaction model:
 - In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse or click activity.
 - In playback fullscreen, only mouse or click activity should reveal the playback operation controls and cursor; keyboard playback shortcuts should not reveal them.
 - App switching while playback fullscreen is active should follow standard
-  macOS Space behavior and should not leave a custom overlay window covering
-  other apps.
+  macOS Space behavior and should not reveal a separate CueSeeker workbench
+  window that has lost its video surface.
 - The progress bar and its enlarged hit area are named the `Timeline Zone`.
 - The button row below the progress bar is named the `Transport Controls Zone`.
 - Together, the `Timeline Zone` and `Transport Controls Zone` form the `Playback Operation Zone`.
@@ -353,21 +353,19 @@ M2 playback interaction model:
 - The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
 
-Current M2 implementation:
+Current M2 implementation and accepted fullscreen correction:
 
-- Playback fullscreen uses a dedicated playback window that enters AppKit
-  native Full Screen Space.
-- The dedicated playback fullscreen window hides standard traffic light
-  buttons during fullscreen transitions.
-- Playback fullscreen returns the same playback render container to the
-  embedded Playback Area when closed.
-- The embedded Playback Area does not draw a black placeholder, duplicate
-  subtitles, duplicate feedback, or duplicate controls while playback is in the
-  fullscreen window.
+- Playback fullscreen uses main-window video-only presentation with AppKit
+  native fullscreen behavior.
+- Playback fullscreen keeps the same playback render container in the main
+  window hierarchy and does not move it across windows.
+- The normal workbench shell should be hidden during playback fullscreen without
+  losing panel, selection, scroll, or focus state.
 - Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
 - Fullscreen playback reveals controls and cursor from mouse or click activity, not from keyboard shortcuts.
-- AppKit fullscreen lifecycle replaces manual Theater Mode suspension for app
-  switching and deactivation behavior.
+- AppKit fullscreen lifecycle replaces manual Theater Mode suspension and
+  separate-window playback fullscreen handling for app switching and
+  deactivation behavior.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
 - Shortcut and control actions show transient feedback overlays for copying the current subtitle, subtitle visibility, play/pause, relative seek, volume, and speed.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.

@@ -133,8 +133,8 @@ Expected areas:
   Refine playback controls, progress and seek interaction, action buttons, and visual feedback such as operation HUD or animation. Playback controls and keyboard shortcuts should share the same underlying playback command model.
   Current implementation includes an app-drawn upward playback speed menu, hover-based speed preset selection, subtitle visibility toggle, video-surface-only play/pause tapping, playback operation-zone click isolation, playback fullscreen, keyboard shortcuts, and transient feedback overlays.
   Recent playback refinements align keyboard speed limits with playback controls, add the `1.75x` speed preset, use `5%` keyboard volume steps, keep timeline and volume hover states vertically stable, keep playback shortcuts active while read-only metadata text is selected, and suppress initial fullscreen hover events so controls and the cursor remain hidden immediately after entering fullscreen.
-  Accepted interaction refinements also cover the AppKit Full Screen Space
-  direction for playback fullscreen, Search field focus clearing for app-owned
+  Accepted interaction refinements also cover main-window video-only playback
+  fullscreen presentation, Search field focus clearing for app-owned
   interactions, Search field focus preservation for system-level window or app
   switching, mouse-only fullscreen chrome reveal, and speed menu hover geometry
   that matches the speed button click area.
@@ -172,7 +172,8 @@ Acceptance criteria:
 - The core local workflow feels stable and native.
 - Common keyboard interactions do not conflict with text input.
 - Playback controls, keyboard shortcuts, and visible playback feedback behave consistently.
-- Playback fullscreen affects only the video experience, not the app shell.
+- Playback fullscreen presents a video-only experience and restores the
+  workbench shell afterward.
 - Playback operation controls do not accidentally trigger video-surface play or pause.
 - Folder permissions remain available after app restart if required.
 - The user can remove configured folders and recover clearly from missing or unavailable folders.

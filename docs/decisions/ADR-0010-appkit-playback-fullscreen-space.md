@@ -1,6 +1,11 @@
 # ADR-0010: Playback Fullscreen Uses AppKit Full Screen Space
 
-Status: Accepted
+Status: Superseded by ADR-0011
+
+Superseded on 2026-05-12 by ADR-0011 after review showed that a dedicated
+playback fullscreen window creates a split-window experience during app
+switching and increases fullscreen animation presentation risk. The active
+direction is now main-window playback fullscreen presentation.
 
 Supersedes: ADR-0005 fullscreen mechanism
 

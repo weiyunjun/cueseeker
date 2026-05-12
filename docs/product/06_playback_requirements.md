@@ -268,30 +268,32 @@ Playback fullscreen belongs to the playback interaction model.
 Required behavior:
 
 - Fullscreen should apply to the video playback experience, not to the entire app shell.
-- Entering fullscreen should present the current video in a dedicated playback
-  window that enters AppKit's native Full Screen Space.
-- The main workbench window should not enter the system Full Screen Space when
-  the playback fullscreen button is used.
+- Entering fullscreen should switch the main CueSeeker workbench window into a
+  video-only playback presentation using AppKit native fullscreen behavior.
+- Playback fullscreen may put the main workbench window into system Full Screen
+  Space, but the visible fullscreen presentation should be the video experience,
+  not the normal app shell.
 - The fullscreen transition should follow standard macOS behavior for the Dock,
   menu bar, desktop, wallpaper, Spaces, Mission Control, app switching, and
   system overlays.
-- The fullscreen window should reuse the same playback render container used by
-  the embedded Playback Area.
+- The fullscreen presentation should reuse the same playback render container
+  used by the embedded Playback Area.
 - Entering and exiting fullscreen should use AppKit's native fullscreen
-  lifecycle rather than a manually simulated borderless overlay transition.
+  lifecycle rather than a manually simulated borderless overlay transition or a
+  separate playback fullscreen window.
 - Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
 - The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
 - Mouse or click activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
 - Keyboard shortcuts in fullscreen should run playback commands without revealing the playback operation controls.
 - App switching during playback fullscreen should rely on normal macOS Space
-  behavior and must not leave a custom overlay window visually covering other
-  apps.
+  behavior and must not reveal a separate CueSeeker workbench window that has
+  lost its video surface.
 - Exiting fullscreen should return the video view to the embedded Playback Area.
 - Escape should exit playback fullscreen.
 - Switching away from the CueSeeker workbench, closing the main window, or
   terminating the app should leave playback fullscreen cleanly.
 - Switching away from the CueSeeker workbench should pause playback and must not
-  leave an orphan fullscreen window.
+  leave an orphan playback fullscreen presentation.
 - Fullscreen may later provide temporary access to documented workbench panel
   modes such as Library, Timeline, Search, Shiori, Queue, or Learning Session.
 - Temporary fullscreen panels must preserve each mode's documented
@@ -306,11 +308,14 @@ Implementation constraints:
 - Do not create a second backend render context for fullscreen.
 - Do not let SwiftUI view lifetime decide when backend render state is destroyed.
 - Playback fullscreen should use the singleton render container owned by the playback player.
-- Playback fullscreen should move the singleton render container into a
-  dedicated playback `NSWindow` and use AppKit `toggleFullScreen(_:)` on that
-  playback window, not on the main CueSeeker workbench window.
-- The dedicated playback fullscreen window should hide standard macOS traffic
-  light buttons during fullscreen entry, active fullscreen, and fullscreen exit.
+- Playback fullscreen should keep the singleton render container in the main
+  window hierarchy and must not move it across windows during fullscreen entry
+  or exit.
+- Playback fullscreen should not create a dedicated playback fullscreen
+  `NSWindow` for the standard path.
+- Ordinary app fullscreen and playback fullscreen should be distinct states so
+  green-button or system View fullscreen behavior does not conflict with
+  video-only playback presentation.
 - Fullscreen enter and exit state should come from AppKit fullscreen lifecycle
   callbacks. If custom animation is later needed, it should use AppKit's custom
   fullscreen animation callbacks and the system-provided duration, not a fixed
@@ -321,10 +326,10 @@ Implementation constraints:
   native playback render container, not by a separate SwiftUI background behind
   the render view. The video frame, black background, and source-faithful ASS
   overlay should resize through the same native layout path.
-- While the singleton render container is in the fullscreen playback window,
-  the embedded Playback Area should not draw a fake black placeholder, subtitle
-  overlay, feedback overlay, or playback controls. The embedded workbench should
-  remain visually transparent or neutral until the render container returns.
+- While playback fullscreen presentation is active, the normal workbench shell
+  should be hidden without losing workbench state. It should not draw duplicate
+  subtitle overlays, feedback overlays, or playback controls behind the
+  fullscreen presentation.
 - The fullscreen overlay should reuse the same playback controls and feedback
   model as the embedded Playback Area.
 - Exiting fullscreen should not rebuild Library or Search result rows. Side
@@ -383,13 +388,13 @@ Required behavior:
   playback and source-faithful subtitle rendering should keep their own timing
   requirements.
 
-Current implementation notes:
+Current implementation notes and accepted fullscreen correction:
 
 - The speed preset menu remains `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - Keyboard speed changes adjust the current speed by `0.25x` and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - Muting volume remembers the previous nonzero volume. Unmuting restores that
   previous listening level instead of resetting to `100%`.
-- Fullscreen chrome state suppresses the initial hover event emitted when the fullscreen window appears, then reveals controls and cursor only after real user activity.
+- Fullscreen chrome state suppresses the initial hover event emitted when the fullscreen presentation appears, then reveals controls and cursor only after real user activity.
 - Fullscreen entry hides the playback operation controls and cursor immediately for both keyboard and button entry paths.
 - Fullscreen playback shortcuts do not reveal the playback operation controls.
 - The speed preset menu uses the same width as the speed button and has no separate show or hide animation.
