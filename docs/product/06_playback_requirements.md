@@ -330,6 +330,10 @@ Implementation constraints:
   should be hidden without losing workbench state. It should not draw duplicate
   subtitle overlays, feedback overlays, or playback controls behind the
   fullscreen presentation.
+- Playback fullscreen should not trigger ordinary Shared Content Panel, Mode
+  Rail, sidebar-position, or Playback Area resize animations.
+- Playback fullscreen should restore the custom app top bar and traffic-light
+  button placement when returning to ordinary window presentation.
 - The fullscreen overlay should reuse the same playback controls and feedback
   model as the embedded Playback Area.
 - Exiting fullscreen should not rebuild Library or Search result rows. Side

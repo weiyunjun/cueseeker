@@ -195,6 +195,17 @@ Required M2 playback interaction checks:
   windows during fullscreen entry or exit.
 - Dock, menu bar, desktop, wallpaper, Spaces, Mission Control, app switching,
   and system overlays follow standard macOS fullscreen behavior.
+- The custom app top bar, traffic-light buttons, Mode Rail, Shared Content Panel,
+  and Playback Area remain visually correct in ordinary window mode after
+  entering and exiting playback fullscreen.
+- The green traffic-light button and system View fullscreen command enter
+  ordinary app fullscreen, not video-only playback fullscreen.
+- Playback fullscreen does not trigger ordinary side-panel open, close, or resize
+  animations.
+- Playback fullscreen hides the normal workbench shell without destroying panel
+  widths, active panel mode, selected rows, scroll positions, or focus state.
+- Embedded controls, fullscreen controls, subtitles, and feedback overlays do not
+  render in duplicate during entry, active fullscreen, or exit.
 - Fullscreen keyboard shortcuts execute playback commands without revealing the playback operation controls.
 - The `Q` shortcut copies the current subtitle without interfering with editable
   text input.
@@ -371,6 +382,9 @@ Required M2 playback interaction checks:
   AppKit lifecycle callbacks, keeps using the singleton render container without
   moving it across windows, and does not rely on a guessed fixed fullscreen
   delay.
+- Playback fullscreen animation checks should also verify top-bar restoration,
+  traffic-light restoration, non-duplication of playback overlays, and no
+  side-panel animation side effects.
 - ASS timing-source changes are out of scope for the first workbench
   invalidation cleanup. If they are attempted later, manual checks must verify
   that selecting a Search result still updates selection, opens or seeks video,

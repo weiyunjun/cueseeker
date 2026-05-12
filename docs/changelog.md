@@ -11,7 +11,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   using AppKit native fullscreen behavior. The new direction keeps the playback
   render container out of cross-window movement, preserves workbench state while
   hidden, and treats ordinary app fullscreen and playback fullscreen as distinct
-  states.
+  states. Implementation is deferred until explicitly restarted; ADR-0011 now
+  records the custom titlebar, traffic-light, side-panel animation, SwiftUI
+  state-retention, overlay duplication, cursor, and remaining video-stutter risks
+  that must be accepted before code changes resume.
 - Accepted a Layout settings category with a `Sidebar Position` preference.
   The default `Left` layout keeps `Mode Rail - Shared Content Panel - Playback
   Area`; choosing `Right` moves the side controls to `Playback Area - Shared

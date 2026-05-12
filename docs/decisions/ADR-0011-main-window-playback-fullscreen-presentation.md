@@ -4,6 +4,10 @@ Status: Accepted
 
 Supersedes: ADR-0010 dedicated playback fullscreen window
 
+Implementation status: Deferred. This ADR defines the accepted future direction,
+but the fullscreen implementation should not be changed until the user explicitly
+requests that implementation work.
+
 ## Background
 
 ADR-0010 replaced the old borderless Theater Mode with a dedicated playback
@@ -101,6 +105,69 @@ video-only playback mode and restore the workbench afterward.
 - Some AppKit fullscreen animation stutter may remain because the system
   fullscreen transition is still controlled by macOS.
 
+## Risk Register
+
+The implementation should be treated as a windowing and presentation change, not
+as a narrow playback button change.
+
+Known risks:
+
+- Custom app titlebar and traffic-light positioning can regress when the main
+  window enters playback fullscreen. The normal window, ordinary app fullscreen,
+  and playback fullscreen states must each restore titlebar visibility and button
+  placement correctly.
+- The green traffic-light button, system View fullscreen command, playback
+  fullscreen button, `F` shortcut, and Escape path can conflict if ordinary app
+  fullscreen and playback fullscreen share ambiguous state.
+- Shared Content Panel, Mode Rail, sidebar-position, and Playback Area resize
+  animations can be accidentally triggered by playback fullscreen. Playback
+  fullscreen should not look like a side-panel collapse animation.
+- SwiftUI conditional rendering can destroy the workbench subtree if fullscreen
+  swaps the entire root view. That would risk losing Library expansion state,
+  Search and Shiori scroll positions, selected rows, focus state, hover state,
+  and panel widths.
+- Titlebar safe-area handling can leave a top gap, crop the video, or push
+  fullscreen overlays away from the screen edge.
+- Embedded playback controls, fullscreen controls, subtitle overlays, and
+  feedback overlays can accidentally render in duplicate or remain visible behind
+  the video-only presentation.
+- Cursor hiding can remain unbalanced across Cmd-Tab, app deactivation,
+  reactivation, failed fullscreen transitions, repeated `F`, repeated Escape, and
+  window close.
+- Removing cross-window render-view movement should reduce video freeze risk, but
+  AppKit fullscreen animation, `AVSampleBufferDisplayLayer`, main-queue frame
+  submission, or layer commits may still produce animation-time stutter.
+- Future broad UI redesigns can invalidate assumptions in the playback
+  fullscreen presentation layer. The fullscreen state model should be kept
+  narrow and explicit before larger UI work resumes.
+
+## Acceptance Focus
+
+When implementation resumes, acceptance must include the existing normal
+workbench UI in addition to the fullscreen video path.
+
+Required acceptance focus:
+
+- Normal window mode still shows the custom app top bar, traffic lights, Mode
+  Rail, Shared Content Panel, and Playback Area in their pre-change positions.
+- Ordinary app fullscreen from the green traffic-light button or system View
+  fullscreen command does not enter video-only playback fullscreen.
+- Playback fullscreen hides the normal workbench shell without destroying
+  workbench state.
+- Playback fullscreen does not trigger ordinary side-panel open, close, or resize
+  animations.
+- Exiting playback fullscreen restores traffic lights, titlebar presentation,
+  panel width, active panel mode, selection, scroll position, and playback state.
+- Fullscreen controls, embedded controls, subtitles, and feedback overlays do not
+  duplicate or remain behind the wrong presentation.
+- Cmd-Tab away and back restores cursor visibility and does not reveal a separate
+  CueSeeker workbench window that lost its video surface.
+- Repeated `F`, Escape, fullscreen button clicks, titlebar double-click zoom, and
+  green-button interactions do not leave the app in a half-fullscreen state.
+- Video should continue animating through fullscreen entry and exit. Any remaining
+  freeze should be classified as native presentation-layer work, not as accepted
+  fullscreen behavior.
+
 ## Alternatives Considered
 
 ### Keep ADR-0010 Dedicated Playback Window
@@ -131,6 +198,8 @@ a fullscreen presentation decision.
   fullscreen mechanism.
 - Product and engineering documents should describe playback fullscreen as a
   main-window video-only presentation using AppKit native fullscreen behavior.
+- The current implementation may remain on the ADR-0010 dedicated-window path
+  until playback fullscreen implementation is explicitly restarted.
 - Implementation should first update fullscreen state modeling, then replace the
   dedicated playback window path, then verify cursor behavior, app switching, and
   video animation smoothness.
