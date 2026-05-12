@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the fixed Mode Rail and shared content panel workbench layout:
+  Library, Search, and Shiori now belong behind a non-resizable left Mode Rail,
+  render inside one resizable Shared Content Panel, preserve panel width across
+  mode switches, use the previous Search minimum width (`420pt`) as the shared
+  default/minimum, and remove the current right-side panel plus titlebar
+  side-panel controls from the accepted layout direction.
 - Added persistent Search timing diagnostics for development builds: every
   Search request records query, database, state assignment, grouping, status,
   first visible result-row timing, and internal `searchPage` database phases

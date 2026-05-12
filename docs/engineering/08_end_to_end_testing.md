@@ -70,6 +70,8 @@ This test validates that:
   rebuilding Library rows.
 - Side-panel visibility changes update workbench layout without destroying
   panel content state.
+- Mode Rail switching changes the Shared Content Panel mode without resetting
+  inactive mode state or rebuilding unrelated presentation rows.
 
 ### Required Instrumentation
 
@@ -90,8 +92,8 @@ The counter emits narrow `com.cueseeker.perf` logs for UI refresh and expensive
 model rebuild events. Current event names:
 
 - `MARK UIInvalidationProbe.enabled`
-- `ACTION UI.LibraryPanel.toggled`
-- `ACTION UI.SearchPanel.toggled`
+- `ACTION UI.WorkbenchContentPanel.toggled`
+- `ACTION UI.WorkbenchMode.selected`
 - `ACTION UI.LibraryVideo.opened`
 - `ACTION UI.SearchQuery.changed`
 - `ACTION UI.LibraryFolder.toggled`
@@ -101,6 +103,8 @@ model rebuild events. Current event names:
 - `UI.ContentView.body`
 - `UI.AppTopBar.body`
 - `UI.Workbench.body`
+- `UI.WorkbenchModeRail.body`
+- `UI.WorkbenchContentPanel.body`
 - `UI.LibraryPanel.body`
 - `UI.LibraryRows.rendered`
 - `UI.LibraryPresentationSnapshot.rebuilt`
@@ -181,13 +185,15 @@ queued UI updates and log lines can settle.
 7. Expand and collapse one Library folder.
 8. Click an episode button inside an expanded Library folder.
 9. Click a Search result for the currently indexed Library.
-10. Toggle the Right Learning Panel closed and open.
-11. Toggle the left Library Panel closed and open.
+10. Click the selected Mode Rail icon to toggle the Shared Content Panel closed
+    and open.
+11. Click Library, Search, and Shiori in the Mode Rail, verifying the selected
+    mode changes without changing the Shared Content Panel width.
 12. Drag the playback progress bar or use a seek shortcut.
-13. Resize the left and right panels and verify the titlebar controls stay
-    visually aligned with the corresponding panel regions.
-14. Click the right titlebar Search icon and Shiori icon, verifying Search shows
-    the current Search panel and Shiori shows the current Shiori panel or empty
+13. Resize the Shared Content Panel by dragging its right edge and verify the
+    fixed Mode Rail width does not change.
+14. Click Search and Shiori in the Mode Rail, verifying Search shows the
+    current Search mode and Shiori shows the current Shiori mode or empty
     Shiori state.
 
 ### Evidence to Paste Back
@@ -216,9 +222,9 @@ Also state whether any visible user-facing issue occurred:
 - Missing Search default-expanded result groups after a new query.
 - Any `Expand All` action appearing in Search or any Library-wide
   `Collapse All` / `Expand All` action appearing in Library.
-- Titlebar mode icons not tracking the resized side-panel widths.
-- Right titlebar Search or Shiori mode switching resetting playback or Search
-  state unexpectedly.
+- Mode Rail width changing during panel resize.
+- Mode Rail Search or Shiori switching resetting playback or Search state
+  unexpectedly.
 
 ### Acceptance Criteria
 
@@ -243,20 +249,16 @@ these criteria:
   must not expose rendered-row counts.
 - Library must not expose a panel-wide `Collapse All` or `Expand All` command;
   Library folder disclosure remains per-folder.
-- The left titlebar mode region must show the Library folder icon when the
-  Library panel is expanded. The right titlebar mode region must show Search
-  and Shiori icons when the right panel is expanded. Search displays the
-  existing Search panel, and Shiori displays the current Shiori panel or empty
-  Shiori state.
-- Titlebar mode icons and side-panel collapse toggles must remain visually
-  aligned with the current side-panel width during manual divider resize and
-  side-panel collapse or expand animation.
-- Titlebar mode icons must not fade during side-panel collapse or expand. They
-  should disappear or appear by clipping as the titlebar drawer strip is pushed
-  in or out, and the titlebar animation must finish with the side-panel body
-  animation.
-- Switching right-panel modes must not reset playback, the active Search query,
-  loaded Search results, or Library disclosure state.
+- The fixed Mode Rail must show Library, Search, and Shiori icons below the
+  titlebar. The previous titlebar Library toggle, right-side Search toggle, and
+  titlebar Search/Shiori mode buttons must not appear.
+- The Mode Rail width must stay fixed during manual Shared Content Panel resize
+  and panel collapse or expand animation.
+- Clicking the selected Mode Rail icon must collapse or expand the Shared
+  Content Panel using the same drawer animation as the previous side-panel
+  implementation.
+- Switching Mode Rail modes must not reset playback, the active Search query,
+  loaded Search results, Shiori groups, or Library disclosure state.
 - During Library folder expand or collapse, Library panel counters may increase,
   but Search presentation rebuilds and playback render container creation must
   remain `0`.

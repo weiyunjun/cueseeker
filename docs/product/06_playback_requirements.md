@@ -41,11 +41,12 @@ Required:
 - Pause playback.
 - Toggle play/pause from the video surface.
 - Seek when a different subtitle result in the same video is selected.
-- Continue playback when the right-side Search Panel is collapsed.
+- Continue playback when the Shared Content Panel is collapsed.
 - Pause playback when the user leaves the CueSeeker workbench for another
   documented top-level section.
-- Preserve the selected result when the Search Panel is collapsed.
-- Reopening the Search Panel should not automatically change playback state.
+- Preserve the selected result when the Shared Content Panel is collapsed.
+- Reopening the Shared Content Panel should not automatically change playback
+  state.
 - Handle missing files gracefully.
 
 Accepted M2 Library playback behavior:
@@ -212,7 +213,8 @@ Rules:
   rendering must preserve timed source ASS events, including `Effect=fx`,
   vector drawing, clipping, karaoke, blur, alpha, transforms, and short-duration
   effects.
-- Search result selection, Playback Area updates, Search Panel visibility,
+- Search result selection, Playback Area updates, Shared Content Panel
+  visibility,
   video open, video seek, and playback controls must not wait for ASS parsing
   or rendering.
 - ASS subtitle preparation should be asynchronous, cancellable, and cached by
@@ -281,11 +283,11 @@ Required behavior:
   terminating the app should leave playback fullscreen cleanly.
 - Switching away from the CueSeeker workbench should pause playback and must not
   leave an orphan fullscreen window.
-- Fullscreen may later provide temporary access to left-side content navigation
-  or right-side learning workflow panels.
-- Temporary fullscreen panels must preserve the same side responsibilities:
-  left for Library and Timeline-style location; right for Search, Shiori,
-  Queue, and Learning Session workflows.
+- Fullscreen may later provide temporary access to documented workbench panel
+  modes such as Library, Timeline, Search, Shiori, Queue, or Learning Session.
+- Temporary fullscreen panels must preserve each mode's documented
+  responsibilities and must not recreate the removed right-side panel model by
+  default.
 - Temporary fullscreen panels must not create a second playback render view or
   backend render context.
 

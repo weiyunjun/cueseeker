@@ -55,10 +55,11 @@ Acceptance criteria:
 - The matching video renders inside the native app window, not in an external player window.
 - Clicking a search result opens or updates the embedded Playback Area without
   leaving Search.
-- Collapsing the right-side Search Panel preserves the selected result and does
-  not pause playback.
+- Collapsing the Shared Content Panel preserves the selected result and does not
+  pause playback.
 - Switching from Search to another top-level section pauses playback without stopping it.
-- Reopening the Search Panel does not automatically change playback state.
+- Reopening the Shared Content Panel does not automatically change playback
+  state.
 - Clicking the embedded video toggles play/pause.
 - Repeated selection within the same video should seek rather than reload the video when practical.
 - Search is available through the native app shell.
@@ -82,8 +83,9 @@ Accepted M1 implementation summary:
   earlier `libmpv`-primary bridge and later native-first fallback bridge.
 - The app shell has moved to a custom native shell with AppKit titlebar controls and SwiftUI content.
 - The Search workflow uses embedded playback instead of dedicated playback-page
-  navigation. The accepted post-M1 layout direction places playback on the left
-  and Search controls/results in a collapsible right-side Search Panel.
+  navigation. The accepted workbench layout direction places Library, Search,
+  and Shiori behind a fixed left Mode Rail and a shared collapsible content
+  panel beside the central Playback Area.
 
 Known post-M1 follow-up areas:
 
@@ -144,16 +146,16 @@ Expected areas:
   playback toward the accepted non-blocking, source-faithful ASS rendering
   pipeline.
 - Window sizing and restoration regression verification.
-  M1 already implemented launch maximization, AppShell layout persistence, and titlebar/full-screen behavior. M2 should verify these behaviors, including the accepted player-first Search Panel width and visibility behavior, and fix concrete regressions rather than treating this as a new major feature area.
+  M1 already implemented launch maximization, AppShell layout persistence, and titlebar/full-screen behavior. M2 should verify these behaviors, including the accepted shared content panel width and visibility behavior, and fix concrete regressions rather than treating this as a new major feature area.
 - File and folder management with file-access persistence.
   Complete local folder management, including folder removal, reindex behavior, missing-folder handling, and restart behavior for previously selected folders.
 - Left Library panel.
-  Add the first Left Content Panel mode for known-video navigation: gray
+  Add the first Shared Content Panel mode for known-video navigation: gray
   Library panel, flat collapsible folder groups, Finder-like natural sorting,
   friendly video rows with extension and duration, and Library-only resume
-  history. The Library panel should be collapsible from the left titlebar
-  control and resizable after launch, with its default width equal to the
-  minimum width.
+  history. The Shared Content Panel should be collapsible from the fixed Mode
+  Rail and resizable after launch, with its default width equal to the minimum
+  width.
 - Error presentation.
   Provide understandable user-facing errors for file access, indexing, database, search, and playback failures.
 - App settings.
@@ -175,7 +177,8 @@ Acceptance criteria:
 - Folder permissions remain available after app restart if required.
 - The user can remove configured folders and recover clearly from missing or unavailable folders.
 - User-facing errors are understandable.
-- Window sizing, restoration, titlebar, full-screen, and inspector persistence behavior remain stable after M2 changes.
+- Window sizing, restoration, titlebar, full-screen, and workbench panel
+  persistence behavior remain stable after M2 changes.
 - Settings can be opened from the app menu without pausing playback or changing
   CueSeeker workbench state.
 
@@ -192,10 +195,10 @@ Expected areas:
 - Remove Shiori records.
 - Jump from a Shiori row to the matching video timestamp.
 - Preserve Shiori identity across reindexing when possible.
-- Present Shiori as durable saved learning content in the right-side learning
-  panel for the first implementation.
-- Allow Shiori records to feed future right-side Queue or Learning Session workflows
-  after those workflows are documented.
+- Present Shiori as durable saved learning content in the Shared Content Panel
+  for the first implementation.
+- Allow Shiori records to feed future Queue or Learning Session workflows after
+  those workflows and their placement are documented.
 
 Acceptance criteria:
 

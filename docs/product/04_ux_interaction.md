@@ -15,16 +15,17 @@ Review results
 Click result
 Central Playback Area opens or updates
 Video plays at matching timestamp
-Collapse the right-side Search Panel when focusing on playback
+Collapse the shared content panel when focusing on playback
 ```
 
 Known-content review may also start from Library:
 
 ```text
 Open app
-Use left-side Library to choose a known video
+Use the fixed Mode Rail to show Library
+Choose a known video
 Playback Area opens or updates from the Library resume position
-Search remains available on the right for active learning and lookup
+Search and Shiori remain available from the Mode Rail without changing playback
 ```
 
 ## 2. First Launch
@@ -41,17 +42,25 @@ Search should feel immediate.
 
 Expected behavior:
 
-- Search controls and Search results live in the right-side Search Panel.
-- The main window title should be `CueSeeker`; Search is a right-side panel
-  workflow, not the main-window workspace label.
-- The left titlebar control collapses or expands Library, while the right
-  titlebar control collapses or expands the Search Panel.
+- Search controls and Search results live in Search mode inside the Shared
+  Content Panel.
+- The main window title should be `CueSeeker`; Search is a panel workflow, not
+  the main-window workspace label.
+- The fixed Mode Rail contains Library, Search, and Shiori icons.
+- Clicking the selected Mode Rail icon collapses the Shared Content Panel with
+  the existing drawer animation.
+- Clicking an unselected Mode Rail icon switches modes. If the Shared Content
+  Panel is collapsed, the same action expands it.
+- Switching between Library, Search, and Shiori must not change the Shared
+  Content Panel width.
 - Settings opens from `CueSeeker > Settings...` in the macOS app menu and does
   not belong to the main-window sidebar.
-- The Search Panel can be collapsed when the user wants to focus on playback.
-- Collapsing the Search Panel should preserve the current query, result state,
-  selected result, and playback context.
-- Collapsing the Search Panel must not pause playback.
+- The Shared Content Panel can be collapsed when the user wants to focus on
+  playback.
+- Collapsing the Shared Content Panel should preserve the current Search query,
+  result state, selected result, current panel mode, Shiori state, Library
+  disclosure state, and playback context.
+- Collapsing the Shared Content Panel must not pause playback.
 - Typing updates results after a short debounce.
 - Empty search shows an empty or guidance state.
 - Invalid search syntax should not crash the app.
@@ -63,7 +72,7 @@ Expected behavior:
 Grouped result behavior:
 
 - Search results should be grouped by subtitle file in a single flat level.
-  The right sidebar does not aggregate subtitle files under a parent-folder
+  Search mode does not aggregate subtitle files under a parent-folder
   Show layer; the rejected Show / Episode / Hit proposal is preserved in
   `docs/proposals/` for context.
 - Groups should be expanded by default.
@@ -128,41 +137,42 @@ Search focus behavior:
 - Selecting a search result should clear Search field focus.
 - Clicking App-owned expand or collapse buttons should clear Search field focus.
 - Future App-owned feature buttons should clear Search field focus by default.
-- Selecting another main-window sidebar section should clear Search field focus
-  when such sections exist.
-- Opening Settings may clear Search field focus, but it must not change Search
-  workspace, selected result, Search Panel, or playback state.
+- Selecting another Mode Rail item should clear Search field focus.
+- Opening Settings may clear Search field focus, but it must not change the
+  active workbench mode, selected result, Shared Content Panel visibility, or
+  playback state.
 - Clicking anywhere in the Playback Area should clear Search field focus.
 - System-level app switching should not intentionally clear Search field focus.
 - Returning to the app after backgrounding should preserve the Search field focus state when AppKit preserves the first responder.
 - Double-clicking the titlebar to resize the window should not intentionally clear Search field focus.
 - Clicking native traffic light controls should not intentionally clear Search field focus.
 
-## 4. Panel Responsibility Model
+## 4. Workbench Mode Rail And Panel Responsibility Model
 
-CueSeeker's main workspace should preserve distinct side responsibilities around
-the central playback experience.
+CueSeeker's main workspace should preserve distinct content responsibilities
+around the central playback experience while using one shared left-side panel.
 
-The left side is for known-content navigation and precise location:
+The Fixed Mode Rail is a stable, non-resizable selector for workbench panel
+modes:
 
-- Library browsing.
-- Current video subtitle Timeline.
-
-The right side is for active learning workflows:
-
+- Library.
 - Search.
-- Search result aggregation.
-- Shiori browsing and management.
-- Queue building.
-- Learning Session configuration.
+- Shiori.
 
-The left side should help the user quickly reach a known video or timestamp.
-After the user selects a video or timeline cue, attention can return to
-playback.
+The Shared Content Panel is the resizable surface for the selected mode:
 
-The right side should help the user discover, collect, and sequence learning
-material. Search result rows may later expose hover actions or context menus,
-including adding a subtitle moment or video to a Queue.
+- Library browsing for known-content navigation.
+- Search and Search result aggregation for keyword discovery.
+- Shiori browsing and management for saved subtitle moments.
+
+The Shared Content Panel is not allowed to resize itself merely because the user
+switches modes. Its default and minimum width should be `420pt`, matching the
+previous Search Panel minimum width. User resizing should persist and apply to
+all modes.
+
+This model keeps playback central. After the user selects a Library video,
+Search result, or Shiori row, attention can return to playback while the active
+panel mode remains available.
 
 Responsiveness boundaries:
 
@@ -174,29 +184,35 @@ Responsiveness boundaries:
 - Search is an active query and aggregation area. Search input, result loading,
   Search-group collapse state, Queue actions, and future learning actions should
   not rebuild Library rows or mutate Library state.
+- Shiori is a saved-content browsing area. Opening, grouping, or collapsing
+  Shiori records should not rebuild Library rows or Search result rows.
 - Playback is the central video review area. Opening media, seeking,
   play/pause, fullscreen, subtitle visibility, and playback-control state should
-  not rebuild Library rows or Search result rows unless the user explicitly
-  performs a Search or Library action.
-- Collapsing or expanding a side panel should preserve the panel's current
-  content state. It should not destroy and recreate large result lists as a side
-  effect of a layout change.
-- During side-panel collapse or expand animations, the Playback Area's black
-  video background and actual video frame should resize together. Users should
-  not see the black container and the native video layer drift out of sync.
+  not rebuild Library rows, Search result rows, or Shiori rows unless the user
+  explicitly performs a mode-specific action.
+- Switching Mode Rail modes should preserve inactive mode state where practical.
+  It should not clear Search results, Shiori groups, Library disclosure state,
+  selected rows, or playback context.
+- Collapsing or expanding the Shared Content Panel should preserve the panel's
+  current content state. It should not destroy and recreate large result lists
+  as a side effect of a layout change.
+- During Shared Content Panel collapse or expand animations, the Playback
+  Area's black video background and actual video frame should resize together.
+  Users should not see the black container and the native video layer drift out
+  of sync.
 - Commands that change the available playback size should not overlap. While a
-  Library/Search panel toggle, titlebar double-click zoom, playback fullscreen
+  Shared Content Panel toggle, titlebar double-click zoom, playback fullscreen
   enter/exit, `F` fullscreen toggle, or Escape fullscreen exit animation is
   active, other command-style playback-size changes should be ignored until the
   current animation ends. Manual divider dragging remains a direct resize
   interaction.
-- Search field focus is Search Panel interaction state. Changing focus should
-  not invalidate Library content or playback content.
+- Search field focus is Search mode interaction state. Changing focus should not
+  invalidate Library content, Shiori content, or playback content.
 - Side-panel scrollable lists must reserve room for the macOS scrollbar
   on the trailing edge so that list content keeps equal visual left and
   right margins when the scrollbar appears. The reservation rule is
-  applied uniformly to the Library list and to the right-sidebar Search
-  and Shiori result lists: each scrollable container uses an additional
+  applied uniformly to the Library list and to the Search and Shiori result
+  lists: each scrollable container uses an additional
   `16pt` trailing inset on top of its own row padding, and each pane's
   header uses a matching `28pt` total trailing padding (`12pt` content
   margin plus the same `16pt` reserve) so headers align with the list
@@ -227,8 +243,8 @@ When the user selects a result:
   readable with extra wrapped-line spacing, especially for bilingual cue text.
 - The app should remain in the CueSeeker workbench and open or update the
   central Playback Area.
-- If the Search Panel is visible, selecting a result should keep it visible so
-  result-to-result review remains available.
+- If the Shared Content Panel is visible in Search mode, selecting a result
+  should keep it visible so result-to-result review remains available.
 - Playback should start at or near the matching timestamp.
 - If the same video is already open, the app should seek instead of reopening when practical.
 - If the video file is missing, the app should show a clear error.
@@ -246,7 +262,8 @@ When the user selects a result:
 
 ## 6. Visual Feedback and Hover
 
-- **Titlebar Buttons**: Toolbar toggle buttons use a subtle gray background on hover to indicate interactivity.
+- **Mode Rail Buttons**: Library, Search, and Shiori icons in the fixed Mode
+  Rail use a subtle hover treatment and a clear selected state.
 - **Search Field**: The Search field is a `6pt` rounded pill with a
   `1pt` separator border by default. On focus it shows a `1.5pt` accent
   inner stroke plus a `3pt` accent outer ring at `18%` opacity; a
@@ -268,14 +285,16 @@ Required interactions:
 - Toggle play/pause by clicking the embedded video.
 - Seek.
 - Jump from search result to timestamp.
-- Continue playback when the Search Panel is collapsed.
+- Continue playback when the Shared Content Panel is collapsed.
 - Opening Settings does not pause playback or switch away from the CueSeeker
   workbench.
 - Pause playback when switching from the CueSeeker workbench to another future
   main-window workspace section if that section is documented to leave the
   playback review context.
-- Preserve the current selected result when the Search Panel is collapsed.
-- Reopening the Search Panel should not automatically change playback state.
+- Preserve the current selected result when the Shared Content Panel is
+  collapsed.
+- Reopening the Shared Content Panel should not automatically change playback
+  state.
 
 Keyboard interactions should not interfere with text input.
 
@@ -348,22 +367,23 @@ Current M2 implementation:
 
 ## 8. Library And Timeline Interaction
 
-Library and Timeline are future left-side content-navigation modes.
+Library and Timeline are content-navigation modes.
 
 Library behavior:
 
 - Library should browse playable videos rather than raw subtitle files.
-- Library should appear in the Left Content Panel with a gray background.
+- Library should appear in the Shared Content Panel with a gray background.
 - Library should appear populated immediately after app restart when indexed
   video metadata already exists locally. A visible Loading or empty state during
   startup is only acceptable when no persisted Library rows exist or the
   database cannot be opened.
-- Library should collapse or expand from the left titlebar control.
+- Library should collapse or expand when the selected Library icon in the Mode
+  Rail is clicked.
 - Library should be horizontally resizable after launch.
 - Library's default width should equal its minimum width.
-- Library's first default and minimum width should be `310pt`, `50pt` narrower
-  than the previous fixed `360pt` Library width.
-- Changed Library width should persist across launches.
+- The Shared Content Panel's first default and minimum width should be `420pt`,
+  matching the previous Search Panel minimum width.
+- Changed Shared Content Panel width should persist across launches.
 - Library should group videos by immediate parent folder only. It should not
   render nested folder trees in the first implementation.
 - Folder groups should be sorted with Finder-like natural ordering.
@@ -389,15 +409,14 @@ Library behavior:
   collapse. The chevron sits on the left of the folder row as a visual
   indicator and rotates between `0°` (collapsed) and `90°` (expanded) over
   `160ms` with an ease curve when toggled. The same chevron animation and
-  left-side position are shared with the right-sidebar group disclosure
-  rail.
+  left-side position are shared with Search and Shiori group disclosure rails.
 - Videos inside a folder should be sorted with the same Finder-like natural
   ordering used to derive the row rank.
 - Expanded folders should show a numbered episode-button grid where each
   button's label is that video's one-based sibling rank. File names, durations,
   and language tags should not be drawn inside the grid.
 - The episode grid should use minimum-button-width auto-flow columns so the
-  column count adapts as the user resizes the Library panel.
+  column count adapts as the user resizes the Shared Content Panel.
 - The episode grid should be indented slightly to the right of the folder
   row's left edge so the hierarchy is visible. The indent should remain small.
 - Episode buttons should use only three visual states: default, hover, and
@@ -435,12 +454,14 @@ Timeline behavior:
 
 ## 9. Queue And Learning Session Interaction
 
-Queue and Learning Session are future right-side learning workflow modes.
+Queue and Learning Session are future learning workflow modes.
 
 Shiori behavior:
 
-- Shiori belongs to the right side for the first implementation because it is
-  collected subtitle context created from playback and future learning actions.
+- Shiori belongs to the Shared Content Panel for the current implementation
+  because it uses the same grouped result presentation and click-to-playback
+  flow as Search.
+- Shiori is selected from the fixed Mode Rail.
 - Saving or removing a Shiori should not pause playback or reset Search state.
 - Shiori panel collapse state is presentation state and should not rebuild
   Library rows or Search result rows.
@@ -452,8 +473,8 @@ Queue behavior:
 - Search result rows may expose a hover `Add to Queue` action.
 - The user should be able to collect multiple Search results quickly while
   scrolling.
-- Queue belongs on the right because it is a user-authored learning plan, not
-  the source content structure.
+- Queue placement must be documented before implementation. It should not be
+  assumed to require a separate right-side panel in the current workbench model.
 
 Learning Session behavior:
 
@@ -544,8 +565,8 @@ Expected behavior:
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
 - Opening, focusing, switching categories within, or closing Settings must not
-  pause playback, switch away from the CueSeeker workbench, collapse either
-  side panel, or clear the selected Search result.
+  pause playback, switch away from the CueSeeker workbench, collapse the Shared
+  Content Panel, or clear the selected Search result.
 
 ## 14. File And Finder Interaction
 
@@ -573,17 +594,16 @@ The app should remember:
 - Window size and maximized state.
 - Last selected main-window app section if future top-level sections are added.
 - Last selected Settings category if practical.
-- Library visibility and width.
-- Left Content Panel mode when additional modes such as Timeline are implemented.
-- Search Panel width and visibility.
-- Right Learning Panel mode when additional modes such as Shiori, Queue, or
-  Learning Session are implemented.
+- Shared Content Panel visibility and width.
+- Current Workbench Mode Rail selection for modes such as Library, Search, and
+  Shiori.
 - Library playback resume history, limited to Library-opened playback.
 - Shiori records, including their real-world save timestamp.
 - Queue or Learning Session state only after persistence rules are documented.
 - Playback decode mode.
 
 The app should not surprise the user by losing local configuration after restart.
-The structural layout persistence should keep Left Content Panel state separate
-from Search Panel state so Library, Timeline, Shiori, Search, Queue, and
-Learning Session can evolve without inheriting unrelated panel behavior.
+The structural layout persistence should keep each content mode's presentation
+state separate while sharing one panel visibility and width. Library, Timeline,
+Shiori, Search, Queue, and Learning Session should evolve without inheriting
+unrelated mode-specific behavior.

@@ -2,7 +2,7 @@
 
 Status: Draft  
 Audience: LLMs, designers, product reviewers, and implementation agents  
-Scope: Current native macOS Search workspace, not playground experiments
+Scope: Current native macOS Search mode, not playground experiments
 
 ## 1. Purpose
 
@@ -10,10 +10,17 @@ This document describes CueSeeker's Search interface in high detail so an LLM
 can reason about layout, behavior, visual hierarchy, and future UI/UX redesigns
 without needing to infer everything from source code.
 
-CueSeeker is a native macOS subtitle search and playback tool. The Search
-screen is the primary workspace. Its job is to let the user type text, scan
-grouped subtitle results, select a cue, and immediately preview the matching
-video at the result timestamp.
+CueSeeker is a native macOS subtitle search and playback tool. Search is a
+mode inside the shared workbench content panel. Its job is to let the user type
+text, scan grouped subtitle results, select a cue, and immediately preview the
+matching video at the result timestamp in the central Playback Area.
+
+Layout note: this brief was originally written for an older Search workspace
+with a right-side playback inspector. The current shell layout is the fixed
+left Mode Rail plus Shared Content Panel documented below and in
+`docs/product/03_ui_design.md`. Detailed Search field, grouping, row, and
+lazy-loading rules still apply to Search mode unless a later section explicitly
+conflicts with the current shell layout.
 
 The Search interface should feel like a focused desktop utility:
 
@@ -28,78 +35,79 @@ feed, or media library home screen.
 
 ## 2. High-Level App Shell Context
 
-The Search screen lives inside the main CueSeeker window.
+Search mode lives inside the main CueSeeker window.
 
 The app shell has three persistent regions:
 
 1. Native/custom titlebar.
-2. Optional left sidebar.
-3. Main workspace.
+2. Fixed Mode Rail.
+3. Main workspace with Shared Content Panel and Playback Area.
 
-When the selected sidebar section is `Search`, the main workspace renders
-`SearchView`.
+When the selected Mode Rail item is `Search`, the Shared Content Panel renders
+the Search controls and grouped results. The central Playback Area remains in
+the main workspace and is not a separate inspector panel.
 
 The shell currently uses a quiet light macOS palette:
 
 - Window background: light warm gray.
-- Sidebar background: slightly different quiet gray.
+- Mode Rail and Shared Content Panel background: slightly different quiet gray
+  where appropriate.
 - Titlebar background: slightly darker gray.
 - Dividers: thin gray 1 px lines.
-- Selected sidebar item: solid accent color with white text.
+- Selected Mode Rail item: clear selected treatment using the workbench's
+  existing accent language.
 
-The Search screen should respect the existing titlebar and sidebar model unless
-a redesign explicitly proposes a broader app-shell change.
+The Search screen should respect the existing titlebar, fixed Mode Rail, and
+Shared Content Panel model unless a redesign explicitly proposes a broader
+app-shell change.
 
 ## 3. Search Workspace Structure
 
-The Search workspace is a horizontal split view:
+Search mode is one content mode within the workbench:
 
 ```text
-Search Workspace
-├── Search Results Pane
-│   ├── Search Header
-│   │   ├── Search Field
-│   │   └── Result Summary Row
-│   ├── Empty / Loading / Error / No Results State
-│   └── Grouped Results List
-├── Inspector Resize Divider
-└── Playback Inspector
-    ├── Empty Selection State
-    └── Selected Result Preview
-        ├── Video Preview
-        ├── Playback Error Message
-        └── File Location Buttons
+CueSeeker Workbench
+├── Fixed Mode Rail
+├── Shared Content Panel
+│   └── Search Mode
+│       ├── Search Header
+│       │   ├── Search Field
+│       │   └── Result Summary Row
+│       ├── Empty / Loading / Error / No Results State
+│       └── Grouped Results List
+└── Playback Area
+    ├── Embedded Video
+    ├── Playback Error Message
+    └── File Location Buttons
 ```
 
 The split is controlled by `SearchView`.
 
-The Search Results Pane is always present. The Playback Inspector is optional
-and appears on the right when `appState.isPlaybackInspectorVisible == true`.
-
-The right inspector uses a move-from-trailing plus opacity transition. The
-animation duration is short, about `0.18s`, so it should feel responsive and not
-ceremonial.
+Search controls and grouped results appear only when Search mode is active and
+the Shared Content Panel is expanded. Playback remains visible in the central
+Playback Area.
 
 ## 4. Window and Size Constraints
 
 Current shell constraints:
 
-- Minimum window width: `1040`.
+- Minimum window width: governed by `AppShellLayout.minimumWindowWidth`.
 - Minimum window height: `560`.
 - Titlebar height: `45`.
-- Sidebar width: `154`.
+- Mode Rail width: fixed and not user-resizable.
 
 Search layout constraints:
 
-- Search pane minimum width: `480`.
-- Playback Inspector minimum width: `380`.
-- Default Playback Inspector width: `520`, persisted in user defaults.
-- Inspector width is clamped so the Search pane never shrinks below its minimum.
+- Shared Content Panel minimum width: `420`.
+- Shared Content Panel default width: `420`, persisted in user defaults.
+- Playback Area minimum width: `520`.
+- The Shared Content Panel width is clamped so the Playback Area never shrinks
+  below its minimum.
 
 Design implications:
 
 - The Search result list must remain useful at the minimum window width.
-- The Playback Inspector cannot assume a very wide right panel.
+- Search mode cannot assume a very wide Shared Content Panel.
 - Long subtitle text must wrap predictably.
 - Result rows no longer render a cue start timestamp. Within a
   subtitle-file group rows are ordered by ascending cue start time, so
@@ -107,7 +115,7 @@ Design implications:
 
 ## 5. Search Results Pane
 
-The Search Results Pane is the left/main content region of the Search workspace.
+The Search Results Pane is the primary content region of Search mode.
 
 It uses a vertical stack:
 
@@ -119,8 +127,8 @@ The pane starts below the titlebar through the app shell. Internally it has a
 top padding of `16`.
 
 The result pane should be visually dominant because it is the primary task
-surface. The inspector should support the selected result but not overpower the
-search list.
+surface. The Playback Area should support the selected result without
+overpowering the search list.
 
 ## 6. Search Header
 
@@ -314,8 +322,8 @@ The list supports lazy loading:
 
 ## 9. Search Result Grouping
 
-Results are grouped by subtitle file in a single flat level. The right
-sidebar does not aggregate subtitle files under a parent-folder layer (the
+Results are grouped by subtitle file in a single flat level. Search mode does
+not aggregate subtitle files under a parent-folder layer (the
 rejected Show / Episode / Hit proposal lives in `docs/proposals/` for
 context).
 
@@ -486,8 +494,8 @@ Selection action:
 
 - Clears Search focus.
 - Sets `selectedSearchResult`.
-- Opens the Playback Inspector.
-- Persists inspector visibility.
+- Updates the central Playback Area.
+- Preserves Shared Content Panel visibility.
 - Starts playback at the cue timestamp.
 
 ### 10.2 Query Highlighting
@@ -517,12 +525,12 @@ The highlight inverts on a selected row so the matched substring stays the
 most prominent token in the line while staying inside the accent-color
 envelope. Dark-mode equivalents are deferred.
 
-## 11. Playback Inspector
+## 11. Playback Area
 
-The Playback Inspector is the right-side context panel for the selected search
+The Playback Area is the central context surface for the selected search
 result.
 
-It is visible only when `appState.isPlaybackInspectorVisible == true`.
+It remains visible as part of the workbench while Search mode is active.
 
 It has two modes:
 
@@ -531,7 +539,7 @@ It has two modes:
 
 ### 11.1 No Selection State
 
-If there is no selected result, the inspector shows an EmptyStateView.
+If there is no selected result, the Playback Area shows an EmptyStateView.
 
 Content:
 
@@ -539,11 +547,11 @@ Content:
 - Icon: `play.rectangle`
 - Message: `Select a subtitle result to preview its matching video.`
 
-The empty state fills the inspector.
+The empty state fills the Playback Area.
 
 ### 11.2 Selected Result State
 
-If a result is selected, the inspector contains a ScrollView with a vertical
+If a result is selected, the Playback Area contains a ScrollView with a vertical
 stack.
 
 Content order:
@@ -559,7 +567,7 @@ Spacing:
 - Horizontal padding: `20`.
 - Bottom padding: `20`.
 
-Inspector background:
+Playback Area background:
 
 - `Color(nsColor: .controlBackgroundColor)`.
 
@@ -585,7 +593,7 @@ Behavior:
 ### 11.4 Playback Controls
 
 Playback controls are part of `PlaybackView`, not directly part of SearchView,
-but they are visible inside the inspector.
+but they are visible inside the Playback Area.
 
 Available controls include:
 
@@ -603,7 +611,7 @@ video-surface play/pause toggle.
 
 ### 11.5 Playback Error
 
-If `appState.playbackStatus == .failed(message)`, the inspector shows:
+If `appState.playbackStatus == .failed(message)`, the Playback Area shows:
 
 - SF Symbol `exclamationmark.triangle`.
 - Error text.
@@ -614,7 +622,7 @@ The error appears below the video and above file buttons.
 
 ### 11.6 File Location Buttons
 
-The inspector shows two action buttons:
+The Playback Area shows two action buttons:
 
 - `Video Folder`, SF Symbol `folder`.
 - `Subtitle Folder`, SF Symbol `folder`.
@@ -627,13 +635,13 @@ Behavior:
   file in Finder.
 
 These buttons replaced earlier read-only metadata fields. A redesign should not
-reintroduce passive full path labels as the primary inspector content unless
+reintroduce passive full path labels as the primary playback-area content unless
 there is a clear diagnostic mode.
 
-## 12. Inspector Resize Divider
+## 12. Shared Content Panel Resize Divider
 
-When the Playback Inspector is visible, a resize divider appears at the trailing
-edge of the Search Results Pane.
+When the Shared Content Panel is visible, a resize divider appears at its
+trailing edge between the panel and the Playback Area.
 
 Structure:
 
@@ -648,11 +656,11 @@ Behavior:
 
 - Hovering marks divider active.
 - Mouse down clears Search focus.
-- Dragging adjusts inspector width.
-- Drag delta is inverted so dragging left increases inspector width.
-- Width is clamped to preserve Search pane minimum width and inspector minimum
-  width.
-- New width is persisted through `appState.updatePlaybackInspectorWidth`.
+- Dragging adjusts Shared Content Panel width.
+- Dragging right increases Shared Content Panel width.
+- Width is clamped to preserve the Shared Content Panel minimum width and
+  Playback Area minimum width.
+- New width is persisted through the workbench layout state.
 
 Design implication:
 
@@ -671,7 +679,7 @@ User types query
 → user scans group headers and result rows
 → user clicks a result row
 → Search focus clears
-→ Playback Inspector opens if collapsed
+→ Shared Content Panel remains visible if it was visible
 → selected row gets the system accent color background
 → video opens or seeks to timestamp
 → playback starts
@@ -692,7 +700,7 @@ If playback fails:
 
 - Subtitle cues are cleared from the playback view model.
 - Playback status becomes failed.
-- The inspector renders the error.
+- The Playback Area renders the error.
 
 ## 14. Focus Behavior
 
@@ -702,14 +710,14 @@ NSTextView embedded in SwiftUI.
 Focus clears when:
 
 - User triggers topbar app commands.
-- User selects a sidebar section.
-- User toggles the Playback Inspector.
+- User selects a Mode Rail item.
+- User toggles the Shared Content Panel.
 - User toggles all search result groups.
 - User toggles one search result group.
 - User selects a search result.
-- User clicks inside the Playback Inspector.
-- User starts dragging the inspector divider.
-- User clicks inspector file buttons.
+- User clicks inside the Playback Area.
+- User starts dragging the Shared Content Panel divider.
+- User clicks Playback Area file buttons.
 - User clicks video surface actions that are wired through SearchView.
 
 Focus should not be cleared by unrelated system behavior such as app switching
@@ -717,9 +725,9 @@ unless AppKit naturally changes first responder.
 
 Design implication:
 
-If a redesigned UI adds toolbar buttons, filters, tabs, or inspector controls,
-they should usually clear Search focus when activated unless they are directly
-part of text input.
+If a redesigned UI adds toolbar buttons, filters, tabs, or playback-area
+controls, they should usually clear Search focus when activated unless they are
+directly part of text input.
 
 ## 15. Keyboard Behavior Relevant to Search
 
@@ -727,8 +735,8 @@ The Search text input must keep normal typing behavior.
 
 Playback keyboard shortcuts are handled only when:
 
-- Search section is active.
-- Playback Inspector or fullscreen playback is visible.
+- Search mode is active or playback context is visible.
+- Playback Area or fullscreen playback is visible.
 - A selected result exists.
 - Playback view model exists.
 - No editable text input is focused.
@@ -806,7 +814,7 @@ Current hierarchy from strongest to weakest:
 6. Timestamps and secondary metadata.
 7. Rail line and dividers.
 
-The Playback Inspector hierarchy:
+The Playback Area hierarchy:
 
 1. Video preview.
 2. Playback error, if present.
@@ -828,8 +836,8 @@ For redesigns, preserve this intent:
 - Result grouping matches source subtitle files.
 - Friendly subtitle display titles reduce filename noise.
 - Query highlights are readable on selected and unselected rows.
-- Playback Inspector keeps user in Search instead of navigating away.
-- Inspector width is resizable and persisted.
+- Central Playback Area keeps user in the workbench instead of navigating away.
+- Shared Content Panel width is resizable and persisted.
 - File reveal actions are more useful than passive path metadata.
 
 ## 19. Current Design Weaknesses / Redesign Opportunities
@@ -841,7 +849,7 @@ These are not bugs; they are areas where future UI exploration may help.
   product UI.
 - Collapse/expand-all is text-only and visually understated.
 - Empty states are clear but generic.
-- The right inspector has little information architecture beyond video and
+- The Playback Area may need richer information architecture beyond video and
   buttons.
 - The resize divider is subtle and may be hard to discover.
 - Group hierarchy relies on the disclosure rail and text weight; spacing
@@ -861,7 +869,7 @@ When proposing new UI directions, keep these constraints:
 - Preserve dense result scanning.
 - Preserve grouped subtitle-file headers with a left disclosure rail.
 - Preserve query highlighting.
-- Preserve right-side contextual playback.
+- Preserve central contextual playback.
 - Preserve no-navigation result preview.
 - Preserve lazy loading and collapse semantics.
 - Do not hide critical result counts behind decorative UI.
@@ -892,13 +900,12 @@ Use this when asking another AI to discuss the Search UI:
 
 ```text
 You are reviewing CueSeeker, a native macOS subtitle search and playback app.
-The Search screen has a left Search Results Pane and an optional right Playback
-Inspector. Users type a query, scan grouped subtitle results by subtitle file,
-select a cue row, and the inspector opens or updates to play the matching video
-at that timestamp. The UI should remain a dense, native macOS utility, not a
-marketing page. Preserve grouped results, query highlighting, lazy loading,
-collapse/expand behavior, and contextual playback. Improve visual hierarchy,
-state presentation, inspector structure, and scanning ergonomics without
-breaking native desktop expectations.
+Search is a mode in CueSeeker's Shared Content Panel. Users type a query, scan
+grouped subtitle results by subtitle file, select a cue row, and the central
+Playback Area opens or updates to play the matching video at that timestamp.
+The UI should remain a dense, native macOS utility, not a marketing page.
+Preserve grouped results, query highlighting, lazy loading, collapse/expand
+behavior, and contextual playback. Improve visual hierarchy, state
+presentation, playback-area structure, and scanning ergonomics without breaking
+native desktop expectations.
 ```
-

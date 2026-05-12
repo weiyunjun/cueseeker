@@ -151,8 +151,8 @@ Requirements:
 Search results must show enough information for the user to choose the correct match.
 
 Search results should be grouped by subtitle file. Each subtitle-file group
-is a single flat container of matched cue-group rows; the right sidebar does
-not aggregate groups by parent folder. The previous proposal to introduce a
+is a single flat container of matched cue-group rows; Search mode does not
+aggregate groups by parent folder. The previous proposal to introduce a
 parent-folder Show layer above subtitle files was rejected during
 implementation review (see
 `docs/proposals/2026-05-right-sidebar-show-episode-grouping.md`): the parent
@@ -266,12 +266,13 @@ The Playback Area should not show separate read-only `Start Time`,
 identity remains available through the Finder reveal buttons and internal search
 result state.
 
-The Search controls and Search results belong in a right-side Search Panel.
-This Search Panel can collapse independently from playback. Collapsing it must
-not pause playback, clear the selected result, or change search result identity.
+The Search controls and Search results belong in Search mode inside the shared
+left-side content panel. The shared content panel can collapse independently
+from playback. Collapsing it must not pause playback, clear the selected
+result, or change search result identity.
 The main window's top-level identity should be `CueSeeker`, not a `Search`
-workspace label. Search is a right-side panel workflow, not a main-window
-sidebar destination for the current single-workbench design.
+workspace label. Search is a workbench panel mode, not a main-window sidebar
+destination for the current single-workbench design.
 
 ## 8. Library And Timeline
 
@@ -295,11 +296,8 @@ When implemented, Library should support:
   line and an episode-count subtitle on the second line, with a single
   disclosure chevron on the left that rotates between `0°` (collapsed) and
   `90°` (expanded) over `160ms` with an ease curve when toggled. The same
-  left-side chevron position and rotation animation are shared with the
-  right-sidebar group disclosure rail; the unified left chevron expresses
-  that both sidebars use the same disclosure language even though Library
-  drives top-down navigation and the search panel drives bottom-up
-  keyword discovery.
+  left-side chevron position and rotation animation are shared with Search and
+  Shiori group disclosure rails.
 - Read `N episodes` as the folder subtitle when no Library-launched playback is
   active for any video in this folder, and read `N episodes · Playing M` when
   Library-launched playback is active for a video in this folder, where `M` is
@@ -315,7 +313,7 @@ When implemented, Library should support:
   same folder. Per-video file names, durations, and language tags are not shown
   in the grid.
 - Use minimum-button-width auto-flow columns for the episode grid so the column
-  count adapts to the user's current Library panel width.
+  count adapts to the user's current Shared Content Panel width.
 - Indent the episode grid slightly relative to the folder row's left edge to
   express hierarchy. The indent should remain small.
 - Use only three episode-button visual states: default, hover, and playing.
@@ -324,11 +322,13 @@ When implemented, Library should support:
 - Avoid showing duplicate top-level rows for multiple subtitle files that map
   to the same playable video unless a later product rule defines a manual
   subtitle-selection workflow.
-- Let the left titlebar control collapse or expand the Library panel.
-- Let the Library panel be resized horizontally. Its default width should equal
-  its minimum width, and the first minimum width should be `310pt`, which is
-  `50pt` narrower than the previous fixed `360pt` Library width.
-- Persist the user's Library width when it differs from the default.
+- Let the selected Library icon in the fixed Mode Rail collapse or expand the
+  Shared Content Panel.
+- Let the Shared Content Panel be resized horizontally. Its default width should
+  equal its minimum width, and the first minimum width should be `420pt`,
+  matching the previous Search Panel minimum width.
+- Persist the user's Shared Content Panel width when it differs from the
+  default.
 - Keep Library folder collapse or expand state only for the current session.
   App startup and Library data refresh should show all folder groups collapsed.
 - When a user expands a folder that contains the currently Library-launched
@@ -354,8 +354,8 @@ When implemented, Timeline should support:
 - Preserve source subtitle identity when multiple subtitle tracks or files are
   available.
 
-Library and Timeline belong to the future Left Content Panel because they help
-the user locate known content and precise timestamps.
+Library and Timeline belong to content-navigation modes because they help the
+user locate known content and precise timestamps.
 
 ## 9. Queue And Learning Session
 
@@ -388,8 +388,9 @@ Future Learning Session options may include:
 
 Detailed Learning Session behavior must be documented before implementation.
 
-Queue and Learning Session belong to the future Right Learning Panel because
-they are user-authored learning workflows rather than source media structure.
+Queue and Learning Session placement must be documented before implementation.
+They should not be assumed to require a separate right-side panel in the current
+workbench model.
 
 ## 10. Local Playback
 
@@ -410,10 +411,12 @@ Requirements:
 - Toggle play/pause by clicking the video surface.
 - Keep clicks in the playback operation controls from falling through to video-surface play or pause.
 - Prefer seek over reload when the current video is already open.
-- Continue playback when the Search Panel is collapsed.
+- Continue playback when the Shared Content Panel is collapsed.
 - Pause playback when the user switches from Search to another top-level section.
-- Preserve the current selected result when the Search Panel is collapsed.
-- Reopening the Search Panel should not automatically change playback state.
+- Preserve the current selected result when the Shared Content Panel is
+  collapsed.
+- Reopening the Shared Content Panel should not automatically change playback
+  state.
 - Provide video-level fullscreen that does not put the app shell into macOS Full Screen.
 - Provide a subtitle visibility toggle.
 - Provide a copy-current-subtitle command from playback controls and keyboard.
@@ -449,8 +452,8 @@ Settings entry requirements:
 - Settings opens from `CueSeeker > Settings...` in the macOS app menu.
 - Settings is an independent window, not a main-window sidebar section.
 - Opening, focusing, or closing Settings must not pause playback, switch the
-  main workspace away from the CueSeeker workbench, collapse either side panel,
-  or clear the selected Search result.
+  main workspace away from the CueSeeker workbench, collapse the Shared Content
+  Panel, or clear the selected Search result.
 
 Current Settings categories:
 
@@ -513,9 +516,9 @@ Initial Shiori save behavior:
 
 Initial Shiori panel behavior:
 
-- The current right-side saved-content placeholder becomes the Shiori mode.
-- The Shiori mode uses a saved-content icon in the titlebar and should be named
-  `Shiori` in user-facing English text.
+- Shiori is a Shared Content Panel mode selected from the fixed Mode Rail.
+- The Shiori mode uses a saved-content icon and should be named `Shiori` in
+  user-facing English text.
 - Shiori rows should be grouped by subtitle file, following the Search
   result grouping pattern where practical.
 - Shiori groups are expanded by default. The disclosure rail, hover
@@ -533,4 +536,5 @@ Initial Shiori panel behavior:
 
 Shiori actions may later appear in Search results, Timeline rows, contextual
 menus, and future hover controls after those entry points are documented. Shiori
-may also feed right-side Queue or Learning Session workflows.
+may also feed Queue or Learning Session workflows after those workflows have
+documented placement.

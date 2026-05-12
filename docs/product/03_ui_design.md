@@ -25,9 +25,9 @@ Accepted M1 structure:
 ```text
 Native titlebar
 CueSeeker workbench
-Left Content Panel
+Fixed Mode Rail
+Shared Content Panel
 Playback Area
-Right Learning Panel
 ```
 
 The main window should support:
@@ -39,14 +39,27 @@ The main window should support:
 
 Current shell direction:
 
-- Traffic lights, the Library panel toggle, the centered workbench title, and
-  the Search Panel Toggle belong to the titlebar.
-- The Library panel toggle should stay in a fixed titlebar position near the
-  traffic lights and should collapse or expand the Left Content Panel.
-- The Search Panel Toggle should stay in a fixed titlebar position on the right
-  side and should collapse or expand the right-side Search Panel.
+- Traffic lights and the centered workbench title belong to the titlebar.
+- Library, Search, and Shiori mode controls belong to a fixed-width vertical
+  Mode Rail at the far left of the workbench, below the titlebar.
+- The Mode Rail is not horizontally resizable.
+- The Mode Rail should initially expose Library, Search, and Shiori icons only.
+- The Shared Content Panel sits immediately to the right of the Mode Rail.
+  Library, Search, and Shiori render inside this same panel, so switching modes
+  must not change the panel width.
+- The Shared Content Panel is horizontally resizable. Its default width should
+  use the previous Search Panel minimum width, `420pt`, and user resizing should
+  persist.
+- Clicking the selected Mode Rail icon collapses the Shared Content Panel using
+  the existing side-panel drawer animation.
+- Clicking an unselected Mode Rail icon switches the panel mode. If the Shared
+  Content Panel is collapsed, the same action expands it and shows the selected
+  mode.
+- The previous titlebar Library toggle, right-side Search Panel toggle, and
+  titlebar Search/Shiori mode buttons are no longer part of the current
+  workbench shell.
 - The centered title should read `CueSeeker`. It should not read `Search`
-  because Search is now a right-side panel workflow, not the main-window
+  because Search is a panel mode, not the main-window
   workspace identity.
 - Traffic lights are shifted 12pt to the right and vertically centered within the custom titlebar. To achieve this without fighting AppKit's native layout engine during window resizing, the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) are reparented (extracted from their system container and placed into a custom transparent `NSView` proxy). This preserves native hover effects and accurate hit testing.
 - The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
@@ -65,33 +78,34 @@ Current shell direction:
 The previous standalone `Search` sidebar item should be removed. The main
 window's current top-level destination is the CueSeeker workbench itself.
 
-Current sections:
+Current workbench panel modes:
 
-- None.
+- Library.
+- Search.
+- Shiori.
 
-Future main-window sections should be added only when they are true workspace
-destinations. Shiori should remain a panel mode unless a later product rule
-promotes it to main-window navigation.
+These modes are not separate main-window destinations. They are content-panel
+surfaces inside the persistent workbench and are selected through the fixed
+Mode Rail.
 
 Settings should not be a main-window sidebar section. The formal Settings entry
 belongs in the macOS app menu and opens an independent Settings window.
 
 If top-level navigation returns later, it should remain visually quiet and
-should not compete with Library, Search results, or playback. The titlebar's
-left control is reserved for Library visibility in the current workbench, not
-for toggling a standalone `Search` sidebar.
+should not compete with Library, Search results, Shiori records, or playback.
 
 ## 4. Main Workspace Panel Model
 
-The long-term main workspace should be organized around playback as the central
-experience.
+The main workspace should be organized around playback as the central
+experience, with all current navigation and learning modes using one shared
+left-side content panel.
 
 Conceptual structure:
 
 ```text
-Left Content Panel
+Fixed Mode Rail
+Shared Content Panel
 Playback Area
-Right Learning Panel
 ```
 
 The main window is the CueSeeker workbench. The old standalone `Search`
@@ -99,36 +113,32 @@ AppShell destination should not appear in the current single-workbench design.
 Settings is app-level configuration and belongs in the macOS app menu and
 independent Settings window, not in main-window navigation.
 
-The Left Content Panel is for known content and precise location:
+The Fixed Mode Rail selects the Shared Content Panel mode:
 
 - Library.
-- Current video subtitle Timeline.
-
-The Right Learning Panel is for active learning workflows:
-
 - Search.
 - Shiori.
-- Queue.
-- Learning Session.
 
-The two side panels should not become generic tool drawers. The left side is for
-content structure and precise navigation. The right side is for search,
-collection, aggregation, queue building, and learning-session configuration.
+The Shared Content Panel should not become a generic tool drawer. It is the
+workspace's current source, search, and saved-content surface. Playback remains
+central and should not be displaced by mode switching.
 
-This panel model keeps playback central. Search is a Right Learning Panel mode
-beside the Playback Area, not the top-level workspace identity.
+This panel model keeps playback central. Search and Shiori are panel modes
+beside the Playback Area, not top-level workspace identities.
 
 Accepted first Library panel direction:
 
-- Library is the first concrete Left Content Panel for known video navigation.
+- Library is the first concrete Shared Content Panel mode for known video
+  navigation.
 - Library is separate from the Settings `Library` category.
 - Library keeps the left-side gray background treatment.
-- Library can collapse or expand through the fixed left titlebar control.
+- Library can collapse or expand by clicking the selected Library icon in the
+  fixed Mode Rail.
 - Library can be resized horizontally. Its default width should equal its
   minimum width.
-- Library's first default and minimum width should be `310pt`, `50pt` narrower
-  than the previous fixed `360pt` Library width.
-- Library width should persist when the user changes it.
+- The Shared Content Panel's first default and minimum width should be `420pt`,
+  matching the previous Search Panel minimum width.
+- Shared Content Panel width should persist when the user changes it.
 - Library uses a dense grouped layout with folder rows on top and an
   expand-on-demand episode-button grid underneath.
 - Library shows only one folder grouping level.
@@ -149,10 +159,8 @@ Accepted first Library panel direction:
 - A single chevron on the left of the folder row indicates expand or
   collapse state. The chevron rotates between `0°` (collapsed) and `90°`
   (expanded) over `160ms` with an ease curve when toggled. This animation
-  and left-side position are shared with the right-sidebar group
-  disclosure rail; the unified left chevron expresses that both sidebars
-  use the same disclosure language even though Library drives top-down
-  navigation and the search panel drives bottom-up keyword discovery.
+  and left-side position are shared with Search and Shiori group disclosure
+  rails.
   The full folder row is the click target that toggles expand or collapse.
 - Expanded folders show a numbered button grid using each video's one-based
   natural-sort sibling rank. The grid does not display file names, durations,
@@ -160,7 +168,7 @@ Accepted first Library panel direction:
   hover information, and accessibility, but is not part of the visible grid
   rendering.
 - The episode grid uses minimum-button-width auto-flow columns; the column
-  count adapts to the current Library panel width.
+  count adapts to the current Shared Content Panel width.
 - The episode grid is indented slightly to the right of the folder row's left
   edge to express hierarchy. The indent should remain small.
 - Episode buttons use three visual states only: default, hover, and playing.
@@ -178,34 +186,35 @@ Accepted first Library panel direction:
   Search results, Shiori, or any other surface must not toggle these Library
   indicators.
 
-## 5. CueSeeker Workbench And Search Panel
+## 5. CueSeeker Workbench And Search Mode
 
-The CueSeeker workbench is the primary screen. Search is the right-side learning
-panel inside that workbench.
+The CueSeeker workbench is the primary screen. Search is a mode inside the
+shared left-side content panel.
 
 Required elements:
 
-- Left-side Library panel when expanded.
+- Fixed Mode Rail.
+- Shared Content Panel when expanded.
 - Central Playback Area.
-- Right-side Search Panel.
 - Search input.
 - Indexing status when relevant.
 - Search result list.
 - Empty state when no query or no results exist.
 - Error state when search or database access fails.
 
-The search input should stay easy to access when the Search Panel is expanded.
-The Search Panel must have a clear restore path when collapsed.
+The search input should stay easy to access when Search mode is active and the
+Shared Content Panel is expanded. Search must have a clear restore path when
+the Shared Content Panel is collapsed.
 
 Accepted player-first Search presentation:
 
 - The main titlebar identifies the workbench as `CueSeeker`.
 - The embedded Playback Area remains central.
-- Search controls and grouped Search results appear in a right-side Search
-  Panel.
-- The right-side Search Panel may be collapsed so the Playback Area can expand.
-- Collapsing the Search Panel must not pause playback or clear the selected
-  result.
+- Search controls and grouped Search results appear in the Shared Content Panel
+  when Search mode is selected.
+- The Shared Content Panel may be collapsed so the Playback Area can expand.
+- Collapsing the Shared Content Panel must not pause playback or clear the
+  selected result.
 - The Playback Area is the primary review surface after a result is selected;
   Search is the functional navigation and result-selection surface.
 
@@ -244,8 +253,8 @@ Accepted M1 search presentation:
 
 ## 6. Search Result Group
 
-Each subtitle-file group should be compact and scannable. The right sidebar
-groups search results by subtitle file in a single flat level — there is no
+Each subtitle-file group should be compact and scannable. Search mode groups
+search results by subtitle file in a single flat level — there is no
 parent-folder Show layer above subtitle files (the rejected Show / Episode /
 Hit proposal is preserved in `docs/proposals/` for context).
 
@@ -363,17 +372,17 @@ Layout and Selection Behavior:
   line breaks rendered inside a single cue line, should use 4pt line
   spacing so bilingual subtitle text does not appear cramped.
 
-## 8. Playback Area And Search Panel
+## 8. Playback Area And Shared Content Panel
 
 The CueSeeker workbench uses a player-first layout.
 
-The Playback Area is the central playback and result-detail surface. The Search
-Panel is the right-side search and result-selection surface.
+The Playback Area is the central playback and result-detail surface. The Shared
+Content Panel is the left-side Library, Search, and Shiori surface selected by
+the fixed Mode Rail.
 
-As future left-side navigation features arrive, the Playback Area remains the
-central experience. A Left Content Panel may appear to its left for Library or
-Timeline navigation, but that does not move Search or Shiori back to the left
-side.
+As future navigation or learning features arrive, the Playback Area remains the
+central experience. New panel modes must be documented before implementation
+instead of recreating a separate right-side panel by default.
 
 Playback Area required content:
 
@@ -389,7 +398,7 @@ The `Video Folder` and `Subtitle Folder` buttons should visually match the
 ordinary Settings action buttons. Each button should use a folder icon to the
 left of the text label.
 
-Search Panel required content:
+Search mode required content:
 
 - Search input.
 - Indexing status when relevant.
@@ -398,21 +407,22 @@ Search Panel required content:
 - Grouped Search results.
 - Empty, loading, and error states.
 
-Shiori Panel required content:
+Shiori mode required content:
 
 - Shiori summary text in the form `<count> shioris in <count> files`.
 - A fixed `Collapse All` control that does not change into an expand-all control.
 - Grouped Shiori rows, expanded by default.
 - Empty and error states.
 
-Future Search Panel actions may include hover buttons and contextual menus on
+Future Search mode actions may include hover buttons and contextual menus on
 result rows. A result-level `Add to Queue` action is an accepted future
 direction for building playback queues from Search.
 
 Behavior:
 
 - Selecting a result opens or updates the Playback Area.
-- Selecting a result should preserve the Search Panel when it is expanded.
+- Selecting a result should preserve the Shared Content Panel when it is
+  expanded in Search mode.
 - Clicking the embedded video toggles play/pause.
 - Clicking the playback operation controls should not toggle play/pause unless the play/pause control is targeted.
 - The playback Shiori control should sit immediately to the left of the
@@ -421,15 +431,16 @@ Behavior:
   and `Shiori Saved`.
 - Removing a Shiori should show transient playback feedback with the Shiori icon
   and `Shiori Removed`.
-- Collapsing the Search Panel hides search controls and result rows.
-- Collapsing the Search Panel expands the available width for the Playback
-  Area.
-- Collapsing the Search Panel does not pause playback.
-- Collapsing the Search Panel does not clear the current selected result.
-- Reopening the Search Panel should restore the current Search context when
-  practical and should not automatically change playback state.
+- Collapsing the Shared Content Panel hides the active mode content.
+- Collapsing the Shared Content Panel expands the available width for the
+  Playback Area.
+- Collapsing the Shared Content Panel does not pause playback.
+- Collapsing the Shared Content Panel does not clear the current selected
+  result.
+- Reopening the Shared Content Panel should restore the current mode context
+  when practical and should not automatically change playback state.
 - Opening Settings from the app menu does not pause playback, collapse either
-  side panel, or clear the selected result.
+  workbench panel, or clear the selected result.
 - Switching to another future main-window workspace section may
   pause playback without stopping it when that section is documented.
 - Clicking `Video Folder` reveals the matched video file in Finder.
@@ -450,16 +461,16 @@ Behavior:
 
 Layout:
 
-- The Library panel appears on the left side of the CueSeeker workbench when
-  expanded.
+- The fixed Mode Rail appears on the far left of the CueSeeker workbench below
+  the titlebar.
+- The Shared Content Panel appears immediately to the right of the Mode Rail
+  when expanded.
 - The Playback Area appears in the central workbench region.
-- The Search Panel appears on the right side of the CueSeeker workbench.
-- The Library panel is resizable by dragging its right edge.
-- The Search Panel is resizable by dragging its left edge.
-- The Playback Area width changes dynamically as the Library and Search Panel
-  widths or visibility change.
-- Side panels should feel like fixed-width drawers. Collapsing a panel slides
-  its full-width content out of view while the Playback Area receives or
+- The Shared Content Panel is resizable by dragging its right edge.
+- The Playback Area width changes dynamically as the Shared Content Panel width
+  or visibility changes.
+- The Shared Content Panel should feel like a fixed-width drawer. Collapsing it
+  slides its full-width content out of view while the Playback Area receives or
   releases the corresponding space; panel contents should not visibly compress
   during the animation.
 - The embedded Playback Area is a fixed top-aligned playback surface with
@@ -467,26 +478,24 @@ Layout:
   workbench playback.
 - The Playback Area should receive priority when the window cannot comfortably
   show both panes.
-- The Library panel must keep a usable minimum width when expanded.
-- The Search Panel must keep a usable minimum width when expanded.
+- The Shared Content Panel must keep a usable minimum width when expanded.
 
 Initial sizing guidance:
 
-- Library panel default width: `310pt`.
-- Library panel minimum width: `310pt`.
+- Mode Rail width: fixed and not user-resizable.
+- Shared Content Panel default width: `420pt`.
+- Shared Content Panel minimum width: `420pt`.
 - Playback Area minimum width: `520pt`.
-- Search Panel default width: `480pt`.
-- Search Panel minimum width: `420pt`.
-- Search Panel maximum width: available content width minus the Library panel
-  width and Playback Area minimum width.
+- Shared Content Panel maximum width: available content width minus the Mode
+  Rail width and Playback Area minimum width.
 
-The Library panel toggle belongs in the titlebar at a fixed left-side position
-near the traffic lights. The Search Panel Toggle belongs in the titlebar at a
-fixed right-side position.
+The Mode Rail owns Library, Search, and Shiori mode selection. The old titlebar
+side-panel toggles and right-side mode buttons are not part of the current
+layout.
 
 Panel visibility and list lifetime:
 
-- The workbench side-panel shells should remain stable when their visibility
+- The workbench panel shells should remain stable when their visibility
   changes. A collapse action should change layout visibility or width, not
   discard the panel's large list state.
 - Library rows are static indexed-resource presentation loaded from a persisted
@@ -496,14 +505,14 @@ Panel visibility and list lifetime:
 - Search rows are active query presentation. They should remain cached until
   the query, loaded result page, Search-group collapse state, or Search ordering
   inputs change.
-- Future Left Content Panel modes such as Timeline should keep their own
-  presentation state separate from Library rows.
-- Future Right Learning Panel modes such as Shiori, Queue, and Learning Session
-  should keep their own presentation state separate from Search result rows.
-- Switching future Left or Right panel modes should feel like changing tools in
-  a stable panel, not like reopening the workbench. Library, Timeline,
-  Shiori, Search, Queue, and Learning Session should preserve local scroll,
-  collapse, selection, and draft state where practical.
+- Shiori rows are saved-content presentation. They should remain cached until
+  the Shiori record set or Shiori-group collapse state changes.
+- Future panel modes such as Timeline, Queue, and Learning Session should keep
+  their own presentation state separate from Library, Search, and Shiori rows.
+- Switching panel modes should feel like changing tools in a stable panel, not
+  like reopening the workbench. Library, Timeline, Shiori, Search, Queue, and
+  Learning Session should preserve local scroll, collapse, selection, and draft
+  state where practical.
 - The first SwiftUI implementation may use lazy list rendering, but grouped
   rows should be flattened when necessary so laziness applies to individual
   visible rows rather than to one large group view containing many child rows.
@@ -564,8 +573,8 @@ normal Settings window lifecycle.
 
 Settings should be functional and clear before they are visually refined.
 Opening, focusing, or closing Settings should not pause playback, switch the
-main workspace away from the CueSeeker workbench, collapse either side panel,
-or clear the selected Search result.
+main workspace away from the CueSeeker workbench, collapse the Shared Content
+Panel, or clear the selected Search result.
 
 The Add Folder action should continue to use the native macOS folder selection
 experience. It may temporarily create Open and Save Panel or QuickLook helper
