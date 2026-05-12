@@ -278,7 +278,6 @@ final class AppState: ObservableObject {
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var selectedShiori: Shiori?
     @Published var selectedLibraryVideo: LibraryVideo?
-    @Published private(set) var libraryPlayingVideoPath: String?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var startupError: String?
     @Published var isSearchFocused = false
@@ -437,17 +436,7 @@ final class AppState: ObservableObject {
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     private var activeSearchPerformanceRun: SearchPerformanceRun?
     private var pendingSearchVisibleEntryIDs: Set<Int64> = []
-    private var activePlaybackSource: ActivePlaybackSource = .none {
-        didSet {
-            if case .library(let videoPath) = activePlaybackSource {
-                if libraryPlayingVideoPath != videoPath {
-                    libraryPlayingVideoPath = videoPath
-                }
-            } else if libraryPlayingVideoPath != nil {
-                libraryPlayingVideoPath = nil
-            }
-        }
-    }
+    private var activePlaybackSource: ActivePlaybackSource = .none
     private var loadedGlobalSearchResultCount = 0
     private var isSearching: Bool {
         if case .searching = searchStatus {

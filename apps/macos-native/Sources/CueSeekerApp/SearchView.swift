@@ -310,7 +310,7 @@ struct SearchView: View {
                             LibraryFolderGroupView(
                                 group: group,
                                 isCollapsed: isCollapsed,
-                                libraryPlayingVideoPath: appState.libraryPlayingVideoPath,
+                                selectedLibraryVideoPath: appState.selectedLibraryVideo?.videoPath,
                                 onToggle: {
                                     appState.clearSearchFocus()
                                     toggleLibraryFolderGroup(group.folderPath, proxy: proxy)
@@ -342,12 +342,12 @@ struct SearchView: View {
         )
         if wasCollapsed {
             collapsedLibraryFolderPaths.remove(folderPath)
-            if let playingPath = appState.libraryPlayingVideoPath,
+            if let selectedVideoPath = appState.selectedLibraryVideo?.videoPath,
                let group = appState.libraryFolderGroups.first(where: { $0.folderPath == folderPath }),
-               group.videos.contains(where: { $0.video.videoPath == playingPath }) {
+               group.videos.contains(where: { $0.video.videoPath == selectedVideoPath }) {
                 DispatchQueue.main.async {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(playingPath, anchor: .center)
+                        proxy.scrollTo(selectedVideoPath, anchor: .center)
                     }
                 }
             }
@@ -844,7 +844,7 @@ private extension View {
 private struct LibraryFolderGroupView: View {
     let group: LibraryFolderGroup
     let isCollapsed: Bool
-    let libraryPlayingVideoPath: String?
+    let selectedLibraryVideoPath: String?
     let onToggle: () -> Void
     let onOpenVideo: (LibraryVideo) -> Void
 
@@ -861,7 +861,7 @@ private struct LibraryFolderGroupView: View {
             if !isCollapsed {
                 LibraryEpisodeGrid(
                     rows: group.videos,
-                    libraryPlayingVideoPath: libraryPlayingVideoPath,
+                    selectedLibraryVideoPath: selectedLibraryVideoPath,
                     onOpenVideo: onOpenVideo
                 )
             }
@@ -869,7 +869,7 @@ private struct LibraryFolderGroupView: View {
     }
 
     private var playingRank: Int? {
-        guard let path = libraryPlayingVideoPath,
+        guard let path = selectedLibraryVideoPath,
               let index = group.videos.firstIndex(where: { $0.video.videoPath == path })
         else {
             return nil
@@ -934,7 +934,7 @@ private struct LibraryFolderHeader: View {
 
 private struct LibraryEpisodeGrid: View {
     let rows: [LibraryVideoRow]
-    let libraryPlayingVideoPath: String?
+    let selectedLibraryVideoPath: String?
     let onOpenVideo: (LibraryVideo) -> Void
 
     private let columns: [GridItem] = [
@@ -954,7 +954,7 @@ private struct LibraryEpisodeGrid: View {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 LibraryEpisodeButton(
                     rank: index + 1,
-                    isPlaying: row.video.videoPath == libraryPlayingVideoPath,
+                    isSelected: row.video.videoPath == selectedLibraryVideoPath,
                     action: { onOpenVideo(row.video) }
                 )
                 .id(row.video.videoPath)
@@ -969,7 +969,7 @@ private struct LibraryEpisodeGrid: View {
 
 private struct LibraryEpisodeButton: View {
     let rank: Int
-    let isPlaying: Bool
+    let isSelected: Bool
     let action: () -> Void
     @State private var isHovered = false
 
@@ -991,11 +991,11 @@ private struct LibraryEpisodeButton: View {
     }
 
     private var textColor: Color {
-        isPlaying ? .white : .primary
+        isSelected ? .white : .primary
     }
 
     private var backgroundColor: Color {
-        if isPlaying {
+        if isSelected {
             return Color.accentColor
         }
         if isHovered {
