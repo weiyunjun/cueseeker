@@ -13,11 +13,15 @@ struct ASSFontAliasRecord: Sendable {
 
 struct ASSFontAliasTable: Sendable {
     private let replacementsByKey: [String: String]
+    let recordCount: Int
+    let aliasCount: Int
 
     init(records: [ASSFontAliasRecord]) {
         var replacementsByKey: [String: String] = [:]
+        var recordCount = 0
 
         for record in records where !record.canonicalName.isEmpty {
+            recordCount += 1
             let aliases = ([record.canonicalName] + record.aliases)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
@@ -32,6 +36,8 @@ struct ASSFontAliasTable: Sendable {
         }
 
         self.replacementsByKey = replacementsByKey
+        self.recordCount = recordCount
+        self.aliasCount = replacementsByKey.count
     }
 
     func replacement(for requestedName: String) -> String? {
@@ -62,15 +68,39 @@ struct ASSFontAliasTable: Sendable {
     }
 }
 
-enum ASSFontAliasRewriter {
-    static func rewrite(script: String, aliases: ASSFontAliasTable) -> String {
-        rewriteInlineFontOverrides(
-            in: rewriteStyleFontNames(in: script, aliases: aliases),
-            aliases: aliases
-        )
+struct ASSFontAliasReplacement: Sendable, Equatable {
+    enum Location: String, Sendable {
+        case style
+        case inlineOverride
     }
 
-    private static func rewriteStyleFontNames(in script: String, aliases: ASSFontAliasTable) -> String {
+    let location: Location
+    let requestedName: String
+    let replacementName: String
+}
+
+struct ASSFontAliasRewriteResult: Sendable, Equatable {
+    let script: String
+    let replacements: [ASSFontAliasReplacement]
+}
+
+enum ASSFontAliasRewriter {
+    static func rewrite(script: String, aliases: ASSFontAliasTable) -> String {
+        rewriteWithReport(script: script, aliases: aliases).script
+    }
+
+    static func rewriteWithReport(script: String, aliases: ASSFontAliasTable) -> ASSFontAliasRewriteResult {
+        var replacements: [ASSFontAliasReplacement] = []
+        let styleRewritten = rewriteStyleFontNames(in: script, aliases: aliases, replacements: &replacements)
+        let rewritten = rewriteInlineFontOverrides(in: styleRewritten, aliases: aliases, replacements: &replacements)
+        return ASSFontAliasRewriteResult(script: rewritten, replacements: replacements)
+    }
+
+    private static func rewriteStyleFontNames(
+        in script: String,
+        aliases: ASSFontAliasTable,
+        replacements: inout [ASSFontAliasReplacement]
+    ) -> String {
         var section = ASSSection.unknown
         var styleFormat: [String] = []
         var rewrittenLines: [String] = []
@@ -112,7 +142,15 @@ enum ASSFontAliasRewriter {
                 continue
             }
 
+            let requestedName = fields[fontIndex].trimmingCharacters(in: .whitespacesAndNewlines)
             fields[fontIndex] = replacingTrimmedValue(in: fields[fontIndex], with: replacement)
+            replacements.append(
+                ASSFontAliasReplacement(
+                    location: .style,
+                    requestedName: requestedName,
+                    replacementName: replacement
+                )
+            )
             let prefix = linePrefix(throughFirstColonIn: line)
             rewrittenLines.append(prefix + fields.joined(separator: ","))
             changed = true
@@ -121,7 +159,11 @@ enum ASSFontAliasRewriter {
         return changed ? rewrittenLines.joined(separator: "\n") : script
     }
 
-    private static func rewriteInlineFontOverrides(in script: String, aliases: ASSFontAliasTable) -> String {
+    private static func rewriteInlineFontOverrides(
+        in script: String,
+        aliases: ASSFontAliasTable,
+        replacements: inout [ASSFontAliasReplacement]
+    ) -> String {
         var result = ""
         var searchIndex = script.startIndex
         var changed = false
@@ -136,7 +178,7 @@ enum ASSFontAliasRewriter {
             }
 
             let body = String(script[bodyStart..<blockEnd])
-            let rewrittenBody = rewriteOverrideBlock(body, aliases: aliases)
+            let rewrittenBody = rewriteOverrideBlock(body, aliases: aliases, replacements: &replacements)
             if rewrittenBody != body {
                 changed = true
             }
@@ -151,7 +193,11 @@ enum ASSFontAliasRewriter {
         return changed ? result : script
     }
 
-    private static func rewriteOverrideBlock(_ block: String, aliases: ASSFontAliasTable) -> String {
+    private static func rewriteOverrideBlock(
+        _ block: String,
+        aliases: ASSFontAliasTable,
+        replacements: inout [ASSFontAliasReplacement]
+    ) -> String {
         var result = ""
         var searchIndex = block.startIndex
         var changed = false
@@ -171,6 +217,13 @@ enum ASSFontAliasRewriter {
             let requestedName = String(block[tagRange.upperBound..<nameEnd])
             if let replacement = aliases.replacement(for: requestedName) {
                 result.append(replacingTrimmedValue(in: requestedName, with: replacement))
+                replacements.append(
+                    ASSFontAliasReplacement(
+                        location: .inlineOverride,
+                        requestedName: requestedName.trimmingCharacters(in: .whitespacesAndNewlines),
+                        replacementName: replacement
+                    )
+                )
                 changed = true
             } else {
                 result.append(requestedName)
@@ -248,7 +301,13 @@ final class ASSFontAliasResolver: @unchecked Sendable {
     private var cachedTable: ASSFontAliasTable?
 
     func rewriteRenderScript(_ script: String) -> String {
-        ASSFontAliasRewriter.rewrite(script: script, aliases: aliasTable())
+        rewriteRenderScript(script, sourceIdentifier: "<unknown>")
+    }
+
+    func rewriteRenderScript(_ script: String, sourceIdentifier: String) -> String {
+        let result = ASSFontAliasRewriter.rewriteWithReport(script: script, aliases: aliasTable())
+        logRewrite(result, sourceIdentifier: sourceIdentifier)
+        return result.script
     }
 
     private func aliasTable() -> ASSFontAliasTable {
@@ -263,7 +322,20 @@ final class ASSFontAliasResolver: @unchecked Sendable {
 
         let table = Self.buildAliasTable()
         cachedTable = table
+        print("ASS font alias table built: records=\(table.recordCount) aliases=\(table.aliasCount)")
         return table
+    }
+
+    private func logRewrite(_ result: ASSFontAliasRewriteResult, sourceIdentifier: String) {
+        guard !result.replacements.isEmpty else {
+            print("ASS font alias rewrite: source=\(sourceIdentifier) replacements=0")
+            return
+        }
+
+        let summary = result.replacements.map {
+            "\($0.location.rawValue):\($0.requestedName)->\($0.replacementName)"
+        }.joined(separator: ", ")
+        print("ASS font alias rewrite: source=\(sourceIdentifier) replacements=\(result.replacements.count) \(summary)")
     }
 
     private static func buildAliasTable() -> ASSFontAliasTable {
