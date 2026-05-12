@@ -238,6 +238,11 @@ When the user selects a result:
   system accent color (`Color.accentColor`). Selected row text becomes
   white. Selected row keyword highlights invert to a translucent-white fill
   with bolder white text. The row uses no divider lines.
+- Selection feedback must appear immediately on user activation. Library,
+  Search, and Shiori selected states must not wait for video opening, seeking,
+  subtitle loading, or ASS rendering preparation to complete. Delaying the
+  selected state makes the app feel blocked even when the command has already
+  been accepted.
 - The selected row does not show a cue start timestamp. Within a
   subtitle-file group rows are ordered by ascending cue start time, so
   spatial order conveys time order without a dedicated column.

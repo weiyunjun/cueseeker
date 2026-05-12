@@ -381,6 +381,12 @@ Layout and Selection Behavior:
 - Internal wrapped subtitle lines, including SRT line breaks and ASS `\N`
   line breaks rendered inside a single cue line, should use 4pt line
   spacing so bilingual subtitle text does not appear cramped.
+- Selection feedback is an input response, not a playback completion response.
+  Workbench mode selection, Library episode selection, Search result
+  selection, and Shiori row selection must update their visible selected state
+  immediately when the user activates the item. Video opening, seeking, subtitle
+  loading, and ASS rendering preparation may continue afterward but must not
+  delay the selected visual state.
 
 ## 8. Playback Area And Shared Content Panel
 
