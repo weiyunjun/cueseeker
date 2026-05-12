@@ -72,6 +72,61 @@ func sourceFaithfulASSSubtitleLayoutMapsLibassTopOriginToLayerBottomOrigin() {
 }
 
 @Test
+func assFontAliasTableMapsFileDerivedNamesToCanonicalFamilyNames() {
+    let table = ASSFontAliasTable(
+        records: [
+            ASSFontAliasRecord(
+                canonicalName: "FZZhunYuan-M02",
+                aliases: [
+                    "FZY3K--GBK1-0",
+                    "方正准圆_GBK"
+                ]
+            )
+        ]
+    )
+
+    #expect(table.replacement(for: "方正准圆_GBK") == "FZZhunYuan-M02")
+    #expect(table.replacement(for: "方正准圆GBK") == "FZZhunYuan-M02")
+    #expect(table.replacement(for: "FZY3K--GBK1-0") == "FZZhunYuan-M02")
+    #expect(table.replacement(for: "FZZhunYuan-M02") == nil)
+}
+
+@Test
+func assFontAliasRewriterUpdatesStylesAndInlineOverrideTagsOnlyInRenderScript() {
+    let table = ASSFontAliasTable(
+        records: [
+            ASSFontAliasRecord(
+                canonicalName: "FZZhunYuan-M02",
+                aliases: [
+                    "方正准圆_GBK"
+                ]
+            )
+        ]
+    )
+    let script = #"""
+    [Script Info]
+    ScriptType: v4.00+
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: Default, 方正准圆_GBK, 32
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:00.00,0:00:02.00,Default,,0,0,0,,{\fn方正准圆_GBK\bord2}Hello {\fn方正准圆_GBK}world
+    Dialogue: 0,0:00:02.00,0:00:03.00,Default,,0,0,0,,literal \fn方正准圆_GBK text
+    """#
+
+    let rewritten = ASSFontAliasRewriter.rewrite(script: script, aliases: table)
+
+    #expect(script.contains("Style: Default, 方正准圆_GBK, 32"))
+    #expect(rewritten.contains("Style: Default, FZZhunYuan-M02, 32"))
+    #expect(rewritten.contains(#"{\fnFZZhunYuan-M02\bord2}"#))
+    #expect(rewritten.contains(#"{\fnFZZhunYuan-M02}"#))
+    #expect(rewritten.contains(#"literal \fn方正准圆_GBK text"#))
+}
+
+@Test
 @MainActor
 func playbackPlayerStoresDecodeModeSetting() {
     let player = PlaybackPlayer()

@@ -194,7 +194,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 "libass indexed segment: window=\(segment.startMilliseconds)-\(segment.endMilliseconds)ms events=\(segment.eventCount) bytes=\(segment.byteCount)"
             )
             return try SFXASSRendererSession(
-                assScript: segment.scriptText,
+                assScript: ASSFontAliasResolver.shared.rewriteRenderScript(segment.scriptText),
                 sourceIdentifier: "\(sourcePath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)",
                 frameWidth: frameWidth,
                 frameHeight: frameHeight,
@@ -203,6 +203,19 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
 
         activeRenderSegmentWindow = nil
+        if let sourceScript = try? String(contentsOf: URL(fileURLWithPath: sourcePath)) {
+            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(sourceScript)
+            if renderScript != sourceScript {
+                return try SFXASSRendererSession(
+                    assScript: renderScript,
+                    sourceIdentifier: sourcePath,
+                    frameWidth: frameWidth,
+                    frameHeight: frameHeight,
+                    fontsDirectory: fontsDirectoryPath
+                )
+            }
+        }
+
         return try SFXASSRendererSession(
             assFileAtPath: sourcePath,
             frameWidth: frameWidth,
@@ -241,7 +254,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             destinationY: output.destinationY
         )
     }
-
 }
 
 @MainActor
