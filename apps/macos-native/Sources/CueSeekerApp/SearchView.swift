@@ -855,24 +855,27 @@ private struct SearchPlaybackPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            playbackSurface
-                .aspectRatio(
-                    CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
-                    contentMode: .fit
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            ZStack(alignment: .bottom) {
+                playbackSurface
+                    .aspectRatio(
+                        CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
+                        contentMode: .fit
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                if let activeDrawer {
+                    drawerView(activeDrawer)
+                        .padding(12)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
 
             if case .failed(let message) = appState.playbackStatus {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.system(size: SearchTypography.detailSize))
                     .foregroundStyle(.red)
-            }
-
-            if let activeDrawer {
-                drawerView(activeDrawer)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             commandRow
@@ -964,23 +967,31 @@ private struct SearchPlaybackPage: View {
             .padding(.top, 10)
 
             if let snapshot = appState.searchNavigationSnapshot {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(appState.searchNavigationResultGroups) { group in
-                            SearchResultGroupView(
-                                group: group,
-                                query: appState.searchQuery,
-                                selectedResult: snapshot.current,
-                                onToggle: {},
-                                onOpenResult: { result in
-                                    appState.clearSearchFocus()
-                                    appState.openSearchResult(result)
-                                },
-                                onResultAppear: { _ in }
-                            )
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(appState.searchNavigationResultGroups) { group in
+                                SearchResultGroupView(
+                                    group: group,
+                                    query: appState.searchQuery,
+                                    selectedResult: snapshot.current,
+                                    onToggle: {},
+                                    onOpenResult: { result in
+                                        appState.clearSearchFocus()
+                                        appState.openSearchResult(result)
+                                    },
+                                    onResultAppear: { _ in }
+                                )
+                            }
                         }
+                        .padding(.bottom, 8)
                     }
-                    .padding(.bottom, 8)
+                    .onAppear {
+                        scrollToSelectedResult(using: proxy)
+                    }
+                    .onChange(of: selectedSearchNavigationEntryID) { _ in
+                        scrollToSelectedResult(using: proxy)
+                    }
                 }
             } else {
                 ProgressView()
@@ -1000,24 +1011,33 @@ private struct SearchPlaybackPage: View {
     }
 
     private var subtitlesDrawer: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(appState.currentSubtitleEntries, id: \.id) { entry in
-                    SubtitleEntryRow(
-                        entry: entry,
-                        isSelected: entry.id == selectedSubtitleEntryID
-                    )
-                    .listRowAction {
-                        appState.clearSearchFocus()
-                        appState.playbackViewModel?.seek(
-                            to: Double(entry.startMilliseconds) / 1_000
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(appState.currentSubtitleEntries, id: \.id) { entry in
+                        SubtitleEntryRow(
+                            entry: entry,
+                            isSelected: entry.id == selectedSubtitleEntryID
                         )
+                        .id(entry.id)
+                        .listRowAction {
+                            appState.clearSearchFocus()
+                            appState.playbackViewModel?.seek(
+                                to: Double(entry.startMilliseconds) / 1_000
+                            )
+                        }
+                        .focusable(false)
                     }
-                    .focusable(false)
                 }
+                .padding(.top, 8)
+                .padding(.bottom, 8)
             }
-            .padding(.top, 8)
-            .padding(.bottom, 8)
+            .onAppear {
+                scrollToSelectedSubtitle(using: proxy)
+            }
+            .onChange(of: selectedSubtitleEntryID) { _ in
+                scrollToSelectedSubtitle(using: proxy)
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(height: SearchPlaybackLayout.drawerHeight)
@@ -1041,6 +1061,10 @@ private struct SearchPlaybackPage: View {
         return "\(snapshot.totalCount) results"
     }
 
+    private var selectedSearchNavigationEntryID: Int64? {
+        appState.searchNavigationSnapshot?.current?.entryID
+    }
+
     private var selectedSubtitleEntryID: Int64? {
         let milliseconds = max(
             0,
@@ -1055,6 +1079,26 @@ private struct SearchPlaybackPage: View {
         return appState.currentSubtitleEntries.last(where: {
             $0.startMilliseconds <= milliseconds
         })?.id
+    }
+
+    private func scrollToSelectedResult(using proxy: ScrollViewProxy) {
+        guard let selectedSearchNavigationEntryID else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            proxy.scrollTo(selectedSearchNavigationEntryID, anchor: .center)
+        }
+    }
+
+    private func scrollToSelectedSubtitle(using proxy: ScrollViewProxy) {
+        guard let selectedSubtitleEntryID else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            proxy.scrollTo(selectedSubtitleEntryID, anchor: .center)
+        }
     }
 
     private func toggleDrawer(_ drawer: SearchPlaybackDrawer) {
@@ -1072,6 +1116,7 @@ private struct SearchPlaybackPage: View {
             appState.refreshCurrentSubtitleEntries()
         }
 
+        appState.pausePlayback()
         withAnimation(.easeInOut(duration: 0.16)) {
             activeDrawer = drawer
         }
@@ -1460,6 +1505,7 @@ private struct SearchResultGroupView: View {
                     .listRowAction {
                         onOpenResult(result)
                     }
+                    .id(result.entryID)
                     .focusable(false)
                     .onAppear {
                         onResultAppear(result)

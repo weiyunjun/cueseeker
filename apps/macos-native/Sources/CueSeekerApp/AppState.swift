@@ -916,6 +916,9 @@ final class AppState: ObservableObject {
             details: "length=\(trimmedQuery.count)"
         )
         clearSearchFocus()
+        if playbackViewModel?.isPlaying == true {
+            pausePlayback()
+        }
         topbarSearchContentMode = .results
         searchQuery = trimmedQuery
         searchNavigationSnapshot = nil

@@ -45,7 +45,6 @@ struct ContentView: View {
 private struct AppTopBar: View {
     @EnvironmentObject private var appState: AppState
     @State private var searchDraft = ""
-    @State private var isSearchFocused = false
 
     let backgroundColor: Color
 
@@ -66,10 +65,9 @@ private struct AppTopBar: View {
             .overlay(alignment: .center) {
                 TopbarSearchField(
                     text: $searchDraft,
-                    isFocused: $isSearchFocused,
+                    isFocused: $appState.isSearchFocused,
                     onSubmit: {
                         appState.submitTopbarSearch(searchDraft)
-                        isSearchFocused = false
                     }
                 )
                 .frame(width: AppShellLayout.topbarSearchFieldWidth)
@@ -83,7 +81,7 @@ private struct AppTopBar: View {
                 searchDraft = appState.searchQuery
             }
             .onChange(of: appState.searchQuery) { query in
-                if !isSearchFocused {
+                if !appState.isSearchFocused {
                     searchDraft = query
                 }
             }

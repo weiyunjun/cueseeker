@@ -318,12 +318,16 @@ Search-launched playback result navigation:
 
 The playback `Results` drawer should show at least the previous, current, and
 next Search results around the current anchor. The current row uses selected
-state. The drawer does not include `Collapse All`.
+state and should be scrolled into view. The drawer is an overlay above the video
+surface, does not resize the video, pauses playback when opened, and does not
+include `Collapse All`.
 
 The playback `Subtitles` drawer shows the current subtitle file in timestamp
 order. It does not apply keyword highlighting because it is context navigation,
 not query-match presentation. The row corresponding to the current playback
-subtitle uses selected state only.
+subtitle uses selected state only and should be scrolled into view. The drawer
+is an overlay above the video surface, does not resize the video, and pauses
+playback when opened.
 
 ## 6. Visual Feedback and Hover
 
@@ -370,7 +374,8 @@ Topbar Search playback interaction:
 - The first command row includes `Video Folder`, `Subtitle Folder`,
   `Previous Result`, `Next Result`, `Results`, and `Subtitles`.
 - `Results` and `Subtitles` open upward from the command row and rotate their
-  chevron affordance upward while open.
+  chevron affordance upward while open. They appear as overlays above the video
+  surface and pause playback when opened.
 - `Results` is a nearby Search-result context drawer.
 - `Subtitles` is a current-subtitle-file context drawer.
 

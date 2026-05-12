@@ -9,6 +9,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Fixed paused-seek playback toggling so Space or surface click can pause after
   a seek auto-resumes playback, and centered the topbar Search field without a
   visible `CueSeeker` title.
+- Updated Search-launched playback so context drawers appear as video overlays,
+  pause playback when opened, scroll to the selected context, and Search submit
+  pauses playback before leaving the playback page.
 - Accepted the topbar Search single-page workflow direction: the first Search
   UI pass will add a fixed-width topbar Search field that submits only on
   Return, show submitted results in the main content area without a duplicate
