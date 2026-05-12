@@ -151,23 +151,21 @@ private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
 }
 
 @MainActor
-enum WorkbenchRightPanelMode: String {
+enum WorkbenchPanelMode: String, CaseIterable {
+    case library
     case search
     case shiori
 }
 
 @MainActor
 final class WorkbenchLayoutState: ObservableObject {
-    private static let isLibraryPanelVisibleKey = "isLibraryPanelVisible"
-    private static let libraryPanelWidthKey = "libraryPanelWidth"
-    private static let isSearchPanelVisibleKey = "isSearchPanelVisible"
-    private static let searchPanelWidthKey = "searchPanelWidth"
+    private static let isContentPanelVisibleKey = "isWorkbenchContentPanelVisible"
+    private static let contentPanelWidthKey = "workbenchContentPanelWidth"
+    private static let panelModeKey = "workbenchPanelMode"
 
-    @Published var isLibraryPanelVisible: Bool
-    @Published var libraryPanelWidth: Double
-    @Published var isSearchPanelVisible: Bool
-    @Published var searchPanelWidth: Double
-    @Published var rightPanelMode: WorkbenchRightPanelMode = .search
+    @Published var isContentPanelVisible: Bool
+    @Published var contentPanelWidth: Double
+    @Published var panelMode: WorkbenchPanelMode
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
 
@@ -175,38 +173,39 @@ final class WorkbenchLayoutState: ObservableObject {
 
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
-        isLibraryPanelVisible = userDefaults.bool(forKey: Self.isLibraryPanelVisibleKey)
-        libraryPanelWidth = userDefaults.double(forKey: Self.libraryPanelWidthKey)
-        isSearchPanelVisible = userDefaults.bool(forKey: Self.isSearchPanelVisibleKey)
-        searchPanelWidth = userDefaults.double(forKey: Self.searchPanelWidthKey)
+        isContentPanelVisible = userDefaults.bool(forKey: Self.isContentPanelVisibleKey)
+        contentPanelWidth = userDefaults.double(forKey: Self.contentPanelWidthKey)
+        panelMode = WorkbenchPanelMode(
+            rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
+        ) ?? .library
     }
 
-    func toggleLibraryPanel() {
-        isLibraryPanelVisible.toggle()
-        userDefaults.set(isLibraryPanelVisible, forKey: Self.isLibraryPanelVisibleKey)
+    func toggleContentPanel() {
+        isContentPanelVisible.toggle()
+        userDefaults.set(isContentPanelVisible, forKey: Self.isContentPanelVisibleKey)
     }
 
-    func toggleSearchPanel() {
-        isSearchPanelVisible.toggle()
-        userDefaults.set(isSearchPanelVisible, forKey: Self.isSearchPanelVisibleKey)
-    }
-
-    func updateLibraryPanelWidth(_ width: Double) {
-        libraryPanelWidth = width
-        userDefaults.set(width, forKey: Self.libraryPanelWidthKey)
-    }
-
-    func updateSearchPanelWidth(_ width: Double) {
-        searchPanelWidth = width
-        userDefaults.set(width, forKey: Self.searchPanelWidthKey)
-    }
-
-    func selectRightPanelMode(_ mode: WorkbenchRightPanelMode) {
-        guard rightPanelMode != mode else {
+    func showContentPanel() {
+        guard !isContentPanelVisible else {
             return
         }
 
-        rightPanelMode = mode
+        isContentPanelVisible = true
+        userDefaults.set(true, forKey: Self.isContentPanelVisibleKey)
+    }
+
+    func updateContentPanelWidth(_ width: Double) {
+        contentPanelWidth = width
+        userDefaults.set(width, forKey: Self.contentPanelWidthKey)
+    }
+
+    func selectPanelMode(_ mode: WorkbenchPanelMode) {
+        guard panelMode != mode else {
+            return
+        }
+
+        panelMode = mode
+        userDefaults.set(mode.rawValue, forKey: Self.panelModeKey)
     }
 
     func beginVideoSizeTransition() -> Bool {
@@ -441,10 +440,9 @@ final class AppState: ObservableObject {
         self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
 
         userDefaults.register(defaults: [
-            "isLibraryPanelVisible": true,
-            "libraryPanelWidth": 310.0,
-            "isSearchPanelVisible": true,
-            "searchPanelWidth": 480.0,
+            "isWorkbenchContentPanelVisible": true,
+            "workbenchContentPanelWidth": 420.0,
+            "workbenchPanelMode": WorkbenchPanelMode.library.rawValue,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
@@ -563,34 +561,45 @@ final class AppState: ObservableObject {
         ))
     }
 
-    func toggleLibraryPanel() {
-        AppPerformanceProbe.action("AppState.toggleLibraryPanel", thresholdMilliseconds: 4) {
-            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+    func activateWorkbenchPanelMode(_ mode: WorkbenchPanelMode) {
+        AppPerformanceProbe.action("AppState.activateWorkbenchPanelMode", thresholdMilliseconds: 4) {
+            if workbenchLayout.panelMode == mode {
+                toggleWorkbenchContentPanel()
                 return
             }
 
             UIInvalidationProbe.mark(
-                "ACTION UI.LibraryPanel.toggled",
-                details: "visibleBefore=\(workbenchLayout.isLibraryPanelVisible)"
+                "ACTION UI.WorkbenchMode.selected",
+                details: "from=\(workbenchLayout.panelMode.rawValue) to=\(mode.rawValue) visibleBefore=\(workbenchLayout.isContentPanelVisible)"
             )
+            workbenchLayout.selectPanelMode(mode)
+
+            guard !workbenchLayout.isContentPanelVisible else {
+                return
+            }
+
+            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+                return
+            }
+
             withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-                workbenchLayout.toggleLibraryPanel()
+                workbenchLayout.showContentPanel()
             }
         }
     }
 
-    func toggleSearchPanel() {
-        AppPerformanceProbe.action("AppState.toggleSearchPanel", thresholdMilliseconds: 4) {
+    func toggleWorkbenchContentPanel() {
+        AppPerformanceProbe.action("AppState.toggleWorkbenchContentPanel", thresholdMilliseconds: 4) {
             guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
                 return
             }
 
             UIInvalidationProbe.mark(
-                "ACTION UI.SearchPanel.toggled",
-                details: "visibleBefore=\(workbenchLayout.isSearchPanelVisible)"
+                "ACTION UI.WorkbenchContentPanel.toggled",
+                details: "visibleBefore=\(workbenchLayout.isContentPanelVisible) mode=\(workbenchLayout.panelMode.rawValue)"
             )
             withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-                workbenchLayout.toggleSearchPanel()
+                workbenchLayout.toggleContentPanel()
             }
         }
     }
@@ -644,12 +653,8 @@ final class AppState: ObservableObject {
         }
     }
 
-    func updateLibraryPanelWidth(_ width: Double) {
-        workbenchLayout.updateLibraryPanelWidth(width)
-    }
-
-    func updateSearchPanelWidth(_ width: Double) {
-        workbenchLayout.updateSearchPanelWidth(width)
+    func updateWorkbenchContentPanelWidth(_ width: Double) {
+        workbenchLayout.updateContentPanelWidth(width)
     }
 
     private func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {

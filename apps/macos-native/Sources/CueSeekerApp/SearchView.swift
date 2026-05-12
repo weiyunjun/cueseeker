@@ -6,12 +6,9 @@ import CueSeekerCore
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
-    @State private var libraryPanelDragStartWidth: Double?
-    @State private var isLibraryPanelDividerHovered = false
-    @State private var isLibraryPanelDividerDragging = false
-    @State private var searchPanelDragStartWidth: Double?
-    @State private var isSearchPanelDividerHovered = false
-    @State private var isSearchPanelDividerDragging = false
+    @State private var contentPanelDragStartWidth: Double?
+    @State private var isContentPanelDividerHovered = false
+    @State private var isContentPanelDividerDragging = false
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
     var body: some View {
@@ -19,51 +16,40 @@ struct SearchView: View {
             UIInvalidationProbe.count("UI.Workbench.body")
 
             return GeometryReader { geometry in
-                let libraryPanelWidth = libraryPanelWidth(for: geometry.size.width)
-                let searchPanelWidth = clampedSearchPanelWidth(for: geometry.size.width)
-                let reservedLibraryWidth = layoutState.isLibraryPanelVisible ? libraryPanelWidth : 0
-                let reservedSearchPanelWidth = layoutState.isSearchPanelVisible ? searchPanelWidth : 0
+                let modeRailWidth = SearchLayout.modeRailWidth
+                let contentPanelWidth = contentPanelWidth(for: geometry.size.width)
+                let reservedContentPanelWidth = layoutState.isContentPanelVisible ? contentPanelWidth : 0
                 let playbackWidth = max(
                     0,
-                    geometry.size.width - reservedLibraryWidth - reservedSearchPanelWidth
+                    geometry.size.width - modeRailWidth - reservedContentPanelWidth
                 )
 
                 ZStack(alignment: .topLeading) {
+                    modeRail
+                        .frame(width: modeRailWidth, height: geometry.size.height)
+                        .zIndex(3)
+
                     playbackArea
                         .frame(width: playbackWidth, height: geometry.size.height)
-                        .offset(x: reservedLibraryWidth)
+                        .offset(x: modeRailWidth + reservedContentPanelWidth)
 
                     DrawerPanel(
                         edge: .leading,
-                        isVisible: layoutState.isLibraryPanelVisible,
-                        width: libraryPanelWidth
+                        isVisible: layoutState.isContentPanelVisible,
+                        width: contentPanelWidth
                     ) {
-                        libraryPanel
+                        contentPanel
                     } divider: {
-                        libraryPanelResizeDivider(availableWidth: geometry.size.width)
+                        contentPanelResizeDivider(availableWidth: geometry.size.width)
                     }
-                    .frame(width: libraryPanelWidth, height: geometry.size.height)
+                    .frame(width: contentPanelWidth, height: geometry.size.height)
                     .frame(
                         width: geometry.size.width,
                         height: geometry.size.height,
                         alignment: .topLeading
                     )
-
-                    DrawerPanel(
-                        edge: .trailing,
-                        isVisible: layoutState.isSearchPanelVisible,
-                        width: searchPanelWidth
-                    ) {
-                        rightPanel
-                    } divider: {
-                        searchPanelResizeDivider(availableWidth: geometry.size.width)
-                    }
-                    .frame(width: searchPanelWidth, height: geometry.size.height)
-                    .frame(
-                        width: geometry.size.width,
-                        height: geometry.size.height,
-                        alignment: .topTrailing
-                    )
+                    .offset(x: modeRailWidth)
+                    .zIndex(2)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
@@ -74,6 +60,109 @@ struct SearchView: View {
             }
             .onChange(of: appState.libraryPresentationRevision) { _ in
                 resetCollapsedLibraryFolders()
+            }
+        }
+    }
+
+    private var modeRail: some View {
+        AppPerformanceProbe.measure("SearchView.modeRail.body", thresholdMilliseconds: 4) {
+            UIInvalidationProbe.count("UI.WorkbenchModeRail.body")
+
+            return VStack(spacing: 12) {
+                modeRailButton(
+                    mode: .library,
+                    systemImage: "folder",
+                    selectedSystemImage: "folder.fill",
+                    help: "Library"
+                )
+
+                modeRailButton(
+                    mode: .search,
+                    systemImage: "magnifyingglass",
+                    selectedSystemImage: "magnifyingglass",
+                    help: "Search"
+                )
+
+                modeRailButton(
+                    mode: .shiori,
+                    systemImage: "bookmark",
+                    selectedSystemImage: "bookmark.fill",
+                    help: "Shiori"
+                )
+
+                Spacer()
+            }
+            .padding(.top, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(Color.black.opacity(0.08))
+                    .frame(width: 1)
+            }
+            .background(LayoutPerformanceProbe(name: "SearchView.modeRail.layout"))
+        }
+    }
+
+    private func modeRailButton(
+        mode: WorkbenchPanelMode,
+        systemImage: String,
+        selectedSystemImage: String,
+        help: String
+    ) -> some View {
+        let isSelected = layoutState.panelMode == mode
+
+        return Button {
+            appState.performUserInitiatedAppCommand {
+                appState.activateWorkbenchPanelMode(mode)
+            }
+        } label: {
+            ZStack(alignment: .leading) {
+                if isSelected {
+                    Rectangle()
+                        .fill(Color.accentColor)
+                        .frame(width: 3, height: 30)
+                        .offset(x: -SearchLayout.modeRailButtonHorizontalPadding)
+                }
+
+                Image(systemName: isSelected ? selectedSystemImage : systemImage)
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(
+                        width: SearchLayout.modeRailButtonSize,
+                        height: SearchLayout.modeRailButtonSize
+                    )
+                    .contentShape(Rectangle())
+            }
+        }
+        .buttonStyle(ModeRailButtonStyle(isSelected: isSelected))
+        .allowsHitTesting(!layoutState.isVideoSizeTransitionInProgress)
+        .focusable(false)
+        .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+        .help(help)
+        .accessibilityLabel(help)
+        .frame(
+            width: SearchLayout.modeRailButtonSize,
+            height: SearchLayout.modeRailButtonSize
+        )
+    }
+
+    @ViewBuilder
+    private var contentPanel: some View {
+        AppPerformanceProbe.measure("SearchView.contentPanel.body", thresholdMilliseconds: 4) {
+            UIInvalidationProbe.count(
+                "UI.WorkbenchContentPanel.body",
+                details: "mode=\(layoutState.panelMode.rawValue)"
+            )
+
+            return Group {
+                switch layoutState.panelMode {
+                case .library:
+                    libraryPanel
+                case .search:
+                    searchPanel
+                case .shiori:
+                    shioriPanel
+                }
             }
         }
     }
@@ -202,16 +291,6 @@ struct SearchView: View {
             }
         } else {
             collapsedLibraryFolderPaths.insert(folderPath)
-        }
-    }
-
-    @ViewBuilder
-    private var rightPanel: some View {
-        switch layoutState.rightPanelMode {
-        case .search:
-            searchPanel
-        case .shiori:
-            shioriPanel
         }
     }
 
@@ -546,45 +625,8 @@ struct SearchView: View {
         }
     }
 
-    private func searchPanelResizeDivider(availableWidth: CGFloat) -> some View {
-        let isActive = isSearchPanelDividerHovered || isSearchPanelDividerDragging
-
-        return ZStack(alignment: .leading) {
-            Rectangle()
-                .fill(Color.black.opacity(0.001))
-
-            Rectangle()
-                .fill(Color.black.opacity(isActive ? 0.18 : 0.08))
-                .frame(width: isActive ? SearchLayout.dividerActiveLineWidth : SearchLayout.dividerLineWidth)
-        }
-            .frame(width: SearchLayout.dividerHitWidth)
-            .overlay(
-                ResizerView(
-                    onHoverChanged: { isHovered in
-                        isSearchPanelDividerHovered = isHovered
-                    },
-                    onDragStarted: {
-                        appState.clearSearchFocus()
-                        isSearchPanelDividerDragging = true
-                        searchPanelDragStartWidth = layoutState.searchPanelWidth
-                    },
-                    onDragChanged: { translationX in
-                        let startWidth = searchPanelDragStartWidth ?? layoutState.searchPanelWidth
-                        let proposedWidth = startWidth - Double(translationX)
-                        appState.updateSearchPanelWidth(
-                            clampedSearchPanelWidth(proposedWidth, availableWidth: availableWidth)
-                        )
-                    },
-                    onDragEnded: {
-                        searchPanelDragStartWidth = nil
-                        isSearchPanelDividerDragging = false
-                    }
-                )
-            )
-    }
-
-    private func libraryPanelResizeDivider(availableWidth: CGFloat) -> some View {
-        let isActive = isLibraryPanelDividerHovered || isLibraryPanelDividerDragging
+    private func contentPanelResizeDivider(availableWidth: CGFloat) -> some View {
+        let isActive = isContentPanelDividerHovered || isContentPanelDividerDragging
 
         return ZStack(alignment: .trailing) {
             Rectangle()
@@ -598,80 +640,51 @@ struct SearchView: View {
             .overlay(
                 ResizerView(
                     onHoverChanged: { isHovered in
-                        isLibraryPanelDividerHovered = isHovered
+                        isContentPanelDividerHovered = isHovered
                     },
                     onDragStarted: {
                         appState.clearSearchFocus()
-                        isLibraryPanelDividerDragging = true
-                        libraryPanelDragStartWidth = layoutState.libraryPanelWidth
+                        isContentPanelDividerDragging = true
+                        contentPanelDragStartWidth = layoutState.contentPanelWidth
                     },
                     onDragChanged: { translationX in
-                        let startWidth = libraryPanelDragStartWidth ?? layoutState.libraryPanelWidth
+                        let startWidth = contentPanelDragStartWidth ?? layoutState.contentPanelWidth
                         let proposedWidth = startWidth + Double(translationX)
-                        appState.updateLibraryPanelWidth(
-                            clampedLibraryPanelWidth(proposedWidth, availableWidth: availableWidth)
+                        appState.updateWorkbenchContentPanelWidth(
+                            clampedContentPanelWidth(proposedWidth, availableWidth: availableWidth)
                         )
                     },
                     onDragEnded: {
-                        libraryPanelDragStartWidth = nil
-                        isLibraryPanelDividerDragging = false
+                        contentPanelDragStartWidth = nil
+                        isContentPanelDividerDragging = false
                     }
                 )
             )
     }
 
-    private func libraryPanelWidth(for availableWidth: CGFloat) -> CGFloat {
+    private func contentPanelWidth(for availableWidth: CGFloat) -> CGFloat {
         CGFloat(
-            clampedLibraryPanelWidth(
-                layoutState.libraryPanelWidth,
+            clampedContentPanelWidth(
+                layoutState.contentPanelWidth,
                 availableWidth: availableWidth
             )
         )
     }
 
-    private func clampedLibraryPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
-        let reservedSearchPanelWidth = layoutState.isSearchPanelVisible
-            ? SearchLayout.searchPanelMinimumWidth
-            : 0
-        let availableLibraryPanelWidth = Double(
+    private func clampedContentPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
+        let availableContentPanelWidth = Double(
             availableWidth
-                - reservedSearchPanelWidth
+                - SearchLayout.modeRailWidth
                 - SearchLayout.playbackAreaMinimumWidth
         )
         let maxWidth = max(
-            SearchLayout.libraryPanelMinimumWidth,
-            availableLibraryPanelWidth
+            SearchLayout.contentPanelMinimumWidth,
+            availableContentPanelWidth
         )
 
         return min(
-            max(width, SearchLayout.libraryPanelMinimumWidth),
+            max(width, SearchLayout.contentPanelMinimumWidth),
             maxWidth
-        )
-    }
-
-    private func clampedSearchPanelWidth(for availableWidth: CGFloat) -> CGFloat {
-        CGFloat(
-            clampedSearchPanelWidth(
-                layoutState.searchPanelWidth,
-                availableWidth: availableWidth
-            )
-        )
-    }
-
-    private func clampedSearchPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
-        let availableSearchPanelWidth = Double(
-            availableWidth
-                - (layoutState.isLibraryPanelVisible ? libraryPanelWidth(for: availableWidth) : 0)
-                - SearchLayout.playbackAreaMinimumWidth
-        )
-        let maxWidth = max(
-            SearchLayout.searchPanelMinimumWidth,
-            availableSearchPanelWidth
-        )
-
-        return min(
-            max(width, SearchLayout.searchPanelMinimumWidth),
-            Double(maxWidth)
         )
     }
 }
@@ -741,6 +754,35 @@ private struct DrawerPanel<Content: View, Divider: View>: View {
                 .allowsHitTesting(isVisible)
                 .accessibilityHidden(!isVisible)
         }
+    }
+}
+
+private struct ModeRailButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(backgroundColor(configuration: configuration))
+            )
+            .onHover { hovering in
+                isHovered = hovering
+            }
+    }
+
+    private func backgroundColor(configuration: Configuration) -> Color {
+        if configuration.isPressed {
+            return Color.primary.opacity(0.12)
+        }
+        if isSelected {
+            return Color.primary.opacity(0.10)
+        }
+        if isHovered {
+            return Color.primary.opacity(0.07)
+        }
+        return .clear
     }
 }
 
@@ -1374,9 +1416,11 @@ private enum SearchTypography {
 private enum SearchLayout {
     static let contentWidth: CGFloat = 860
     static let minimumHorizontalMargin: CGFloat = 24
-    static let libraryPanelMinimumWidth: Double = 310
+    static let modeRailWidth: CGFloat = 56
+    static let modeRailButtonSize: CGFloat = 40
+    static let modeRailButtonHorizontalPadding: CGFloat = (modeRailWidth - modeRailButtonSize) / 2
+    static let contentPanelMinimumWidth: Double = 420
     static let playbackAreaMinimumWidth: CGFloat = 520
-    static let searchPanelMinimumWidth: Double = 420
     static let dividerHitWidth: CGFloat = 6
     static let dividerLineWidth: CGFloat = 1
     static let dividerActiveLineWidth: CGFloat = 3
