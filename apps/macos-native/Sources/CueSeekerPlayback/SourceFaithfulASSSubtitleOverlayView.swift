@@ -194,10 +194,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 "libass indexed segment: window=\(segment.startMilliseconds)-\(segment.endMilliseconds)ms events=\(segment.eventCount) bytes=\(segment.byteCount)"
             )
             let sourceIdentifier = "\(sourcePath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)"
-            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
-                segment.scriptText,
-                sourceIdentifier: sourceIdentifier
-            )
+            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(segment.scriptText)
             return try SFXASSRendererSession(
                 assScript: renderScript,
                 sourceIdentifier: sourceIdentifier,
@@ -208,14 +205,9 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
 
         activeRenderSegmentWindow = nil
-        do {
-            let sourceScript = try String(contentsOf: URL(fileURLWithPath: sourcePath))
-            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
-                sourceScript,
-                sourceIdentifier: sourcePath
-            )
+        if let sourceScript = try? String(contentsOf: URL(fileURLWithPath: sourcePath)) {
+            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(sourceScript)
             if renderScript != sourceScript {
-                print("ASS font alias full-source: using rewritten memory script source=\(sourcePath)")
                 return try SFXASSRendererSession(
                     assScript: renderScript,
                     sourceIdentifier: sourcePath,
@@ -224,9 +216,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                     fontsDirectory: fontsDirectoryPath
                 )
             }
-            print("ASS font alias full-source: no rewrite; using original ASS file source=\(sourcePath)")
-        } catch {
-            print("ASS font alias full-source: source read failed; using original ASS file source=\(sourcePath) error=\(error.localizedDescription)")
         }
 
         return try SFXASSRendererSession(

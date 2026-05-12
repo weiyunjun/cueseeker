@@ -127,6 +127,36 @@ func assFontAliasRewriterUpdatesStylesAndInlineOverrideTagsOnlyInRenderScript() 
 }
 
 @Test
+func assFontAliasRewriterHandlesCRLFLineEndings() {
+    let table = ASSFontAliasTable(
+        records: [
+            ASSFontAliasRecord(
+                canonicalName: "FZZhunYuan-M02",
+                aliases: [
+                    "方正准圆_GBK"
+                ]
+            )
+        ]
+    )
+    let script = "[Script Info]\r\n[V4+ Styles]\r\nFormat: Name, Fontname, Fontsize\r\nStyle: TEXT-CN,方正准圆_GBK,82\r\n[Events]\r\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\r\nDialogue: 0,0:00:00.00,0:00:02.00,TEXT-CN,,0,0,0,,{\\fn方正准圆_GBK\\bord2}Hello\r\n"
+
+    let rewritten = ASSFontAliasRewriter.rewrite(script: script, aliases: table)
+
+    #expect(rewritten.contains("Style: TEXT-CN,FZZhunYuan-M02,82"))
+    #expect(rewritten.contains(#"{\fnFZZhunYuan-M02\bord2}"#))
+}
+
+@Test
+func assFontAliasRewriterPreservesCRLFScriptWhenNoFontAliasMatches() {
+    let table = ASSFontAliasTable(records: [])
+    let script = "[Script Info]\r\n[V4+ Styles]\r\nFormat: Name, Fontname, Fontsize\r\nStyle: Default,Helvetica,32\r\n"
+
+    let rewritten = ASSFontAliasRewriter.rewrite(script: script, aliases: table)
+
+    #expect(rewritten == script)
+}
+
+@Test
 @MainActor
 func playbackPlayerStoresDecodeModeSetting() {
     let player = PlaybackPlayer()
