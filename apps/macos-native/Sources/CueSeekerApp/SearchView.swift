@@ -23,18 +23,28 @@ struct SearchView: View {
                     0,
                     geometry.size.width - modeRailWidth - reservedContentPanelWidth
                 )
+                let isSidebarOnLeft = layoutState.sidebarPosition == .left
+                let modeRailX = isSidebarOnLeft
+                    ? 0
+                    : max(0, geometry.size.width - modeRailWidth)
+                let contentPanelX = isSidebarOnLeft
+                    ? modeRailWidth
+                    : max(0, geometry.size.width - modeRailWidth - contentPanelWidth)
+                let playbackX = isSidebarOnLeft ? modeRailWidth + reservedContentPanelWidth : 0
+                let drawerEdge: DrawerPanelEdge = isSidebarOnLeft ? .leading : .trailing
 
                 ZStack(alignment: .topLeading) {
                     modeRail
                         .frame(width: modeRailWidth, height: geometry.size.height)
+                        .offset(x: modeRailX)
                         .zIndex(3)
 
                     playbackArea
                         .frame(width: playbackWidth, height: geometry.size.height)
-                        .offset(x: modeRailWidth + reservedContentPanelWidth)
+                        .offset(x: playbackX)
 
                     DrawerPanel(
-                        edge: .leading,
+                        edge: drawerEdge,
                         isVisible: layoutState.isContentPanelVisible,
                         width: contentPanelWidth
                     ) {
@@ -43,12 +53,7 @@ struct SearchView: View {
                         contentPanelResizeDivider(availableWidth: geometry.size.width)
                     }
                     .frame(width: contentPanelWidth, height: geometry.size.height)
-                    .frame(
-                        width: geometry.size.width,
-                        height: geometry.size.height,
-                        alignment: .topLeading
-                    )
-                    .offset(x: modeRailWidth)
+                    .offset(x: contentPanelX)
                     .zIndex(2)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
@@ -98,7 +103,7 @@ struct SearchView: View {
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color(nsColor: .controlBackgroundColor))
-            .overlay(alignment: .trailing) {
+            .overlay(alignment: layoutState.sidebarPosition == .left ? .trailing : .leading) {
                 Rectangle()
                     .fill(Color.black.opacity(0.08))
                     .frame(width: 1)
@@ -114,18 +119,23 @@ struct SearchView: View {
         help: String
     ) -> some View {
         let isSelected = layoutState.panelMode == mode
+        let markerAlignment: Alignment = layoutState.sidebarPosition == .left ? .leading : .trailing
 
         return Button {
             appState.performUserInitiatedAppCommand {
                 appState.activateWorkbenchPanelMode(mode)
             }
         } label: {
-            ZStack(alignment: .leading) {
+            ZStack(alignment: markerAlignment) {
                 if isSelected {
                     Rectangle()
                         .fill(Color.accentColor)
                         .frame(width: 3, height: 30)
-                        .offset(x: -SearchLayout.modeRailButtonHorizontalPadding)
+                        .offset(
+                            x: layoutState.sidebarPosition == .left
+                                ? -SearchLayout.modeRailButtonHorizontalPadding
+                                : SearchLayout.modeRailButtonHorizontalPadding
+                        )
                 }
 
                 Image(systemName: isSelected ? selectedSystemImage : systemImage)

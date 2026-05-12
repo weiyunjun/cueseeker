@@ -157,15 +157,37 @@ enum WorkbenchPanelMode: String, CaseIterable {
     case shiori
 }
 
+enum WorkbenchSidebarPosition: String, CaseIterable, Identifiable {
+    case left
+    case right
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .left:
+            "Left"
+        case .right:
+            "Right"
+        }
+    }
+}
+
 @MainActor
 final class WorkbenchLayoutState: ObservableObject {
     private static let isContentPanelVisibleKey = "isWorkbenchContentPanelVisible"
     private static let contentPanelWidthKey = "workbenchContentPanelWidth"
     private static let panelModeKey = "workbenchPanelMode"
+    private static let sidebarPositionKey = "workbenchSidebarPosition"
 
     @Published var isContentPanelVisible: Bool
     @Published var contentPanelWidth: Double
     @Published var panelMode: WorkbenchPanelMode
+    @Published var sidebarPosition: WorkbenchSidebarPosition {
+        didSet {
+            userDefaults.set(sidebarPosition.rawValue, forKey: Self.sidebarPositionKey)
+        }
+    }
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
 
@@ -178,6 +200,9 @@ final class WorkbenchLayoutState: ObservableObject {
         panelMode = WorkbenchPanelMode(
             rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
         ) ?? .library
+        sidebarPosition = WorkbenchSidebarPosition(
+            rawValue: userDefaults.string(forKey: Self.sidebarPositionKey) ?? ""
+        ) ?? .left
     }
 
     func toggleContentPanel() {
@@ -443,6 +468,7 @@ final class AppState: ObservableObject {
             "isWorkbenchContentPanelVisible": true,
             "workbenchContentPanelWidth": 420.0,
             "workbenchPanelMode": WorkbenchPanelMode.library.rawValue,
+            "workbenchSidebarPosition": WorkbenchSidebarPosition.left.rawValue,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
