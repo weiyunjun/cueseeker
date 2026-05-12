@@ -52,11 +52,22 @@ enum PlaybackStatus: Equatable {
     }
 }
 
+enum TopbarSearchContentMode: Equatable {
+    case workbench
+    case results
+    case playback
+}
+
 private enum ActivePlaybackSource: Equatable {
     case none
     case library(videoPath: String)
     case search
     case shiori
+}
+
+enum SearchResultNavigationDirection {
+    case previous
+    case next
 }
 
 struct SearchResultFileGroup: Identifiable, Equatable {
@@ -197,9 +208,13 @@ final class WorkbenchLayoutState: ObservableObject {
         self.userDefaults = userDefaults
         isContentPanelVisible = userDefaults.bool(forKey: Self.isContentPanelVisibleKey)
         contentPanelWidth = userDefaults.double(forKey: Self.contentPanelWidthKey)
-        panelMode = WorkbenchPanelMode(
+        let storedPanelMode = WorkbenchPanelMode(
             rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
         ) ?? .library
+        panelMode = storedPanelMode == .search ? .library : storedPanelMode
+        if storedPanelMode == .search {
+            userDefaults.set(WorkbenchPanelMode.library.rawValue, forKey: Self.panelModeKey)
+        }
         sidebarPosition = WorkbenchSidebarPosition(
             rawValue: userDefaults.string(forKey: Self.sidebarPositionKey) ?? ""
         ) ?? .left
@@ -263,6 +278,7 @@ final class AppState: ObservableObject {
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
     @Published var searchQuery = ""
+    @Published var topbarSearchContentMode: TopbarSearchContentMode = .workbench
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
     @Published var searchResultTotalCount = 0
@@ -278,6 +294,9 @@ final class AppState: ObservableObject {
     @Published private(set) var shioris: [Shiori] = []
     @Published private(set) var shioriFileGroups: [ShioriFileGroup] = []
     @Published private(set) var renderedSearchResultCount = 0
+    @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
+    @Published private(set) var searchNavigationResultGroups: [SearchResultFileGroup] = []
+    @Published private(set) var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var selectedShiori: Shiori?
@@ -435,6 +454,8 @@ final class AppState: ObservableObject {
     private var libraryTask: Task<Void, Never>?
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var searchNavigationTask: Task<Void, Never>?
+    private var currentSubtitleEntriesTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
     private var windowFrameBeforeUserZoom: NSRect?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
@@ -888,6 +909,20 @@ final class AppState: ObservableObject {
         startSearch(query: query, offset: 0, appending: false, debounce: true)
     }
 
+    func submitTopbarSearch(_ query: String) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        UIInvalidationProbe.mark(
+            "ACTION UI.TopbarSearch.submitted",
+            details: "length=\(trimmedQuery.count)"
+        )
+        clearSearchFocus()
+        topbarSearchContentMode = .results
+        searchQuery = trimmedQuery
+        searchNavigationSnapshot = nil
+        searchNavigationResultGroups = []
+        startSearch(query: trimmedQuery, offset: 0, appending: false, debounce: false)
+    }
+
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
         guard hasMoreSearchResults, !isSearching else {
             return
@@ -1297,6 +1332,9 @@ final class AppState: ObservableObject {
         selectedSearchResult = result
         selectedShiori = nil
         selectedLibraryVideo = nil
+        topbarSearchContentMode = .playback
+        searchNavigationSnapshot = nil
+        searchNavigationResultGroups = []
         Task { @MainActor in
             await Task.yield()
             play(result)
@@ -1314,6 +1352,7 @@ final class AppState: ObservableObject {
         selectedLibraryVideo = video
         selectedSearchResult = nil
         selectedShiori = nil
+        topbarSearchContentMode = .workbench
         Task { @MainActor in
             await Task.yield()
             play(video)
@@ -1331,6 +1370,7 @@ final class AppState: ObservableObject {
         selectedShiori = shiori
         selectedSearchResult = nil
         selectedLibraryVideo = nil
+        topbarSearchContentMode = .workbench
         Task { @MainActor in
             await Task.yield()
             play(shiori)
@@ -1520,6 +1560,47 @@ final class AppState: ObservableObject {
         let willPlay = !(playbackViewModel?.isPlaying ?? false)
         togglePlayback()
         playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
+    }
+
+    func refreshSearchNavigationSnapshot() {
+        loadSearchNavigationSnapshot(opening: nil)
+    }
+
+    func openAdjacentSearchResult(_ direction: SearchResultNavigationDirection) {
+        loadSearchNavigationSnapshot(opening: direction)
+    }
+
+    func refreshCurrentSubtitleEntries() {
+        currentSubtitleEntriesTask?.cancel()
+
+        guard let currentPlaybackSubtitlePath,
+              let database = subtitleDatabase
+        else {
+            currentSubtitleEntries = []
+            return
+        }
+
+        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
+        currentSubtitleEntriesTask = Task { [weak self] in
+            do {
+                let entries = try await Task.detached(priority: .userInitiated) {
+                    try database.entries(forSubtitleFile: subtitleFile)
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                self?.currentSubtitleEntries = entries
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                print("Failed to load current subtitle entries: \(error)")
+                self?.currentSubtitleEntries = []
+            }
+        }
     }
 
     @discardableResult
@@ -1825,6 +1906,91 @@ final class AppState: ObservableObject {
         updateSearchQuery(searchQuery)
     }
 
+    private func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {
+        searchNavigationTask?.cancel()
+
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty,
+              !selectedFolders.isEmpty,
+              let database = subtitleDatabase
+        else {
+            searchNavigationSnapshot = nil
+            searchNavigationResultGroups = []
+            return
+        }
+
+        let folders = selectedFolders
+        let anchor = currentSearchNavigationAnchor()
+        searchNavigationTask = Task { [weak self] in
+            do {
+                let snapshot = try await Task.detached(priority: .userInitiated) {
+                    try database.searchNavigationSnapshot(
+                        trimmedQuery,
+                        under: folders,
+                        anchor: anchor,
+                        radius: 1
+                    )
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                guard let self else {
+                    return
+                }
+
+                self.applySearchNavigationSnapshot(snapshot)
+                let target: SubtitleSearchResult? = switch direction {
+                case .previous:
+                    snapshot.previous
+                case .next:
+                    snapshot.next
+                case nil:
+                    nil
+                }
+
+                if let target {
+                    self.openSearchResult(target)
+                }
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                print("Failed to load Search navigation snapshot: \(error)")
+                self?.searchNavigationSnapshot = nil
+                self?.searchNavigationResultGroups = []
+            }
+        }
+    }
+
+    private func currentSearchNavigationAnchor() -> SearchNavigationAnchor {
+        let milliseconds = max(
+            0,
+            Int(((playbackViewModel?.currentTime ?? 0) * 1_000).rounded(.down))
+        )
+
+        return SearchNavigationAnchor(
+            selectedEntryID: selectedSearchResult?.entryID,
+            videoPath: currentPlaybackVideoPath,
+            subtitlePath: currentPlaybackSubtitlePath,
+            currentMilliseconds: milliseconds
+        )
+    }
+
+    private func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
+        searchNavigationSnapshot = snapshot
+        let paths = Set(snapshot.neighborhood.map(\.subtitlePath))
+        let summaries = searchFileSummaries.filter { paths.contains($0.subtitlePath) }
+        searchNavigationResultGroups = Self.makeSearchResultGroups(
+            results: snapshot.neighborhood,
+            fileSummaries: summaries,
+            expandedRowsByPath: [:],
+            collapsedGroupPaths: []
+        )
+    }
+
     private func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
         guard let database = subtitleDatabase else {
             return 0
@@ -2039,6 +2205,7 @@ final class AppState: ObservableObject {
 
     private func resetSearchResultLoadingState() {
         cancelSearchResultGroupTasks()
+        searchNavigationTask?.cancel()
         searchResults = []
         searchResultTotalCount = 0
         searchFileSummaries = []
@@ -2046,6 +2213,8 @@ final class AppState: ObservableObject {
         collapsedSearchResultGroupPaths = []
         expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
+        searchNavigationSnapshot = nil
+        searchNavigationResultGroups = []
         rebuildSearchResultGroups()
     }
 
@@ -2081,6 +2250,10 @@ final class AppState: ObservableObject {
         libraryTask = nil
         searchTask?.cancel()
         searchTask = nil
+        searchNavigationTask?.cancel()
+        searchNavigationTask = nil
+        currentSubtitleEntriesTask?.cancel()
+        currentSubtitleEntriesTask = nil
         cancelSearchResultGroupTasks()
 
         if case .loading = libraryStatus {

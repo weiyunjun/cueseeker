@@ -189,6 +189,16 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         return CGSize(width: width, height: height)
     }
 
+    private func currentNativeVideoAspectRatio() -> Double? {
+        let width = nativePlayer.videoWidth
+        let height = nativePlayer.videoHeight
+        guard width > 0, height > 0 else {
+            return nil
+        }
+
+        return Double(width) / Double(height)
+    }
+
     private func updateASSSubtitleTime(milliseconds: Int) {
         Task { @MainActor in
             (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: milliseconds)
@@ -217,6 +227,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     private func emitInitialNativeState() {
         delegate?.player(self, didChangeProperty: "duration", value: .double(nativePlayer.duration))
+        if let aspectRatio = currentNativeVideoAspectRatio() {
+            delegate?.player(self, didChangeProperty: "video-aspect-ratio", value: .double(aspectRatio))
+        }
         delegate?.player(self, didChangeProperty: "pause", value: .bool(false))
         delegate?.player(self, didChangeProperty: "volume", value: .double(storedVolume))
         delegate?.player(self, didChangeProperty: "speed", value: .double(storedSpeed))

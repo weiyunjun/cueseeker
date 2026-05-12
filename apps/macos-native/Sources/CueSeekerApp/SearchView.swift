@@ -77,13 +77,6 @@ struct SearchView: View {
                 )
 
                 modeRailButton(
-                    mode: .search,
-                    systemImage: "magnifyingglass",
-                    selectedSystemImage: "magnifyingglass",
-                    help: "Search"
-                )
-
-                modeRailButton(
                     mode: .shiori,
                     systemImage: "bookmark",
                     selectedSystemImage: "bookmark.fill",
@@ -602,79 +595,14 @@ struct SearchView: View {
         AppPerformanceProbe.measure("SearchView.playbackArea.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count("UI.PlaybackArea.body")
 
-            return VStack(alignment: .leading, spacing: 0) {
-                if appState.hasPlaybackSelection {
-                    VStack(alignment: .leading, spacing: 16) {
-                        PlaybackView(
-                            player: appState.playbackPlayer,
-                            viewModel: appState.playbackViewModel,
-                            fullscreenManager: appState.playbackFullscreenManager,
-                            onSurfaceTap: {
-                                appState.clearSearchFocus()
-                                appState.togglePlaybackFromUser()
-                            },
-                            onCopySubtitle: {
-                                appState.clearSearchFocus()
-                                appState.copyCurrentSubtitleToClipboard()
-                            },
-                            onSaveShiori: {
-                                appState.clearSearchFocus()
-                                appState.toggleCurrentShiori()
-                            },
-                            isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
-                            onToggleFullscreen: {
-                                appState.clearSearchFocus()
-                                appState.togglePlaybackFullscreenFromUser(
-                                    onCopySubtitle: {
-                                        appState.copyCurrentSubtitleToClipboard()
-                                    },
-                                    onSaveShiori: {
-                                        appState.toggleCurrentShiori()
-                                    }
-                                )
-                            }
-                        )
-                            .aspectRatio(16 / 9, contentMode: .fit)
-                            .frame(maxWidth: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                        if case .failed(let message) = appState.playbackStatus {
-                            Label(message, systemImage: "exclamationmark.triangle")
-                                .font(.system(size: SearchTypography.detailSize))
-                                .foregroundStyle(.red)
-                        }
-
-                        HStack(spacing: 12) {
-                            Button {
-                                appState.clearSearchFocus()
-                                appState.revealCurrentVideoFile()
-                            } label: {
-                                Label("Video Folder", systemImage: "folder")
-                            }
-
-                            if appState.currentPlaybackSubtitlePath != nil {
-                                Button {
-                                    appState.clearSearchFocus()
-                                    appState.revealCurrentSubtitleFile()
-                                } label: {
-                                    Label("Subtitle Folder", systemImage: "folder")
-                                }
-                            }
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(.top, AppShellLayout.contentTopPadding)
-                    .padding([.horizontal, .bottom], 20)
-                } else {
-                    EmptyStateView(
-                        title: "No Selection",
-                        systemImage: "play.rectangle",
-                        message: "Select a Library video or subtitle result to preview playback."
-                    )
-                    .font(.system(size: SearchTypography.detailSize))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            return Group {
+                switch appState.topbarSearchContentMode {
+                case .workbench:
+                    legacyPlaybackArea
+                case .results:
+                    topbarSearchResultsArea
+                case .playback:
+                    topbarSearchPlaybackArea
                 }
             }
             .background(Color(nsColor: .controlBackgroundColor))
@@ -685,6 +613,165 @@ struct SearchView: View {
                 }
             )
         }
+    }
+
+    private var legacyPlaybackArea: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if appState.hasPlaybackSelection {
+                VStack(alignment: .leading, spacing: 16) {
+                    playbackSurface
+                        .aspectRatio(
+                            CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
+                            contentMode: .fit
+                        )
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    if case .failed(let message) = appState.playbackStatus {
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .font(.system(size: SearchTypography.detailSize))
+                            .foregroundStyle(.red)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            appState.clearSearchFocus()
+                            appState.revealCurrentVideoFile()
+                        } label: {
+                            Label("Video Folder", systemImage: "folder")
+                        }
+
+                        if appState.currentPlaybackSubtitlePath != nil {
+                            Button {
+                                appState.clearSearchFocus()
+                                appState.revealCurrentSubtitleFile()
+                            } label: {
+                                Label("Subtitle Folder", systemImage: "folder")
+                            }
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.top, AppShellLayout.contentTopPadding)
+                .padding([.horizontal, .bottom], 20)
+            } else {
+                EmptyStateView(
+                    title: "No Selection",
+                    systemImage: "play.rectangle",
+                    message: "Select a Library video or subtitle result to preview playback."
+                )
+                .font(.system(size: SearchTypography.detailSize))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private var playbackSurface: some View {
+        PlaybackView(
+            player: appState.playbackPlayer,
+            viewModel: appState.playbackViewModel,
+            fullscreenManager: appState.playbackFullscreenManager,
+            onSurfaceTap: {
+                appState.clearSearchFocus()
+                appState.togglePlaybackFromUser()
+            },
+            onCopySubtitle: {
+                appState.clearSearchFocus()
+                appState.copyCurrentSubtitleToClipboard()
+            },
+            onSaveShiori: {
+                appState.clearSearchFocus()
+                appState.toggleCurrentShiori()
+            },
+            isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
+            onToggleFullscreen: {
+                appState.clearSearchFocus()
+                appState.togglePlaybackFullscreenFromUser(
+                    onCopySubtitle: {
+                        appState.copyCurrentSubtitleToClipboard()
+                    },
+                    onSaveShiori: {
+                        appState.toggleCurrentShiori()
+                    }
+                )
+            }
+        )
+    }
+
+    private var topbarSearchResultsArea: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Text(searchResultSummaryText ?? "Search")
+                    .font(.system(size: SearchTypography.detailSize))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if appState.hasSearchResultGroups {
+                    Button {
+                        appState.clearSearchFocus()
+                        appState.collapseAllSearchResultGroups()
+                    } label: {
+                        Text("Collapse All")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, AppShellLayout.contentTopPadding)
+
+            if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                EmptyStateView(
+                    title: "No Search Query",
+                    systemImage: "text.magnifyingglass",
+                    message: "Type a query in the topbar Search field and press Return."
+                )
+                .font(.system(size: SearchTypography.bodySize))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {
+                EmptyStateView(
+                    title: "Searching",
+                    systemImage: "magnifyingglass",
+                    message: "Looking through indexed subtitle text."
+                )
+                .font(.system(size: SearchTypography.bodySize))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay {
+                    ProgressView()
+                        .offset(y: 72)
+                }
+            } else if case .failed(let message) = appState.searchStatus, appState.searchResults.isEmpty {
+                EmptyStateView(
+                    title: "Search Failed",
+                    systemImage: "exclamationmark.triangle",
+                    message: message
+                )
+                .font(.system(size: SearchTypography.bodySize))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if appState.searchResults.isEmpty {
+                EmptyStateView(
+                    title: "No Results",
+                    systemImage: "tray",
+                    message: "No indexed subtitle entries matched this query."
+                )
+                .font(.system(size: SearchTypography.bodySize))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                resultsList
+                    .padding(.horizontal, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    private var topbarSearchPlaybackArea: some View {
+        SearchPlaybackPage(
+            playbackSurface: AnyView(playbackSurface),
+            appState: appState
+        )
     }
 
     private func contentPanelResizeDivider(
@@ -754,6 +841,296 @@ struct SearchView: View {
             maxWidth
         )
     }
+}
+
+private enum SearchPlaybackDrawer {
+    case results
+    case subtitles
+}
+
+private struct SearchPlaybackPage: View {
+    let playbackSurface: AnyView
+    @ObservedObject var appState: AppState
+    @State private var activeDrawer: SearchPlaybackDrawer?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            playbackSurface
+                .aspectRatio(
+                    CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
+                    contentMode: .fit
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            if case .failed(let message) = appState.playbackStatus {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: SearchTypography.detailSize))
+                    .foregroundStyle(.red)
+            }
+
+            if let activeDrawer {
+                drawerView(activeDrawer)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            commandRow
+        }
+        .padding(.top, AppShellLayout.contentTopPadding)
+        .padding([.horizontal, .bottom], 20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var commandRow: some View {
+        HStack(spacing: 10) {
+            Button {
+                appState.clearSearchFocus()
+                appState.revealCurrentVideoFile()
+            } label: {
+                Label("Video Folder", systemImage: "folder")
+            }
+
+            Button {
+                appState.clearSearchFocus()
+                appState.revealCurrentSubtitleFile()
+            } label: {
+                Label("Subtitle Folder", systemImage: "folder")
+            }
+            .disabled(appState.currentPlaybackSubtitlePath == nil)
+
+            Divider()
+                .frame(height: 20)
+
+            Button {
+                appState.clearSearchFocus()
+                appState.openAdjacentSearchResult(.previous)
+            } label: {
+                Label("Previous Result", systemImage: "chevron.left")
+            }
+
+            Button {
+                appState.clearSearchFocus()
+                appState.openAdjacentSearchResult(.next)
+            } label: {
+                Label("Next Result", systemImage: "chevron.right")
+            }
+
+            Spacer(minLength: 0)
+
+            drawerButton(title: "Results", drawer: .results)
+            drawerButton(title: "Subtitles", drawer: .subtitles)
+                .disabled(appState.currentPlaybackSubtitlePath == nil)
+        }
+    }
+
+    private func drawerButton(title: String, drawer: SearchPlaybackDrawer) -> some View {
+        let isOpen = activeDrawer == drawer
+        return Button {
+            appState.clearSearchFocus()
+            toggleDrawer(drawer)
+        } label: {
+            HStack(spacing: 6) {
+                Text(title)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .rotationEffect(.degrees(isOpen ? -90 : 0))
+                    .animation(.easeInOut(duration: 0.16), value: isOpen)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func drawerView(_ drawer: SearchPlaybackDrawer) -> some View {
+        switch drawer {
+        case .results:
+            resultsDrawer
+        case .subtitles:
+            subtitlesDrawer
+        }
+    }
+
+    private var resultsDrawer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(searchNavigationTitle)
+                    .font(.system(size: SearchTypography.detailSize))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+
+            if let snapshot = appState.searchNavigationSnapshot {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(appState.searchNavigationResultGroups) { group in
+                            SearchResultGroupView(
+                                group: group,
+                                query: appState.searchQuery,
+                                selectedResult: snapshot.current,
+                                onToggle: {},
+                                onOpenResult: { result in
+                                    appState.clearSearchFocus()
+                                    appState.openSearchResult(result)
+                                },
+                                onResultAppear: { _ in }
+                            )
+                        }
+                    }
+                    .padding(.bottom, 8)
+                }
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 28)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: SearchPlaybackLayout.drawerHeight)
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private var subtitlesDrawer: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(appState.currentSubtitleEntries, id: \.id) { entry in
+                    SubtitleEntryRow(
+                        entry: entry,
+                        isSelected: entry.id == selectedSubtitleEntryID
+                    )
+                    .listRowAction {
+                        appState.clearSearchFocus()
+                        appState.playbackViewModel?.seek(
+                            to: Double(entry.startMilliseconds) / 1_000
+                        )
+                    }
+                    .focusable(false)
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: SearchPlaybackLayout.drawerHeight)
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private var searchNavigationTitle: String {
+        guard let snapshot = appState.searchNavigationSnapshot else {
+            return "Loading nearby results"
+        }
+
+        if let position = snapshot.currentPosition {
+            return "Result \(position) of \(snapshot.totalCount)"
+        }
+
+        return "\(snapshot.totalCount) results"
+    }
+
+    private var selectedSubtitleEntryID: Int64? {
+        let milliseconds = max(
+            0,
+            Int(((appState.playbackViewModel?.displayedCurrentTime ?? 0) * 1_000).rounded(.down))
+        )
+        if let active = appState.currentSubtitleEntries.first(where: {
+            $0.startMilliseconds <= milliseconds && milliseconds < $0.endMilliseconds
+        }) {
+            return active.id
+        }
+
+        return appState.currentSubtitleEntries.last(where: {
+            $0.startMilliseconds <= milliseconds
+        })?.id
+    }
+
+    private func toggleDrawer(_ drawer: SearchPlaybackDrawer) {
+        if activeDrawer == drawer {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                activeDrawer = nil
+            }
+            return
+        }
+
+        switch drawer {
+        case .results:
+            appState.refreshSearchNavigationSnapshot()
+        case .subtitles:
+            appState.refreshCurrentSubtitleEntries()
+        }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            activeDrawer = drawer
+        }
+    }
+}
+
+private struct SubtitleEntryRow: View {
+    let entry: SubtitleDatabaseEntry
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .font(.system(size: SearchTypography.bodySize))
+                    .foregroundStyle(rowTextColor)
+                    .lineSpacing(4)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.leading, SearchLayout.resultTextLeadingPadding)
+        .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
+        .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+    }
+
+    private var displayLines: [String] {
+        let lines = entry.content
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return lines.isEmpty ? [entry.content] : lines
+    }
+
+    private var rowTextColor: Color {
+        isSelected ? .white : Color.primary.opacity(0.86)
+    }
+
+    private var rowBackgroundColor: Color {
+        if isSelected {
+            return Color.accentColor
+        }
+        if isHovered {
+            return Color.primary.opacity(0.06)
+        }
+        return .clear
+    }
+}
+
+private enum SearchPlaybackLayout {
+    static let drawerHeight: CGFloat = 220
 }
 
 private struct ModeRailButtonStyle: ButtonStyle {

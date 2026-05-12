@@ -200,6 +200,89 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
 }
 
 @Test
+func searchNavigationUsesCompleteResultOrderAndPlaybackTimeAnchor() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/Alpha/Episode.mkv")
+    let betaSubtitle = URL(fileURLWithPath: "/Media/Beta/Episode.srt")
+    let betaVideo = URL(fileURLWithPath: "/Media/Beta/Episode.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: alphaSubtitle,
+        videoFile: alphaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Shared alpha first"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Shared alpha second"
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: betaSubtitle,
+        videoFile: betaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "Shared beta only"
+            )
+        ]
+    )
+
+    let page = try database.searchPage("shared", limit: 10, under: [URL(fileURLWithPath: "/Media")])
+    #expect(page.results.map(\.content) == [
+        "Shared alpha first",
+        "Shared alpha second",
+        "Shared beta only"
+    ])
+
+    let snapshot = try database.searchNavigationSnapshot(
+        "shared",
+        under: [URL(fileURLWithPath: "/Media")],
+        anchor: SearchNavigationAnchor(
+            selectedEntryID: page.results[0].entryID,
+            videoPath: alphaVideo.path,
+            subtitlePath: alphaSubtitle.path,
+            currentMilliseconds: 3_500
+        ),
+        radius: 1
+    )
+
+    #expect(snapshot.totalCount == 3)
+    #expect(snapshot.currentPosition == 2)
+    #expect(snapshot.previous?.content == "Shared alpha first")
+    #expect(snapshot.current?.content == "Shared alpha second")
+    #expect(snapshot.next?.content == "Shared beta only")
+    #expect(snapshot.neighborhood.map(\.content) == [
+        "Shared alpha first",
+        "Shared alpha second",
+        "Shared beta only"
+    ])
+}
+
+@Test
 func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -112,6 +112,38 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     public let fileSummaries: [SubtitleSearchFileSummary]
 }
 
+public struct SearchNavigationAnchor: Equatable, Sendable {
+    public let selectedEntryID: Int64?
+    public let videoPath: String?
+    public let subtitlePath: String?
+    public let currentMilliseconds: Int
+
+    public init(
+        selectedEntryID: Int64?,
+        videoPath: String?,
+        subtitlePath: String?,
+        currentMilliseconds: Int
+    ) {
+        self.selectedEntryID = selectedEntryID
+        self.videoPath = videoPath
+        self.subtitlePath = subtitlePath
+        self.currentMilliseconds = max(0, currentMilliseconds)
+    }
+}
+
+public struct SearchNavigationSnapshot: Equatable, Sendable {
+    public let totalCount: Int
+    public let currentIndex: Int?
+    public let neighborhood: [SubtitleSearchResult]
+    public let previous: SubtitleSearchResult?
+    public let current: SubtitleSearchResult?
+    public let next: SubtitleSearchResult?
+
+    public var currentPosition: Int? {
+        currentIndex.map { $0 + 1 }
+    }
+}
+
 public struct SubtitleCueTiming: Equatable, Sendable {
     public let startMilliseconds: Int
     public let endMilliseconds: Int
@@ -1153,6 +1185,61 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
+    public func searchNavigationSnapshot(
+        _ query: String,
+        under folders: [URL]? = nil,
+        anchor: SearchNavigationAnchor,
+        radius: Int = 1
+    ) throws -> SearchNavigationSnapshot {
+        let countPage = try searchPage(
+            query,
+            limit: 1,
+            offset: 0,
+            under: folders
+        )
+        let page = if countPage.totalCount <= countPage.results.count {
+            countPage
+        } else {
+            try searchPage(
+                query,
+                limit: countPage.totalCount,
+                offset: 0,
+                under: folders
+            )
+        }
+        let results = page.results
+        let currentIndex = Self.searchNavigationIndex(
+            in: results,
+            anchor: anchor
+        )
+        let boundedRadius = max(1, radius)
+        let neighborhood: [SubtitleSearchResult]
+        if let currentIndex {
+            let lowerBound = max(0, currentIndex - boundedRadius)
+            let upperBound = min(results.count, currentIndex + boundedRadius + 1)
+            neighborhood = Array(results[lowerBound..<upperBound])
+        } else {
+            neighborhood = Array(results.prefix((boundedRadius * 2) + 1))
+        }
+
+        let previous = currentIndex.flatMap { index in
+            index > 0 ? results[index - 1] : nil
+        }
+        let current = currentIndex.map { results[$0] }
+        let next = currentIndex.flatMap { index in
+            index + 1 < results.count ? results[index + 1] : nil
+        }
+
+        return SearchNavigationSnapshot(
+            totalCount: page.totalCount,
+            currentIndex: currentIndex,
+            neighborhood: neighborhood,
+            previous: previous,
+            current: current,
+            next: next
+        )
+    }
+
     public func libraryVideos(under folders: [URL]) throws -> [LibraryVideo] {
         let pathPrefixes = Self.folderPathPrefixes(for: folders)
         guard !pathPrefixes.isEmpty else {
@@ -1690,6 +1777,42 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             return lhs.entryID < rhs.entryID
         }
+    }
+
+    private static func searchNavigationIndex(
+        in results: [SubtitleSearchResult],
+        anchor: SearchNavigationAnchor
+    ) -> Int? {
+        if let videoPath = anchor.videoPath,
+           let subtitlePath = anchor.subtitlePath {
+            let normalizedVideoPath = URL(fileURLWithPath: videoPath).standardizedFileURL.path
+            let normalizedSubtitlePath = URL(fileURLWithPath: subtitlePath).standardizedFileURL.path
+            var timeMatchedIndex: Int?
+
+            for (index, result) in results.enumerated() {
+                let resultVideoPath = URL(fileURLWithPath: result.videoPath).standardizedFileURL.path
+                let resultSubtitlePath = URL(fileURLWithPath: result.subtitlePath).standardizedFileURL.path
+                guard resultVideoPath == normalizedVideoPath,
+                      resultSubtitlePath == normalizedSubtitlePath,
+                      result.startMilliseconds <= anchor.currentMilliseconds
+                else {
+                    continue
+                }
+
+                timeMatchedIndex = index
+            }
+
+            if let timeMatchedIndex {
+                return timeMatchedIndex
+            }
+        }
+
+        if let selectedEntryID = anchor.selectedEntryID,
+           let selectedIndex = results.firstIndex(where: { $0.entryID == selectedEntryID }) {
+            return selectedIndex
+        }
+
+        return nil
     }
 
     private static func fileSummaries(for results: [SubtitleSearchResult]) -> [SubtitleSearchFileSummary] {

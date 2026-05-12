@@ -44,6 +44,8 @@ struct ContentView: View {
 
 private struct AppTopBar: View {
     @EnvironmentObject private var appState: AppState
+    @State private var searchDraft = ""
+    @State private var isSearchFocused = false
 
     let backgroundColor: Color
 
@@ -70,11 +72,77 @@ private struct AppTopBar: View {
                     .foregroundStyle(.primary)
                     .allowsHitTesting(false)
             }
+            .overlay(alignment: .trailing) {
+                TopbarSearchField(
+                    text: $searchDraft,
+                    isFocused: $isSearchFocused,
+                    onSubmit: {
+                        appState.submitTopbarSearch(searchDraft)
+                        isSearchFocused = false
+                    }
+                )
+                .frame(width: AppShellLayout.topbarSearchFieldWidth)
+                .padding(.trailing, AppShellLayout.topbarSearchTrailingPadding)
+            }
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color.black.opacity(AppShellLayout.topBarSeparatorOpacity))
                     .frame(height: 1)
             }
+            .onAppear {
+                searchDraft = appState.searchQuery
+            }
+            .onChange(of: appState.searchQuery) { query in
+                if !isSearchFocused {
+                    searchDraft = query
+                }
+            }
+    }
+}
+
+private struct TopbarSearchField: View {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    let onSubmit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+
+            SearchTextView(
+                text: $text,
+                placeholder: "Search subtitles",
+                isFocused: $isFocused,
+                onSubmit: onSubmit
+            )
+            .frame(height: 22)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(nsColor: .textBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(
+                    isFocused ? Color.accentColor : Color.primary.opacity(0.10),
+                    lineWidth: isFocused ? 1.5 : 1
+                )
+        )
     }
 }
 
@@ -87,4 +155,6 @@ enum AppShellLayout {
     static let titleFontSize: CGFloat = 16
     static let titleFontWeight: Font.Weight = .semibold
     static let topBarSeparatorOpacity = 0.12
+    static let topbarSearchFieldWidth: CGFloat = 320
+    static let topbarSearchTrailingPadding: CGFloat = 20
 }

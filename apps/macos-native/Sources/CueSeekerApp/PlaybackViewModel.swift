@@ -40,6 +40,7 @@ public final class PlaybackViewModel: ObservableObject {
     @Published public var volume: Double = 100
     @Published public var playbackSpeed: Double = 1.0
     @Published public var areSubtitlesVisible: Bool = true
+    @Published public private(set) var videoAspectRatio: Double = 16.0 / 9.0
     @Published public private(set) var activeSubtitleText: String?
     @Published var feedback: PlaybackFeedback?
 
@@ -460,6 +461,10 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
             case "duration":
                 if case .double(let d) = value, self.duration != d {
                     self.duration = d
+                }
+            case "video-aspect-ratio":
+                if case .double(let d) = value, d.isFinite, d > 0, self.videoAspectRatio != d {
+                    self.videoAspectRatio = d
                 }
             case "pause":
                 if case .bool(let b) = value {
