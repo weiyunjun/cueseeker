@@ -373,6 +373,7 @@ Topbar Search playback interaction:
   behavior and stable space below for command buttons.
 - The first command row includes `Video Folder`, `Subtitle Folder`,
   `Previous Result`, `Next Result`, `Results`, and `Subtitles`.
+- `A` triggers `Previous Result`; `D` triggers `Next Result`.
 - `Results` and `Subtitles` open upward from the command row and rotate their
   chevron affordance upward while open. They appear as overlays above the video
   surface, fill the video area, and pause playback when opened.
@@ -622,6 +623,7 @@ M2 keyboard shortcut model:
 - `C` should show or hide subtitles.
 - `F` should enter or exit playback fullscreen.
 - `Space` should toggle play or pause.
+- `A` and `D` should trigger Previous Result and Next Result.
 - `Left Arrow` and `Right Arrow` should seek backward or forward by 5 seconds.
 - `Up Arrow` and `Down Arrow` should adjust volume by 5 percentage points.
 - `Shift+,` and `Shift+.` should decrease or increase playback speed by 0.25x.

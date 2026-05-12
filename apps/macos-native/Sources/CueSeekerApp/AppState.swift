@@ -1750,6 +1750,12 @@ final class AppState: ObservableObject {
         let hasShift = modifierFlags.contains(.shift)
 
         switch keyCode {
+        case 0:
+            openAdjacentSearchResult(.previous)
+            return true
+        case 2:
+            openAdjacentSearchResult(.next)
+            return true
         case 12:
             copyCurrentSubtitleToClipboard()
             return true

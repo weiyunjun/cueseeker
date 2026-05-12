@@ -423,7 +423,9 @@ Requirements:
 - Provide a subtitle visibility toggle.
 - Provide a copy-current-subtitle command from playback controls and keyboard.
 - Provide playback speed control with preset choices from `0.5x` through `2.0x`.
-- Provide keyboard shortcuts for copying the current subtitle, subtitle visibility, fullscreen, play or pause, relative seek, volume, and speed adjustment.
+- Provide keyboard shortcuts for copying the current subtitle, subtitle
+  visibility, fullscreen, play or pause, Search-result navigation, relative
+  seek, volume, and speed adjustment.
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.

@@ -15,6 +15,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Expanded playback context overlays to fill the video area and made the
   `Results` overlay use the same grouped result content as the Search results
   page.
+- Added `A` and `D` playback shortcuts for Previous Result and Next Result.
 - Accepted the topbar Search single-page workflow direction: the first Search
   UI pass will add a fixed-width topbar Search field that submits only on
   Return, show submitted results in the main content area without a duplicate
