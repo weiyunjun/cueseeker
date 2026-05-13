@@ -9,9 +9,10 @@ public actor ThumbnailGenerator {
     
     private struct PendingTask {
         let id: UUID
-        let action: () -> Void
+        let action: (Bool) -> Void
     }
     private var pendingQueue: [PendingTask] = []
+    private var cancelledTasks: Set<UUID> = []
     
     public init() {}
     
@@ -23,7 +24,11 @@ public actor ThumbnailGenerator {
         let id = UUID()
         return await withTaskCancellationHandler {
             return await withCheckedContinuation { (continuation: CheckedContinuation<Data?, Never>) in
-                let action = {
+                let action: (Bool) -> Void = { isCancelled in
+                    if isCancelled {
+                        continuation.resume(returning: nil)
+                        return
+                    }
                     _ = Task {
                         let result = await self.executeFFmpeg(request: request, cacheKey: cacheKey)
                         continuation.resume(returning: result)
@@ -43,16 +48,25 @@ public actor ThumbnailGenerator {
     }
     
     private func enqueue(task: PendingTask) {
+        if cancelledTasks.remove(task.id) != nil {
+            task.action(true)
+            return
+        }
+        
         if activeCount < maxConcurrent {
             activeCount += 1
-            task.action()
+            task.action(false)
         } else {
             pendingQueue.append(task)
         }
     }
     
     private func cancel(id: UUID) {
-        pendingQueue.removeAll { $0.id == id }
+        cancelledTasks.insert(id)
+        if let index = pendingQueue.firstIndex(where: { $0.id == id }) {
+            let task = pendingQueue.remove(at: index)
+            task.action(true)
+        }
     }
     
     private func taskDidFinish() {
@@ -60,7 +74,7 @@ public actor ThumbnailGenerator {
         if !pendingQueue.isEmpty {
             let task = pendingQueue.removeFirst()
             activeCount += 1
-            task.action()
+            task.action(false)
         }
     }
     
@@ -74,6 +88,7 @@ public actor ThumbnailGenerator {
         let timeString = String(format: "%.3f", seconds)
         
         process.arguments = [
+            "-nostdin",
             "-y",
             "-ss", timeString,
             "-i", request.videoPath,
@@ -86,37 +101,46 @@ public actor ThumbnailGenerator {
             tempURL.path
         ]
         
+        process.standardInput = FileHandle.nullDevice
         process.qualityOfService = .utility
         
-        let isTaskCancelled = await withTaskCancellationHandler {
-            return Task.isCancelled
+        if Task.isCancelled {
+            return nil
+        }
+        
+        let start = DispatchTime.now()
+        let status = await withTaskCancellationHandler {
+            await withCheckedContinuation { (cont: CheckedContinuation<Int32, Never>) in
+                if Task.isCancelled {
+                    cont.resume(returning: -1)
+                    return
+                }
+                process.terminationHandler = { p in
+                    cont.resume(returning: p.terminationStatus)
+                }
+                do {
+                    try process.run()
+                    setpriority(PRIO_PROCESS, id_t(process.processIdentifier), 19)
+                } catch {
+                    print("CUESEEKER_PERF_THUMBNAILS: ffmpeg failed \(error)")
+                    cont.resume(returning: -1)
+                }
+            }
         } onCancel: {
             if process.isRunning {
                 process.terminate()
             }
         }
         
-        if isTaskCancelled {
-            return nil
-        }
+        let end = DispatchTime.now()
+        let ms = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
         
-        do {
-            let start = DispatchTime.now()
-            try process.run()
-            
-            setpriority(PRIO_PROCESS, id_t(process.processIdentifier), 19)
-            
-            process.waitUntilExit()
-            let end = DispatchTime.now()
-            let ms = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
-            
-            if process.terminationStatus == 0 {
-                return await ThumbnailCache.shared.commitFile(at: tempURL, forKey: cacheKey)
-            } else {
-                print("CUESEEKER_PERF_THUMBNAILS: ffmpeg exit \(process.terminationStatus), \(ms)ms, \(request.videoPath)")
+        if status == 0 {
+            return await ThumbnailCache.shared.commitFile(at: tempURL, forKey: cacheKey)
+        } else {
+            if status != -1 {
+                print("CUESEEKER_PERF_THUMBNAILS: ffmpeg exit \(status), \(ms)ms, \(request.videoPath)")
             }
-        } catch {
-            print("CUESEEKER_PERF_THUMBNAILS: ffmpeg failed \(error)")
         }
         
         try? FileManager.default.removeItem(at: tempURL)
