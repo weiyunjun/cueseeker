@@ -562,6 +562,7 @@ struct SearchView: View {
                             group: group,
                             query: appState.searchQuery,
                             selectedResult: appState.selectedSearchResult,
+                            showsThumbnails: appState.searchResultThumbnailsEnabled,
                             onToggle: {
                                 appState.clearSearchFocus()
                                 appState.toggleSearchResultGroup(group.subtitlePath)
@@ -980,6 +981,7 @@ private struct SearchPlaybackPage: View {
                                     group: group,
                                     query: appState.searchQuery,
                                     selectedResult: selectedSearchNavigationResult,
+                                    showsThumbnails: appState.searchResultThumbnailsEnabled,
                                     onToggle: {
                                         appState.clearSearchFocus()
                                         appState.toggleSearchResultGroup(group.subtitlePath)
@@ -1487,6 +1489,7 @@ private struct SearchResultGroupView: View {
     let group: SearchResultFileGroup
     let query: String
     let selectedResult: SubtitleSearchResult?
+    let showsThumbnails: Bool
     let onToggle: () -> Void
     let onOpenResult: (SubtitleSearchResult) -> Void
     let onResultAppear: (SubtitleSearchResult) -> Void
@@ -1506,7 +1509,8 @@ private struct SearchResultGroupView: View {
                     SearchResultRow(
                         result: result,
                         query: query,
-                        isSelected: isSelected
+                        isSelected: isSelected,
+                        showsThumbnail: showsThumbnails
                     )
                     .listRowAction {
                         onOpenResult(result)
@@ -1699,11 +1703,23 @@ private struct SearchResultRow: View {
     let result: SubtitleSearchResult
     let query: String
     let isSelected: Bool
+    let showsThumbnail: Bool
     @State private var isHovered = false
     @State private var thumbnailImage: NSImage?
     @State private var isThumbnailFailed = false
 
     var body: some View {
+        if showsThumbnail {
+            rowContent
+                .task(id: result.entryID) {
+                    await loadThumbnail()
+                }
+        } else {
+            rowContent
+        }
+    }
+
+    private var rowContent: some View {
         let rowTextColor: Color = isSelected ? .white : Color.primary.opacity(0.86)
         let rowBackgroundColor: Color = if isSelected {
             Color.accentColor
@@ -1716,9 +1732,11 @@ private struct SearchResultRow: View {
             ? .selected
             : (isHovered ? .hover : .default)
 
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
-                thumbnailView
+                if showsThumbnail {
+                    thumbnailView
+                }
 
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
@@ -1749,25 +1767,26 @@ private struct SearchResultRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
-        .task(id: result.entryID) {
-            let attrs = try? FileManager.default.attributesOfItem(atPath: result.videoPath)
-            let fileSize = attrs?[.size] as? Int64
-            let modifiedAt = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970
-            let request = ThumbnailRequest(
-                videoPath: result.videoPath,
-                fileSize: fileSize,
-                modifiedAt: modifiedAt,
-                timestampMilliseconds: (result.startMilliseconds + result.endMilliseconds) / 2,
-                priority: result.searchRank
-            )
-            let cacheKey = await ThumbnailCache.shared.cacheKey(for: request)
-            if let imageData = await ThumbnailGenerator.shared.generate(request: request, cacheKey: cacheKey) {
-                if !Task.isCancelled {
-                    self.thumbnailImage = NSImage(data: imageData)
-                }
-            } else if !Task.isCancelled {
-                self.isThumbnailFailed = true
+    }
+
+    private func loadThumbnail() async {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: result.videoPath)
+        let fileSize = attrs?[.size] as? Int64
+        let modifiedAt = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970
+        let request = ThumbnailRequest(
+            videoPath: result.videoPath,
+            fileSize: fileSize,
+            modifiedAt: modifiedAt,
+            timestampMilliseconds: (result.startMilliseconds + result.endMilliseconds) / 2,
+            priority: result.searchRank
+        )
+        let cacheKey = await ThumbnailCache.shared.cacheKey(for: request)
+        if let imageData = await ThumbnailGenerator.shared.generate(request: request, cacheKey: cacheKey) {
+            if !Task.isCancelled {
+                thumbnailImage = NSImage(data: imageData)
             }
+        } else if !Task.isCancelled {
+            isThumbnailFailed = true
         }
     }
 

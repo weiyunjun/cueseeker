@@ -270,6 +270,7 @@ final class AppState: ObservableObject {
     private static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
     private static let playbackSpeedKey = "playbackSpeed"
     private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
+    private static let searchResultThumbnailsEnabledKey = "searchResultThumbnailsEnabled"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
@@ -309,6 +310,11 @@ final class AppState: ObservableObject {
         didSet {
             userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
             player?.decodeMode = playbackDecodeMode
+        }
+    }
+    @Published var searchResultThumbnailsEnabled = false {
+        didSet {
+            userDefaults.set(searchResultThumbnailsEnabled, forKey: Self.searchResultThumbnailsEnabledKey)
         }
     }
 
@@ -487,12 +493,14 @@ final class AppState: ObservableObject {
             Self.playbackVolumeKey: 100.0,
             Self.playbackLastNonzeroVolumeKey: 100.0,
             Self.playbackSpeedKey: 1.0,
-            Self.playbackSubtitlesVisibleKey: true
+            Self.playbackSubtitlesVisibleKey: true,
+            Self.searchResultThumbnailsEnabledKey: false
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
 
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
+        searchResultThumbnailsEnabled = userDefaults.bool(forKey: Self.searchResultThumbnailsEnabledKey)
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?

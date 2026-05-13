@@ -7,6 +7,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case library
     case decode
     case layout
+    case experimentalFeatures
 
     var id: String { rawValue }
 
@@ -18,6 +19,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "Decode"
         case .layout:
             "Layout"
+        case .experimentalFeatures:
+            "Experimental Features"
         }
     }
 
@@ -29,6 +32,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "play.rectangle"
         case .layout:
             "rectangle.split.3x1"
+        case .experimentalFeatures:
+            "sparkles"
         }
     }
 }
@@ -120,6 +125,8 @@ struct SettingsView: View {
             decodeSettingsContent
         case .layout:
             layoutSettingsContent
+        case .experimentalFeatures:
+            experimentalFeaturesSettingsContent
         }
     }
 
@@ -256,6 +263,40 @@ struct SettingsView: View {
                 Spacer()
 
                 SidebarPositionSegmentedControl(selection: $layoutState.sidebarPosition)
+            }
+
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(contentBackground)
+    }
+
+    private var experimentalFeaturesSettingsContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Experimental Features")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text("Try unstable features that may change or be removed.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Search Result Thumbnails")
+                        .font(.headline)
+                    Text("Show generated image previews in search results.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $appState.searchResultThumbnailsEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
             }
 
             Spacer()
