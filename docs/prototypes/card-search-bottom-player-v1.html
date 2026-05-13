@@ -51,7 +51,7 @@
       box-shadow: 0 20px 70px rgba(0, 0, 0, 0.08);
       overflow: hidden;
       display: grid;
-      grid-template-rows: 78px 1fr 96px;
+      grid-template-rows: 78px minmax(0, 1fr) 124px;
       position: relative;
     }
 
@@ -340,13 +340,13 @@
       min-width: 0;
       background: var(--player);
       border: 1px solid #d5d6dc;
-      border-radius: 22px;
+      border-radius: 15px;
       display: grid;
       grid-template-columns: minmax(420px, 1fr) auto minmax(420px, 1fr);
       align-items: center;
       gap: 22px;
-      padding: 14px 22px;
-      margin: 12px 20px 14px;
+      padding: 14px 22px 12px;
+      margin: 10px 20px 12px;
       color: #23242a;
       position: relative;
       z-index: 5;
@@ -360,22 +360,37 @@
       gap: 14px;
     }
 
+    .media-toggle {
+      min-width: 0;
+      appearance: none;
+      border: 0;
+      border-radius: 13px;
+      background: transparent;
+      color: #25262c;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0;
+      font: inherit;
+      text-align: left;
+      flex: 0 1 auto;
+      transition: background 150ms ease;
+    }
+
+    .media-toggle:hover {
+      background: rgba(255, 255, 255, 0.5);
+    }
+
     .video-toggle {
-      width: 48px;
-      height: 48px;
+      width: 50px;
+      height: 50px;
       border: 1px solid #dadbe0;
       border-radius: 50%;
       background: var(--player-button);
-      color: #25262c;
       display: grid;
       place-items: center;
       flex: 0 0 auto;
-      transition: background 150ms ease, border-color 150ms ease;
-    }
-
-    .video-toggle:hover {
-      background: #f9f9fa;
-      border-color: #c9cad0;
+      box-shadow: 0 2px 7px rgba(0, 0, 0, 0.06);
     }
 
     .video-toggle svg {
@@ -434,7 +449,7 @@
     .volume-cluster {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       color: #5b5d66;
       min-width: 0;
       flex: 1 1 auto;
@@ -449,6 +464,23 @@
       stroke-linecap: round;
       stroke-linejoin: round;
       flex: 0 0 auto;
+    }
+
+    .volume-button {
+      appearance: none;
+      border: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: transparent;
+      color: inherit;
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+
+    .volume-button:hover {
+      background: rgba(255, 255, 255, 0.7);
     }
 
     .center-controls {
@@ -570,12 +602,21 @@
     }
 
     .volume {
-      width: 112px;
+      width: 0;
       height: 6px;
       border-radius: 999px;
       background: var(--player-line);
       overflow: hidden;
-      flex: 0 1 auto;
+      flex: 0 0 auto;
+      opacity: 0;
+      transition: width 160ms ease, opacity 120ms ease;
+    }
+
+    .volume-cluster:hover .volume,
+    .volume-cluster.volume-open .volume,
+    .volume-cluster:focus-within .volume {
+      width: 86px;
+      opacity: 1;
     }
 
     .volume span {
@@ -584,6 +625,25 @@
       height: 100%;
       background: #4e5058;
       border-radius: inherit;
+    }
+
+    .volume-percent {
+      width: 0;
+      overflow: hidden;
+      opacity: 0;
+      color: #5b5d66;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      text-align: right;
+      transition: width 160ms ease, opacity 120ms ease;
+    }
+
+    .volume-cluster:hover .volume-percent,
+    .volume-cluster.volume-open .volume-percent,
+    .volume-cluster:focus-within .volume-percent {
+      width: 34px;
+      opacity: 1;
     }
 
     .speed-button {
@@ -672,7 +732,7 @@
       position: absolute;
       left: 24px;
       right: 24px;
-      bottom: 96px;
+      bottom: 124px;
       height: 0;
       overflow: hidden;
       border-radius: 18px 18px 0 0;
@@ -685,6 +745,15 @@
 
     .window.video-open .video-drawer {
       height: min(520px, calc(100% - 180px));
+    }
+
+    .window.fullscreen-preview .video-drawer {
+      left: 0;
+      right: 0;
+      bottom: 124px;
+      height: calc(100% - 124px);
+      border-radius: 0;
+      box-shadow: none;
     }
 
     .video-shell {
@@ -776,10 +845,16 @@
       .player {
         grid-template-columns: minmax(260px, 1fr) auto minmax(260px, 1fr);
         gap: 16px;
-        margin: 10px 14px 12px;
+        margin: 8px 14px 10px;
       }
 
       .volume {
+        width: 0;
+      }
+
+      .volume-cluster:hover .volume,
+      .volume-cluster.volume-open .volume,
+      .volume-cluster:focus-within .volume {
         width: 76px;
       }
 
@@ -790,7 +865,7 @@
 
     @media (max-width: 760px) {
       .window {
-        grid-template-rows: 112px 1fr 138px;
+        grid-template-rows: 112px minmax(0, 1fr) 160px;
       }
 
       .topbar {
@@ -852,7 +927,12 @@
       .video-drawer {
         left: 14px;
         right: 14px;
-        bottom: 138px;
+        bottom: 160px;
+      }
+
+      .window.fullscreen-preview .video-drawer {
+        bottom: 160px;
+        height: calc(100% - 160px);
       }
     }
   </style>
@@ -1160,23 +1240,28 @@
 
     <footer class="player" aria-label="Bottom player preview">
       <section class="now-playing" aria-label="Current video">
-        <button class="video-toggle" type="button" title="Expand video window" aria-label="Expand video window" data-action="toggle-video" data-video-state="collapsed">
-          <svg class="arrow-collapsed" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 5l7 7-7 7"></path>
-          </svg>
+        <button class="media-toggle" type="button" title="Expand video window" aria-label="Expand video window" data-action="toggle-video" data-video-state="collapsed">
+          <span class="video-toggle" aria-hidden="true">
+            <svg class="arrow-collapsed" viewBox="0 0 24 24">
+              <path d="M9 5l7 7-7 7"></path>
+            </svg>
+          </span>
+          <span class="track-title">
+            <span data-track-title>AVE MUJICA EP 01</span>
+          </span>
         </button>
 
         <div class="track">
-          <div class="track-title">
-            <span data-track-title>AVE MUJICA EP 01</span>
-          </div>
-          <div class="volume-cluster">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 10v4h4l5 4V6l-5 4Z"></path>
-              <path d="M16 9.5a4 4 0 0 1 0 5"></path>
-              <path d="M18.5 7a7 7 0 0 1 0 10"></path>
-            </svg>
+          <div class="volume-cluster" data-volume-cluster>
+            <button class="volume-button" type="button" title="Mute" aria-label="Mute" data-action="toggle-mute">
+              <svg viewBox="0 0 24 24" aria-hidden="true" data-volume-icon>
+                <path d="M4 10v4h4l5 4V6l-5 4Z"></path>
+                <path d="M16 9.5a4 4 0 0 1 0 5"></path>
+                <path d="M18.5 7a7 7 0 0 1 0 10"></path>
+              </svg>
+            </button>
             <div class="volume" aria-label="Volume"><span data-volume-level></span></div>
+            <span class="volume-percent" data-volume-percent>58%</span>
           </div>
         </div>
       </section>
@@ -1266,7 +1351,7 @@
           </div>
         </div>
         <button class="icon-button" type="button" title="Fullscreen" aria-label="Fullscreen" data-action="fullscreen">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true" data-fullscreen-icon>
             <path d="M8 4H4v4"></path>
             <path d="M16 4h4v4"></path>
             <path d="M4 16v4h4"></path>
@@ -1283,6 +1368,11 @@
     const videoDrawer = document.querySelector(".video-drawer");
     const videoToggle = document.querySelector("[data-action='toggle-video']");
     const trackTitle = document.querySelector("[data-track-title]");
+    const volumeCluster = document.querySelector("[data-volume-cluster]");
+    const volumeButton = document.querySelector("[data-action='toggle-mute']");
+    const volumeIcon = document.querySelector("[data-volume-icon]");
+    const volumeLevel = document.querySelector("[data-volume-level]");
+    const volumePercent = document.querySelector("[data-volume-percent]");
     const sourceLabel = document.querySelector("[data-source-label]");
     const currentTime = document.querySelector("[data-current-time]");
     const duration = document.querySelector("[data-duration]");
@@ -1295,6 +1385,8 @@
     const menuButton = document.querySelector("[data-action='toggle-menu']");
     const speedWrap = document.querySelector("[data-speed-wrap]");
     const speedButton = document.querySelector("[data-action='toggle-speed']");
+    const fullscreenButton = document.querySelector("[data-action='fullscreen']");
+    const fullscreenIcon = document.querySelector("[data-fullscreen-icon]");
     const statusToast = document.querySelector("[data-status]");
 
     const controls = {
@@ -1325,6 +1417,10 @@
     let episodeIndex = 0;
     let isPlaying = true;
     let isShioriSaved = false;
+    let isMuted = false;
+    let isFullscreen = false;
+    let previousVolume = 58;
+    let volume = 58;
     let speedIndex = 2;
     let toastTimer;
 
@@ -1360,6 +1456,33 @@
       }[direction];
       videoToggle.querySelector("svg").innerHTML = path;
       videoToggle.dataset.videoState = direction;
+    }
+
+    function setVolume(nextVolume) {
+      volume = Math.max(0, Math.min(100, nextVolume));
+      isMuted = volume === 0;
+      volumeLevel.style.width = `${volume}%`;
+      volumePercent.textContent = `${Math.round(volume)}%`;
+      volumeButton.title = isMuted ? "Unmute" : "Mute";
+      volumeButton.setAttribute("aria-label", isMuted ? "Unmute" : "Mute");
+      volumeIcon.innerHTML = isMuted
+        ? '<path d="M4 10v4h4l5 4V6l-5 4Z"></path><path d="m17 9 4 4"></path><path d="m21 9-4 4"></path>'
+        : '<path d="M4 10v4h4l5 4V6l-5 4Z"></path><path d="M16 9.5a4 4 0 0 1 0 5"></path><path d="M18.5 7a7 7 0 0 1 0 10"></path>';
+    }
+
+    function setFullscreen(nextFullscreen) {
+      isFullscreen = nextFullscreen;
+      windowEl.classList.toggle("fullscreen-preview", isFullscreen);
+      if (isFullscreen) {
+        windowEl.classList.add("video-open");
+        videoDrawer.setAttribute("aria-hidden", "false");
+        setVideoArrow("up");
+      }
+      fullscreenButton.title = isFullscreen ? "Exit Fullscreen" : "Fullscreen";
+      fullscreenButton.setAttribute("aria-label", isFullscreen ? "Exit Fullscreen" : "Fullscreen");
+      fullscreenIcon.innerHTML = isFullscreen
+        ? '<path d="M9 4v5H4"></path><path d="M15 4v5h5"></path><path d="M9 20v-5H4"></path><path d="M15 20v-5h5"></path>'
+        : '<path d="M8 4H4v4"></path><path d="M16 4h4v4"></path><path d="M4 16v4h4"></path><path d="M20 16v4h-4"></path>';
     }
 
     function updateTransport() {
@@ -1404,6 +1527,9 @@
           speedWrap.classList.remove("open");
           speedButton.setAttribute("aria-expanded", "false");
         }
+        if (!event.target.closest("[data-volume-cluster]")) {
+          volumeCluster.classList.remove("volume-open");
+        }
         return;
       }
 
@@ -1420,12 +1546,18 @@
         speedWrap.classList.remove("open");
         speedButton.setAttribute("aria-expanded", "false");
       }
+      if (action !== "toggle-mute" && !button.closest("[data-volume-cluster]")) {
+        volumeCluster.classList.remove("volume-open");
+      }
 
       switch (action) {
         case "switch-view":
           setView(button.dataset.view);
           break;
         case "toggle-video": {
+          if (isFullscreen) {
+            setFullscreen(false);
+          }
           const isOpen = windowEl.classList.toggle("video-open");
           videoDrawer.setAttribute("aria-hidden", String(!isOpen));
           setVideoArrow(isOpen ? "up" : "down");
@@ -1434,6 +1566,17 @@
           showStatus(isOpen ? "Video window expanded" : "Video window collapsed");
           break;
         }
+        case "toggle-mute":
+          volumeCluster.classList.add("volume-open");
+          if (isMuted) {
+            setVolume(previousVolume || 58);
+            showStatus("Volume restored");
+          } else {
+            previousVolume = volume;
+            setVolume(0);
+            showStatus("Muted");
+          }
+          break;
         case "previous-episode":
           episodeIndex = Math.max(0, episodeIndex - 1);
           applyPlayback(libraryEpisodes[episodeIndex]);
@@ -1518,10 +1661,8 @@
           showStatus(`Speed ${button.dataset.speed}`);
           break;
         case "fullscreen":
-          windowEl.classList.toggle("video-open");
-          videoDrawer.setAttribute("aria-hidden", String(!windowEl.classList.contains("video-open")));
-          setVideoArrow(windowEl.classList.contains("video-open") ? "up" : "down");
-          showStatus("Fullscreen preview toggled");
+          setFullscreen(!isFullscreen);
+          showStatus(isFullscreen ? "Fullscreen preview" : "Exited fullscreen preview");
           break;
       }
     });
@@ -1541,6 +1682,8 @@
 
     setPlayIcon();
     setVideoArrow("right");
+    setVolume(volume);
+    setFullscreen(false);
     updateTransport();
   </script>
 </body>
