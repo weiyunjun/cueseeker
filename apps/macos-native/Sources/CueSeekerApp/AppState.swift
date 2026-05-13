@@ -52,12 +52,6 @@ enum PlaybackStatus: Equatable {
     }
 }
 
-enum TopbarSearchContentMode: Equatable {
-    case workbench
-    case results
-    case playback
-}
-
 private enum ActivePlaybackSource: Equatable {
     case none
     case library(videoPath: String)
@@ -183,37 +177,11 @@ enum WorkbenchPanelMode: String, CaseIterable {
     case shiori
 }
 
-enum WorkbenchSidebarPosition: String, CaseIterable, Identifiable {
-    case left
-    case right
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .left:
-            "Left"
-        case .right:
-            "Right"
-        }
-    }
-}
-
 @MainActor
 final class WorkbenchLayoutState: ObservableObject {
-    private static let isContentPanelVisibleKey = "isWorkbenchContentPanelVisible"
-    private static let contentPanelWidthKey = "workbenchContentPanelWidth"
     private static let panelModeKey = "workbenchPanelMode"
-    private static let sidebarPositionKey = "workbenchSidebarPosition"
 
-    @Published var isContentPanelVisible: Bool
-    @Published var contentPanelWidth: Double
     @Published var panelMode: WorkbenchPanelMode
-    @Published var sidebarPosition: WorkbenchSidebarPosition {
-        didSet {
-            userDefaults.set(sidebarPosition.rawValue, forKey: Self.sidebarPositionKey)
-        }
-    }
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
 
@@ -221,37 +189,9 @@ final class WorkbenchLayoutState: ObservableObject {
 
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
-        isContentPanelVisible = userDefaults.bool(forKey: Self.isContentPanelVisibleKey)
-        contentPanelWidth = userDefaults.double(forKey: Self.contentPanelWidthKey)
-        let storedPanelMode = WorkbenchPanelMode(
+        panelMode = WorkbenchPanelMode(
             rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
-        ) ?? .library
-        panelMode = storedPanelMode == .search ? .library : storedPanelMode
-        if storedPanelMode == .search {
-            userDefaults.set(WorkbenchPanelMode.library.rawValue, forKey: Self.panelModeKey)
-        }
-        sidebarPosition = WorkbenchSidebarPosition(
-            rawValue: userDefaults.string(forKey: Self.sidebarPositionKey) ?? ""
-        ) ?? .left
-    }
-
-    func toggleContentPanel() {
-        isContentPanelVisible.toggle()
-        userDefaults.set(isContentPanelVisible, forKey: Self.isContentPanelVisibleKey)
-    }
-
-    func showContentPanel() {
-        guard !isContentPanelVisible else {
-            return
-        }
-
-        isContentPanelVisible = true
-        userDefaults.set(true, forKey: Self.isContentPanelVisibleKey)
-    }
-
-    func updateContentPanelWidth(_ width: Double) {
-        contentPanelWidth = width
-        userDefaults.set(width, forKey: Self.contentPanelWidthKey)
+        ) ?? .search
     }
 
     func selectPanelMode(_ mode: WorkbenchPanelMode) {
@@ -294,7 +234,6 @@ final class AppState: ObservableObject {
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
     @Published var searchQuery = ""
-    @Published var topbarSearchContentMode: TopbarSearchContentMode = .workbench
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
     @Published var searchResultTotalCount = 0
@@ -588,10 +527,7 @@ final class AppState: ObservableObject {
         self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
 
         userDefaults.register(defaults: [
-            "isWorkbenchContentPanelVisible": true,
-            "workbenchContentPanelWidth": 420.0,
-            "workbenchPanelMode": WorkbenchPanelMode.library.rawValue,
-            "workbenchSidebarPosition": WorkbenchSidebarPosition.left.rawValue,
+            "workbenchPanelMode": WorkbenchPanelMode.search.rawValue,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.playbackVolumeKey: 100.0,
             Self.playbackLastNonzeroVolumeKey: 100.0,
@@ -737,43 +673,15 @@ final class AppState: ObservableObject {
     func activateWorkbenchPanelMode(_ mode: WorkbenchPanelMode) {
         AppPerformanceProbe.action("AppState.activateWorkbenchPanelMode", thresholdMilliseconds: 4) {
             if workbenchLayout.panelMode == mode {
-                toggleWorkbenchContentPanel()
                 return
             }
 
             UIInvalidationProbe.mark(
                 "ACTION UI.WorkbenchMode.selected",
-                details: "from=\(workbenchLayout.panelMode.rawValue) to=\(mode.rawValue) visibleBefore=\(workbenchLayout.isContentPanelVisible)"
+                details: "from=\(workbenchLayout.panelMode.rawValue) to=\(mode.rawValue)"
             )
             workbenchLayout.selectPanelMode(mode)
-
-            guard !workbenchLayout.isContentPanelVisible else {
-                return
-            }
-
-            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-                return
-            }
-
-            withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-                workbenchLayout.showContentPanel()
-            }
-        }
-    }
-
-    func toggleWorkbenchContentPanel() {
-        AppPerformanceProbe.action("AppState.toggleWorkbenchContentPanel", thresholdMilliseconds: 4) {
-            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-                return
-            }
-
-            UIInvalidationProbe.mark(
-                "ACTION UI.WorkbenchContentPanel.toggled",
-                details: "visibleBefore=\(workbenchLayout.isContentPanelVisible) mode=\(workbenchLayout.panelMode.rawValue)"
-            )
-            withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-                workbenchLayout.toggleContentPanel()
-            }
+            activeBottomPlaybackMenu = nil
         }
     }
 
@@ -891,10 +799,6 @@ final class AppState: ObservableObject {
         if !started {
             endVideoSizeTransition()
         }
-    }
-
-    func updateWorkbenchContentPanelWidth(_ width: Double) {
-        workbenchLayout.updateContentPanelWidth(width)
     }
 
     private func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {
@@ -1095,7 +999,7 @@ final class AppState: ObservableObject {
         if playbackViewModel?.isPlaying == true {
             pausePlayback()
         }
-        topbarSearchContentMode = .results
+        workbenchLayout.selectPanelMode(.search)
         searchQuery = trimmedQuery
         searchNavigationSnapshot = nil
         searchNavigationResultGroups = []
@@ -1508,10 +1412,10 @@ final class AppState: ObservableObject {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
+        workbenchLayout.selectPanelMode(.search)
         selectedSearchResult = result
         selectedShiori = nil
         selectedLibraryVideo = nil
-        topbarSearchContentMode = .results
         activeBottomPlaybackMenu = nil
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSurfaceExpanded = true
@@ -1535,7 +1439,6 @@ final class AppState: ObservableObject {
         selectedLibraryVideo = video
         selectedSearchResult = nil
         selectedShiori = nil
-        topbarSearchContentMode = .workbench
         activeBottomPlaybackMenu = nil
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSurfaceExpanded = true
@@ -1557,7 +1460,6 @@ final class AppState: ObservableObject {
         selectedShiori = shiori
         selectedSearchResult = nil
         selectedLibraryVideo = nil
-        topbarSearchContentMode = .workbench
         activeBottomPlaybackMenu = nil
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSurfaceExpanded = true

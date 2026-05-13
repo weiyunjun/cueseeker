@@ -6,9 +6,6 @@ import CueSeekerCore
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
-    @State private var contentPanelDragStartWidth: Double?
-    @State private var isContentPanelDividerHovered = false
-    @State private var isContentPanelDividerDragging = false
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
     var body: some View {
@@ -16,9 +13,6 @@ struct SearchView: View {
             UIInvalidationProbe.count("UI.Workbench.body")
 
             return GeometryReader { geometry in
-                let modeRailWidth = SearchLayout.modeRailWidth
-                let contentPanelWidth = contentPanelWidth(for: geometry.size.width)
-                let isSidebarOnLeft = layoutState.sidebarPosition == .left
                 let workspaceHeight = max(
                     0,
                     geometry.size.height - BottomPlaybackBarLayout.reservedHeight
@@ -31,40 +25,10 @@ struct SearchView: View {
                 )
 
                 ZStack(alignment: .bottom) {
-                    HStack(spacing: 0) {
-                        if isSidebarOnLeft {
-                            modeRail
-                                .frame(width: modeRailWidth, height: workspaceHeight)
-                                .zIndex(2)
-
-                            contentPanelSlot(
-                                width: contentPanelWidth,
-                                availableWidth: geometry.size.width,
-                                isSidebarOnLeft: true
-                            )
-                            .zIndex(1)
-
-                            playbackArea
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            playbackArea
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                            contentPanelSlot(
-                                width: contentPanelWidth,
-                                availableWidth: geometry.size.width,
-                                isSidebarOnLeft: false
-                            )
-                            .zIndex(1)
-
-                            modeRail
-                                .frame(width: modeRailWidth, height: workspaceHeight)
-                                .zIndex(2)
-                        }
-                    }
-                    .frame(width: geometry.size.width, height: workspaceHeight)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .clipped()
+                    mainContent
+                        .frame(width: geometry.size.width, height: workspaceHeight)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .clipped()
                     .simultaneousGesture(
                         TapGesture().onEnded {
                             appState.dismissBottomPlaybackMenu()
@@ -102,6 +66,27 @@ struct SearchView: View {
         }
     }
 
+    @ViewBuilder
+    private var mainContent: some View {
+        AppPerformanceProbe.measure("SearchView.mainContent.body", thresholdMilliseconds: 4) {
+            UIInvalidationProbe.count(
+                "UI.WorkbenchMainContent.body",
+                details: "mode=\(layoutState.panelMode.rawValue)"
+            )
+
+            return Group {
+                switch layoutState.panelMode {
+                case .library:
+                    libraryPanel
+                case .search:
+                    topbarSearchResultsArea
+                case .shiori:
+                    shioriPanel
+                }
+            }
+        }
+    }
+
     private func playbackOverlaySize(
         maxWidth: CGFloat,
         maxHeight: CGFloat,
@@ -119,164 +104,6 @@ struct SearchView: View {
         }
 
         return CGSize(width: safeMaxWidth, height: safeMaxWidth / safeAspectRatio)
-    }
-
-    private var modeRail: some View {
-        AppPerformanceProbe.measure("SearchView.modeRail.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count("UI.WorkbenchModeRail.body")
-
-            return VStack(spacing: 12) {
-                modeRailButton(
-                    mode: .library,
-                    systemImage: "folder",
-                    selectedSystemImage: "folder.fill",
-                    help: "Library"
-                )
-
-                modeRailButton(
-                    mode: .shiori,
-                    systemImage: "bookmark",
-                    selectedSystemImage: "bookmark.fill",
-                    help: "Shiori"
-                )
-
-                Spacer()
-
-                settingsRailButton
-            }
-            .padding(.top, 16)
-            .padding(.bottom, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .overlay(alignment: layoutState.sidebarPosition == .left ? .trailing : .leading) {
-                Rectangle()
-                    .fill(Color.black.opacity(0.08))
-                    .frame(width: 1)
-            }
-            .background(LayoutPerformanceProbe(name: "SearchView.modeRail.layout"))
-        }
-    }
-
-    private func modeRailButton(
-        mode: WorkbenchPanelMode,
-        systemImage: String,
-        selectedSystemImage: String,
-        help: String
-    ) -> some View {
-        let isSelected = layoutState.panelMode == mode
-        let markerAlignment: Alignment = layoutState.sidebarPosition == .left ? .leading : .trailing
-
-        return Button {
-            appState.performUserInitiatedAppCommand {
-                appState.activateWorkbenchPanelMode(mode)
-            }
-        } label: {
-            ZStack(alignment: markerAlignment) {
-                if isSelected {
-                    Rectangle()
-                        .fill(Color.accentColor)
-                        .frame(width: 3, height: 30)
-                        .offset(
-                            x: layoutState.sidebarPosition == .left
-                                ? -SearchLayout.modeRailButtonHorizontalPadding
-                                : SearchLayout.modeRailButtonHorizontalPadding
-                        )
-                }
-
-                Image(systemName: isSelected ? selectedSystemImage : systemImage)
-                    .font(.system(size: 20, weight: .medium))
-                    .frame(
-                        width: SearchLayout.modeRailButtonSize,
-                        height: SearchLayout.modeRailButtonSize
-                    )
-                    .contentShape(Rectangle())
-            }
-        }
-        .buttonStyle(ModeRailButtonStyle(isSelected: isSelected))
-        .allowsHitTesting(!layoutState.isVideoSizeTransitionInProgress)
-        .focusable(false)
-        .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-        .help(help)
-        .accessibilityLabel(help)
-        .frame(
-            width: SearchLayout.modeRailButtonSize,
-            height: SearchLayout.modeRailButtonSize
-        )
-    }
-
-    private var settingsRailButton: some View {
-        Button {
-            appState.performUserInitiatedAppCommand {
-                NotificationCenter.default.post(
-                    name: .cueSeekerShowSettings,
-                    object: nil
-                )
-            }
-        } label: {
-            Image(systemName: "gearshape")
-                .font(.system(size: 20, weight: .medium))
-                .frame(
-                    width: SearchLayout.modeRailButtonSize,
-                    height: SearchLayout.modeRailButtonSize
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(ModeRailButtonStyle(isSelected: false))
-        .allowsHitTesting(!layoutState.isVideoSizeTransitionInProgress)
-        .focusable(false)
-        .foregroundStyle(Color.secondary)
-        .help("Settings")
-        .accessibilityLabel("Settings")
-        .frame(
-            width: SearchLayout.modeRailButtonSize,
-            height: SearchLayout.modeRailButtonSize
-        )
-    }
-
-    private func contentPanelSlot(
-        width: CGFloat,
-        availableWidth: CGFloat,
-        isSidebarOnLeft: Bool
-    ) -> some View {
-        let visibleWidth = layoutState.isContentPanelVisible ? width : 0
-        let panelAlignment: Alignment = isSidebarOnLeft ? .leading : .trailing
-        let dividerAlignment: Alignment = isSidebarOnLeft ? .trailing : .leading
-
-        return contentPanel
-            .frame(width: width)
-            .frame(maxHeight: .infinity)
-            .overlay(alignment: dividerAlignment) {
-                contentPanelResizeDivider(
-                    availableWidth: availableWidth,
-                    isSidebarOnLeft: isSidebarOnLeft
-                )
-            }
-            .allowsHitTesting(layoutState.isContentPanelVisible)
-            .accessibilityHidden(!layoutState.isContentPanelVisible)
-            .frame(width: visibleWidth, alignment: panelAlignment)
-            .frame(maxHeight: .infinity)
-            .clipped()
-    }
-
-    @ViewBuilder
-    private var contentPanel: some View {
-        AppPerformanceProbe.measure("SearchView.contentPanel.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count(
-                "UI.WorkbenchContentPanel.body",
-                details: "mode=\(layoutState.panelMode.rawValue)"
-            )
-
-            return Group {
-                switch layoutState.panelMode {
-                case .library:
-                    libraryPanel
-                case .search:
-                    searchPanel
-                case .shiori:
-                    shioriPanel
-                }
-            }
-        }
     }
 
     private var libraryPanel: some View {
@@ -422,7 +249,7 @@ struct SearchView: View {
                         )
                         .font(.system(size: SearchTypography.bodySize))
                     } else {
-                        shioriList
+                        shioriCardList
                     }
 
                     Spacer()
@@ -434,98 +261,6 @@ struct SearchView: View {
             }
             .background(Color(nsColor: .textBackgroundColor))
             .background(LayoutPerformanceProbe(name: "SearchView.shioriPanel.layout"))
-        }
-    }
-
-    private var searchPanel: some View {
-        AppPerformanceProbe.measure("SearchView.searchPanel.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count("UI.SearchPanel.body")
-
-            return GeometryReader { geometry in
-                VStack(alignment: .leading, spacing: 6) {
-                    searchHeader
-
-                    if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        EmptyStateView(
-                            title: "No Search Query",
-                            systemImage: "text.magnifyingglass",
-                            message: "Add subtitle folders in CueSeeker > Settings..., then search indexed subtitle text."
-                        )
-                        .font(.system(size: SearchTypography.bodySize))
-                    } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {
-                        EmptyStateView(
-                            title: "Searching",
-                            systemImage: "magnifyingglass",
-                            message: "Looking through indexed subtitle text."
-                        )
-                        .font(.system(size: SearchTypography.bodySize))
-                        .overlay {
-                            ProgressView()
-                                .offset(y: 72)
-                        }
-                    } else if case .failed(let message) = appState.searchStatus, appState.searchResults.isEmpty {
-                        EmptyStateView(
-                            title: "Search Failed",
-                            systemImage: "exclamationmark.triangle",
-                            message: message
-                        )
-                        .font(.system(size: SearchTypography.bodySize))
-                    } else if appState.searchResults.isEmpty {
-                        EmptyStateView(
-                            title: "No Results",
-                            systemImage: "tray",
-                            message: "No indexed subtitle entries matched this query."
-                        )
-                        .font(.system(size: SearchTypography.bodySize))
-                    } else {
-                        resultsList
-                    }
-
-                    Spacer()
-                }
-                .frame(maxHeight: .infinity, alignment: .topLeading)
-                .padding(.top, AppShellLayout.contentTopPadding)
-                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
-                .contentShape(Rectangle()) // Global scroll capability
-            }
-            .background(Color(nsColor: .textBackgroundColor))
-            .background(LayoutPerformanceProbe(name: "SearchView.searchPanel.layout"))
-        }
-    }
-
-    private var searchHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SearchField(
-                text: Binding(
-                    get: { appState.searchQuery },
-                    set: { appState.updateSearchQuery($0) }
-                ),
-                isFocused: $appState.isSearchFocused
-            )
-            .padding(.leading, 12)
-            .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
-
-            if let searchResultSummaryText {
-                HStack(spacing: 12) {
-                    Text(searchResultSummaryText)
-                        .font(.system(size: SearchTypography.detailSize))
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    if appState.hasSearchResultGroups {
-                        Button {
-                            appState.clearSearchFocus()
-                            appState.collapseAllSearchResultGroups()
-                        } label: {
-                            Text("Collapse All")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .padding(.leading, 12)
-                .padding(.trailing, 28)
-            }
         }
     }
 
@@ -574,6 +309,38 @@ struct SearchView: View {
         }
     }
 
+    private var shioriCardList: some View {
+        UIInvalidationProbe.count(
+            "UI.ShioriCards.rendered",
+            details: "groups=\(appState.shioriFileGroups.count) rows=\(appState.shioriCount)"
+        )
+
+        return GeometryReader { geo in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: SearchCardLayout.groupSpacing) {
+                    ForEach(appState.shioriFileGroups) { group in
+                        ShioriCardGroupView(
+                            group: group,
+                            selectedShiori: appState.selectedShiori,
+                            onToggle: {
+                                appState.clearSearchFocus()
+                                appState.toggleShioriGroup(group.subtitlePath)
+                            },
+                            onOpenShiori: { shiori in
+                                appState.clearSearchFocus()
+                                appState.openShiori(shiori)
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, SearchCardLayout.contentHorizontalPadding)
+                .padding(.top, SearchCardLayout.contentTopPadding)
+                .padding(.bottom, SearchCardLayout.contentBottomPadding)
+                .frame(width: max(0, geo.size.width), alignment: .topLeading)
+            }
+        }
+    }
+
     private var shioriList: some View {
         UIInvalidationProbe.count(
             "UI.ShioriRows.rendered",
@@ -601,6 +368,50 @@ struct SearchView: View {
                 .frame(width: max(0, geo.size.width - 16), alignment: .leading)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
+            }
+        }
+    }
+
+    private var cardResultsList: some View {
+        UIInvalidationProbe.count(
+            "UI.SearchCards.rendered",
+            details: "groups=\(appState.searchResultGroups.count) rows=\(appState.renderedSearchResultCount)"
+        )
+
+        return GeometryReader { geo in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: SearchCardLayout.groupSpacing) {
+                    ForEach(appState.searchResultGroups) { group in
+                        SearchResultCardGroupView(
+                            group: group,
+                            query: appState.searchQuery,
+                            selectedResult: appState.selectedSearchResult,
+                            onToggle: {
+                                appState.clearSearchFocus()
+                                appState.toggleSearchResultGroup(group.subtitlePath)
+                            },
+                            onOpenResult: { result in
+                                appState.clearSearchFocus()
+                                appState.openSearchResult(result)
+                            },
+                            onResultAppear: { result in
+                                appState.markSearchResultVisible(result)
+                                appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                            }
+                        )
+                    }
+
+                    if case .searching = appState.searchStatus, !appState.searchResults.isEmpty {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                }
+                .padding(.horizontal, SearchCardLayout.contentHorizontalPadding)
+                .padding(.top, SearchCardLayout.contentTopPadding)
+                .padding(.bottom, SearchCardLayout.contentBottomPadding)
+                .frame(width: max(0, geo.size.width), alignment: .topLeading)
             }
         }
     }
@@ -645,56 +456,6 @@ struct SearchView: View {
                 .frame(width: max(0, geo.size.width - 16), alignment: .leading)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
-            }
-        }
-    }
-
-    private var playbackArea: some View {
-        AppPerformanceProbe.measure("SearchView.playbackArea.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count("UI.PlaybackArea.body")
-
-            return Group {
-                switch appState.topbarSearchContentMode {
-                case .workbench:
-                    legacyPlaybackArea
-                case .results:
-                    topbarSearchResultsArea
-                case .playback:
-                    topbarSearchResultsArea
-                }
-            }
-            .background(Color(nsColor: .controlBackgroundColor))
-            .background(LayoutPerformanceProbe(name: "SearchView.playbackArea.layout"))
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    appState.clearSearchFocus()
-                }
-            )
-        }
-    }
-
-    private var legacyPlaybackArea: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if appState.hasPlaybackSelection {
-                CollapsedPlaybackSurfacePlaceholder(
-                    title: appState.currentPlaybackDisplayTitle,
-                    onExpand: {
-                        appState.clearSearchFocus()
-                        appState.expandPlaybackSurface()
-                    }
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, AppShellLayout.contentTopPadding)
-                .padding([.horizontal, .bottom], 20)
-            } else {
-                EmptyStateView(
-                    title: "No Selection",
-                    systemImage: "play.rectangle",
-                    message: "Select a Library video or subtitle result to preview playback."
-                )
-                .font(.system(size: SearchTypography.detailSize))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -803,85 +564,13 @@ struct SearchView: View {
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                resultsList
-                    .padding(.horizontal, 8)
+                cardResultsList
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(nsColor: .textBackgroundColor))
     }
 
-    private var topbarSearchPlaybackArea: some View {
-        topbarSearchResultsArea
-    }
-
-    private func contentPanelResizeDivider(
-        availableWidth: CGFloat,
-        isSidebarOnLeft: Bool
-    ) -> some View {
-        let isActive = isContentPanelDividerHovered || isContentPanelDividerDragging
-        let lineAlignment: Alignment = isSidebarOnLeft ? .trailing : .leading
-
-        return ZStack(alignment: lineAlignment) {
-            Rectangle()
-                .fill(Color.black.opacity(0.001))
-
-            Rectangle()
-                .fill(Color.black.opacity(isActive ? 0.18 : 0.08))
-                .frame(width: isActive ? SearchLayout.dividerActiveLineWidth : SearchLayout.dividerLineWidth)
-        }
-            .frame(width: SearchLayout.dividerHitWidth)
-            .overlay(
-                ResizerView(
-                    onHoverChanged: { isHovered in
-                        isContentPanelDividerHovered = isHovered
-                    },
-                    onDragStarted: {
-                        appState.clearSearchFocus()
-                        isContentPanelDividerDragging = true
-                        contentPanelDragStartWidth = layoutState.contentPanelWidth
-                    },
-                    onDragChanged: { translationX in
-                        let startWidth = contentPanelDragStartWidth ?? layoutState.contentPanelWidth
-                        let delta = isSidebarOnLeft ? translationX : -translationX
-                        let proposedWidth = startWidth + Double(delta)
-                        appState.updateWorkbenchContentPanelWidth(
-                            clampedContentPanelWidth(proposedWidth, availableWidth: availableWidth)
-                        )
-                    },
-                    onDragEnded: {
-                        contentPanelDragStartWidth = nil
-                        isContentPanelDividerDragging = false
-                    }
-                )
-            )
-    }
-
-    private func contentPanelWidth(for availableWidth: CGFloat) -> CGFloat {
-        CGFloat(
-            clampedContentPanelWidth(
-                layoutState.contentPanelWidth,
-                availableWidth: availableWidth
-            )
-        )
-    }
-
-    private func clampedContentPanelWidth(_ width: Double, availableWidth: CGFloat) -> Double {
-        let availableContentPanelWidth = Double(
-            availableWidth
-                - SearchLayout.modeRailWidth
-                - SearchLayout.playbackAreaMinimumWidth
-        )
-        let maxWidth = max(
-            SearchLayout.contentPanelMinimumWidth,
-            availableContentPanelWidth
-        )
-
-        return min(
-            max(width, SearchLayout.contentPanelMinimumWidth),
-            maxWidth
-        )
-    }
 }
 
 private struct BottomPlaybackOverlayRevealModifier: ViewModifier {
@@ -1234,82 +923,6 @@ private struct SubtitleEntryRow: View {
     }
 }
 
-private struct ModeRailButtonStyle: ButtonStyle {
-    let isSelected: Bool
-    @State private var isHovered = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(backgroundColor(configuration: configuration))
-            )
-            .onHover { hovering in
-                isHovered = hovering
-            }
-    }
-
-    private func backgroundColor(configuration: Configuration) -> Color {
-        if configuration.isPressed {
-            return Color.primary.opacity(0.12)
-        }
-        if isSelected {
-            return Color.primary.opacity(0.10)
-        }
-        if isHovered {
-            return Color.primary.opacity(0.07)
-        }
-        return .clear
-    }
-}
-
-private struct SearchField: View {
-    @Binding var text: String
-    @Binding var isFocused: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-
-            SearchTextView(
-                text: Binding(
-                    get: { text },
-                    set: { text = $0 }
-                ),
-                placeholder: "Search subtitles",
-                isFocused: $isFocused
-            )
-            .frame(height: 22)
-
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(nsColor: .textBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(
-                    isFocused ? Color.accentColor : Color.primary.opacity(0.08),
-                    lineWidth: isFocused ? 2 : 1
-                )
-        )
-    }
-}
-
 private extension View {
     func listRowAction(_ action: @escaping () -> Void) -> some View {
         contentShape(Rectangle())
@@ -1496,6 +1109,319 @@ private enum LibraryLayout {
     static let episodeGridTrailingPadding: CGFloat = 32
     static let episodeGridTopPadding: CGFloat = 6
     static let episodeGridBottomPadding: CGFloat = 10
+}
+
+private enum SearchCardLayout {
+    static let contentHorizontalPadding: CGFloat = 32
+    static let contentTopPadding: CGFloat = 4
+    static let contentBottomPadding: CGFloat = 28
+    static let groupSpacing: CGFloat = 26
+    static let cardMinimumWidth: CGFloat = 280
+    static let cardHorizontalSpacing: CGFloat = 12
+    static let cardVerticalSpacing: CGFloat = 12
+    static let cardCornerRadius: CGFloat = 8
+    static let cardMinHeight: CGFloat = 92
+}
+
+private struct SearchResultCardGroupView: View {
+    let group: SearchResultFileGroup
+    let query: String
+    let selectedResult: SubtitleSearchResult?
+    let onToggle: () -> Void
+    let onOpenResult: (SubtitleSearchResult) -> Void
+    let onResultAppear: (SubtitleSearchResult) -> Void
+
+    private let columns = [
+        GridItem(
+            .adaptive(minimum: SearchCardLayout.cardMinimumWidth),
+            spacing: SearchCardLayout.cardHorizontalSpacing,
+            alignment: .top
+        )
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CardGroupHeader(
+                title: group.subtitleDisplayTitle,
+                countText: "\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")",
+                isCollapsed: group.isCollapsed,
+                isSelected: selectedResult?.subtitlePath == group.subtitlePath,
+                onToggle: onToggle
+            )
+
+            if !group.isCollapsed {
+                LazyVGrid(
+                    columns: columns,
+                    alignment: .leading,
+                    spacing: SearchCardLayout.cardVerticalSpacing
+                ) {
+                    ForEach(group.results, id: \.entryID) { result in
+                        SearchResultCard(
+                            result: result,
+                            query: query,
+                            isSelected: selectedResult?.entryID == result.entryID
+                        )
+                        .listRowAction {
+                            onOpenResult(result)
+                        }
+                        .id(result.entryID)
+                        .focusable(false)
+                        .onAppear {
+                            onResultAppear(result)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ShioriCardGroupView: View {
+    let group: ShioriFileGroup
+    let selectedShiori: Shiori?
+    let onToggle: () -> Void
+    let onOpenShiori: (Shiori) -> Void
+
+    private let columns = [
+        GridItem(
+            .adaptive(minimum: SearchCardLayout.cardMinimumWidth),
+            spacing: SearchCardLayout.cardHorizontalSpacing,
+            alignment: .top
+        )
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CardGroupHeader(
+                title: group.subtitleDisplayTitle,
+                countText: "\(group.totalCount) \(group.totalCount == 1 ? "shiori" : "shioris")",
+                isCollapsed: group.isCollapsed,
+                isSelected: selectedShiori?.subtitlePath == group.subtitlePath,
+                onToggle: onToggle
+            )
+
+            if !group.isCollapsed {
+                LazyVGrid(
+                    columns: columns,
+                    alignment: .leading,
+                    spacing: SearchCardLayout.cardVerticalSpacing
+                ) {
+                    ForEach(Array(group.shioris.enumerated()), id: \.element.id) { index, shiori in
+                        ShioriCard(
+                            shiori: shiori,
+                            rank: index + 1,
+                            isSelected: selectedShiori?.id == shiori.id
+                        )
+                        .listRowAction {
+                            onOpenShiori(shiori)
+                        }
+                        .focusable(false)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CardGroupHeader: View {
+    let title: String
+    let countText: String
+    let isCollapsed: Bool
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                    .animation(.easeInOut(duration: 0.16), value: isCollapsed)
+
+                Text(displayTitleWithSoftWrapOpportunities(title))
+                    .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.68))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(countText)
+                    .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+    }
+}
+
+private struct SearchResultCard: View {
+    let result: SubtitleSearchResult
+    let query: String
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
+        let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
+        let highlightState: SearchHighlightState = isSelected
+            ? .selected
+            : (isHovered ? .hover : .default)
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Text("#\(result.searchRank + 1)")
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .monospacedDigit()
+
+                Spacer(minLength: 8)
+
+                Text("\(episodeLabel(from: result.videoName)) · \(formatTimestamp(result.startMilliseconds))")
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .lineLimit(1)
+                    .monospacedDigit()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                    Text(highlightedContent(
+                        line,
+                        query: query,
+                        textColor: textColor,
+                        state: highlightState
+                    ))
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(textColor)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .frame(maxWidth: .infinity, minHeight: SearchCardLayout.cardMinHeight, alignment: .topLeading)
+        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
+                .strokeBorder(cardBorder, lineWidth: isSelected ? 1.5 : 1)
+        )
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .accessibilityLabel("\(result.videoName), \(formatTimestamp(result.startMilliseconds))")
+    }
+
+    private var displayLines: [String] {
+        let lines = result.cueLines
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return Array((lines.isEmpty ? [result.content] : lines).prefix(2))
+    }
+
+    private var cardBackground: Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.82)
+        }
+        if isHovered {
+            return Color.primary.opacity(0.075)
+        }
+        return Color.primary.opacity(0.045)
+    }
+
+    private var cardBorder: Color {
+        if isSelected {
+            return Color.accentColor
+        }
+        if isHovered {
+            return Color.primary.opacity(0.07)
+        }
+        return Color.clear
+    }
+}
+
+private struct ShioriCard: View {
+    let shiori: Shiori
+    let rank: Int
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
+        let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Text("#\(rank)")
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .monospacedDigit()
+
+                Spacer(minLength: 8)
+
+                Text("\(episodeLabel(from: shiori.videoName)) · \(formatTimestamp(shiori.startMilliseconds))")
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .lineLimit(1)
+                    .monospacedDigit()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .foregroundStyle(textColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .frame(maxWidth: .infinity, minHeight: SearchCardLayout.cardMinHeight, alignment: .topLeading)
+        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
+                .strokeBorder(cardBorder, lineWidth: isSelected ? 1.5 : 1)
+        )
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .accessibilityLabel("\(shiori.videoName), \(formatTimestamp(shiori.startMilliseconds))")
+    }
+
+    private var displayLines: [String] {
+        Array((shiori.cueLines.isEmpty ? [shiori.content] : shiori.cueLines).prefix(2))
+    }
+
+    private var cardBackground: Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.82)
+        }
+        if isHovered {
+            return Color.primary.opacity(0.075)
+        }
+        return Color.primary.opacity(0.045)
+    }
+
+    private var cardBorder: Color {
+        if isSelected {
+            return Color.accentColor
+        }
+        if isHovered {
+            return Color.primary.opacity(0.07)
+        }
+        return Color.clear
+    }
 }
 
 private struct SearchResultGroupHeader: View {
@@ -1883,94 +1809,13 @@ enum SearchHighlightTokens {
     static let onSelected = Color.white.opacity(0.30)
 }
 
-private struct ResizerView: NSViewRepresentable {
-    var onHoverChanged: (Bool) -> Void
-    var onDragStarted: () -> Void
-    var onDragChanged: (CGFloat) -> Void
-    var onDragEnded: () -> Void
-
-    func makeNSView(context: Context) -> ResizerNSView {
-        let view = ResizerNSView()
-        view.onHoverChanged = onHoverChanged
-        view.onDragStarted = onDragStarted
-        view.onDragChanged = onDragChanged
-        view.onDragEnded = onDragEnded
-        return view
-    }
-
-    func updateNSView(_ nsView: ResizerNSView, context: Context) {
-        nsView.onHoverChanged = onHoverChanged
-        nsView.onDragStarted = onDragStarted
-        nsView.onDragChanged = onDragChanged
-        nsView.onDragEnded = onDragEnded
-    }
-}
-
-private final class ResizerNSView: NSView {
-    var onHoverChanged: ((Bool) -> Void)?
-    var onDragStarted: (() -> Void)?
-    var onDragChanged: ((CGFloat) -> Void)?
-    var onDragEnded: (() -> Void)?
-
-    private var startLocation: NSPoint?
-    private var trackingArea: NSTrackingArea?
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .resizeLeftRight)
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea = trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self, userInfo: nil)
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        onHoverChanged?(true)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        onHoverChanged?(false)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        startLocation = event.locationInWindow
-        onDragStarted?()
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard let startLocation = startLocation else { return }
-        let delta = event.locationInWindow.x - startLocation.x
-        onDragChanged?(delta)
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        startLocation = nil
-        onDragEnded?()
-    }
-}
 private enum SearchTypography {
-    static let searchFieldSize: CGFloat = 16
     static let groupHeaderSize: CGFloat = 13
     static let bodySize: CGFloat = 14
     static let detailSize: CGFloat = 12
 }
 
 private enum SearchLayout {
-    static let contentWidth: CGFloat = 860
-    static let minimumHorizontalMargin: CGFloat = 24
-    static let modeRailWidth: CGFloat = 56
-    static let modeRailButtonSize: CGFloat = 40
-    static let modeRailButtonHorizontalPadding: CGFloat = (modeRailWidth - modeRailButtonSize) / 2
-    static let contentPanelMinimumWidth: Double = 420
-    static let playbackAreaMinimumWidth: CGFloat = 520
-    static let dividerHitWidth: CGFloat = 6
-    static let dividerLineWidth: CGFloat = 1
-    static let dividerActiveLineWidth: CGFloat = 3
     static let resultOuterHorizontalPadding: CGFloat = 12
     static let groupDisclosureWidth: CGFloat = 16
     static let groupRailChevronSize: CGFloat = 10
@@ -2065,4 +1910,21 @@ private func formatTimestamp(_ milliseconds: Int) -> String {
     }
 
     return String(format: "%02d:%02d", minutes, seconds)
+}
+
+private func episodeLabel(from videoName: String) -> String {
+    let baseName = URL(fileURLWithPath: videoName)
+        .deletingPathExtension()
+        .lastPathComponent
+
+    guard let numberRange = baseName.range(
+        of: #"(\d{1,3})(?!.*\d)"#,
+        options: .regularExpression
+    ),
+        let number = Int(baseName[numberRange])
+    else {
+        return "EP"
+    }
+
+    return String(format: "EP %02d", number)
 }

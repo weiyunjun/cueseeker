@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the second UI layout pass in the native macOS app: Search results
+  now render as grouped cards in the main content area, Shiori uses the same
+  grouped-card surface, Library and Shiori move to icon buttons beside the
+  topbar Search field, and the previous Mode Rail / resizable content-panel
+  sidebar path has been removed from the visible workbench.
 - Implemented the first bottom-player playback pass in the native macOS app:
   the current shell now reserves a persistent light bottom player with real
   play/pause, progress seek, volume, subtitle, Shiori, speed, fullscreen,

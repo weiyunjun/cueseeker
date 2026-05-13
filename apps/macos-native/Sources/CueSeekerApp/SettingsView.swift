@@ -6,7 +6,6 @@ import CueSeekerPlayback
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case library
     case decode
-    case layout
     case experimentalFeatures
 
     var id: String { rawValue }
@@ -17,8 +16,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "Library"
         case .decode:
             "Decode"
-        case .layout:
-            "Layout"
         case .experimentalFeatures:
             "Experimental Features"
         }
@@ -30,8 +27,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "folder"
         case .decode:
             "play.rectangle"
-        case .layout:
-            "rectangle.split.3x1"
         case .experimentalFeatures:
             "sparkles"
         }
@@ -40,7 +35,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @State private var selectedCategory: SettingsCategory = .library
     @State private var folderPendingRemoval: URL?
     @State private var isChoosingFolder = false
@@ -123,8 +117,6 @@ struct SettingsView: View {
             librarySettingsContent
         case .decode:
             decodeSettingsContent
-        case .layout:
-            layoutSettingsContent
         case .experimentalFeatures:
             experimentalFeaturesSettingsContent
         }
@@ -231,38 +223,6 @@ struct SettingsView: View {
                 Spacer()
 
                 DecodeModeSegmentedControl(selection: $appState.playbackDecodeMode)
-            }
-
-            Spacer()
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(contentBackground)
-    }
-
-    private var layoutSettingsContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Layout")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                Text("Choose where the workbench sidebar appears.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Sidebar Position")
-                        .font(.headline)
-                    Text("Applies immediately without changing the current panel state.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                SidebarPositionSegmentedControl(selection: $layoutState.sidebarPosition)
             }
 
             Spacer()
@@ -454,43 +414,6 @@ private struct DecodeModeSegmentedControl: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Decoder \(mode.displayName)")
-                .accessibilityValue(isSelected ? "Selected" : "Not selected")
-            }
-        }
-        .padding(3)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 7))
-    }
-}
-
-private struct SidebarPositionSegmentedControl: View {
-    @Binding var selection: WorkbenchSidebarPosition
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(WorkbenchSidebarPosition.allCases) { position in
-                let isSelected = selection == position
-
-                Button {
-                    selection = position
-                } label: {
-                    Text(position.displayName)
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                        .frame(width: 72, height: 26)
-                        .foregroundStyle(isSelected ? Color.white : Color.primary)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(isSelected ? Color.accentColor : Color.clear)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Sidebar Position \(position.displayName)")
                 .accessibilityValue(isSelected ? "Selected" : "Not selected")
             }
         }

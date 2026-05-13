@@ -16,28 +16,31 @@ The interface should prioritize:
 
 The app should avoid marketing-style layouts, decorative hero sections, and unnecessary visual complexity.
 
-## 1.1 Accepted Search-First Topbar Transition
+## 1.1 Accepted Topbar Card Workbench Transition
 
-The accepted next UI direction is a Search-first transition toward a
-topbar-driven single-page work surface.
+The accepted current UI direction is a topbar-driven single-page work surface
+with a persistent bottom player.
 
 This transition supersedes the Mode Rail and Shared Content Panel requirements
-for the Search workflow only. Library, Shiori, Settings, and other unmigrated
-surfaces may remain in their current locations until later documented migration
-steps replace them.
+for Search and Shiori. Library is also entered from the topbar, but detailed
+Library visual adaptation remains a later pass.
 
 First implementation requirements:
 
 - Add a fixed-width Search field to the topbar.
+- Place Library and Shiori icon buttons immediately to the left of the topbar
+  Search field.
 - Treat text editing in the topbar Search field as a draft query.
 - Submit Search only when the user presses Return.
 - Show submitted Search results in the main content area.
-- Keep Search result grouping, result rows, selection behavior, and the global
-  `Collapse All` control consistent with the current Search result list.
+- Render Search results as grouped cards in the main content area.
+- Render Shiori with the same basic grouped-card layout as Search.
+- Remove the visible Mode Rail, resizable content-panel sidebar, and sidebar
+  position setting from the active workbench.
 - Do not render a second Search field inside the Search results page.
-- Clicking a Search result opens a Search-launched playback page.
-- The playback page keeps the video at the source aspect ratio with fit
-  behavior and leaves command space below the video.
+- Clicking a Search result opens the bottom-launched playback overlay.
+- Keep the persistent bottom player available across Search, Shiori, and
+  Library.
 - First-pass visual polish is explicitly secondary to complete functionality.
 
 The related accepted proposal is
@@ -47,14 +50,13 @@ The related accepted proposal is
 
 The main window should be a persistent work surface.
 
-Accepted M1 structure:
+Current structure:
 
 ```text
 Native titlebar
-CueSeeker workbench
-Fixed Mode Rail
-Shared Content Panel
-Playback Area
+Topbar Library/Shiori icons and Search field
+Single content area
+Bottom playback bar
 ```
 
 The main window should support:
@@ -67,35 +69,13 @@ The main window should support:
 Current shell direction:
 
 - Traffic lights and the centered workbench title belong to the titlebar.
-- Library, Search, and Shiori mode controls belong to a fixed-width vertical
-  Mode Rail at the far left of the workbench, below the titlebar.
-- The Mode Rail is not horizontally resizable.
-- The Mode Rail should initially expose Library, Search, and Shiori icons only.
-- The Mode Rail may expose a bottom Settings button. Settings is an action that
-  opens or focuses the independent Settings window; it is not a panel mode and
-  must not change the Shared Content Panel's selected mode, width, or
-  visibility.
-- The Mode Rail and Shared Content Panel side is user-configurable in Settings.
-  The default position is `Left`, rendering `Mode Rail - Shared Content Panel -
-  Playback Area`. The `Right` position renders `Playback Area - Shared Content
-  Panel - Mode Rail`.
-- The Shared Content Panel sits immediately to the right of the Mode Rail.
-  Library, Search, and Shiori render inside this same panel, so switching modes
-  must not change the panel width.
-- The Shared Content Panel is horizontally resizable. Its default width should
-  use the previous Search Panel minimum width, `420pt`, and user resizing should
-  persist.
-- Clicking the selected Mode Rail icon collapses the Shared Content Panel using
-  the existing side-panel drawer animation.
-- Clicking an unselected Mode Rail icon switches the panel mode. If the Shared
-  Content Panel is collapsed, the same action expands it and shows the selected
-  mode.
-- The previous titlebar Library toggle, right-side Search Panel toggle, and
-  titlebar Search/Shiori mode buttons are no longer part of the current
-  workbench shell.
-- The first-pass topbar Search layout does not show a visible centered
-  `CueSeeker` title. The fixed-width Search field is centered in the custom
-  topbar instead.
+- Library and Shiori mode controls are icon buttons immediately to the left of
+  the topbar Search field.
+- Search is selected by focusing or submitting the topbar Search field.
+- The visible Mode Rail, Shared Content Panel, right-side Search Panel, and
+  sidebar-position setting are not part of the current workbench shell.
+- The fixed-width Search field is centered together with the Library and
+  Shiori icon cluster in the custom topbar.
 - Traffic lights are shifted 12pt to the right and vertically centered within the custom titlebar. To achieve this without fighting AppKit's native layout engine during window resizing, the standard window buttons (`.closeButton`, `.miniaturizeButton`, `.zoomButton`) are reparented (extracted from their system container and placed into a custom transparent `NSView` proxy). This preserves native hover effects and accurate hit testing.
 - The native `NSWindow` title visibility is hidden in windowed mode but temporarily restored during full-screen transitions, ensuring the system drop-down title bar is fully functional.
 - The `NSWindow` title should use the main workbench identity, `CueSeeker`, for
@@ -635,7 +615,6 @@ sidebar section.
 Formal entry:
 
 - `CueSeeker > Settings...` in the macOS app menu.
-- Bottom Settings button in the Mode Rail.
 - The standard `Command-,` shortcut may also be exposed if practical.
 
 Window structure:
@@ -654,7 +633,6 @@ Current Settings categories:
 
 - `Library`.
 - `Decode`.
-- `Layout`.
 - `Experimental Features`.
 
 The `Library` category should allow local folder management.
@@ -672,12 +650,6 @@ Required `Library` elements:
 The `Decode` category should expose an app-drawn segmented control for
 `hardware`, `software`, and `auto`, avoiding native menu services during the
 normal Settings window lifecycle.
-
-The `Layout` category should expose the `Sidebar Position` setting with `Left`
-and `Right` choices. Changing this setting should immediately move the Mode
-Rail and Shared Content Panel to the selected side while preserving panel mode,
-panel visibility, panel width, playback state, and current Search/Shiori/Library
-state.
 
 The `Experimental Features` category should contain unstable or provisional
 features that may change or be removed. It should expose a `Search Result

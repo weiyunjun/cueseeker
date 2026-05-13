@@ -6,12 +6,6 @@ struct ContentView: View {
         green: 0.955,
         blue: 0.95
     )
-    private let topBarBackground = Color(
-        red: 0.92,
-        green: 0.92,
-        blue: 0.915
-    )
-
     var body: some View {
         AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count("UI.ContentView.body")
@@ -26,7 +20,7 @@ struct ContentView: View {
                         .padding(.top, AppShellLayout.topBarHeight)
                 }
 
-                AppTopBar(backgroundColor: topBarBackground)
+                AppTopBar(backgroundColor: windowBackground)
                     .frame(height: AppShellLayout.topBarHeight)
                     .zIndex(3)
             }
@@ -44,6 +38,7 @@ struct ContentView: View {
 
 private struct AppTopBar: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @State private var searchDraft = ""
 
     let backgroundColor: Color
@@ -63,19 +58,30 @@ private struct AppTopBar: View {
             }
         )
             .overlay(alignment: .center) {
-                TopbarSearchField(
-                    text: $searchDraft,
-                    isFocused: $appState.isSearchFocused,
-                    onSubmit: {
-                        appState.submitTopbarSearch(searchDraft)
-                    }
-                )
-                .frame(width: AppShellLayout.topbarSearchFieldWidth)
-            }
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(Color.black.opacity(AppShellLayout.topBarSeparatorOpacity))
-                    .frame(height: 1)
+                HStack(spacing: 10) {
+                    TopbarModeButton(
+                        mode: .library,
+                        systemImage: "folder",
+                        selectedSystemImage: "folder.fill",
+                        help: "Library"
+                    )
+
+                    TopbarModeButton(
+                        mode: .shiori,
+                        systemImage: "bookmark",
+                        selectedSystemImage: "bookmark.fill",
+                        help: "Shiori"
+                    )
+
+                    TopbarSearchField(
+                        text: $searchDraft,
+                        isFocused: $appState.isSearchFocused,
+                        onSubmit: {
+                            appState.submitTopbarSearch(searchDraft)
+                        }
+                    )
+                    .frame(width: AppShellLayout.topbarSearchFieldWidth)
+                }
             }
             .onAppear {
                 searchDraft = appState.searchQuery
@@ -85,11 +91,72 @@ private struct AppTopBar: View {
                     searchDraft = query
                 }
             }
+            .onChange(of: appState.isSearchFocused) { isFocused in
+                if isFocused, layoutState.panelMode != .search {
+                    appState.activateWorkbenchPanelMode(.search)
+                }
+            }
             .simultaneousGesture(
                 TapGesture().onEnded {
                     appState.dismissBottomPlaybackMenu()
                 }
             )
+    }
+}
+
+private struct TopbarModeButton: View {
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
+
+    let mode: WorkbenchPanelMode
+    let systemImage: String
+    let selectedSystemImage: String
+    let help: String
+
+    var body: some View {
+        let isSelected = layoutState.panelMode == mode
+
+        Button {
+            appState.performUserInitiatedAppCommand {
+                appState.activateWorkbenchPanelMode(mode)
+            }
+        } label: {
+            Image(systemName: isSelected ? selectedSystemImage : systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(TopbarModeButtonStyle(isSelected: isSelected))
+        .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+private struct TopbarModeButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(backgroundColor(configuration: configuration))
+            )
+            .onHover { isHovered = $0 }
+    }
+
+    private func backgroundColor(configuration: Configuration) -> Color {
+        if configuration.isPressed {
+            return Color.primary.opacity(0.14)
+        }
+        if isSelected {
+            return Color.primary.opacity(0.12)
+        }
+        if isHovered {
+            return Color.primary.opacity(0.07)
+        }
+        return .clear
     }
 }
 
@@ -151,7 +218,5 @@ enum AppShellLayout {
     static let sidePanelAnimationDuration: Double = 0.18
     static let titleFontSize: CGFloat = 16
     static let titleFontWeight: Font.Weight = .semibold
-    static let topBarSeparatorOpacity = 0.12
     static let topbarSearchFieldWidth: CGFloat = 320
-    static let topbarSearchTrailingPadding: CGFloat = 20
 }
