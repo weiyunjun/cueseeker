@@ -82,8 +82,9 @@ for this direction. It currently demonstrates:
   fullscreen.
 - A three-dot menu containing `Video Folder`, `Subtitle Folder`, `Results`, and
   `Subtitles`.
-- A bottom-launched video overlay with a black outer background, a rounded
-  video surface, and a right-side list panel for Search Results and Subtitles.
+- A bottom-launched video overlay with a rectangular black background covering
+  the work area above the bottom player, a rounded video surface, and a
+  right-side list panel for Search Results and Subtitles.
 - The overlay side panel uses the same white-background and gray-card visual
   language as the Search result cards. Its tab switcher sits at the top, the
   active count label sits below on the left, and it must not repeat the video
@@ -148,8 +149,9 @@ Initial bottom-player alignment:
   not imply that Chinese and Japanese subtitle lines have different semantic
   color roles.
 - When the bottom-launched video overlay is expanded, the overlay should use a
-  black background behind the playback area while preserving the rounded video
-  surface itself.
+  rectangular black background that fully covers the work area between the
+  topbar and the bottom player while preserving the rounded video surface
+  itself.
 - The expanded overlay should show a right-side panel with two tabs:
   `Search Results` and `Subtitles`. The tabs sit at the top of the panel, and
   the active item count sits below them on the left.
@@ -162,6 +164,9 @@ Initial bottom-player alignment:
 - The Search Results tab shows search-result rows with query highlighting. The
   Subtitles tab shows subtitle-file cue rows with the subtitle-file sequence
   number and timestamp, without keyword highlighting.
+- Selecting another Search result from the side panel should preserve the
+  current side-panel list while playback opens or seeks. It must not briefly
+  clear to a `0 results` or loading state during the jump.
 - The overlay should not show a video-title/avatar block inside the video
   surface and should not show separate `AVE MUJICA EP 01` or
   `Search playback` labels above the side-panel tabs.

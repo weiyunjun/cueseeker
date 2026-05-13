@@ -1421,8 +1421,6 @@ final class AppState: ObservableObject {
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSurfaceExpanded = true
         }
-        searchNavigationSnapshot = nil
-        searchNavigationResultGroups = []
         Task { @MainActor in
             await Task.yield()
             play(result)

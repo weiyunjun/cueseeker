@@ -39,11 +39,12 @@ struct SearchView: View {
                         PlaybackOverlayWindow(
                             playbackSurface: AnyView(playbackSurface),
                             appState: appState,
+                            contentSize: overlayMetrics.outerSize,
                             sidePanelWidth: overlayMetrics.sidePanelWidth
                         )
                         .frame(
-                            width: overlayMetrics.outerSize.width,
-                            height: overlayMetrics.outerSize.height
+                            width: geometry.size.width,
+                            height: workspaceHeight
                         )
                         .padding(.bottom, BottomPlaybackBarLayout.reservedHeight)
                         .transition(.bottomPlaybackOverlayReveal)
@@ -621,7 +622,6 @@ private enum PlaybackOverlayLayout {
     static let panelGap: CGFloat = 18
     static let sidePanelMinWidth: CGFloat = 320
     static let sidePanelPreferredWidth: CGFloat = 380
-    static let containerCornerRadius: CGFloat = 18
     static let videoCornerRadius: CGFloat = 16
     static let panelCornerRadius: CGFloat = 18
 }
@@ -629,39 +629,40 @@ private enum PlaybackOverlayLayout {
 private struct PlaybackOverlayWindow: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
+    let contentSize: CGSize
     let sidePanelWidth: CGFloat
     @State private var activePanel: PlaybackDrawerKind = .results
 
     var body: some View {
         GeometryReader { geometry in
-            let contentHeight = max(0, geometry.size.height - PlaybackOverlayLayout.outerPadding * 2)
-            let contentWidth = max(0, geometry.size.width - PlaybackOverlayLayout.outerPadding * 2)
+            let overlayWidth = min(contentSize.width, geometry.size.width)
+            let overlayHeight = min(contentSize.height, geometry.size.height)
+            let contentHeight = max(0, overlayHeight - PlaybackOverlayLayout.outerPadding * 2)
+            let contentWidth = max(0, overlayWidth - PlaybackOverlayLayout.outerPadding * 2)
             let panelWidth = min(sidePanelWidth, contentWidth * 0.45)
             let videoWidth = max(0, contentWidth - panelWidth - PlaybackOverlayLayout.panelGap)
 
-            HStack(spacing: PlaybackOverlayLayout.panelGap) {
-                videoSurface
-                    .frame(width: videoWidth, height: contentHeight)
+            ZStack {
+                Color.black
 
-                if let viewModel = appState.playbackViewModel {
-                    PlaybackOverlaySidePanel(
-                        appState: appState,
-                        viewModel: viewModel,
-                        activePanel: $activePanel
-                    )
-                    .frame(width: panelWidth, height: contentHeight)
+                HStack(spacing: PlaybackOverlayLayout.panelGap) {
+                    videoSurface
+                        .frame(width: videoWidth, height: contentHeight)
+
+                    if let viewModel = appState.playbackViewModel {
+                        PlaybackOverlaySidePanel(
+                            appState: appState,
+                            viewModel: viewModel,
+                            activePanel: $activePanel
+                        )
+                        .frame(width: panelWidth, height: contentHeight)
+                    }
                 }
+                .padding(PlaybackOverlayLayout.outerPadding)
+                .frame(width: overlayWidth, height: overlayHeight, alignment: .center)
             }
-            .padding(PlaybackOverlayLayout.outerPadding)
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
         }
-        .background(Color.black.opacity(0.96))
-        .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.containerCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: PlaybackOverlayLayout.containerCornerRadius)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.24), radius: 24, y: -8)
         .simultaneousGesture(
             TapGesture().onEnded {
                 appState.dismissBottomPlaybackMenu()
@@ -802,8 +803,12 @@ private struct PlaybackOverlaySidePanel: View {
     private var countText: String {
         switch activePanel {
         case .results:
+            let groupedCount = appState.searchNavigationResultGroups.reduce(0) { $0 + $1.results.count }
+            let fallbackCount = appState.searchResultTotalCount > 0
+                ? appState.searchResultTotalCount
+                : appState.searchResults.count
             let count = appState.searchNavigationSnapshot?.totalCount
-                ?? appState.searchNavigationResultGroups.reduce(0) { $0 + $1.results.count }
+                ?? (groupedCount > 0 ? groupedCount : fallbackCount)
             return "\(count) \(count == 1 ? "result" : "results")"
         case .subtitles:
             let count = appState.currentSubtitleEntries.count
@@ -829,8 +834,16 @@ private struct PlaybackOverlayResultsPanel: View {
     @ObservedObject var appState: AppState
 
     private var results: [SubtitleSearchResult] {
-        appState.searchNavigationSnapshot?.neighborhood
-            ?? appState.searchNavigationResultGroups.flatMap(\.results)
+        if let snapshot = appState.searchNavigationSnapshot {
+            return snapshot.neighborhood
+        }
+
+        let groupedResults = appState.searchNavigationResultGroups.flatMap(\.results)
+        if !groupedResults.isEmpty {
+            return groupedResults
+        }
+
+        return appState.searchResults
     }
 
     private var selectedEntryID: Int64? {
@@ -843,10 +856,8 @@ private struct PlaybackOverlayResultsPanel: View {
                 LazyVStack(spacing: 8) {
                     if results.isEmpty {
                         PlaybackOverlayEmptyList(
-                            title: appState.isSearchPlaybackActive ? "Loading Results" : "No Search Results",
-                            message: appState.isSearchPlaybackActive
-                                ? "Search results are being prepared."
-                                : "Search Results are available after opening playback from Search."
+                            title: "No Search Results",
+                            message: "Search Results are available after opening playback from Search."
                         )
                         .padding(.top, 28)
                     } else {

@@ -80,6 +80,10 @@ Accepted topbar Search transition:
 - The side-panel tabs sit at the top of the panel. The active count label sits
   below them on the left. The panel must not show a separate video title or
   `Search playback` label above the tabs.
+- Opening another Search result from the overlay side panel should preserve the
+  existing side-panel list while playback seeks or opens the new result. The UI
+  must not clear to an intermediate `0 results` or loading panel during that
+  jump.
 
 Expected behavior:
 

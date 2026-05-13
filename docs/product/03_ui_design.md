@@ -45,7 +45,8 @@ First implementation requirements:
   position setting from the active workbench.
 - Do not render a second Search field inside the Search results page.
 - Clicking a Search result opens the bottom-launched playback overlay.
-- The expanded playback overlay uses a black outer background, preserves a
+- The expanded playback overlay uses a rectangular black background that covers
+  the full work area between the topbar and the bottom player, preserves a
   rounded video surface, and shows a right-side panel for `Search Results` and
   `Subtitles`.
 - The overlay side panel places the `Search Results` / `Subtitles` switcher at
