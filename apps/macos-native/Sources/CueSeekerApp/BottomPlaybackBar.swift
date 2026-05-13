@@ -78,10 +78,13 @@ private struct BottomPlaybackBarContent: View {
                         Image(systemName: appState.isPlaybackSurfaceExpanded ? "chevron.up" : "chevron.right")
                             .font(.system(size: 15, weight: .bold))
 
-                        Text(appState.currentPlaybackTitle)
+                        Text(appState.currentPlaybackDisplayTitle)
                             .font(.system(size: 15, weight: .bold))
                             .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(minWidth: 88, maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(minWidth: 130, maxWidth: 220, alignment: .leading)
 
                     Image(systemName: appState.isPlaybackSurfaceExpanded ? "chevron.up" : "chevron.right")
                         .font(.system(size: 15, weight: .bold))

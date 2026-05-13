@@ -472,6 +472,52 @@ final class AppState: ObservableObject {
             ?? "No video selected"
     }
 
+    var currentPlaybackDisplayTitle: String {
+        if let selectedLibraryVideo {
+            return libraryFolderGroups
+                .lazy
+                .flatMap(\.videos)
+                .first { $0.video.videoPath == selectedLibraryVideo.videoPath }?
+                .displayTitle
+                ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedLibraryVideo.subtitlePath)
+        }
+
+        if let selectedSearchResult {
+            return searchResultGroups
+                .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
+                .subtitleDisplayTitle
+                ?? searchFileSummaries
+                    .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
+                    .subtitleDisplayTitle
+                ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedSearchResult.subtitlePath)
+        }
+
+        if let selectedShiori {
+            return shioriFileGroups
+                .first { $0.subtitlePath == selectedShiori.subtitlePath }?
+                .subtitleDisplayTitle
+                ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedShiori.subtitlePath)
+        }
+
+        return "No video selected"
+    }
+
+    var currentPlaybackSourceLabel: String {
+        if selectedLibraryVideo != nil {
+            return "Library playback"
+        }
+
+        if selectedSearchResult != nil {
+            return "Search playback"
+        }
+
+        if selectedShiori != nil {
+            return "Shiori playback"
+        }
+
+        return "No playback"
+    }
+
     var isLibraryPlaybackActive: Bool {
         if case .library = activePlaybackSource {
             return true
@@ -775,6 +821,10 @@ final class AppState: ObservableObject {
             return
         }
 
+        if isPlaybackSurfaceExpanded {
+            pausePlayback()
+        }
+
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSurfaceExpanded.toggle()
         }
@@ -803,7 +853,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        topbarSearchContentMode = .playback
+        isPlaybackSurfaceExpanded = true
         playbackDrawerRequest = PlaybackDrawerRequest(drawer: drawer)
     }
 
@@ -1445,7 +1495,7 @@ final class AppState: ObservableObject {
         selectedSearchResult = result
         selectedShiori = nil
         selectedLibraryVideo = nil
-        topbarSearchContentMode = .playback
+        topbarSearchContentMode = .results
         isPlaybackSurfaceExpanded = true
         searchNavigationSnapshot = nil
         searchNavigationResultGroups = []

@@ -11,7 +11,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   play/pause, progress seek, volume, subtitle, Shiori, speed, fullscreen,
   Search-result navigation, Library episode navigation, and secondary playback
   actions, and the main video surface now delegates playback controls to the
-  bottom player instead of showing the previous inline control bar.
+  bottom player instead of showing the previous inline control bar. Search
+  results now open playback in a bottom-launched overlay window, collapsed video
+  pauses playback, and the bottom player uses the resolved playback display
+  title with middle truncation.
 - Refined the card Search and bottom-player HTML prototype direction: topbar
   Library and Shiori now use icon-only navigation without selected emphasis,
   the bottom player uses a light gray rounded surface, drops cover art for a

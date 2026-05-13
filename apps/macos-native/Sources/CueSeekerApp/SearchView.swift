@@ -24,43 +24,59 @@ struct SearchView: View {
                     geometry.size.height - BottomPlaybackBarLayout.reservedHeight
                 )
 
-                VStack(spacing: 0) {
-                    HStack(spacing: 0) {
-                        if isSidebarOnLeft {
-                            modeRail
-                                .frame(width: modeRailWidth, height: workspaceHeight)
-                                .zIndex(2)
+                ZStack(alignment: .bottom) {
+                    VStack(spacing: 0) {
+                        HStack(spacing: 0) {
+                            if isSidebarOnLeft {
+                                modeRail
+                                    .frame(width: modeRailWidth, height: workspaceHeight)
+                                    .zIndex(2)
 
-                            contentPanelSlot(
-                                width: contentPanelWidth,
-                                availableWidth: geometry.size.width,
-                                isSidebarOnLeft: true
-                            )
-                            .zIndex(1)
+                                contentPanelSlot(
+                                    width: contentPanelWidth,
+                                    availableWidth: geometry.size.width,
+                                    isSidebarOnLeft: true
+                                )
+                                .zIndex(1)
 
-                            playbackArea
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            playbackArea
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                playbackArea
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            } else {
+                                playbackArea
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                            contentPanelSlot(
-                                width: contentPanelWidth,
-                                availableWidth: geometry.size.width,
-                                isSidebarOnLeft: false
-                            )
-                            .zIndex(1)
+                                contentPanelSlot(
+                                    width: contentPanelWidth,
+                                    availableWidth: geometry.size.width,
+                                    isSidebarOnLeft: false
+                                )
+                                .zIndex(1)
 
-                            modeRail
-                                .frame(width: modeRailWidth, height: workspaceHeight)
-                                .zIndex(2)
+                                modeRail
+                                    .frame(width: modeRailWidth, height: workspaceHeight)
+                                    .zIndex(2)
+                            }
                         }
-                    }
-                    .frame(width: geometry.size.width, height: workspaceHeight)
-                    .clipped()
+                        .frame(width: geometry.size.width, height: workspaceHeight)
+                        .clipped()
 
-                    BottomPlaybackBar(appState: appState)
-                        .frame(height: BottomPlaybackBarLayout.reservedHeight)
+                        BottomPlaybackBar(appState: appState)
+                            .frame(height: BottomPlaybackBarLayout.reservedHeight)
+                    }
+
+                    if appState.hasPlaybackSelection, appState.isPlaybackSurfaceExpanded {
+                        PlaybackOverlayWindow(
+                            playbackSurface: AnyView(playbackSurface),
+                            appState: appState
+                        )
+                        .frame(
+                            width: max(0, geometry.size.width - 48),
+                            height: playbackOverlayHeight(for: workspaceHeight)
+                        )
+                        .padding(.bottom, BottomPlaybackBarLayout.reservedHeight)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .zIndex(10)
+                    }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
@@ -73,6 +89,10 @@ struct SearchView: View {
                 resetCollapsedLibraryFolders()
             }
         }
+    }
+
+    private func playbackOverlayHeight(for workspaceHeight: CGFloat) -> CGFloat {
+        min(620, max(0, workspaceHeight - 24))
     }
 
     private var modeRail: some View {
@@ -614,7 +634,7 @@ struct SearchView: View {
                 case .results:
                     topbarSearchResultsArea
                 case .playback:
-                    topbarSearchPlaybackArea
+                    topbarSearchResultsArea
                 }
             }
             .background(Color(nsColor: .controlBackgroundColor))
@@ -630,25 +650,15 @@ struct SearchView: View {
     private var legacyPlaybackArea: some View {
         VStack(alignment: .leading, spacing: 0) {
             if appState.hasPlaybackSelection {
-                VStack(alignment: .leading, spacing: 12) {
-                    playbackSurface
-                        .aspectRatio(
-                            CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
-                            contentMode: .fit
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                    if case .failed(let message) = appState.playbackStatus {
-                        Label(message, systemImage: "exclamationmark.triangle")
-                            .font(.system(size: SearchTypography.detailSize))
-                            .foregroundStyle(.red)
+                CollapsedPlaybackSurfacePlaceholder(
+                    title: appState.currentPlaybackDisplayTitle,
+                    onExpand: {
+                        appState.clearSearchFocus()
+                        appState.expandPlaybackSurface()
                     }
-
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.top, AppShellLayout.contentTopPadding)
                 .padding([.horizontal, .bottom], 20)
             } else {
@@ -776,10 +786,7 @@ struct SearchView: View {
     }
 
     private var topbarSearchPlaybackArea: some View {
-        SearchPlaybackPage(
-            playbackSurface: AnyView(playbackSurface),
-            appState: appState
-        )
+        topbarSearchResultsArea
     }
 
     private func contentPanelResizeDivider(
@@ -851,22 +858,22 @@ struct SearchView: View {
     }
 }
 
-private struct SearchPlaybackPage: View {
+private struct PlaybackOverlayWindow: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
     @State private var activeDrawer: PlaybackDrawerKind?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
             ZStack(alignment: .bottom) {
+                Color.black
+
                 playbackSurface
                     .aspectRatio(
                         CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
                         contentMode: .fit
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(alignment: .topLeading) {
                         if case .failed(let message) = appState.playbackStatus {
                             Label(message, systemImage: "exclamationmark.triangle")
@@ -884,10 +891,47 @@ private struct SearchPlaybackPage: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+            )
+
+            HStack(spacing: 12) {
+                Text(appState.currentPlaybackDisplayTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.82))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer(minLength: 0)
+
+                Text(appState.currentPlaybackSourceLabel)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.78))
+                    .padding(.horizontal, 10)
+                    .frame(height: 26)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.08))
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            }
         }
-        .padding(.top, AppShellLayout.contentTopPadding)
-        .padding([.horizontal, .bottom], 20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color(red: 0.055, green: 0.058, blue: 0.07))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 28, y: -8)
         .onAppear {
             if let request = appState.playbackDrawerRequest {
                 openDrawer(request.drawer)
@@ -1111,6 +1155,7 @@ private struct CollapsedPlaybackSurfacePlaceholder: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.primary.opacity(0.82))
                     .lineLimit(1)
+                    .truncationMode(.middle)
 
                 Text("Video window collapsed")
                     .font(.system(size: 12, weight: .medium))
