@@ -23,46 +23,53 @@ struct SearchView: View {
                     0,
                     geometry.size.height - BottomPlaybackBarLayout.reservedHeight
                 )
+                let playbackAspectRatio = CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9)
+                let overlaySize = playbackOverlaySize(
+                    maxWidth: geometry.size.width,
+                    maxHeight: workspaceHeight,
+                    aspectRatio: playbackAspectRatio
+                )
 
                 ZStack(alignment: .bottom) {
-                    VStack(spacing: 0) {
-                        HStack(spacing: 0) {
-                            if isSidebarOnLeft {
-                                modeRail
-                                    .frame(width: modeRailWidth, height: workspaceHeight)
-                                    .zIndex(2)
+                    HStack(spacing: 0) {
+                        if isSidebarOnLeft {
+                            modeRail
+                                .frame(width: modeRailWidth, height: workspaceHeight)
+                                .zIndex(2)
 
-                                contentPanelSlot(
-                                    width: contentPanelWidth,
-                                    availableWidth: geometry.size.width,
-                                    isSidebarOnLeft: true
-                                )
-                                .zIndex(1)
+                            contentPanelSlot(
+                                width: contentPanelWidth,
+                                availableWidth: geometry.size.width,
+                                isSidebarOnLeft: true
+                            )
+                            .zIndex(1)
 
-                                playbackArea
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            } else {
-                                playbackArea
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            playbackArea
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            playbackArea
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                                contentPanelSlot(
-                                    width: contentPanelWidth,
-                                    availableWidth: geometry.size.width,
-                                    isSidebarOnLeft: false
-                                )
-                                .zIndex(1)
+                            contentPanelSlot(
+                                width: contentPanelWidth,
+                                availableWidth: geometry.size.width,
+                                isSidebarOnLeft: false
+                            )
+                            .zIndex(1)
 
-                                modeRail
-                                    .frame(width: modeRailWidth, height: workspaceHeight)
-                                    .zIndex(2)
-                            }
+                            modeRail
+                                .frame(width: modeRailWidth, height: workspaceHeight)
+                                .zIndex(2)
                         }
-                        .frame(width: geometry.size.width, height: workspaceHeight)
-                        .clipped()
-
-                        BottomPlaybackBar(appState: appState)
-                            .frame(height: BottomPlaybackBarLayout.reservedHeight)
                     }
+                    .frame(width: geometry.size.width, height: workspaceHeight)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .clipped()
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            appState.dismissBottomPlaybackMenu()
+                        }
+                    )
 
                     if appState.hasPlaybackSelection, appState.isPlaybackSurfaceExpanded {
                         PlaybackOverlayWindow(
@@ -70,13 +77,17 @@ struct SearchView: View {
                             appState: appState
                         )
                         .frame(
-                            width: max(0, geometry.size.width - 48),
-                            height: playbackOverlayHeight(for: workspaceHeight)
+                            width: overlaySize.width,
+                            height: overlaySize.height
                         )
                         .padding(.bottom, BottomPlaybackBarLayout.reservedHeight)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(.bottomPlaybackOverlayReveal)
                         .zIndex(10)
                     }
+
+                    BottomPlaybackBar(appState: appState)
+                        .frame(height: BottomPlaybackBarLayout.reservedHeight)
+                        .zIndex(20)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
@@ -91,8 +102,23 @@ struct SearchView: View {
         }
     }
 
-    private func playbackOverlayHeight(for workspaceHeight: CGFloat) -> CGFloat {
-        min(620, max(0, workspaceHeight - 24))
+    private func playbackOverlaySize(
+        maxWidth: CGFloat,
+        maxHeight: CGFloat,
+        aspectRatio: CGFloat
+    ) -> CGSize {
+        let safeMaxWidth = max(0, maxWidth)
+        let safeMaxHeight = max(0, maxHeight)
+        let safeAspectRatio = max(0.01, aspectRatio)
+        guard safeMaxWidth > 0, safeMaxHeight > 0 else {
+            return .zero
+        }
+
+        if safeMaxWidth / safeMaxHeight > safeAspectRatio {
+            return CGSize(width: safeMaxHeight * safeAspectRatio, height: safeMaxHeight)
+        }
+
+        return CGSize(width: safeMaxWidth, height: safeMaxWidth / safeAspectRatio)
     }
 
     private var modeRail: some View {
@@ -858,80 +884,68 @@ struct SearchView: View {
     }
 }
 
+private struct BottomPlaybackOverlayRevealModifier: ViewModifier {
+    let progress: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(x: 1, y: max(0.04, progress), anchor: .bottom)
+            .opacity(Double(progress))
+            .offset(y: (1 - progress) * 18)
+    }
+}
+
+private extension AnyTransition {
+    static var bottomPlaybackOverlayReveal: AnyTransition {
+        .modifier(
+            active: BottomPlaybackOverlayRevealModifier(progress: 0),
+            identity: BottomPlaybackOverlayRevealModifier(progress: 1)
+        )
+    }
+}
+
 private struct PlaybackOverlayWindow: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
     @State private var activeDrawer: PlaybackDrawerKind?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ZStack(alignment: .bottom) {
-                Color.black
-
-                playbackSurface
-                    .aspectRatio(
-                        CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
-                        contentMode: .fit
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(alignment: .topLeading) {
-                        if case .failed(let message) = appState.playbackStatus {
-                            Label(message, systemImage: "exclamationmark.triangle")
-                                .font(.system(size: SearchTypography.detailSize))
-                                .foregroundStyle(.red)
-                                .padding(10)
-                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                                .padding(12)
-                        }
+        ZStack(alignment: .bottom) {
+            playbackSurface
+                .aspectRatio(
+                    CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
+                    contentMode: .fit
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay(alignment: .topLeading) {
+                    if case .failed(let message) = appState.playbackStatus {
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .font(.system(size: SearchTypography.detailSize))
+                            .foregroundStyle(.red)
+                            .padding(10)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            .padding(12)
                     }
-
-                if let activeDrawer {
-                    drawerView(activeDrawer)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-            )
 
-            HStack(spacing: 12) {
-                Text(appState.currentPlaybackDisplayTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.82))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer(minLength: 0)
-
-                Text(appState.currentPlaybackSourceLabel)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.78))
-                    .padding(.horizontal, 10)
-                    .frame(height: 26)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.08))
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    )
+            if let activeDrawer {
+                drawerView(activeDrawer)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color(red: 0.055, green: 0.058, blue: 0.07))
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.28), radius: 28, y: -8)
+        .shadow(color: .black.opacity(0.24), radius: 24, y: -8)
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                appState.dismissBottomPlaybackMenu()
+            }
+        )
         .onAppear {
             if let request = appState.playbackDrawerRequest {
                 openDrawer(request.drawer)

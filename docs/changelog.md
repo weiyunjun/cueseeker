@@ -14,7 +14,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   bottom player instead of showing the previous inline control bar. Search
   results now open playback in a bottom-launched overlay window, collapsed video
   pauses playback, and the bottom player uses the resolved playback display
-  title with middle truncation.
+  title with middle truncation. The overlay now sizes to the source video
+  aspect ratio without app-added black margins, and bottom-player popover menus
+  open directly above their buttons without shifting controls.
 - Refined the card Search and bottom-player HTML prototype direction: topbar
   Library and Shiori now use icon-only navigation without selected emphasis,
   the bottom player uses a light gray rounded surface, drops cover art for a

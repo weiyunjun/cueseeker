@@ -23,8 +23,6 @@ private struct BottomPlaybackBarContent: View {
     @ObservedObject var viewModel: PlaybackViewModel
 
     @State private var isVolumeHovered = false
-    @State private var isSpeedMenuVisible = false
-    @State private var isMoreMenuVisible = false
 
     private var hasPlayback: Bool {
         appState.hasPlaybackSelection
@@ -33,6 +31,15 @@ private struct BottomPlaybackBarContent: View {
     var body: some View {
         ZStack {
             Color(nsColor: .controlBackgroundColor)
+
+            if appState.activeBottomPlaybackMenu != nil {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        appState.dismissBottomPlaybackMenu()
+                    }
+                    .zIndex(5)
+            }
 
             VStack(spacing: 7) {
                 HStack(spacing: 20) {
@@ -63,6 +70,7 @@ private struct BottomPlaybackBarContent: View {
             )
             .shadow(color: .black.opacity(0.08), radius: 18, y: 5)
             .padding(.horizontal, 16)
+            .zIndex(10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -105,6 +113,7 @@ private struct BottomPlaybackBarContent: View {
     private var volumeControl: some View {
         ZStack(alignment: .leading) {
             Button {
+                appState.dismissBottomPlaybackMenu()
                 viewModel.toggleMute()
             } label: {
                 Image(systemName: volumeIcon)
@@ -169,6 +178,7 @@ private struct BottomPlaybackBarContent: View {
             }
 
             Button {
+                appState.dismissBottomPlaybackMenu()
                 appState.clearSearchFocus()
                 appState.togglePlaybackFromUser()
             } label: {
@@ -203,17 +213,16 @@ private struct BottomPlaybackBarContent: View {
     }
 
     private var moreMenu: some View {
-        ZStack(alignment: .bottom) {
-            bottomIconButton(
-                systemImage: "ellipsis.vertical",
-                help: "More actions",
-                isEnabled: hasPlayback
-            ) {
-                isMoreMenuVisible.toggle()
-                isSpeedMenuVisible = false
-            }
-
-            if isMoreMenuVisible {
+        bottomIconButton(
+            systemImage: "ellipsis.vertical",
+            help: "More actions",
+            isEnabled: hasPlayback,
+            dismissesMenus: false
+        ) {
+            appState.toggleBottomPlaybackMenu(.more)
+        }
+        .overlay(alignment: .bottom) {
+            if appState.activeBottomPlaybackMenu == .more {
                 VStack(alignment: .leading, spacing: 2) {
                     menuItem("Video Folder") {
                         appState.clearSearchFocus()
@@ -235,11 +244,14 @@ private struct BottomPlaybackBarContent: View {
                 .padding(6)
                 .frame(width: 148, alignment: .leading)
                 .background(menuBackground)
-                .offset(y: -44)
-                .zIndex(20)
+                .fixedSize(horizontal: true, vertical: true)
+                .offset(y: -46)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .zIndex(100)
             }
         }
         .frame(width: 36, height: 36)
+        .zIndex(appState.activeBottomPlaybackMenu == .more ? 100 : 0)
     }
 
     private var trailingControls: some View {
@@ -283,26 +295,24 @@ private struct BottomPlaybackBarContent: View {
     }
 
     private var speedControl: some View {
-        ZStack(alignment: .bottom) {
-            Button {
-                isSpeedMenuVisible.toggle()
-                isMoreMenuVisible = false
-            } label: {
-                Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
-                    .font(.system(size: 15, weight: .bold))
-                    .frame(minWidth: 46, minHeight: 30)
-                    .padding(.horizontal, 4)
-            }
-            .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
-            .disabled(!hasPlayback)
-            .help("Playback speed")
-
-            if isSpeedMenuVisible {
+        Button {
+            appState.toggleBottomPlaybackMenu(.speed)
+        } label: {
+            Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
+                .font(.system(size: 15, weight: .bold))
+                .frame(minWidth: 46, minHeight: 30)
+                .padding(.horizontal, 4)
+        }
+        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
+        .disabled(!hasPlayback)
+        .help("Playback speed")
+        .overlay(alignment: .bottom) {
+            if appState.activeBottomPlaybackMenu == .speed {
                 VStack(spacing: 2) {
                     ForEach(PlaybackViewModel.speedPresets, id: \.self) { speed in
                         Button {
                             viewModel.setSpeed(speed)
-                            isSpeedMenuVisible = false
+                            appState.dismissBottomPlaybackMenu()
                         } label: {
                             HStack(spacing: 12) {
                                 Text(PlaybackViewModel.formatSpeed(speed))
@@ -325,11 +335,14 @@ private struct BottomPlaybackBarContent: View {
                 }
                 .padding(.vertical, 7)
                 .background(menuBackground)
-                .offset(y: -42)
-                .zIndex(20)
+                .fixedSize(horizontal: true, vertical: true)
+                .offset(y: -46)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .zIndex(100)
             }
         }
         .frame(minWidth: 54, minHeight: 36)
+        .zIndex(appState.activeBottomPlaybackMenu == .speed ? 100 : 0)
     }
 
     private var progressRow: some View {
@@ -382,9 +395,15 @@ private struct BottomPlaybackBarContent: View {
         systemImage: String,
         help: String,
         isEnabled: Bool,
+        dismissesMenus: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button {
+            if dismissesMenus {
+                appState.dismissBottomPlaybackMenu()
+            }
+            action()
+        } label: {
             Image(systemName: systemImage)
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 36, height: 36)
@@ -400,7 +419,7 @@ private struct BottomPlaybackBarContent: View {
         action: @escaping () -> Void
     ) -> some View {
         Button {
-            isMoreMenuVisible = false
+            appState.dismissBottomPlaybackMenu()
             action()
         } label: {
             Text(title)

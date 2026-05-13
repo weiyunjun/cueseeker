@@ -85,6 +85,11 @@ private struct AppTopBar: View {
                     searchDraft = query
                 }
             }
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    appState.dismissBottomPlaybackMenu()
+                }
+            )
     }
 }
 
