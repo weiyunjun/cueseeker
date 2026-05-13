@@ -169,6 +169,24 @@ Rules:
 - Unless the user explicitly asks for a detailed explanation, AI responses
   should be concise and clear, with the most important conclusions emphasized in
   bold so the answer is easy to scan.
+- Before every major frontend UI modification, the AI must consult the relevant
+  HTML prototype or HTML reference when one exists. If no relevant HTML
+  prototype or reference exists, the AI must explicitly remind the user before
+  implementation begins.
+- A major frontend UI modification means a change that is likely to be
+  visually or structurally ambiguous. Layout changes count, including adding a
+  new view or changing the structure of an existing view. Adding a new element
+  without a direct visual reference also counts.
+- Minor frontend UI adjustments do not count as major UI modifications. This
+  includes changing font color, font size, hover styling, selected styling, or
+  deleting an element.
+- Adding an element does not count as a major UI modification when there is a
+  direct existing reference and the interaction can be copied from that
+  reference, such as adding another button to an existing player control group
+  that already defines the same button style and interaction pattern.
+- The HTML-reference requirement does not apply to dynamic UX effects such as a
+  specific animation, dynamic UI indicators such as a playing marker, or
+  interaction animation details.
 - Rust shared-core implementation is currently paused. When modifying macOS
   code, the AI must preserve the future shared-core boundary from
   `docs/engineering/04_architecture_rules.md`: product semantics belong in

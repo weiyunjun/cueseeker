@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted an AI frontend UI workflow rule: before major visually or
+  structurally ambiguous frontend UI modifications, the assistant must consult
+  the relevant HTML prototype or reference when one exists, and must explicitly
+  remind the user before implementation when no relevant HTML reference exists.
 - Added an Experimental Features settings direction: Search result thumbnails
   are now documented as an opt-in experimental feature that is disabled by
   default and must not request or generate images while disabled.
