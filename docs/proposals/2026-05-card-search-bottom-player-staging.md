@@ -125,9 +125,9 @@ Initial bottom-player alignment:
 - The bottom player should visually match the current app UI direction: use a
   light gray rounded surface with white button controls.
 - When the video window is collapsed, the expand or collapse button points
-  right. Clicking it expands the video window and changes the arrow upward.
-  Clicking it again collapses the video window and returns the arrow to the
-  right-facing state.
+  right. Clicking it expands the video window by rotating the same chevron to
+  point upward. Clicking it again collapses the video window and rotates that
+  same chevron back to the right-facing state.
 - The bottom-player title should use concise video identity such as
   `AVE MUJICA EP 01`.
 - Volume control belongs next to the title.

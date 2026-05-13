@@ -1028,7 +1028,7 @@ private struct PlaybackOverlayResultRow: View {
         .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(rowBorder, lineWidth: isSelected ? 1.5 : 1)
+                .strokeBorder(rowBorder, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
@@ -1050,7 +1050,7 @@ private struct PlaybackOverlayResultRow: View {
 
     private var rowBorder: Color {
         if isSelected {
-            return Color.accentColor
+            return Color.clear
         }
         if isHovered {
             return Color.primary.opacity(0.07)
@@ -1102,7 +1102,7 @@ private struct PlaybackOverlaySubtitleRow: View {
         .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(rowBorder, lineWidth: isSelected ? 1.5 : 1)
+                .strokeBorder(rowBorder, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
@@ -1124,7 +1124,7 @@ private struct PlaybackOverlaySubtitleRow: View {
 
     private var rowBorder: Color {
         if isSelected {
-            return Color.accentColor
+            return Color.clear
         }
         if isHovered {
             return Color.primary.opacity(0.07)
@@ -1663,7 +1663,7 @@ private struct SearchResultCard: View {
         .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(cardBorder, lineWidth: isSelected ? 1.5 : 1)
+                .strokeBorder(cardBorder, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
@@ -1686,7 +1686,7 @@ private struct SearchResultCard: View {
 
     private var cardBorder: Color {
         if isSelected {
-            return Color.accentColor
+            return Color.clear
         }
         if isHovered {
             return Color.primary.opacity(0.07)
@@ -1745,7 +1745,7 @@ private struct ShioriCard: View {
         .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(cardBorder, lineWidth: isSelected ? 1.5 : 1)
+                .strokeBorder(cardBorder, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
@@ -1768,7 +1768,7 @@ private struct ShioriCard: View {
 
     private var cardBorder: Color {
         if isSelected {
-            return Color.accentColor
+            return Color.clear
         }
         if isHovered {
             return Color.primary.opacity(0.07)

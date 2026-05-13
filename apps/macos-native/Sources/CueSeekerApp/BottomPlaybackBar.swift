@@ -140,9 +140,11 @@ private struct BottomPlaybackBarContent: View {
     }
 
     private var playbackSurfaceToggleArrow: some View {
-        Image(systemName: appState.isPlaybackSurfaceExpanded ? "chevron.up" : "chevron.right")
+        Image(systemName: "chevron.right")
             .font(.system(size: 15, weight: .bold))
             .frame(width: 18, alignment: .center)
+            .rotationEffect(.degrees(appState.isPlaybackSurfaceExpanded ? -90 : 0))
+            .animation(.easeInOut(duration: 0.16), value: appState.isPlaybackSurfaceExpanded)
     }
 
     private var volumeControl: some View {

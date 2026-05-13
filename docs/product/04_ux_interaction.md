@@ -74,6 +74,10 @@ Accepted topbar Search transition:
 - Clicking a Search result expands the bottom-launched playback overlay. The
   expanded overlay keeps the video on the left and shows a right-side panel for
   `Search Results` and `Subtitles`.
+- The bottom player's video expand or collapse control uses one right-pointing
+  chevron. When the toggle takes effect, the chevron rotates between `0°`
+  (collapsed) and `-90°` (expanded) over `160ms` with an ease curve instead of
+  swapping to a different chevron symbol.
 - The bottom player provides a video-sidebar toggle between the subtitle
   visibility and playback-speed controls. It shows or hides the overlay's
   right-side panel without moving the bottom-player controls.
