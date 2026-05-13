@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CueSeeker Card Search Bottom Player Prototype</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --window-border: #d4d4d7;
+      --titlebar: #f3f3f4;
+      --surface: #ffffff;
+      --card: #f3f3f4;
+      --card-hover: #ededee;
+      --separator: #dedee1;
+      --primary: #242529;
+      --secondary: #8f9097;
+      --muted: #b8b9bf;
+      --accent: #2364e8;
+      --accent-soft: #e9f0ff;
+      --highlight: #ffe66c;
+      --player: #080808;
+      --player-secondary: #9ea0a8;
+      --player-line: #404047;
+      --player-active: #57d968;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f7f7f8;
+      color: var(--primary);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 34px;
+    }
+
+    .window {
+      width: min(1440px, calc(100vw - 68px));
+      height: min(1020px, calc(100vh - 68px));
+      min-height: 720px;
+      border: 1px solid var(--window-border);
+      border-radius: 20px;
+      background: var(--surface);
+      box-shadow: 0 20px 70px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 78px 1fr 96px;
+    }
+
+    .topbar {
+      background: var(--titlebar);
+      border-bottom: 1px solid var(--separator);
+      display: grid;
+      grid-template-columns: 160px 1fr 160px;
+      align-items: center;
+      padding: 0 28px;
+    }
+
+    .traffic {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+    }
+
+    .dot.close { background: #ff5f57; }
+    .dot.minimize { background: #ffbd2e; }
+    .dot.zoom { background: #28c840; }
+
+    .search-cluster {
+      justify-self: center;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: min(760px, 100%);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px;
+      background: rgba(255, 255, 255, 0.68);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 11px;
+      flex: 0 0 auto;
+    }
+
+    .nav button {
+      appearance: none;
+      border: 0;
+      border-radius: 8px;
+      padding: 7px 13px;
+      background: transparent;
+      color: #5e6067;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 650;
+      line-height: 1;
+    }
+
+    .nav button.active {
+      background: #ffffff;
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.09);
+    }
+
+    .search {
+      height: 44px;
+      min-width: 340px;
+      flex: 1 1 auto;
+      border: 1px solid #c8c8cc;
+      border-radius: 14px;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 18px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+    }
+
+    .search svg {
+      width: 20px;
+      height: 20px;
+      stroke: #9a9ba1;
+      flex: 0 0 auto;
+    }
+
+    .query {
+      font-size: 24px;
+      font-weight: 650;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .content {
+      min-height: 0;
+      overflow: auto;
+      padding: 0 32px 34px;
+      background: var(--surface);
+    }
+
+    .content-inner {
+      max-width: 1288px;
+      margin: 0 auto;
+      padding: 20px 0 10px;
+    }
+
+    .summary {
+      font-size: 24px;
+      font-weight: 700;
+      color: #9b9ca2;
+      margin: 0 0 28px;
+    }
+
+    .group {
+      margin: 0 0 34px;
+    }
+
+    .group-title {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin: 0 8px 14px;
+      color: #83848a;
+      text-transform: uppercase;
+      letter-spacing: 1.4px;
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .group-title .count {
+      color: #b8b9bf;
+      font-size: 20px;
+      font-weight: 760;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      min-height: 132px;
+      border: 0;
+      border-radius: 13px;
+      background: var(--card);
+      color: inherit;
+      padding: 19px 22px 18px;
+      text-align: left;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 15px;
+      cursor: default;
+    }
+
+    .card:hover {
+      background: var(--card-hover);
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      color: #bbbcc2;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .episode {
+      white-space: nowrap;
+      letter-spacing: 0.3px;
+    }
+
+    .lines {
+      display: grid;
+      gap: 8px;
+      align-self: end;
+    }
+
+    .line-primary {
+      color: #202126;
+      font-size: 22px;
+      font-weight: 820;
+      line-height: 1.26;
+    }
+
+    .line-secondary {
+      color: #85868d;
+      font-size: 22px;
+      font-weight: 760;
+      line-height: 1.22;
+    }
+
+    mark {
+      background: var(--highlight);
+      border-radius: 4px;
+      color: inherit;
+      padding: 0 2px;
+    }
+
+    .player {
+      min-width: 0;
+      background: var(--player);
+      border-top: 1px solid #1f1f22;
+      display: grid;
+      grid-template-columns: minmax(250px, 0.8fr) minmax(420px, 1.4fr) minmax(250px, 0.8fr);
+      align-items: center;
+      gap: 26px;
+      padding: 13px 24px;
+      color: #f7f7f8;
+    }
+
+    .now-playing {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cover {
+      width: 68px;
+      height: 68px;
+      border-radius: 8px;
+      background:
+        radial-gradient(circle at 28% 24%, #e9fbff 0 6%, transparent 7%),
+        radial-gradient(circle at 70% 35%, #96c6ff 0 8%, transparent 9%),
+        radial-gradient(circle at 38% 72%, #86f0c7 0 7%, transparent 8%),
+        linear-gradient(135deg, #183b8c, #6fd4ff 45%, #f6f6ff);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+      flex: 0 0 auto;
+    }
+
+    .track {
+      min-width: 0;
+      display: grid;
+      gap: 5px;
+    }
+
+    .track-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-size: 17px;
+      font-weight: 720;
+    }
+
+    .track-title span:first-child,
+    .track-subtitle {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .status-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--player-active);
+      color: #031205;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .track-subtitle {
+      color: var(--player-secondary);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .center-controls {
+      min-width: 0;
+      display: grid;
+      gap: 11px;
+      justify-items: center;
+    }
+
+    .buttons {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      color: #d7d8dc;
+    }
+
+    .icon-button {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      padding: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: inherit;
+      display: grid;
+      place-items: center;
+      font: inherit;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .play {
+      width: 48px;
+      height: 48px;
+      background: #ffffff;
+      color: #000000;
+      font-size: 24px;
+      box-shadow: 0 1px 8px rgba(255, 255, 255, 0.22);
+    }
+
+    .lyrics-ready {
+      color: var(--player-active);
+    }
+
+    .progress-row {
+      width: min(640px, 100%);
+      display: grid;
+      grid-template-columns: 48px 1fr 48px;
+      align-items: center;
+      gap: 11px;
+      color: #c4c5ca;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .progress {
+      height: 7px;
+      border-radius: 999px;
+      background: var(--player-line);
+      overflow: hidden;
+    }
+
+    .progress span {
+      display: block;
+      width: 82%;
+      height: 100%;
+      border-radius: inherit;
+      background: #f3f3f5;
+    }
+
+    .utility {
+      min-width: 0;
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      color: #d1d2d6;
+    }
+
+    .volume {
+      width: 132px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--player-line);
+      overflow: hidden;
+    }
+
+    .volume span {
+      display: block;
+      width: 58%;
+      height: 100%;
+      background: #ffffff;
+      border-radius: inherit;
+    }
+
+    @media (max-width: 1080px) {
+      body {
+        padding: 18px;
+      }
+
+      .window {
+        width: calc(100vw - 36px);
+        height: calc(100vh - 36px);
+      }
+
+      .topbar {
+        grid-template-columns: 128px 1fr 32px;
+        padding: 0 20px;
+      }
+
+      .search-cluster {
+        gap: 10px;
+      }
+
+      .search {
+        min-width: 240px;
+      }
+
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .player {
+        grid-template-columns: minmax(180px, 1fr) minmax(320px, 1.5fr) minmax(160px, 0.8fr);
+        gap: 16px;
+      }
+
+      .volume {
+        display: none;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .window {
+        grid-template-rows: 112px 1fr 138px;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+        grid-template-rows: 28px 1fr;
+        gap: 12px;
+        padding: 16px;
+      }
+
+      .traffic {
+        justify-self: start;
+      }
+
+      .search-cluster {
+        justify-self: stretch;
+        width: 100%;
+      }
+
+      .nav button {
+        padding: 7px 9px;
+      }
+
+      .query {
+        font-size: 18px;
+      }
+
+      .content {
+        padding: 0 18px 24px;
+      }
+
+      .summary {
+        font-size: 19px;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .player {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        align-content: center;
+      }
+
+      .now-playing {
+        display: none;
+      }
+
+      .utility {
+        justify-self: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="window" aria-label="CueSeeker card search bottom player prototype">
+    <header class="topbar">
+      <div class="traffic" aria-hidden="true">
+        <span class="dot close"></span>
+        <span class="dot minimize"></span>
+        <span class="dot zoom"></span>
+      </div>
+
+      <div class="search-cluster">
+        <nav class="nav" aria-label="Primary">
+          <button class="active" type="button">Library</button>
+          <button type="button">Shiori</button>
+        </nav>
+
+        <div class="search" role="search" aria-label="Search subtitles">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5" stroke-width="2"></circle>
+            <path d="m15.5 15.5 5 5" stroke-width="2" stroke-linecap="round"></path>
+          </svg>
+          <div class="query">大丈夫</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="content" aria-label="Search results">
+      <div class="content-inner">
+        <p class="summary">185 results in 74 files</p>
+
+        <section class="group" aria-labelledby="ave-mujica">
+          <h2 class="group-title" id="ave-mujica">
+            AVE MUJICA <span class="count">13 results</span>
+          </h2>
+          <div class="cards">
+            <button class="card" type="button">
+              <span class="meta"><span>#1</span><span class="episode">EP 01 · 02:14</span></span>
+              <span class="lines">
+                <span class="line-primary">毋庸担心 月霞自会为我们将她唤醒</span>
+                <span class="line-secondary"><mark>大丈夫</mark> 月の光が起こしてくれますわ</span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#2</span><span class="episode">EP 01 · 05:33</span></span>
+              <span class="lines">
+                <span class="line-primary">没问题的 诚实就是你的美德哦</span>
+                <span class="line-secondary"><mark>大丈夫</mark> あなたの誠実さは美徳よ</span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#3</span><span class="episode">EP 01 · 11:07</span></span>
+              <span class="lines">
+                <span class="line-primary">当然没问题</span>
+                <span class="line-secondary"><mark>大丈夫</mark> に決まっているでしょう</span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#4</span><span class="episode">EP 02 · 03:21</span></span>
+              <span class="lines">
+                <span class="line-primary">小初 你没事吧</span>
+                <span class="line-secondary">ういちゃん <mark>大丈夫</mark></span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#5</span><span class="episode">EP 02 · 08:44</span></span>
+              <span class="lines">
+                <span class="line-primary">我没事</span>
+                <span class="line-secondary">私は<mark>大丈夫</mark>だよ</span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#6</span><span class="episode">EP 03 · 06:12</span></span>
+              <span class="lines">
+                <span class="line-primary">应该没问题吧</span>
+                <span class="line-secondary"><mark>大丈夫</mark>かなぁ</span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section class="group" aria-labelledby="mygo">
+          <h2 class="group-title" id="mygo">
+            IT'S MYGO!!!!! <span class="count">8 results</span>
+          </h2>
+          <div class="cards">
+            <button class="card" type="button">
+              <span class="meta"><span>#14</span><span class="episode">EP 02 · 07:10</span></span>
+              <span class="lines">
+                <span class="line-primary">没关系的</span>
+                <span class="line-secondary"><mark>大丈夫</mark>だから</span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#15</span><span class="episode">EP 04 · 09:30</span></span>
+              <span class="lines">
+                <span class="line-primary">这样没问题的</span>
+                <span class="line-secondary">これで<mark>大丈夫</mark>だよ</span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#16</span><span class="episode">EP 07 · 17:02</span></span>
+              <span class="lines">
+                <span class="line-primary">你还好吗</span>
+                <span class="line-secondary"><mark>大丈夫</mark>?</span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#17</span><span class="episode">EP 09 · 12:44</span></span>
+              <span class="lines">
+                <span class="line-primary">我会没事的</span>
+                <span class="line-secondary">私、<mark>大丈夫</mark>だよ</span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section class="group" aria-labelledby="winner">
+          <h2 class="group-title" id="winner">
+            胜者即是正义 <span class="count">5 results</span>
+          </h2>
+          <div class="cards">
+            <button class="card" type="button">
+              <span class="meta"><span>#22</span><span class="episode">EP 03 · 05:18</span></span>
+              <span class="lines">
+                <span class="line-primary">你没事的</span>
+                <span class="line-secondary"><mark>大丈夫</mark>だよ、君は</span>
+              </span>
+            </button>
+            <button class="card" type="button">
+              <span class="meta"><span>#23</span><span class="episode">EP 06 · 19:44</span></span>
+              <span class="lines">
+                <span class="line-primary">没问题，交给我</span>
+                <span class="line-secondary"><mark>大丈夫</mark>、任せて</span>
+              </span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="player" aria-label="Bottom player preview">
+      <section class="now-playing" aria-label="Current video">
+        <div class="cover" aria-hidden="true"></div>
+        <div class="track">
+          <div class="track-title">
+            <span>栞</span>
+            <span class="status-badge" aria-label="Ready">✓</span>
+          </div>
+          <div class="track-subtitle">MyGO!!!!! · EP 07</div>
+        </div>
+      </section>
+
+      <section class="center-controls" aria-label="Playback controls">
+        <div class="buttons" aria-hidden="true">
+          <button class="icon-button" type="button" title="Shuffle">↝</button>
+          <button class="icon-button" type="button" title="Previous">◀</button>
+          <button class="icon-button play" type="button" title="Play">▶</button>
+          <button class="icon-button" type="button" title="Next">▶</button>
+          <button class="icon-button lyrics-ready" type="button" title="Lyrics">▱</button>
+        </div>
+        <div class="progress-row">
+          <span>4:16</span>
+          <div class="progress" aria-hidden="true"><span></span></div>
+          <span>4:26</span>
+        </div>
+      </section>
+
+      <section class="utility" aria-label="Secondary controls">
+        <button class="icon-button" type="button" title="Lyrics">⌕</button>
+        <button class="icon-button lyrics-ready" type="button" title="Queue">☰</button>
+        <button class="icon-button" type="button" title="Subtitles">▣</button>
+        <button class="icon-button" type="button" title="Volume">◁</button>
+        <div class="volume" aria-hidden="true"><span></span></div>
+        <button class="icon-button" type="button" title="Mini player">▢</button>
+        <button class="icon-button" type="button" title="Fullscreen">⛶</button>
+      </section>
+    </footer>
+  </main>
+</body>
+</html>
