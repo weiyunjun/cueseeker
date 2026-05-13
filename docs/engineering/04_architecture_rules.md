@@ -299,10 +299,10 @@ Rules:
   visually locked together.
 - Workbench actions that animate the video's available size must be serialized
   while the animation is active. This includes Library/Search panel toggles,
-  titlebar double-click zoom, playback fullscreen enter/exit, the `F`
-  fullscreen shortcut, and Escape-driven fullscreen exit. Direct divider drags
-  remain a live resize interaction and are not part of this serialized command
-  gate.
+  bottom-player video overlay expand/collapse, titlebar double-click zoom,
+  playback fullscreen enter/exit, the `F` fullscreen shortcut, and
+  Escape-driven fullscreen exit. Direct divider drags remain a live resize
+  interaction and are not part of this serialized command gate.
 - Playback fullscreen and titlebar zoom transition gates must use AppKit's
   current resize-animation duration for the actual source and target window
   frames, such as `NSWindow.animationResizeTime(_:)`. They must not use a fixed

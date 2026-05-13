@@ -18,6 +18,17 @@ struct BottomPlaybackBar: View {
     }
 }
 
+private struct BottomPlaybackMenuAnchorKey: PreferenceKey {
+    static let defaultValue: [BottomPlaybackMenuKind: Anchor<CGRect>] = [:]
+
+    static func reduce(
+        value: inout [BottomPlaybackMenuKind: Anchor<CGRect>],
+        nextValue: () -> [BottomPlaybackMenuKind: Anchor<CGRect>]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
+    }
+}
+
 private struct BottomPlaybackBarContent: View {
     @ObservedObject var appState: AppState
     @ObservedObject var viewModel: PlaybackViewModel
@@ -31,15 +42,6 @@ private struct BottomPlaybackBarContent: View {
     var body: some View {
         ZStack {
             Color(nsColor: .controlBackgroundColor)
-
-            if appState.activeBottomPlaybackMenu != nil {
-                Color.black.opacity(0.001)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        appState.dismissBottomPlaybackMenu()
-                    }
-                    .zIndex(5)
-            }
 
             VStack(spacing: 7) {
                 HStack(spacing: 20) {
@@ -72,6 +74,22 @@ private struct BottomPlaybackBarContent: View {
             .padding(.horizontal, 16)
             .zIndex(10)
         }
+        .overlayPreferenceValue(BottomPlaybackMenuAnchorKey.self) { anchors in
+            GeometryReader { proxy in
+                if let menu = appState.activeBottomPlaybackMenu,
+                   let anchor = anchors[menu] {
+                    menuDismissalLayer
+                        .zIndex(20)
+
+                    bottomPlaybackMenu(menu)
+                        .position(
+                            x: proxy[anchor].midX,
+                            y: proxy[anchor].minY - menuVerticalOffset(menu)
+                        )
+                        .zIndex(30)
+                }
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -103,7 +121,7 @@ private struct BottomPlaybackBarContent: View {
                 .contentShape(Capsule())
             }
             .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
-            .disabled(!hasPlayback)
+            .disabled(appState.isPlaybackSurfaceToggleDisabled)
             .help(hasPlayback ? "Expand or collapse video window" : "No video selected")
 
             volumeControl
@@ -213,44 +231,23 @@ private struct BottomPlaybackBarContent: View {
     }
 
     private var moreMenu: some View {
-        bottomIconButton(
-            systemImage: "ellipsis.vertical",
-            help: "More actions",
-            isEnabled: hasPlayback,
-            dismissesMenus: false
-        ) {
+        Button {
             appState.toggleBottomPlaybackMenu(.more)
-        }
-        .overlay(alignment: .bottom) {
-            if appState.activeBottomPlaybackMenu == .more {
-                VStack(alignment: .leading, spacing: 2) {
-                    menuItem("Video Folder") {
-                        appState.clearSearchFocus()
-                        appState.revealCurrentVideoFile()
-                    }
-                    menuItem("Subtitle Folder", isEnabled: appState.currentPlaybackSubtitlePath != nil) {
-                        appState.clearSearchFocus()
-                        appState.revealCurrentSubtitleFile()
-                    }
-                    menuItem("Results") {
-                        appState.clearSearchFocus()
-                        appState.requestPlaybackDrawer(.results)
-                    }
-                    menuItem("Subtitles", isEnabled: appState.currentPlaybackSubtitlePath != nil) {
-                        appState.clearSearchFocus()
-                        appState.requestPlaybackDrawer(.subtitles)
-                    }
+        } label: {
+            VStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(Color.primary)
+                        .frame(width: 4, height: 4)
                 }
-                .padding(6)
-                .frame(width: 148, alignment: .leading)
-                .background(menuBackground)
-                .fixedSize(horizontal: true, vertical: true)
-                .offset(y: -46)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                .zIndex(100)
             }
+            .frame(width: 36, height: 36)
         }
+        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
+        .disabled(!hasPlayback)
+        .help("More actions")
         .frame(width: 36, height: 36)
+        .anchorPreference(key: BottomPlaybackMenuAnchorKey.self, value: .bounds) { [.more: $0] }
         .zIndex(appState.activeBottomPlaybackMenu == .more ? 100 : 0)
     }
 
@@ -306,42 +303,8 @@ private struct BottomPlaybackBarContent: View {
         .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
         .disabled(!hasPlayback)
         .help("Playback speed")
-        .overlay(alignment: .bottom) {
-            if appState.activeBottomPlaybackMenu == .speed {
-                VStack(spacing: 2) {
-                    ForEach(PlaybackViewModel.speedPresets, id: \.self) { speed in
-                        Button {
-                            viewModel.setSpeed(speed)
-                            appState.dismissBottomPlaybackMenu()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Text(PlaybackViewModel.formatSpeed(speed))
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .frame(width: 48, alignment: .leading)
-
-                                Spacer(minLength: 0)
-
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .opacity(abs(viewModel.playbackSpeed - speed) < 0.01 ? 1 : 0)
-                            }
-                            .foregroundStyle(Color.primary)
-                            .padding(.horizontal, 12)
-                            .frame(width: 122, height: 32)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.vertical, 7)
-                .background(menuBackground)
-                .fixedSize(horizontal: true, vertical: true)
-                .offset(y: -46)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                .zIndex(100)
-            }
-        }
         .frame(minWidth: 54, minHeight: 36)
+        .anchorPreference(key: BottomPlaybackMenuAnchorKey.self, value: .bounds) { [.speed: $0] }
         .zIndex(appState.activeBottomPlaybackMenu == .speed ? 100 : 0)
     }
 
@@ -379,6 +342,82 @@ private struct BottomPlaybackBarContent: View {
             return "speaker.wave.2.fill"
         }
         return "speaker.wave.3.fill"
+    }
+
+    private var menuDismissalLayer: some View {
+        Color.black.opacity(0.001)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                appState.dismissBottomPlaybackMenu()
+            }
+    }
+
+    @ViewBuilder
+    private func bottomPlaybackMenu(_ menu: BottomPlaybackMenuKind) -> some View {
+        switch menu {
+        case .more:
+            VStack(alignment: .leading, spacing: 2) {
+                menuItem("Video Folder") {
+                    appState.clearSearchFocus()
+                    appState.revealCurrentVideoFile()
+                }
+                menuItem("Subtitle Folder", isEnabled: appState.currentPlaybackSubtitlePath != nil) {
+                    appState.clearSearchFocus()
+                    appState.revealCurrentSubtitleFile()
+                }
+                menuItem("Results") {
+                    appState.clearSearchFocus()
+                    appState.requestPlaybackDrawer(.results)
+                }
+                menuItem("Subtitles", isEnabled: appState.currentPlaybackSubtitlePath != nil) {
+                    appState.clearSearchFocus()
+                    appState.requestPlaybackDrawer(.subtitles)
+                }
+            }
+            .padding(6)
+            .frame(width: 148, alignment: .leading)
+            .background(menuBackground)
+            .fixedSize(horizontal: true, vertical: true)
+
+        case .speed:
+            VStack(spacing: 2) {
+                ForEach(PlaybackViewModel.speedPresets, id: \.self) { speed in
+                    Button {
+                        viewModel.setSpeed(speed)
+                        appState.dismissBottomPlaybackMenu()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(PlaybackViewModel.formatSpeed(speed))
+                                .font(.system(size: 15, weight: .semibold))
+                                .frame(width: 48, alignment: .leading)
+
+                            Spacer(minLength: 0)
+
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 13, weight: .bold))
+                                .opacity(abs(viewModel.playbackSpeed - speed) < 0.01 ? 1 : 0)
+                        }
+                        .foregroundStyle(Color.primary)
+                        .padding(.horizontal, 12)
+                        .frame(width: 122, height: 32)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 7)
+            .background(menuBackground)
+            .fixedSize(horizontal: true, vertical: true)
+        }
+    }
+
+    private func menuVerticalOffset(_ menu: BottomPlaybackMenuKind) -> CGFloat {
+        switch menu {
+        case .more:
+            return 76
+        case .speed:
+            return 132
+        }
     }
 
     private var menuBackground: some View {

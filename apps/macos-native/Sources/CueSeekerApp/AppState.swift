@@ -556,6 +556,10 @@ final class AppState: ObservableObject {
         currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
     }
 
+    var isPlaybackSurfaceToggleDisabled: Bool {
+        currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
+    }
+
     private let userDefaults: UserDefaults
     private var player: PlaybackPlayer?
     private let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
@@ -811,6 +815,10 @@ final class AppState: ObservableObject {
             return
         }
 
+        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+            return
+        }
+
         if isPlaybackSurfaceExpanded {
             pausePlayback()
         }
@@ -823,6 +831,10 @@ final class AppState: ObservableObject {
 
     func expandPlaybackSurface() {
         guard hasPlaybackSelection, !isPlaybackSurfaceExpanded else {
+            return
+        }
+
+        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
             return
         }
 
@@ -853,8 +865,14 @@ final class AppState: ObservableObject {
             return
         }
 
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            isPlaybackSurfaceExpanded = true
+        if !isPlaybackSurfaceExpanded {
+            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+                return
+            }
+
+            withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+                isPlaybackSurfaceExpanded = true
+            }
         }
         playbackDrawerRequest = PlaybackDrawerRequest(drawer: drawer)
     }

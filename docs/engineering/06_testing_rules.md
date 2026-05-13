@@ -374,9 +374,10 @@ Required M2 playback interaction checks:
   background, native video frame, and ASS overlay synchronized. The video frame
   must not visibly lag behind or detach from the black playback container.
 - Playback-size transition checks should verify that side-panel toggle commands,
-  titlebar double-click zoom, playback fullscreen `F`, fullscreen button
-  enter/exit, and Escape fullscreen exit are serialized while an animation is
-  active, without adding a post-animation cooldown.
+  bottom-player video overlay expand/collapse, titlebar double-click zoom,
+  playback fullscreen `F`, fullscreen button enter/exit, and Escape fullscreen
+  exit are serialized while an animation is active, without adding a
+  post-animation cooldown.
 - Playback fullscreen animation checks should verify that main-window
   video-only presentation enters and exits AppKit native fullscreen through
   AppKit lifecycle callbacks, keeps using the singleton render container without

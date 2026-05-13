@@ -254,11 +254,11 @@ Responsiveness boundaries:
   Users should not see the black container and the native video layer drift out
   of sync.
 - Commands that change the available playback size should not overlap. While a
-  Shared Content Panel toggle, titlebar double-click zoom, playback fullscreen
-  enter/exit, `F` fullscreen toggle, or Escape fullscreen exit animation is
-  active, other command-style playback-size changes should be ignored until the
-  current animation ends. Manual divider dragging remains a direct resize
-  interaction.
+  Shared Content Panel toggle, bottom-player video overlay expand/collapse,
+  titlebar double-click zoom, playback fullscreen enter/exit, `F` fullscreen
+  toggle, or Escape fullscreen exit animation is active, other command-style
+  playback-size changes should be ignored until the current animation ends.
+  Manual divider dragging remains a direct resize interaction.
 - Search field focus is Search mode interaction state. Changing focus should not
   invalidate Library content, Shiori content, or playback content.
 - Side-panel scrollable lists must reserve room for the macOS scrollbar
@@ -433,12 +433,11 @@ M2 playback interaction model:
 - Together, the `Timeline Zone` and `Transport Controls Zone` form the `Playback Operation Zone`.
 - Mouse clicks in the `Playback Operation Zone` should control only the targeted playback control and must not fall through to video-surface play or pause toggling.
 - Hovering or dragging the `Timeline Zone` should not change the vertical position of the `Playback Operation Zone`.
-- Playback speed selection should use an app-drawn upward menu that stays within the playback controls surface.
-- The speed menu should appear from hover over the speed control instead of requiring an arrow button.
+- Playback speed selection should use an app-drawn upward menu that opens from the speed control.
+- The speed menu should appear when the speed control is clicked, without requiring a separate arrow button.
 - The speed menu should not have a separate show or hide animation.
-- The speed button's hover area and click area should be identical and should match the speed menu width.
-- The speed menu should appear only when hovering over the speed button area.
-- The speed menu should disappear only after the pointer leaves the combined rectangular region whose top edge is the speed menu top edge and whose bottom edge is the speed button bottom edge.
+- The speed button's hover area and click area should be identical and should stay stable while the menu is open.
+- Clicking outside an open speed or secondary-actions menu should close that menu.
 - Keyboard shortcuts in fullscreen should not reveal the playback operation controls.
 - A copy-current-subtitle button should appear immediately before the subtitle visibility button.
 - The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.

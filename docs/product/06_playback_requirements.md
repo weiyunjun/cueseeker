@@ -361,12 +361,12 @@ Required behavior:
 - Clicking inside the `Playback Operation Zone` must not toggle play or pause unless the targeted control is the play or pause button.
 - The playback speed selector should be an app-drawn menu that opens upward from the speed button.
 - The playback speed menu should match the current playback control visual style.
-- The playback speed menu should appear on hover over the speed control, and the speed control should not show a separate arrow icon.
+- The playback speed menu should appear when the user clicks the speed control, and the speed control should not show a separate arrow icon.
+- Clicking outside an open bottom-player popover menu should close the menu without moving bottom-player controls.
 - The playback speed menu should appear and disappear without its own animation.
 - The playback speed button hover area and click area should be identical.
-- The playback speed button hover and click area should have the same width as the playback speed menu.
-- The playback speed menu should appear only when hovering the playback speed button area.
-- The playback speed menu should remain visible while the pointer is inside the rectangle spanning the menu's top edge and the speed button's bottom edge, with the menu and button sharing left and right edges.
+- The playback speed menu and secondary-actions menu should appear directly above their source buttons.
+- The playback speed button hover and click area should remain stable while the menu is open.
 - The subtitle button should toggle subtitle visibility through the playback engine.
 - Playback keyboard shortcuts should be available when a playback result is selected, the playback interface is visible, and the user is not typing into an editable text field.
 - Read-only selectable metadata text must not disable playback keyboard shortcuts.
@@ -406,7 +406,7 @@ Current implementation notes and accepted fullscreen correction:
 - Fullscreen chrome state suppresses the initial hover event emitted when the fullscreen presentation appears, then reveals controls and cursor only after real user activity.
 - Fullscreen entry hides the playback operation controls and cursor immediately for both keyboard and button entry paths.
 - Fullscreen playback shortcuts do not reveal the playback operation controls.
-- The speed preset menu uses the same width as the speed button and has no separate show or hide animation.
+- The speed preset menu opens from the bottom player's speed button on click and has no separate show or hide animation.
 - The playback fullscreen implementation uses AppKit fullscreen lifecycle
   instead of manual Theater Mode deactivation handling.
 - Read-only selectable metadata text does not count as editable text input for playback shortcut suppression.

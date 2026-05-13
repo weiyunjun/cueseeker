@@ -16,7 +16,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   pauses playback, and the bottom player uses the resolved playback display
   title with middle truncation. The overlay now sizes to the source video
   aspect ratio without app-added black margins, and bottom-player popover menus
-  open directly above their buttons without shifting controls.
+  open directly above their buttons without shifting controls, close on outside
+  clicks, and keep video expand/collapse commands serialized during the active
+  layout animation.
 - Refined the card Search and bottom-player HTML prototype direction: topbar
   Library and Shiori now use icon-only navigation without selected emphasis,
   the bottom player uses a light gray rounded surface, drops cover art for a
