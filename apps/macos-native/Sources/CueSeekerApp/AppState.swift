@@ -231,6 +231,7 @@ final class AppState: ObservableObject {
     private static let searchPrefetchThreshold = 10
     private static let searchNavigationPanelRadius = 10_000
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
+    private static let sidePanelToggleCooldown: TimeInterval = 0.18
 
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
@@ -499,7 +500,6 @@ final class AppState: ObservableObject {
 
     var isPlaybackSidePanelToggleDisabled: Bool {
         currentPlaybackVideoPath == nil
-            || (isPlaybackSurfaceExpanded && workbenchLayout.isVideoSizeTransitionInProgress)
     }
 
     private let userDefaults: UserDefaults
@@ -512,6 +512,7 @@ final class AppState: ObservableObject {
     private var searchNavigationTask: Task<Void, Never>?
     private var currentSubtitleEntriesTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
+    private var lastPlaybackSidePanelToggleTime = Date.distantPast
     private var windowFrameBeforeUserZoom: NSRect?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     private var activeSearchPerformanceRun: SearchPerformanceRun?
@@ -760,11 +761,11 @@ final class AppState: ObservableObject {
             return
         }
 
-        if isPlaybackSurfaceExpanded {
-            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-                return
-            }
+        let now = Date()
+        guard now.timeIntervalSince(lastPlaybackSidePanelToggleTime) >= Self.sidePanelToggleCooldown else {
+            return
         }
+        lastPlaybackSidePanelToggleTime = now
 
         activeBottomPlaybackMenu = nil
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {

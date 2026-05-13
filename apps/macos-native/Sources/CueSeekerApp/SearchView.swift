@@ -625,10 +625,25 @@ private struct PlaybackOverlayMetrics {
 private enum PlaybackOverlayLayout {
     static let outerPadding: CGFloat = 24
     static let panelGap: CGFloat = 18
-    static let sidePanelMinWidth: CGFloat = 320
-    static let sidePanelPreferredWidth: CGFloat = 380
+    static let sidePanelMinWidth: CGFloat = 256
+    static let sidePanelPreferredWidth: CGFloat = 304
     static let videoCornerRadius: CGFloat = 16
-    static let panelCornerRadius: CGFloat = 18
+    static let panelCornerRadius: CGFloat = 14
+    static let sidePanelPadding: CGFloat = 13
+    static let sidePanelSpacing: CGFloat = 11
+    static let sidePanelTabPadding: CGFloat = 3
+    static let sidePanelTabCornerRadius: CGFloat = 7
+    static let sidePanelTabSelectedCornerRadius: CGFloat = 6
+    static let sidePanelTabHeight: CGFloat = 27
+    static let sidePanelCountHeight: CGFloat = 22
+    static let sidePanelRowSpacing: CGFloat = 6
+    static let sidePanelRowHorizontalPadding: CGFloat = 11
+    static let sidePanelRowVerticalPadding: CGFloat = 10
+    static let sidePanelRowInternalSpacing: CGFloat = 8
+    static let sidePanelCueLineSpacing: CGFloat = 3
+    static let sidePanelCardCornerRadius: CGFloat = 6
+    static let sidePanelBodyFontSize: CGFloat = 11
+    static let sidePanelDetailFontSize: CGFloat = 10
 }
 
 private struct PlaybackOverlayWindow: View {
@@ -741,15 +756,15 @@ private struct PlaybackOverlaySidePanel: View {
     @Binding var activePanel: PlaybackDrawerKind
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: PlaybackOverlayLayout.sidePanelSpacing) {
             tabSwitcher
 
             HStack {
                 Text(countText)
-                    .font(.system(size: SearchTypography.detailSize, weight: .semibold))
+                    .font(.system(size: PlaybackOverlayLayout.sidePanelDetailFontSize, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .frame(height: 28)
+                    .padding(.horizontal, 8)
+                    .frame(height: PlaybackOverlayLayout.sidePanelCountHeight)
                     .background(
                         Capsule()
                             .fill(Color.primary.opacity(0.045))
@@ -761,7 +776,7 @@ private struct PlaybackOverlaySidePanel: View {
             panelContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(16)
+        .padding(PlaybackOverlayLayout.sidePanelPadding)
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.panelCornerRadius))
         .overlay(
@@ -775,9 +790,9 @@ private struct PlaybackOverlaySidePanel: View {
             panelTab(.results, title: "Search Results")
             panelTab(.subtitles, title: "Subtitles")
         }
-        .padding(4)
+        .padding(PlaybackOverlayLayout.sidePanelTabPadding)
         .background(
-            RoundedRectangle(cornerRadius: 9)
+            RoundedRectangle(cornerRadius: PlaybackOverlayLayout.sidePanelTabCornerRadius)
                 .fill(Color.primary.opacity(0.10))
         )
     }
@@ -787,12 +802,12 @@ private struct PlaybackOverlaySidePanel: View {
             selectPanel(panel)
         } label: {
             Text(title)
-                .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                .font(.system(size: PlaybackOverlayLayout.sidePanelBodyFontSize, weight: .semibold))
                 .foregroundStyle(activePanel == panel ? Color.primary : Color.primary.opacity(0.72))
                 .frame(maxWidth: .infinity)
-                .frame(height: 34)
+                .frame(height: PlaybackOverlayLayout.sidePanelTabHeight)
                 .background(
-                    RoundedRectangle(cornerRadius: 7)
+                    RoundedRectangle(cornerRadius: PlaybackOverlayLayout.sidePanelTabSelectedCornerRadius)
                         .fill(activePanel == panel ? Color.primary.opacity(0.18) : Color.clear)
                 )
         }
@@ -862,13 +877,13 @@ private struct PlaybackOverlayResultsPanel: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVStack(spacing: PlaybackOverlayLayout.sidePanelRowSpacing) {
                     if results.isEmpty {
                         PlaybackOverlayEmptyList(
                             title: "No Search Results",
                             message: "Search Results are available after opening playback from Search."
                         )
-                        .padding(.top, 28)
+                        .padding(.top, 22)
                     } else {
                         ForEach(results, id: \.entryID) { result in
                             PlaybackOverlayResultRow(
@@ -885,8 +900,8 @@ private struct PlaybackOverlayResultsPanel: View {
                         }
                     }
                 }
-                .padding(.trailing, 3)
-                .padding(.bottom, 6)
+                .padding(.trailing, 2)
+                .padding(.bottom, 5)
             }
             .onAppear {
                 scrollToSelectedResult(using: proxy)
@@ -931,13 +946,13 @@ private struct PlaybackOverlaySubtitlesPanel: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVStack(spacing: PlaybackOverlayLayout.sidePanelRowSpacing) {
                     if appState.currentSubtitleEntries.isEmpty {
                         PlaybackOverlayEmptyList(
                             title: "No Subtitles",
                             message: "No subtitle cues are available for the current video."
                         )
-                        .padding(.top, 28)
+                        .padding(.top, 22)
                     } else {
                         ForEach(Array(appState.currentSubtitleEntries.enumerated()), id: \.element.id) { index, entry in
                             PlaybackOverlaySubtitleRow(
@@ -954,8 +969,8 @@ private struct PlaybackOverlaySubtitlesPanel: View {
                         }
                     }
                 }
-                .padding(.trailing, 3)
-                .padding(.bottom, 6)
+                .padding(.trailing, 2)
+                .padding(.bottom, 5)
             }
             .onAppear {
                 scrollToSelectedSubtitle(using: proxy)
@@ -990,23 +1005,23 @@ private struct PlaybackOverlayResultRow: View {
             ? .selected
             : (isHovered ? .hover : .default)
 
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: PlaybackOverlayLayout.sidePanelRowInternalSpacing) {
+            HStack(spacing: PlaybackOverlayLayout.sidePanelRowInternalSpacing) {
                 Text("#\(result.searchRank + 1)")
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .font(.system(size: PlaybackOverlayLayout.sidePanelBodyFontSize, weight: .semibold))
                     .foregroundStyle(secondaryTextColor)
                     .monospacedDigit()
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 6)
 
                 Text(formatTimestamp(result.startMilliseconds))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .font(.system(size: PlaybackOverlayLayout.sidePanelBodyFontSize, weight: .semibold))
                     .foregroundStyle(secondaryTextColor)
                     .lineLimit(1)
                     .monospacedDigit()
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: PlaybackOverlayLayout.sidePanelCueLineSpacing) {
                 ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
                     Text(highlightedContent(
                         line,
@@ -1014,21 +1029,21 @@ private struct PlaybackOverlayResultRow: View {
                         textColor: textColor,
                         state: highlightState
                     ))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .font(.system(size: PlaybackOverlayLayout.sidePanelBodyFontSize, weight: .semibold))
                     .foregroundStyle(textColor)
-                    .lineSpacing(4)
+                    .lineSpacing(PlaybackOverlayLayout.sidePanelCueLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
+        .padding(.horizontal, PlaybackOverlayLayout.sidePanelRowHorizontalPadding)
+        .padding(.vertical, PlaybackOverlayLayout.sidePanelRowVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(rowBackground)
-        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
+        .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.sidePanelCardCornerRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(rowBorder, lineWidth: isSelected ? 1.5 : 1)
+            RoundedRectangle(cornerRadius: PlaybackOverlayLayout.sidePanelCardCornerRadius)
+                .strokeBorder(rowBorder, lineWidth: isSelected ? 1.2 : 1)
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
@@ -1069,40 +1084,40 @@ private struct PlaybackOverlaySubtitleRow: View {
         let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
         let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
 
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: PlaybackOverlayLayout.sidePanelRowInternalSpacing) {
+            HStack(spacing: PlaybackOverlayLayout.sidePanelRowInternalSpacing) {
                 Text("#\(entry.sequenceNumber ?? fallbackSequenceNumber)")
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .font(.system(size: PlaybackOverlayLayout.sidePanelBodyFontSize, weight: .semibold))
                     .foregroundStyle(secondaryTextColor)
                     .monospacedDigit()
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 6)
 
                 Text(formatTimestamp(entry.startMilliseconds))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .font(.system(size: PlaybackOverlayLayout.sidePanelBodyFontSize, weight: .semibold))
                     .foregroundStyle(secondaryTextColor)
                     .lineLimit(1)
                     .monospacedDigit()
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: PlaybackOverlayLayout.sidePanelCueLineSpacing) {
                 ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
                     Text(line)
-                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .font(.system(size: PlaybackOverlayLayout.sidePanelBodyFontSize, weight: .semibold))
                         .foregroundStyle(textColor)
-                        .lineSpacing(4)
+                        .lineSpacing(PlaybackOverlayLayout.sidePanelCueLineSpacing)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
+        .padding(.horizontal, PlaybackOverlayLayout.sidePanelRowHorizontalPadding)
+        .padding(.vertical, PlaybackOverlayLayout.sidePanelRowVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(rowBackground)
-        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
+        .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.sidePanelCardCornerRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(rowBorder, lineWidth: isSelected ? 1.5 : 1)
+            RoundedRectangle(cornerRadius: PlaybackOverlayLayout.sidePanelCardCornerRadius)
+                .strokeBorder(rowBorder, lineWidth: isSelected ? 1.2 : 1)
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
@@ -1140,16 +1155,16 @@ private struct PlaybackOverlayEmptyList: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(title)
-                .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                .font(.system(size: PlaybackOverlayLayout.sidePanelBodyFontSize, weight: .semibold))
                 .foregroundStyle(.secondary)
 
             Text(message)
-                .font(.system(size: SearchTypography.detailSize))
+                .font(.system(size: PlaybackOverlayLayout.sidePanelDetailFontSize))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, PlaybackOverlayLayout.sidePanelPadding)
     }
 }
 

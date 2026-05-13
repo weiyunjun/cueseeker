@@ -201,8 +201,8 @@ private struct BottomPlaybackBarContent: View {
                 appState.togglePlaybackFromUser()
             } label: {
                 Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .frame(width: 48, height: 48)
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 36, height: 36)
             }
             .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
             .disabled(!hasPlayback || appState.playbackStatus.isOpening)
