@@ -121,7 +121,7 @@ private struct BottomPlaybackBarContent: View {
                 .contentShape(Capsule())
             }
             .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
-            .disabled(!hasPlayback)
+            .disabled(appState.isPlaybackSurfaceToggleDisabled)
             .help(hasPlayback ? "Expand or collapse video window" : "No video selected")
 
             volumeControl

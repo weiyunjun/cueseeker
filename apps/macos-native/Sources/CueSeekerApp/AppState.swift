@@ -265,6 +265,7 @@ final class AppState: ObservableObject {
     @Published var activeBottomPlaybackMenu: BottomPlaybackMenuKind?
     @Published var startupError: String?
     @Published var isSearchFocused = false
+    @Published private(set) var isPlaybackSidePanelToggleCoolingDown = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
         didSet {
@@ -498,8 +499,12 @@ final class AppState: ObservableObject {
         currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
     }
 
+    var isPlaybackSurfaceToggleDisabled: Bool {
+        currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
+    }
+
     var isPlaybackSidePanelToggleDisabled: Bool {
-        currentPlaybackVideoPath == nil
+        currentPlaybackVideoPath == nil || isPlaybackSidePanelToggleCoolingDown
     }
 
     private let userDefaults: UserDefaults
@@ -512,7 +517,7 @@ final class AppState: ObservableObject {
     private var searchNavigationTask: Task<Void, Never>?
     private var currentSubtitleEntriesTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
-    private var lastPlaybackSidePanelToggleTime = Date.distantPast
+    private var playbackSidePanelToggleCooldownTask: Task<Void, Never>?
     private var windowFrameBeforeUserZoom: NSRect?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     private var activeSearchPerformanceRun: SearchPerformanceRun?
@@ -761,15 +766,30 @@ final class AppState: ObservableObject {
             return
         }
 
-        let now = Date()
-        guard now.timeIntervalSince(lastPlaybackSidePanelToggleTime) >= Self.sidePanelToggleCooldown else {
+        guard !isPlaybackSidePanelToggleCoolingDown else {
             return
         }
-        lastPlaybackSidePanelToggleTime = now
+        startPlaybackSidePanelToggleCooldown()
 
         activeBottomPlaybackMenu = nil
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSidePanelVisible.toggle()
+        }
+    }
+
+    private func startPlaybackSidePanelToggleCooldown() {
+        isPlaybackSidePanelToggleCoolingDown = true
+        playbackSidePanelToggleCooldownTask?.cancel()
+        playbackSidePanelToggleCooldownTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.sidePanelToggleCooldown * 1_000_000_000))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                self?.isPlaybackSidePanelToggleCoolingDown = false
+                self?.playbackSidePanelToggleCooldownTask = nil
+            }
         }
     }
 
