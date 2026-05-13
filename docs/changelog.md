@@ -10,7 +10,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   now render as grouped cards in the main content area, Shiori uses the same
   grouped-card surface, Library and Shiori move to icon buttons beside the
   topbar Search field, and the previous Mode Rail / resizable content-panel
-  sidebar path has been removed from the visible workbench.
+  sidebar path has been removed from the visible workbench. Card subtitles now
+  show complete cue text, cards in the same row align to one row height, and
+  unreliable inferred episode labels are omitted from card metadata.
 - Implemented the first bottom-player playback pass in the native macOS app:
   the current shell now reserves a persistent light bottom player with real
   play/pause, progress seek, volume, subtitle, Shiori, speed, fullscreen,

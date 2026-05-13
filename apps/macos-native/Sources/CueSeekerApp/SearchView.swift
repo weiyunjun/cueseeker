@@ -1123,6 +1123,107 @@ private enum SearchCardLayout {
     static let cardMinHeight: CGFloat = 92
 }
 
+private struct EqualHeightCardGridLayout: Layout {
+    let minimumColumnWidth: CGFloat
+    let horizontalSpacing: CGFloat
+    let verticalSpacing: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        guard !subviews.isEmpty else {
+            return .zero
+        }
+
+        let availableWidth = max(0, proposal.width ?? minimumColumnWidth)
+        let columns = columnCount(for: availableWidth)
+        let columnWidth = widthPerColumn(availableWidth: availableWidth, columns: columns)
+        let rowHeights = measuredRowHeights(
+            subviews: subviews,
+            columns: columns,
+            columnWidth: columnWidth
+        )
+        let totalHeight = rowHeights.reduce(CGFloat.zero, +)
+            + verticalSpacing * CGFloat(max(0, rowHeights.count - 1))
+
+        return CGSize(width: availableWidth, height: totalHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard !subviews.isEmpty else {
+            return
+        }
+
+        let columns = columnCount(for: bounds.width)
+        let columnWidth = widthPerColumn(availableWidth: bounds.width, columns: columns)
+        let rowHeights = measuredRowHeights(
+            subviews: subviews,
+            columns: columns,
+            columnWidth: columnWidth
+        )
+
+        var y = bounds.minY
+        for rowIndex in 0..<rowHeights.count {
+            let rowHeight = rowHeights[rowIndex]
+            let rowStart = rowIndex * columns
+            let rowEnd = min(rowStart + columns, subviews.count)
+
+            for index in rowStart..<rowEnd {
+                let column = index - rowStart
+                let x = bounds.minX + CGFloat(column) * (columnWidth + horizontalSpacing)
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(width: columnWidth, height: rowHeight)
+                )
+            }
+
+            y += rowHeight + verticalSpacing
+        }
+    }
+
+    private func columnCount(for availableWidth: CGFloat) -> Int {
+        guard availableWidth > 0 else {
+            return 1
+        }
+
+        return max(
+            1,
+            Int((availableWidth + horizontalSpacing) / (minimumColumnWidth + horizontalSpacing))
+        )
+    }
+
+    private func widthPerColumn(availableWidth: CGFloat, columns: Int) -> CGFloat {
+        let totalSpacing = horizontalSpacing * CGFloat(max(0, columns - 1))
+        return max(0, (availableWidth - totalSpacing) / CGFloat(max(1, columns)))
+    }
+
+    private func measuredRowHeights(
+        subviews: Subviews,
+        columns: Int,
+        columnWidth: CGFloat
+    ) -> [CGFloat] {
+        stride(from: 0, to: subviews.count, by: columns).map { rowStart in
+            let rowEnd = min(rowStart + columns, subviews.count)
+            return (rowStart..<rowEnd).reduce(CGFloat.zero) { height, index in
+                max(
+                    height,
+                    subviews[index].sizeThatFits(
+                        ProposedViewSize(width: columnWidth, height: nil)
+                    ).height
+                )
+            }
+        }
+    }
+}
+
 private struct SearchResultCardGroupView: View {
     let group: SearchResultFileGroup
     let query: String
@@ -1130,14 +1231,6 @@ private struct SearchResultCardGroupView: View {
     let onToggle: () -> Void
     let onOpenResult: (SubtitleSearchResult) -> Void
     let onResultAppear: (SubtitleSearchResult) -> Void
-
-    private let columns = [
-        GridItem(
-            .adaptive(minimum: SearchCardLayout.cardMinimumWidth),
-            spacing: SearchCardLayout.cardHorizontalSpacing,
-            alignment: .top
-        )
-    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1150,10 +1243,10 @@ private struct SearchResultCardGroupView: View {
             )
 
             if !group.isCollapsed {
-                LazyVGrid(
-                    columns: columns,
-                    alignment: .leading,
-                    spacing: SearchCardLayout.cardVerticalSpacing
+                EqualHeightCardGridLayout(
+                    minimumColumnWidth: SearchCardLayout.cardMinimumWidth,
+                    horizontalSpacing: SearchCardLayout.cardHorizontalSpacing,
+                    verticalSpacing: SearchCardLayout.cardVerticalSpacing
                 ) {
                     ForEach(group.results, id: \.entryID) { result in
                         SearchResultCard(
@@ -1183,14 +1276,6 @@ private struct ShioriCardGroupView: View {
     let onToggle: () -> Void
     let onOpenShiori: (Shiori) -> Void
 
-    private let columns = [
-        GridItem(
-            .adaptive(minimum: SearchCardLayout.cardMinimumWidth),
-            spacing: SearchCardLayout.cardHorizontalSpacing,
-            alignment: .top
-        )
-    ]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             CardGroupHeader(
@@ -1202,10 +1287,10 @@ private struct ShioriCardGroupView: View {
             )
 
             if !group.isCollapsed {
-                LazyVGrid(
-                    columns: columns,
-                    alignment: .leading,
-                    spacing: SearchCardLayout.cardVerticalSpacing
+                EqualHeightCardGridLayout(
+                    minimumColumnWidth: SearchCardLayout.cardMinimumWidth,
+                    horizontalSpacing: SearchCardLayout.cardHorizontalSpacing,
+                    verticalSpacing: SearchCardLayout.cardVerticalSpacing
                 ) {
                     ForEach(Array(group.shioris.enumerated()), id: \.element.id) { index, shiori in
                         ShioriCard(
@@ -1283,7 +1368,7 @@ private struct SearchResultCard: View {
 
                 Spacer(minLength: 8)
 
-                Text("\(episodeLabel(from: result.videoName)) · \(formatTimestamp(result.startMilliseconds))")
+                Text(formatTimestamp(result.startMilliseconds))
                     .font(.system(size: SearchTypography.bodySize, weight: .semibold))
                     .foregroundStyle(secondaryTextColor)
                     .lineLimit(1)
@@ -1300,15 +1385,21 @@ private struct SearchResultCard: View {
                     ))
                     .font(.system(size: SearchTypography.bodySize, weight: .semibold))
                     .foregroundStyle(textColor)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    .lineLimit(nil)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
-        .frame(maxWidth: .infinity, minHeight: SearchCardLayout.cardMinHeight, alignment: .topLeading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: SearchCardLayout.cardMinHeight,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
         .background(cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
         .overlay(
@@ -1321,10 +1412,7 @@ private struct SearchResultCard: View {
     }
 
     private var displayLines: [String] {
-        let lines = result.cueLines
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return Array((lines.isEmpty ? [result.content] : lines).prefix(2))
+        subtitleDisplayLines(content: result.content, cueLines: result.cueLines)
     }
 
     private var cardBackground: Color {
@@ -1367,7 +1455,7 @@ private struct ShioriCard: View {
 
                 Spacer(minLength: 8)
 
-                Text("\(episodeLabel(from: shiori.videoName)) · \(formatTimestamp(shiori.startMilliseconds))")
+                Text(formatTimestamp(shiori.startMilliseconds))
                     .font(.system(size: SearchTypography.bodySize, weight: .semibold))
                     .foregroundStyle(secondaryTextColor)
                     .lineLimit(1)
@@ -1379,15 +1467,21 @@ private struct ShioriCard: View {
                     Text(line)
                         .font(.system(size: SearchTypography.bodySize, weight: .semibold))
                         .foregroundStyle(textColor)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                        .lineLimit(nil)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
-        .frame(maxWidth: .infinity, minHeight: SearchCardLayout.cardMinHeight, alignment: .topLeading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: SearchCardLayout.cardMinHeight,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
         .background(cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
         .overlay(
@@ -1400,7 +1494,7 @@ private struct ShioriCard: View {
     }
 
     private var displayLines: [String] {
-        Array((shiori.cueLines.isEmpty ? [shiori.content] : shiori.cueLines).prefix(2))
+        subtitleDisplayLines(content: shiori.content, cueLines: shiori.cueLines)
     }
 
     private var cardBackground: Color {
@@ -1912,19 +2006,10 @@ private func formatTimestamp(_ milliseconds: Int) -> String {
     return String(format: "%02d:%02d", minutes, seconds)
 }
 
-private func episodeLabel(from videoName: String) -> String {
-    let baseName = URL(fileURLWithPath: videoName)
-        .deletingPathExtension()
-        .lastPathComponent
+private func subtitleDisplayLines(content: String, cueLines: [String]) -> [String] {
+    let lines = (cueLines.isEmpty ? content.components(separatedBy: .newlines) : cueLines)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
 
-    guard let numberRange = baseName.range(
-        of: #"(\d{1,3})(?!.*\d)"#,
-        options: .regularExpression
-    ),
-        let number = Int(baseName[numberRange])
-    else {
-        return "EP"
-    }
-
-    return String(format: "EP %02d", number)
+    return lines.isEmpty ? [content] : lines
 }

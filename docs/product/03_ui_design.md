@@ -35,6 +35,12 @@ First implementation requirements:
 - Show submitted Search results in the main content area.
 - Render Search results as grouped cards in the main content area.
 - Render Shiori with the same basic grouped-card layout as Search.
+- Search and Shiori cards must show the complete cue text without truncating
+  subtitle lines.
+- Cards in the same visual row should share the tallest card height for that
+  row, with subtitle content vertically centered inside the card body area.
+- Card metadata should show the result rank and timestamp. Do not infer or
+  display episode labels unless a reliable episode source is available.
 - Remove the visible Mode Rail, resizable content-panel sidebar, and sidebar
   position setting from the active workbench.
 - Do not render a second Search field inside the Search results page.
