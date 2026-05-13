@@ -6,6 +6,8 @@ struct ContentView: View {
         green: 0.955,
         blue: 0.95
     )
+    private let contentBackground = Color(nsColor: .textBackgroundColor)
+
     var body: some View {
         AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count("UI.ContentView.body")
@@ -20,7 +22,7 @@ struct ContentView: View {
                         .padding(.top, AppShellLayout.topBarHeight)
                 }
 
-                AppTopBar(backgroundColor: windowBackground)
+                AppTopBar(backgroundColor: contentBackground)
                     .frame(height: AppShellLayout.topBarHeight)
                     .zIndex(3)
             }
@@ -58,20 +60,20 @@ private struct AppTopBar: View {
             }
         )
             .overlay(alignment: .center) {
-                HStack(spacing: 10) {
-                    TopbarModeButton(
-                        mode: .library,
-                        systemImage: "folder",
-                        selectedSystemImage: "folder.fill",
-                        help: "Library"
-                    )
+                HStack(spacing: 16) {
+                    HStack(spacing: 10) {
+                        TopbarModeButton(
+                            mode: .library,
+                            systemImage: "folder",
+                            help: "Library"
+                        )
 
-                    TopbarModeButton(
-                        mode: .shiori,
-                        systemImage: "bookmark",
-                        selectedSystemImage: "bookmark.fill",
-                        help: "Shiori"
-                    )
+                        TopbarModeButton(
+                            mode: .shiori,
+                            systemImage: "bookmark",
+                            help: "Shiori"
+                        )
+                    }
 
                     TopbarSearchField(
                         text: $searchDraft,
@@ -110,7 +112,6 @@ private struct TopbarModeButton: View {
 
     let mode: WorkbenchPanelMode
     let systemImage: String
-    let selectedSystemImage: String
     let help: String
 
     var body: some View {
@@ -121,13 +122,13 @@ private struct TopbarModeButton: View {
                 appState.activateWorkbenchPanelMode(mode)
             }
         } label: {
-            Image(systemName: isSelected ? selectedSystemImage : systemImage)
-                .font(.system(size: 15, weight: .semibold))
-                .frame(width: 30, height: 30)
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 34, height: 34)
                 .contentShape(Rectangle())
         }
         .buttonStyle(TopbarModeButtonStyle(isSelected: isSelected))
-        .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+        .foregroundStyle(isSelected ? AppShellLayout.topbarModeSelectedColor : AppShellLayout.topbarModeColor)
         .help(help)
         .accessibilityLabel(help)
     }
@@ -140,7 +141,7 @@ private struct TopbarModeButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: AppShellLayout.topbarModeCornerRadius)
                     .fill(backgroundColor(configuration: configuration))
             )
             .onHover { isHovered = $0 }
@@ -148,13 +149,15 @@ private struct TopbarModeButtonStyle: ButtonStyle {
 
     private func backgroundColor(configuration: Configuration) -> Color {
         if configuration.isPressed {
-            return Color.primary.opacity(0.14)
+            return AppShellLayout.topbarModeActiveHoverBackground
         }
         if isSelected {
-            return Color.primary.opacity(0.12)
+            return isHovered
+                ? AppShellLayout.topbarModeActiveHoverBackground
+                : AppShellLayout.topbarModeActiveBackground
         }
         if isHovered {
-            return Color.primary.opacity(0.07)
+            return AppShellLayout.topbarModeHoverBackground
         }
         return .clear
     }
@@ -166,10 +169,10 @@ private struct TopbarSearchField: View {
     let onSubmit: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(AppShellLayout.topbarSearchIconColor)
 
             SearchTextView(
                 text: $text,
@@ -177,30 +180,32 @@ private struct TopbarSearchField: View {
                 isFocused: $isFocused,
                 onSubmit: onSubmit
             )
-            .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22)
+            .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
 
             if !text.isEmpty {
                 Button {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13))
+                        .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 18)
+        .frame(height: AppShellLayout.topbarSearchFieldHeight)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius)
                 .fill(Color(nsColor: .textBackgroundColor))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius)
                 .strokeBorder(
-                    isFocused ? Color.accentColor : Color.primary.opacity(0.10),
-                    lineWidth: isFocused ? 1.5 : 1
+                    isFocused
+                        ? AppShellLayout.topbarSearchFocusedBorderColor
+                        : AppShellLayout.topbarSearchBorderColor,
+                    lineWidth: 1
                 )
         )
         .contentShape(Rectangle())
@@ -219,4 +224,48 @@ enum AppShellLayout {
     static let titleFontSize: CGFloat = 16
     static let titleFontWeight: Font.Weight = .semibold
     static let topbarSearchFieldWidth: CGFloat = 320
+    static let topbarSearchFieldHeight: CGFloat = 44
+    static let topbarSearchFieldCornerRadius: CGFloat = 14
+    static let topbarModeCornerRadius: CGFloat = 9
+
+    static let topbarModeColor = Color(
+        red: 119.0 / 255.0,
+        green: 121.0 / 255.0,
+        blue: 129.0 / 255.0
+    )
+    static let topbarModeSelectedColor = Color(
+        red: 45.0 / 255.0,
+        green: 47.0 / 255.0,
+        blue: 54.0 / 255.0
+    )
+    static let topbarModeHoverBackground = Color(
+        red: 240.0 / 255.0,
+        green: 240.0 / 255.0,
+        blue: 242.0 / 255.0
+    )
+    static let topbarModeActiveBackground = Color(
+        red: 217.0 / 255.0,
+        green: 218.0 / 255.0,
+        blue: 222.0 / 255.0
+    )
+    static let topbarModeActiveHoverBackground = Color(
+        red: 210.0 / 255.0,
+        green: 211.0 / 255.0,
+        blue: 216.0 / 255.0
+    )
+    static let topbarSearchBorderColor = Color(
+        red: 200.0 / 255.0,
+        green: 200.0 / 255.0,
+        blue: 204.0 / 255.0
+    )
+    static let topbarSearchFocusedBorderColor = Color(
+        red: 170.0 / 255.0,
+        green: 171.0 / 255.0,
+        blue: 178.0 / 255.0
+    )
+    static let topbarSearchIconColor = Color(
+        red: 154.0 / 255.0,
+        green: 155.0 / 255.0,
+        blue: 161.0 / 255.0
+    )
 }

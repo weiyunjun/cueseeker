@@ -68,7 +68,8 @@ for this direction. It currently demonstrates:
 - Library grouped-folder and episode-grid browsing.
 - Shiori grouped cards that follow the same basic layout as Search result
   cards.
-- Icon-only Library and Shiori controls beside the top Search field.
+- Icon-only Library and Shiori controls beside the top Search field, using the
+  HTML prototype's light-gray hover state and darker-gray selected state.
 - A bottom player without cover art.
 - A video-window expand or collapse button in the former cover-art position.
 - A concise video title with volume control beside it.
@@ -194,6 +195,11 @@ Scope:
   `bookmark` for Shiori).
 - Apply the topbar visual direction where the topbar shares the content area's
   background and has no separating horizontal line.
+- Keep the Library and Shiori topbar buttons as outline icons in both normal
+  and selected states. Selected state uses a darker gray button background and
+  darker icon rather than a filled icon.
+- Match the HTML prototype's Search field proportions: neutral white rounded
+  field, gray border, `44pt` height, and no strong accent-color focus ring.
 - Remove the right sidebar.
 - Integrate the completed bottom player into the new shell without
   re-scoping playback behavior unless the layout integration exposes a concrete

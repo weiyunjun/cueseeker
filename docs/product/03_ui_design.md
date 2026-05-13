@@ -30,6 +30,16 @@ First implementation requirements:
 - Add a fixed-width Search field to the topbar.
 - Place Library and Shiori icon buttons immediately to the left of the topbar
   Search field.
+- The topbar follows the HTML prototype direction: it shares the content area's
+  background, has no bottom divider, and visually centers the Library/Shiori
+  icon cluster with the Search field.
+- Library and Shiori topbar buttons use outline icons in both normal and
+  selected states. Hover uses a light gray background. Selected state uses a
+  darker gray background with a darker icon, not a filled icon or accent-color
+  treatment.
+- The topbar Search field uses a neutral white rounded rectangle with a
+  `44pt` height, `14pt` corner radius, and gray border. Focus must not add a
+  strong accent-color ring.
 - Treat text editing in the topbar Search field as a draft query.
 - Submit Search only when the user presses Return.
 - Show submitted Search results in the main content area.
@@ -102,8 +112,8 @@ Current shell direction:
 - The `NSWindow` title should use the main workbench identity, `CueSeeker`, for
   correct contextual labeling in the full-screen drop-down title bar.
 - To prevent UI artifacts when exiting full-screen mode, the native title visibility is hidden in the `windowWillExitFullScreen` delegate callback before the transition animation begins.
-- The titlebar should use a slightly darker gray than the main content background.
-- A thin gray divider should separate the titlebar from the content below.
+- The titlebar should share the main content background.
+- The titlebar should not draw a divider between the titlebar and content.
 - The titlebar should visually sit above the workbench panels.
 - The window automatically maximizes to the screen's visible frame upon launch.
 - The current titlebar and workbench panel implementation is an M1 iteration,
