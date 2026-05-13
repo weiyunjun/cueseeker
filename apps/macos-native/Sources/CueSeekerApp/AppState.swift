@@ -271,7 +271,7 @@ final class AppState: ObservableObject {
     private static let playbackSpeedKey = "playbackSpeed"
     private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
     private static let assSubtitlePreparationCueLimit = 8
-    private static let searchPageSize = 1000
+    private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
 

@@ -1700,6 +1700,8 @@ private struct SearchResultRow: View {
     let query: String
     let isSelected: Bool
     @State private var isHovered = false
+    @State private var thumbnailImage: NSImage?
+    @State private var isThumbnailFailed = false
 
     var body: some View {
         let rowTextColor: Color = isSelected ? .white : Color.primary.opacity(0.86)
@@ -1715,33 +1717,86 @@ private struct SearchResultRow: View {
             : (isHovered ? .hover : .default)
 
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                    Text(highlightedContent(
-                        line,
-                        query: query,
-                        textColor: rowTextColor,
-                        state: highlightState
-                    ))
-                    .font(.system(size: SearchTypography.bodySize))
-                    .foregroundStyle(rowTextColor)
-                    .lineSpacing(4)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 12) {
+                thumbnailView
+
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                        Text(highlightedContent(
+                            line,
+                            query: query,
+                            textColor: rowTextColor,
+                            state: highlightState
+                        ))
+                        .font(.system(size: SearchTypography.bodySize))
+                        .foregroundStyle(rowTextColor)
+                        .lineSpacing(4)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, 10)
             .padding(.leading, SearchLayout.resultTextLeadingPadding)
             .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .background(rowBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
             .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
+            .padding(.vertical, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
+        .task(id: result.entryID) {
+            let attrs = try? FileManager.default.attributesOfItem(atPath: result.videoPath)
+            let fileSize = attrs?[.size] as? Int64
+            let modifiedAt = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970
+            let request = ThumbnailRequest(
+                videoPath: result.videoPath,
+                fileSize: fileSize,
+                modifiedAt: modifiedAt,
+                timestampMilliseconds: (result.startMilliseconds + result.endMilliseconds) / 2
+            )
+            let cacheKey = await ThumbnailCache.shared.cacheKey(for: request)
+            if let imageData = await ThumbnailGenerator.shared.generate(request: request, cacheKey: cacheKey) {
+                if !Task.isCancelled {
+                    self.thumbnailImage = NSImage(data: imageData)
+                }
+            } else if !Task.isCancelled {
+                self.isThumbnailFailed = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var thumbnailView: some View {
+        ZStack {
+            if let image = thumbnailImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if isThumbnailFailed {
+                VStack {
+                    Image(systemName: "photo.badge.exclamationmark")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.secondary.opacity(0.1))
+            } else {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.1))
+                    .overlay {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+            }
+        }
+        .frame(width: 160, height: 90)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.vertical, 6)
     }
 
     private var displayLines: [String] {
