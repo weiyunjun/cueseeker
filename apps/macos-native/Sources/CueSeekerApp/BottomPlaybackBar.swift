@@ -1,10 +1,10 @@
 import SwiftUI
 
 enum BottomPlaybackBarLayout {
-    static let reservedHeight: CGFloat = 98
-    static let surfaceHeight: CGFloat = 98
+    static let reservedHeight: CGFloat = 86
+    static let surfaceHeight: CGFloat = 86
     static let surfaceCornerRadius: CGFloat = 0
-    static let topContentPadding: CGFloat = 6
+    static let topContentPadding: CGFloat = 10
     static let bottomContentPadding: CGFloat = 0
 }
 
@@ -244,30 +244,7 @@ private struct BottomPlaybackBarContent: View {
                 appState.clearSearchFocus()
                 appState.openNextLibraryVideo()
             }
-
-            moreMenu
         }
-    }
-
-    private var moreMenu: some View {
-        Button {
-            appState.toggleBottomPlaybackMenu(.more)
-        } label: {
-            VStack(spacing: 3) {
-                ForEach(0..<3, id: \.self) { _ in
-                    Circle()
-                        .fill(Color.primary)
-                        .frame(width: 4, height: 4)
-                }
-            }
-            .frame(width: 36, height: 36)
-        }
-        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
-        .disabled(!hasPlayback)
-        .help("More actions")
-        .frame(width: 36, height: 36)
-        .anchorPreference(key: BottomPlaybackMenuAnchorKey.self, value: .bounds) { [.more: $0] }
-        .zIndex(appState.activeBottomPlaybackMenu == .more ? 100 : 0)
     }
 
     private var trailingControls: some View {
