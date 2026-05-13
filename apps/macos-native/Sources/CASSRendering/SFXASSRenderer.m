@@ -492,7 +492,6 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
 - (nullable instancetype)initWithASSFileAtPath:(NSString *)path
                                     frameWidth:(NSInteger)frameWidth
                                    frameHeight:(NSInteger)frameHeight
-                                fontsDirectory:(nullable NSString *)fontsDirectory
                                          error:(NSError **)error {
     if (!SFXASSValidateSourcePath(path, error) || !SFXASSValidateFrameSize(frameWidth, frameHeight, error)) {
         return nil;
@@ -514,17 +513,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     }
 
     ass_set_message_cb(_library, SFXASSMessageCallback, NULL);
-    ass_set_extract_fonts(_library, 1);
-    if (fontsDirectory.length > 0) {
-        BOOL fontsIsDirectory = NO;
-        if (![[NSFileManager defaultManager] fileExistsAtPath:fontsDirectory isDirectory:&fontsIsDirectory] || !fontsIsDirectory) {
-            NSString *message = [NSString stringWithFormat:@"Font directory does not exist: %@", fontsDirectory];
-            SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
-            [self cleanup];
-            return nil;
-        }
-        ass_set_fonts_dir(_library, [fontsDirectory fileSystemRepresentation]);
-    }
+    ass_set_extract_fonts(_library, 0);
 
     _renderer = ass_renderer_init(_library);
     if (_renderer == NULL) {
@@ -552,7 +541,6 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                           sourceIdentifier:(NSString *)sourceIdentifier
                                 frameWidth:(NSInteger)frameWidth
                                frameHeight:(NSInteger)frameHeight
-                            fontsDirectory:(nullable NSString *)fontsDirectory
                                      error:(NSError **)error {
     if (!SFXASSValidateScript(script, sourceIdentifier, error)
         || !SFXASSValidateFrameSize(frameWidth, frameHeight, error)) {
@@ -575,17 +563,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     }
 
     ass_set_message_cb(_library, SFXASSMessageCallback, NULL);
-    ass_set_extract_fonts(_library, 1);
-    if (fontsDirectory.length > 0) {
-        BOOL fontsIsDirectory = NO;
-        if (![[NSFileManager defaultManager] fileExistsAtPath:fontsDirectory isDirectory:&fontsIsDirectory] || !fontsIsDirectory) {
-            NSString *message = [NSString stringWithFormat:@"Font directory does not exist: %@", fontsDirectory];
-            SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, message);
-            [self cleanup];
-            return nil;
-        }
-        ass_set_fonts_dir(_library, [fontsDirectory fileSystemRepresentation]);
-    }
+    ass_set_extract_fonts(_library, 0);
 
     _renderer = ass_renderer_init(_library);
     if (_renderer == NULL) {
@@ -807,12 +785,10 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                                           frameWidth:(NSInteger)frameWidth
                                          frameHeight:(NSInteger)frameHeight
                                timestampMilliseconds:(NSInteger)timestampMilliseconds
-                                      fontsDirectory:(nullable NSString *)fontsDirectory
                                                error:(NSError **)error {
     SFXASSRendererSession *session = [[SFXASSRendererSession alloc] initWithASSFileAtPath:path
                                                                                frameWidth:frameWidth
                                                                               frameHeight:frameHeight
-                                                                           fontsDirectory:fontsDirectory
                                                                                     error:error];
     if (session == nil) {
         return nil;

@@ -10,8 +10,7 @@ final class CASSRenderingProbeTests: XCTestCase {
             atPath: fixtureURL.path,
             frameWidth: 640,
             frameHeight: 360,
-            timestampMilliseconds: 1_500,
-            fontsDirectory: nil
+            timestampMilliseconds: 1_500
         )
 
         XCTAssertEqual(output.width, 640)
@@ -40,8 +39,7 @@ final class CASSRenderingProbeTests: XCTestCase {
             atPath: fixtureURL.path,
             frameWidth: 640,
             frameHeight: 360,
-            timestampMilliseconds: 1_220,
-            fontsDirectory: nil
+            timestampMilliseconds: 1_220
         )
         XCTAssertGreaterThan(shortEffectOutput.imageCount, 0)
 
@@ -49,8 +47,7 @@ final class CASSRenderingProbeTests: XCTestCase {
             atPath: fixtureURL.path,
             frameWidth: 640,
             frameHeight: 360,
-            timestampMilliseconds: 1_500,
-            fontsDirectory: nil
+            timestampMilliseconds: 1_500
         )
         XCTAssertGreaterThan(zeroDurationTimestampOutput.imageCount, 0)
     }
@@ -60,8 +57,7 @@ final class CASSRenderingProbeTests: XCTestCase {
         let session = try SFXASSRendererSession(
             assFileAtPath: fixtureURL.path,
             frameWidth: 640,
-            frameHeight: 360,
-            fontsDirectory: nil
+            frameHeight: 360
         )
 
         let firstFrame = try session.renderFrame(atTimestampMilliseconds: 1_220)
@@ -78,8 +74,7 @@ final class CASSRenderingProbeTests: XCTestCase {
         let session = try SFXASSRendererSession(
             assFileAtPath: fixtureURL.path,
             frameWidth: 640,
-            frameHeight: 360,
-            fontsDirectory: nil
+            frameHeight: 360
         )
 
         let output = try session.renderCroppedImage(atTimestampMilliseconds: 1_500)
@@ -112,8 +107,7 @@ final class CASSRenderingProbeTests: XCTestCase {
             assScript: script,
             sourceIdentifier: "static-subtitle",
             frameWidth: 640,
-            frameHeight: 360,
-            fontsDirectory: nil
+            frameHeight: 360
         )
 
         let firstOutput = try session.renderCroppedImage(atTimestampMilliseconds: 1_500)
@@ -136,8 +130,7 @@ final class CASSRenderingProbeTests: XCTestCase {
             assScript: script,
             sourceIdentifier: "complex-effects-memory",
             frameWidth: 640,
-            frameHeight: 360,
-            fontsDirectory: nil
+            frameHeight: 360
         )
 
         let output = try session.renderCroppedImage(atTimestampMilliseconds: 1_500)
@@ -152,8 +145,7 @@ final class CASSRenderingProbeTests: XCTestCase {
         let session = try SFXASSRendererSession(
             assFileAtPath: fixtureURL.path,
             frameWidth: 640,
-            frameHeight: 360,
-            fontsDirectory: nil
+            frameHeight: 360
         )
 
         session.close()

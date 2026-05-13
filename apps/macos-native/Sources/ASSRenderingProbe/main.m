@@ -12,7 +12,7 @@
 static void print_usage(void) {
     fprintf(
         stderr,
-        "Usage: ASSRenderingProbe --width pixels --height pixels --timestamp-ms milliseconds --output output.png [--fonts-dir directory] <source.ass>\n"
+        "Usage: ASSRenderingProbe --width pixels --height pixels --timestamp-ms milliseconds --output output.png <source.ass>\n"
     );
 }
 
@@ -46,7 +46,6 @@ int main(int argc, char **argv) {
         NSInteger height = 0;
         NSInteger timestampMilliseconds = -1;
         NSString *outputPath = nil;
-        NSString *fontsDirectory = nil;
         int argumentIndex = 1;
 
         while (argumentIndex < argc) {
@@ -91,17 +90,6 @@ int main(int argc, char **argv) {
                 continue;
             }
 
-            if (strcmp(argv[argumentIndex], "--fonts-dir") == 0) {
-                if (argumentIndex + 1 >= argc) {
-                    fprintf(stderr, "Missing --fonts-dir path.\n");
-                    print_usage();
-                    return 2;
-                }
-                fontsDirectory = [NSString stringWithUTF8String:argv[argumentIndex + 1]];
-                argumentIndex += 2;
-                continue;
-            }
-
             break;
         }
 
@@ -120,7 +108,6 @@ int main(int argc, char **argv) {
                                                                frameWidth:width
                                                               frameHeight:height
                                                     timestampMilliseconds:timestampMilliseconds
-                                                           fontsDirectory:fontsDirectory
                                                                     error:&error];
         if (output == nil) {
             fprintf(stderr, "ASSRenderingProbe failed: %s\n", error.localizedDescription.UTF8String);

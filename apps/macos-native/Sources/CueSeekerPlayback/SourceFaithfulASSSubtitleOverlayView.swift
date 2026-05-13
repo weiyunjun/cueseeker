@@ -68,7 +68,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var session: SFXASSRendererSession?
     private var sourcePath: String?
     private var renderCacheDatabaseURL: URL?
-    private var fontsDirectoryPath: String?
     private var frameWidth = 0
     private var frameHeight = 0
     private var activeRenderSegmentWindow: PlaybackSubtitleTimeWindow?
@@ -84,15 +83,13 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
         queue.async { [
             sourcePath = source.url.path,
-            renderCacheDatabaseURL = source.renderCacheDatabaseURL,
-            fontsDirectoryPath = source.fontResourceDirectoryURL?.path
+            renderCacheDatabaseURL = source.renderCacheDatabaseURL
         ] in
             do {
                 self.session?.close()
                 self.session = nil
                 self.sourcePath = sourcePath
                 self.renderCacheDatabaseURL = renderCacheDatabaseURL
-                self.fontsDirectoryPath = fontsDirectoryPath
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
                 self.activeRenderSegmentWindow = nil
@@ -119,7 +116,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             self.session = nil
             self.sourcePath = nil
             self.renderCacheDatabaseURL = nil
-            self.fontsDirectoryPath = nil
             self.frameWidth = 0
             self.frameHeight = 0
             self.activeRenderSegmentWindow = nil
@@ -199,8 +195,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 assScript: renderScript,
                 sourceIdentifier: sourceIdentifier,
                 frameWidth: frameWidth,
-                frameHeight: frameHeight,
-                fontsDirectory: fontsDirectoryPath
+                frameHeight: frameHeight
             )
         }
 
@@ -212,8 +207,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                     assScript: renderScript,
                     sourceIdentifier: sourcePath,
                     frameWidth: frameWidth,
-                    frameHeight: frameHeight,
-                    fontsDirectory: fontsDirectoryPath
+                    frameHeight: frameHeight
                 )
             }
         }
@@ -221,8 +215,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         return try SFXASSRendererSession(
             assFileAtPath: sourcePath,
             frameWidth: frameWidth,
-            frameHeight: frameHeight,
-            fontsDirectory: fontsDirectoryPath
+            frameHeight: frameHeight
         )
     }
 

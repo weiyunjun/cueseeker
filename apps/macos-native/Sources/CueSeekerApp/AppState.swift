@@ -787,7 +787,6 @@ final class AppState: ObservableObject {
                 let result = try await Task.detached(priority: .userInitiated) {
                     let indexer = SubtitleIndexer()
                     let result = try indexer.index(folder: folder, into: database)
-                    _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
                     _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
                     try database.rebuildLibraryPresentationSnapshot()
                     return result
@@ -849,7 +848,6 @@ final class AppState: ObservableObject {
                     let result = try await Task.detached(priority: .userInitiated) {
                         let indexer = SubtitleIndexer()
                         let result = try indexer.index(folder: folder, into: database)
-                        _ = try PlaybackASSFontResourceIndexer().index(folder: folder, into: database)
                         _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
                         return result
                     }.value
@@ -2362,16 +2360,11 @@ final class AppState: ObservableObject {
 
         let subtitleURL = URL(fileURLWithPath: result.subtitlePath)
         let videoURL = URL(fileURLWithPath: result.videoPath)
-        let fontResourceDirectoryURL = assFontResourceDirectory(
-            subtitleFile: subtitleURL,
-            videoFile: videoURL
-        )
 
         return PlaybackSubtitleSource(
             url: subtitleURL,
             format: .ass,
             matchedVideoURL: videoURL,
-            fontResourceDirectoryURL: fontResourceDirectoryURL,
             preparationTimeWindow: playbackSubtitleTimeWindow(for: result),
             renderCacheDatabaseURL: databaseURL
         )
@@ -2384,16 +2377,11 @@ final class AppState: ObservableObject {
 
         let subtitleURL = URL(fileURLWithPath: shiori.subtitlePath)
         let videoURL = URL(fileURLWithPath: shiori.videoPath)
-        let fontResourceDirectoryURL = assFontResourceDirectory(
-            subtitleFile: subtitleURL,
-            videoFile: videoURL
-        )
 
         return PlaybackSubtitleSource(
             url: subtitleURL,
             format: .ass,
             matchedVideoURL: videoURL,
-            fontResourceDirectoryURL: fontResourceDirectoryURL,
             preparationTimeWindow: playbackSubtitleTimeWindow(
                 forSubtitleFile: subtitleURL,
                 startingAtMilliseconds: shiori.startMilliseconds,
@@ -2413,16 +2401,11 @@ final class AppState: ObservableObject {
 
         let subtitleURL = URL(fileURLWithPath: video.subtitlePath)
         let videoURL = URL(fileURLWithPath: video.videoPath)
-        let fontResourceDirectoryURL = assFontResourceDirectory(
-            subtitleFile: subtitleURL,
-            videoFile: videoURL
-        )
 
         return PlaybackSubtitleSource(
             url: subtitleURL,
             format: .ass,
             matchedVideoURL: videoURL,
-            fontResourceDirectoryURL: fontResourceDirectoryURL,
             preparationTimeWindow: playbackSubtitleTimeWindow(
                 forSubtitleFile: subtitleURL,
                 startingAtMilliseconds: startMilliseconds,
@@ -2430,27 +2413,6 @@ final class AppState: ObservableObject {
             ),
             renderCacheDatabaseURL: databaseURL
         )
-    }
-
-    private func assFontResourceDirectory(subtitleFile: URL, videoFile: URL) -> URL? {
-        guard let database = subtitleDatabase else {
-            return nil
-        }
-        do {
-            guard let manifest = try database.assFontResourceManifest(
-                forSubtitleFile: subtitleFile,
-                videoFile: videoFile
-            ), manifest.status == .readyWithFonts,
-               let fontsDirectoryPath = manifest.fontsDirectoryPath
-            else {
-                return nil
-            }
-
-            return URL(fileURLWithPath: fontsDirectoryPath)
-        } catch {
-            print("Failed to load ASS font resource manifest: \(error)")
-            return nil
-        }
     }
 
     private func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {

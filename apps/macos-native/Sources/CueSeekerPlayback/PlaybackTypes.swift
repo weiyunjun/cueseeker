@@ -27,7 +27,6 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let url: URL
     public let format: PlaybackSubtitleSourceFormat
     public let matchedVideoURL: URL?
-    public let fontResourceDirectoryURL: URL?
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
     public let renderCacheDatabaseURL: URL?
 
@@ -35,14 +34,12 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
         url: URL,
         format: PlaybackSubtitleSourceFormat,
         matchedVideoURL: URL? = nil,
-        fontResourceDirectoryURL: URL? = nil,
         preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
         renderCacheDatabaseURL: URL? = nil
     ) {
         self.url = url
         self.format = format
         self.matchedVideoURL = matchedVideoURL
-        self.fontResourceDirectoryURL = fontResourceDirectoryURL
         self.preparationTimeWindow = preparationTimeWindow
         self.renderCacheDatabaseURL = renderCacheDatabaseURL
     }
@@ -56,7 +53,6 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
             url: url,
             format: format,
             matchedVideoURL: fallbackVideoURL,
-            fontResourceDirectoryURL: fontResourceDirectoryURL,
             preparationTimeWindow: preparationTimeWindow,
             renderCacheDatabaseURL: renderCacheDatabaseURL
         )

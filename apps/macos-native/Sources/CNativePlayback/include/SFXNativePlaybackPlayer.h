@@ -43,16 +43,6 @@ startMilliseconds:(NSInteger)startMilliseconds
 
 @end
 
-@interface SFXMediaFontAttachmentExtractor : NSObject
-
-- (instancetype)init NS_UNAVAILABLE;
-+ (nullable NSNumber *)extractFontAttachmentsFromMediaAtPath:(NSString *)mediaPath
-                                                 toDirectory:(NSString *)directory
-                                                       error:(NSError **)error
-    NS_SWIFT_NAME(extractFontAttachments(fromMediaAtPath:toDirectory:));
-
-@end
-
 @interface SFXMediaMetadataInspector : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;

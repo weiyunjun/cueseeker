@@ -80,17 +80,15 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 - (nullable instancetype)initWithASSFileAtPath:(NSString *)path
                                     frameWidth:(NSInteger)frameWidth
                                    frameHeight:(NSInteger)frameHeight
-                                fontsDirectory:(nullable NSString *)fontsDirectory
                                          error:(NSError **)error
-    NS_SWIFT_NAME(init(assFileAtPath:frameWidth:frameHeight:fontsDirectory:));
+    NS_SWIFT_NAME(init(assFileAtPath:frameWidth:frameHeight:));
 
 - (nullable instancetype)initWithASSScript:(NSString *)script
                           sourceIdentifier:(NSString *)sourceIdentifier
                                 frameWidth:(NSInteger)frameWidth
                                frameHeight:(NSInteger)frameHeight
-                            fontsDirectory:(nullable NSString *)fontsDirectory
                                      error:(NSError **)error
-    NS_SWIFT_NAME(init(assScript:sourceIdentifier:frameWidth:frameHeight:fontsDirectory:));
+    NS_SWIFT_NAME(init(assScript:sourceIdentifier:frameWidth:frameHeight:));
 
 - (nullable SFXASSRenderOutput *)renderFrameAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
                                                               error:(NSError **)error
@@ -116,9 +114,8 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
                                           frameWidth:(NSInteger)frameWidth
                                          frameHeight:(NSInteger)frameHeight
                                timestampMilliseconds:(NSInteger)timestampMilliseconds
-                                      fontsDirectory:(nullable NSString *)fontsDirectory
                                                error:(NSError **)error
-    NS_SWIFT_NAME(renderASSFile(atPath:frameWidth:frameHeight:timestampMilliseconds:fontsDirectory:));
+    NS_SWIFT_NAME(renderASSFile(atPath:frameWidth:frameHeight:timestampMilliseconds:));
 
 @end
 
