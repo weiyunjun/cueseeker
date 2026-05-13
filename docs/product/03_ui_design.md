@@ -45,6 +45,16 @@ First implementation requirements:
   position setting from the active workbench.
 - Do not render a second Search field inside the Search results page.
 - Clicking a Search result opens the bottom-launched playback overlay.
+- The expanded playback overlay uses a black outer background, preserves a
+  rounded video surface, and shows a right-side panel for `Search Results` and
+  `Subtitles`.
+- The overlay side panel places the `Search Results` / `Subtitles` switcher at
+  the top and the active count label below on the left. It must not repeat the
+  current video title or a `Search playback` label above the tabs.
+- The overlay side panel uses a white background and gray list cards. Selected
+  rows use the system accent color with white text.
+- Search Results rows may highlight query matches. Subtitles rows represent the
+  full subtitle file and must not apply keyword highlighting.
 - Keep the persistent bottom player available across Search, Shiori, and
   Library.
 - First-pass visual polish is explicitly secondary to complete functionality.

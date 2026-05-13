@@ -229,6 +229,7 @@ final class AppState: ObservableObject {
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
+    private static let searchNavigationPanelRadius = 10_000
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
 
     @Published var selectedFolders: [URL] = []
@@ -2025,6 +2026,7 @@ final class AppState: ObservableObject {
 
         let folders = selectedFolders
         let anchor = currentSearchNavigationAnchor()
+        let panelRadius = Self.searchNavigationPanelRadius
         searchNavigationTask = Task { [weak self] in
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
@@ -2032,7 +2034,7 @@ final class AppState: ObservableObject {
                         trimmedQuery,
                         under: folders,
                         anchor: anchor,
-                        radius: 1
+                        radius: panelRadius
                     )
                 }.value
 

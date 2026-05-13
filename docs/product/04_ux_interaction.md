@@ -27,7 +27,8 @@ Press Return
 Review grouped Search results in the main content area
 Click result
 Search-launched playback opens in the main content area
-Use result navigation or context drawers below the video
+Use the bottom player and the playback overlay side panel for result and
+subtitle navigation
 ```
 
 This Search workflow supersedes the old side-panel Search entry point. Library,
@@ -70,6 +71,15 @@ Accepted topbar Search transition:
   Search UI pass.
 - First-pass Search UI polish is less important than complete Search-to-playback
   functionality.
+- Clicking a Search result expands the bottom-launched playback overlay. The
+  expanded overlay keeps the video on the left and shows a right-side panel for
+  `Search Results` and `Subtitles`.
+- The `Search Results` panel lists search matches and may highlight the active
+  query. The `Subtitles` panel lists the full subtitle-file cues by source
+  sequence number and timestamp without query highlighting.
+- The side-panel tabs sit at the top of the panel. The active count label sits
+  below them on the left. The panel must not show a separate video title or
+  `Search playback` label above the tabs.
 
 Expected behavior:
 

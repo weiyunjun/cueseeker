@@ -82,6 +82,14 @@ for this direction. It currently demonstrates:
   fullscreen.
 - A three-dot menu containing `Video Folder`, `Subtitle Folder`, `Results`, and
   `Subtitles`.
+- A bottom-launched video overlay with a black outer background, a rounded
+  video surface, and a right-side list panel for Search Results and Subtitles.
+- The overlay side panel uses the same white-background and gray-card visual
+  language as the Search result cards. Its tab switcher sits at the top, the
+  active count label sits below on the left, and it must not repeat the video
+  title or a `Search playback` label.
+- Search Results rows may highlight matched query text. Subtitles rows show the
+  full subtitle cues and must not apply keyword highlighting.
 
 ## Staging Plan
 
@@ -139,6 +147,24 @@ Initial bottom-player alignment:
 - Bilingual subtitle lines should use the same text color. The prototype must
   not imply that Chinese and Japanese subtitle lines have different semantic
   color roles.
+- When the bottom-launched video overlay is expanded, the overlay should use a
+  black background behind the playback area while preserving the rounded video
+  surface itself.
+- The expanded overlay should show a right-side panel with two tabs:
+  `Search Results` and `Subtitles`. The tabs sit at the top of the panel, and
+  the active item count sits below them on the left.
+- The right-side panel should keep a minimum width and share the same height as
+  the video surface. The video keeps its source aspect ratio and scales down
+  before the side panel is hidden.
+- The side panel should use a white background and gray list cards. Selected
+  rows use the system accent color with white text, matching the accepted
+  Search row selected-state direction.
+- The Search Results tab shows search-result rows with query highlighting. The
+  Subtitles tab shows subtitle-file cue rows with the subtitle-file sequence
+  number and timestamp, without keyword highlighting.
+- The overlay should not show a video-title/avatar block inside the video
+  surface and should not show separate `AVE MUJICA EP 01` or
+  `Search playback` labels above the side-panel tabs.
 
 Goal:
 

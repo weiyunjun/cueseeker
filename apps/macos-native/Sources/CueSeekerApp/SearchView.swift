@@ -18,7 +18,7 @@ struct SearchView: View {
                     geometry.size.height - BottomPlaybackBarLayout.reservedHeight
                 )
                 let playbackAspectRatio = CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9)
-                let overlaySize = playbackOverlaySize(
+                let overlayMetrics = playbackOverlayMetrics(
                     maxWidth: geometry.size.width,
                     maxHeight: workspaceHeight,
                     aspectRatio: playbackAspectRatio
@@ -38,11 +38,12 @@ struct SearchView: View {
                     if appState.hasPlaybackSelection, appState.isPlaybackSurfaceExpanded {
                         PlaybackOverlayWindow(
                             playbackSurface: AnyView(playbackSurface),
-                            appState: appState
+                            appState: appState,
+                            sidePanelWidth: overlayMetrics.sidePanelWidth
                         )
                         .frame(
-                            width: overlaySize.width,
-                            height: overlaySize.height
+                            width: overlayMetrics.outerSize.width,
+                            height: overlayMetrics.outerSize.height
                         )
                         .padding(.bottom, BottomPlaybackBarLayout.reservedHeight)
                         .transition(.bottomPlaybackOverlayReveal)
@@ -87,23 +88,40 @@ struct SearchView: View {
         }
     }
 
-    private func playbackOverlaySize(
+    private func playbackOverlayMetrics(
         maxWidth: CGFloat,
         maxHeight: CGFloat,
         aspectRatio: CGFloat
-    ) -> CGSize {
+    ) -> PlaybackOverlayMetrics {
         let safeMaxWidth = max(0, maxWidth)
         let safeMaxHeight = max(0, maxHeight)
         let safeAspectRatio = max(0.01, aspectRatio)
         guard safeMaxWidth > 0, safeMaxHeight > 0 else {
-            return .zero
+            return PlaybackOverlayMetrics(outerSize: .zero, sidePanelWidth: 0)
         }
 
-        if safeMaxWidth / safeMaxHeight > safeAspectRatio {
-            return CGSize(width: safeMaxHeight * safeAspectRatio, height: safeMaxHeight)
-        }
+        let contentMaxWidth = max(0, safeMaxWidth - PlaybackOverlayLayout.outerPadding * 2)
+        let contentMaxHeight = max(0, safeMaxHeight - PlaybackOverlayLayout.outerPadding * 2)
+        let preferredPanelWidth = min(
+            PlaybackOverlayLayout.sidePanelPreferredWidth,
+            max(PlaybackOverlayLayout.sidePanelMinWidth, contentMaxWidth * 0.30)
+        )
+        let sidePanelWidth = min(preferredPanelWidth, contentMaxWidth * 0.45)
+        let videoMaxWidth = max(0, contentMaxWidth - PlaybackOverlayLayout.panelGap - sidePanelWidth)
+        let videoHeight = min(contentMaxHeight, videoMaxWidth / safeAspectRatio)
+        let videoWidth = videoHeight * safeAspectRatio
+        let outerSize = CGSize(
+            width: min(
+                safeMaxWidth,
+                videoWidth
+                    + PlaybackOverlayLayout.panelGap
+                    + sidePanelWidth
+                    + PlaybackOverlayLayout.outerPadding * 2
+            ),
+            height: min(safeMaxHeight, videoHeight + PlaybackOverlayLayout.outerPadding * 2)
+        )
 
-        return CGSize(width: safeMaxWidth, height: safeMaxWidth / safeAspectRatio)
+        return PlaybackOverlayMetrics(outerSize: outerSize, sidePanelWidth: sidePanelWidth)
     }
 
     private var libraryPanel: some View {
@@ -593,40 +611,54 @@ private extension AnyTransition {
     }
 }
 
+private struct PlaybackOverlayMetrics {
+    let outerSize: CGSize
+    let sidePanelWidth: CGFloat
+}
+
+private enum PlaybackOverlayLayout {
+    static let outerPadding: CGFloat = 24
+    static let panelGap: CGFloat = 18
+    static let sidePanelMinWidth: CGFloat = 320
+    static let sidePanelPreferredWidth: CGFloat = 380
+    static let containerCornerRadius: CGFloat = 18
+    static let videoCornerRadius: CGFloat = 16
+    static let panelCornerRadius: CGFloat = 18
+}
+
 private struct PlaybackOverlayWindow: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
-    @State private var activeDrawer: PlaybackDrawerKind?
+    let sidePanelWidth: CGFloat
+    @State private var activePanel: PlaybackDrawerKind = .results
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            playbackSurface
-                .aspectRatio(
-                    CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
-                    contentMode: .fit
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .topLeading) {
-                    if case .failed(let message) = appState.playbackStatus {
-                        Label(message, systemImage: "exclamationmark.triangle")
-                            .font(.system(size: SearchTypography.detailSize))
-                            .foregroundStyle(.red)
-                            .padding(10)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                            .padding(12)
-                    }
-                }
+        GeometryReader { geometry in
+            let contentHeight = max(0, geometry.size.height - PlaybackOverlayLayout.outerPadding * 2)
+            let contentWidth = max(0, geometry.size.width - PlaybackOverlayLayout.outerPadding * 2)
+            let panelWidth = min(sidePanelWidth, contentWidth * 0.45)
+            let videoWidth = max(0, contentWidth - panelWidth - PlaybackOverlayLayout.panelGap)
 
-            if let activeDrawer {
-                drawerView(activeDrawer)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            HStack(spacing: PlaybackOverlayLayout.panelGap) {
+                videoSurface
+                    .frame(width: videoWidth, height: contentHeight)
+
+                if let viewModel = appState.playbackViewModel {
+                    PlaybackOverlaySidePanel(
+                        appState: appState,
+                        viewModel: viewModel,
+                        activePanel: $activePanel
+                    )
+                    .frame(width: panelWidth, height: contentHeight)
+                }
             }
+            .padding(PlaybackOverlayLayout.outerPadding)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(Color.black.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.containerCornerRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: PlaybackOverlayLayout.containerCornerRadius)
                 .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.24), radius: 24, y: -8)
@@ -636,8 +668,9 @@ private struct PlaybackOverlayWindow: View {
             }
         )
         .onAppear {
+            refreshOverlayLists()
             if let request = appState.playbackDrawerRequest {
-                openDrawer(request.drawer)
+                openPanel(request.drawer)
             }
         }
         .onChange(of: appState.playbackDrawerRequest?.id) { _ in
@@ -645,146 +678,224 @@ private struct PlaybackOverlayWindow: View {
                 return
             }
 
-            openDrawer(request.drawer)
+            openPanel(request.drawer)
+        }
+        .onChange(of: appState.currentPlaybackSubtitlePath) { _ in
+            refreshOverlayLists()
         }
     }
 
-    @ViewBuilder
-    private func drawerView(_ drawer: PlaybackDrawerKind) -> some View {
-        switch drawer {
+    private var videoSurface: some View {
+        playbackSurface
+            .aspectRatio(
+                CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
+                contentMode: .fit
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
+            .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.videoCornerRadius))
+            .overlay(alignment: .topLeading) {
+                if case .failed(let message) = appState.playbackStatus {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .font(.system(size: SearchTypography.detailSize))
+                        .foregroundStyle(.red)
+                        .padding(10)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .padding(12)
+                }
+            }
+    }
+
+    private func refreshOverlayLists() {
+        appState.refreshSearchNavigationSnapshot()
+        appState.refreshCurrentSubtitleEntries()
+    }
+
+    private func openPanel(_ panel: PlaybackDrawerKind) {
+        switch panel {
         case .results:
-            resultsDrawer
+            appState.refreshSearchNavigationSnapshot()
         case .subtitles:
-            subtitlesDrawer
+            appState.refreshCurrentSubtitleEntries()
+        }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            activePanel = panel
         }
     }
+}
 
-    private var resultsDrawer: some View {
-        VStack(alignment: .leading, spacing: 8) {
+private struct PlaybackOverlaySidePanel: View {
+    @ObservedObject var appState: AppState
+    @ObservedObject var viewModel: PlaybackViewModel
+    @Binding var activePanel: PlaybackDrawerKind
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            tabSwitcher
+
             HStack {
-                Text(searchNavigationTitle)
-                    .font(.system(size: SearchTypography.detailSize))
+                Text(countText)
+                    .font(.system(size: SearchTypography.detailSize, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(0.045))
+                    )
 
                 Spacer()
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
 
-            if appState.searchResultGroups.isEmpty, appState.searchNavigationSnapshot == nil {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 28)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(appState.searchResultGroups) { group in
-                                SearchResultGroupView(
-                                    group: group,
-                                    query: appState.searchQuery,
-                                    selectedResult: selectedSearchNavigationResult,
-                                    showsThumbnails: appState.searchResultThumbnailsEnabled,
-                                    onToggle: {
-                                        appState.clearSearchFocus()
-                                        appState.toggleSearchResultGroup(group.subtitlePath)
-                                    },
-                                    onOpenResult: { result in
-                                        appState.clearSearchFocus()
-                                        appState.openSearchResult(result)
-                                    },
-                                    onResultAppear: { result in
-                                        appState.markSearchResultVisible(result)
-                                        appState.loadMoreSearchResultsIfNeeded(currentResult: result)
-                                    }
-                                )
-                            }
-                        }
-                        .padding(.bottom, 8)
-                    }
-                    .onAppear {
-                        scrollToSelectedResult(using: proxy)
-                    }
-                    .onChange(of: selectedSearchNavigationEntryID) { _ in
-                        scrollToSelectedResult(using: proxy)
-                    }
-                }
-            }
+            panelContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .frame(maxHeight: .infinity)
+        .padding(16)
         .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.panelCornerRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: PlaybackOverlayLayout.panelCornerRadius)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
 
-    private var subtitlesDrawer: some View {
+    private var tabSwitcher: some View {
+        HStack(spacing: 0) {
+            panelTab(.results, title: "Search Results")
+            panelTab(.subtitles, title: "Subtitles")
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(Color.primary.opacity(0.10))
+        )
+    }
+
+    private func panelTab(_ panel: PlaybackDrawerKind, title: String) -> some View {
+        Button {
+            selectPanel(panel)
+        } label: {
+            Text(title)
+                .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                .foregroundStyle(activePanel == panel ? Color.primary : Color.primary.opacity(0.72))
+                .frame(maxWidth: .infinity)
+                .frame(height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(activePanel == panel ? Color.primary.opacity(0.18) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var panelContent: some View {
+        switch activePanel {
+        case .results:
+            PlaybackOverlayResultsPanel(appState: appState)
+        case .subtitles:
+            PlaybackOverlaySubtitlesPanel(appState: appState, viewModel: viewModel)
+        }
+    }
+
+    private var countText: String {
+        switch activePanel {
+        case .results:
+            let count = appState.searchNavigationSnapshot?.totalCount
+                ?? appState.searchNavigationResultGroups.reduce(0) { $0 + $1.results.count }
+            return "\(count) \(count == 1 ? "result" : "results")"
+        case .subtitles:
+            let count = appState.currentSubtitleEntries.count
+            return "\(count) \(count == 1 ? "subtitle" : "subtitles")"
+        }
+    }
+
+    private func selectPanel(_ panel: PlaybackDrawerKind) {
+        switch panel {
+        case .results:
+            appState.refreshSearchNavigationSnapshot()
+        case .subtitles:
+            appState.refreshCurrentSubtitleEntries()
+        }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            activePanel = panel
+        }
+    }
+}
+
+private struct PlaybackOverlayResultsPanel: View {
+    @ObservedObject var appState: AppState
+
+    private var results: [SubtitleSearchResult] {
+        appState.searchNavigationSnapshot?.neighborhood
+            ?? appState.searchNavigationResultGroups.flatMap(\.results)
+    }
+
+    private var selectedEntryID: Int64? {
+        appState.selectedSearchResult?.entryID
+    }
+
+    var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(appState.currentSubtitleEntries, id: \.id) { entry in
-                        SubtitleEntryRow(
-                            entry: entry,
-                            isSelected: entry.id == selectedSubtitleEntryID
+                LazyVStack(spacing: 8) {
+                    if results.isEmpty {
+                        PlaybackOverlayEmptyList(
+                            title: appState.isSearchPlaybackActive ? "Loading Results" : "No Search Results",
+                            message: appState.isSearchPlaybackActive
+                                ? "Search results are being prepared."
+                                : "Search Results are available after opening playback from Search."
                         )
-                        .id(entry.id)
-                        .listRowAction {
-                            appState.clearSearchFocus()
-                            appState.playbackViewModel?.seek(
-                                to: Double(entry.startMilliseconds) / 1_000
+                        .padding(.top, 28)
+                    } else {
+                        ForEach(results, id: \.entryID) { result in
+                            PlaybackOverlayResultRow(
+                                result: result,
+                                query: appState.searchQuery,
+                                isSelected: selectedEntryID == result.entryID
                             )
+                            .id(result.entryID)
+                            .listRowAction {
+                                appState.clearSearchFocus()
+                                appState.openSearchResult(result)
+                            }
+                            .focusable(false)
                         }
-                        .focusable(false)
                     }
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 8)
+                .padding(.trailing, 3)
+                .padding(.bottom, 6)
             }
             .onAppear {
-                scrollToSelectedSubtitle(using: proxy)
+                scrollToSelectedResult(using: proxy)
             }
-            .onChange(of: selectedSubtitleEntryID) { _ in
-                scrollToSelectedSubtitle(using: proxy)
+            .onChange(of: selectedEntryID) { _ in
+                scrollToSelectedResult(using: proxy)
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(maxHeight: .infinity)
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        )
     }
 
-    private var searchNavigationTitle: String {
-        guard let snapshot = appState.searchNavigationSnapshot else {
-            return "Loading nearby results"
+    private func scrollToSelectedResult(using proxy: ScrollViewProxy) {
+        guard let selectedEntryID else {
+            return
         }
 
-        if let position = snapshot.currentPosition {
-            return "Result \(position) of \(snapshot.totalCount)"
+        withAnimation(.easeInOut(duration: 0.16)) {
+            proxy.scrollTo(selectedEntryID, anchor: .center)
         }
-
-        return "\(snapshot.totalCount) results"
     }
+}
 
-    private var selectedSearchNavigationResult: SubtitleSearchResult? {
-        appState.searchNavigationSnapshot?.current ?? appState.selectedSearchResult
-    }
-
-    private var selectedSearchNavigationEntryID: Int64? {
-        selectedSearchNavigationResult?.entryID
-    }
+private struct PlaybackOverlaySubtitlesPanel: View {
+    @ObservedObject var appState: AppState
+    @ObservedObject var viewModel: PlaybackViewModel
 
     private var selectedSubtitleEntryID: Int64? {
         let milliseconds = max(
             0,
-            Int(((appState.playbackViewModel?.displayedCurrentTime ?? 0) * 1_000).rounded(.down))
+            Int((viewModel.displayedCurrentTime * 1_000).rounded(.down))
         )
         if let active = appState.currentSubtitleEntries.first(where: {
             $0.startMilliseconds <= milliseconds && milliseconds < $0.endMilliseconds
@@ -797,13 +908,41 @@ private struct PlaybackOverlayWindow: View {
         })?.id
     }
 
-    private func scrollToSelectedResult(using proxy: ScrollViewProxy) {
-        guard let selectedSearchNavigationEntryID else {
-            return
-        }
-
-        withAnimation(.easeInOut(duration: 0.16)) {
-            proxy.scrollTo(selectedSearchNavigationEntryID, anchor: .center)
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    if appState.currentSubtitleEntries.isEmpty {
+                        PlaybackOverlayEmptyList(
+                            title: "No Subtitles",
+                            message: "No subtitle cues are available for the current video."
+                        )
+                        .padding(.top, 28)
+                    } else {
+                        ForEach(Array(appState.currentSubtitleEntries.enumerated()), id: \.element.id) { index, entry in
+                            PlaybackOverlaySubtitleRow(
+                                entry: entry,
+                                fallbackSequenceNumber: index + 1,
+                                isSelected: entry.id == selectedSubtitleEntryID
+                            )
+                            .id(entry.id)
+                            .listRowAction {
+                                appState.clearSearchFocus()
+                                viewModel.seek(to: Double(entry.startMilliseconds) / 1_000)
+                            }
+                            .focusable(false)
+                        }
+                    }
+                }
+                .padding(.trailing, 3)
+                .padding(.bottom, 6)
+            }
+            .onAppear {
+                scrollToSelectedSubtitle(using: proxy)
+            }
+            .onChange(of: selectedSubtitleEntryID) { _ in
+                scrollToSelectedSubtitle(using: proxy)
+            }
         }
     }
 
@@ -816,30 +955,181 @@ private struct PlaybackOverlayWindow: View {
             proxy.scrollTo(selectedSubtitleEntryID, anchor: .center)
         }
     }
+}
 
-    private func toggleDrawer(_ drawer: PlaybackDrawerKind) {
-        if activeDrawer == drawer {
-            withAnimation(.easeInOut(duration: 0.16)) {
-                activeDrawer = nil
+private struct PlaybackOverlayResultRow: View {
+    let result: SubtitleSearchResult
+    let query: String
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
+        let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
+        let highlightState: SearchHighlightState = isSelected
+            ? .selected
+            : (isHovered ? .hover : .default)
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text("#\(result.searchRank + 1)")
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .monospacedDigit()
+
+                Spacer(minLength: 8)
+
+                Text(formatTimestamp(result.startMilliseconds))
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .lineLimit(1)
+                    .monospacedDigit()
             }
-            return
-        }
 
-        openDrawer(drawer)
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                    Text(highlightedContent(
+                        line,
+                        query: query,
+                        textColor: textColor,
+                        state: highlightState
+                    ))
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(textColor)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackground)
+        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
+                .strokeBorder(rowBorder, lineWidth: isSelected ? 1.5 : 1)
+        )
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
     }
 
-    private func openDrawer(_ drawer: PlaybackDrawerKind) {
-        switch drawer {
-        case .results:
-            appState.refreshSearchNavigationSnapshot()
-        case .subtitles:
-            appState.refreshCurrentSubtitleEntries()
-        }
+    private var displayLines: [String] {
+        subtitleDisplayLines(content: result.content, cueLines: result.cueLines)
+    }
 
-        appState.pausePlayback()
-        withAnimation(.easeInOut(duration: 0.16)) {
-            activeDrawer = drawer
+    private var rowBackground: Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.82)
         }
+        if isHovered {
+            return Color.primary.opacity(0.075)
+        }
+        return Color.primary.opacity(0.045)
+    }
+
+    private var rowBorder: Color {
+        if isSelected {
+            return Color.accentColor
+        }
+        if isHovered {
+            return Color.primary.opacity(0.07)
+        }
+        return Color.clear
+    }
+}
+
+private struct PlaybackOverlaySubtitleRow: View {
+    let entry: SubtitleDatabaseEntry
+    let fallbackSequenceNumber: Int
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
+        let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text("#\(entry.sequenceNumber ?? fallbackSequenceNumber)")
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .monospacedDigit()
+
+                Spacer(minLength: 8)
+
+                Text(formatTimestamp(entry.startMilliseconds))
+                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .lineLimit(1)
+                    .monospacedDigit()
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .foregroundStyle(textColor)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackground)
+        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
+                .strokeBorder(rowBorder, lineWidth: isSelected ? 1.5 : 1)
+        )
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+    }
+
+    private var displayLines: [String] {
+        subtitleDisplayLines(content: entry.content, cueLines: [])
+    }
+
+    private var rowBackground: Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.82)
+        }
+        if isHovered {
+            return Color.primary.opacity(0.075)
+        }
+        return Color.primary.opacity(0.045)
+    }
+
+    private var rowBorder: Color {
+        if isSelected {
+            return Color.accentColor
+        }
+        if isHovered {
+            return Color.primary.opacity(0.07)
+        }
+        return Color.clear
+    }
+}
+
+private struct PlaybackOverlayEmptyList: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text(message)
+                .font(.system(size: SearchTypography.detailSize))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -869,57 +1159,6 @@ private struct CollapsedPlaybackSurfacePlaceholder: View {
         }
         .buttonStyle(.plain)
         .background(Color.black.opacity(0.045))
-    }
-}
-
-private struct SubtitleEntryRow: View {
-    let entry: SubtitleDatabaseEntry
-    let isSelected: Bool
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                Text(line)
-                    .font(.system(size: SearchTypography.bodySize))
-                    .foregroundStyle(rowTextColor)
-                    .lineSpacing(4)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.vertical, 10)
-        .padding(.leading, SearchLayout.resultTextLeadingPadding)
-        .padding(.trailing, SearchLayout.resultTextHorizontalPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(rowBackgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .padding(.leading, SearchLayout.resultSelectionLeadingPadding)
-        .padding(.trailing, SearchLayout.resultOuterHorizontalPadding)
-        .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-    }
-
-    private var displayLines: [String] {
-        let lines = entry.content
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return lines.isEmpty ? [entry.content] : lines
-    }
-
-    private var rowTextColor: Color {
-        isSelected ? .white : Color.primary.opacity(0.86)
-    }
-
-    private var rowBackgroundColor: Color {
-        if isSelected {
-            return Color.accentColor
-        }
-        if isHovered {
-            return Color.primary.opacity(0.06)
-        }
-        return .clear
     }
 }
 
