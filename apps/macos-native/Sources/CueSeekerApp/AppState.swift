@@ -556,10 +556,6 @@ final class AppState: ObservableObject {
         currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
     }
 
-    var isPlaybackSurfaceToggleDisabled: Bool {
-        currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
-    }
-
     private let userDefaults: UserDefaults
     private var player: PlaybackPlayer?
     private let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
