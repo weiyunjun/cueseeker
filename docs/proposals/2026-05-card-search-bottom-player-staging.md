@@ -10,12 +10,18 @@ playback workbench toward a search-driven media workspace.
 The change is large enough that it should not be implemented as one broad
 rewrite. The work should be staged so each step produces a visible,
 reviewable interface state before detailed interaction decisions are finalized.
+Playback must be stabilized before the broader layout rewrite, because the
+Search layout, topbar migration, and sidebar removal cannot be reviewed
+reliably while the video playback surface and bottom player are still
+incomplete.
 
 ## Goals
 
 - Rework Search results toward a card-based browsing surface.
 - Introduce a persistent bottom player inspired by modern media-player
   layouts.
+- Implement the bottom player with complete real local video playback before
+  changing the main Search layout.
 - Move Library and Shiori access into the top bar near Search.
 - Remove the right sidebar from the target main layout.
 - Keep each implementation step small enough to review and refine before the
@@ -52,7 +58,7 @@ documents before implementation depends on them.
 
 ## HTML Prototype
 
-The current static prototype for the Step 1 visual and interaction reference is
+The current static prototype for the staged visual and interaction reference is
 `docs/prototypes/card-search-bottom-player-v1.html`.
 
 The prototype should be checked before implementing major frontend UI changes
@@ -79,21 +85,29 @@ for this direction. It currently demonstrates:
 
 ## Staging Plan
 
-### Step 1: Establish the New Main Layout
+### Step 1: Implement the Complete Bottom Player Playback
 
-Rework the primary application layout around a top navigation/search bar, a
-card-based content area, and reserved space for a bottom player.
+Implement the bottom player UI and its complete playback behavior before
+changing the main Search layout, right sidebar, or topbar navigation.
 
 Scope:
 
-- Convert Search results to a card-based layout.
-- Move Library and Shiori icon navigation to the left side of the top Search
-  field. Use the current app icon semantics (`folder` for Library and
-  `bookmark` for Shiori), and avoid visually emphasizing a selected relationship
-  in this topbar prototype.
-- Remove the right sidebar.
-- Reserve space for a bottom player bar.
-- Add a basic visual bottom bar shell with working prototype controls.
+- Add the bottom player surface to the current app shell without requiring the
+  card Search layout or topbar migration to be complete.
+- Implement real local video playback from existing Search result and Library
+  entry points.
+- Implement the video presentation surface required for that playback, including
+  the bottom-player expand or collapse path. Fine-grained slide animation polish
+  can be refined after the functional playback state is reviewable.
+- Implement play and pause, current time, duration, progress display, and
+  clickable seek.
+- Implement volume display, mute or unmute, and volume adjustment.
+- Implement fullscreen behavior aligned with the current native playback
+  fullscreen model.
+- Keep playback state linked to the active video and current source where
+  practical.
+- Keep the existing main layout stable enough that playback bugs can be
+  isolated from later Search layout changes.
 
 Initial bottom-player alignment:
 
@@ -103,7 +117,8 @@ Initial bottom-player alignment:
   light gray rounded surface with white button controls.
 - When the video window is collapsed, the expand or collapse button points
   right. Clicking it expands the video window and changes the arrow upward.
-  Clicking it again collapses the video window and changes the arrow downward.
+  Clicking it again collapses the video window and returns the arrow to the
+  right-facing state.
 - The bottom-player title should use concise video identity such as
   `AVE MUJICA EP 01`.
 - Volume control belongs next to the title.
@@ -127,43 +142,37 @@ Initial bottom-player alignment:
 
 Goal:
 
-- Validate the new overall structure and Search-result readability before
-  implementing complex playback interactions.
+- Make the video playback experience reviewable on its own: real local video,
+  seek, volume, and fullscreen should work before the broader UI shell changes.
 
-### Step 2: Implement the Bottom Player Bar
+### Step 2: Establish the New Main Layout
 
-Build out the Spotify-style bottom player once the main layout is visually
-stable.
-
-Scope:
-
-- Left area: current video information.
-- Center area: playback controls and progress.
-- Right area: lyrics, queue, fullscreen, and related controls.
-- Connect the bar to actual playback state where practical.
-
-Goal:
-
-- Make playback persistent and globally visible across the app.
-
-### Step 3: Implement the Video Overlay
-
-Add the video overlay behavior after the bottom player has a stable structure.
+After the bottom player and real playback behavior are stable, rework the
+primary application layout around the card Search results and topbar
+navigation.
 
 Scope:
 
-- Clicking a Search result card can open a video overlay.
-- When no video is currently playing, the overlay should slide out from the
-  bottom player area.
-- The overlay should cover the current interface as a playback-focused layer.
-- Detailed behavior should be refined after seeing the first implementation.
+- Convert Search results to a card-based layout.
+- Move Library and Shiori icon navigation to the left side of the top Search
+  field. Use the current app icon semantics (`folder` for Library and
+  `bookmark` for Shiori).
+- Apply the topbar visual direction where the topbar shares the content area's
+  background and has no separating horizontal line.
+- Remove the right sidebar.
+- Integrate the completed bottom player into the new shell without
+  re-scoping playback behavior unless the layout integration exposes a concrete
+  defect.
+- Revisit Search-result card click behavior in the new layout. A card should
+  open or seek the matched local video through the already-implemented playback
+  path.
 
 Goal:
 
-- Turn Search results into direct playback entry points without forcing a full
-  page navigation model.
+- Validate the new overall structure and Search-result readability while the
+  playback layer is already complete enough to reveal integration problems.
 
-### Step 4: Adapt Library and Shiori to the New Shell
+### Step 3: Adapt Library and Shiori to the New Shell
 
 After the main Search and playback shell is validated, adapt Library and Shiori
 to the same top-navigation layout.
@@ -187,8 +196,11 @@ Each step should be implemented, reviewed visually, and adjusted before the next
 step begins. Details that depend on seeing the actual UI should be decided in
 the step where they become relevant, not prematurely in this staging document.
 
-Step 1 should be aligned in detail before any code implementation begins. Later
-steps should receive their own focused alignment before implementation.
+Step 1 should be aligned in detail around the complete bottom player and real
+local video playback before any code implementation begins. Step 2 should be
+aligned around the card Search layout, topbar migration, and right-sidebar
+removal only after Step 1 is reviewable. Step 3 should receive its own focused
+alignment after the new Search and playback shell is visible.
 
 ## Product Documentation Impact
 
