@@ -11,7 +11,7 @@ struct SearchTextView: NSViewRepresentable {
         let textView = CustomTextView()
         textView.isRichText = false
         textView.drawsBackground = false
-        textView.font = .systemFont(ofSize: 18, weight: .semibold)
+        textView.font = .systemFont(ofSize: 17, weight: .semibold)
         textView.delegate = context.coordinator
         
         // Configure for single line behavior
@@ -103,7 +103,7 @@ final class CustomTextView: NSTextView {
         
         if string.isEmpty && !placeholder.isEmpty {
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: font ?? NSFont.systemFont(ofSize: 18, weight: .semibold),
+                .font: font ?? NSFont.systemFont(ofSize: 17, weight: .semibold),
                 .foregroundColor: NSColor.placeholderTextColor
             ]
             let size = placeholder.size(withAttributes: attributes)

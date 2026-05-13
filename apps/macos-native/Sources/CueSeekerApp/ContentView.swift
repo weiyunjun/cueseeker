@@ -167,11 +167,12 @@ private struct TopbarSearchField: View {
     @Binding var text: String
     @Binding var isFocused: Bool
     let onSubmit: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .regular))
+                .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(AppShellLayout.topbarSearchIconColor)
 
             SearchTextView(
@@ -202,16 +203,32 @@ private struct TopbarSearchField: View {
         .overlay(
             RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius)
                 .strokeBorder(
-                    isFocused
-                        ? AppShellLayout.topbarSearchFocusedBorderColor
-                        : AppShellLayout.topbarSearchBorderColor,
-                    lineWidth: 1
+                    topbarSearchBorderColor,
+                    lineWidth: isFocused ? 2 : 1.5
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius + 2)
+                .stroke(
+                    isFocused ? AppShellLayout.topbarSearchFocusRingColor : Color.clear,
+                    lineWidth: 3
                 )
         )
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
         .onTapGesture {
             isFocused = true
         }
+    }
+
+    private var topbarSearchBorderColor: Color {
+        if isFocused {
+            return AppShellLayout.topbarSearchFocusedBorderColor
+        }
+        if isHovered {
+            return AppShellLayout.topbarSearchHoverBorderColor
+        }
+        return AppShellLayout.topbarSearchBorderColor
     }
 }
 
@@ -224,8 +241,8 @@ enum AppShellLayout {
     static let titleFontSize: CGFloat = 16
     static let titleFontWeight: Font.Weight = .semibold
     static let topbarSearchFieldWidth: CGFloat = 320
-    static let topbarSearchFieldHeight: CGFloat = 44
-    static let topbarSearchFieldCornerRadius: CGFloat = 14
+    static let topbarSearchFieldHeight: CGFloat = 36
+    static let topbarSearchFieldCornerRadius: CGFloat = 12
     static let topbarModeCornerRadius: CGFloat = 9
 
     static let topbarModeColor = Color(
@@ -254,14 +271,25 @@ enum AppShellLayout {
         blue: 216.0 / 255.0
     )
     static let topbarSearchBorderColor = Color(
-        red: 200.0 / 255.0,
-        green: 200.0 / 255.0,
-        blue: 204.0 / 255.0
+        red: 184.0 / 255.0,
+        green: 185.0 / 255.0,
+        blue: 191.0 / 255.0
+    )
+    static let topbarSearchHoverBorderColor = Color(
+        red: 158.0 / 255.0,
+        green: 159.0 / 255.0,
+        blue: 166.0 / 255.0
     )
     static let topbarSearchFocusedBorderColor = Color(
-        red: 170.0 / 255.0,
-        green: 171.0 / 255.0,
-        blue: 178.0 / 255.0
+        red: 122.0 / 255.0,
+        green: 124.0 / 255.0,
+        blue: 132.0 / 255.0
+    )
+    static let topbarSearchFocusRingColor = Color(
+        red: 122.0 / 255.0,
+        green: 124.0 / 255.0,
+        blue: 132.0 / 255.0,
+        opacity: 0.14
     )
     static let topbarSearchIconColor = Color(
         red: 154.0 / 255.0,
