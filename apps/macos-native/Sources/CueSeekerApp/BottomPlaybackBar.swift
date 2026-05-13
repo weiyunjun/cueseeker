@@ -106,19 +106,17 @@ private struct BottomPlaybackBarContent: View {
             } label: {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 9) {
-                        Image(systemName: appState.isPlaybackSurfaceExpanded ? "chevron.up" : "chevron.right")
-                            .font(.system(size: 15, weight: .bold))
+                        playbackSurfaceToggleArrow
 
                         Text(appState.currentPlaybackDisplayTitle)
                             .font(.system(size: 15, weight: .bold))
                             .lineLimit(1)
                             .truncationMode(.middle)
-                            .frame(minWidth: 88, maxWidth: .infinity, alignment: .leading)
+                            .frame(width: 166, alignment: .leading)
                     }
-                    .frame(minWidth: 130, maxWidth: 220, alignment: .leading)
+                    .frame(width: 193, alignment: .leading)
 
-                    Image(systemName: appState.isPlaybackSurfaceExpanded ? "chevron.up" : "chevron.right")
-                        .font(.system(size: 15, weight: .bold))
+                    playbackSurfaceToggleArrow
                 }
                 .foregroundStyle(hasPlayback ? Color.primary : Color.secondary)
                 .frame(minWidth: 38, maxWidth: 220, minHeight: 38)
@@ -137,6 +135,12 @@ private struct BottomPlaybackBarContent: View {
 
             volumeControl
         }
+    }
+
+    private var playbackSurfaceToggleArrow: some View {
+        Image(systemName: appState.isPlaybackSurfaceExpanded ? "chevron.up" : "chevron.right")
+            .font(.system(size: 15, weight: .bold))
+            .frame(width: 18, alignment: .center)
     }
 
     private var volumeControl: some View {
