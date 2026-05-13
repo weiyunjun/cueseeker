@@ -54,6 +54,10 @@ First implementation requirements:
   current video title or a `Search playback` label above the tabs.
 - The overlay side panel uses a white background and gray list cards. Selected
   rows use the system accent color with white text.
+- The bottom-player right controls include a video-sidebar toggle between the
+  subtitle visibility button and playback-speed button. Its icon is three rows
+  of dot-plus-line marks, and its selected state follows the subtitle button's
+  active visual treatment.
 - Search Results rows may highlight query matches. Subtitles rows represent the
   full subtitle file and must not apply keyword highlighting.
 - Keep the persistent bottom player available across Search, Shiori, and
@@ -466,6 +470,9 @@ Playback Area required content:
 - A `Subtitle Folder` button.
 - For Search-launched playback, `Previous Result`, `Next Result`, `Results`,
   and `Subtitles` buttons.
+- The bottom-player right-side control group includes Shiori, copy current
+  subtitle, subtitle visibility, video-sidebar visibility, playback speed, and
+  fullscreen.
 
 Search-launched playback result navigation:
 

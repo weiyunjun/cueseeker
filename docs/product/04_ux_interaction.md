@@ -74,6 +74,12 @@ Accepted topbar Search transition:
 - Clicking a Search result expands the bottom-launched playback overlay. The
   expanded overlay keeps the video on the left and shows a right-side panel for
   `Search Results` and `Subtitles`.
+- The bottom player provides a video-sidebar toggle between the subtitle
+  visibility and playback-speed controls. It shows or hides the overlay's
+  right-side panel without moving the bottom-player controls.
+- Because hiding or showing the video sidebar changes the video layout, the
+  toggle follows the same rapid-repeat guard as other playback-size-changing
+  commands.
 - The `Search Results` panel lists search matches and may highlight the active
   query. The `Subtitles` panel lists the full subtitle-file cues by source
   sequence number and timestamp without query highlighting.

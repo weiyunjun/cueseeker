@@ -266,10 +266,13 @@ private struct BottomPlaybackBarContent: View {
             bottomIconButton(
                 systemImage: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
                 help: viewModel.areSubtitlesVisible ? "Hide Subtitles" : "Show Subtitles",
-                isEnabled: hasPlayback
+                isEnabled: hasPlayback,
+                isSelected: viewModel.areSubtitlesVisible
             ) {
                 viewModel.toggleSubtitles()
             }
+
+            sidePanelToggleControl
 
             speedControl
 
@@ -289,6 +292,25 @@ private struct BottomPlaybackBarContent: View {
                 )
             }
         }
+    }
+
+    private var sidePanelToggleControl: some View {
+        Button {
+            appState.clearSearchFocus()
+            appState.togglePlaybackSidePanelFromUser()
+        } label: {
+            BottomPlaybackSidePanelIcon()
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(
+            BottomBarButtonStyle(
+                cornerRadius: 999,
+                isSelected: appState.isPlaybackSidePanelVisible && appState.isPlaybackSurfaceExpanded
+            )
+        )
+        .disabled(appState.isPlaybackSidePanelToggleDisabled)
+        .help(appState.isPlaybackSidePanelVisible ? "Hide Video Sidebar" : "Show Video Sidebar")
+        .frame(width: 36, height: 36)
     }
 
     private var speedControl: some View {
@@ -434,6 +456,7 @@ private struct BottomPlaybackBarContent: View {
         systemImage: String,
         help: String,
         isEnabled: Bool,
+        isSelected: Bool = false,
         dismissesMenus: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
@@ -447,7 +470,7 @@ private struct BottomPlaybackBarContent: View {
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 36, height: 36)
         }
-        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
+        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999, isSelected: isSelected))
         .disabled(!isEnabled)
         .help(help)
     }
@@ -616,10 +639,16 @@ private struct BottomPlayerVolumeSlider: View {
 private struct BottomBarButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     let cornerRadius: CGFloat
+    let isSelected: Bool
+
+    init(cornerRadius: CGFloat, isSelected: Bool = false) {
+        self.cornerRadius = cornerRadius
+        self.isSelected = isSelected
+    }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(isEnabled ? Color.primary : Color.secondary.opacity(0.45))
+            .foregroundStyle(foregroundColor)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(backgroundColor(configuration: configuration))
@@ -637,5 +666,31 @@ private struct BottomBarButtonStyle: ButtonStyle {
         }
 
         return Color.white
+    }
+
+    private var foregroundColor: Color {
+        guard isEnabled else {
+            return Color.secondary.opacity(0.45)
+        }
+
+        return isSelected ? Color.accentColor : Color.primary
+    }
+}
+
+private struct BottomPlaybackSidePanelIcon: View {
+    var body: some View {
+        VStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { _ in
+                HStack(spacing: 3) {
+                    Circle()
+                        .frame(width: 3.5, height: 3.5)
+
+                    Capsule()
+                        .frame(width: 13, height: 2.5)
+                }
+            }
+        }
+        .frame(width: 18, height: 18)
+        .accessibilityHidden(true)
     }
 }

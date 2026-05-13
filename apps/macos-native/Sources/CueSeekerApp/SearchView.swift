@@ -21,7 +21,8 @@ struct SearchView: View {
                 let overlayMetrics = playbackOverlayMetrics(
                     maxWidth: geometry.size.width,
                     maxHeight: workspaceHeight,
-                    aspectRatio: playbackAspectRatio
+                    aspectRatio: playbackAspectRatio,
+                    showsSidePanel: appState.isPlaybackSidePanelVisible
                 )
 
                 ZStack(alignment: .bottom) {
@@ -92,7 +93,8 @@ struct SearchView: View {
     private func playbackOverlayMetrics(
         maxWidth: CGFloat,
         maxHeight: CGFloat,
-        aspectRatio: CGFloat
+        aspectRatio: CGFloat,
+        showsSidePanel: Bool
     ) -> PlaybackOverlayMetrics {
         let safeMaxWidth = max(0, maxWidth)
         let safeMaxHeight = max(0, maxHeight)
@@ -103,19 +105,22 @@ struct SearchView: View {
 
         let contentMaxWidth = max(0, safeMaxWidth - PlaybackOverlayLayout.outerPadding * 2)
         let contentMaxHeight = max(0, safeMaxHeight - PlaybackOverlayLayout.outerPadding * 2)
-        let preferredPanelWidth = min(
-            PlaybackOverlayLayout.sidePanelPreferredWidth,
-            max(PlaybackOverlayLayout.sidePanelMinWidth, contentMaxWidth * 0.30)
-        )
-        let sidePanelWidth = min(preferredPanelWidth, contentMaxWidth * 0.45)
-        let videoMaxWidth = max(0, contentMaxWidth - PlaybackOverlayLayout.panelGap - sidePanelWidth)
+        let preferredPanelWidth = showsSidePanel
+            ? min(
+                PlaybackOverlayLayout.sidePanelPreferredWidth,
+                max(PlaybackOverlayLayout.sidePanelMinWidth, contentMaxWidth * 0.30)
+            )
+            : 0
+        let sidePanelWidth = showsSidePanel ? min(preferredPanelWidth, contentMaxWidth * 0.45) : 0
+        let panelGap = showsSidePanel ? PlaybackOverlayLayout.panelGap : 0
+        let videoMaxWidth = max(0, contentMaxWidth - panelGap - sidePanelWidth)
         let videoHeight = min(contentMaxHeight, videoMaxWidth / safeAspectRatio)
         let videoWidth = videoHeight * safeAspectRatio
         let outerSize = CGSize(
             width: min(
                 safeMaxWidth,
                 videoWidth
-                    + PlaybackOverlayLayout.panelGap
+                    + panelGap
                     + sidePanelWidth
                     + PlaybackOverlayLayout.outerPadding * 2
             ),
@@ -639,17 +644,21 @@ private struct PlaybackOverlayWindow: View {
             let overlayHeight = min(contentSize.height, geometry.size.height)
             let contentHeight = max(0, overlayHeight - PlaybackOverlayLayout.outerPadding * 2)
             let contentWidth = max(0, overlayWidth - PlaybackOverlayLayout.outerPadding * 2)
-            let panelWidth = min(sidePanelWidth, contentWidth * 0.45)
-            let videoWidth = max(0, contentWidth - panelWidth - PlaybackOverlayLayout.panelGap)
+            let showsSidePanel = appState.isPlaybackSidePanelVisible
+                && appState.playbackViewModel != nil
+                && sidePanelWidth > 0
+            let panelWidth = showsSidePanel ? min(sidePanelWidth, contentWidth * 0.45) : 0
+            let panelGap = showsSidePanel ? PlaybackOverlayLayout.panelGap : 0
+            let videoWidth = max(0, contentWidth - panelWidth - panelGap)
 
             ZStack {
                 Color.black
 
-                HStack(spacing: PlaybackOverlayLayout.panelGap) {
+                HStack(spacing: panelGap) {
                     videoSurface
                         .frame(width: videoWidth, height: contentHeight)
 
-                    if let viewModel = appState.playbackViewModel {
+                    if showsSidePanel, let viewModel = appState.playbackViewModel {
                         PlaybackOverlaySidePanel(
                             appState: appState,
                             viewModel: viewModel,

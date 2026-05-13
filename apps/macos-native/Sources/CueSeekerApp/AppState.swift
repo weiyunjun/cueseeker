@@ -259,6 +259,7 @@ final class AppState: ObservableObject {
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
+    @Published var isPlaybackSidePanelVisible = true
     @Published var playbackDrawerRequest: PlaybackDrawerRequest?
     @Published var activeBottomPlaybackMenu: BottomPlaybackMenuKind?
     @Published var startupError: String?
@@ -494,6 +495,12 @@ final class AppState: ObservableObject {
 
     var isPlaybackFullscreenToggleDisabled: Bool {
         currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
+    }
+
+    var isPlaybackSidePanelToggleDisabled: Bool {
+        currentPlaybackVideoPath == nil
+            || !isPlaybackSurfaceExpanded
+            || workbenchLayout.isVideoSizeTransitionInProgress
     }
 
     private let userDefaults: UserDefaults
@@ -749,6 +756,21 @@ final class AppState: ObservableObject {
         }
     }
 
+    func togglePlaybackSidePanelFromUser() {
+        guard hasPlaybackSelection, isPlaybackSurfaceExpanded else {
+            return
+        }
+
+        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+            return
+        }
+
+        activeBottomPlaybackMenu = nil
+        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+            isPlaybackSidePanelVisible.toggle()
+        }
+    }
+
     func toggleBottomPlaybackMenu(_ menu: BottomPlaybackMenuKind) {
         activeBottomPlaybackMenu = activeBottomPlaybackMenu == menu ? nil : menu
     }
@@ -770,13 +792,14 @@ final class AppState: ObservableObject {
             return
         }
 
-        if !isPlaybackSurfaceExpanded {
+        if !isPlaybackSurfaceExpanded || !isPlaybackSidePanelVisible {
             guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
                 return
             }
 
             withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
                 isPlaybackSurfaceExpanded = true
+                isPlaybackSidePanelVisible = true
             }
         }
         playbackDrawerRequest = PlaybackDrawerRequest(drawer: drawer)
@@ -1418,6 +1441,7 @@ final class AppState: ObservableObject {
         selectedShiori = nil
         selectedLibraryVideo = nil
         activeBottomPlaybackMenu = nil
+        isPlaybackSidePanelVisible = true
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSurfaceExpanded = true
         }
@@ -1439,6 +1463,7 @@ final class AppState: ObservableObject {
         selectedSearchResult = nil
         selectedShiori = nil
         activeBottomPlaybackMenu = nil
+        isPlaybackSidePanelVisible = true
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSurfaceExpanded = true
         }
@@ -1460,6 +1485,7 @@ final class AppState: ObservableObject {
         selectedSearchResult = nil
         selectedLibraryVideo = nil
         activeBottomPlaybackMenu = nil
+        isPlaybackSidePanelVisible = true
         withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
             isPlaybackSurfaceExpanded = true
         }

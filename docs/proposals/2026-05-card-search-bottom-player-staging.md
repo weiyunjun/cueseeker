@@ -78,8 +78,8 @@ for this direction. It currently demonstrates:
 - A three-dot menu placed after the next-episode control.
 - A gray rounded playback-speed menu matching the current app UI direction.
 - A right-side control group aligned with the current playback controls:
-  Shiori, copy current subtitle, subtitle visibility, playback speed, and
-  fullscreen.
+  Shiori, copy current subtitle, subtitle visibility, video-sidebar visibility,
+  playback speed, and fullscreen.
 - A three-dot menu containing `Video Folder`, `Subtitle Folder`, `Results`, and
   `Subtitles`.
 - A bottom-launched video overlay with a rectangular black background covering
@@ -155,6 +155,10 @@ Initial bottom-player alignment:
 - The expanded overlay should show a right-side panel with two tabs:
   `Search Results` and `Subtitles`. The tabs sit at the top of the panel, and
   the active item count sits below them on the left.
+- The right-side panel can be shown or hidden from a bottom-player button placed
+  between subtitle visibility and playback speed. The icon is three rows of a
+  dot plus a horizontal line, and the selected state matches the subtitle
+  button's active treatment.
 - The right-side panel should keep a minimum width and share the same height as
   the video surface. The video keeps its source aspect ratio and scales down
   before the side panel is hidden.
