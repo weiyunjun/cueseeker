@@ -19,37 +19,48 @@ struct SearchView: View {
                 let modeRailWidth = SearchLayout.modeRailWidth
                 let contentPanelWidth = contentPanelWidth(for: geometry.size.width)
                 let isSidebarOnLeft = layoutState.sidebarPosition == .left
+                let workspaceHeight = max(
+                    0,
+                    geometry.size.height - BottomPlaybackBarLayout.reservedHeight
+                )
 
-                HStack(spacing: 0) {
-                    if isSidebarOnLeft {
-                        modeRail
-                            .frame(width: modeRailWidth, height: geometry.size.height)
-                            .zIndex(2)
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        if isSidebarOnLeft {
+                            modeRail
+                                .frame(width: modeRailWidth, height: workspaceHeight)
+                                .zIndex(2)
 
-                        contentPanelSlot(
-                            width: contentPanelWidth,
-                            availableWidth: geometry.size.width,
-                            isSidebarOnLeft: true
-                        )
-                        .zIndex(1)
+                            contentPanelSlot(
+                                width: contentPanelWidth,
+                                availableWidth: geometry.size.width,
+                                isSidebarOnLeft: true
+                            )
+                            .zIndex(1)
 
-                        playbackArea
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        playbackArea
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            playbackArea
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            playbackArea
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                        contentPanelSlot(
-                            width: contentPanelWidth,
-                            availableWidth: geometry.size.width,
-                            isSidebarOnLeft: false
-                        )
-                        .zIndex(1)
+                            contentPanelSlot(
+                                width: contentPanelWidth,
+                                availableWidth: geometry.size.width,
+                                isSidebarOnLeft: false
+                            )
+                            .zIndex(1)
 
-                        modeRail
-                            .frame(width: modeRailWidth, height: geometry.size.height)
-                            .zIndex(2)
+                            modeRail
+                                .frame(width: modeRailWidth, height: workspaceHeight)
+                                .zIndex(2)
+                        }
                     }
+                    .frame(width: geometry.size.width, height: workspaceHeight)
+                    .clipped()
+
+                    BottomPlaybackBar(appState: appState)
+                        .frame(height: BottomPlaybackBarLayout.reservedHeight)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
@@ -670,35 +681,47 @@ struct SearchView: View {
     }
 
     private var playbackSurface: some View {
-        PlaybackView(
-            player: appState.playbackPlayer,
-            viewModel: appState.playbackViewModel,
-            fullscreenManager: appState.playbackFullscreenManager,
-            onSurfaceTap: {
-                appState.clearSearchFocus()
-                appState.togglePlaybackFromUser()
-            },
-            onCopySubtitle: {
-                appState.clearSearchFocus()
-                appState.copyCurrentSubtitleToClipboard()
-            },
-            onSaveShiori: {
-                appState.clearSearchFocus()
-                appState.toggleCurrentShiori()
-            },
-            isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
-            onToggleFullscreen: {
-                appState.clearSearchFocus()
-                appState.togglePlaybackFullscreenFromUser(
+        Group {
+            if appState.isPlaybackSurfaceExpanded {
+                PlaybackView(
+                    player: appState.playbackPlayer,
+                    viewModel: appState.playbackViewModel,
+                    fullscreenManager: appState.playbackFullscreenManager,
+                    onSurfaceTap: {
+                        appState.clearSearchFocus()
+                        appState.togglePlaybackFromUser()
+                    },
                     onCopySubtitle: {
+                        appState.clearSearchFocus()
                         appState.copyCurrentSubtitleToClipboard()
                     },
                     onSaveShiori: {
+                        appState.clearSearchFocus()
                         appState.toggleCurrentShiori()
+                    },
+                    isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
+                    onToggleFullscreen: {
+                        appState.clearSearchFocus()
+                        appState.togglePlaybackFullscreenFromUser(
+                            onCopySubtitle: {
+                                appState.copyCurrentSubtitleToClipboard()
+                            },
+                            onSaveShiori: {
+                                appState.toggleCurrentShiori()
+                            }
+                        )
+                    }
+                )
+            } else {
+                CollapsedPlaybackSurfacePlaceholder(
+                    title: appState.currentPlaybackTitle,
+                    onExpand: {
+                        appState.clearSearchFocus()
+                        appState.expandPlaybackSurface()
                     }
                 )
             }
-        )
+        }
     }
 
     private var topbarSearchResultsArea: some View {
@@ -844,15 +867,10 @@ struct SearchView: View {
     }
 }
 
-private enum SearchPlaybackDrawer {
-    case results
-    case subtitles
-}
-
 private struct SearchPlaybackPage: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
-    @State private var activeDrawer: SearchPlaybackDrawer?
+    @State private var activeDrawer: PlaybackDrawerKind?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -884,6 +902,18 @@ private struct SearchPlaybackPage: View {
         .padding(.top, AppShellLayout.contentTopPadding)
         .padding([.horizontal, .bottom], 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            if let request = appState.playbackDrawerRequest {
+                openDrawer(request.drawer)
+            }
+        }
+        .onChange(of: appState.playbackDrawerRequest?.id) { _ in
+            guard let request = appState.playbackDrawerRequest else {
+                return
+            }
+
+            openDrawer(request.drawer)
+        }
     }
 
     private var commandRow: some View {
@@ -928,7 +958,7 @@ private struct SearchPlaybackPage: View {
         }
     }
 
-    private func drawerButton(title: String, drawer: SearchPlaybackDrawer) -> some View {
+    private func drawerButton(title: String, drawer: PlaybackDrawerKind) -> some View {
         let isOpen = activeDrawer == drawer
         return Button {
             appState.clearSearchFocus()
@@ -946,7 +976,7 @@ private struct SearchPlaybackPage: View {
     }
 
     @ViewBuilder
-    private func drawerView(_ drawer: SearchPlaybackDrawer) -> some View {
+    private func drawerView(_ drawer: PlaybackDrawerKind) -> some View {
         switch drawer {
         case .results:
             resultsDrawer
@@ -1113,7 +1143,7 @@ private struct SearchPlaybackPage: View {
         }
     }
 
-    private func toggleDrawer(_ drawer: SearchPlaybackDrawer) {
+    private func toggleDrawer(_ drawer: PlaybackDrawerKind) {
         if activeDrawer == drawer {
             withAnimation(.easeInOut(duration: 0.16)) {
                 activeDrawer = nil
@@ -1121,6 +1151,10 @@ private struct SearchPlaybackPage: View {
             return
         }
 
+        openDrawer(drawer)
+    }
+
+    private func openDrawer(_ drawer: PlaybackDrawerKind) {
         switch drawer {
         case .results:
             appState.refreshSearchNavigationSnapshot()
@@ -1132,6 +1166,34 @@ private struct SearchPlaybackPage: View {
         withAnimation(.easeInOut(duration: 0.16)) {
             activeDrawer = drawer
         }
+    }
+}
+
+private struct CollapsedPlaybackSurfacePlaceholder: View {
+    let title: String
+    let onExpand: () -> Void
+
+    var body: some View {
+        Button(action: onExpand) {
+            VStack(spacing: 10) {
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.72))
+
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.82))
+                    .lineLimit(1)
+
+                Text("Video window collapsed")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(Color.black.opacity(0.045))
     }
 }
 

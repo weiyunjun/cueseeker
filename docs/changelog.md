@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the first bottom-player playback pass in the native macOS app:
+  the current shell now reserves a persistent light bottom player with real
+  play/pause, progress seek, volume, subtitle, Shiori, speed, fullscreen,
+  Search-result navigation, Library episode navigation, and secondary playback
+  actions while preserving the existing Search/sidebar layout for later
+  staging.
 - Refined the card Search and bottom-player HTML prototype direction: topbar
   Library and Shiori now use icon-only navigation without selected emphasis,
   the bottom player uses a light gray rounded surface, drops cover art for a

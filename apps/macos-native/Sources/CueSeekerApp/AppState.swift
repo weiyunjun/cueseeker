@@ -70,6 +70,16 @@ enum SearchResultNavigationDirection {
     case next
 }
 
+enum PlaybackDrawerKind: Equatable {
+    case results
+    case subtitles
+}
+
+struct PlaybackDrawerRequest: Equatable, Identifiable {
+    let id = UUID()
+    let drawer: PlaybackDrawerKind
+}
+
 struct SearchResultFileGroup: Identifiable, Equatable {
     let subtitlePath: String
     let subtitleDisplayTitle: String
@@ -303,6 +313,8 @@ final class AppState: ObservableObject {
     @Published var selectedShiori: Shiori?
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var playbackStatus: PlaybackStatus = .idle
+    @Published var isPlaybackSurfaceExpanded = false
+    @Published var playbackDrawerRequest: PlaybackDrawerRequest?
     @Published var startupError: String?
     @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
@@ -451,6 +463,61 @@ final class AppState: ObservableObject {
 
     var currentPlaybackSubtitleFormat: SubtitleFormat? {
         selectedLibraryVideo?.subtitleFormat ?? selectedSearchResult?.subtitleFormat ?? selectedShiori?.subtitleFormat
+    }
+
+    var currentPlaybackTitle: String {
+        selectedLibraryVideo?.videoName
+            ?? selectedSearchResult?.videoName
+            ?? selectedShiori?.videoName
+            ?? "No video selected"
+    }
+
+    var isLibraryPlaybackActive: Bool {
+        if case .library = activePlaybackSource {
+            return true
+        }
+
+        return false
+    }
+
+    var isSearchPlaybackActive: Bool {
+        activePlaybackSource == .search
+    }
+
+    var canOpenPreviousLibraryVideo: Bool {
+        libraryAdjacentVideo(offset: -1) != nil
+    }
+
+    var canOpenNextLibraryVideo: Bool {
+        libraryAdjacentVideo(offset: 1) != nil
+    }
+
+    var canOpenPreviousSearchResult: Bool {
+        guard isSearchPlaybackActive, selectedSearchResult != nil else {
+            return false
+        }
+
+        if let searchNavigationSnapshot {
+            return searchNavigationSnapshot.previous != nil
+        }
+
+        return searchResultTotalCount > 1
+    }
+
+    var canOpenNextSearchResult: Bool {
+        guard isSearchPlaybackActive, selectedSearchResult != nil else {
+            return false
+        }
+
+        if let searchNavigationSnapshot {
+            return searchNavigationSnapshot.next != nil
+        }
+
+        return searchResultTotalCount > 1
+    }
+
+    var isPlaybackFullscreenToggleDisabled: Bool {
+        currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
     }
 
     private let userDefaults: UserDefaults
@@ -701,6 +768,43 @@ final class AppState: ObservableObject {
         if !started {
             endVideoSizeTransition()
         }
+    }
+
+    func togglePlaybackSurfaceFromUser() {
+        guard hasPlaybackSelection else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+            isPlaybackSurfaceExpanded.toggle()
+        }
+    }
+
+    func expandPlaybackSurface() {
+        guard hasPlaybackSelection, !isPlaybackSurfaceExpanded else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+            isPlaybackSurfaceExpanded = true
+        }
+    }
+
+    func openPreviousLibraryVideo() {
+        openAdjacentLibraryVideo(offset: -1)
+    }
+
+    func openNextLibraryVideo() {
+        openAdjacentLibraryVideo(offset: 1)
+    }
+
+    func requestPlaybackDrawer(_ drawer: PlaybackDrawerKind) {
+        guard hasPlaybackSelection else {
+            return
+        }
+
+        topbarSearchContentMode = .playback
+        playbackDrawerRequest = PlaybackDrawerRequest(drawer: drawer)
     }
 
     func exitPlaybackFullscreenFromUser() {
@@ -1342,6 +1446,7 @@ final class AppState: ObservableObject {
         selectedShiori = nil
         selectedLibraryVideo = nil
         topbarSearchContentMode = .playback
+        isPlaybackSurfaceExpanded = true
         searchNavigationSnapshot = nil
         searchNavigationResultGroups = []
         Task { @MainActor in
@@ -1362,6 +1467,7 @@ final class AppState: ObservableObject {
         selectedSearchResult = nil
         selectedShiori = nil
         topbarSearchContentMode = .workbench
+        isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
             play(video)
@@ -1380,6 +1486,7 @@ final class AppState: ObservableObject {
         selectedSearchResult = nil
         selectedLibraryVideo = nil
         topbarSearchContentMode = .workbench
+        isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
             play(shiori)
@@ -1433,6 +1540,7 @@ final class AppState: ObservableObject {
 
             try player.setPaused(false)
             playbackStatus = .playing
+            refreshSearchNavigationSnapshot()
         } catch {
             playbackViewModel?.clearSubtitleCues()
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -1815,6 +1923,8 @@ final class AppState: ObservableObject {
             try player?.stop()
             playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
+            isPlaybackSurfaceExpanded = false
+            playbackDrawerRequest = nil
             playbackStatus = .idle
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))
@@ -2020,6 +2130,30 @@ final class AppState: ObservableObject {
             print("Failed to load Library playback history: \(error)")
             return 0
         }
+    }
+
+    private func openAdjacentLibraryVideo(offset: Int) {
+        guard let target = libraryAdjacentVideo(offset: offset) else {
+            return
+        }
+
+        openLibraryVideo(target)
+    }
+
+    private func libraryAdjacentVideo(offset: Int) -> LibraryVideo? {
+        guard isLibraryPlaybackActive,
+              let selectedLibraryVideo,
+              let currentIndex = libraryVideos.firstIndex(where: { $0.videoPath == selectedLibraryVideo.videoPath })
+        else {
+            return nil
+        }
+
+        let targetIndex = currentIndex + offset
+        guard libraryVideos.indices.contains(targetIndex) else {
+            return nil
+        }
+
+        return libraryVideos[targetIndex]
     }
 
     private func startLibraryPlaybackHistoryTracking(videoPath: String) {
