@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted a concise AI response rule: unless the user explicitly asks for a
+  detailed explanation, assistant answers should stay brief, clear, and
+  highlight the key conclusions in bold.
 - Accepted the strict local-file boundary for CueSeeker indexing and playback:
   the app may process supported video files and `.srt`/`.ass` subtitle files,
   but must ignore fonts, images, loose text sidecars, archives, sidecar asset

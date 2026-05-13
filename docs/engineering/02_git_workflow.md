@@ -166,6 +166,9 @@ Rules:
 
 - For every code modification, the AI must explicitly state both the before-modification version and the after-modification version to the user to prevent them from having to scroll through chat history. All Git Hashes MUST be represented in their short hash format (typically 7 characters).
 - Unless the user provides an explicit instruction to modify code, all user prompts must be treated as discussion or proposal requests. The AI is strictly prohibited from modifying code without explicit permission.
+- Unless the user explicitly asks for a detailed explanation, AI responses
+  should be concise and clear, with the most important conclusions emphasized in
+  bold so the answer is easy to scan.
 - Rust shared-core implementation is currently paused. When modifying macOS
   code, the AI must preserve the future shared-core boundary from
   `docs/engineering/04_architecture_rules.md`: product semantics belong in
