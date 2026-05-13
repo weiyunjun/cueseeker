@@ -4,8 +4,8 @@ enum BottomPlaybackBarLayout {
     static let reservedHeight: CGFloat = 86
     static let surfaceHeight: CGFloat = 86
     static let surfaceCornerRadius: CGFloat = 0
-    static let topContentPadding: CGFloat = 10
-    static let bottomContentPadding: CGFloat = 0
+    static let topContentPadding: CGFloat = 0
+    static let bottomContentPadding: CGFloat = 10
 }
 
 struct BottomPlaybackBar: View {
@@ -51,6 +51,9 @@ private struct BottomPlaybackBarContent: View {
             Color(nsColor: .controlBackgroundColor)
 
             VStack(spacing: 7) {
+                progressRow
+                    .frame(maxWidth: .infinity)
+
                 HStack(spacing: 20) {
                     leadingCluster
                         .frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
@@ -61,9 +64,6 @@ private struct BottomPlaybackBarContent: View {
                     trailingControls
                         .frame(minWidth: 240, maxWidth: .infinity, alignment: .trailing)
                 }
-
-                progressRow
-                    .frame(maxWidth: 620)
             }
             .padding(.horizontal, 22)
             .padding(.top, BottomPlaybackBarLayout.topContentPadding)
