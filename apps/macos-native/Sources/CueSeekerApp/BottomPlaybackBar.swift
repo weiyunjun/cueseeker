@@ -1,9 +1,11 @@
 import SwiftUI
 
 enum BottomPlaybackBarLayout {
-    static let reservedHeight: CGFloat = 112
-    static let surfaceHeight: CGFloat = 92
-    static let surfaceCornerRadius: CGFloat = 15
+    static let reservedHeight: CGFloat = 98
+    static let surfaceHeight: CGFloat = 98
+    static let surfaceCornerRadius: CGFloat = 0
+    static let topContentPadding: CGFloat = 6
+    static let bottomContentPadding: CGFloat = 0
 }
 
 struct BottomPlaybackBar: View {
@@ -64,7 +66,8 @@ private struct BottomPlaybackBarContent: View {
                     .frame(maxWidth: 620)
             }
             .padding(.horizontal, 22)
-            .padding(.vertical, 10)
+            .padding(.top, BottomPlaybackBarLayout.topContentPadding)
+            .padding(.bottom, BottomPlaybackBarLayout.bottomContentPadding)
             .frame(maxWidth: .infinity)
             .frame(height: BottomPlaybackBarLayout.surfaceHeight)
             .background(
@@ -76,7 +79,6 @@ private struct BottomPlaybackBarContent: View {
                     .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.08), radius: 18, y: 5)
-            .padding(.horizontal, 16)
             .zIndex(10)
         }
         .overlayPreferenceValue(BottomPlaybackMenuAnchorKey.self) { anchors in
@@ -551,7 +553,6 @@ private struct EmptyBottomPlaybackBar: View {
                         .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .frame(height: BottomPlaybackBarLayout.surfaceHeight)
-                .padding(.horizontal, 16)
         }
     }
 }
