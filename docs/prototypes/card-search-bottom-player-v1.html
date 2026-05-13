@@ -803,13 +803,15 @@
 
     .video-drawer {
       position: absolute;
-      left: 24px;
-      right: 24px;
+      left: 0;
+      right: 0;
       bottom: 124px;
       height: 0;
       overflow: hidden;
-      border-radius: 18px 18px 0 0;
-      background: #101115;
+      border-radius: 0;
+      background:
+        radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 34%),
+        #090a0c;
       color: #f7f7f8;
       box-shadow: 0 -24px 70px rgba(0, 0, 0, 0.28);
       z-index: 4;
@@ -817,7 +819,7 @@
     }
 
     .window.video-open .video-drawer {
-      height: min(520px, calc(100% - 180px));
+      height: min(620px, calc(100% - 150px));
     }
 
     .window.fullscreen-preview .video-drawer {
@@ -832,39 +834,240 @@
     .video-shell {
       height: 100%;
       display: grid;
-      grid-template-rows: 1fr auto;
-      padding: 22px 22px 18px;
-      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+      align-items: stretch;
+      gap: 22px;
+      padding: 28px 32px 30px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    .video-frame {
+      min-width: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .video-surface {
-      border-radius: 12px;
+      height: 100%;
+      max-width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 18px;
+      overflow: hidden;
       background:
-        linear-gradient(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.18)),
-        linear-gradient(135deg, #271329 0%, #101423 52%, #111111 100%);
+        linear-gradient(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.24)),
+        radial-gradient(circle at 70% 38%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 32%),
+        linear-gradient(135deg, #39203b 0%, #182136 44%, #0f1015 100%);
+      position: relative;
+      color: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+    }
+
+    .video-surface::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0) 28%),
+        linear-gradient(rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, 0.42));
+      pointer-events: none;
+    }
+
+    .video-placeholder {
+      position: absolute;
+      inset: 0;
       display: grid;
       place-items: center;
-      color: rgba(255, 255, 255, 0.62);
-      font-size: 22px;
+      font-size: 26px;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.72);
+      letter-spacing: 0;
+    }
+
+    .video-title-overlay {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      top: 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 1;
+    }
+
+    .video-title-dot {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+      flex: 0 0 auto;
+    }
+
+    .video-title-text {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+    }
+
+    .video-title-text strong {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 17px;
+    }
+
+    .video-title-text span {
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .video-side-panel {
+      min-width: 320px;
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 14px;
+      padding: 16px;
+      border-radius: 18px;
+      background: #f1f1f3;
+      color: #242529;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+      overflow: hidden;
+    }
+
+    .video-panel-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .video-panel-title {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .video-panel-title strong {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .video-panel-title span {
+      font-size: 12px;
+      font-weight: 700;
+      color: #8f9097;
+    }
+
+    .video-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      padding: 4px;
+      border-radius: 9px;
+      background: #dadbdd;
+    }
+
+    .video-tab {
+      appearance: none;
+      border: 0;
+      height: 34px;
+      border-radius: 7px;
+      background: transparent;
+      color: #3a3b40;
+      font: inherit;
+      font-size: 14px;
       font-weight: 760;
     }
 
-    .video-meta {
+    .video-tab.active {
+      background: #96979b;
+      color: #ffffff;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+    }
+
+    .video-panel {
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .video-panel[hidden] {
+      display: none;
+    }
+
+    .side-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .side-list-item {
+      appearance: none;
+      border: 0;
+      width: 100%;
+      border-radius: 10px;
+      background: #ffffff;
+      padding: 10px 11px;
+      color: #242529;
+      font: inherit;
+      text-align: left;
+      display: grid;
+      gap: 5px;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+    }
+
+    .side-list-item:hover {
+      background: #fafafa;
+    }
+
+    .side-list-item.active {
+      background: #e7efff;
+      box-shadow: inset 0 0 0 1.5px rgba(35, 100, 232, 0.42);
+    }
+
+    .side-list-meta {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      gap: 18px;
-      color: #c9cad0;
-      font-size: 14px;
+      justify-content: space-between;
+      gap: 12px;
+      color: #8f9097;
+      font-size: 12px;
+      font-weight: 760;
+      line-height: 1;
+    }
+
+    .side-list-text {
+      color: #242529;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .subtitle-item .side-list-text {
       font-weight: 650;
     }
 
     .source-pill {
-      border: 1px solid #303139;
+      border: 1px solid rgba(0, 0, 0, 0.08);
       border-radius: 999px;
       padding: 5px 10px;
-      color: #d9dae0;
-      background: #18191f;
+      color: #5f6068;
+      background: #ffffff;
+      font-size: 12px;
+      font-weight: 760;
+      white-space: nowrap;
     }
 
     .status-toast {
@@ -1046,14 +1249,26 @@
       }
 
       .video-drawer {
-        left: 14px;
-        right: 14px;
         bottom: 160px;
       }
 
       .window.fullscreen-preview .video-drawer {
         bottom: 160px;
         height: calc(100% - 160px);
+      }
+
+      .window.video-open .video-drawer {
+        height: min(700px, calc(100% - 170px));
+      }
+
+      .video-shell {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) minmax(240px, 280px);
+        padding: 18px;
+      }
+
+      .video-side-panel {
+        min-width: 0;
       }
     }
   </style>
@@ -1349,11 +1564,82 @@
 
     <aside class="video-drawer" aria-label="Video window preview" aria-hidden="true">
       <div class="video-shell">
-        <div class="video-surface">Video Window</div>
-        <div class="video-meta">
-          <span>AVE MUJICA EP 01 · 02:14</span>
-          <span class="source-pill" data-source-label>Search playback</span>
+        <div class="video-frame">
+          <div class="video-surface">
+            <div class="video-placeholder">Video Window</div>
+            <div class="video-title-overlay">
+              <span class="video-title-dot" aria-hidden="true"></span>
+              <span class="video-title-text">
+                <strong data-video-title>AVE MUJICA EP 01</strong>
+                <span data-video-time>02:14 / 24:10</span>
+              </span>
+            </div>
+          </div>
         </div>
+        <aside class="video-side-panel" aria-label="Playback lists">
+          <div class="video-panel-top">
+            <div class="video-panel-title">
+              <strong data-panel-title>AVE MUJICA EP 01</strong>
+              <span data-source-label>Search playback</span>
+            </div>
+            <span class="source-pill" data-panel-count>6 results</span>
+          </div>
+
+          <div class="video-tabs" role="tablist" aria-label="Playback side panel">
+            <button class="video-tab active" type="button" role="tab" aria-selected="true" data-action="switch-video-panel" data-panel="results">Search Results</button>
+            <button class="video-tab" type="button" role="tab" aria-selected="false" data-action="switch-video-panel" data-panel="subtitles">Subtitles</button>
+          </div>
+
+          <div class="video-panel" data-video-panel="results">
+            <div class="side-list">
+              <button class="side-list-item active" type="button" data-action="open-panel-result" data-result-index="0">
+                <span class="side-list-meta"><span>#1</span><span>02:14</span></span>
+                <span class="side-list-text">毋庸担心 月霞自会为我们将她唤醒<br>大丈夫 月の光が起こしてくれますわ</span>
+              </button>
+              <button class="side-list-item" type="button" data-action="open-panel-result" data-result-index="1">
+                <span class="side-list-meta"><span>#2</span><span>05:33</span></span>
+                <span class="side-list-text">没问题的 诚实就是你的美德哦<br>大丈夫 あなたの誠実さは美徳よ</span>
+              </button>
+              <button class="side-list-item" type="button" data-action="open-panel-result" data-result-index="2">
+                <span class="side-list-meta"><span>#3</span><span>11:07</span></span>
+                <span class="side-list-text">当然没问题<br>大丈夫に決まっているでしょう</span>
+              </button>
+              <button class="side-list-item" type="button" data-action="open-panel-result" data-result-index="3">
+                <span class="side-list-meta"><span>#4</span><span>03:21</span></span>
+                <span class="side-list-text">小初 你没事吧<br>ういちゃん 大丈夫</span>
+              </button>
+              <button class="side-list-item" type="button" data-action="open-panel-result" data-result-index="4">
+                <span class="side-list-meta"><span>#5</span><span>08:44</span></span>
+                <span class="side-list-text">我没事<br>私は大丈夫だよ</span>
+              </button>
+              <button class="side-list-item" type="button" data-action="open-panel-result" data-result-index="5">
+                <span class="side-list-meta"><span>#6</span><span>06:12</span></span>
+                <span class="side-list-text">应该没问题吧<br>大丈夫かなぁ</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="video-panel" data-video-panel="subtitles" hidden>
+            <div class="side-list">
+              <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="00:22">
+                <span class="side-list-meta"><span>00:22</span><span>Subtitle</span></span>
+                <span class="side-list-text">欢迎来到月之森女子学园。</span>
+              </button>
+              <button class="side-list-item subtitle-item active" type="button" data-action="seek-subtitle" data-time="02:14">
+                <span class="side-list-meta"><span>02:14</span><span>Current</span></span>
+                <span class="side-list-text">毋庸担心 月霞自会为我们将她唤醒<br>大丈夫 月の光が起こしてくれますわ</span>
+              </button>
+              <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="05:33">
+                <span class="side-list-meta"><span>05:33</span><span>Subtitle</span></span>
+                <span class="side-list-text">没问题的 诚实就是你的美德哦<br>大丈夫 あなたの誠実さは美徳よ</span>
+              </button>
+              <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="11:07">
+                <span class="side-list-meta"><span>11:07</span><span>Subtitle</span></span>
+                <span class="side-list-text">当然没问题<br>大丈夫に決まっているでしょう</span>
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
     </aside>
 
@@ -1489,6 +1775,12 @@
     const searchField = document.querySelector(".search");
     const videoDrawer = document.querySelector(".video-drawer");
     const videoToggle = document.querySelector("[data-action='toggle-video']");
+    const videoTitle = document.querySelector("[data-video-title]");
+    const videoTime = document.querySelector("[data-video-time]");
+    const panelTitle = document.querySelector("[data-panel-title]");
+    const panelCount = document.querySelector("[data-panel-count]");
+    const videoPanelButtons = document.querySelectorAll("[data-action='switch-video-panel']");
+    const videoPanels = document.querySelectorAll("[data-video-panel]");
     const trackTitle = document.querySelector("[data-track-title]");
     const volumeCluster = document.querySelector("[data-volume-cluster]");
     const volumeButton = document.querySelector("[data-action='toggle-mute']");
@@ -1591,6 +1883,37 @@
       videoToggle.dataset.videoState = direction;
     }
 
+    function openVideoDrawer() {
+      windowEl.classList.add("video-open");
+      videoDrawer.setAttribute("aria-hidden", "false");
+      setVideoArrow("up");
+      videoToggle.title = "Collapse video window";
+      videoToggle.setAttribute("aria-label", "Collapse video window");
+    }
+
+    function setVideoPanel(panelName) {
+      videoPanelButtons.forEach((button) => {
+        const isActive = button.dataset.panel === panelName;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", String(isActive));
+      });
+      videoPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.videoPanel !== panelName;
+      });
+      panelCount.textContent = panelName === "subtitles" ? "4 subtitles" : `${searchResults.length} results`;
+    }
+
+    function syncPanelSelection() {
+      document.querySelectorAll("[data-action='open-panel-result']").forEach((button) => {
+        button.classList.toggle("active", Number(button.dataset.resultIndex) === resultIndex);
+      });
+      document.querySelectorAll("[data-action='seek-subtitle']").forEach((button) => {
+        button.classList.toggle("active", button.dataset.time === currentTime.textContent);
+        button.querySelector(".side-list-meta span:last-child").textContent =
+          button.dataset.time === currentTime.textContent ? "Current" : "Subtitle";
+      });
+    }
+
     function formatTime(totalSeconds) {
       const minutes = Math.floor(totalSeconds / 60);
       const seconds = totalSeconds % 60;
@@ -1610,7 +1933,8 @@
       setProgressPercent(clampedPercent);
       const nextTime = formatTime(Math.round((totalDurationSeconds * clampedPercent) / 100));
       currentTime.textContent = nextTime;
-      document.querySelector(".video-meta span:first-child").textContent = `${trackTitle.textContent} · ${nextTime}`;
+      updateVideoInfo(trackTitle.textContent, nextTime);
+      syncPanelSelection();
       showStatus(`Seek ${nextTime}`);
     }
 
@@ -1651,13 +1975,20 @@
       sourceLabel.textContent = `${source} playback`;
     }
 
+    function updateVideoInfo(title, time) {
+      videoTitle.textContent = title;
+      videoTime.textContent = `${time} / ${duration.textContent}`;
+      panelTitle.textContent = title;
+    }
+
     function applyPlayback(item) {
       trackTitle.textContent = item.title;
       currentTime.textContent = item.time;
       duration.textContent = "24:10";
       setProgressPercent(item.progress);
-      document.querySelector(".video-meta span:first-child").textContent = `${item.title} · ${item.time}`;
+      updateVideoInfo(item.title, item.time);
       updateTransport();
+      syncPanelSelection();
     }
 
     function setSource(nextSource) {
@@ -1710,6 +2041,9 @@
         case "switch-view":
           setView(button.dataset.view);
           break;
+        case "switch-video-panel":
+          setVideoPanel(button.dataset.panel);
+          break;
         case "toggle-video": {
           if (isFullscreen) {
             setFullscreen(false);
@@ -1754,6 +2088,20 @@
           applyPlayback({ title: "AVE MUJICA EP 01", time: "02:14", progress: 9 });
           showStatus("Shiori opened");
           break;
+        case "open-panel-result":
+          source = "Search";
+          resultIndex = Number(button.dataset.resultIndex ?? 0);
+          applyPlayback(searchResults[resultIndex]);
+          openVideoDrawer();
+          setVideoPanel("results");
+          showStatus("Search result opened");
+          break;
+        case "seek-subtitle":
+          currentTime.textContent = button.dataset.time;
+          updateVideoInfo(trackTitle.textContent, button.dataset.time);
+          syncPanelSelection();
+          showStatus(`Seek ${button.dataset.time}`);
+          break;
         case "previous-result":
           resultIndex = Math.max(0, resultIndex - 1);
           applyPlayback(searchResults[resultIndex]);
@@ -1789,11 +2137,15 @@
           break;
         case "results":
           moreWrap.classList.remove("open");
-          showStatus("Results panel action");
+          openVideoDrawer();
+          setVideoPanel("results");
+          showStatus("Search Results panel");
           break;
         case "subtitles":
           moreWrap.classList.remove("open");
-          showStatus("Subtitles panel action");
+          openVideoDrawer();
+          setVideoPanel("subtitles");
+          showStatus("Subtitles panel");
           break;
         case "copy-subtitle":
           showStatus("Current subtitle copied");
@@ -1850,7 +2202,8 @@
       setProgressPercent(next);
       const nextTime = formatTime(Math.round((totalDurationSeconds * Number(progressTrack.getAttribute("aria-valuenow"))) / 100));
       currentTime.textContent = nextTime;
-      document.querySelector(".video-meta span:first-child").textContent = `${trackTitle.textContent} · ${nextTime}`;
+      updateVideoInfo(trackTitle.textContent, nextTime);
+      syncPanelSelection();
       showStatus(`Seek ${nextTime}`);
     });
 
@@ -1859,6 +2212,8 @@
         source = "Search";
         resultIndex = Math.min(index, searchResults.length - 1);
         applyPlayback(searchResults[resultIndex]);
+        openVideoDrawer();
+        setVideoPanel("results");
         showStatus("Search result loaded");
       });
     });
@@ -1867,7 +2222,9 @@
     setVideoArrow("right");
     setVolume(volume);
     setFullscreen(false);
+    setVideoPanel("results");
     updateTransport();
+    syncPanelSelection();
   </script>
 </body>
 </html>
