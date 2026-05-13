@@ -295,6 +295,11 @@ Accepted M1 search presentation:
 - Search result scrolling loads additional matches lazily in 100-result pages.
 - Expanding all result groups from the all-collapsed state reveals at most one
   global 100-result batch.
+- Search result rows should test a left-side preview thumbnail generated from
+  the midpoint between the cue group's start and end timestamps. The first test
+  thumbnail format is a persistent-cache AVIF image at `160x90` source pixels.
+  The thumbnail's visible row box must stay fixed before and after image load so
+  row layout does not jump.
 - Search results are grouped under flat subtitle-file headers.
 - Selecting a search result opens or updates the central Playback Area without
   leaving the CueSeeker workbench.
@@ -363,6 +368,10 @@ Each result row should be compact and scannable.
 
 Result row content:
 
+- A fixed-size left thumbnail preview when thumbnail testing is enabled. The
+  preview uses a generated AVIF frame from the matched cue group's midpoint.
+  While the image is not available, the row should show a lightweight skeleton
+  illustration rather than a black or gray empty block.
 - Subtitle text as the primary content. All cue lines in the matched cue
   group are rendered in row order.
 - Inline highlighting of query matches.

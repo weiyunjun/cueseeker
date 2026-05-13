@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted and implemented the first Search result thumbnail test direction:
+  loaded Search result pages use 100 cue-group rows, rows may show fixed-size
+  left preview thumbnails generated as persistent-cache `160x90` AVIF images
+  from cue midpoint timestamps via `ffmpeg`, and unloaded rows use a
+  skeleton-style picture placeholder instead of black or gray blocks.
 - Accepted a concise AI response rule: unless the user explicitly asks for a
   detailed explanation, assistant answers should stay brief, clear, and
   highlight the key conclusions in bold.
