@@ -31,6 +31,23 @@ reviewable interface state before detailed interaction decisions are finalized.
 - Do not treat later-step UI details as accepted before the corresponding step
   is reviewed.
 
+## Reference Images
+
+The visual references for this staged direction are stored under
+`docs/assets/ui-references/card-search-bottom-player/`.
+
+Reference files:
+
+- `search-results-card-layout.png`: card-based Search results grouped by source
+  title.
+- `library-grid-layout.png`: Library grouping and episode grid reference.
+- `spotify-style-bottom-player.png`: bottom player structure reference with
+  video information, playback controls, and secondary controls.
+
+These images are references for alignment and review. They do not replace the
+behavioral requirements that must be written into proposals or stable product
+documents before implementation depends on them.
+
 ## Staging Plan
 
 ### Step 1: Establish the New Main Layout
