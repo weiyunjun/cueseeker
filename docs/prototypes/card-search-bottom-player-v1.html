@@ -886,48 +886,6 @@
       letter-spacing: 0;
     }
 
-    .video-title-overlay {
-      position: absolute;
-      left: 22px;
-      right: 22px;
-      top: 18px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      z-index: 1;
-    }
-
-    .video-title-dot {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.78);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42);
-      flex: 0 0 auto;
-    }
-
-    .video-title-text {
-      min-width: 0;
-      display: grid;
-      gap: 2px;
-      font-weight: 800;
-      color: #fff;
-      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
-    }
-
-    .video-title-text strong {
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      font-size: 17px;
-    }
-
-    .video-title-text span {
-      color: rgba(255, 255, 255, 0.78);
-      font-size: 13px;
-      font-weight: 650;
-    }
-
     .video-side-panel {
       min-width: 320px;
       height: 100%;
@@ -945,30 +903,9 @@
     .video-panel-top {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 12px;
       min-width: 0;
-    }
-
-    .video-panel-title {
-      min-width: 0;
-      display: grid;
-      gap: 2px;
-    }
-
-    .video-panel-title strong {
-      font-size: 16px;
-      font-weight: 800;
-      line-height: 1.1;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-
-    .video-panel-title span {
-      font-size: 12px;
-      font-weight: 700;
-      color: #8f9097;
     }
 
     .video-tabs {
@@ -1567,27 +1504,16 @@
         <div class="video-frame">
           <div class="video-surface">
             <div class="video-placeholder">Video Window</div>
-            <div class="video-title-overlay">
-              <span class="video-title-dot" aria-hidden="true"></span>
-              <span class="video-title-text">
-                <strong data-video-title>AVE MUJICA EP 01</strong>
-                <span data-video-time>02:14 / 24:10</span>
-              </span>
-            </div>
           </div>
         </div>
         <aside class="video-side-panel" aria-label="Playback lists">
-          <div class="video-panel-top">
-            <div class="video-panel-title">
-              <strong data-panel-title>AVE MUJICA EP 01</strong>
-              <span data-source-label>Search playback</span>
-            </div>
-            <span class="source-pill" data-panel-count>6 results</span>
-          </div>
-
           <div class="video-tabs" role="tablist" aria-label="Playback side panel">
             <button class="video-tab active" type="button" role="tab" aria-selected="true" data-action="switch-video-panel" data-panel="results">Search Results</button>
             <button class="video-tab" type="button" role="tab" aria-selected="false" data-action="switch-video-panel" data-panel="subtitles">Subtitles</button>
+          </div>
+
+          <div class="video-panel-top">
+            <span class="source-pill" data-panel-count>6 results</span>
           </div>
 
           <div class="video-panel" data-video-panel="results">
@@ -1621,21 +1547,29 @@
 
           <div class="video-panel" data-video-panel="subtitles" hidden>
             <div class="side-list">
-              <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="00:22">
-                <span class="side-list-meta"><span>00:22</span><span>Subtitle</span></span>
-                <span class="side-list-text">欢迎来到月之森女子学园。</span>
-              </button>
               <button class="side-list-item subtitle-item active" type="button" data-action="seek-subtitle" data-time="02:14">
-                <span class="side-list-meta"><span>02:14</span><span>Current</span></span>
+                <span class="side-list-meta"><span>#1</span><span>02:14</span></span>
                 <span class="side-list-text">毋庸担心 月霞自会为我们将她唤醒<br>大丈夫 月の光が起こしてくれますわ</span>
               </button>
               <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="05:33">
-                <span class="side-list-meta"><span>05:33</span><span>Subtitle</span></span>
+                <span class="side-list-meta"><span>#2</span><span>05:33</span></span>
                 <span class="side-list-text">没问题的 诚实就是你的美德哦<br>大丈夫 あなたの誠実さは美徳よ</span>
               </button>
               <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="11:07">
-                <span class="side-list-meta"><span>11:07</span><span>Subtitle</span></span>
+                <span class="side-list-meta"><span>#3</span><span>11:07</span></span>
                 <span class="side-list-text">当然没问题<br>大丈夫に決まっているでしょう</span>
+              </button>
+              <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="03:21">
+                <span class="side-list-meta"><span>#4</span><span>03:21</span></span>
+                <span class="side-list-text">小初 你没事吧<br>ういちゃん 大丈夫</span>
+              </button>
+              <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="08:44">
+                <span class="side-list-meta"><span>#5</span><span>08:44</span></span>
+                <span class="side-list-text">我没事<br>私は大丈夫だよ</span>
+              </button>
+              <button class="side-list-item subtitle-item" type="button" data-action="seek-subtitle" data-time="06:12">
+                <span class="side-list-meta"><span>#6</span><span>06:12</span></span>
+                <span class="side-list-text">应该没问题吧<br>大丈夫かなぁ</span>
               </button>
             </div>
           </div>
@@ -1775,9 +1709,6 @@
     const searchField = document.querySelector(".search");
     const videoDrawer = document.querySelector(".video-drawer");
     const videoToggle = document.querySelector("[data-action='toggle-video']");
-    const videoTitle = document.querySelector("[data-video-title]");
-    const videoTime = document.querySelector("[data-video-time]");
-    const panelTitle = document.querySelector("[data-panel-title]");
     const panelCount = document.querySelector("[data-panel-count]");
     const videoPanelButtons = document.querySelectorAll("[data-action='switch-video-panel']");
     const videoPanels = document.querySelectorAll("[data-video-panel]");
@@ -1787,7 +1718,6 @@
     const volumeIcon = document.querySelector("[data-volume-icon]");
     const volumeLevel = document.querySelector("[data-volume-level]");
     const volumePercent = document.querySelector("[data-volume-percent]");
-    const sourceLabel = document.querySelector("[data-source-label]");
     const currentTime = document.querySelector("[data-current-time]");
     const duration = document.querySelector("[data-duration]");
     const progressTrack = document.querySelector("[data-progress-track]");
@@ -1900,7 +1830,7 @@
       videoPanels.forEach((panel) => {
         panel.hidden = panel.dataset.videoPanel !== panelName;
       });
-      panelCount.textContent = panelName === "subtitles" ? "4 subtitles" : `${searchResults.length} results`;
+      panelCount.textContent = panelName === "subtitles" ? "6 subtitles" : `${searchResults.length} results`;
     }
 
     function syncPanelSelection() {
@@ -1909,8 +1839,6 @@
       });
       document.querySelectorAll("[data-action='seek-subtitle']").forEach((button) => {
         button.classList.toggle("active", button.dataset.time === currentTime.textContent);
-        button.querySelector(".side-list-meta span:last-child").textContent =
-          button.dataset.time === currentTime.textContent ? "Current" : "Subtitle";
       });
     }
 
@@ -1972,13 +1900,11 @@
       controls.nextResult.disabled = !isSearch || resultIndex >= searchResults.length - 1;
       controls.previousEpisode.disabled = !isLibrary || episodeIndex <= 0;
       controls.nextEpisode.disabled = !isLibrary || episodeIndex >= libraryEpisodes.length - 1;
-      sourceLabel.textContent = `${source} playback`;
     }
 
     function updateVideoInfo(title, time) {
-      videoTitle.textContent = title;
-      videoTime.textContent = `${time} / ${duration.textContent}`;
-      panelTitle.textContent = title;
+      trackTitle.textContent = title;
+      currentTime.textContent = time;
     }
 
     function applyPlayback(item) {
