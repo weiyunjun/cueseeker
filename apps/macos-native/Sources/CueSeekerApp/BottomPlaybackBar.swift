@@ -125,8 +125,14 @@ private struct BottomPlaybackBarContent: View {
                 .padding(.horizontal, 12)
                 .contentShape(Capsule())
             }
-            .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
-            .disabled(!hasPlayback || layoutState.isVideoSizeTransitionInProgress)
+            .buttonStyle(
+                BottomBarButtonStyle(
+                    cornerRadius: 999,
+                    allowsPressEffect: !appState.isPlaybackSurfaceToggleCoolingDown
+                        && !layoutState.isVideoSizeTransitionInProgress
+                )
+            )
+            .disabled(!hasPlayback)
             .help(hasPlayback ? "Expand or collapse video window" : "No video selected")
 
             volumeControl
@@ -308,8 +314,13 @@ private struct BottomPlaybackBarContent: View {
             )
                 .frame(width: 36, height: 36)
         }
-        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
-        .disabled(appState.isPlaybackSidePanelToggleDisabled)
+        .buttonStyle(
+            BottomBarButtonStyle(
+                cornerRadius: 999,
+                allowsPressEffect: !appState.isPlaybackSidePanelToggleCoolingDown
+            )
+        )
+        .disabled(!hasPlayback)
         .help(appState.isPlaybackSidePanelVisible ? "Hide Video Sidebar" : "Show Video Sidebar")
         .frame(width: 36, height: 36)
     }
@@ -639,6 +650,12 @@ private struct BottomPlayerVolumeSlider: View {
 private struct BottomBarButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     let cornerRadius: CGFloat
+    let allowsPressEffect: Bool
+
+    init(cornerRadius: CGFloat, allowsPressEffect: Bool = true) {
+        self.cornerRadius = cornerRadius
+        self.allowsPressEffect = allowsPressEffect
+    }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -647,7 +664,7 @@ private struct BottomBarButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(backgroundColor(configuration: configuration))
             )
-            .scaleEffect(configuration.isPressed && isEnabled ? 0.96 : 1)
+            .scaleEffect(configuration.isPressed && isEnabled && allowsPressEffect ? 0.96 : 1)
     }
 
     private func backgroundColor(configuration: Configuration) -> Color {
@@ -655,7 +672,7 @@ private struct BottomBarButtonStyle: ButtonStyle {
             return Color.white.opacity(0.52)
         }
 
-        if configuration.isPressed {
+        if configuration.isPressed && allowsPressEffect {
             return Color.white.opacity(0.78)
         }
 
