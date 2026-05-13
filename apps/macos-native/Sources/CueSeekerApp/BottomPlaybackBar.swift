@@ -266,8 +266,7 @@ private struct BottomPlaybackBarContent: View {
             bottomIconButton(
                 systemImage: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
                 help: viewModel.areSubtitlesVisible ? "Hide Subtitles" : "Show Subtitles",
-                isEnabled: hasPlayback,
-                isSelected: viewModel.areSubtitlesVisible
+                isEnabled: hasPlayback
             ) {
                 viewModel.toggleSubtitles()
             }
@@ -299,15 +298,12 @@ private struct BottomPlaybackBarContent: View {
             appState.clearSearchFocus()
             appState.togglePlaybackSidePanelFromUser()
         } label: {
-            BottomPlaybackSidePanelIcon()
-                .frame(width: 36, height: 36)
-        }
-        .buttonStyle(
-            BottomBarButtonStyle(
-                cornerRadius: 999,
+            BottomPlaybackSidePanelIcon(
                 isSelected: appState.isPlaybackSidePanelVisible && appState.isPlaybackSurfaceExpanded
             )
-        )
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
         .disabled(appState.isPlaybackSidePanelToggleDisabled)
         .help(appState.isPlaybackSidePanelVisible ? "Hide Video Sidebar" : "Show Video Sidebar")
         .frame(width: 36, height: 36)
@@ -456,7 +452,6 @@ private struct BottomPlaybackBarContent: View {
         systemImage: String,
         help: String,
         isEnabled: Bool,
-        isSelected: Bool = false,
         dismissesMenus: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
@@ -470,7 +465,7 @@ private struct BottomPlaybackBarContent: View {
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 36, height: 36)
         }
-        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999, isSelected: isSelected))
+        .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
         .disabled(!isEnabled)
         .help(help)
     }
@@ -639,16 +634,10 @@ private struct BottomPlayerVolumeSlider: View {
 private struct BottomBarButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     let cornerRadius: CGFloat
-    let isSelected: Bool
-
-    init(cornerRadius: CGFloat, isSelected: Bool = false) {
-        self.cornerRadius = cornerRadius
-        self.isSelected = isSelected
-    }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(foregroundColor)
+            .foregroundStyle(isEnabled ? Color.primary : Color.secondary.opacity(0.45))
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(backgroundColor(configuration: configuration))
@@ -667,30 +656,45 @@ private struct BottomBarButtonStyle: ButtonStyle {
 
         return Color.white
     }
-
-    private var foregroundColor: Color {
-        guard isEnabled else {
-            return Color.secondary.opacity(0.45)
-        }
-
-        return isSelected ? Color.accentColor : Color.primary
-    }
 }
 
 private struct BottomPlaybackSidePanelIcon: View {
+    let isSelected: Bool
+
     var body: some View {
         VStack(spacing: 3) {
             ForEach(0..<3, id: \.self) { _ in
                 HStack(spacing: 3) {
-                    Circle()
-                        .frame(width: 3.5, height: 3.5)
+                    dot
+                        .frame(width: 4, height: 4)
 
-                    Capsule()
-                        .frame(width: 13, height: 2.5)
+                    line
+                        .frame(width: 13, height: 4)
                 }
             }
         }
         .frame(width: 18, height: 18)
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var dot: some View {
+        if isSelected {
+            Circle()
+        } else {
+            Circle()
+                .strokeBorder(lineWidth: 1.5)
+        }
+    }
+
+    @ViewBuilder
+    private var line: some View {
+        if isSelected {
+            Capsule()
+                .frame(height: 2.5)
+        } else {
+            Capsule()
+                .strokeBorder(lineWidth: 1.5)
+        }
     }
 }

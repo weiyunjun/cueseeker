@@ -499,8 +499,7 @@ final class AppState: ObservableObject {
 
     var isPlaybackSidePanelToggleDisabled: Bool {
         currentPlaybackVideoPath == nil
-            || !isPlaybackSurfaceExpanded
-            || workbenchLayout.isVideoSizeTransitionInProgress
+            || (isPlaybackSurfaceExpanded && workbenchLayout.isVideoSizeTransitionInProgress)
     }
 
     private let userDefaults: UserDefaults
@@ -757,12 +756,14 @@ final class AppState: ObservableObject {
     }
 
     func togglePlaybackSidePanelFromUser() {
-        guard hasPlaybackSelection, isPlaybackSurfaceExpanded else {
+        guard hasPlaybackSelection else {
             return
         }
 
-        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-            return
+        if isPlaybackSurfaceExpanded {
+            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+                return
+            }
         }
 
         activeBottomPlaybackMenu = nil
