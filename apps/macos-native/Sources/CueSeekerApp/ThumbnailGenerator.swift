@@ -9,6 +9,7 @@ public actor ThumbnailGenerator {
     
     private struct PendingTask {
         let id: UUID
+        let priority: Int
         let action: (Bool) -> Void
     }
     private var pendingQueue: [PendingTask] = []
@@ -37,7 +38,7 @@ public actor ThumbnailGenerator {
                 }
                 
                 Task {
-                    await self.enqueue(task: PendingTask(id: id, action: action))
+                    await self.enqueue(task: PendingTask(id: id, priority: request.priority, action: action))
                 }
             }
         } onCancel: {
@@ -58,6 +59,7 @@ public actor ThumbnailGenerator {
             task.action(false)
         } else {
             pendingQueue.append(task)
+            pendingQueue.sort { $0.priority < $1.priority }
         }
     }
     
@@ -93,7 +95,7 @@ public actor ThumbnailGenerator {
             "-ss", timeString,
             "-i", request.videoPath,
             "-vframes", "1",
-            "-vf", "scale=160:90:force_original_aspect_ratio=increase,crop=160:90",
+            "-vf", "scale=320:180:force_original_aspect_ratio=decrease",
             "-c:v", "libsvtav1",
             "-crf", "35",
             "-preset", "8",

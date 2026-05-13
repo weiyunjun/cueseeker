@@ -7,12 +7,14 @@ public struct ThumbnailRequest: Equatable, Hashable, Sendable {
     public let fileSize: Int64?
     public let modifiedAt: Double?
     public let timestampMilliseconds: Int
+    public let priority: Int
     
-    public init(videoPath: String, fileSize: Int64?, modifiedAt: Double?, timestampMilliseconds: Int) {
+    public init(videoPath: String, fileSize: Int64?, modifiedAt: Double?, timestampMilliseconds: Int, priority: Int) {
         self.videoPath = videoPath
         self.fileSize = fileSize
         self.modifiedAt = modifiedAt
         self.timestampMilliseconds = timestampMilliseconds
+        self.priority = priority
     }
 }
 
@@ -45,7 +47,7 @@ public actor ThumbnailCache {
             hasher.update(data: withUnsafeBytes(of: modifiedAt) { Data($0) })
         }
         hasher.update(data: withUnsafeBytes(of: request.timestampMilliseconds) { Data($0) })
-        hasher.update(data: Data("160x90_avif_v1".utf8))
+        hasher.update(data: Data("320x180_decrease_v2".utf8))
         
         let hash = hasher.finalize()
         return hash.compactMap { String(format: "%02x", $0) }.joined()

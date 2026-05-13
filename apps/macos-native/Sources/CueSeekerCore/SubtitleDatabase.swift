@@ -24,6 +24,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let endMilliseconds: Int
     public let content: String
     public let cueLines: [String]
+    public var searchRank: Int = 0
 }
 
 public struct SubtitleSearchFileSummary: Equatable, Sendable {
@@ -1135,7 +1136,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
 
             let pageStart = Self.diagnosticNow()
-            let pageResults = Array(sortedResults.dropFirst(offset).prefix(limit))
+            var pageResults = Array(sortedResults.dropFirst(offset).prefix(limit))
+            for i in 0..<pageResults.count {
+                pageResults[i].searchRank = offset + i
+            }
             emit(
                 "page_slice",
                 since: pageStart,

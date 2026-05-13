@@ -1757,7 +1757,8 @@ private struct SearchResultRow: View {
                 videoPath: result.videoPath,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt,
-                timestampMilliseconds: (result.startMilliseconds + result.endMilliseconds) / 2
+                timestampMilliseconds: (result.startMilliseconds + result.endMilliseconds) / 2,
+                priority: result.searchRank
             )
             let cacheKey = await ThumbnailCache.shared.cacheKey(for: request)
             if let imageData = await ThumbnailGenerator.shared.generate(request: request, cacheKey: cacheKey) {
@@ -1776,7 +1777,7 @@ private struct SearchResultRow: View {
             if let image = thumbnailImage {
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: .fit)
             } else if isThumbnailFailed {
                 VStack {
                     Image(systemName: "photo.badge.exclamationmark")
@@ -1788,10 +1789,6 @@ private struct SearchResultRow: View {
             } else {
                 Rectangle()
                     .fill(Color.secondary.opacity(0.1))
-                    .overlay {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
             }
         }
         .frame(width: 160, height: 90)
