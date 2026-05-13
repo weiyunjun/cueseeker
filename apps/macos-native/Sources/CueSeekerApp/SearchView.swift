@@ -630,37 +630,20 @@ struct SearchView: View {
     private var legacyPlaybackArea: some View {
         VStack(alignment: .leading, spacing: 0) {
             if appState.hasPlaybackSelection {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
                     playbackSurface
                         .aspectRatio(
                             CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
                             contentMode: .fit
                         )
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
 
                     if case .failed(let message) = appState.playbackStatus {
                         Label(message, systemImage: "exclamationmark.triangle")
                             .font(.system(size: SearchTypography.detailSize))
                             .foregroundStyle(.red)
-                    }
-
-                    HStack(spacing: 12) {
-                        Button {
-                            appState.clearSearchFocus()
-                            appState.revealCurrentVideoFile()
-                        } label: {
-                            Label("Video Folder", systemImage: "folder")
-                        }
-
-                        if appState.currentPlaybackSubtitlePath != nil {
-                            Button {
-                                appState.clearSearchFocus()
-                                appState.revealCurrentSubtitleFile()
-                            } label: {
-                                Label("Subtitle Folder", systemImage: "folder")
-                            }
-                        }
                     }
 
                     Spacer(minLength: 0)
@@ -700,6 +683,7 @@ struct SearchView: View {
                         appState.toggleCurrentShiori()
                     },
                     isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
+                    showsInlineControls: false,
                     onToggleFullscreen: {
                         appState.clearSearchFocus()
                         appState.togglePlaybackFullscreenFromUser(
@@ -873,7 +857,7 @@ private struct SearchPlaybackPage: View {
     @State private var activeDrawer: PlaybackDrawerKind?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottom) {
                 playbackSurface
                     .aspectRatio(
@@ -882,7 +866,17 @@ private struct SearchPlaybackPage: View {
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(alignment: .topLeading) {
+                        if case .failed(let message) = appState.playbackStatus {
+                            Label(message, systemImage: "exclamationmark.triangle")
+                                .font(.system(size: SearchTypography.detailSize))
+                                .foregroundStyle(.red)
+                                .padding(10)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                                .padding(12)
+                        }
+                    }
 
                 if let activeDrawer {
                     drawerView(activeDrawer)
@@ -890,14 +884,6 @@ private struct SearchPlaybackPage: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-
-            if case .failed(let message) = appState.playbackStatus {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.system(size: SearchTypography.detailSize))
-                    .foregroundStyle(.red)
-            }
-
-            commandRow
         }
         .padding(.top, AppShellLayout.contentTopPadding)
         .padding([.horizontal, .bottom], 20)
@@ -913,65 +899,6 @@ private struct SearchPlaybackPage: View {
             }
 
             openDrawer(request.drawer)
-        }
-    }
-
-    private var commandRow: some View {
-        HStack(spacing: 10) {
-            Button {
-                appState.clearSearchFocus()
-                appState.revealCurrentVideoFile()
-            } label: {
-                Label("Video Folder", systemImage: "folder")
-            }
-
-            Button {
-                appState.clearSearchFocus()
-                appState.revealCurrentSubtitleFile()
-            } label: {
-                Label("Subtitle Folder", systemImage: "folder")
-            }
-            .disabled(appState.currentPlaybackSubtitlePath == nil)
-
-            Divider()
-                .frame(height: 20)
-
-            Button {
-                appState.clearSearchFocus()
-                appState.openAdjacentSearchResult(.previous)
-            } label: {
-                Label("Previous Result", systemImage: "chevron.left")
-            }
-
-            Button {
-                appState.clearSearchFocus()
-                appState.openAdjacentSearchResult(.next)
-            } label: {
-                Label("Next Result", systemImage: "chevron.right")
-            }
-
-            Spacer(minLength: 0)
-
-            drawerButton(title: "Results", drawer: .results)
-            drawerButton(title: "Subtitles", drawer: .subtitles)
-                .disabled(appState.currentPlaybackSubtitlePath == nil)
-        }
-    }
-
-    private func drawerButton(title: String, drawer: PlaybackDrawerKind) -> some View {
-        let isOpen = activeDrawer == drawer
-        return Button {
-            appState.clearSearchFocus()
-            toggleDrawer(drawer)
-        } label: {
-            HStack(spacing: 6) {
-                Text(title)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .rotationEffect(.degrees(isOpen ? -90 : 0))
-                    .animation(.easeInOut(duration: 0.16), value: isOpen)
-            }
         }
     }
 

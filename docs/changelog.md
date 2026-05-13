@@ -10,8 +10,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
   the current shell now reserves a persistent light bottom player with real
   play/pause, progress seek, volume, subtitle, Shiori, speed, fullscreen,
   Search-result navigation, Library episode navigation, and secondary playback
-  actions while preserving the existing Search/sidebar layout for later
-  staging.
+  actions, and the main video surface now delegates playback controls to the
+  bottom player instead of showing the previous inline control bar.
 - Refined the card Search and bottom-player HTML prototype direction: topbar
   Library and Shiori now use icon-only navigation without selected emphasis,
   the bottom player uses a light gray rounded surface, drops cover art for a

@@ -11,6 +11,7 @@ struct PlaybackView: View {
     let onCopySubtitle: () -> Void
     let onSaveShiori: () -> Void
     let isFullscreenToggleDisabled: Bool
+    let showsInlineControls: Bool
     let onToggleFullscreen: () -> Void
 
     var body: some View {
@@ -23,6 +24,7 @@ struct PlaybackView: View {
                 onCopySubtitle: onCopySubtitle,
                 onSaveShiori: onSaveShiori,
                 isFullscreenToggleDisabled: isFullscreenToggleDisabled,
+                showsInlineControls: showsInlineControls,
                 onToggleFullscreen: onToggleFullscreen
             )
         } else {
@@ -39,6 +41,7 @@ struct PlaybackVideoView: View {
     let onCopySubtitle: () -> Void
     let onSaveShiori: () -> Void
     let isFullscreenToggleDisabled: Bool
+    let showsInlineControls: Bool
     let onToggleFullscreen: () -> Void
     @State private var isControlsVisible = false
 
@@ -55,7 +58,7 @@ struct PlaybackVideoView: View {
                     }
             }
             
-            if isControlsVisible && !fullscreenManager.isFullscreen {
+            if showsInlineControls && isControlsVisible && !fullscreenManager.isFullscreen {
                 PlaybackControlsView(
                     viewModel: viewModel,
                     isFullscreenToggleDisabled: isFullscreenToggleDisabled,
@@ -68,14 +71,14 @@ struct PlaybackVideoView: View {
             if !fullscreenManager.isFullscreen {
                 PlaybackSubtitleOverlay(
                     text: viewModel.activeSubtitleText,
-                    bottomPadding: isControlsVisible ? 112 : 28
+                    bottomPadding: showsInlineControls && isControlsVisible ? 112 : 28
                 )
 
                 PlaybackFeedbackOverlay(feedback: viewModel.feedback)
             }
         }
         .onHover { hover in
-            isControlsVisible = hover
+            isControlsVisible = showsInlineControls && hover
         }
     }
 }
