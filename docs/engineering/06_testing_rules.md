@@ -610,16 +610,15 @@ Required `libass` manual checks:
 - Complex ASS samples with vector drawing, clipping, karaoke, transforms, and
   short-duration events render through the source `.ass` file or a
   source-derived render segment.
-- Font behavior is compared against reference players for real samples that
-  rely on embedded, adjacent, or system fonts.
-- Font behavior is compared against reference players for real samples that
-  rely on matched-video font attachments. The test sample should include at
-  least one ASS subtitle whose named font exists only as a video container
-  attachment so fallback-font regressions are visible.
-- Font behavior is compared against reference players for real samples that
-  rely on adjacent external font folders, such as a sibling `Fonts` directory.
-  The check must verify the playback path, not only the isolated ASS rendering
-  probe.
+- Font behavior must be checked against real samples using only
+  system-installed fonts and platform fallback. Reference comparisons must not
+  depend on adjacent font folders, extracted video-container font attachments,
+  or app-owned external font caches.
+- File-boundary checks must verify that indexing and playback ignore unsupported
+  sibling files and sidecar asset folders, including fonts, images, loose text
+  files, archives, and other non-video/non-subtitle resources.
+- Video-container attachment checks must verify that font, image, or document
+  attachments are not extracted or materialized for ASS playback.
 - macOS system-font aliasing must be checked with a real installed font whose
   ASS name differs from its CoreText family or PostScript name, such as
   `方正准圆_GBK` resolving to `FZZhunYuan-M02`. The check must verify that
@@ -661,15 +660,15 @@ Required render timeline coverage:
   boundary: indexing stores segment scripts, unchanged reindex skips only when
   those segments exist, and legacy `libass` can load the segment from memory for
   the current timestamp.
-- Font-resource plumbing must be verified for both full-source ASS loading and
-  indexed render-segment loading. A render segment must receive the same
-  renderer font directory or extracted attachment cache as the full-source path.
+- Full-source ASS loading and indexed render-segment loading must both preserve
+  the system-font-only boundary. Render segments must not receive a renderer
+  font directory or extracted attachment cache.
 - Font-alias unit coverage should verify that ASS style `Fontname` fields and
   inline `\fn...` override tags can be rewritten in a render-only script while
   preserving the original subtitle source and search projection.
-- Playback subtitle source tests must verify that ASS playback can carry matched
-  video identity and renderer font resource context without reintroducing an ASS
-  renderer picker or native ASS fallback route.
+- Playback subtitle source tests must verify that ASS playback can carry source
+  subtitle identity without reintroducing external font-resource context, an ASS
+  renderer picker, or a native ASS fallback route.
 - Legacy `libass` unchanged-frame reuse must be tested with a static ASS sample:
   the first cropped render should produce a visible payload, and a subsequent
   unchanged timestamp in the same static interval should return no cropped

@@ -89,8 +89,9 @@ Current mechanism:
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
   subtitle content.
-- Schema version `7` adds ASS font-resource manifests so the index stage can
-  record prepared external font cache status for `libass` playback.
+- Schema version `7` added ASS font-resource manifests for an external font
+  cache path that is now deprecated. New indexing and playback code must not
+  populate, rebuild, or consume those manifests for external font resources.
 - Schema version `8` adds Library playback history for durable resume
   positions keyed by video path.
 - Schema version `9` adds persisted Library presentation rows so startup can
@@ -185,7 +186,7 @@ Expected early entities:
 - Subtitle cue groups.
 - Subtitle cue lines.
 - Index metadata.
-- ASS font resource manifests.
+- Legacy ASS font resource manifests.
 - FTS data.
 - Library playback history.
 
@@ -210,13 +211,13 @@ Rules:
 - Indexed cue group rows must keep enough metadata to open the matched video at
   `start_ms`.
 - Index metadata must allow incremental indexing based on source file metadata.
-- ASS font-resource manifests are derived index data keyed by subtitle file and
-  matched video file. They may store a prepared font cache directory, a resource
-  signature, a preparation status, an error message for diagnostics, and the
-  preparation timestamp.
-- ASS font-resource manifests must be rebuildable from source subtitle files,
-  matched video files, adjacent conventional font folders, and supported
-  container attachments. They must not become durable user-authored data.
+- ASS font-resource manifests are legacy derived index data from the deprecated
+  external font cache path. They may remain in older databases for migration
+  compatibility, but new code must not write, rebuild, or read them as playback
+  inputs.
+- Database schema must not be used to justify scanning, copying, caching, or
+  indexing non-supported local file types. Current indexing is limited to
+  supported video files and `.srt`/`.ass` subtitle files.
 - Library playback history is durable local user state. It should be keyed by
   stable video identity, persist resume position and update timestamp, and must
   not be rebuilt from subtitle index data.

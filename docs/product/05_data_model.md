@@ -266,9 +266,10 @@ Fields:
 
 The app may use file size and modified time for incremental indexing.
 
-ASS font resource manifests are derived index metadata for `libass` playback.
-They record whether external font resources for a subtitle/video pair have
-already been prepared before playback.
+ASS font resource manifests are legacy derived index metadata from a deprecated
+external font cache path. They may remain in older databases for migration
+compatibility, but current playback must not consume them and current indexing
+must not rebuild them.
 
 Fields:
 
@@ -282,16 +283,12 @@ Fields:
 
 Notes:
 
-- The manifest is keyed by subtitle file and matched video file.
-- `status` distinguishes prepared resources with fonts, prepared resources
-  without external fonts, and failed preparation.
-- `fonts_directory` points to an app-owned prepared cache directory only when
-  external font files were materialized.
-- `resource_signature` should change when the subtitle file, matched video
-  file, or discovered external font resources change.
-- Playback consumes this manifest as the external font-resource source of truth
-  for a given subtitle load. Playback must not mutate the manifest or perform
-  delayed font extraction on the playback path.
+- The manifest was keyed by subtitle file and matched video file.
+- `fonts_directory` must not be used as a playback input.
+- New code must not scan, copy, cache, index, or materialize external font
+  resources to populate this metadata.
+- Playback uses the source subtitle file and system-installed fonts instead of
+  this manifest.
 
 ## 12. Full-Text Search
 
@@ -380,8 +377,10 @@ Current native schema:
 - Version 6 rebuilds derived cue-group FTS rows from stored cue-group
   `search_content` using Han and Japanese kana segmentation. It does not drop
   durable user configuration.
-- Version 7 adds ASS font-resource manifests for index-stage `libass` external
-  font preparation. It does not drop durable user configuration.
+- Version 7 added ASS font-resource manifests for index-stage `libass` external
+  font preparation. That external font cache path is now deprecated; the schema
+  remains only for migration compatibility and does not authorize current code
+  to scan or materialize external font resources.
 - Version 8 adds Library playback history for Library-opened resume behavior.
   It does not drop derived index rows or durable user configuration.
 - Version 9 adds persisted Library presentation rows so startup can hydrate the

@@ -192,8 +192,8 @@ Future versions may need:
 
 - Highlight current subtitle.
 - Support text selection or learning interactions such as Shiori.
-- Better `libass` font-resource handling for embedded attachments and adjacent
-  font folders.
+- Better system-font fallback and alias handling for `libass` rendering without
+  scanning or materializing external font resources.
 - Optional danmaku playback as a separate overlay domain from subtitles.
 
 Rules:
@@ -231,6 +231,11 @@ Rules:
   Original subtitle files, search projections, and durable subtitle data must
   remain unchanged. Real-time font install or uninstall tracking is not
   required for M2; restarting the app may refresh the alias table.
+- ASS playback must use only the source `.ass` subtitle file and
+  system-installed fonts. CueSeeker must ignore adjacent font folders, loose
+  font files, image assets, text sidecars, archives, and media-container
+  non-playback attachments unless a future documented product feature explicitly
+  supports those file types.
 - Search result previews are database-owned cue group projections. Playback
   subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.

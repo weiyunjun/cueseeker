@@ -490,6 +490,19 @@ Rules:
 - Security-scoped bookmark handling is not required for M1 while App Sandbox is disabled.
 - If sandboxing is later enabled, security-scoped bookmark handling must be documented and tested.
 - The app must not silently scan folders that the user has not selected or otherwise authorized.
+- Selected-folder access is not permission to process every file in that
+  folder. CueSeeker must use the smallest supported file surface for the
+  product workflow: video files for playback and metadata, plus `.srt` and
+  `.ass` subtitle files for indexing and subtitle playback.
+- Files outside the supported video and subtitle formats must be ignored by
+  default, including fonts, images, loose text files, archives, and sidecar
+  asset folders. The app must not scan, read, copy, cache, index, or pass those
+  files to renderers unless a future product feature explicitly accepts the
+  file type and documents the permission, UX, data, and test model first.
+- Video container attachments that are not required for supported video/audio
+  playback are outside the current product surface. Font, image, or document
+  attachments in media containers must not be extracted or materialized for
+  subtitle rendering.
 
 The final sandboxing and persistent file-access strategy may require an ADR.
 
@@ -523,35 +536,17 @@ Rules:
   wait for ASS parsing or rendering.
 - ASS rendering should be coordinated through an asynchronous render coordinator
   with cancellation and cache invalidation keyed by source file identity.
-- The `libass` render source must carry explicit font-resource context. A
-  selected ASS subtitle is not enough by itself: the playback path must also
-  preserve the matched video identity and any discovered renderer font
-  directory or cache directory needed by the `libass` session.
-- `libass` must receive the same font-resource context for both full-source ASS
-  loading and indexed render-segment loading. Segment optimization must not
-  drop access to fonts that would have been available when rendering the full
-  source file.
-- CueSeeker must not assume that `libass` can read fonts from the matched video
-  container automatically. Matroska or other container font attachments must be
-  extracted or otherwise materialized into a renderer-owned font resource
-  directory before they can be passed to `libass`.
-- Adjacent external font folders are part of the ASS playback resource model.
-  Discovery must be explicit and bounded to the selected subtitle and matched
-  video location, such as conventional sibling font directories, and must not
-  become a broad recursive scan of unrelated user folders.
-- External ASS font-resource preparation is an indexing-stage responsibility.
-  Playback may read a prepared manifest and pass an existing font directory to
-  `libass`, but it must not inspect media containers, copy font folders, extract
-  attachments, or mutate the active font directory after subtitle loading has
-  started.
-- The prepared ASS font-resource manifest is the single source of truth for
-  external font resources on a playback click. If the manifest is absent or
-  failed, playback must not start background font preparation that can later
-  change the rendered font during the same subtitle load.
-- ASS `[Fonts]` embedded resources remain source-file-owned and should continue
-  to rely on `libass` embedded-font extraction. External font folders and video
-  attachments are additional renderer inputs, not a replacement for source ASS
-  content.
+- ASS rendering may use only the source `.ass` subtitle content and
+  system-installed fonts available through the platform font provider. CueSeeker
+  must not scan adjacent font folders, copy external fonts, extract video
+  container font attachments, build app-owned font directories, or pass an
+  app-owned external font cache directory to `libass`.
+- `libass` full-source loading and indexed render-segment loading must follow
+  the same font boundary: system fonts only, with no external sidecar or
+  container attachment font resources.
+- Existing ASS font-resource manifest schema is legacy derived metadata only.
+  It must not be treated as an active playback input, rebuilt from local
+  sidecar files, or used to reintroduce external font-resource handling.
 - Source-faithful ASS rendering must avoid rebuilding presentation payloads when
   the renderer reports an unchanged visual frame. Static subtitle intervals
   should reuse the previous cropped subtitle surface and layer contents instead
@@ -599,12 +594,8 @@ Rules:
   immediate selected-row updates, immediate video open or seek, and prompt
   subtitle source loading after Search result selection.
 - Bundling and updating `libass` remains an explicit playback dependency
-  concern because it affects packaging, signing, license review, font discovery,
-  and font fallback behavior.
-- Font-resource extraction or discovery caches are derived playback resources.
-  They must be invalidated when the matched video, subtitle source, or extracted
-  attachment set changes, and they must not become the source of truth for
-  subtitle search or cue grouping.
+  concern because it affects packaging, signing, license review, system-font
+  discovery, and font fallback behavior.
 - The current playback route must always use the project-owned native backend.
 - The active native macOS app must not link against, initialize, or fall back to `libmpv`.
 - The native backend uses FFmpeg demuxing, user-selectable hardware, software,

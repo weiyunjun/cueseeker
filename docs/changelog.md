@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the strict local-file boundary for CueSeeker indexing and playback:
+  the app may process supported video files and `.srt`/`.ass` subtitle files,
+  but must ignore fonts, images, loose text sidecars, archives, sidecar asset
+  folders, and non-playback media attachments unless a future documented
+  product feature explicitly expands the file surface. ASS playback now relies
+  on source `.ass` content and system-installed fonts rather than app-owned
+  external font caches.
 - Fixed paused-seek playback toggling so Space or surface click can pause after
   a seek auto-resumes playback, and centered the topbar Search field without a
   visible `CueSeeker` title.

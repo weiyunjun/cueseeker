@@ -2,7 +2,7 @@
 
 Status: Accepted
 
-Updated: 2026-05-06
+Updated: 2026-05-13
 
 ## Background
 
@@ -59,8 +59,8 @@ phase.
 
 Using `libass` as the single active renderer reduces behavioral ambiguity. There
 is one source of truth for ASS playback output, one failure path, and one
-dependency surface to improve when font resources, embedded attachments, or
-render-segment loading need better support.
+dependency surface to improve when system-font fallback or render-segment
+loading need better support.
 
 ## Tradeoffs
 
@@ -68,8 +68,9 @@ render-segment loading need better support.
   playback.
 - Packaging, signing, notarization, license review, and font-provider behavior
   must account for `libass`.
-- Some player-compatible font cases require additional resource plumbing, such
-  as extracting Matroska font attachments or locating adjacent font folders.
+- CueSeeker intentionally does not support player-compatible cases that require
+  adjacent font folders, loose font files, or media-container font attachments.
+  ASS playback uses system-installed fonts and platform fallback only.
 - A project-owned native renderer no longer serves as a fallback if `libass`
   fails.
 
@@ -105,7 +106,7 @@ project-owned renderer before the product needed that complexity.
 
 Selected. It gives CueSeeker one ASS rendering authority and lets future work
 focus on feeding `libass` the right source script, render segment, frame size,
-font resources, and playback clock.
+system-font context, and playback clock.
 
 ## Implementation Notes
 
@@ -116,8 +117,10 @@ font resources, and playback clock.
 - Keep `ASSRenderSegmenter` and `ass_render_segments` as source-preserving
   `libass` performance optimizations.
 - Update diagnostics such as `PlaybackSyncProbe` to report `libass` only.
-- Future font-resource work should pass matched-video attachments and adjacent
-  font directories to the `libass` session instead of adding a second renderer.
+- External font-resource plumbing is superseded by the strict local-file
+  boundary in `docs/engineering/04_architecture_rules.md`. CueSeeker must not
+  pass matched-video attachments, adjacent font directories, or app-owned font
+  caches to the `libass` session.
 
 ## Verification Plan
 
@@ -131,8 +134,9 @@ Required checks:
 - Subtitle visibility toggles the `libass` overlay without stopping playback.
 - Complex ASS samples render from the source `.ass` file or the matching
   source-derived render segment.
-- Font fallback and font-resource behavior are compared against reference
-  players for representative real samples.
+- Font fallback behavior is checked with system-installed fonts and platform
+  fallback only. Tests must not depend on adjacent font folders, extracted
+  media-container font attachments, or app-owned font caches.
 
 Automated tests should cover routing, non-blocking behavior, render-segment
 cache boundaries, unchanged-frame reuse, and failure propagation. Manual testing
