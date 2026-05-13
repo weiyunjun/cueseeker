@@ -6,6 +6,18 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Refined the card Search and bottom-player HTML prototype direction: topbar
+  Library and Shiori now use icon-only navigation without selected emphasis,
+  the bottom player uses a light gray rounded surface, drops cover art for a
+  video-window expand control, aligns right-side controls with current playback
+  functions, uses a gray rounded speed menu, includes a Library view demo,
+  documents Shiori as using the same basic grouped-card layout as Search, and
+  moves secondary playback actions behind a three-dot menu after the
+  next-episode control.
+- Clarified the AI frontend UI workflow rule: HTML prototypes and references
+  are alignment aids, so when an HTML reference conflicts with the current
+  implemented UI or documented product direction, the assistant must confirm
+  the conflict with the user before implementation.
 - Accepted an AI frontend UI workflow rule: before major visually or
   structurally ambiguous frontend UI modifications, the assistant must consult
   the relevant HTML prototype or reference when one exists, and must explicitly

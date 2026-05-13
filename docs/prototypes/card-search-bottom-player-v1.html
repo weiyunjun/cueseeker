@@ -19,10 +19,11 @@
       --accent: #2364e8;
       --accent-soft: #e9f0ff;
       --highlight: #ffe66c;
-      --player: #080808;
-      --player-secondary: #9ea0a8;
-      --player-line: #404047;
-      --player-active: #57d968;
+      --player: #e9e9ec;
+      --player-button: #ffffff;
+      --player-secondary: #6d6f78;
+      --player-line: #c7c8ce;
+      --player-active: #2364e8;
     }
 
     * {
@@ -51,6 +52,7 @@
       overflow: hidden;
       display: grid;
       grid-template-rows: 78px 1fr 96px;
+      position: relative;
     }
 
     .topbar {
@@ -89,31 +91,46 @@
     .nav {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px;
-      background: rgba(255, 255, 255, 0.68);
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      border-radius: 11px;
+      gap: 10px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
       flex: 0 0 auto;
     }
 
     .nav button {
       appearance: none;
       border: 0;
-      border-radius: 8px;
-      padding: 7px 13px;
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      padding: 0;
       background: transparent;
-      color: #5e6067;
+      color: #565861;
       font: inherit;
-      font-size: 14px;
-      font-weight: 650;
-      line-height: 1;
+      display: grid;
+      place-items: center;
+    }
+
+    .nav button:hover {
+      background: rgba(0, 0, 0, 0.06);
     }
 
     .nav button.active {
-      background: #ffffff;
-      color: var(--primary);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.09);
+      background: transparent;
+      color: #565861;
+      box-shadow: none;
+    }
+
+    .nav svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .search {
@@ -128,6 +145,7 @@
       gap: 10px;
       padding: 0 18px;
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+      cursor: pointer;
     }
 
     .search svg {
@@ -155,6 +173,10 @@
       max-width: 1288px;
       margin: 0 auto;
       padding: 20px 0 10px;
+    }
+
+    .view[hidden] {
+      display: none;
     }
 
     .summary {
@@ -242,10 +264,69 @@
     }
 
     .line-secondary {
-      color: #85868d;
+      color: #202126;
       font-size: 22px;
       font-weight: 760;
       line-height: 1.22;
+    }
+
+    .library-list {
+      display: grid;
+      gap: 0;
+    }
+
+    .library-row {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      align-items: center;
+      min-height: 82px;
+      border-bottom: 1px solid #ececef;
+      color: var(--primary);
+      font-size: 24px;
+      font-weight: 780;
+    }
+
+    .library-row svg {
+      width: 18px;
+      height: 18px;
+      stroke: #b8b9bf;
+      fill: none;
+      stroke-width: 2.3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .library-count {
+      color: #b6b7bd;
+      font-weight: 720;
+    }
+
+    .episode-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(104px, 1fr));
+      gap: 11px;
+      padding: 18px 48px 32px 56px;
+    }
+
+    .episode-button {
+      appearance: none;
+      border: 0;
+      min-height: 58px;
+      border-radius: 11px;
+      background: #f1f1f2;
+      color: var(--primary);
+      font: inherit;
+      font-size: 24px;
+      font-weight: 760;
+    }
+
+    .episode-button:hover {
+      background: #e9e9ec;
+    }
+
+    .episode-button.playing {
+      background: var(--accent-soft);
+      color: var(--accent);
     }
 
     mark {
@@ -258,39 +339,60 @@
     .player {
       min-width: 0;
       background: var(--player);
-      border-top: 1px solid #1f1f22;
+      border: 1px solid #d5d6dc;
+      border-radius: 22px;
       display: grid;
-      grid-template-columns: minmax(250px, 0.8fr) minmax(420px, 1.4fr) minmax(250px, 0.8fr);
+      grid-template-columns: minmax(420px, 1fr) auto minmax(420px, 1fr);
       align-items: center;
-      gap: 26px;
-      padding: 13px 24px;
-      color: #f7f7f8;
+      gap: 22px;
+      padding: 14px 22px;
+      margin: 12px 20px 14px;
+      color: #23242a;
+      position: relative;
+      z-index: 5;
+      box-shadow: 0 12px 38px rgba(0, 0, 0, 0.08);
     }
 
     .now-playing {
       min-width: 0;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
     }
 
-    .cover {
-      width: 68px;
-      height: 68px;
-      border-radius: 8px;
-      background:
-        radial-gradient(circle at 28% 24%, #e9fbff 0 6%, transparent 7%),
-        radial-gradient(circle at 70% 35%, #96c6ff 0 8%, transparent 9%),
-        radial-gradient(circle at 38% 72%, #86f0c7 0 7%, transparent 8%),
-        linear-gradient(135deg, #183b8c, #6fd4ff 45%, #f6f6ff);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    .video-toggle {
+      width: 48px;
+      height: 48px;
+      border: 1px solid #dadbe0;
+      border-radius: 50%;
+      background: var(--player-button);
+      color: #25262c;
+      display: grid;
+      place-items: center;
       flex: 0 0 auto;
+      transition: background 150ms ease, border-color 150ms ease;
+    }
+
+    .video-toggle:hover {
+      background: #f9f9fa;
+      border-color: #c9cad0;
+    }
+
+    .video-toggle svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .track {
       min-width: 0;
-      display: grid;
-      gap: 5px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
     }
 
     .track-title {
@@ -300,6 +402,7 @@
       min-width: 0;
       font-size: 17px;
       font-weight: 720;
+      white-space: nowrap;
     }
 
     .track-title span:first-child,
@@ -328,27 +431,51 @@
       font-weight: 650;
     }
 
+    .volume-cluster {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #5b5d66;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .volume-cluster svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: 0 0 auto;
+    }
+
     .center-controls {
       min-width: 0;
+      width: min(560px, 100%);
       display: grid;
       gap: 11px;
       justify-items: center;
+      justify-self: center;
     }
 
-    .buttons {
+    .buttons,
+    .transport {
       display: flex;
       align-items: center;
-      gap: 22px;
-      color: #d7d8dc;
+      gap: 16px;
+      color: #2c2d33;
     }
 
-    .icon-button {
+    .icon-button,
+    .control-button {
       width: 28px;
       height: 28px;
       border: 0;
       padding: 0;
       border-radius: 50%;
-      background: transparent;
+      background: var(--player-button);
       color: inherit;
       display: grid;
       place-items: center;
@@ -357,13 +484,49 @@
       line-height: 1;
     }
 
+    .control-button {
+      width: 36px;
+      height: 36px;
+      font-size: 18px;
+      color: #303139;
+      transition: color 150ms ease, background 150ms ease, opacity 150ms ease;
+    }
+
+    .control-button:hover:not(:disabled) {
+      background: #f9f9fb;
+      color: #111217;
+    }
+
+    .control-button:disabled,
+    .icon-button:disabled {
+      color: #adafb8;
+      cursor: default;
+      opacity: 0.8;
+    }
+
+    .control-button svg,
+    .icon-button svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .control-button.play {
+      width: 48px;
+      height: 48px;
+    }
+
     .play {
       width: 48px;
       height: 48px;
       background: #ffffff;
       color: #000000;
       font-size: 24px;
-      box-shadow: 0 1px 8px rgba(255, 255, 255, 0.22);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
 
     .lyrics-ready {
@@ -376,7 +539,7 @@
       grid-template-columns: 48px 1fr 48px;
       align-items: center;
       gap: 11px;
-      color: #c4c5ca;
+      color: #6d6f78;
       font-size: 14px;
       font-weight: 650;
     }
@@ -393,7 +556,7 @@
       width: 82%;
       height: 100%;
       border-radius: inherit;
-      background: #f3f3f5;
+      background: #555760;
     }
 
     .utility {
@@ -401,24 +564,186 @@
       justify-self: end;
       display: flex;
       align-items: center;
-      gap: 18px;
-      color: #d1d2d6;
+      gap: 20px;
+      color: #303139;
+      position: relative;
     }
 
     .volume {
-      width: 132px;
+      width: 112px;
       height: 6px;
       border-radius: 999px;
       background: var(--player-line);
       overflow: hidden;
+      flex: 0 1 auto;
     }
 
     .volume span {
       display: block;
       width: 58%;
       height: 100%;
-      background: #ffffff;
+      background: #4e5058;
       border-radius: inherit;
+    }
+
+    .speed-button {
+      width: auto;
+      min-width: 44px;
+      border-radius: 999px;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .more-wrap,
+    .speed-wrap {
+      position: relative;
+    }
+
+    .more-menu,
+    .speed-menu {
+      position: absolute;
+      right: -12px;
+      bottom: 42px;
+      min-width: 178px;
+      padding: 8px;
+      border: 1px solid #d0d1d7;
+      border-radius: 16px;
+      background: #eeeeef;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+      display: none;
+      z-index: 20;
+    }
+
+    .speed-menu {
+      right: 50%;
+      transform: translateX(50%);
+      min-width: 128px;
+      bottom: 44px;
+      padding: 8px;
+    }
+
+    .more-wrap.open .more-menu,
+    .speed-wrap.open .speed-menu {
+      display: grid;
+      gap: 4px;
+    }
+
+    .menu-item,
+    .speed-option {
+      appearance: none;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #23242a;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 650;
+      text-align: left;
+      padding: 8px 10px;
+    }
+
+    .speed-option {
+      display: grid;
+      grid-template-columns: 1fr 20px;
+      align-items: center;
+      gap: 12px;
+      font-size: 18px;
+      font-weight: 800;
+      padding: 10px 12px;
+    }
+
+    .menu-item:hover,
+    .speed-option:hover {
+      background: #ffffff;
+    }
+
+    .speed-check {
+      opacity: 0;
+      font-size: 18px;
+      text-align: center;
+      color: #23242a;
+    }
+
+    .speed-option.selected .speed-check {
+      opacity: 1;
+    }
+
+    .video-drawer {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      bottom: 96px;
+      height: 0;
+      overflow: hidden;
+      border-radius: 18px 18px 0 0;
+      background: #101115;
+      color: #f7f7f8;
+      box-shadow: 0 -24px 70px rgba(0, 0, 0, 0.28);
+      z-index: 4;
+      transition: height 220ms ease;
+    }
+
+    .window.video-open .video-drawer {
+      height: min(520px, calc(100% - 180px));
+    }
+
+    .video-shell {
+      height: 100%;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      padding: 22px 22px 18px;
+      gap: 16px;
+    }
+
+    .video-surface {
+      border-radius: 12px;
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.18)),
+        linear-gradient(135deg, #271329 0%, #101423 52%, #111111 100%);
+      display: grid;
+      place-items: center;
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 22px;
+      font-weight: 760;
+    }
+
+    .video-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      color: #c9cad0;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .source-pill {
+      border: 1px solid #303139;
+      border-radius: 999px;
+      padding: 5px 10px;
+      color: #d9dae0;
+      background: #18191f;
+    }
+
+    .status-toast {
+      position: absolute;
+      left: 50%;
+      bottom: 124px;
+      transform: translateX(-50%);
+      padding: 9px 13px;
+      border-radius: 999px;
+      background: rgba(22, 23, 27, 0.94);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease;
+      z-index: 30;
+    }
+
+    .status-toast.visible {
+      opacity: 1;
     }
 
     @media (max-width: 1080px) {
@@ -449,12 +774,17 @@
       }
 
       .player {
-        grid-template-columns: minmax(180px, 1fr) minmax(320px, 1.5fr) minmax(160px, 0.8fr);
+        grid-template-columns: minmax(260px, 1fr) auto minmax(260px, 1fr);
         gap: 16px;
+        margin: 10px 14px 12px;
       }
 
       .volume {
-        display: none;
+        width: 76px;
+      }
+
+      .utility {
+        gap: 12px;
       }
     }
 
@@ -499,18 +829,30 @@
         grid-template-columns: 1fr;
       }
 
+      .episode-grid {
+        grid-template-columns: repeat(2, minmax(96px, 1fr));
+        padding: 14px 24px 28px 36px;
+      }
+
       .player {
         grid-template-columns: 1fr;
         gap: 10px;
         align-content: center;
       }
 
-      .now-playing {
-        display: none;
+      .now-playing,
+      .track {
+        justify-content: center;
       }
 
       .utility {
         justify-self: center;
+      }
+
+      .video-drawer {
+        left: 14px;
+        right: 14px;
+        bottom: 138px;
       }
     }
   </style>
@@ -526,8 +868,17 @@
 
       <div class="search-cluster">
         <nav class="nav" aria-label="Primary">
-          <button class="active" type="button">Library</button>
-          <button type="button">Shiori</button>
+          <button type="button" title="Library" aria-label="Library" data-action="switch-view" data-view="Library">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.75 7.5h6.2l1.75 2h8.55"></path>
+              <path d="M4.5 6h5.1l1.75 2h8.15a1.5 1.5 0 0 1 1.48 1.75l-1.32 7.8A1.75 1.75 0 0 1 17.93 19H5.72a1.75 1.75 0 0 1-1.74-1.56L3 8.25A2 2 0 0 1 4.5 6Z"></path>
+            </svg>
+          </button>
+          <button type="button" title="Shiori" aria-label="Shiori" data-action="switch-view" data-view="Shiori">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75V21l-5-3.2L7 21Z"></path>
+            </svg>
+          </button>
         </nav>
 
         <div class="search" role="search" aria-label="Search subtitles">
@@ -540,8 +891,8 @@
       </div>
     </header>
 
-    <section class="content" aria-label="Search results">
-      <div class="content-inner">
+    <section class="content" aria-label="Main content">
+      <div class="content-inner view" data-view-content="Search">
         <p class="summary">185 results in 74 files</p>
 
         <section class="group" aria-labelledby="ave-mujica">
@@ -652,45 +1003,545 @@
           </div>
         </section>
       </div>
+
+      <div class="content-inner view" data-view-content="Library" hidden>
+        <p class="summary">Library</p>
+
+        <section class="library-list" aria-label="Library folders">
+          <div class="library-row">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6"></path>
+            </svg>
+            <span>Ave Mujica</span>
+            <span class="library-count">13 episodes</span>
+          </div>
+          <div class="library-row">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6"></path>
+            </svg>
+            <span>It's MyGO!!!!!</span>
+            <span class="library-count">13 episodes</span>
+          </div>
+          <div class="library-row">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6"></path>
+            </svg>
+            <span>胜者即是正义</span>
+            <span class="library-count">11 episodes</span>
+          </div>
+          <div class="library-row">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6"></path>
+            </svg>
+            <span>胜者即是正义 2</span>
+            <span class="library-count">10 episodes</span>
+          </div>
+          <div class="library-row">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+            <span>葬送的芙莉莲</span>
+            <span class="library-count">28 episodes</span>
+          </div>
+          <div class="episode-grid" aria-label="葬送的芙莉莲 episodes">
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">1</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">2</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">3</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">4</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">5</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">6</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">7</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">8</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">9</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">10</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">11</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">12</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">13</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">14</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">15</button>
+            <button class="episode-button playing" type="button" data-action="play-library" data-episode-index="0">16</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">17</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">18</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">19</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">20</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">21</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">22</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">23</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">24</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">25</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="1">26</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="2">27</button>
+            <button class="episode-button" type="button" data-action="play-library" data-episode-index="0">28</button>
+          </div>
+          <div class="library-row">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6"></path>
+            </svg>
+            <span>言叶之庭</span>
+            <span class="library-count">1 episode</span>
+          </div>
+          <div class="library-row">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6"></path>
+            </svg>
+            <span>非自然死亡</span>
+            <span class="library-count">10 episodes</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="content-inner view" data-view-content="Shiori" hidden>
+        <p class="summary">42 shioris in 18 files</p>
+
+        <section class="group" aria-labelledby="shiori-ave-mujica">
+          <h2 class="group-title" id="shiori-ave-mujica">
+            AVE MUJICA <span class="count">6 shioris</span>
+          </h2>
+          <div class="cards">
+            <button class="card" type="button" data-action="open-shiori">
+              <span class="meta"><span>#1</span><span class="episode">EP 01 · 02:14</span></span>
+              <span class="lines">
+                <span class="line-primary">毋庸担心 月霞自会为我们将她唤醒</span>
+                <span class="line-secondary">大丈夫 月の光が起こしてくれますわ</span>
+              </span>
+            </button>
+            <button class="card" type="button" data-action="open-shiori">
+              <span class="meta"><span>#2</span><span class="episode">EP 02 · 08:44</span></span>
+              <span class="lines">
+                <span class="line-primary">我没事</span>
+                <span class="line-secondary">私は大丈夫だよ</span>
+              </span>
+            </button>
+            <button class="card" type="button" data-action="open-shiori">
+              <span class="meta"><span>#3</span><span class="episode">EP 03 · 06:12</span></span>
+              <span class="lines">
+                <span class="line-primary">应该没问题吧</span>
+                <span class="line-secondary">大丈夫かなぁ</span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section class="group" aria-labelledby="shiori-mygo">
+          <h2 class="group-title" id="shiori-mygo">
+            IT'S MYGO!!!!! <span class="count">4 shioris</span>
+          </h2>
+          <div class="cards">
+            <button class="card" type="button" data-action="open-shiori">
+              <span class="meta"><span>#8</span><span class="episode">EP 04 · 09:30</span></span>
+              <span class="lines">
+                <span class="line-primary">这样没问题的</span>
+                <span class="line-secondary">これで大丈夫だよ</span>
+              </span>
+            </button>
+            <button class="card" type="button" data-action="open-shiori">
+              <span class="meta"><span>#9</span><span class="episode">EP 07 · 17:02</span></span>
+              <span class="lines">
+                <span class="line-primary">你还好吗</span>
+                <span class="line-secondary">大丈夫?</span>
+              </span>
+            </button>
+          </div>
+        </section>
+      </div>
     </section>
+
+    <aside class="video-drawer" aria-label="Video window preview" aria-hidden="true">
+      <div class="video-shell">
+        <div class="video-surface">Video Window</div>
+        <div class="video-meta">
+          <span>AVE MUJICA EP 01 · 02:14</span>
+          <span class="source-pill" data-source-label>Search playback</span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="status-toast" role="status" aria-live="polite" data-status>Ready</div>
 
     <footer class="player" aria-label="Bottom player preview">
       <section class="now-playing" aria-label="Current video">
-        <div class="cover" aria-hidden="true"></div>
+        <button class="video-toggle" type="button" title="Expand video window" aria-label="Expand video window" data-action="toggle-video" data-video-state="collapsed">
+          <svg class="arrow-collapsed" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
+
         <div class="track">
           <div class="track-title">
-            <span>栞</span>
-            <span class="status-badge" aria-label="Ready">✓</span>
+            <span data-track-title>AVE MUJICA EP 01</span>
           </div>
-          <div class="track-subtitle">MyGO!!!!! · EP 07</div>
+          <div class="volume-cluster">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 10v4h4l5 4V6l-5 4Z"></path>
+              <path d="M16 9.5a4 4 0 0 1 0 5"></path>
+              <path d="M18.5 7a7 7 0 0 1 0 10"></path>
+            </svg>
+            <div class="volume" aria-label="Volume"><span data-volume-level></span></div>
+          </div>
         </div>
       </section>
 
       <section class="center-controls" aria-label="Playback controls">
-        <div class="buttons" aria-hidden="true">
-          <button class="icon-button" type="button" title="Shuffle">↝</button>
-          <button class="icon-button" type="button" title="Previous">◀</button>
-          <button class="icon-button play" type="button" title="Play">▶</button>
-          <button class="icon-button" type="button" title="Next">▶</button>
-          <button class="icon-button lyrics-ready" type="button" title="Lyrics">▱</button>
+        <div class="transport">
+          <button class="control-button" type="button" title="Previous episode video" aria-label="Previous episode video" data-action="previous-episode" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 5v14"></path>
+              <path d="M19 6 9 12l10 6Z"></path>
+            </svg>
+          </button>
+          <button class="control-button" type="button" title="Previous search result" aria-label="Previous search result" data-action="previous-result" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 6 9 12l6 6"></path>
+            </svg>
+          </button>
+          <button class="control-button play" type="button" title="Pause" aria-label="Pause" data-action="toggle-play">
+            <svg viewBox="0 0 24 24" aria-hidden="true" data-play-icon>
+              <path d="M9 6v12"></path>
+              <path d="M15 6v12"></path>
+            </svg>
+          </button>
+          <button class="control-button" type="button" title="Next search result" aria-label="Next search result" data-action="next-result">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6"></path>
+            </svg>
+          </button>
+          <button class="control-button" type="button" title="Next episode video" aria-label="Next episode video" data-action="next-episode" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 5v14"></path>
+              <path d="m5 6 10 6-10 6Z"></path>
+            </svg>
+          </button>
+          <div class="more-wrap" data-more-wrap>
+            <button class="control-button" type="button" title="More" aria-label="More actions" data-action="toggle-menu" aria-expanded="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5.5h.01"></path>
+                <path d="M12 12h.01"></path>
+                <path d="M12 18.5h.01"></path>
+              </svg>
+            </button>
+            <div class="more-menu" role="menu">
+              <button class="menu-item" type="button" role="menuitem" data-action="video-folder">Video Folder</button>
+              <button class="menu-item" type="button" role="menuitem" data-action="subtitle-folder">Subtitle Folder</button>
+              <button class="menu-item" type="button" role="menuitem" data-action="results">Results</button>
+              <button class="menu-item" type="button" role="menuitem" data-action="subtitles">Subtitles</button>
+            </div>
+          </div>
         </div>
         <div class="progress-row">
-          <span>4:16</span>
-          <div class="progress" aria-hidden="true"><span></span></div>
-          <span>4:26</span>
+          <span data-current-time>02:14</span>
+          <div class="progress" aria-hidden="true"><span data-progress style="width: 9%;"></span></div>
+          <span data-duration>24:10</span>
         </div>
       </section>
 
       <section class="utility" aria-label="Secondary controls">
-        <button class="icon-button" type="button" title="Lyrics">⌕</button>
-        <button class="icon-button lyrics-ready" type="button" title="Queue">☰</button>
-        <button class="icon-button" type="button" title="Subtitles">▣</button>
-        <button class="icon-button" type="button" title="Volume">◁</button>
-        <div class="volume" aria-hidden="true"><span></span></div>
-        <button class="icon-button" type="button" title="Mini player">▢</button>
-        <button class="icon-button" type="button" title="Fullscreen">⛶</button>
+        <button class="icon-button" type="button" title="Shiori" aria-label="Save Shiori" data-action="toggle-shiori">
+          <svg viewBox="0 0 24 24" aria-hidden="true" data-shiori-icon>
+            <path d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75V21l-5-3.2L7 21Z"></path>
+          </svg>
+        </button>
+        <button class="icon-button" type="button" title="Copy Current Subtitle" aria-label="Copy Current Subtitle" data-action="copy-subtitle">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7.5 19 12 5l4.5 14"></path>
+            <path d="M9.25 14h5.5"></path>
+          </svg>
+        </button>
+        <button class="icon-button lyrics-ready" type="button" title="Toggle Subtitles" aria-label="Toggle Subtitles" data-action="toggle-subtitles">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v5A2.5 2.5 0 0 1 16.5 14H11l-5 4v-4.1a2.5 2.5 0 0 1-1-2Z"></path>
+            <path d="M8 8h8"></path>
+            <path d="M8 11h5"></path>
+          </svg>
+        </button>
+        <div class="speed-wrap" data-speed-wrap>
+          <button class="icon-button speed-button" type="button" title="Playback speed" aria-label="Playback speed" data-action="toggle-speed" aria-expanded="false">1x</button>
+          <div class="speed-menu" role="menu">
+            <button class="speed-option" type="button" role="menuitemradio" data-action="set-speed" data-speed="0.5x">0.5x <span class="speed-check">✓</span></button>
+            <button class="speed-option" type="button" role="menuitemradio" data-action="set-speed" data-speed="0.75x">0.75x <span class="speed-check">✓</span></button>
+            <button class="speed-option selected" type="button" role="menuitemradio" data-action="set-speed" data-speed="1x">1x <span class="speed-check">✓</span></button>
+            <button class="speed-option" type="button" role="menuitemradio" data-action="set-speed" data-speed="1.25x">1.25x <span class="speed-check">✓</span></button>
+            <button class="speed-option" type="button" role="menuitemradio" data-action="set-speed" data-speed="1.5x">1.5x <span class="speed-check">✓</span></button>
+            <button class="speed-option" type="button" role="menuitemradio" data-action="set-speed" data-speed="1.75x">1.75x <span class="speed-check">✓</span></button>
+            <button class="speed-option" type="button" role="menuitemradio" data-action="set-speed" data-speed="2x">2x <span class="speed-check">✓</span></button>
+          </div>
+        </div>
+        <button class="icon-button" type="button" title="Fullscreen" aria-label="Fullscreen" data-action="fullscreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 4H4v4"></path>
+            <path d="M16 4h4v4"></path>
+            <path d="M4 16v4h4"></path>
+            <path d="M20 16v4h-4"></path>
+          </svg>
+        </button>
       </section>
     </footer>
   </main>
+  <script>
+    const windowEl = document.querySelector(".window");
+    const views = document.querySelectorAll("[data-view-content]");
+    const searchField = document.querySelector(".search");
+    const videoDrawer = document.querySelector(".video-drawer");
+    const videoToggle = document.querySelector("[data-action='toggle-video']");
+    const trackTitle = document.querySelector("[data-track-title]");
+    const sourceLabel = document.querySelector("[data-source-label]");
+    const currentTime = document.querySelector("[data-current-time]");
+    const duration = document.querySelector("[data-duration]");
+    const progress = document.querySelector("[data-progress]");
+    const playButton = document.querySelector("[data-action='toggle-play']");
+    const playIcon = document.querySelector("[data-play-icon]");
+    const shioriButton = document.querySelector("[data-action='toggle-shiori']");
+    const shioriIcon = document.querySelector("[data-shiori-icon]");
+    const moreWrap = document.querySelector("[data-more-wrap]");
+    const menuButton = document.querySelector("[data-action='toggle-menu']");
+    const speedWrap = document.querySelector("[data-speed-wrap]");
+    const speedButton = document.querySelector("[data-action='toggle-speed']");
+    const statusToast = document.querySelector("[data-status]");
+
+    const controls = {
+      previousEpisode: document.querySelector("[data-action='previous-episode']"),
+      previousResult: document.querySelector("[data-action='previous-result']"),
+      nextResult: document.querySelector("[data-action='next-result']"),
+      nextEpisode: document.querySelector("[data-action='next-episode']")
+    };
+
+    const searchResults = [
+      { title: "AVE MUJICA EP 01", time: "02:14", progress: 9 },
+      { title: "AVE MUJICA EP 01", time: "05:33", progress: 23 },
+      { title: "AVE MUJICA EP 01", time: "11:07", progress: 46 },
+      { title: "AVE MUJICA EP 02", time: "03:21", progress: 14 },
+      { title: "AVE MUJICA EP 02", time: "08:44", progress: 36 },
+      { title: "AVE MUJICA EP 03", time: "06:12", progress: 26 }
+    ];
+
+    const libraryEpisodes = [
+      { title: "AVE MUJICA EP 01", time: "00:00", progress: 0 },
+      { title: "AVE MUJICA EP 02", time: "00:00", progress: 0 },
+      { title: "AVE MUJICA EP 03", time: "00:00", progress: 0 }
+    ];
+
+    const speeds = ["0.5x", "0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"];
+    let source = "Search";
+    let resultIndex = 0;
+    let episodeIndex = 0;
+    let isPlaying = true;
+    let isShioriSaved = false;
+    let speedIndex = 2;
+    let toastTimer;
+
+    function setView(viewName) {
+      views.forEach((view) => {
+        view.hidden = view.dataset.viewContent !== viewName;
+      });
+      showStatus(`${viewName} view`);
+    }
+
+    function showStatus(message) {
+      statusToast.textContent = message;
+      statusToast.classList.add("visible");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        statusToast.classList.remove("visible");
+      }, 1300);
+    }
+
+    function setPlayIcon() {
+      playButton.title = isPlaying ? "Pause" : "Play";
+      playButton.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
+      playIcon.innerHTML = isPlaying
+        ? '<path d="M9 6v12"></path><path d="M15 6v12"></path>'
+        : '<path d="M8 5.5v13l10-6.5Z"></path>';
+    }
+
+    function setVideoArrow(direction) {
+      const path = {
+        right: '<path d="M9 5l7 7-7 7"></path>',
+        up: '<path d="m5 15 7-7 7 7"></path>',
+        down: '<path d="m5 9 7 7 7-7"></path>'
+      }[direction];
+      videoToggle.querySelector("svg").innerHTML = path;
+      videoToggle.dataset.videoState = direction;
+    }
+
+    function updateTransport() {
+      const isSearch = source === "Search";
+      const isLibrary = source === "Library";
+      controls.previousResult.disabled = !isSearch || resultIndex <= 0;
+      controls.nextResult.disabled = !isSearch || resultIndex >= searchResults.length - 1;
+      controls.previousEpisode.disabled = !isLibrary || episodeIndex <= 0;
+      controls.nextEpisode.disabled = !isLibrary || episodeIndex >= libraryEpisodes.length - 1;
+      sourceLabel.textContent = `${source} playback`;
+    }
+
+    function applyPlayback(item) {
+      trackTitle.textContent = item.title;
+      currentTime.textContent = item.time;
+      duration.textContent = "24:10";
+      progress.style.width = `${item.progress}%`;
+      document.querySelector(".video-meta span:first-child").textContent = `${item.title} · ${item.time}`;
+      updateTransport();
+    }
+
+    function setSource(nextSource) {
+      source = nextSource;
+      if (source === "Library") {
+        applyPlayback(libraryEpisodes[episodeIndex]);
+      } else if (source === "Search") {
+        applyPlayback(searchResults[resultIndex]);
+      } else {
+        updateTransport();
+      }
+      showStatus(`${source} controls active`);
+    }
+
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) {
+        if (!event.target.closest("[data-more-wrap]")) {
+          moreWrap.classList.remove("open");
+          menuButton.setAttribute("aria-expanded", "false");
+        }
+        if (!event.target.closest("[data-speed-wrap]")) {
+          speedWrap.classList.remove("open");
+          speedButton.setAttribute("aria-expanded", "false");
+        }
+        return;
+      }
+
+      const action = button.dataset.action;
+      if (!action || button.disabled) {
+        return;
+      }
+
+      if (action !== "toggle-menu" && !button.closest(".more-menu")) {
+        moreWrap.classList.remove("open");
+        menuButton.setAttribute("aria-expanded", "false");
+      }
+      if (action !== "toggle-speed" && !button.closest(".speed-menu")) {
+        speedWrap.classList.remove("open");
+        speedButton.setAttribute("aria-expanded", "false");
+      }
+
+      switch (action) {
+        case "switch-view":
+          setView(button.dataset.view);
+          break;
+        case "toggle-video": {
+          const isOpen = windowEl.classList.toggle("video-open");
+          videoDrawer.setAttribute("aria-hidden", String(!isOpen));
+          setVideoArrow(isOpen ? "up" : "down");
+          videoToggle.title = isOpen ? "Collapse video window" : "Expand video window";
+          videoToggle.setAttribute("aria-label", isOpen ? "Collapse video window" : "Expand video window");
+          showStatus(isOpen ? "Video window expanded" : "Video window collapsed");
+          break;
+        }
+        case "previous-episode":
+          episodeIndex = Math.max(0, episodeIndex - 1);
+          applyPlayback(libraryEpisodes[episodeIndex]);
+          showStatus("Previous episode video");
+          break;
+        case "next-episode":
+          episodeIndex = Math.min(libraryEpisodes.length - 1, episodeIndex + 1);
+          applyPlayback(libraryEpisodes[episodeIndex]);
+          showStatus("Next episode video");
+          break;
+        case "play-library":
+          source = "Library";
+          episodeIndex = Number(button.dataset.episodeIndex ?? 0);
+          applyPlayback(libraryEpisodes[episodeIndex]);
+          showStatus("Library episode loaded");
+          break;
+        case "open-shiori":
+          source = "Shiori";
+          applyPlayback({ title: "AVE MUJICA EP 01", time: "02:14", progress: 9 });
+          showStatus("Shiori opened");
+          break;
+        case "previous-result":
+          resultIndex = Math.max(0, resultIndex - 1);
+          applyPlayback(searchResults[resultIndex]);
+          showStatus("Previous search result");
+          break;
+        case "next-result":
+          resultIndex = Math.min(searchResults.length - 1, resultIndex + 1);
+          applyPlayback(searchResults[resultIndex]);
+          showStatus("Next search result");
+          break;
+        case "toggle-play":
+          isPlaying = !isPlaying;
+          setPlayIcon();
+          showStatus(isPlaying ? "Playback resumed" : "Playback paused");
+          break;
+        case "toggle-shiori":
+          isShioriSaved = !isShioriSaved;
+          shioriButton.classList.toggle("lyrics-ready", isShioriSaved);
+          shioriIcon.style.fill = isShioriSaved ? "currentColor" : "none";
+          showStatus(isShioriSaved ? "Shiori saved" : "Shiori removed");
+          break;
+        case "toggle-menu":
+          moreWrap.classList.toggle("open");
+          menuButton.setAttribute("aria-expanded", String(moreWrap.classList.contains("open")));
+          break;
+        case "video-folder":
+          moreWrap.classList.remove("open");
+          showStatus("Video Folder action");
+          break;
+        case "subtitle-folder":
+          moreWrap.classList.remove("open");
+          showStatus("Subtitle Folder action");
+          break;
+        case "results":
+          moreWrap.classList.remove("open");
+          showStatus("Results panel action");
+          break;
+        case "subtitles":
+          moreWrap.classList.remove("open");
+          showStatus("Subtitles panel action");
+          break;
+        case "copy-subtitle":
+          showStatus("Current subtitle copied");
+          break;
+        case "toggle-subtitles":
+          button.classList.toggle("lyrics-ready");
+          showStatus(button.classList.contains("lyrics-ready") ? "Subtitles visible" : "Subtitles hidden");
+          break;
+        case "toggle-speed":
+          speedWrap.classList.toggle("open");
+          speedButton.setAttribute("aria-expanded", String(speedWrap.classList.contains("open")));
+          break;
+        case "set-speed":
+          speedIndex = speeds.indexOf(button.dataset.speed);
+          speedButton.textContent = button.dataset.speed;
+          document.querySelectorAll(".speed-option").forEach((option) => {
+            option.classList.toggle("selected", option === button);
+          });
+          speedWrap.classList.remove("open");
+          speedButton.setAttribute("aria-expanded", "false");
+          showStatus(`Speed ${button.dataset.speed}`);
+          break;
+        case "fullscreen":
+          windowEl.classList.toggle("video-open");
+          videoDrawer.setAttribute("aria-hidden", String(!windowEl.classList.contains("video-open")));
+          setVideoArrow(windowEl.classList.contains("video-open") ? "up" : "down");
+          showStatus("Fullscreen preview toggled");
+          break;
+      }
+    });
+
+    searchField.addEventListener("click", () => {
+      setView("Search");
+    });
+
+    document.querySelectorAll("[data-view-content='Search'] .card").forEach((card, index) => {
+      card.addEventListener("click", () => {
+        source = "Search";
+        resultIndex = Math.min(index, searchResults.length - 1);
+        applyPlayback(searchResults[resultIndex]);
+        showStatus("Search result loaded");
+      });
+    });
+
+    setPlayIcon();
+    setVideoArrow("right");
+    updateTransport();
+  </script>
 </body>
 </html>

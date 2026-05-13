@@ -43,10 +43,39 @@ Reference files:
 - `library-grid-layout.png`: Library grouping and episode grid reference.
 - `spotify-style-bottom-player.png`: bottom player structure reference with
   video information, playback controls, and secondary controls.
+- `bottom-player-right-controls.png`: current bottom-player control alignment
+  and playback-speed menu reference.
 
 These images are references for alignment and review. They do not replace the
 behavioral requirements that must be written into proposals or stable product
 documents before implementation depends on them.
+
+## HTML Prototype
+
+The current static prototype for the Step 1 visual and interaction reference is
+`docs/prototypes/card-search-bottom-player-v1.html`.
+
+The prototype should be checked before implementing major frontend UI changes
+for this direction. It currently demonstrates:
+
+- Card-based grouped Search results.
+- Library grouped-folder and episode-grid browsing.
+- Shiori grouped cards that follow the same basic layout as Search result
+  cards.
+- Icon-only Library and Shiori controls beside the top Search field.
+- A bottom player without cover art.
+- A video-window expand or collapse button in the former cover-art position.
+- A concise video title with volume control beside it.
+- Source-aware center playback controls for Library episode navigation and
+  Search result navigation.
+- A light gray rounded bottom-player surface with white button controls.
+- A three-dot menu placed after the next-episode control.
+- A gray rounded playback-speed menu matching the current app UI direction.
+- A right-side control group aligned with the current playback controls:
+  Shiori, copy current subtitle, subtitle visibility, playback speed, and
+  fullscreen.
+- A three-dot menu containing `Video Folder`, `Subtitle Folder`, `Results`, and
+  `Subtitles`.
 
 ## Staging Plan
 
@@ -58,11 +87,43 @@ card-based content area, and reserved space for a bottom player.
 Scope:
 
 - Convert Search results to a card-based layout.
-- Move Library and Shiori navigation to the left side of the top Search field.
+- Move Library and Shiori icon navigation to the left side of the top Search
+  field. Use the current app icon semantics (`folder` for Library and
+  `bookmark` for Shiori), and avoid visually emphasizing a selected relationship
+  in this topbar prototype.
 - Remove the right sidebar.
 - Reserve space for a bottom player bar.
-- Add a basic visual bottom bar shell if needed, without requiring complete
-  playback behavior.
+- Add a basic visual bottom bar shell with working prototype controls.
+
+Initial bottom-player alignment:
+
+- The left area does not show cover art in the first prototype. The former cover
+  position becomes the video-window expand or collapse button.
+- The bottom player should visually match the current app UI direction: use a
+  light gray rounded surface with white button controls.
+- When the video window is collapsed, the expand or collapse button points
+  right. Clicking it expands the video window and changes the arrow upward.
+  Clicking it again collapses the video window and changes the arrow downward.
+- The bottom-player title should use concise video identity such as
+  `AVE MUJICA EP 01`.
+- Volume control belongs next to the title.
+- The center playback controls are, in order: previous episode video, previous
+  Search result, play or pause, next Search result, next episode video.
+- Previous or next episode buttons are active only for Library-launched
+  playback. Previous or next result buttons are active only for Search-launched
+  playback. Missing targets should disable the corresponding button.
+- The right-side controls should match the refined right-control reference:
+  Shiori, copy current subtitle, subtitle visibility, playback speed, and
+  fullscreen.
+- `Video Folder`, `Subtitle Folder`, `Results`, and `Subtitles` move into the
+  secondary menu opened by the vertical three-dot button after the next-episode
+  video control.
+- The `Results` and `Subtitles` popup interfaces are not changed in this step.
+- The playback-speed menu should use the current app's gray rounded menu style,
+  not the earlier dark menu reference.
+- Bilingual subtitle lines should use the same text color. The prototype must
+  not imply that Chinese and Japanese subtitle lines have different semantic
+  color roles.
 
 Goal:
 
@@ -111,6 +172,8 @@ Scope:
 
 - Ensure Library works without the old sidebar.
 - Ensure Shiori fits the new global layout.
+- Keep Shiori's basic layout aligned with Search: grouped card sections with
+  the same card structure and scanning rhythm.
 - Align active navigation states, spacing, and page transitions.
 - Keep future refinements based on actual UI review.
 

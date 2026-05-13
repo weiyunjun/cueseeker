@@ -173,6 +173,10 @@ Rules:
   HTML prototype or HTML reference when one exists. If no relevant HTML
   prototype or reference exists, the AI must explicitly remind the user before
   implementation begins.
+- HTML prototypes and references are alignment aids, not the source of truth.
+  If an HTML prototype or reference conflicts with the current implemented UI
+  design or documented product direction, the AI must explicitly confirm with
+  the user before implementing the conflicting interpretation.
 - A major frontend UI modification means a change that is likely to be
   visually or structurally ambiguous. Layout changes count, including adding a
   new view or changing the structure of an existing view. Adding a new element

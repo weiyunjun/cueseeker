@@ -12,6 +12,8 @@ Reference images:
 - `library-grid-layout.png`: Library grouping and episode grid reference.
 - `spotify-style-bottom-player.png`: bottom player structure reference with
   video information, playback controls, and secondary controls.
+- `bottom-player-right-controls.png`: current bottom-player control alignment
+  and playback-speed menu reference.
 
 These images are visual references only. Product behavior and implementation
 requirements should remain documented in proposals and product documents.
