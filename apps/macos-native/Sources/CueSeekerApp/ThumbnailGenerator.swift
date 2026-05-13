@@ -33,12 +33,12 @@ public actor ThumbnailGenerator {
                     _ = Task {
                         let result = await self.executeFFmpeg(request: request, cacheKey: cacheKey)
                         continuation.resume(returning: result)
-                        await self.taskDidFinish()
+                        self.taskDidFinish()
                     }
                 }
                 
                 Task {
-                    await self.enqueue(task: PendingTask(id: id, priority: request.priority, action: action))
+                    self.enqueue(task: PendingTask(id: id, priority: request.priority, action: action))
                 }
             }
         } onCancel: {
