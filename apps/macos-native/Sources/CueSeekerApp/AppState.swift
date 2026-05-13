@@ -499,10 +499,6 @@ final class AppState: ObservableObject {
         currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
     }
 
-    var isPlaybackSurfaceToggleDisabled: Bool {
-        currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
-    }
-
     var isPlaybackSidePanelToggleDisabled: Bool {
         currentPlaybackVideoPath == nil || isPlaybackSidePanelToggleCoolingDown
     }

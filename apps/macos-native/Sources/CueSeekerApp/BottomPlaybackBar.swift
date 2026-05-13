@@ -11,7 +11,11 @@ struct BottomPlaybackBar: View {
 
     var body: some View {
         if let viewModel = appState.playbackViewModel {
-            BottomPlaybackBarContent(appState: appState, viewModel: viewModel)
+            BottomPlaybackBarContent(
+                appState: appState,
+                layoutState: appState.workbenchLayout,
+                viewModel: viewModel
+            )
         } else {
             EmptyBottomPlaybackBar()
         }
@@ -31,6 +35,7 @@ private struct BottomPlaybackMenuAnchorKey: PreferenceKey {
 
 private struct BottomPlaybackBarContent: View {
     @ObservedObject var appState: AppState
+    @ObservedObject var layoutState: WorkbenchLayoutState
     @ObservedObject var viewModel: PlaybackViewModel
 
     @State private var isVolumeHovered = false
@@ -121,7 +126,7 @@ private struct BottomPlaybackBarContent: View {
                 .contentShape(Capsule())
             }
             .buttonStyle(BottomBarButtonStyle(cornerRadius: 999))
-            .disabled(appState.isPlaybackSurfaceToggleDisabled)
+            .disabled(!hasPlayback || layoutState.isVideoSizeTransitionInProgress)
             .help(hasPlayback ? "Expand or collapse video window" : "No video selected")
 
             volumeControl
