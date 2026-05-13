@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added an Experimental Features settings direction: Search result thumbnails
+  are now documented as an opt-in experimental feature that is disabled by
+  default and must not request or generate images while disabled.
 - Accepted and implemented the first Search result thumbnail test direction:
   loaded Search result pages use 100 cue-group rows, rows may show fixed-size
   left preview thumbnails generated as persistent-cache `160x90` AVIF images

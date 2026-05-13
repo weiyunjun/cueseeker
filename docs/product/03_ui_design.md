@@ -295,14 +295,17 @@ Accepted M1 search presentation:
 - Search result scrolling loads additional matches lazily in 100-result pages.
 - Expanding all result groups from the all-collapsed state reveals at most one
   global 100-result batch.
-- Search result rows must show a left-side preview thumbnail generated from
-  the midpoint between the cue group's start and end timestamps. The thumbnail
+- When the experimental `Search Result Thumbnails` setting is enabled, Search
+  result rows should show a left-side preview thumbnail generated from the
+  midpoint between the cue group's start and end timestamps. The thumbnail
   format is a persistent-cache AVIF image at `160x90` source pixels.
   The thumbnail's visible row box must stay fixed before and after image load so
   row layout does not jump. The container size is designed to match the height of two subtitle lines.
-- While the thumbnail is loading or generating, a skeleton or loading pattern must be
-  displayed instead of a solid black or gray background.
-- If thumbnail generation fails, a clear but non-intrusive fallback state must be shown.
+- When the experimental thumbnail setting is disabled, Search result rows should
+  use the plain text layout with no thumbnail slot or placeholder.
+- While an enabled thumbnail is loading or generating, a skeleton or loading pattern
+  must be displayed instead of a solid black or gray background.
+- If enabled thumbnail generation fails, a clear but non-intrusive fallback state must be shown.
 - Search results are grouped under flat subtitle-file headers.
 - Selecting a search result opens or updates the central Playback Area without
   leaving the CueSeeker workbench.
@@ -652,6 +655,7 @@ Current Settings categories:
 - `Library`.
 - `Decode`.
 - `Layout`.
+- `Experimental Features`.
 
 The `Library` category should allow local folder management.
 
@@ -674,6 +678,12 @@ and `Right` choices. Changing this setting should immediately move the Mode
 Rail and Shared Content Panel to the selected side while preserving panel mode,
 panel visibility, panel width, playback state, and current Search/Shiori/Library
 state.
+
+The `Experimental Features` category should contain unstable or provisional
+features that may change or be removed. It should expose a `Search Result
+Thumbnails` toggle. The toggle is off by default. When it is off, Search rows
+must not reserve thumbnail space or trigger thumbnail cache reads, extraction,
+or generation.
 
 Settings should be functional and clear before they are visually refined.
 Opening, focusing, or closing Settings should not pause playback, switch the

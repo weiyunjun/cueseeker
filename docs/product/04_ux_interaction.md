@@ -123,6 +123,12 @@ Grouped result behavior:
   subtitle file groups.
 - Result lazy loading should use 100 cue-group results as the initial
   visible budget and 100 cue-group results for each incremental load.
+- Search result thumbnail previews are controlled by the Settings
+  `Experimental Features` category. The `Search Result Thumbnails` setting is
+  disabled by default.
+- When Search result thumbnail testing is disabled, Search rows should behave
+  as plain text rows and must not request thumbnail cache entries, create
+  thumbnail work, or start frame extraction processes.
 - When Search result thumbnail testing is enabled, each loaded 100-result page
   should immediately schedule thumbnail generation for those 100 cue-group
   rows. Thumbnail scheduling is tied to loaded cue-group rows, not subtitle file
@@ -661,6 +667,8 @@ Expected behavior:
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
 - `Layout` contains the `Sidebar Position` selector for `Left` and `Right`.
+- `Experimental Features` contains unstable feature toggles, including `Search
+  Result Thumbnails`, which is off by default.
 - Changing `Sidebar Position` should not pause playback, reset Search results,
   clear Shiori state, collapse Library groups, or change the Shared Content
   Panel width.

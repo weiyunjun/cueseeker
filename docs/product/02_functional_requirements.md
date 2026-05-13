@@ -204,8 +204,12 @@ matching cue-group rows globally should be visible after the initial search. Scr
 to the bottom of the visible rows should reveal the next 100 cue-group rows
 when more results exist.
 
-When a batch of 100 cue-group rows is loaded and displayed, their corresponding search
-result thumbnails must be generated immediately.
+Search result thumbnails are an experimental feature controlled by Settings.
+When the feature is disabled, Search result rows must behave as plain text
+results and must not request cached images, generate thumbnails, or start
+thumbnail extraction processes. When the feature is enabled and a batch of 100
+cue-group rows is loaded and displayed, their corresponding search result
+thumbnails should be generated for the loaded rows.
 
 Collapsing a group should only affect row visibility and must not affect
 search result counts, search scope, or playback identity. Expanding a
@@ -227,7 +231,8 @@ per-header toggle state.
 
 Result row content:
 
-- Left-side thumbnail preview generated at the cue group's mid-point timestamp.
+- Left-side thumbnail preview generated at the cue group's mid-point timestamp
+  only when the experimental Search result thumbnail setting is enabled.
 - Subtitle text as the primary content.
 - Inline highlighting of query matches.
 - Result rows do not render a cue start timestamp. Within a subtitle-file group
@@ -480,6 +485,8 @@ Current Settings categories:
 
 - `Library`.
 - `Decode`.
+- `Layout`.
+- `Experimental Features`.
 
 `Library` settings requirements:
 
@@ -493,6 +500,19 @@ Current Settings categories:
 
 - Choose a persisted playback decode mode from `hardware`, `software`, and
   `auto`.
+
+`Layout` settings requirements:
+
+- Choose the persisted Shared Content Panel side.
+
+`Experimental Features` settings requirements:
+
+- Include a persisted `Search Result Thumbnails` toggle.
+- The toggle must be disabled by default.
+- When disabled, Search must not display thumbnail placeholders, read thumbnail
+  cache entries, create thumbnail requests, or start thumbnail generation.
+- When enabled, Search may use the current experimental thumbnail preview
+  behavior.
 
 Future settings may include playback, database, logging, and privacy options.
 
