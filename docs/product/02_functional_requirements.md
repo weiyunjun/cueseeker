@@ -124,8 +124,9 @@ Requirements:
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.
 - Results should be limited to avoid rendering excessive rows.
-- Search should load results incrementally in pages of 1000 so broad queries can
-  continue revealing matches while avoiding an unbounded first render.
+- Search should load results incrementally in pages of 100 cue lines so broad queries can
+  continue revealing matches while avoiding an unbounded first render. Pagination must strictly follow
+  the number of cue lines rather than grouping by subtitle files.
 - The Search view should show the total matching cue-group count for the current
   query near the search field.
 - Search results must be scoped to the currently selected subtitle folders.
@@ -199,16 +200,18 @@ header text. The search layer should still retain per-file total counts for
 lazy-loading rules, future sorting behavior, and internal consistency checks.
 
 Subtitle-file groups should be expanded by default, but only the first 100
-matching cue-group rows should be visible after the initial search. Scrolling
+matching cue-group rows globally should be visible after the initial search. Scrolling
 to the bottom of the visible rows should reveal the next 100 cue-group rows
 when more results exist.
+
+When a batch of 100 cue-group rows is loaded and displayed, their corresponding search
+result thumbnails must be generated immediately.
 
 Collapsing a group should only affect row visibility and must not affect
 search result counts, search scope, or playback identity. Expanding a
 collapsed subtitle-file group is an explicit lazy-loading trigger: the group
-should show at most the first 100 matching cue-group rows for that subtitle
-file, even when those rows are outside the currently visible global result
-batch.
+should show matching cue-group rows, but still strictly bound by the global lazy-loading
+limit of 100 cue lines per batch, even if a single subtitle file has hundreds of matches.
 
 The Search view should provide a single control that collapses or expands
 all subtitle-file groups for the current query. Collapsing all groups should
@@ -224,6 +227,7 @@ per-header toggle state.
 
 Result row content:
 
+- Left-side thumbnail preview generated at the cue group's mid-point timestamp.
 - Subtitle text as the primary content.
 - Inline highlighting of query matches.
 - Result rows do not render a cue start timestamp. Within a subtitle-file group
