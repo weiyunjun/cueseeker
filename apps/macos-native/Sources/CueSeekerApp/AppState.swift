@@ -1056,7 +1056,6 @@ final class AppState: ObservableObject {
             "ACTION UI.TopbarSearch.submitted",
             details: "length=\(trimmedQuery.count)"
         )
-        clearSearchFocus()
         if playbackViewModel?.isPlaying == true {
             pausePlayback()
         }

@@ -1040,7 +1040,7 @@ private struct PlaybackOverlayResultRow: View {
 
     private var rowBackground: Color {
         if isSelected {
-            return Color.accentColor.opacity(0.82)
+            return Color.accentColor
         }
         if isHovered {
             return Color.primary.opacity(0.075)
@@ -1114,7 +1114,7 @@ private struct PlaybackOverlaySubtitleRow: View {
 
     private var rowBackground: Color {
         if isSelected {
-            return Color.accentColor.opacity(0.82)
+            return Color.accentColor
         }
         if isHovered {
             return Color.primary.opacity(0.075)
@@ -1676,7 +1676,7 @@ private struct SearchResultCard: View {
 
     private var cardBackground: Color {
         if isSelected {
-            return Color.accentColor.opacity(0.82)
+            return Color.accentColor
         }
         if isHovered {
             return Color.primary.opacity(0.075)
@@ -1758,7 +1758,7 @@ private struct ShioriCard: View {
 
     private var cardBackground: Color {
         if isSelected {
-            return Color.accentColor.opacity(0.82)
+            return Color.accentColor
         }
         if isHovered {
             return Color.primary.opacity(0.075)
