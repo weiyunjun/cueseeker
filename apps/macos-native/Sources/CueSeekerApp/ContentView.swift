@@ -204,14 +204,7 @@ private struct TopbarSearchField: View {
             RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius)
                 .strokeBorder(
                     topbarSearchBorderColor,
-                    lineWidth: isFocused ? 2 : 1.5
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius + 2)
-                .stroke(
-                    isFocused ? AppShellLayout.topbarSearchFocusRingColor : Color.clear,
-                    lineWidth: 3
+                    lineWidth: isFocused ? 3 : 1.5
                 )
         )
         .contentShape(Rectangle())
@@ -223,7 +216,7 @@ private struct TopbarSearchField: View {
 
     private var topbarSearchBorderColor: Color {
         if isFocused {
-            return AppShellLayout.topbarSearchFocusedBorderColor
+            return AppShellLayout.topbarSearchBorderColor
         }
         if isHovered {
             return AppShellLayout.topbarSearchHoverBorderColor
@@ -279,17 +272,6 @@ enum AppShellLayout {
         red: 158.0 / 255.0,
         green: 159.0 / 255.0,
         blue: 166.0 / 255.0
-    )
-    static let topbarSearchFocusedBorderColor = Color(
-        red: 122.0 / 255.0,
-        green: 124.0 / 255.0,
-        blue: 132.0 / 255.0
-    )
-    static let topbarSearchFocusRingColor = Color(
-        red: 122.0 / 255.0,
-        green: 124.0 / 255.0,
-        blue: 132.0 / 255.0,
-        opacity: 0.14
     )
     static let topbarSearchIconColor = Color(
         red: 154.0 / 255.0,
