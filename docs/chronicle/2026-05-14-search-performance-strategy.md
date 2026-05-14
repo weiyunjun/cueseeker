@@ -37,6 +37,9 @@ The session narrowed through these steps:
 8. After external research was requested, the discussion separated
    product-model optimizations discovered through questioning from lower-level
    FTS/database maintenance methods.
+9. The user accepted an implementation sequence, added English prefix search as
+   an important scenario, and required a benchmark-first workflow using
+   `大丈夫`, `今日`, and `の` before and after each optimization step.
 
 ## Evidence Surfaced
 
@@ -95,16 +98,29 @@ product-model direction discovered in the questioning path.
 
 ## Open Questions
 
-- Should the first implementation search one subtitle file at a time, one
-  Library block at a time, or use a hybrid batch strategy?
-- Should total counts and file summaries be delayed, approximate, or computed
-  asynchronously after first results are visible?
 - How should duplicate line hits inside the same display time window affect
   highlighting and result selection?
 - Which ranks should be persisted: Library block rank, subtitle-file rank,
   display-window rank, or all of them?
 - Should FTS maintenance commands be exposed as diagnostics, Settings
   maintenance, or automatic post-indexing work?
+
+## Accepted Next Workflow
+
+The user accepted the following implementation workflow:
+
+1. Update project documentation, including this chronicle.
+2. Implement accepted optimizations in the documented order, with query/result
+   cache moved to the end because cache invalidation should not hide earlier
+   semantic bugs.
+3. Before code changes, benchmark the current implementation by searching
+   `大丈夫`, `今日`, and `の` five times each and recording average timings.
+4. After each optimization step, rerun the same benchmark before beginning the
+   next step.
+5. For query/result cache, clear cache state between benchmark query groups and
+   run each query five times to separate warm-cache effects from cross-query
+   contamination.
+6. Summarize benchmark data across all steps.
 
 ## Next Update Trigger
 

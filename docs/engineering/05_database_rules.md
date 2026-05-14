@@ -344,6 +344,12 @@ Search ranking and query syntax:
 - Search-summary counts and file/group summaries should not block first visible
   results if the query engine can return ordered results before the whole corpus
   is searched.
+- English prefix search is a required scenario. If FTS prefix indexes are added,
+  the chosen prefix lengths must be documented with benchmark data and storage
+  impact.
+- Query/result cache should be implemented only after the accepted search
+  semantics and ordering are stable. Cache keys must include the normalized
+  query, search scope, index generation, and search algorithm version.
 
 ## 13. Indexing Consistency
 

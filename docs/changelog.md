@@ -10,6 +10,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   optimization path is line-level FTS recall mapped to display time windows,
   materialized Library/file/time ordering, and ordered block/file-level early
   result emission, with lower-level FTS tuning treated as supporting work.
+- Accepted the Search optimization execution workflow: benchmark `大丈夫`,
+  `今日`, and `の` five times each before code changes and after each
+  optimization step, implement accepted optimizations in order, keep
+  query/result cache last, and preserve raw benchmark timings for comparison.
 - Implemented the first database storage maintenance pass in the native macOS
   app: Settings now exposes local database storage stats, highlights
   reclaimable SQLite freelist space, and offers a manual `Compact Database`

@@ -117,28 +117,80 @@ The following methods came from checking mature SQLite/search-engine
 documentation after the Socratic discussion. They are not all equally useful for
 CueSeeker.
 
-| Method | Feasibility | Engineering Effort | Likely Impact | Downside |
+| Method | Origin | Search-speed value | Engineering effort | Decision |
 | --- | --- | --- | --- | --- |
-| FTS `optimize` / incremental `merge` | High for maintenance after large reindex operations. | Low to medium. Add a maintenance command and measure before enabling automatic use. | Low to medium for current bottleneck; can reduce FTS segment merge cost and disk use. | Can take time because it reorganizes the FTS index; should not run in the foreground unexpectedly. |
-| FTS `automerge`, `crisismerge`, `usermerge` tuning | Medium. SQLite exposes these controls, but their effects depend on write patterns. | Medium. Requires instrumentation around indexing and search after reindex. | Low to medium. Helps if many FTS segment b-trees accumulate. | Trades faster reads for slower writes; bad settings can make indexing pauses worse. |
-| FTS prefix indexes | Medium only if prefix queries are a real hot path. | Medium because schema migration and FTS rebuild are required. | Medium for frequent prefix queries such as Latin `abc*`; low for exact CJK phrase cases. | Increases FTS index size and write cost. |
-| FTS contentless or external-content tables | Medium. CueSeeker already stores cue text in ordinary tables, so duplicate FTS content may be removable. | Medium to high. Requires schema migration, rebuild, and consistency checks. | Mostly storage reduction; possible IO reduction. | More fragile consistency model. External-content FTS returns unpredictable results if the backing table and FTS index diverge. |
-| FTS `detail` / `columnsize` reduction | Low to medium. Worth testing only after exact phrase, highlighting, and line-validation requirements are fixed. | Medium. Requires schema migration and semantic regression tests. | Mainly storage reduction; uncertain speed gain. | Reduces FTS capability or efficiency. `detail` settings can restrict long-token queries and slow or disable some positional operations. |
-| Trigram tokenizer | Low for default search. | High if added safely, because it changes tokenization and index size. | Could help arbitrary substring search. | Does not match the current precise subtitle-search model by default; can greatly increase index size and has awkward behavior for short queries. |
-| `fts5vocab` diagnostics | High as an investigation tool. | Low. Can be added as a diagnostic query or one-off tool. | Indirect. Helps explain high-candidate terms and CJK hot spots. | Does not speed search by itself. |
-| Query-plan/index work for `ORDER BY` and `LIMIT` | High. This aligns with the Socratic direction. | Medium to high depending on schema changes. | High if stable order can be materialized and searched without a global sort. | Requires careful result-order semantics and migration. |
-| Index sorting / early termination | Conceptually high, directly supported by search engines such as Lucene/Elasticsearch; in SQLite it must be modeled with ranks and ordered scans. | High. Requires data model and query-shape changes. | High for first visible results. | Total counts and complete summaries may become asynchronous or approximate until background completion. |
-| Filterable/sortable/facet-style attributes | High conceptually. Library block, subtitle file, and time-window keys are natural filter/sort fields. | Medium to high. Requires materialized ranks and possibly diagnostic summary tables. | High for scoped or block-first search. | More index-time state to keep consistent with Library presentation. |
-| Query/result cache | Medium. Useful after the search model is stable. | Low to medium. | Medium for repeated or incremental searches. | Cache invalidation around indexing, folder removal, and setting changes can become subtle. |
+| Line-level FTS plus time-window deduplication | Socratic discussion | High | High | Do |
+| Materialized Library/File/Time ordering | Socratic discussion | High | Medium to high | Do |
+| File or Library-block partitioned search with early emission | Socratic discussion | High | High | Do |
+| Delayed total count and summaries | Socratic discussion | Medium to high | Medium | Do |
+| `ORDER BY` / `LIMIT` index support | External research validated the discussion direction | High | Medium to high | Do |
+| Index sorting / early termination | External research validated the discussion direction | High | High | Do |
+| Filterable, sortable, and facet-style attributes | External research | Medium to high | Medium to high | Do |
+| `fts5vocab` diagnostics | External research | Indirect | Low | Do as diagnostics |
+| FTS `optimize` / incremental `merge` | External research | Low to medium | Low to medium | Do as maintenance |
+| FTS `automerge`, `crisismerge`, `usermerge` tuning | External research | Low to medium | Medium | Defer |
+| Query/result cache | External research, reprioritized by user feedback | High for repeated queries, none for cold queries | Low to medium | Do last |
+| FTS prefix indexes | External research, accepted for English search | Scenario-specific but important for English prefix search | Medium | Do |
+| FTS contentless or external-content tables | External research | Low | Medium to high | Defer |
+| FTS `detail` / `columnsize` reduction | External research | Low | Medium | Defer |
+| Trigram tokenizer | External research | Uncertain for precise search | High | Defer |
 
-Near-term priority should remain:
+Accepted implementation order:
 
-1. Materialize stable Library/file/time order at index time.
-2. Explore line-level FTS recall that maps to display time windows.
-3. Return first completed file or Library block before full-corpus completion.
-4. Move total counts and summaries off the first-visible-results path.
-5. Treat FTS maintenance commands and diagnostics as supporting work, not the
-   main optimization path.
+1. Line-level FTS plus time-window deduplication.
+2. Materialized Library/File/Time ordering.
+3. File or Library-block partitioned search with early emission.
+4. Delayed total count and summaries.
+5. `ORDER BY` / `LIMIT` index support.
+6. Index sorting / early termination.
+7. Filterable, sortable, and facet-style attributes.
+8. `fts5vocab` diagnostics.
+9. FTS `optimize` / incremental `merge`.
+10. FTS prefix indexes.
+11. Query/result cache.
+
+Query/result cache is intentionally last. It is valuable for repeated searches,
+but it should be layered on top of the final search semantics so cache
+invalidation does not hide correctness or ordering bugs introduced by earlier
+changes.
+
+Deferred methods:
+
+- FTS `automerge`, `crisismerge`, and `usermerge` tuning. These settings can
+  move cost from search into indexing and should wait until diagnostics show
+  FTS segment count is a real bottleneck.
+- FTS contentless or external-content tables. They are mostly storage
+  optimizations and introduce stricter consistency requirements between FTS and
+  ordinary content tables.
+- FTS `detail` and `columnsize` reduction. They primarily reduce storage and
+  can affect phrase, location, ranking, or future highlighting behavior.
+- Trigram tokenizer. It targets arbitrary substring search, not CueSeeker's
+  current precise subtitle search model.
+
+## Benchmark Plan
+
+Before code changes for this optimization sequence, record a baseline benchmark
+against the current local app database.
+
+Benchmark queries:
+
+- `大丈夫`
+- `今日`
+- `の`
+
+Rules:
+
+- Use the same database path, selected corpus, app build mode, and search limit
+  for every run in the sequence.
+- Run each query five times and use the average as the headline number.
+- Keep the raw five timings for each query so outliers remain visible.
+- After each implementation step in the accepted order, rerun the same
+  benchmark before starting the next step.
+- For the final query/result-cache step, clear the cache between benchmark
+  query groups, then run each query five times so warm-cache behavior is
+  measured without cross-query contamination.
+- Record benchmark results in this document or a linked benchmark artifact
+  before merging the next optimization step.
 
 ## Development Decision
 
