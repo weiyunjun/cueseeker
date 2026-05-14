@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted an AI Socratic architecture alignment workflow: when the user starts
+  an iterative architecture questioning session, the assistant should answer
+  narrowly, emphasize key conclusions, surface evidence and uncertainty, keep
+  continuity across narrowing questions, and avoid file modifications unless the
+  user explicitly changes the session into a modification request.
 - Recorded the product philosophy behind CueSeeker as a local subtitle corpus
   workbench rooted in loved source material, fansub and fan-creation community
   respect, raw learning material, local-first boundaries, and non-AI

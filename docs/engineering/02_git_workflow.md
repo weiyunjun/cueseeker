@@ -169,6 +169,20 @@ Rules:
 - Unless the user explicitly asks for a detailed explanation, AI responses
   should be concise and clear, with the most important conclusions emphasized in
   bold so the answer is easy to scan.
+- When the user explicitly starts a Socratic architecture alignment session,
+  the AI should treat the session as iterative discovery, not implementation.
+  The user leads with repeated narrowing questions, and the AI should answer
+  each question narrowly, emphasize the key conclusion in bold, state known
+  evidence and uncertainty, and avoid expanding into unrelated architecture
+  explanation unless asked.
+- During a Socratic architecture alignment session, the AI may inspect existing
+  project documents and source code to answer factual questions, but must not
+  modify files unless the user explicitly changes the session into a
+  modification request.
+- During a Socratic architecture alignment session, the AI should preserve
+  continuity across questions by connecting each answer to the current narrowed
+  topic and by surfacing the next most useful distinction only when it helps the
+  user choose the following question.
 - Before every major frontend UI modification, the AI must consult the relevant
   HTML prototype or HTML reference when one exists. If no relevant HTML
   prototype or reference exists, the AI must explicitly remind the user before
