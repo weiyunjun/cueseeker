@@ -342,10 +342,7 @@ The app should use SQLite FTS5 for subtitle text search.
 
 Expected FTS data:
 
-- Original cue-line search content.
-- Cue-group search content for cheaper recall when line-level recall is not
-  needed.
-- Link from line FTS rows to subtitle cue lines and parent subtitle cue groups.
+- Cue-group search content.
 - Link from group FTS rows to subtitle cue groups.
 
 Han and Japanese kana handling should preserve the practical CJK behavior of
@@ -357,8 +354,8 @@ FTS rows outside that active folder scope are stale derived index data and must
 not appear in user-facing search results.
 
 If an ASS cue group contains multiple languages or styles with the same timing,
-FTS should recall matching cue lines, map them to the parent cue group once, and
-then load all cue lines for that group for display in `display_order`.
+Search should return the parent cue group once, then load all cue lines for that
+group for display in `display_order`.
 
 A cue group must not match only because query terms are split across different
 cue lines. At least one cue line must satisfy the query semantics before a group
@@ -413,7 +410,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `16`.
+- Schema version: `17`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -439,18 +436,16 @@ Current native schema:
   so Search can skip the per-candidate `subtitle_cue_lines` lookup for
   single-line groups. The column is derived index data: it is backfilled from
   `subtitle_cue_lines` counts during migration and written by indexing.
-- Version 12 replaces cue-group FTS rows with cue-line FTS rows. Search recall
-  now indexes original cue-line content and maps matched lines back to the
-  display cue group or exact subtitle-file time window.
-- Version 13 keeps cue-group FTS rows alongside cue-line FTS rows for hybrid
-  recall. Single-token and high-frequency searches may use cue-group recall;
-  cross-line-sensitive searches may use cue-line recall.
-- Version 14 optimizes FTS tables after FTS rebuilds.
-- Version 15 recreates FTS virtual tables before rebuilding them during
-  migration so stale FTS segment state is not preserved.
+- Versions 12 through 15 attempted cue-line and hybrid FTS recall. Benchmark
+  data showed this was a negative optimization for search speed, so it is not
+  the current product search projection.
 - Version 16 adds materialized subtitle search order rows so Search can use
   precomputed folder/file/time ordering and avoid hot-path display-title
   sorting when the snapshot is complete.
+- Version 17 rolls back cue-line and hybrid FTS recall. Current Search uses
+  cue-group FTS recall, validates multi-line cue groups at line level before
+  returning them, keeps materialized ordering, and drops the obsolete cue-line
+  FTS table during migration.
 
 ## 15. Flutter Data Compatibility
 

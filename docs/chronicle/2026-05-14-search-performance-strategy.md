@@ -98,14 +98,16 @@ product-model direction discovered in the questioning path.
 
 ## Implementation Evidence
 
-The first two implementation steps reinforced the Socratic diagnosis:
+The implementation evidence refined the Socratic diagnosis:
 
-- Hybrid line-level FTS recall was necessary for the product semantics, but by
-  itself it did not improve the three benchmark queries. High-frequency CJK
-  queries still paid for global post-processing.
+- Hybrid line-level FTS recall was a negative optimization for the measured
+  speed goal. It was better than the pure line-level attempt, but worse than the
+  baseline and later rolled back.
 - Materialized subtitle search-order rows directly addressed the previously
   dominant sort phase. After this step, diagnostics for `今日` reported
   `orderSource=materialized` and `sort_results` at about `1 ms`.
+- The accepted current baseline is group-level FTS recall plus materialized
+  product ordering and line-level validation for multi-line cue groups.
 - The remaining slow phases now line up with the next discussion-derived
   directions: early result emission, delayed summaries/counts, and further
   index support for ordered paging.

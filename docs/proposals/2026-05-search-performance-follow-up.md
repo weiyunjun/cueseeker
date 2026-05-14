@@ -119,7 +119,7 @@ CueSeeker.
 
 | Method | Origin | Search-speed value | Engineering effort | Decision |
 | --- | --- | --- | --- | --- |
-| Line-level FTS plus time-window deduplication | Socratic discussion | High | High | Do |
+| Line-level FTS plus time-window deduplication | Socratic discussion | Negative in measured implementation | High | Rolled back |
 | Materialized Library/File/Time ordering | Socratic discussion | High | Medium to high | Do |
 | File or Library-block partitioned search with early emission | Socratic discussion | High | High | Do |
 | Delayed total count and summaries | Socratic discussion | Medium to high | Medium | Do |
@@ -135,19 +135,22 @@ CueSeeker.
 | FTS `detail` / `columnsize` reduction | External research | Low | Medium | Defer |
 | Trigram tokenizer | External research | Uncertain for precise search | High | Defer |
 
-Accepted implementation order:
+Current implementation order after rollback:
 
-1. Line-level FTS plus time-window deduplication.
-2. Materialized Library/File/Time ordering.
-3. File or Library-block partitioned search with early emission.
-4. Delayed total count and summaries.
-5. `ORDER BY` / `LIMIT` index support.
-6. Index sorting / early termination.
-7. Filterable, sortable, and facet-style attributes.
-8. `fts5vocab` diagnostics.
-9. FTS `optimize` / incremental `merge`.
-10. FTS prefix indexes.
-11. Query/result cache.
+1. Materialized Library/File/Time ordering.
+2. File or Library-block partitioned search with early emission.
+3. Delayed total count and summaries.
+4. `ORDER BY` / `LIMIT` index support.
+5. Index sorting / early termination.
+6. Filterable, sortable, and facet-style attributes.
+7. `fts5vocab` diagnostics.
+8. FTS `optimize` / incremental `merge`.
+9. FTS prefix indexes.
+10. Query/result cache.
+
+The line-level/hybrid FTS attempt is no longer part of the accepted sequence.
+It can be reconsidered only with a narrower hypothesis and benchmark evidence
+that proves it is not a search-speed regression.
 
 Query/result cache is intentionally last. It is valuable for repeated searches,
 but it should be layered on top of the final search semantics so cache
@@ -238,12 +241,11 @@ Implementation notes:
 
 Read:
 
-- Step 1 is a semantic/indexing foundation, not a standalone speed win for the
-  benchmark queries.
-- The pure line-level attempt made high-frequency `の` effectively unusable,
-  so hybrid recall is required before continuing.
-- `今日` and `の` still need the next accepted optimization steps: materialized
-  ordering, early result emission, and delayed summaries/counts.
+- Step 1 was a negative optimization for search speed.
+- Hybrid FTS was better than the pure line-level attempt, but still worse than
+  the baseline on all three benchmark queries.
+- This step was later rolled back and must not be treated as accepted current
+  architecture.
 
 ### Step 2: Materialized Library/File/Time Ordering
 
@@ -275,6 +277,37 @@ Read:
   `sort_results` to about `1 ms`.
 - Remaining visible costs are now file summaries, cue-line loading, line-level
   validation, and high-frequency candidate volume.
+
+### Step 3: Roll Back Hybrid FTS, Keep Materialized Ordering
+
+Date: 2026-05-15
+
+Commit under test: working tree after `30d71e6`, before the follow-up commit
+that records this benchmark.
+
+Implementation notes:
+
+- Schema version 17 removes the cue-line FTS table from the production search
+  path and migration rebuild.
+- Search uses cue-group FTS recall again.
+- Multi-line cue groups still load cue lines and validate at line level before
+  results are returned, preserving the no-cross-line-match rule.
+- Materialized search ordering from schema version 16 is retained.
+
+| Query | Warmup ms | Results returned | Total count | File summaries | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `大丈夫` | 1125.54 | 185 | 185 | 74 | 50.05 | 50.71, 48.30, 50.16, 49.32, 51.75 |
+| `今日` | 189.02 | 1000 | 1282 | 81 | 117.07 | 123.14, 118.68, 113.21, 114.36, 115.92 |
+| `の` | 939.75 | 1000 | 20770 | 87 | 824.51 | 824.96, 806.48, 844.80, 817.05, 829.26 |
+
+Read:
+
+- The rollback confirms the user's objection: hybrid FTS itself was a negative
+  optimization for the measured speed goal.
+- Compared with Step 2, removing hybrid FTS improved `今日` and `の` while
+  keeping `大丈夫` in the same fast range.
+- Future Search performance work should proceed from group-level FTS plus
+  materialized ordering unless a new benchmark proves otherwise.
 
 ## Development Decision
 

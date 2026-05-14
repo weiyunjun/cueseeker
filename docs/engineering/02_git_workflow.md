@@ -169,6 +169,15 @@ Rules:
 - Unless the user explicitly asks for a detailed explanation, AI responses
   should be concise and clear, with the most important conclusions emphasized in
   bold so the answer is easy to scan.
+- When an implementation step has an agreed benchmark or acceptance metric, and
+  the measured result is a regression or does not support the stated goal, the
+  AI must stop and report the result before continuing to the next step. It
+  must not silently reinterpret the step as a success, layer on an unapproved
+  mitigation, or continue the sequence as if the benchmark had passed.
+- If benchmark data shows that a change is a negative optimization, the default
+  follow-up is to revert or disable that change and document the result. Keeping
+  the negative change requires explicit user approval and a documented reason
+  separate from the failed performance goal.
 - When the user explicitly starts a Socratic architecture alignment session,
   the AI should treat the session as iterative discovery, not implementation.
   The user leads with repeated narrowing questions, and the AI should answer

@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `16`.
+- The current schema version is `17`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -135,18 +135,16 @@ Current mechanism:
   with a single cue line (the common SRT case) and apply line-level validation
   directly to the group's `search_content`. The migration backfills existing
   rows from `subtitle_cue_lines` counts.
-- Schema version `12` replaces cue-group FTS rows with cue-line FTS rows.
-  Search recall operates on original cue-line content, then maps matched lines
-  back to cue groups or exact subtitle-file time windows for product results.
-- Schema version `13` restores cue-group FTS rows alongside cue-line FTS rows
-  so high-frequency single-token searches can keep the cheaper cue-group recall
-  path while cross-line-sensitive queries use cue-line recall.
-- Schema version `14` adds FTS optimize maintenance after FTS rebuilds.
-- Schema version `15` recreates FTS virtual tables before rebuilding them so
-  migrations do not preserve old FTS segment or tombstone state.
+- Schema versions `12` through `15` attempted cue-line and hybrid FTS recall.
+  Benchmarks showed this was a negative search-speed optimization for the
+  measured corpus, so it must not be treated as accepted current architecture.
 - Schema version `16` adds materialized subtitle search order rows. Search can
   use the precomputed folder rank, file rank, display title, and cue time order
   instead of rebuilding display-title order in the hot path.
+- Schema version `17` rolls back cue-line and hybrid FTS recall. The current
+  production search path uses cue-group FTS recall, keeps line-level validation
+  for multi-line cue groups, preserves materialized search ordering, and drops
+  the obsolete cue-line FTS table during migration.
 
 ## 5. Migration Rules
 

@@ -244,7 +244,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 16
+    public static let currentSchemaVersion: Int = 17
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -363,11 +363,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 cue_group_id UNINDEXED
             );
 
-            CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_lines_fts USING fts5(
-                content,
-                cue_group_id UNINDEXED
-            );
-
             CREATE TABLE IF NOT EXISTS ass_render_segments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 subtitle_file_id INTEGER NOT NULL,
@@ -471,7 +466,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        if previousVersion < 15 {
+        if previousVersion < 17 {
             try recreateFTSTables()
             try rebuildFTSRows()
         }
@@ -521,11 +516,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             DROP TABLE IF EXISTS subtitle_cue_lines_fts;
 
             CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
-                content,
-                cue_group_id UNINDEXED
-            );
-
-            CREATE VIRTUAL TABLE subtitle_cue_lines_fts USING fts5(
                 content,
                 cue_group_id UNINDEXED
             );
@@ -660,12 +650,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 )
                 try insertCueGroupFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
                 for line in group.cueLines {
-                    let cueLineID = try insertCueLine(cueGroupID: cueGroupID, line: line)
-                    try insertCueLineFTSRow(
-                        cueGroupID: cueGroupID,
-                        cueLineID: cueLineID,
-                        content: line.content
-                    )
+                    _ = try insertCueLine(cueGroupID: cueGroupID, line: line)
                 }
             }
 
@@ -977,7 +962,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try database.execute("DELETE FROM library_video_rows;")
             try database.execute("DELETE FROM subtitle_search_order_rows;")
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
-            try database.execute("DELETE FROM subtitle_cue_lines_fts;")
             try database.execute("DELETE FROM ass_render_segments;")
             try database.execute("DELETE FROM subtitle_files;")
             try database.execute("DELETE FROM video_files;")
@@ -1075,8 +1059,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
             var candidateOffset = 0
-            var acceptedCandidates: [SearchCandidate] = []
-            var acceptedCandidatesByCueGroupID: [Int64: SearchCandidate] = [:]
+            var results: [SubtitleSearchResult] = []
+            var hasCompleteMaterializedOrder = true
             var batchIndex = 0
             var totalCandidates = 0
             var totalMultiLineCandidates = 0
@@ -1098,19 +1082,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
 
             let prepareStart = Self.diagnosticNow()
-            let usesLineFTS = plan.recallGranularity == .cueLine
-            let ftsTableName = usesLineFTS ? "subtitle_cue_lines_fts" : "subtitle_cue_groups_fts"
-            let ftsSourceSQL = usesLineFTS
-                ? """
-                FROM subtitle_cue_lines_fts f
-                JOIN subtitle_cue_lines cl ON cl.id = f.rowid
-                JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-                """
-                : """
-                FROM subtitle_cue_groups_fts f
-                JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-                """
-            let matchedLineSQL = usesLineFTS ? "cl.content" : "g.search_content"
             let productOrderSQL = """
                 CASE WHEN sor.folder_order IS NULL OR sor.file_order IS NULL THEN 1 ELSE 0 END ASC,
                 sor.folder_order ASC,
@@ -1120,23 +1091,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 g.end_ms ASC,
                 g.id ASC
                 """
-            let orderSQL = usesLineFTS
-                ? "\(productOrderSQL), cl.display_order ASC, cl.event_index ASC, cl.id ASC"
-                : productOrderSQL
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                       g.start_ms, g.end_ms, g.search_content, g.line_count, \(matchedLineSQL),
+                       g.start_ms, g.end_ms, g.search_content, g.line_count,
                        sor.folder_order, sor.file_order, sor.display_title
-                \(ftsSourceSQL)
+                FROM subtitle_cue_groups_fts f
+                JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
                 JOIN video_files vf ON vf.id = m.video_file_id
                 LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
-                WHERE \(ftsTableName) MATCH ?
+                WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
-                ORDER BY \(orderSQL)
+                ORDER BY \(productOrderSQL)
                 LIMIT ? OFFSET ?;
                 """
             )
@@ -1179,10 +1148,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                             endMilliseconds: statement.intColumn(6),
                             searchContent: statement.stringColumn(7),
                             lineCount: statement.intColumn(8),
-                            matchedLineContent: statement.stringColumn(9),
-                            searchFolderOrder: statement.nullableIntColumn(10),
-                            searchFileOrder: statement.nullableIntColumn(11),
-                            searchDisplayTitle: statement.nullableStringColumn(12)
+                            searchFolderOrder: statement.nullableIntColumn(9),
+                            searchFileOrder: statement.nullableIntColumn(10),
+                            searchDisplayTitle: statement.nullableStringColumn(11)
                         )
                     )
                 }
@@ -1204,19 +1172,43 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 candidateOffset += candidates.count
                 totalCandidates += candidates.count
 
-                let validationStart = Self.diagnosticNow()
-                let acceptedBefore = acceptedCandidatesByCueGroupID.count
-                for candidate in candidates {
-                    if acceptedCandidatesByCueGroupID[candidate.cueGroupID] != nil {
-                        continue
-                    }
+                if candidates.contains(where: { $0.searchFolderOrder == nil || $0.searchFileOrder == nil }) {
+                    hasCompleteMaterializedOrder = false
+                }
 
-                    if Self.line(candidate.matchedLineContent, matches: plan.lineMatchRule) {
-                        acceptedCandidatesByCueGroupID[candidate.cueGroupID] = candidate
-                        acceptedCandidates.append(candidate)
+                let multiLineCueGroupIDs = candidates
+                    .filter { $0.lineCount > 1 }
+                    .map(\.cueGroupID)
+                totalMultiLineCandidates += multiLineCueGroupIDs.count
+                let cueLinesStart = Self.diagnosticNow()
+                let linesByCueGroupID = try cueLines(forCueGroupIDs: multiLineCueGroupIDs)
+                let cueLineRows = linesByCueGroupID.values.reduce(0) { $0 + $1.count }
+                totalCueLineRows += cueLineRows
+                emit(
+                    "cue_lines",
+                    since: cueLinesStart,
+                    fields: [
+                        .init("batch", batchIndex),
+                        .init("multiLineCandidates", multiLineCueGroupIDs.count),
+                        .init("cueLineRows", cueLineRows)
+                    ]
+                )
+
+                let validationStart = Self.diagnosticNow()
+                let acceptedBefore = results.count
+                for candidate in candidates {
+                    let lineContents: [String]
+                    if candidate.lineCount > 1 {
+                        let lines = linesByCueGroupID[candidate.cueGroupID] ?? []
+                        lineContents = lines.isEmpty ? [candidate.searchContent] : lines.map(\.content)
+                    } else {
+                        lineContents = [candidate.searchContent]
+                    }
+                    if let result = searchResult(for: candidate, lineContents: lineContents, matching: plan) {
+                        results.append(result)
                     }
                 }
-                let accepted = acceptedCandidatesByCueGroupID.count - acceptedBefore
+                let accepted = results.count - acceptedBefore
                 emit(
                     "line_validation",
                     since: validationStart,
@@ -1225,7 +1217,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         .init("candidates", candidates.count),
                         .init("accepted", accepted),
                         .init("rejected", candidates.count - accepted),
-                        .init("acceptedSoFar", acceptedCandidatesByCueGroupID.count)
+                        .init("acceptedSoFar", results.count)
                     ]
                 )
 
@@ -1234,14 +1226,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
             }
 
-            let results = acceptedCandidates.compactMap { candidate -> SubtitleSearchResult? in
-                searchResult(for: candidate, lineContents: [candidate.searchContent], matching: plan)
-            }
-
             let sortStart = Self.diagnosticNow()
-            let hasCompleteMaterializedOrder = acceptedCandidates.allSatisfy {
-                $0.searchFolderOrder != nil && $0.searchFileOrder != nil
-            }
             let sortedResults = hasCompleteMaterializedOrder
                 ? results
                 : Self.sortedSearchResults(results)
@@ -1260,34 +1245,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             for i in 0..<pageResults.count {
                 pageResults[i].searchRank = offset + i
             }
-
-            let cueLinesStart = Self.diagnosticNow()
-            let multiLineCueGroupIDs = pageResults
-                .filter { (acceptedCandidatesByCueGroupID[$0.entryID]?.lineCount ?? 1) > 1 }
-                .map(\.entryID)
-            totalMultiLineCandidates = multiLineCueGroupIDs.count
-            let linesByCueGroupID = try cueLines(forCueGroupIDs: multiLineCueGroupIDs)
-            totalCueLineRows = linesByCueGroupID.values.reduce(0) { $0 + $1.count }
-            for index in pageResults.indices {
-                guard let lines = linesByCueGroupID[pageResults[index].entryID],
-                      !lines.isEmpty
-                else {
-                    continue
-                }
-
-                pageResults[index] = Self.searchResult(
-                    pageResults[index],
-                    replacingCueLines: lines.map(\.content)
-                )
-            }
-            emit(
-                "cue_lines",
-                since: cueLinesStart,
-                fields: [
-                    .init("multiLinePageResults", multiLineCueGroupIDs.count),
-                    .init("cueLineRows", totalCueLineRows)
-                ]
-            )
             emit(
                 "page_slice",
                 since: pageStart,
@@ -1945,7 +1902,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let endMilliseconds: Int
         let searchContent: String
         let lineCount: Int
-        let matchedLineContent: String
         let searchFolderOrder: Int?
         let searchFileOrder: Int?
         let searchDisplayTitle: String?
@@ -1968,7 +1924,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private struct SearchQueryPlan {
         let ftsQuery: String
         let lineMatchRule: LineMatchRule
-        let recallGranularity: FTSRecallGranularity
     }
 
     private enum LineMatchRule {
@@ -1976,11 +1931,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         case orderedLatinTokens([String])
         case cjkSubstring(String)
         case explicitFTS(String)
-    }
-
-    private enum FTSRecallGranularity {
-        case cueGroup
-        case cueLine
     }
 
     private static func diagnosticNow() -> UInt64 {
@@ -2024,25 +1974,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             content: candidate.searchContent,
             cueLines: lineContents
         )
-    }
-
-    private static func searchResult(
-        _ result: SubtitleSearchResult,
-        replacingCueLines cueLines: [String]
-    ) -> SubtitleSearchResult {
-        var updated = SubtitleSearchResult(
-            entryID: result.entryID,
-            subtitlePath: result.subtitlePath,
-            subtitleFormat: result.subtitleFormat,
-            videoPath: result.videoPath,
-            videoName: result.videoName,
-            startMilliseconds: result.startMilliseconds,
-            endMilliseconds: result.endMilliseconds,
-            content: result.content,
-            cueLines: cueLines
-        )
-        updated.searchRank = result.searchRank
-        return updated
     }
 
     private static func sortedSearchResults(_ results: [SubtitleSearchResult]) -> [SubtitleSearchResult] {
@@ -2179,29 +2110,23 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         let ftsQuery: String
         let lineMatchRule: LineMatchRule
-        let recallGranularity: FTSRecallGranularity
         if hasFTSSyntax {
             ftsQuery = trimmed
             lineMatchRule = .explicitFTS(trimmed)
-            recallGranularity = .cueLine
         } else if hasCJK {
             ftsQuery = "\"\(escapeFTSPhrase(segmentCJK(trimmed).trimmingCharacters(in: .whitespacesAndNewlines)))\""
             lineMatchRule = .cjkSubstring(trimmed)
-            recallGranularity = .cueGroup
         } else if queryTokens.count > 1 {
             ftsQuery = queryTokens.joined(separator: " AND ")
             lineMatchRule = .orderedLatinTokens(queryTokens)
-            recallGranularity = .cueLine
         } else {
             ftsQuery = "\(queryTokens[0])*"
             lineMatchRule = .latinPrefix(queryTokens[0])
-            recallGranularity = .cueGroup
         }
 
         return SearchQueryPlan(
             ftsQuery: ftsQuery,
-            lineMatchRule: lineMatchRule,
-            recallGranularity: recallGranularity
+            lineMatchRule: lineMatchRule
         )
     }
 
@@ -2453,24 +2378,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 subtitleFiles: subtitleFiles
             )
             try deleteGroupFTS.run()
-
-            let deleteLineFTS = try database.prepare(
-                """
-                DELETE FROM subtitle_cue_lines_fts
-                WHERE cue_group_id IN (
-                    SELECT g.id
-                    FROM subtitle_cue_groups g
-                    JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                    WHERE (\(prefixCondition)) \(keepCondition)
-                );
-                """
-            )
-            try bindStaleEntryParameters(
-                statement: deleteLineFTS,
-                folderPathPrefixes: folderPathPrefixes,
-                subtitleFiles: subtitleFiles
-            )
-            try deleteLineFTS.run()
 
             let deleteLibraryRows = try database.prepare(
                 """
@@ -2824,20 +2731,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func insertCueLineFTSRow(cueGroupID: Int64, cueLineID: Int64, content: String) throws {
-        let statement = try database.prepare(
-            """
-            INSERT INTO subtitle_cue_lines_fts(rowid, content, cue_group_id)
-            VALUES (?, ?, ?);
-            """
-        )
-
-        try statement.bind(cueLineID, at: 1)
-        try statement.bind(Self.segmentCJK(content), at: 2)
-        try statement.bind(cueGroupID, at: 3)
-        try statement.run()
-    }
-
     private func activeCueGroupSelection(
         forSubtitleFile subtitleFile: URL,
         atMilliseconds milliseconds: Int
@@ -2904,10 +2797,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
-            try database.execute("DELETE FROM subtitle_cue_lines_fts;")
 
             var groupRows: [(cueGroupID: Int64, content: String)] = []
-            var lineRows: [(cueLineID: Int64, cueGroupID: Int64, content: String)] = []
             do {
                 let statement = try database.prepare(
                     """
@@ -2922,34 +2813,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
             }
 
-            do {
-                let statement = try database.prepare(
-                    """
-                    SELECT id, cue_group_id, content
-                    FROM subtitle_cue_lines
-                    ORDER BY id ASC;
-                    """
-                )
-
-                while try statement.step() {
-                    lineRows.append((
-                        statement.int64Column(0),
-                        statement.int64Column(1),
-                        statement.stringColumn(2)
-                    ))
-                }
-            }
-
             for row in groupRows {
                 try insertCueGroupFTSRow(cueGroupID: row.cueGroupID, content: row.content)
-            }
-
-            for row in lineRows {
-                try insertCueLineFTSRow(
-                    cueGroupID: row.cueGroupID,
-                    cueLineID: row.cueLineID,
-                    content: row.content
-                )
             }
 
             try optimizeFTSTables()
@@ -2963,7 +2828,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     private func optimizeFTSTables() throws {
         try database.execute("INSERT INTO subtitle_cue_groups_fts(subtitle_cue_groups_fts) VALUES('optimize');")
-        try database.execute("INSERT INTO subtitle_cue_lines_fts(subtitle_cue_lines_fts) VALUES('optimize');")
     }
 
     private func cueLines(forCueGroupID cueGroupID: Int64) throws -> [SubtitleCueLine] {
@@ -3075,20 +2939,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
         try deleteGroupFTS.bind(subtitlePath, at: 1)
         try deleteGroupFTS.run()
-
-        let deleteLineFTS = try database.prepare(
-            """
-            DELETE FROM subtitle_cue_lines_fts
-            WHERE cue_group_id IN (
-                SELECT g.id
-                FROM subtitle_cue_groups g
-                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                WHERE sf.subtitle_path = ?
-            );
-            """
-        )
-        try deleteLineFTS.bind(subtitlePath, at: 1)
-        try deleteLineFTS.run()
 
         let deleteLibraryRows = try database.prepare(
             "DELETE FROM library_video_rows WHERE subtitle_path = ?;"

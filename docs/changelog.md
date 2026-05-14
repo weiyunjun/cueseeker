@@ -6,14 +6,20 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Rolled back the cue-line/hybrid FTS search path after benchmark data showed
+  it was a negative optimization. Schema version 17 now returns Search to
+  cue-group FTS recall while preserving materialized subtitle result ordering
+  and line-level validation for multi-line cue groups.
+- Tightened AI interaction rules: benchmark regressions must be reported and
+  paused instead of silently reinterpreted, mitigated, or carried forward
+  without explicit user approval.
 - Implemented the second accepted Search optimization step: schema version 16
   materializes subtitle search order rows during index snapshot rebuilds so
   search can use precomputed folder/file/time order and skip the expensive
   Swift display-title sort when the snapshot is complete.
-- Implemented the first accepted Search optimization step: schema versions 12
-  through 15 add cue-line FTS recall, restore cue-group FTS as a cheaper hybrid
-  path for high-frequency single-token searches, optimize rebuilt FTS tables,
-  and recreate FTS virtual tables during migration before rebuilding them.
+- Recorded the failed first Search optimization step: schema versions 12
+  through 15 attempted cue-line and hybrid FTS recall, but benchmark data did
+  not support keeping that path for the speed goal.
 - Recorded the Socratic Search performance strategy direction: the likely
   optimization path is line-level FTS recall mapped to display time windows,
   materialized Library/file/time ordering, and ordered block/file-level early
