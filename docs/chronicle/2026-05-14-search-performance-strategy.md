@@ -96,6 +96,20 @@ core Socratic discovery:
 These methods should be evaluated as supporting tools. They do not replace the
 product-model direction discovered in the questioning path.
 
+## Implementation Evidence
+
+The first two implementation steps reinforced the Socratic diagnosis:
+
+- Hybrid line-level FTS recall was necessary for the product semantics, but by
+  itself it did not improve the three benchmark queries. High-frequency CJK
+  queries still paid for global post-processing.
+- Materialized subtitle search-order rows directly addressed the previously
+  dominant sort phase. After this step, diagnostics for `今日` reported
+  `orderSource=materialized` and `sort_results` at about `1 ms`.
+- The remaining slow phases now line up with the next discussion-derived
+  directions: early result emission, delayed summaries/counts, and further
+  index support for ordered paging.
+
 ## Open Questions
 
 - How should duplicate line hits inside the same display time window affect

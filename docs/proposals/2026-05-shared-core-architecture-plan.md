@@ -180,7 +180,7 @@ Primary reference files:
 
 ### Database
 
-- The current native schema version is `15`.
+- The current native schema version is `16`.
 - SQLite uses `PRAGMA user_version`.
 - SQLite connections use WAL mode, synchronous normal, and a configured busy
   timeout.
@@ -188,7 +188,8 @@ Primary reference files:
   `subtitle_video_matches`, `subtitle_cue_groups`, `subtitle_cue_lines`,
   `subtitle_cue_groups_fts`, `subtitle_cue_lines_fts`,
   `ass_render_segments`, `ass_font_resources`,
-  `library_playback_history`, `library_video_rows`, and `shioris`.
+  `library_playback_history`, `library_video_rows`,
+  `subtitle_search_order_rows`, and `shioris`.
 - Derived subtitle index data is rebuildable.
 - Shiori and Library playback history are durable user state and must survive
   indexed-folder removal.

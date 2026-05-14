@@ -245,6 +245,37 @@ Read:
 - `今日` and `の` still need the next accepted optimization steps: materialized
   ordering, early result emission, and delayed summaries/counts.
 
+### Step 2: Materialized Library/File/Time Ordering
+
+Date: 2026-05-15
+
+Commit under test: working tree after `1a2a176`, before the follow-up commit
+that records this benchmark.
+
+Implementation notes:
+
+- Schema version 16 adds `subtitle_search_order_rows` as rebuildable derived
+  index data.
+- Library/index snapshot rebuilds precompute subtitle folder order, file order,
+  and display title order.
+- Search joins the materialized order rows and can skip the legacy Swift
+  display-title sort when all accepted results have order rows.
+- If order rows are missing, Search falls back to the old in-memory order.
+
+| Query | Warmup ms | Results returned | Total count | File summaries | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `大丈夫` | 104.30 | 185 | 185 | 74 | 47.39 | 47.37, 47.23, 47.22, 48.26, 46.88 |
+| `今日` | 211.92 | 1000 | 1282 | 81 | 140.56 | 147.02, 142.58, 137.25, 137.99, 137.98 |
+| `の` | 1017.91 | 1000 | 20770 | 87 | 869.67 | 865.88, 863.04, 862.15, 874.90, 882.36 |
+
+Read:
+
+- This step addresses the previously dominant `sort_results` phase directly.
+- Diagnostics for `今日` confirmed `orderSource=materialized` and reduced
+  `sort_results` to about `1 ms`.
+- Remaining visible costs are now file summaries, cue-line loading, line-level
+  validation, and high-frequency candidate volume.
+
 ## Development Decision
 
 This performance issue is a known follow-up and should not block ordinary

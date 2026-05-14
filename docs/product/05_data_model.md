@@ -18,6 +18,7 @@ Initial entities:
 - Subtitle-to-video match.
 - Subtitle cue group.
 - Subtitle cue line.
+- Subtitle search order row.
 - Index metadata.
 - ASS font resource manifest.
 - Shiori.
@@ -308,6 +309,33 @@ Notes:
 - Playback uses the source subtitle file and system-installed fonts instead of
   this manifest.
 
+## 11.2 Subtitle Search Order Snapshot
+
+Subtitle search order rows are rebuildable derived index data used to keep
+Search in product order without sorting all matched results by display title in
+the hot path.
+
+Expected fields:
+
+- `subtitle_path`
+- `subtitle_format`
+- `video_path`
+- `folder_path`
+- `folder_title`
+- `display_title`
+- `folder_order`
+- `file_order`
+- `updated_at`
+
+Notes:
+
+- `folder_order` and `file_order` are materialized during Library/index
+  snapshot rebuilds.
+- Search order is folder order, file order, cue start time, cue end time, then
+  cue identity.
+- Missing search-order rows are allowed for old or partially rebuilt derived
+  data. Search should fall back to the legacy in-memory order in that case.
+
 ## 12. Full-Text Search
 
 The app should use SQLite FTS5 for subtitle text search.
@@ -385,7 +413,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `15`.
+- Schema version: `16`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -420,6 +448,9 @@ Current native schema:
 - Version 14 optimizes FTS tables after FTS rebuilds.
 - Version 15 recreates FTS virtual tables before rebuilding them during
   migration so stale FTS segment state is not preserved.
+- Version 16 adds materialized subtitle search order rows so Search can use
+  precomputed folder/file/time ordering and avoid hot-path display-title
+  sorting when the snapshot is complete.
 
 ## 15. Flutter Data Compatibility
 

@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the second accepted Search optimization step: schema version 16
+  materializes subtitle search order rows during index snapshot rebuilds so
+  search can use precomputed folder/file/time order and skip the expensive
+  Swift display-title sort when the snapshot is complete.
 - Implemented the first accepted Search optimization step: schema versions 12
   through 15 add cue-line FTS recall, restore cue-group FTS as a cheaper hybrid
   path for high-frequency single-token searches, optimize rebuilt FTS tables,

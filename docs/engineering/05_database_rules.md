@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `15`.
+- The current schema version is `16`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -144,6 +144,9 @@ Current mechanism:
 - Schema version `14` adds FTS optimize maintenance after FTS rebuilds.
 - Schema version `15` recreates FTS virtual tables before rebuilding them so
   migrations do not preserve old FTS segment or tombstone state.
+- Schema version `16` adds materialized subtitle search order rows. Search can
+  use the precomputed folder rank, file rank, display title, and cue time order
+  instead of rebuilding display-title order in the hot path.
 
 ## 5. Migration Rules
 
@@ -171,8 +174,8 @@ Destructive migrations:
 Derived index decoupling:
 
 - Search paths, subtitle files, video files, cue groups, cue lines, FTS rows,
-  ASS render segments, ASS font-resource manifests, and Library presentation
-  metadata are rebuildable local index data.
+  ASS render segments, ASS font-resource manifests, Library presentation
+  metadata, and subtitle search-order rows are rebuildable local index data.
 - Library presentation metadata should be materialized during indexing or
   explicit Library refresh. App startup should read it as a snapshot and must
   not derive folder grouping, display titles, or row order from subtitle/video

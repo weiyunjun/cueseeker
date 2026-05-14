@@ -244,7 +244,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 15
+    public static let currentSchemaVersion: Int = 16
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -425,6 +425,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
             CREATE INDEX IF NOT EXISTS idx_library_video_rows_order
                 ON library_video_rows(folder_order, video_order);
 
+            CREATE TABLE IF NOT EXISTS subtitle_search_order_rows (
+                subtitle_path TEXT PRIMARY KEY,
+                subtitle_format TEXT NOT NULL,
+                video_path TEXT NOT NULL,
+                folder_path TEXT NOT NULL,
+                folder_title TEXT NOT NULL,
+                display_title TEXT NOT NULL,
+                folder_order INTEGER NOT NULL,
+                file_order INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_order
+                ON subtitle_search_order_rows(folder_order, file_order, subtitle_path);
+
             CREATE TABLE IF NOT EXISTS shioris (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 subtitle_path TEXT NOT NULL,
@@ -463,6 +478,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         if previousVersion < 9 {
             try rebuildLibraryPresentationSnapshot()
+        } else if previousVersion < 16 {
+            try rebuildSubtitleSearchOrderSnapshot()
         }
 
         if previousVersion >= 3 && previousVersion < 11,
@@ -958,6 +975,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             try database.execute("DELETE FROM library_video_rows;")
+            try database.execute("DELETE FROM subtitle_search_order_rows;")
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
             try database.execute("DELETE FROM subtitle_cue_lines_fts;")
             try database.execute("DELETE FROM ass_render_segments;")
@@ -1093,17 +1111,28 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
                 """
             let matchedLineSQL = usesLineFTS ? "cl.content" : "g.search_content"
+            let productOrderSQL = """
+                CASE WHEN sor.folder_order IS NULL OR sor.file_order IS NULL THEN 1 ELSE 0 END ASC,
+                sor.folder_order ASC,
+                sor.file_order ASC,
+                sf.subtitle_path ASC,
+                g.start_ms ASC,
+                g.end_ms ASC,
+                g.id ASC
+                """
             let orderSQL = usesLineFTS
-                ? "g.id ASC, cl.display_order ASC, cl.event_index ASC, cl.id ASC"
-                : "g.id ASC"
+                ? "\(productOrderSQL), cl.display_order ASC, cl.event_index ASC, cl.id ASC"
+                : productOrderSQL
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                       g.start_ms, g.end_ms, g.search_content, g.line_count, \(matchedLineSQL)
+                       g.start_ms, g.end_ms, g.search_content, g.line_count, \(matchedLineSQL),
+                       sor.folder_order, sor.file_order, sor.display_title
                 \(ftsSourceSQL)
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
                 JOIN video_files vf ON vf.id = m.video_file_id
+                LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
                 WHERE \(ftsTableName) MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
@@ -1150,7 +1179,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                             endMilliseconds: statement.intColumn(6),
                             searchContent: statement.stringColumn(7),
                             lineCount: statement.intColumn(8),
-                            matchedLineContent: statement.stringColumn(9)
+                            matchedLineContent: statement.stringColumn(9),
+                            searchFolderOrder: statement.nullableIntColumn(10),
+                            searchFileOrder: statement.nullableIntColumn(11),
+                            searchDisplayTitle: statement.nullableStringColumn(12)
                         )
                     )
                 }
@@ -1207,13 +1239,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             let sortStart = Self.diagnosticNow()
-            let sortedResults = Self.sortedSearchResults(results)
+            let hasCompleteMaterializedOrder = acceptedCandidates.allSatisfy {
+                $0.searchFolderOrder != nil && $0.searchFileOrder != nil
+            }
+            let sortedResults = hasCompleteMaterializedOrder
+                ? results
+                : Self.sortedSearchResults(results)
             emit(
                 "sort_results",
                 since: sortStart,
                 fields: [
                     .init("results", sortedResults.count),
-                    .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count)
+                    .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count),
+                    .init("orderSource", hasCompleteMaterializedOrder ? "materialized" : "fallback")
                 ]
             )
 
@@ -1513,6 +1551,77 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try? database.execute("ROLLBACK")
             throw error
         }
+
+        try rebuildSubtitleSearchOrderSnapshot()
+    }
+
+    public func rebuildSubtitleSearchOrderSnapshot() throws {
+        let rows = try indexedSubtitleSearchOrderRows()
+        let rowsByFolderPath = Dictionary(grouping: rows) { row in
+            URL(fileURLWithPath: row.subtitlePath)
+                .deletingLastPathComponent()
+                .standardizedFileURL
+                .path
+        }
+
+        let folderPaths = rowsByFolderPath.keys.sorted { lhs, rhs in
+            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
+            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
+            if titleComparison != .orderedSame {
+                return titleComparison == .orderedAscending
+            }
+
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            try database.execute("DELETE FROM subtitle_search_order_rows;")
+
+            let updatedAt = ISO8601DateFormatter().string(from: Date())
+            let insert = try database.prepare(
+                """
+                INSERT INTO subtitle_search_order_rows(
+                    subtitle_path,
+                    subtitle_format,
+                    video_path,
+                    folder_path,
+                    folder_title,
+                    display_title,
+                    folder_order,
+                    file_order,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """
+            )
+
+            for (folderOrder, folderPath) in folderPaths.enumerated() {
+                let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
+                let folderRows = (rowsByFolderPath[folderPath] ?? []).sorted(by: Self.subtitleSearchOrderRowSort)
+
+                for (fileOrder, row) in folderRows.enumerated() {
+                    try insert.bind(row.subtitlePath, at: 1)
+                    try insert.bind(row.subtitleFormat.rawValue, at: 2)
+                    try insert.bind(row.videoPath, at: 3)
+                    try insert.bind(folderPath, at: 4)
+                    try insert.bind(folderTitle, at: 5)
+                    try insert.bind(row.displayTitle, at: 6)
+                    try insert.bind(folderOrder, at: 7)
+                    try insert.bind(fileOrder, at: 8)
+                    try insert.bind(updatedAt, at: 9)
+                    try insert.run()
+                    try insert.reset()
+                    try insert.clearBindings()
+                }
+            }
+
+            try database.execute("COMMIT")
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
     }
 
     private func indexedLibraryVideos(scopedTo pathPrefixes: [String]?) throws -> [LibraryVideo] {
@@ -1564,6 +1673,41 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return videosByPath.values.sorted { lhs, rhs in
             Self.libraryVideoSort(lhs, rhs)
         }
+    }
+
+    private func indexedSubtitleSearchOrderRows() throws -> [SubtitleSearchOrderRow] {
+        let statement = try database.prepare(
+            """
+            SELECT sf.subtitle_path, sf.format, vf.path
+            FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            ORDER BY sf.subtitle_path ASC, vf.path ASC;
+            """
+        )
+
+        var rowsBySubtitlePath: [String: SubtitleSearchOrderRow] = [:]
+        while try statement.step() {
+            let subtitlePath = statement.stringColumn(0)
+            let subtitleFormat = SubtitleFormat(rawValue: statement.stringColumn(1)) ?? .srt
+            let videoPath = statement.stringColumn(2)
+            let row = SubtitleSearchOrderRow(
+                subtitlePath: subtitlePath,
+                subtitleFormat: subtitleFormat,
+                videoPath: videoPath,
+                displayTitle: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: subtitlePath)
+            )
+
+            if let existing = rowsBySubtitlePath[subtitlePath] {
+                if videoPath.localizedStandardCompare(existing.videoPath) == .orderedAscending {
+                    rowsBySubtitlePath[subtitlePath] = row
+                }
+            } else {
+                rowsBySubtitlePath[subtitlePath] = row
+            }
+        }
+
+        return rowsBySubtitlePath.values.sorted(by: Self.subtitleSearchOrderRowSort)
     }
 
     public func updateVideoDuration(videoFile: URL, duration: Double?) throws {
@@ -1802,6 +1946,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let searchContent: String
         let lineCount: Int
         let matchedLineContent: String
+        let searchFolderOrder: Int?
+        let searchFileOrder: Int?
+        let searchDisplayTitle: String?
+    }
+
+    private struct SubtitleSearchOrderRow {
+        let subtitlePath: String
+        let subtitleFormat: SubtitleFormat
+        let videoPath: String
+        let displayTitle: String
     }
 
     private struct CueGroupSelection {
@@ -1917,6 +2071,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             return lhs.entryID < rhs.entryID
         }
+    }
+
+    private static func subtitleSearchOrderRowSort(
+        _ lhs: SubtitleSearchOrderRow,
+        _ rhs: SubtitleSearchOrderRow
+    ) -> Bool {
+        let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(
+            lhs.displayTitle,
+            rhs.displayTitle
+        )
+        if displayTitleComparison != .orderedSame {
+            return displayTitleComparison == .orderedAscending
+        }
+
+        return lhs.subtitlePath.localizedStandardCompare(rhs.subtitlePath) == .orderedAscending
     }
 
     private static func searchNavigationIndex(
@@ -2315,6 +2484,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 subtitleFiles: subtitleFiles
             )
             try deleteLibraryRows.run()
+
+            let deleteSearchOrderRows = try database.prepare(
+                """
+                DELETE FROM subtitle_search_order_rows
+                WHERE (\(libraryRowPrefixCondition)) \(libraryRowKeepCondition);
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteSearchOrderRows,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteSearchOrderRows.run()
 
             let deleteFiles = try database.prepare(
                 """
@@ -2914,6 +3096,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try deleteLibraryRows.bind(subtitlePath, at: 1)
         try deleteLibraryRows.run()
 
+        let deleteSearchOrderRows = try database.prepare(
+            "DELETE FROM subtitle_search_order_rows WHERE subtitle_path = ?;"
+        )
+        try deleteSearchOrderRows.bind(subtitlePath, at: 1)
+        try deleteSearchOrderRows.run()
+
         let deleteFile = try database.prepare(
             "DELETE FROM subtitle_files WHERE subtitle_path = ?;"
         )
@@ -2941,6 +3129,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             DROP TABLE IF EXISTS subtitle_cue_groups;
             DROP TABLE IF EXISTS ass_render_segments;
             DROP TABLE IF EXISTS subtitle_video_matches;
+            DROP TABLE IF EXISTS subtitle_search_order_rows;
             DROP TABLE IF EXISTS video_files;
             DROP TABLE IF EXISTS subtitle_entries_fts;
             DROP TABLE IF EXISTS subtitle_entries;
