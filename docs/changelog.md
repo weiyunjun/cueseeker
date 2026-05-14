@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Recorded the Socratic Search performance strategy direction: the likely
+  optimization path is line-level FTS recall mapped to display time windows,
+  materialized Library/file/time ordering, and ordered block/file-level early
+  result emission, with lower-level FTS tuning treated as supporting work.
 - Implemented the first database storage maintenance pass in the native macOS
   app: Settings now exposes local database storage stats, highlights
   reclaimable SQLite freelist space, and offers a manual `Compact Database`

@@ -332,6 +332,18 @@ Search ranking and query syntax:
   the final match semantics before results are returned.
 - When any cue line in a group matches, result loading should include all cue
   lines for that group.
+- A future search-projection change may use raw cue lines as the FTS recall
+  unit, but the product result identity must remain a display cue group or time
+  window keyed by subtitle file plus exact start and end milliseconds.
+- If line-level FTS recall is introduced, matched lines must map
+  deterministically to their display time window, and duplicate line hits within
+  the same time window must be deduplicated before rendering.
+- Search ordering should prefer materialized product-order keys over
+  per-query reconstruction when practical. The intended stable order is Library
+  block rank, subtitle-file rank within that block, then cue time.
+- Search-summary counts and file/group summaries should not block first visible
+  results if the query engine can return ordered results before the whole corpus
+  is searched.
 
 ## 13. Indexing Consistency
 
