@@ -213,15 +213,47 @@ public struct ASSFontResourceManifest: Equatable, Sendable {
     public let preparedAt: String
 }
 
+public struct DatabaseStorageStats: Equatable, Sendable {
+    public let databaseFileBytes: Int64
+    public let walFileBytes: Int64
+    public let shmFileBytes: Int64
+    public let pageSize: Int
+    public let pageCount: Int
+    public let freelistCount: Int
+    public let autoVacuumMode: Int
+
+    public var allocatedBytes: Int64 {
+        Int64(pageSize) * Int64(pageCount)
+    }
+
+    public var freelistBytes: Int64 {
+        Int64(pageSize) * Int64(freelistCount)
+    }
+
+    public var usedBytesEstimate: Int64 {
+        Int64(pageSize) * Int64(max(0, pageCount - freelistCount))
+    }
+
+    public var freelistRatio: Double {
+        guard pageCount > 0 else {
+            return 0
+        }
+
+        return Double(freelistCount) / Double(pageCount)
+    }
+}
+
 public final class SubtitleDatabase: @unchecked Sendable {
     public static let currentSchemaVersion: Int = 11
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
 
+    private let path: URL
     private let database: SQLiteDatabase
 
     public init(path: URL) throws {
+        self.path = path
         database = try SQLiteDatabase(path: path)
     }
 
@@ -486,6 +518,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     public func mmapSize() throws -> Int {
         try database.intPragma("mmap_size")
+    }
+
+    public func storageStats() throws -> DatabaseStorageStats {
+        DatabaseStorageStats(
+            databaseFileBytes: Self.fileSize(at: path),
+            walFileBytes: Self.fileSize(at: Self.sidecarPath(suffix: "-wal", for: path)),
+            shmFileBytes: Self.fileSize(at: Self.sidecarPath(suffix: "-shm", for: path)),
+            pageSize: try database.intPragma("page_size"),
+            pageCount: try database.intPragma("page_count"),
+            freelistCount: try database.intPragma("freelist_count"),
+            autoVacuumMode: try database.intPragma("auto_vacuum")
+        )
+    }
+
+    public func compactStorage() throws {
+        try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        try database.execute("VACUUM;")
+        try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
     }
 
     @discardableResult
@@ -2052,6 +2102,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     private static func escapeFTSPhrase(_ text: String) -> String {
         text.replacingOccurrences(of: "\"", with: "\"\"")
+    }
+
+    private static func fileSize(at url: URL) -> Int64 {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    private static func sidecarPath(suffix: String, for path: URL) -> URL {
+        URL(fileURLWithPath: path.path + suffix)
     }
 
     private static func expandedSQLLimit(for limit: Int) -> Int {

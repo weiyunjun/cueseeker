@@ -65,6 +65,36 @@ Rules:
   timeout, or workflow coordination unless the database is held by an external
   process for longer than the configured timeout.
 
+## 3.2 SQLite Storage Maintenance
+
+CueSeeker stores rebuildable subtitle index data in SQLite, so large delete and
+rebuild cycles can leave inactive pages on SQLite's freelist. Freelist pages are
+valid SQLite state, but they still occupy disk space until the database is
+compacted.
+
+Rules:
+
+- The first accepted maintenance pass is observability plus manual compaction.
+  Automatic compaction and `auto_vacuum=INCREMENTAL` are deferred until there is
+  enough operational evidence to define safe trigger conditions.
+- Storage stats must expose the main database file size, WAL size, SHM size,
+  SQLite page size, page count, freelist page count, auto-vacuum mode,
+  estimated used bytes, reclaimable freelist bytes, and freelist ratio.
+- Settings should expose storage stats in a Maintenance category so users and
+  developers can see whether disk usage is active data or reclaimable SQLite
+  freelist space.
+- A manual `Compact Database` action may reclaim freelist space by checkpointing
+  WAL, running `VACUUM`, and checkpointing WAL again.
+- Manual compaction must not run while CueSeeker is indexing, searching, or
+  loading Library data through app-owned tasks.
+- Manual compaction should check available disk space before `VACUUM` when the
+  platform can report it, because SQLite may need temporary space while
+  rebuilding the database file.
+- Compaction errors must be surfaced to the Settings UI rather than silently
+  ignored.
+- The current compaction recommendation threshold is at least `100 MiB` of
+  reclaimable freelist space and a freelist ratio of at least `25%`.
+
 ## 4. Schema Versioning
 
 The native database must use an explicit schema versioning mechanism.

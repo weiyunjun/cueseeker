@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the first database storage maintenance pass in the native macOS
+  app: Settings now exposes local database storage stats, highlights
+  reclaimable SQLite freelist space, and offers a manual `Compact Database`
+  action that checkpoints WAL, runs `VACUUM`, and refreshes the visible stats
+  after completion.
 - Added a chronicle documentation track for explicitly started Socratic
   architecture alignment sessions, so implementation ideas discovered through
   iterative questioning can preserve their reasoning provenance separately from

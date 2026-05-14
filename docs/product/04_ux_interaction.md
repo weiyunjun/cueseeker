@@ -684,14 +684,22 @@ Expected behavior:
   and right content area.
 - The left category list uses the quiet gray settings/navigation background.
 - The right content area uses the white settings content background.
-- The current categories are `Library`, `Decode`, and `Layout`.
+- The active native Settings categories are `Library`, `Decode`,
+  `Maintenance`, and `Experimental Features`. `Layout` remains an accepted
+  direction for the Sidebar Position preference when that setting is
+  reintroduced.
 - `Library` contains current Subtitle Folders management: add folders, index
   selected folders, remove folders with confirmation, and show indexing status.
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
-- `Layout` contains the `Sidebar Position` selector for `Left` and `Right`.
+- `Maintenance` contains local database storage stats and the manual
+  `Compact Database` action for reclaiming unused SQLite freelist space.
 - `Experimental Features` contains unstable feature toggles, including `Search
   Result Thumbnails`, which is off by default.
+- Refreshing database storage stats or switching into `Maintenance` should not
+  pause playback or switch away from the CueSeeker workbench.
+- Running `Compact Database` may temporarily block database search and indexing
+  work while SQLite rebuilds the local database file.
 - Changing `Sidebar Position` should not pause playback, reset Search results,
   clear Shiori state, collapse Library groups, or change the Shared Content
   Panel width.

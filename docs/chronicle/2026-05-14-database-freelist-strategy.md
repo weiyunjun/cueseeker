@@ -63,6 +63,9 @@ The session narrowed through these steps:
   `auto_vacuum`, incremental vacuum, or a user-facing database compaction
   workflow.
 - Current database reports `auto_vacuum = 0`.
+- A copied database compacted with WAL checkpoint plus `VACUUM` shrank from
+  `883511296` bytes to `325963776` bytes in about `2.2` seconds on the test
+  machine, and `PRAGMA integrity_check` reported `ok`.
 
 ## Emerging Insight
 
@@ -81,12 +84,34 @@ The questioning path produced a new engineering concern: CueSeeker needs a
 documented local database compaction strategy for rebuild-heavy derived index
 data.
 
+## Accepted First Pass
+
+After comparing mature freelist handling options, the user accepted a first
+implementation focused on making the condition observable before optimizing the
+whole lifecycle.
+
+The accepted first pass is:
+
+- Add Storage Stats in Settings so the app can distinguish active database use
+  from reclaimable freelist pages.
+- Add a manual `Compact Database` action that performs WAL checkpointing and
+  `VACUUM` under explicit user control.
+- Defer automatic compaction, execution history diagnostics, and
+  `auto_vacuum=INCREMENTAL` until there is more evidence about real indexing
+  workflows and acceptable trigger conditions.
+
+This keeps the reason for the change tied to the Socratic path: the immediate
+problem is not proving that a particular indexing step is wrong, but giving the
+project and user a way to see and reclaim inactive SQLite space.
+
 ## Open Questions
 
-- What freelist ratio and absolute size should trigger a compaction warning or
-  maintenance action?
-- Should compaction be manual, automatic after index rebuilds, or exposed as an
-  advanced Settings action?
+- Are the initial `100 MiB` and `25%` recommendation thresholds appropriate
+  after more real libraries are indexed?
+- Which concrete indexing or rebuild workflows create the largest freelist
+  growth after maintenance stats are available?
+- Should compaction later become automatic after index rebuilds, and what user
+  interruption budget would make that acceptable?
 - Should new databases use `auto_vacuum=INCREMENTAL`, and how should existing
   databases migrate if that direction is accepted?
 - How should compaction coordinate with WAL mode, search reads, indexing writes,

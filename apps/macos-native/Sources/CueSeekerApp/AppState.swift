@@ -36,6 +36,22 @@ enum LibraryStatus: Equatable {
     case failed(String)
 }
 
+enum DatabaseMaintenanceStatus: Equatable {
+    case idle
+    case loadingStats
+    case compacting
+    case completed(String)
+    case failed(String)
+
+    var isCompacting: Bool {
+        if case .compacting = self {
+            return true
+        }
+
+        return false
+    }
+}
+
 enum PlaybackStatus: Equatable {
     case idle
     case opening
@@ -232,6 +248,8 @@ final class AppState: ObservableObject {
     private static let searchNavigationPanelRadius = 10_000
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
     private static let sidePanelToggleCooldown: TimeInterval = 0.18
+    private static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
+    private static let databaseCompactionMinimumFreelistRatio = 0.25
 
     @Published var selectedFolders: [URL] = []
     @Published var indexingStatus: IndexingStatus = .idle
@@ -254,6 +272,8 @@ final class AppState: ObservableObject {
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published private(set) var searchNavigationResultGroups: [SearchResultFileGroup] = []
     @Published private(set) var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
+    @Published private(set) var databaseStorageStats: DatabaseStorageStats?
+    @Published private(set) var databaseMaintenanceStatus: DatabaseMaintenanceStatus = .idle
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var selectedShiori: Shiori?
@@ -500,6 +520,23 @@ final class AppState: ObservableObject {
         currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
     }
 
+    var isDatabaseCompactionRecommended: Bool {
+        guard let stats = databaseStorageStats else {
+            return false
+        }
+
+        return stats.freelistBytes >= Self.databaseCompactionMinimumReclaimableBytes
+            && stats.freelistRatio >= Self.databaseCompactionMinimumFreelistRatio
+    }
+
+    var canCompactDatabase: Bool {
+        subtitleDatabase != nil
+            && !indexingStatus.isIndexing
+            && !databaseMaintenanceStatus.isCompacting
+            && !isSearching
+            && libraryStatus != .loading
+    }
+
     private let userDefaults: UserDefaults
     private var player: PlaybackPlayer?
     private let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
@@ -509,6 +546,8 @@ final class AppState: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private var searchNavigationTask: Task<Void, Never>?
     private var currentSubtitleEntriesTask: Task<Void, Never>?
+    private var databaseStorageStatsTask: Task<Void, Never>?
+    private var databaseCompactionTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
     private var playbackSurfaceToggleCooldownTask: Task<Void, Never>?
     private var playbackSidePanelToggleCooldownTask: Task<Void, Never>?
@@ -577,6 +616,7 @@ final class AppState: ObservableObject {
             try database.reconcileIndexedContent(activeFolders: selectedFolders)
             try hydrateLibrarySynchronously(from: database)
             try hydrateShiorisSynchronously(from: database)
+            databaseStorageStats = try database.storageStats()
             let player = PlaybackPlayer()
             player.decodeMode = playbackDecodeMode
             self.player = player
@@ -625,6 +665,11 @@ final class AppState: ObservableObject {
     }
 
     func removeFolder(_ folder: URL) {
+        guard !databaseMaintenanceStatus.isCompacting else {
+            startupError = "Database compaction is running"
+            return
+        }
+
         let folder = folder.standardizedFileURL
         guard let database = subtitleDatabase else {
             startupError = "Database is not initialized"
@@ -642,6 +687,7 @@ final class AppState: ObservableObject {
         clearSearchAndPlaybackState(under: folder)
         refreshLibrary()
         refreshCurrentSearch(clearExistingResults: true)
+        refreshDatabaseStorageStats()
     }
 
     func clearSearchFocus() {
@@ -916,6 +962,11 @@ final class AppState: ObservableObject {
     }
 
     func indexFolder(_ folder: URL) {
+        guard !databaseMaintenanceStatus.isCompacting else {
+            startupError = "Database compaction is running"
+            return
+        }
+
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
         clearSearchAndPlaybackState(under: folder)
@@ -942,6 +993,7 @@ final class AppState: ObservableObject {
                 indexingStatus = .completed(folder, result)
                 refreshLibrary()
                 refreshCurrentSearch()
+                refreshDatabaseStorageStats()
             } catch {
                 guard !Task.isCancelled else {
                     return
@@ -953,6 +1005,11 @@ final class AppState: ObservableObject {
     }
 
     func indexAllFolders() {
+        guard !databaseMaintenanceStatus.isCompacting else {
+            startupError = "Database compaction is running"
+            return
+        }
+
         let folders = selectedFolders
         guard let firstFolder = folders.first else {
             return
@@ -1038,6 +1095,7 @@ final class AppState: ObservableObject {
             )
             refreshLibrary()
             refreshCurrentSearch()
+            refreshDatabaseStorageStats()
         }
     }
 
@@ -1158,6 +1216,110 @@ final class AppState: ObservableObject {
         }
     }
 
+    func refreshDatabaseStorageStats() {
+        guard !databaseMaintenanceStatus.isCompacting else {
+            return
+        }
+
+        databaseStorageStatsTask?.cancel()
+        guard let database = subtitleDatabase else {
+            databaseMaintenanceStatus = .failed("Database is not initialized")
+            return
+        }
+
+        databaseMaintenanceStatus = .loadingStats
+        databaseStorageStatsTask = Task {
+            do {
+                let stats = try await Task.detached(priority: .utility) {
+                    try database.storageStats()
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                databaseStorageStats = stats
+                databaseMaintenanceStatus = .idle
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
+    func compactDatabaseStorage() {
+        guard !databaseMaintenanceStatus.isCompacting else {
+            return
+        }
+
+        guard !indexingStatus.isIndexing else {
+            databaseMaintenanceStatus = .failed("Indexing is running")
+            return
+        }
+
+        guard !isSearching else {
+            databaseMaintenanceStatus = .failed("Search is running")
+            return
+        }
+
+        guard libraryStatus != .loading else {
+            databaseMaintenanceStatus = .failed("Library is loading")
+            return
+        }
+
+        guard let database = subtitleDatabase else {
+            databaseMaintenanceStatus = .failed("Database is not initialized")
+            return
+        }
+
+        let statsBefore: DatabaseStorageStats
+        do {
+            statsBefore = try database.storageStats()
+        } catch {
+            databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
+            return
+        }
+
+        if let availableBytes = Self.availableDiskSpaceBytes(for: databaseURL),
+           availableBytes < max(statsBefore.databaseFileBytes, 100 * 1024 * 1024) {
+            databaseMaintenanceStatus = .failed("Not enough free disk space")
+            return
+        }
+
+        databaseStorageStatsTask?.cancel()
+        cancelDatabaseReadTasksBeforeIndexing()
+        databaseStorageStats = statsBefore
+        databaseMaintenanceStatus = .compacting
+
+        databaseCompactionTask = Task {
+            do {
+                let statsAfter = try await Task.detached(priority: .utility) {
+                    try database.compactStorage()
+                    return try database.storageStats()
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                databaseStorageStats = statsAfter
+                let bytesBefore = statsBefore.databaseFileBytes + statsBefore.walFileBytes
+                let bytesAfter = statsAfter.databaseFileBytes + statsAfter.walFileBytes
+                let reclaimedBytes = max(0, bytesBefore - bytesAfter)
+                databaseMaintenanceStatus = .completed("Reclaimed \(Self.formattedBytes(reclaimedBytes))")
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
     private func hydrateLibrarySynchronously(from database: SubtitleDatabase) throws {
         let folders = selectedFolders
         guard !folders.isEmpty else {
@@ -1274,6 +1436,18 @@ final class AppState: ObservableObject {
 
         searchStatus = .searching
         SearchPerformanceLogger.mark(searchPerformanceRun, "search_status_searching", status: "searching")
+
+        guard !databaseMaintenanceStatus.isCompacting else {
+            searchStatus = .failed("Database compaction is running")
+            SearchPerformanceLogger.mark(
+                searchPerformanceRun,
+                "search_failed_database_compacting",
+                status: "failed",
+                error: "Database compaction is running"
+            )
+            clearSearchPerformanceRunIfActive(searchPerformanceRun)
+            return
+        }
 
         guard let database = subtitleDatabase else {
             searchStatus = .failed("Database is not initialized")
@@ -2723,6 +2897,19 @@ final class AppState: ObservableObject {
             at: databaseURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
+    }
+
+    private static func availableDiskSpaceBytes(for databaseURL: URL) -> Int64? {
+        let directory = databaseURL.deletingLastPathComponent()
+        let attributes = try? FileManager.default.attributesOfFileSystem(forPath: directory.path)
+        return (attributes?[.systemFreeSize] as? NSNumber)?.int64Value
+    }
+
+    private static func formattedBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
 
     private static func errorMessage(for error: Error) -> String {
