@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Investigated and rejected the `ORDER BY` / `LIMIT` index-support optimization
+  for the current SQLite FTS path. A database-copy experiment removed the
+  temporary sort from the query plan but turned the measured `の LIMIT 1001`
+  case into a severe regression, so no product code change was made for that
+  step.
 - Implemented the next accepted Search optimization pass: visible Search pages
   can now return an ordered first page with deferred exact metadata, so large
   result sets no longer block first results on full total-count and file-summary

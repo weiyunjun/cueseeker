@@ -122,6 +122,14 @@ The implementation evidence refined the Socratic diagnosis:
   `67.28 ms`, and `の` improved from `824.51 ms` to `43.10 ms` for the visible
   page benchmark. `大丈夫` stayed in the same fast range because it has fewer
   than the requested page limit and therefore still completes exact metadata.
+- The `ORDER BY` / `LIMIT` index-support step was investigated next because the
+  current SQLite plan still reports `USE TEMP B-TREE FOR ORDER BY`. A database
+  copy proved that forcing product-order index scans is the wrong tradeoff for
+  the current FTS path: it removed the temporary sort but made `の LIMIT 1001`
+  take about `87.44 s` instead of about `0.03 s` for the current FTS-driven SQL.
+  This refined the strategy again: under the current SQLite FTS shape, product
+  order should remain a presentation/order key after FTS recall rather than the
+  primary driver for term matching.
 
 ## Open Questions
 
@@ -130,6 +138,9 @@ The implementation evidence refined the Socratic diagnosis:
 - Should future Search stream file-complete groups into the UI, or is
   page-level early return enough once exact metadata refresh is in the
   background?
+- If product-order early termination remains desirable, does it require a
+  different search projection or search engine rather than another SQLite join
+  order tweak?
 - Should FTS maintenance commands be exposed as diagnostics, Settings
   maintenance, or automatic post-indexing work?
 

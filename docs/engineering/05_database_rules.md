@@ -352,6 +352,10 @@ Search ranking and query syntax:
 - Search ordering should prefer materialized product-order keys over
   per-query reconstruction when practical. The intended stable order is Library
   block rank, subtitle-file rank within that block, then cue time.
+- Do not force SQLite Search to scan product-order rows first merely to remove
+  a temporary `ORDER BY` sort. With the current FTS5 query shape, FTS-driven
+  recall plus a small temporary sort is materially faster than product-order
+  scans that probe FTS row by row.
 - Search-summary counts and file/group summaries should not block first visible
   results if the query engine can return ordered results before the whole corpus
   is searched.

@@ -123,7 +123,7 @@ CueSeeker.
 | Materialized Library/File/Time ordering | Socratic discussion | High | Medium to high | Done |
 | File or Library-block partitioned search with early emission | Socratic discussion | High | High | Done for first-page early return |
 | Delayed total count and summaries | Socratic discussion | Medium to high | Medium | Done |
-| `ORDER BY` / `LIMIT` index support | External research validated the discussion direction | High | Medium to high | Do |
+| `ORDER BY` / `LIMIT` index support | External research validated the discussion direction | Negative for current FTS path | Medium to high | Investigated and rejected |
 | Index sorting / early termination | External research validated the discussion direction | High | High | Do |
 | Filterable, sortable, and facet-style attributes | External research | Medium to high | Medium to high | Do |
 | `fts5vocab` diagnostics | External research | Indirect | Low | Do as diagnostics |
@@ -140,7 +140,8 @@ Current implementation order after rollback:
 1. Materialized Library/File/Time ordering.
 2. Ordered first-page early return.
 3. Delayed total count and summaries.
-4. `ORDER BY` / `LIMIT` index support.
+4. `ORDER BY` / `LIMIT` index support: investigated and rejected for the
+   current FTS-driven query path.
 5. Index sorting / early termination.
 6. Filterable, sortable, and facet-style attributes.
 7. `fts5vocab` diagnostics.
@@ -344,6 +345,14 @@ CUESEEKER_BENCH_METADATA=deferred
 | `今日` | 120.54 | 1000 | 1001 | 23 | deferred | 67.28 | 67.81, 71.32, 67.86, 66.20, 63.24 |
 | `の` | 159.75 | 1000 | 1001 | 11 | deferred | 43.10 | 49.90, 43.75, 42.16, 40.27, 39.43 |
 
+Complete metadata comparison on the same commit:
+
+| Query | First-page hot avg ms | Complete metadata hot avg ms | Approx. time until exact metadata ms |
+| --- | ---: | ---: | ---: |
+| `大丈夫` | 51.38 | 47.92 | 51.38 |
+| `今日` | 67.28 | 116.39 | 183.67 |
+| `の` | 43.10 | 830.48 | 873.58 |
+
 Read:
 
 - `大丈夫` has fewer than the requested page limit, so metadata is complete and
@@ -352,6 +361,62 @@ Read:
   first page returns.
 - A diagnostic run for `の` reported `metadataState=deferred`,
   `candidateBatchLimit=1001`, and `search_page_complete` around `33-43 ms`.
+- Future benchmark tables should include first-page time, complete metadata
+  time, and approximate time until exact metadata is refreshed.
+
+### Step 5: `ORDER BY` / `LIMIT` Index Support Investigation
+
+Date: 2026-05-15
+
+Commit under test: `2091ec8`
+
+Outcome: not implemented.
+
+The current query plan still uses a temporary B-tree for SQL ordering:
+
+```text
+SCAN f VIRTUAL TABLE INDEX 0:M2
+SEARCH g USING INTEGER PRIMARY KEY
+SEARCH sf USING INTEGER PRIMARY KEY
+SEARCH m USING INDEX sqlite_autoindex_subtitle_video_matches_1
+SEARCH vf USING INTEGER PRIMARY KEY
+SEARCH sor USING INDEX sqlite_autoindex_subtitle_search_order_rows_1 LEFT-JOIN
+USE TEMP B-TREE FOR ORDER BY
+```
+
+An experimental database copy tested an order-driven cue index:
+
+```text
+subtitle_cue_search_order_rows(
+  cue_group_id,
+  subtitle_path,
+  folder_order,
+  file_order,
+  start_ms,
+  end_ms
+)
+```
+
+with an index on:
+
+```text
+(folder_order, file_order, start_ms, end_ms, cue_group_id)
+```
+
+This changed the plan to scan the cue-order index first and eliminated the
+global temporary sort, but it forced SQLite to probe FTS from product-order
+rows. On the copied database, `の LIMIT 1001` took about `87.44 s` for the
+order-driven query, versus about `0.03 s` for the current FTS-driven query.
+
+Decision:
+
+- Do not implement order-driven `ORDER BY` / `LIMIT` indexing on the current
+  FTS query path.
+- The current FTS-driven query with a small temporary sort is much faster than
+  scanning product order and checking FTS row by row.
+- Revisit this only if the search projection changes, for example to a search
+  engine or table shape that can natively combine term matching with product
+  order.
 
 ## Development Decision
 
