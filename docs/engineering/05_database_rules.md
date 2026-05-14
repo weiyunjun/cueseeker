@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `12`.
+- The current schema version is `15`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -138,6 +138,12 @@ Current mechanism:
 - Schema version `12` replaces cue-group FTS rows with cue-line FTS rows.
   Search recall operates on original cue-line content, then maps matched lines
   back to cue groups or exact subtitle-file time windows for product results.
+- Schema version `13` restores cue-group FTS rows alongside cue-line FTS rows
+  so high-frequency single-token searches can keep the cheaper cue-group recall
+  path while cross-line-sensitive queries use cue-line recall.
+- Schema version `14` adds FTS optimize maintenance after FTS rebuilds.
+- Schema version `15` recreates FTS virtual tables before rebuilding them so
+  migrations do not preserve old FTS segment or tombstone state.
 
 ## 5. Migration Rules
 

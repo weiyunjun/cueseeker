@@ -6,10 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Implemented the first accepted Search optimization step: schema version 12
-  now indexes FTS rows at cue-line granularity and maps matched lines back to
-  cue-group/time-window results, removing group-level cross-line FTS recall
-  from the search candidate path.
+- Implemented the first accepted Search optimization step: schema versions 12
+  through 15 add cue-line FTS recall, restore cue-group FTS as a cheaper hybrid
+  path for high-frequency single-token searches, optimize rebuilt FTS tables,
+  and recreate FTS virtual tables during migration before rebuilding them.
 - Recorded the Socratic Search performance strategy direction: the likely
   optimization path is line-level FTS recall mapped to display time windows,
   materialized Library/file/time ordering, and ordered block/file-level early

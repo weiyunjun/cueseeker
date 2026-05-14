@@ -215,6 +215,36 @@ Schema version: `11`
 | `今日` | 487.14 | 1000 | 1282 | 81 | 201.68 | 228.91, 195.00, 197.32, 193.66, 193.53 |
 | `の` | 1114.70 | 1000 | 20770 | 87 | 927.81 | 986.37, 887.11, 864.27, 973.56, 927.74 |
 
+### Step 1: Hybrid Line-Level FTS Recall
+
+Date: 2026-05-15
+
+Commit under test: working tree after `c45ce41`, before the follow-up commit
+that records this benchmark.
+
+Implementation notes:
+
+- Cue-line FTS recall was added for cross-line-sensitive queries.
+- Cue-group FTS recall was retained for cheaper high-frequency single-token
+  queries.
+- Full cue lines are loaded only for current page results.
+- FTS tables are recreated, rebuilt, and optimized during migration.
+
+| Query | Warmup ms | Results returned | Total count | File summaries | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `大丈夫` | 103.38 | 185 | 185 | 74 | 125.16 | 98.75, 102.59, 105.27, 116.41, 202.79 |
+| `今日` | 501.70 | 1000 | 1282 | 81 | 692.49 | 473.13, 755.15, 1018.23, 717.60, 498.30 |
+| `の` | 4061.83 | 1000 | 20770 | 87 | 2265.56 | 2599.48, 2186.61, 2365.02, 2550.65, 1626.05 |
+
+Read:
+
+- Step 1 is a semantic/indexing foundation, not a standalone speed win for the
+  benchmark queries.
+- The pure line-level attempt made high-frequency `の` effectively unusable,
+  so hybrid recall is required before continuing.
+- `今日` and `の` still need the next accepted optimization steps: materialized
+  ordering, early result emission, and delayed summaries/counts.
+
 ## Development Decision
 
 This performance issue is a known follow-up and should not block ordinary

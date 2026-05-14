@@ -315,7 +315,10 @@ The app should use SQLite FTS5 for subtitle text search.
 Expected FTS data:
 
 - Original cue-line search content.
-- Link from FTS row to subtitle cue line and parent subtitle cue group.
+- Cue-group search content for cheaper recall when line-level recall is not
+  needed.
+- Link from line FTS rows to subtitle cue lines and parent subtitle cue groups.
+- Link from group FTS rows to subtitle cue groups.
 
 Han and Japanese kana handling should preserve the practical CJK behavior of
 the existing Flutter implementation while also allowing pure hiragana,
@@ -382,7 +385,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `12`.
+- Schema version: `15`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -411,6 +414,12 @@ Current native schema:
 - Version 12 replaces cue-group FTS rows with cue-line FTS rows. Search recall
   now indexes original cue-line content and maps matched lines back to the
   display cue group or exact subtitle-file time window.
+- Version 13 keeps cue-group FTS rows alongside cue-line FTS rows for hybrid
+  recall. Single-token and high-frequency searches may use cue-group recall;
+  cross-line-sensitive searches may use cue-line recall.
+- Version 14 optimizes FTS tables after FTS rebuilds.
+- Version 15 recreates FTS virtual tables before rebuilding them during
+  migration so stale FTS segment state is not preserved.
 
 ## 15. Flutter Data Compatibility
 

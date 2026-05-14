@@ -17,6 +17,26 @@ guard CommandLine.arguments.count >= 3 else {
 let dbPath = URL(fileURLWithPath: CommandLine.arguments[1])
 let query = CommandLine.arguments[2]
 let limit = CommandLine.arguments.count >= 4 ? Int(CommandLine.arguments[3]) ?? 1000 : 1000
+let diagnosticsEnabled = ProcessInfo.processInfo.environment["CUESEEKER_BENCH_DIAGNOSTICS"] == "1"
+
+func diagnosticsSink(_ event: SubtitleSearchDiagnosticEvent) {
+    let fields = event.fields
+        .map { "\($0.name)=\($0.value)" }
+        .joined(separator: " ")
+    if fields.isEmpty {
+        print("  diag \(event.name): \(formatMs(event.phaseMilliseconds)) ms")
+    } else {
+        print("  diag \(event.name): \(formatMs(event.phaseMilliseconds)) ms \(fields)")
+    }
+}
+
+func searchPage() throws -> SubtitleSearchPage {
+    try database.searchPage(
+        query,
+        limit: limit,
+        diagnostics: diagnosticsEnabled ? diagnosticsSink : nil
+    )
+}
 
 print("== SearchBench ==")
 print("DB:    \(dbPath.path)")
@@ -37,7 +57,7 @@ print("Schema version:       \(try database.schemaVersion())")
 print("")
 
 let warmupStart = Date()
-let warmupPage = try database.searchPage(query, limit: limit)
+let warmupPage = try searchPage()
 let warmupMs = milliseconds(since: warmupStart)
 print("Warmup search:        \(formatMs(warmupMs)) ms")
 print("  results returned:   \(warmupPage.results.count)")
@@ -48,7 +68,7 @@ print("")
 var times: [Double] = []
 for _ in 0..<5 {
     let start = Date()
-    _ = try database.searchPage(query, limit: limit)
+    _ = try searchPage()
     times.append(milliseconds(since: start))
 }
 
@@ -70,7 +90,11 @@ let coldDatabase = try SubtitleDatabase(path: dbPath)
 try coldDatabase.migrate()
 let coldOpenMs = milliseconds(since: coldStart)
 let coldSearchStart = Date()
-_ = try coldDatabase.searchPage(query, limit: limit)
+_ = try coldDatabase.searchPage(
+    query,
+    limit: limit,
+    diagnostics: diagnosticsEnabled ? diagnosticsSink : nil
+)
 let coldSearchMs = milliseconds(since: coldSearchStart)
 print("Cold open + migrate + 1 search (simulates old per-call pattern):")
 print("  open + migrate:     \(formatMs(coldOpenMs)) ms")
