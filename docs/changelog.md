@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Recorded the product philosophy behind CueSeeker as a local subtitle corpus
+  workbench rooted in loved source material, fansub and fan-creation community
+  respect, raw learning material, local-first boundaries, and non-AI
+  search-to-context workflows.
 - Implemented the second UI layout pass in the native macOS app: Search results
   now render as grouped cards in the main content area, Shiori uses the same
   grouped-card surface, Library and Shiori move to icon buttons beside the

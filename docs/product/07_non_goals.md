@@ -39,6 +39,7 @@ The early native rewrite will not implement:
 
 - Remote subtitle indexing.
 - Remote video playback.
+- Online video crawling or downloading.
 - WebDAV integration.
 - AList integration.
 - Cloud sync.
@@ -63,13 +64,18 @@ Out of scope:
 
 The early rewrite will not implement:
 
-- Anki integration.
+- Full Anki ownership or a complete spaced-repetition system.
 - Vocabulary book workflows.
 - Spaced repetition.
 - Translation popovers.
 - Word-level selection tools.
+- AI-powered explanation, translation, transcription, or semantic search as core
+  product behavior.
 
-Shiori is planned later than the core local workflow and macOS polish.
+Shiori, export workflows, Anki integration, URL Scheme support, and raw
+material export may be added around the core workflow. They should remain a
+bridge from source material to user-chosen study methods rather than turning
+CueSeeker into a complete learning platform.
 
 ## 7. Visual Effect Non-Goals
 
