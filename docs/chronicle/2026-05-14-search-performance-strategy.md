@@ -111,13 +111,25 @@ The implementation evidence refined the Socratic diagnosis:
 - The remaining slow phases now line up with the next discussion-derived
   directions: early result emission, delayed summaries/counts, and further
   index support for ordered paging.
+- The next accepted implementation pass combined two adjacent Socratic ideas:
+  ordered file/block early return and delayed total-count/file-summary
+  metadata. The concrete first version does not stream one completed ASS file
+  at a time. Instead, it uses materialized product order to return the first
+  visible page plus one lookahead result, then refreshes exact total count and
+  complete summaries in the background.
+- Benchmark evidence supported this narrower version for large result sets.
+  With deferred metadata enabled, `今日` improved from `117.07 ms` to
+  `67.28 ms`, and `の` improved from `824.51 ms` to `43.10 ms` for the visible
+  page benchmark. `大丈夫` stayed in the same fast range because it has fewer
+  than the requested page limit and therefore still completes exact metadata.
 
 ## Open Questions
 
 - How should duplicate line hits inside the same display time window affect
   highlighting and result selection?
-- Which ranks should be persisted: Library block rank, subtitle-file rank,
-  display-window rank, or all of them?
+- Should future Search stream file-complete groups into the UI, or is
+  page-level early return enough once exact metadata refresh is in the
+  background?
 - Should FTS maintenance commands be exposed as diagnostics, Settings
   maintenance, or automatic post-indexing work?
 

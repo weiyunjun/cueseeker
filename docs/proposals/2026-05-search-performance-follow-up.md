@@ -120,9 +120,9 @@ CueSeeker.
 | Method | Origin | Search-speed value | Engineering effort | Decision |
 | --- | --- | --- | --- | --- |
 | Line-level FTS plus time-window deduplication | Socratic discussion | Negative in measured implementation | High | Rolled back |
-| Materialized Library/File/Time ordering | Socratic discussion | High | Medium to high | Do |
-| File or Library-block partitioned search with early emission | Socratic discussion | High | High | Do |
-| Delayed total count and summaries | Socratic discussion | Medium to high | Medium | Do |
+| Materialized Library/File/Time ordering | Socratic discussion | High | Medium to high | Done |
+| File or Library-block partitioned search with early emission | Socratic discussion | High | High | Done for first-page early return |
+| Delayed total count and summaries | Socratic discussion | Medium to high | Medium | Done |
 | `ORDER BY` / `LIMIT` index support | External research validated the discussion direction | High | Medium to high | Do |
 | Index sorting / early termination | External research validated the discussion direction | High | High | Do |
 | Filterable, sortable, and facet-style attributes | External research | Medium to high | Medium to high | Do |
@@ -138,7 +138,7 @@ CueSeeker.
 Current implementation order after rollback:
 
 1. Materialized Library/File/Time ordering.
-2. File or Library-block partitioned search with early emission.
+2. Ordered first-page early return.
 3. Delayed total count and summaries.
 4. `ORDER BY` / `LIMIT` index support.
 5. Index sorting / early termination.
@@ -308,6 +308,50 @@ Read:
   keeping `大丈夫` in the same fast range.
 - Future Search performance work should proceed from group-level FTS plus
   materialized ordering unless a new benchmark proves otherwise.
+
+### Step 4: Ordered First Page With Deferred Metadata
+
+Date: 2026-05-15
+
+Commit under test: working tree after `f14e511`, before the follow-up commit
+that records this benchmark.
+
+This step covers the accepted list's third and fourth items in one narrow
+implementation: return the first ordered page as soon as enough product-ordered
+matches are available, and delay exact total-count/file-summary metadata until
+after the visible page is usable.
+
+Implementation notes:
+
+- `SubtitleDatabase.searchPage` now supports `metadataMode: .deferred`.
+- Deferred mode scans only far enough to return the requested ordered page plus
+  one lookahead result when materialized order is available.
+- Deferred pages return a lower-bound `totalCount`, `hasMoreResults`, partial
+  file summaries for loaded results, and `metadataState: .deferred`.
+- The macOS app uses deferred mode for visible Search pages, then refreshes
+  exact total count and file summaries in a background task using a separate
+  SQLite connection.
+
+Benchmark mode:
+
+```text
+CUESEEKER_BENCH_METADATA=deferred
+```
+
+| Query | Warmup ms | Results returned | Total count shown | File summaries shown | Metadata state | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- |
+| `大丈夫` | 650.22 | 185 | 185 | 74 | complete | 51.38 | 49.67, 49.30, 48.26, 58.61, 51.05 |
+| `今日` | 120.54 | 1000 | 1001 | 23 | deferred | 67.28 | 67.81, 71.32, 67.86, 66.20, 63.24 |
+| `の` | 159.75 | 1000 | 1001 | 11 | deferred | 43.10 | 49.90, 43.75, 42.16, 40.27, 39.43 |
+
+Read:
+
+- `大丈夫` has fewer than the requested page limit, so metadata is complete and
+  performance stays in the same fast range.
+- `今日` and `の` no longer wait for full corpus count/summaries before the
+  first page returns.
+- A diagnostic run for `の` reported `metadataState=deferred`,
+  `candidateBatchLimit=1001`, and `search_page_complete` around `33-43 ms`.
 
 ## Development Decision
 

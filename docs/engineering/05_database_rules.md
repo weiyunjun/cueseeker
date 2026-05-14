@@ -355,6 +355,10 @@ Search ranking and query syntax:
 - Search-summary counts and file/group summaries should not block first visible
   results if the query engine can return ordered results before the whole corpus
   is searched.
+- Search pages may return deferred metadata when exact total counts and
+  complete file summaries are still being computed. Deferred pages must expose a
+  lower-bound count, whether more results are available, and enough partial file
+  summaries to render the loaded results.
 - English prefix search is a required scenario. If FTS prefix indexes are added,
   the chosen prefix lengths must be documented with benchmark data and storage
   impact.

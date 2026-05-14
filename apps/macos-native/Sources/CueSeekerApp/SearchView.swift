@@ -329,7 +329,11 @@ struct SearchView: View {
             return nil
         case .searching, .completed, .failed:
             let fileText = appState.searchResultFileCount == 1 ? "file" : "files"
-            return "Found \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)"
+            if appState.isSearchResultMetadataComplete {
+                return "Found \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)"
+            }
+
+            return "Loaded \(appState.searchResultTotalCount)+ results in \(appState.searchResultFileCount) \(fileText)"
         }
     }
 

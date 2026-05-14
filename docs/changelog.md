@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the next accepted Search optimization pass: visible Search pages
+  can now return an ordered first page with deferred exact metadata, so large
+  result sets no longer block first results on full total-count and file-summary
+  computation. The macOS app refreshes exact metadata in the background, and
+  `SearchBench` can benchmark deferred metadata mode.
 - Rolled back the cue-line/hybrid FTS search path after benchmark data showed
   it was a negative optimization. Schema version 17 now returns Search to
   cue-group FTS recall while preserving materialized subtitle result ordering

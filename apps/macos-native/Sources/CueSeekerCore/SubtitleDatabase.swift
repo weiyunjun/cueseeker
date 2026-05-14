@@ -32,6 +32,18 @@ public struct SubtitleSearchFileSummary: Equatable, Sendable {
     public let subtitleFileName: String
     public let subtitleDisplayTitle: String
     public let matchCount: Int
+
+    public init(
+        subtitlePath: String,
+        subtitleFileName: String,
+        subtitleDisplayTitle: String,
+        matchCount: Int
+    ) {
+        self.subtitlePath = subtitlePath
+        self.subtitleFileName = subtitleFileName
+        self.subtitleDisplayTitle = subtitleDisplayTitle
+        self.matchCount = matchCount
+    }
 }
 
 public struct LibraryVideo: Equatable, Sendable, Identifiable {
@@ -107,10 +119,36 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     }
 }
 
+public enum SubtitleSearchMetadataMode: Equatable, Sendable {
+    case complete
+    case deferred
+}
+
+public enum SubtitleSearchMetadataState: String, Equatable, Sendable {
+    case complete
+    case deferred
+}
+
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
     public let fileSummaries: [SubtitleSearchFileSummary]
+    public let hasMoreResults: Bool
+    public let metadataState: SubtitleSearchMetadataState
+
+    public init(
+        results: [SubtitleSearchResult],
+        totalCount: Int,
+        fileSummaries: [SubtitleSearchFileSummary],
+        hasMoreResults: Bool? = nil,
+        metadataState: SubtitleSearchMetadataState = .complete
+    ) {
+        self.results = results
+        self.totalCount = totalCount
+        self.fileSummaries = fileSummaries
+        self.hasMoreResults = hasMoreResults ?? (results.count < totalCount)
+        self.metadataState = metadataState
+    }
 }
 
 public struct SearchNavigationAnchor: Equatable, Sendable {
@@ -995,6 +1033,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         offset: Int = 0,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
+        metadataMode: SubtitleSearchMetadataMode = .complete,
         diagnostics: SubtitleSearchDiagnosticSink? = nil
     ) throws -> SubtitleSearchPage {
         let searchPageStart = Self.diagnosticNow()
@@ -1057,10 +1096,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         do {
             let setupStart = Self.diagnosticNow()
-            let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
+            let deferredMetadata = metadataMode == .deferred
+            let candidateBatchLimit = deferredMetadata
+                ? Self.deferredSearchCandidateBatchLimit(for: limit)
+                : Self.searchCandidateBatchLimit(for: limit)
+            let deferredAcceptedTarget = deferredMetadata
+                ? Self.deferredAcceptedTarget(offset: offset, limit: limit)
+                : nil
             var candidateOffset = 0
             var results: [SubtitleSearchResult] = []
             var hasCompleteMaterializedOrder = true
+            var stoppedForDeferredPage = false
             var batchIndex = 0
             var totalCandidates = 0
             var totalMultiLineCandidates = 0
@@ -1077,7 +1123,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 fields: [
                     .init("candidateBatchLimit", candidateBatchLimit),
                     .init("scopeCondition", scopeCondition.isEmpty ? "none" : "path"),
-                    .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true")
+                    .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
+                    .init("metadataMode", deferredMetadata ? "deferred" : "complete")
                 ]
             )
 
@@ -1224,6 +1271,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 if candidates.count < candidateBatchLimit {
                     break
                 }
+
+                if let deferredAcceptedTarget,
+                   hasCompleteMaterializedOrder,
+                   results.count >= deferredAcceptedTarget {
+                    stoppedForDeferredPage = true
+                    break
+                }
             }
 
             let sortStart = Self.diagnosticNow()
@@ -1245,24 +1299,33 @@ public final class SubtitleDatabase: @unchecked Sendable {
             for i in 0..<pageResults.count {
                 pageResults[i].searchRank = offset + i
             }
+            let hasMoreResults = stoppedForDeferredPage
+                ? sortedResults.count > offset + pageResults.count
+                : offset + pageResults.count < sortedResults.count
+            let metadataState: SubtitleSearchMetadataState = stoppedForDeferredPage ? .deferred : .complete
+            let totalCount = stoppedForDeferredPage
+                ? offset + pageResults.count + (hasMoreResults ? 1 : 0)
+                : sortedResults.count
             emit(
                 "page_slice",
                 since: pageStart,
                 fields: [
                     .init("offset", offset),
                     .init("limit", limit),
-                    .init("pageResults", pageResults.count)
+                    .init("pageResults", pageResults.count),
+                    .init("hasMoreResults", hasMoreResults ? "true" : "false"),
+                    .init("metadataState", metadataState.rawValue)
                 ]
             )
 
             let summariesStart = Self.diagnosticNow()
-            let fileSummaries = Self.fileSummaries(for: sortedResults)
+            let fileSummaries = Self.fileSummaries(for: stoppedForDeferredPage ? pageResults : sortedResults)
             emit(
-                "file_summaries",
+                stoppedForDeferredPage ? "file_summaries_deferred" : "file_summaries",
                 since: summariesStart,
                 fields: [
                     .init("summaries", fileSummaries.count),
-                    .init("results", sortedResults.count)
+                    .init("results", stoppedForDeferredPage ? pageResults.count : sortedResults.count)
                 ]
             )
 
@@ -1276,13 +1339,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("cueLineRows", totalCueLineRows),
                     .init("accepted", sortedResults.count),
                     .init("pageResults", pageResults.count),
-                    .init("summaries", fileSummaries.count)
+                    .init("summaries", fileSummaries.count),
+                    .init("hasMoreResults", hasMoreResults ? "true" : "false"),
+                    .init("metadataState", metadataState.rawValue)
                 ]
             )
             return SubtitleSearchPage(
                 results: pageResults,
-                totalCount: sortedResults.count,
-                fileSummaries: fileSummaries
+                totalCount: totalCount,
+                fileSummaries: fileSummaries,
+                hasMoreResults: hasMoreResults,
+                metadataState: metadataState
             )
         } catch {
             emit(
@@ -2310,6 +2377,23 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     private static func searchCandidateBatchLimit(for limit: Int) -> Int {
         max(expandedSQLLimit(for: limit), 100)
+    }
+
+    private static func deferredSearchCandidateBatchLimit(for limit: Int) -> Int {
+        max(saturatingIncrement(limit), 100)
+    }
+
+    private static func deferredAcceptedTarget(offset: Int, limit: Int) -> Int {
+        let (pageEnd, pageEndOverflow) = offset.addingReportingOverflow(limit)
+        if pageEndOverflow {
+            return Int.max
+        }
+
+        return saturatingIncrement(pageEnd)
+    }
+
+    private static func saturatingIncrement(_ value: Int) -> Int {
+        value == Int.max ? Int.max : value + 1
     }
 
     private static func isASCIIWordCharacter(_ character: Character) -> Bool {

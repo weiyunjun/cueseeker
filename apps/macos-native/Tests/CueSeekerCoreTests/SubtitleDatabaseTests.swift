@@ -187,6 +187,56 @@ func searchPaginatesBeyondDefaultResultLimit() throws {
 }
 
 @Test
+func deferredSearchPageReturnsFirstPageBeforeExactMetadata() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Deferred.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Deferred.mkv")
+    let entries = (0..<120).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: "00:00:\(String(format: "%02d", index % 60)),000",
+            endTimecode: "00:00:\(String(format: "%02d", index % 60)),500",
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Shared deferred searchable line \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+    try database.rebuildSubtitleSearchOrderSnapshot()
+
+    let deferredPage = try database.searchPage(
+        "shared",
+        limit: 50,
+        metadataMode: .deferred
+    )
+    let completePage = try database.searchPage("shared", limit: 50)
+
+    #expect(deferredPage.results.count == 50)
+    #expect(deferredPage.totalCount == 51)
+    #expect(deferredPage.hasMoreResults)
+    #expect(deferredPage.metadataState == .deferred)
+    #expect(deferredPage.fileSummaries.map(\.matchCount) == [50])
+
+    #expect(completePage.results.count == 50)
+    #expect(completePage.totalCount == 120)
+    #expect(completePage.hasMoreResults)
+    #expect(completePage.metadataState == .complete)
+    #expect(completePage.fileSummaries.map(\.matchCount) == [120])
+}
+
+@Test
 func searchPageReturnsTotalCountsAndFileSummaries() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

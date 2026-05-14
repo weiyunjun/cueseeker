@@ -361,6 +361,12 @@ A cue group must not match only because query terms are split across different
 cue lines. At least one cue line must satisfy the query semantics before a group
 is returned.
 
+Search pages may return before exact result metadata is complete. In that case,
+the visible result rows remain ordered and playable, `totalCount` is a lower
+bound, `hasMoreResults` tells the UI whether pagination should continue, and
+file summaries cover the loaded rows until exact summaries are refreshed in the
+background.
+
 ## 13. Shiori
 
 Shiori stores saved subtitle cues for later review.

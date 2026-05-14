@@ -18,6 +18,10 @@ let dbPath = URL(fileURLWithPath: CommandLine.arguments[1])
 let query = CommandLine.arguments[2]
 let limit = CommandLine.arguments.count >= 4 ? Int(CommandLine.arguments[3]) ?? 1000 : 1000
 let diagnosticsEnabled = ProcessInfo.processInfo.environment["CUESEEKER_BENCH_DIAGNOSTICS"] == "1"
+let metadataMode: SubtitleSearchMetadataMode =
+    ProcessInfo.processInfo.environment["CUESEEKER_BENCH_METADATA"] == "deferred"
+    ? .deferred
+    : .complete
 
 func diagnosticsSink(_ event: SubtitleSearchDiagnosticEvent) {
     let fields = event.fields
@@ -34,6 +38,7 @@ func searchPage() throws -> SubtitleSearchPage {
     try database.searchPage(
         query,
         limit: limit,
+        metadataMode: metadataMode,
         diagnostics: diagnosticsEnabled ? diagnosticsSink : nil
     )
 }
@@ -42,6 +47,7 @@ print("== SearchBench ==")
 print("DB:    \(dbPath.path)")
 print("Query: \"\(query)\"")
 print("Limit: \(limit)")
+print("Metadata mode: \(metadataMode == .deferred ? "deferred" : "complete")")
 print("")
 
 let openStart = Date()
@@ -63,6 +69,8 @@ print("Warmup search:        \(formatMs(warmupMs)) ms")
 print("  results returned:   \(warmupPage.results.count)")
 print("  total count:        \(warmupPage.totalCount)")
 print("  file summaries:     \(warmupPage.fileSummaries.count)")
+print("  has more results:   \(warmupPage.hasMoreResults)")
+print("  metadata state:     \(warmupPage.metadataState.rawValue)")
 print("")
 
 var times: [Double] = []
@@ -93,6 +101,7 @@ let coldSearchStart = Date()
 _ = try coldDatabase.searchPage(
     query,
     limit: limit,
+    metadataMode: metadataMode,
     diagnostics: diagnosticsEnabled ? diagnosticsSink : nil
 )
 let coldSearchMs = milliseconds(since: coldSearchStart)
