@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `11`.
+- The current schema version is `12`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -135,6 +135,9 @@ Current mechanism:
   with a single cue line (the common SRT case) and apply line-level validation
   directly to the group's `search_content`. The migration backfills existing
   rows from `subtitle_cue_lines` counts.
+- Schema version `12` replaces cue-group FTS rows with cue-line FTS rows.
+  Search recall operates on original cue-line content, then maps matched lines
+  back to cue groups or exact subtitle-file time windows for product results.
 
 ## 5. Migration Rules
 
@@ -308,7 +311,8 @@ Full-text search must use SQLite FTS5.
 
 Rules:
 
-- FTS rows must be linked deterministically to subtitle cue groups.
+- FTS rows must be linked deterministically to subtitle cue lines and their
+  parent subtitle cue groups.
 - Searchable subtitle content must be indexed consistently with the stored cue
   group and cue lines.
 - Updating or deleting cue groups or cue lines must keep FTS data consistent.

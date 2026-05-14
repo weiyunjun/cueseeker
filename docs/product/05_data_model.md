@@ -314,8 +314,8 @@ The app should use SQLite FTS5 for subtitle text search.
 
 Expected FTS data:
 
-- Cue group search content.
-- Link from FTS row to subtitle cue group.
+- Original cue-line search content.
+- Link from FTS row to subtitle cue line and parent subtitle cue group.
 
 Han and Japanese kana handling should preserve the practical CJK behavior of
 the existing Flutter implementation while also allowing pure hiragana,
@@ -326,14 +326,12 @@ FTS rows outside that active folder scope are stale derived index data and must
 not appear in user-facing search results.
 
 If an ASS cue group contains multiple languages or styles with the same timing,
-FTS should return the cue group once when any contained cue line matches. The
-search result should then load all cue lines for that group and display them in
-`display_order`.
+FTS should recall matching cue lines, map them to the parent cue group once, and
+then load all cue lines for that group for display in `display_order`.
 
 A cue group must not match only because query terms are split across different
-cue lines. The search implementation may use cue group content for recall, but
-it must ensure that at least one cue line satisfies the query semantics before a
-group is returned.
+cue lines. At least one cue line must satisfy the query semantics before a group
+is returned.
 
 ## 13. Shiori
 
@@ -384,7 +382,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `11`.
+- Schema version: `12`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -410,6 +408,9 @@ Current native schema:
   so Search can skip the per-candidate `subtitle_cue_lines` lookup for
   single-line groups. The column is derived index data: it is backfilled from
   `subtitle_cue_lines` counts during migration and written by indexing.
+- Version 12 replaces cue-group FTS rows with cue-line FTS rows. Search recall
+  now indexes original cue-line content and maps matched lines back to the
+  display cue group or exact subtitle-file time window.
 
 ## 15. Flutter Data Compatibility
 
