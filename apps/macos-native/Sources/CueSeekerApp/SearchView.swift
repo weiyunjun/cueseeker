@@ -103,8 +103,8 @@ struct SearchView: View {
             return PlaybackOverlayMetrics(outerSize: .zero, sidePanelWidth: 0)
         }
 
-        let contentMaxWidth = max(0, safeMaxWidth - PlaybackOverlayLayout.outerPadding * 2)
-        let contentMaxHeight = max(0, safeMaxHeight - PlaybackOverlayLayout.outerPadding * 2)
+        let contentMaxWidth = max(0, safeMaxWidth - PlaybackOverlayLayout.horizontalPadding * 2)
+        let contentMaxHeight = max(0, safeMaxHeight - PlaybackOverlayLayout.verticalPadding * 2)
         let preferredPanelWidth = showsSidePanel
             ? min(
                 PlaybackOverlayLayout.sidePanelPreferredWidth,
@@ -122,9 +122,9 @@ struct SearchView: View {
                 videoWidth
                     + panelGap
                     + sidePanelWidth
-                    + PlaybackOverlayLayout.outerPadding * 2
+                    + PlaybackOverlayLayout.horizontalPadding * 2
             ),
-            height: min(safeMaxHeight, videoHeight + PlaybackOverlayLayout.outerPadding * 2)
+            height: min(safeMaxHeight, videoHeight + PlaybackOverlayLayout.verticalPadding * 2)
         )
 
         return PlaybackOverlayMetrics(outerSize: outerSize, sidePanelWidth: sidePanelWidth)
@@ -623,8 +623,9 @@ private struct PlaybackOverlayMetrics {
 }
 
 private enum PlaybackOverlayLayout {
-    static let outerPadding: CGFloat = 24
-    static let panelGap: CGFloat = 18
+    static let horizontalPadding: CGFloat = 16
+    static let verticalPadding: CGFloat = 8
+    static let panelGap: CGFloat = 12
     static let sidePanelMinWidth: CGFloat = 320
     static let sidePanelPreferredWidth: CGFloat = 380
     static let videoCornerRadius: CGFloat = 16
@@ -642,8 +643,8 @@ private struct PlaybackOverlayWindow: View {
         GeometryReader { geometry in
             let overlayWidth = min(contentSize.width, geometry.size.width)
             let overlayHeight = min(contentSize.height, geometry.size.height)
-            let contentHeight = max(0, overlayHeight - PlaybackOverlayLayout.outerPadding * 2)
-            let contentWidth = max(0, overlayWidth - PlaybackOverlayLayout.outerPadding * 2)
+            let contentHeight = max(0, overlayHeight - PlaybackOverlayLayout.verticalPadding * 2)
+            let contentWidth = max(0, overlayWidth - PlaybackOverlayLayout.horizontalPadding * 2)
             let showsSidePanel = appState.isPlaybackSidePanelVisible
                 && appState.playbackViewModel != nil
                 && sidePanelWidth > 0
@@ -667,7 +668,8 @@ private struct PlaybackOverlayWindow: View {
                         .frame(width: panelWidth, height: contentHeight)
                     }
                 }
-                .padding(PlaybackOverlayLayout.outerPadding)
+                .padding(.horizontal, PlaybackOverlayLayout.horizontalPadding)
+                .padding(.vertical, PlaybackOverlayLayout.verticalPadding)
                 .frame(width: overlayWidth, height: overlayHeight, alignment: .center)
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
