@@ -192,6 +192,29 @@ Rules:
 - Record benchmark results in this document or a linked benchmark artifact
   before merging the next optimization step.
 
+## Benchmark Results
+
+### Baseline Before Search Optimizations
+
+Date: 2026-05-15
+
+Commit: `87686ca`
+
+Database:
+`/Users/weiyunjun/Library/Application Support/CueSeeker/CueSeeker.sqlite`
+
+Build: SwiftPM debug `SearchBench`
+
+Limit: `1000`
+
+Schema version: `11`
+
+| Query | Warmup ms | Results returned | Total count | File summaries | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `大丈夫` | 936.89 | 185 | 185 | 74 | 103.67 | 102.67, 102.90, 104.79, 103.17, 104.85 |
+| `今日` | 487.14 | 1000 | 1282 | 81 | 201.68 | 228.91, 195.00, 197.32, 193.66, 193.53 |
+| `の` | 1114.70 | 1000 | 20770 | 87 | 927.81 | 986.37, 887.11, 864.27, 973.56, 927.74 |
+
 ## Development Decision
 
 This performance issue is a known follow-up and should not block ordinary
