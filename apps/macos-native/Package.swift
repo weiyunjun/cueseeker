@@ -11,7 +11,8 @@ let package = Package(
         .executable(name: "CueSeeker", targets: ["CueSeekerApp"]),
         .executable(name: "NativePlaybackProbe", targets: ["NativePlaybackProbe"]),
         .executable(name: "ASSRenderingProbe", targets: ["ASSRenderingProbe"]),
-        .executable(name: "PlaybackSyncProbe", targets: ["PlaybackSyncProbe"])
+        .executable(name: "PlaybackSyncProbe", targets: ["PlaybackSyncProbe"]),
+        .executable(name: "SearchBench", targets: ["SearchBench"])
     ],
     targets: [
         .target(
@@ -115,6 +116,12 @@ let package = Package(
                 .linkedFramework("AppKit"),
                 .linkedFramework("QuartzCore")
             ]
+        ),
+        .executableTarget(
+            name: "SearchBench",
+            dependencies: ["CueSeekerCore"],
+            path: "Sources/SearchBench",
+            exclude: ["TestThumbnails.swift"]
         ),
         .testTarget(
             name: "CueSeekerCoreTests",

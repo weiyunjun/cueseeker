@@ -14,6 +14,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
   `今日`, and `の` five times each before code changes and after each
   optimization step, implement accepted optimizations in order, keep
   query/result cache last, and preserve raw benchmark timings for comparison.
+- Exposed `SearchBench` as a Swift package executable so search optimization
+  passes can run the same local benchmark harness after each step.
 - Implemented the first database storage maintenance pass in the native macOS
   app: Settings now exposes local database storage stats, highlights
   reclaimable SQLite freelist space, and offers a manual `Compact Database`
