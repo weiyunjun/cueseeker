@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a chronicle documentation track for explicitly started Socratic
+  architecture alignment sessions, so implementation ideas discovered through
+  iterative questioning can preserve their reasoning provenance separately from
+  Git history, proposals, ADRs, and milestone changelog outcomes.
 - Accepted an AI Socratic architecture alignment workflow: when the user starts
   an iterative architecture questioning session, the assistant should answer
   narrowly, emphasize key conclusions, surface evidence and uncertainty, keep

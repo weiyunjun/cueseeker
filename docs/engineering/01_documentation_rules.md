@@ -32,6 +32,7 @@ This applies to:
 - Engineering documents.
 - Proposals.
 - Architecture Decision Records.
+- Chronicle entries.
 - Changelog entries.
 - Release notes.
 
@@ -52,6 +53,7 @@ docs/
   engineering/
   proposals/
   decisions/
+  chronicle/
   changelog.md
 ```
 
@@ -61,6 +63,8 @@ Rules:
 - `docs/engineering/` records stable engineering rules.
 - `docs/proposals/` records proposed changes before acceptance.
 - `docs/decisions/` records ADRs.
+- `docs/chronicle/` records reasoning provenance for explicitly started
+  Socratic architecture alignment sessions.
 - `docs/changelog.md` records milestone-level progress.
 
 ## 5. Product Documents
@@ -186,7 +190,44 @@ Rules:
 - ADRs should be updated or superseded when decisions change.
 - ADRs do not replace product or engineering documents; stable conclusions must be reflected in the relevant rules.
 
-## 9. Changelog
+## 9. Chronicle
+
+Use a chronicle entry when an explicitly started Socratic architecture alignment
+session produces a meaningful implementation idea, architecture concern,
+engineering rule candidate, or proposal direction.
+
+Naming format:
+
+```text
+docs/chronicle/YYYY-MM-DD-topic-name.md
+```
+
+Recommended sections:
+
+```text
+Context
+Question Path
+Evidence Surfaced
+Emerging Insight
+Open Questions
+Next Update Trigger
+```
+
+Rules:
+
+- Chronicle entries apply only to explicitly started Socratic architecture
+  alignment sessions.
+- Chronicle entries should emphasize why an idea emerged from the question
+  path, not list every implementation detail.
+- Chronicle entries may be updated as the same Socratic session continues,
+  especially when the user explicitly asks for the process record to be
+  updated.
+- Chronicle entries do not authorize implementation by themselves.
+- When a chronicle insight becomes accepted project direction, stable
+  conclusions must still move into the relevant product, engineering, proposal,
+  ADR, or changelog document.
+
+## 10. Changelog
 
 `docs/changelog.md` records milestone-level progress and user-visible project changes.
 
@@ -205,7 +246,7 @@ Rules:
 - Changelog entries should summarize outcomes, not implementation details or individual commits.
 - Changelog entries belong in `Unreleased` until a formal release section exists.
 
-## 10. Change Process
+## 11. Change Process
 
 Small documentation changes may directly update stable documents.
 

@@ -33,6 +33,7 @@ This applies to:
 - Engineering documents.
 - Proposals.
 - ADRs.
+- Chronicle entries.
 - Changelog entries.
 - Release notes.
 
@@ -40,7 +41,7 @@ Chinese may appear only when it is part of a literal UI string, user-facing copy
 
 ## 4. Documentation System
 
-Project documentation is divided into five categories:
+Project documentation is divided into six categories:
 
 ```text
 docs/
@@ -48,6 +49,7 @@ docs/
   engineering/
   proposals/
   decisions/
+  chronicle/
   changelog.md
 ```
 
@@ -157,7 +159,25 @@ Alternatives considered
 Status
 ```
 
-### 4.5 Changelog
+### 4.5 Chronicle
+
+`docs/chronicle/` records reasoning provenance for explicitly started
+Socratic architecture alignment sessions.
+
+Chronicle entries should summarize how a line of questioning produced an
+implementation idea, risk, proposal candidate, or engineering rule candidate.
+They emphasize why the idea emerged, what evidence or uncertainty shaped it,
+and how the discussion narrowed.
+
+Chronicle entries should not replace:
+
+- `docs/changelog.md`, which records milestone-level outcomes.
+- `docs/proposals/`, which records proposed product or technical changes before
+  acceptance.
+- `docs/decisions/`, which records accepted hard-to-reverse decisions.
+- Git commits, which record concrete file changes.
+
+### 4.6 Changelog
 
 `docs/changelog.md` records milestone-level changes and user-visible project progress.
 

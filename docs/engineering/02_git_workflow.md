@@ -183,6 +183,12 @@ Rules:
   continuity across questions by connecting each answer to the current narrowed
   topic and by surfacing the next most useful distinction only when it helps the
   user choose the following question.
+- When an explicitly started Socratic architecture alignment session produces a
+  meaningful implementation idea, architecture concern, engineering rule
+  candidate, or proposal direction, the AI should maintain a process summary in
+  `docs/chronicle/` when the user requests that record. The chronicle should
+  emphasize why the idea emerged from the question path, not repeat the concrete
+  code changes that belong in Git history and `docs/changelog.md`.
 - Before every major frontend UI modification, the AI must consult the relevant
   HTML prototype or HTML reference when one exists. If no relevant HTML
   prototype or reference exists, the AI must explicitly remind the user before
