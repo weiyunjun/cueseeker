@@ -34,6 +34,16 @@ public struct SubtitleSearchFileSummary: Equatable, Sendable {
     public let matchCount: Int
 }
 
+public struct SubtitleSearchCursor: Equatable, Sendable, Codable {
+    public static let start = SubtitleSearchCursor(offset: 0)
+
+    public let offset: Int
+
+    public init(offset: Int) {
+        self.offset = max(0, offset)
+    }
+}
+
 public struct LibraryVideo: Equatable, Sendable, Identifiable {
     public let videoPath: String
     public let videoName: String
@@ -111,6 +121,26 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
     public let fileSummaries: [SubtitleSearchFileSummary]
+    public let appliedCursor: SubtitleSearchCursor
+    public let nextCursor: SubtitleSearchCursor?
+
+    public var hasMore: Bool {
+        nextCursor != nil
+    }
+
+    public init(
+        results: [SubtitleSearchResult],
+        totalCount: Int,
+        fileSummaries: [SubtitleSearchFileSummary],
+        appliedCursor: SubtitleSearchCursor = .start,
+        nextCursor: SubtitleSearchCursor? = nil
+    ) {
+        self.results = results
+        self.totalCount = totalCount
+        self.fileSummaries = fileSummaries
+        self.appliedCursor = appliedCursor
+        self.nextCursor = nextCursor
+    }
 }
 
 public struct SearchNavigationAnchor: Equatable, Sendable {
@@ -964,7 +994,26 @@ public final class SubtitleDatabase: @unchecked Sendable {
         inSubtitlePath subtitlePath: String? = nil,
         diagnostics: SubtitleSearchDiagnosticSink? = nil
     ) throws -> SubtitleSearchPage {
+        try searchPage(
+            query,
+            limit: limit,
+            cursor: SubtitleSearchCursor(offset: offset),
+            under: folders,
+            inSubtitlePath: subtitlePath,
+            diagnostics: diagnostics
+        )
+    }
+
+    public func searchPage(
+        _ query: String,
+        limit: Int = 50,
+        cursor: SubtitleSearchCursor?,
+        under folders: [URL]? = nil,
+        inSubtitlePath subtitlePath: String? = nil,
+        diagnostics: SubtitleSearchDiagnosticSink? = nil
+    ) throws -> SubtitleSearchPage {
         let searchPageStart = Self.diagnosticNow()
+        let appliedCursor = cursor ?? .start
 
         func emit(
             _ name: String,
@@ -983,7 +1032,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let planStart = Self.diagnosticNow()
         guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
             emit("query_plan_empty", since: planStart)
-            return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
+            return SubtitleSearchPage(
+                results: [],
+                totalCount: 0,
+                fileSummaries: [],
+                appliedCursor: appliedCursor
+            )
         }
         emit(
             "query_plan",
@@ -995,11 +1049,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
 
         let scopeStart = Self.diagnosticNow()
-        let offset = max(0, offset)
+        let offset = appliedCursor.offset
         let subtitlePathFilter = subtitlePath
         if let subtitlePathFilter, subtitlePathFilter.isEmpty {
             emit("scope_empty_subtitle_path", since: scopeStart)
-            return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
+            return SubtitleSearchPage(
+                results: [],
+                totalCount: 0,
+                fileSummaries: [],
+                appliedCursor: appliedCursor
+            )
         }
 
         let pathPrefixes: [String]?
@@ -1007,7 +1066,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let prefixes = Self.folderPathPrefixes(for: folders)
             guard !prefixes.isEmpty else {
                 emit("scope_empty_folders", since: scopeStart)
-                return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
+                return SubtitleSearchPage(
+                    results: [],
+                    totalCount: 0,
+                    fileSummaries: [],
+                    appliedCursor: appliedCursor
+                )
             }
             pathPrefixes = prefixes
         } else {
@@ -1017,6 +1081,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             "scope_resolved",
             since: scopeStart,
             fields: [
+                .init("cursorOffset", appliedCursor.offset),
                 .init("pathPrefixes", pathPrefixes?.count ?? 0),
                 .init("hasSubtitlePathFilter", subtitlePathFilter == nil ? "false" : "true")
             ]
@@ -1190,11 +1255,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
             for i in 0..<pageResults.count {
                 pageResults[i].searchRank = offset + i
             }
+            let nextCursor = offset + pageResults.count < sortedResults.count
+                ? SubtitleSearchCursor(offset: offset + pageResults.count)
+                : nil
             emit(
                 "page_slice",
                 since: pageStart,
                 fields: [
                     .init("offset", offset),
+                    .init("cursorOffset", appliedCursor.offset),
+                    .init("nextCursorOffset", nextCursor?.offset ?? -1),
                     .init("limit", limit),
                     .init("pageResults", pageResults.count)
                 ]
@@ -1216,6 +1286,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 since: searchPageStart,
                 fields: [
                     .init("batches", batchIndex),
+                    .init("cursorOffset", appliedCursor.offset),
+                    .init("nextCursorOffset", nextCursor?.offset ?? -1),
                     .init("totalCandidates", totalCandidates),
                     .init("multiLineCandidates", totalMultiLineCandidates),
                     .init("cueLineRows", totalCueLineRows),
@@ -1227,7 +1299,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return SubtitleSearchPage(
                 results: pageResults,
                 totalCount: sortedResults.count,
-                fileSummaries: fileSummaries
+                fileSummaries: fileSummaries,
+                appliedCursor: appliedCursor,
+                nextCursor: nextCursor
             )
         } catch {
             emit(
@@ -1235,7 +1309,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 since: searchPageStart,
                 fields: [.init("error", error.localizedDescription)]
             )
-            return SubtitleSearchPage(results: [], totalCount: 0, fileSummaries: [])
+            return SubtitleSearchPage(
+                results: [],
+                totalCount: 0,
+                fileSummaries: [],
+                appliedCursor: appliedCursor
+            )
         }
     }
 

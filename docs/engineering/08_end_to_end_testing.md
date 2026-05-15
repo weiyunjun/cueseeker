@@ -437,6 +437,11 @@ Record:
   load-more wait was needed, and whether `Collapse All` triggered any
   unexpected load.
 - Any log block requested for the step.
+- For Search-layer pagination / cursor steps, the JSONL page records for the
+  run, summarized as
+  `Query | page count observed | returned sequence | groups sequence |
+  renderedRows sequence | hasMore | cursor sequence | nextCursor sequence |
+  duplicate rows | stale rows | Collapse All unexpected load | pass/fail`.
 - Any visible workflow issue, including stale counts, wrong grouping, empty
   loaded groups, accidental lazy-load triggers, scroll jumps, delayed playback
   selection, or front-end diagnostics that were not explicitly accepted.
@@ -454,5 +459,9 @@ The gate passes only if:
 - The required wait and scroll counts are followed: no scroll for `大丈夫`
   unless the step requires it, three full viewport scrolls for `今日`, and six
   full viewport scrolls for `の`.
+- When the step changes Search-layer pagination, every observed load-more page
+  must advance from the previous page's `nextCursor`; `returned`,
+  `renderedRows`, and visible file groups must progress without duplicate rows,
+  skipped rows, stale rows, or an unintended global load caused by `Collapse All`.
 - Search-performance diagnostics remain in logs or benchmark output unless a
   front-end diagnostic surface has already been explicitly accepted.

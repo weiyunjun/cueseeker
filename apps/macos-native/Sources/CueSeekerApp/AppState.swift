@@ -342,7 +342,7 @@ final class AppState: ObservableObject {
     }
 
     var searchGlobalLoadMoreTriggerID: String {
-        "\(loadedGlobalSearchResultCount)-\(isSearching)"
+        "\(nextGlobalSearchCursor?.offset ?? loadedGlobalSearchResultCount)-\(isSearching)"
     }
 
     var hasShioriFileGroups: Bool {
@@ -594,6 +594,7 @@ final class AppState: ObservableObject {
     private var pendingSearchVisibleEntryIDs: Set<Int64> = []
     private var activePlaybackSource: ActivePlaybackSource = .none
     private var loadedGlobalSearchResultCount = 0
+    private var nextGlobalSearchCursor: SubtitleSearchCursor?
     private var isSearching: Bool {
         if case .searching = searchStatus {
             return true
@@ -1144,7 +1145,7 @@ final class AppState: ObservableObject {
             details: "length=\(query.count)"
         )
         searchQuery = query
-        startSearch(query: query, offset: 0, appending: false, debounce: true)
+        startSearch(query: query, cursor: .start, appending: false, debounce: true)
     }
 
     func submitTopbarSearch(_ query: String) {
@@ -1160,7 +1161,7 @@ final class AppState: ObservableObject {
         searchQuery = trimmedQuery
         searchNavigationSnapshot = nil
         searchNavigationResultGroups = []
-        startSearch(query: trimmedQuery, offset: 0, appending: false, debounce: false)
+        startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
     }
 
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
@@ -1191,9 +1192,13 @@ final class AppState: ObservableObject {
             return
         }
 
+        guard let cursor = nextGlobalSearchCursor else {
+            return
+        }
+
         startSearch(
             query: searchQuery,
-            offset: loadedGlobalSearchResultCount,
+            cursor: cursor,
             appending: true,
             debounce: false
         )
@@ -1447,7 +1452,7 @@ final class AppState: ObservableObject {
 
     private func startSearch(
         query: String,
-        offset: Int,
+        cursor: SubtitleSearchCursor,
         appending: Bool,
         debounce: Bool
     ) {
@@ -1456,6 +1461,7 @@ final class AppState: ObservableObject {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let folders = selectedFolders
         let pageSize = Self.searchPageSize
+        let offset = cursor.offset
         if let activeSearchPerformanceRun {
             SearchPerformanceLogger.mark(activeSearchPerformanceRun, "search_superseded_by_new_search")
             SearchPerformanceLogger.writeE2ESearchPage(
@@ -1469,6 +1475,7 @@ final class AppState: ObservableObject {
             query: trimmedQuery,
             queryLength: trimmedQuery.count,
             offset: offset,
+            cursor: cursor,
             limit: pageSize,
             appending: appending,
             debounce: debounce,
@@ -1577,7 +1584,7 @@ final class AppState: ObservableObject {
                     let page = try database.searchPage(
                         trimmedQuery,
                         limit: pageSize,
-                        offset: offset,
+                        cursor: cursor,
                         under: folders,
                         diagnostics: diagnosticsSink
                     )
@@ -1631,7 +1638,8 @@ final class AppState: ObservableObject {
                 }
                 searchResultTotalCount = page.totalCount
                 searchFileSummaries = page.fileSummaries
-                hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
+                nextGlobalSearchCursor = page.nextCursor
+                hasMoreSearchResults = page.hasMore
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
@@ -2396,6 +2404,7 @@ final class AppState: ObservableObject {
             searchResults = []
             expandedSearchResultGroupRowsByPath = [:]
             loadedGlobalSearchResultCount = 0
+            nextGlobalSearchCursor = nil
             rebuildSearchResultGroups()
         }
 
@@ -2552,6 +2561,7 @@ final class AppState: ObservableObject {
         searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         searchResultTotalCount = searchFileSummaries.reduce(0) { $0 + $1.matchCount }
         loadedGlobalSearchResultCount = searchResults.count
+        nextGlobalSearchCursor = nil
         hasMoreSearchResults = false
         collapsedSearchResultGroupPaths = collapsedSearchResultGroupPaths.filter { !Self.path($0, isUnder: folder) }
         removeLibraryPresentation(under: folder)
@@ -2859,6 +2869,9 @@ final class AppState: ObservableObject {
         searchResults = Array(searchResults.prefix(Self.searchPageSize))
         loadedGlobalSearchResultCount = searchResults.count
         hasMoreSearchResults = loadedGlobalSearchResultCount < searchResultTotalCount
+        nextGlobalSearchCursor = hasMoreSearchResults
+            ? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount)
+            : nil
         rebuildSearchResultGroups()
     }
 
@@ -2878,6 +2891,7 @@ final class AppState: ObservableObject {
         collapsedSearchResultGroupPaths = []
         expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
+        nextGlobalSearchCursor = nil
         searchNavigationSnapshot = nil
         searchNavigationResultGroups = []
         rebuildSearchResultGroups()

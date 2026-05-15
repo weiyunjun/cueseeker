@@ -2,12 +2,21 @@ import Foundation
 import os
 import CueSeekerCore
 
+struct SearchCursorLogSnapshot: Encodable, Sendable {
+    let offset: Int
+
+    init(_ cursor: SubtitleSearchCursor) {
+        offset = cursor.offset
+    }
+}
+
 struct SearchPerformanceRun: Sendable {
     let id: UInt64
     let startedAt: UInt64
     let query: String
     let queryLength: Int
     let offset: Int
+    let cursor: SearchCursorLogSnapshot
     let limit: Int
     let appending: Bool
     let debounce: Bool
@@ -26,6 +35,7 @@ private struct SearchPerformanceLogEntry: Sendable {
     let phaseMilliseconds: Double?
     let queryLength: Int
     let offset: Int
+    let cursor: SearchCursorLogSnapshot
     let limit: Int
     let appending: Bool
     let debounce: Bool
@@ -53,6 +63,7 @@ private struct SearchPerformanceLogEntry: Sendable {
         }
         fields.append("queryLength=\(queryLength)")
         fields.append("offset=\(offset)")
+        fields.append("cursorOffset=\(cursor.offset)")
         fields.append("limit=\(limit)")
         fields.append("appending=\(appending)")
         fields.append("debounce=\(debounce)")
@@ -94,7 +105,7 @@ private struct SearchPerformanceLogEntry: Sendable {
 }
 
 private struct SearchE2ELogEntry: Encodable, Sendable {
-    let schemaVersion = 3
+    let schemaVersion = 4
     let timestamp: String
     let sequence: UInt64
     let runID: UInt64
@@ -113,6 +124,8 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
     let hotTargetRunCount: Int?
     let hasMore: Bool?
     let offset: Int
+    let cursor: SearchCursorLogSnapshot
+    let nextCursor: SearchCursorLogSnapshot?
     let limit: Int
     let groups: Int?
     let renderedRows: Int?
@@ -156,6 +169,8 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         case hotTargetRunCount
         case hasMore
         case offset
+        case cursor
+        case nextCursor
         case limit
         case groups
         case renderedRows
@@ -201,6 +216,8 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         try encodeNullable(hotTargetRunCount, forKey: .hotTargetRunCount, into: &container)
         try encodeNullable(hasMore, forKey: .hasMore, into: &container)
         try container.encode(offset, forKey: .offset)
+        try container.encode(cursor, forKey: .cursor)
+        try encodeNullable(nextCursor, forKey: .nextCursor, into: &container)
         try container.encode(limit, forKey: .limit)
         try encodeNullable(groups, forKey: .groups, into: &container)
         try encodeNullable(renderedRows, forKey: .renderedRows, into: &container)
@@ -293,16 +310,18 @@ private struct SearchE2ESamples: Sendable {
     let totalCount: Int
     let fileSummaryCount: Int
     let hasMore: Bool
+    let nextCursor: SearchCursorLogSnapshot?
     let loadedFileGroups: Int
     let loadedRows: Int
     let fileGroupPreviewMilestones: [SearchE2EFileGroupPreviewMilestone]
     let exactCountsCompletion: SearchE2EExactCountsSnapshot
 
-    init(page: SubtitleSearchPage, offset: Int, elapsedMilliseconds: Double) {
+    init(page: SubtitleSearchPage, elapsedMilliseconds: Double) {
         returned = page.results.count
         totalCount = page.totalCount
         fileSummaryCount = page.fileSummaries.count
-        hasMore = offset + page.results.count < page.totalCount
+        hasMore = page.hasMore
+        nextCursor = page.nextCursor.map(SearchCursorLogSnapshot.init)
         let loadedRowsByPath = Dictionary(grouping: page.results, by: \.subtitlePath)
         let loadedSummaryPaths = page.fileSummaries.filter {
             loadedRowsByPath[$0.subtitlePath]?.isEmpty == false
@@ -671,6 +690,7 @@ enum SearchPerformanceLogger {
         query: String,
         queryLength: Int,
         offset: Int,
+        cursor: SubtitleSearchCursor? = nil,
         limit: Int,
         appending: Bool,
         debounce: Bool,
@@ -681,12 +701,14 @@ enum SearchPerformanceLogger {
             return nil
         }
 
+        let resolvedCursor = cursor ?? SubtitleSearchCursor(offset: offset)
         let run = SearchPerformanceRun(
             id: state.allocateRunID(),
             startedAt: now(),
             query: query,
             queryLength: queryLength,
             offset: offset,
+            cursor: SearchCursorLogSnapshot(resolvedCursor),
             limit: limit,
             appending: appending,
             debounce: debounce,
@@ -726,7 +748,6 @@ enum SearchPerformanceLogger {
         let samples = page.map {
             SearchE2ESamples(
                 page: $0,
-                offset: run.offset,
                 elapsedMilliseconds: elapsedMilliseconds
             )
         }
@@ -755,6 +776,8 @@ enum SearchPerformanceLogger {
             hotTargetRunCount: benchmark?.hotTargetRunCount,
             hasMore: samples?.hasMore,
             offset: run.offset,
+            cursor: run.cursor,
+            nextCursor: samples?.nextCursor,
             limit: run.limit,
             groups: groupCount,
             renderedRows: renderedRowCount,
@@ -827,6 +850,8 @@ enum SearchPerformanceLogger {
             hotTargetRunCount: benchmark?.hotTargetRunCount,
             hasMore: resultCount < totalCount,
             offset: run.offset,
+            cursor: run.cursor,
+            nextCursor: nil,
             limit: run.limit,
             groups: groupCount,
             renderedRows: renderedRowCount,
@@ -903,6 +928,8 @@ enum SearchPerformanceLogger {
             hotTargetRunCount: nil,
             hasMore: totalCount.map { (rowsAfter ?? rowsBefore) < $0 },
             offset: run.offset,
+            cursor: run.cursor,
+            nextCursor: nil,
             limit: run.limit,
             groups: groupCount,
             renderedRows: renderedRowCount,
@@ -1026,6 +1053,7 @@ enum SearchPerformanceLogger {
             phaseMilliseconds: resolvedPhaseMilliseconds,
             queryLength: run.queryLength,
             offset: run.offset,
+            cursor: run.cursor,
             limit: run.limit,
             appending: run.appending,
             debounce: run.debounce,

@@ -201,6 +201,8 @@ print("Warmup search:        \(formatMs(warmupMs)) ms")
 print("  results returned:   \(warmupPage.results.count)")
 print("  total count:        \(warmupPage.totalCount)")
 print("  file summaries:     \(warmupPage.fileSummaries.count)")
+print("  cursor offset:      \(warmupPage.appliedCursor.offset)")
+print("  next cursor:        \(warmupPage.nextCursor.map { String($0.offset) } ?? "none")")
 print("")
 
 var hotRuns: [TimedSearchPage] = []

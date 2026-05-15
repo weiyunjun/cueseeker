@@ -187,6 +187,54 @@ func searchPaginatesBeyondDefaultResultLimit() throws {
 }
 
 @Test
+func searchPageReturnsContinuationCursorForNextPage() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Series.mkv")
+    let entries = (0..<5).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: "00:00:0\(index),000",
+            endTimecode: "00:00:0\(index),500",
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Shared cursor line \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+
+    let firstPage = try database.searchPage("shared", limit: 2)
+    let secondPage = try database.searchPage("shared", limit: 2, cursor: firstPage.nextCursor)
+    let thirdPage = try database.searchPage("shared", limit: 2, cursor: secondPage.nextCursor)
+
+    #expect(firstPage.appliedCursor.offset == 0)
+    #expect(firstPage.nextCursor?.offset == 2)
+    #expect(secondPage.appliedCursor.offset == 2)
+    #expect(secondPage.nextCursor?.offset == 4)
+    #expect(thirdPage.appliedCursor.offset == 4)
+    #expect(thirdPage.nextCursor == nil)
+    #expect((firstPage.results + secondPage.results + thirdPage.results).map(\.content) == [
+        "Shared cursor line 0",
+        "Shared cursor line 1",
+        "Shared cursor line 2",
+        "Shared cursor line 3",
+        "Shared cursor line 4"
+    ])
+}
+
+@Test
 func searchPageReturnsTotalCountsAndFileSummaries() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

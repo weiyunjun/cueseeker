@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added Search-layer pagination cursor acceptance rules and implemented an
+  explicit Search continuation cursor in Core, AppState, benchmark output, and
+  Search E2E JSONL logs.
 - Implemented the Search result presentation state model: Searching and
   Initial states now show only loaded non-empty file groups, `Collapse All` is
   disabled while Search is loading, and Collapsed state uses an all-file alias

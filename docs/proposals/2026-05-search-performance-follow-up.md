@@ -299,7 +299,7 @@ stable.
 | Step | Item | Ownership | Purpose |
 | ---: | --- | --- | --- |
 | 1 | New benchmark gaps | Test / benchmark, backend-leaning | Fill only the missing benchmark coverage needed to measure file-group preview readiness, exact-count completion, and per-file load-more latency after the baseline has been recorded. |
-| 2 | Search-layer pagination / cursor | Backend-first, AppState integration | Avoid pushing the complete result set into app state at once while keeping continuation state explicit. |
+| 2 | Search-layer pagination / cursor | Backend-first, AppState integration | Make continuation state an explicit Search-layer cursor so AppState consumes bounded pages instead of deriving the next page from loaded row counts. |
 | 3 | Provisional count model | Backend / state model; no front-end performance display yet | Track known counts without pretending they are final, measured through logs or benchmark output until the UI is stable. |
 | 4 | Exact count background completion | Backend-first | Replace provisional counts with exact totals after the background pass finishes, without repeating expensive Search work per file. |
 | 5 | `fts5vocab` diagnostics | Backend / diagnostic tool | Make high-frequency terms and possible FTS index pollution observable through benchmark or log output before later tuning. |
@@ -359,6 +359,11 @@ Benchmark rules:
   expansion behavior, lazy loading, or playback result selection. The procedure
   must use the fixed query order `大丈夫`, `今日`, `の` and the documented
   per-query wait and scroll requirements.
+- For Step 2, Search E2E JSONL evidence must include the requested `cursor`, the
+  returned `nextCursor`, `limit`, `returned`, `groups`, `renderedRows`, and
+  `hasMore` for every observed page. The accepted shape is continuous cursor
+  progression with no duplicate rows, no skipped rows, no stale rows from the
+  previous query, and no unintended global load after `Collapse All`.
 - For Step 17, clear cache state between benchmark query groups, then run each
   query five times so warm-cache behavior is measured without cross-query
   contamination.
