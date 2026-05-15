@@ -172,7 +172,30 @@ Rules:
   meaningful change to the expected procedure or acceptance criteria must be
   committed with the code or documentation change that relies on it.
 
-## 9. Playback Verification
+## 9. Search Optimization Gates
+
+Search optimization work must be benchmark-led and test-gated.
+
+Rules:
+
+- Before changing Search optimization code, run the agreed benchmark queries
+  `大丈夫`, `今日`, and `の` on the current commit and record raw timings,
+  averages, result counts, and file counts.
+- Search diagnostics should be exposed through benchmark output, log files, or
+  default-off probes while the optimization path is unstable. Do not add
+  front-end Search-performance display as an early workflow shortcut.
+- Automated tests must cover the behavior changed by the optimization step
+  before the step is accepted. Relevant areas include query semantics, result
+  identity, grouping, ordering, folder scope, total counts, pagination, collapse
+  and expansion behavior, and lazy-loading boundaries.
+- End-to-end evidence is required before accepting a Search optimization step
+  that affects visible Search workflow, scrolling, collapse or expansion,
+  lazy-loading triggers, or Search-result playback selection.
+- A benchmark regression on the metric targeted by the step must stop the
+  sequence. The default follow-up is to revert or disable the change unless the
+  user explicitly accepts keeping it with a documented reason.
+
+## 10. Playback Verification
 
 Playback requires both automated-adjacent verification and manual acceptance.
 
@@ -434,7 +457,7 @@ Rules:
 - Playback engine-specific behavior must be documented after the engine is selected.
 - Final playback engine verification criteria must be updated after the playback ADR is accepted.
 
-## 9. File Access and Sandboxing Tests
+## 11. File Access and Sandboxing Tests
 
 Local folder access must be verified explicitly.
 
@@ -447,7 +470,7 @@ Required checks:
 - If sandboxing is enabled, folder access persists across app restart through the documented mechanism.
 - If sandboxing is disabled for early personal use, that assumption is documented before packaging.
 
-## 10. Test Fixtures
+## 12. Test Fixtures
 
 Fixture data should be small and intentional.
 
@@ -472,7 +495,7 @@ Rules:
 - Placeholder or generated media should be used when possible.
 - Fixture names should make the tested condition obvious.
 
-## 11. Manual Acceptance Checks
+## 13. Manual Acceptance Checks
 
 Each milestone must have a short manual acceptance checklist.
 
@@ -498,7 +521,7 @@ Rules:
 - Manual checks must be updated when the product workflow changes.
 - Manual checks should not replace deterministic automated tests for parser, database, and search behavior.
 
-## 12. Regression Policy
+## 14. Regression Policy
 
 Bug fixes should add tests when the bug is deterministic and testable.
 
@@ -510,7 +533,7 @@ Rules:
 - Playback bugs should add the closest practical automated check plus a manual verification note if needed.
 - UI regressions should add smoke coverage where the native test setup allows it.
 
-## 13. Milestone Completion Rule
+## 15. Milestone Completion Rule
 
 A milestone is not complete until:
 
@@ -521,7 +544,7 @@ A milestone is not complete until:
 - Database migrations, if any, have fresh-create and migrate-path verification.
 - Playback behavior, if included in the milestone, has been verified against the selected playback strategy.
 
-## 14. M2 ASS Subtitle Test Coverage
+## 16. M2 ASS Subtitle Test Coverage
 
 The first M2 ASS implementation is complete only after ASS indexing, grouped
 search results, and click-to-playback behavior are verified.
@@ -573,7 +596,7 @@ Playback verification for the first ASS step:
 - Playback opens the matched video and seeks to the cue group's `start_ms`.
 - Source ASS subtitle rendering is not required for this first ASS step.
 
-## 15. ASS Renderer Routing Coverage
+## 17. ASS Renderer Routing Coverage
 
 CueSeeker currently supports a single active ASS playback renderer: the
 `libass`-backed source-faithful overlay.
@@ -594,7 +617,7 @@ Required routing coverage:
 Known deferred behavior should remain documented when tests cover graceful
 degradation cases.
 
-## 16. Source-faithful ASS Rendering Pipeline Coverage
+## 18. Source-faithful ASS Rendering Pipeline Coverage
 
 The source-faithful ASS rendering pipeline is complete only after search,
 playback startup, render preparation, and complex ASS rendering behavior are

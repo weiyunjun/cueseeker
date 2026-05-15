@@ -185,9 +185,10 @@ Reason:
 Current retained implementation:
 
 - Baseline group-level FTS Search from before the optimization sequence.
-- The `Developer` Settings category remains as a reserved diagnostics surface,
-  but concrete Search diagnostics are paused until the new measurement model is
-  implemented.
+- The `Developer` Settings category remains reserved for later diagnostics, but
+  the active Search optimization flow must use benchmark output and logs first.
+  Search-performance numbers should not be added to the front-end UI until the
+  Search mechanism is stable and accepted.
 
 New Socratic definitions:
 
@@ -231,25 +232,46 @@ The following items are not part of the next implementation sequence:
 - Playback overlay Search Results lazy loading. It is a separate consumer-side
   list problem and should be designed after the Search results page is aligned.
 
-## Accepted 17-Step Plan
+## Accepted Stage-Gated Plan
 
-This is a step-by-step verification sequence. There is no bundled "first
-round". Each step must be implemented, benchmarked, and accepted or rejected
-before moving to the next step. The order is: test and diagnostic capability
-first, then the mature lazy-loading mechanism, then measured data/index tuning,
-with query/result cache last.
+This supersedes the earlier item order. The active flow is stage-gated: measure
+the current baseline first, add only log or benchmark observability next, prove
+the behavior with automated and end-to-end tests, and only then continue to the
+next implementation step.
+
+There is no bundled "first round". Each step must be implemented, benchmarked,
+tested, and accepted or rejected before moving to the next step. If the data
+does not support the step's goal, the step stops.
+
+### Pre-Implementation Gates
+
+These gates must pass before any new Search optimization mechanism starts:
+
+| Gate | Item | Acceptance |
+| --- | --- | --- |
+| A | Baseline benchmark | Run the three benchmark queries, record raw timings, averages, result counts, file counts, and the current commit. No code changes are allowed in this gate. |
+| B | Log or benchmark diagnostics | Add or verify machine-readable diagnostics in logs or benchmark output only. Do not add Search-performance data to the Search panel or front-end Developer UI during unstable work. |
+| C | Automated tests | Add or verify fixture-based tests for Search correctness, including identity, grouping, ordering, folder scope, counts, pagination, and lazy-loading boundaries touched by the planned step. |
+| D | End-to-end test | Update or follow the Search optimization E2E procedure in `docs/engineering/08_end_to_end_testing.md`, then record the observed pass/fail evidence before accepting the step. |
+
+### Implementation Backlog
+
+After the gates pass, the implementation backlog proceeds one item at a time.
+Diagnostic visibility remains in benchmark output or logs unless the user
+explicitly accepts a front-end diagnostic surface after the core mechanism is
+stable.
 
 | Step | Phase | Item | Source | Purpose |
 | ---: | --- | --- | --- | --- |
-| 1 | Test | New benchmark | Mature lazy-loading plan | Measure the new product target: file-group preview readiness, exact-count completion, and per-file load-more latency. |
-| 2 | Diagnostic | `fts5vocab` diagnostics | Old optimization list | Make high-frequency terms and possible FTS index pollution observable before later tuning. |
-| 3 | Mechanism | UI virtualization / windowing validation | Mature lazy-loading plan | Confirm that loaded rows and rendered row views are separate, and that visible row count stays bounded. |
-| 4 | Mechanism | Search-layer pagination / cursor | Mature lazy-loading plan | Avoid pushing the complete result set into app state at once. |
-| 5 | Mechanism | File-group progressive display | Mature lazy-loading plan | Render ASS/subtitle file groups as they become available. |
-| 6 | Mechanism | File-group initial preview | Mature lazy-loading plan | Show only a bounded preview, such as 20 rows, when a file group first appears. |
-| 7 | Mechanism | File-internal `Show more` | Mature lazy-loading plan | Load additional rows inside one large file group on user action, such as 100 rows per request. |
-| 8 | Mechanism | Provisional count | Mature lazy-loading plan | Show known/displayed counts without pretending they are final. |
-| 9 | Mechanism | Exact count background completion | Mature lazy-loading plan | Replace provisional counts with exact totals after the background pass finishes. |
+| 1 | Test | New benchmark gaps | Mature lazy-loading plan | Fill only the missing benchmark coverage needed to measure file-group preview readiness, exact-count completion, and per-file load-more latency after the baseline has been recorded. |
+| 2 | Mechanism | Search-layer pagination / cursor | Mature lazy-loading plan | Avoid pushing the complete result set into app state at once. |
+| 3 | Mechanism | File-group progressive display | Mature lazy-loading plan | Render ASS/subtitle file groups as they become available. |
+| 4 | Mechanism | File-group initial preview | Mature lazy-loading plan | Show only a bounded preview, such as 20 rows, when a file group first appears. |
+| 5 | Mechanism | File-internal `Show more` | Mature lazy-loading plan | Load additional rows inside one large file group on user action, such as 100 rows per request. |
+| 6 | Mechanism | Provisional count model | Mature lazy-loading plan | Track known counts without pretending they are final, measured through logs or benchmark output until the UI is stable. |
+| 7 | Mechanism | Exact count background completion | Mature lazy-loading plan | Replace provisional counts with exact totals after the background pass finishes, without repeating expensive Search work per file. |
+| 8 | Test | UI virtualization / windowing validation | Mature lazy-loading plan | Confirm through tests or logs that loaded rows and rendered row views are separate, and that visible row count stays bounded. |
+| 9 | Diagnostic | `fts5vocab` diagnostics | Old optimization list | Make high-frequency terms and possible FTS index pollution observable through benchmark or log output before later tuning. |
 | 10 | Mechanism | Precomputed Library/File/Time sorting | Old optimization list | Provide stable product order without recomputing friendly-title order on every Search. |
 | 11 | Mechanism | Block search / completed unit return | Old optimization list | Let Search emit usable file or block units before the whole corpus finishes. |
 | 12 | Mechanism | Delayed count / summaries | Old optimization list | Keep exact totals out of the first useful result path. |
@@ -272,7 +294,8 @@ Benchmark queries:
 
 Benchmark rules:
 
-- Run the benchmark before Step 1 to establish the current baseline.
+- Before changing code for an implementation step, run the three benchmark
+  queries and record the current baseline for the exact commit under test.
 - After each step, run each query five times and record the average plus all
   five raw timings.
 - Record at least these timings when applicable:
@@ -288,10 +311,17 @@ Benchmark rules:
   - loaded rows;
   - exact total count when known;
   - provisional count when exact count is not known yet;
+  - summary count update cadence when count progress is part of the step;
   - maximum active rendered row views for virtualization checks.
-- Prefer non-UI automated benchmark coverage for Search-layer timings.
-  UI virtualization can use lightweight instrumentation rather than a full
-  end-to-end test when possible.
+- Prefer non-UI automated benchmark coverage for Search-layer timings. During
+  unstable Search work, diagnostic data belongs in logs or benchmark output, not
+  in the Search panel.
+- Run the relevant automated test suite before accepting the step. If the step
+  changes Search semantics, add fixture coverage before relying on manual
+  acceptance.
+- Run or update the Search optimization end-to-end procedure before accepting a
+  step that affects the app's visible Search workflow, scrolling, collapse or
+  expansion behavior, lazy loading, or playback result selection.
 - For Step 17, clear cache state between benchmark query groups, then run each
   query five times so warm-cache behavior is measured without cross-query
   contamination.
@@ -305,6 +335,11 @@ General standards:
 - `swift build`, `swift test`, and `git diff --check` must pass before commit.
 - The benchmark table for the step must be recorded before moving to the next
   step.
+- Required automated tests and end-to-end evidence must be recorded before the
+  step is accepted.
+- Front-end Search-performance display is not part of the early acceptance
+  path. It can be proposed only after the underlying Search mechanism is stable
+  and the user explicitly accepts the UI surface.
 - If a step is slower on the metric it is meant to improve, the default action
   is to revert or disable it. Keeping a negative result requires explicit user
   approval and a documented reason.

@@ -290,3 +290,62 @@ After the invalidation-domain work is accepted:
 - Remove or gate any temporary probes added for the investigation.
 - Update this document if the accepted event names or pass/fail thresholds
   change.
+
+## 4. Search Optimization Gate
+
+### Goal
+
+Validate that a Search optimization step preserves the visible app workflow
+after the benchmark and automated tests have already passed.
+
+This gate is not the first source of performance data. Search performance data
+should come from `SearchBench`, Search timing logs, or default-off probes. Do
+not add Search-performance numbers to the front-end UI merely to run this gate
+while the optimization path is unstable.
+
+### Preconditions
+
+- The benchmark queries `大丈夫`, `今日`, and `の` have been run for the commit
+  under test, with raw timings and averages recorded.
+- Relevant automated tests have passed.
+- The app is launched against an indexed Library that can return Search results
+  for at least one broad query and one narrower query.
+
+### Actions
+
+Perform the actions that match the changed behavior. For a Search workflow
+change, include at least these checks:
+
+1. Search for a narrow query and verify the result count, grouping, and first
+   visible rows are plausible.
+2. Search for a broad query such as `の`.
+3. Scroll downward far enough to exercise lazy-loading or paging behavior.
+4. Collapse and expand Search result groups if the step touches grouping,
+   counts, or loading triggers.
+5. Select a Search result and verify playback opens or seeks to the expected
+   subtitle context.
+
+### Evidence to Record
+
+Record:
+
+- The commit under test.
+- The exact query strings.
+- The benchmark summary for the three required queries.
+- Whether automated tests passed.
+- Any log block requested for the step.
+- Any visible workflow issue, including stale counts, wrong grouping, empty
+  loaded groups, accidental lazy-load triggers, scroll jumps, delayed playback
+  selection, or front-end diagnostics that were not explicitly accepted.
+
+### Acceptance Criteria
+
+The gate passes only if:
+
+- The benchmark result does not regress on the metric targeted by the step.
+- Automated tests pass.
+- The visible Search workflow still preserves result identity, grouping,
+  ordering, folder scope, lazy-loading behavior, collapse/expand behavior, and
+  playback target timestamps.
+- Search-performance diagnostics remain in logs or benchmark output unless a
+  front-end diagnostic surface has already been explicitly accepted.
