@@ -6,11 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Implemented Search Step 11 prefix indexes. Schema version 15 adds a separate
-  `subtitle_cue_groups_prefix_fts` table for single-token Latin visible-window
-  Search while preserving the primary Step 9 product-order FTS table for exact,
-  CJK, multi-token, and explicit searches; Search Step 10 and Step 12 are
-  retained but suspended.
+- Suspended Search Steps 10, 11, and 12. The Step 11 Latin prefix-index code was
+  reverted after benchmark review because its benefit was limited to narrow
+  English visible-window cases and did not address the main exact-count cost.
 - Implemented Search Step 9 index-sorted early termination. Schema version 13
   rebuilds FTS rowids in display-title product Search order, Search reads
   candidates with `ORDER BY f.rowid`, and exact Search no longer performs an

@@ -34,22 +34,6 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
 }
 
 @Test
-func freshDatabaseCreatesSeparateCueGroupPrefixFTSIndex() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    let ftsSQL = try readCueGroupFTSSQL(at: databaseURL)
-    let prefixFTSSQL = try readCueGroupPrefixFTSSQL(at: databaseURL)
-    #expect(ftsSQL?.contains("prefix=") != true)
-    #expect(prefixFTSSQL?.contains("prefix='2 3 4'") == true)
-}
-
-@Test
 func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -1896,8 +1880,6 @@ func migrationRebuildsFTSRowsForJapaneseKanaSearch() throws {
     try database.migrate()
 
     #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-    #expect(try readCueGroupFTSSQL(at: databaseURL)?.contains("prefix=") != true)
-    #expect(try readCueGroupPrefixFTSSQL(at: databaseURL)?.contains("prefix='2 3 4'") == true)
     #expect(try database.search("ライン").map(\.content) == ["日本語ライン"])
 }
 
@@ -2753,30 +2735,6 @@ private struct SearchOrderRow {
     let fileOrder: Int
 }
 
-private func readCueGroupFTSSQL(at url: URL) throws -> String? {
-    try readSQLiteText(
-        at: url,
-        """
-        SELECT sql
-        FROM sqlite_master
-        WHERE type = 'table'
-          AND name = 'subtitle_cue_groups_fts';
-        """
-    )
-}
-
-private func readCueGroupPrefixFTSSQL(at url: URL) throws -> String? {
-    try readSQLiteText(
-        at: url,
-        """
-        SELECT sql
-        FROM sqlite_master
-        WHERE type = 'table'
-          AND name = 'subtitle_cue_groups_prefix_fts';
-        """
-    )
-}
-
 private func readSearchOrderRows(at url: URL) throws -> [SearchOrderRow] {
     var database: OpaquePointer?
     guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
@@ -2823,39 +2781,6 @@ private func readSearchOrderRows(at url: URL) throws -> [SearchOrderRow] {
         )
     }
     return result
-}
-
-private func readSQLiteText(at url: URL, _ sql: String) throws -> String? {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    var statement: OpaquePointer?
-    guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
-          let statement
-    else {
-        let message = String(cString: sqlite3_errmsg(database))
-        throw SQLiteFixtureError.executeFailed(message)
-    }
-
-    defer {
-        sqlite3_finalize(statement)
-    }
-
-    guard sqlite3_step(statement) == SQLITE_ROW,
-          let text = sqlite3_column_text(statement, 0)
-    else {
-        return nil
-    }
-
-    return String(cString: text)
 }
 
 private func executeSQLite(at url: URL, _ sql: String) throws {
