@@ -300,21 +300,7 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
 }
 
 @Test
-func provisionalSearchCountSnapshotDoesNotExposeExactCounts() {
-    let snapshot = SubtitleSearchCountSnapshot.provisional(
-        knownResultCount: 100,
-        knownFileCount: 4
-    )
-
-    #expect(snapshot.state == .provisional)
-    #expect(snapshot.knownResultCount == 100)
-    #expect(snapshot.knownFileCount == 4)
-    #expect(snapshot.exactTotalCount == nil)
-    #expect(snapshot.exactFileSummaryCount == nil)
-}
-
-@Test
-func provisionalSearchPageExposesOnlyKnownCountsUntilExactMetadataCompletes() throws {
+func searchPageExposesExactCountsWhenRowsContinue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -365,28 +351,21 @@ func provisionalSearchPageExposesOnlyKnownCountsUntilExactMetadataCompletes() th
         ]
     )
 
-    let provisionalPage = try database.searchPage("shared", limit: 2, metadataMode: .provisional)
+    let page = try database.searchPage("shared", limit: 2)
 
-    #expect(provisionalPage.results.map(\.content) == ["Shared alpha one", "Shared alpha two"])
-    #expect(provisionalPage.countState == .provisional)
-    #expect(provisionalPage.knownResultCount == 3)
-    #expect(provisionalPage.knownFileCount == 1)
-    #expect(provisionalPage.exactTotalCount == nil)
-    #expect(provisionalPage.exactFileSummaryCount == nil)
-    #expect(provisionalPage.totalCount == 3)
-    #expect(provisionalPage.fileSummaries.map(\.subtitleFileName) == ["Episode.srt"])
-    #expect(provisionalPage.fileSummaries.map(\.matchCount) == [2])
-    #expect(provisionalPage.nextCursor?.offset == 2)
-
-    let exactPage = try database.searchPage("shared", limit: 1, metadataMode: .exact)
-    #expect(exactPage.countState == .exact)
-    #expect(exactPage.exactTotalCount == 3)
-    #expect(exactPage.exactFileSummaryCount == 2)
-    #expect(exactPage.fileSummaries.map(\.matchCount) == [2, 1])
+    #expect(page.results.map(\.content) == ["Shared alpha one", "Shared alpha two"])
+    #expect(page.countState == .exact)
+    #expect(page.knownResultCount == 3)
+    #expect(page.knownFileCount == 2)
+    #expect(page.exactTotalCount == 3)
+    #expect(page.exactFileSummaryCount == 2)
+    #expect(page.totalCount == 3)
+    #expect(page.fileSummaries.map(\.matchCount) == [2, 1])
+    #expect(page.nextCursor?.offset == 2)
 }
 
 @Test
-func provisionalSearchPageReturnsExactCountsWhenAllRowsFitInPage() throws {
+func searchPageExposesExactCountsWhenAllRowsFitInPage() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -412,7 +391,7 @@ func provisionalSearchPageReturnsExactCountsWhenAllRowsFitInPage() throws {
         ]
     )
 
-    let page = try database.searchPage("shared", limit: 10, metadataMode: .provisional)
+    let page = try database.searchPage("shared", limit: 10)
 
     #expect(page.countState == .exact)
     #expect(page.knownResultCount == 1)

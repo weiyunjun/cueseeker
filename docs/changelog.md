@@ -6,15 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Removed provisional `Found at least ...` Search UI wording. Search summaries
-  now always use `Found <count> results in <count> files`; provisional state
-  remains observable through logs.
-- Added Search exact count background completion: visible Search pages can now
-  carry provisional count metadata, then a background exact metadata refresh
-  updates totals and records an `exact_counts_completed` JSONL event.
-- Added the Search provisional count model foundation: Core Search pages now
-  expose count state plus known result/file counts, and Search E2E JSONL schema
-  version 5 records those fields for Step 3 acceptance.
+- Reverted Search visible counts to exact-only semantics. Core Search pages,
+  AppState, SearchBench, tests, and E2E docs no longer use provisional Search
+  metadata or background exact-count completion; `Found <count> results in
+  <count> files` now represents complete exact counts.
 - Added Search-layer pagination cursor acceptance rules and implemented an
   explicit Search continuation cursor in Core, AppState, benchmark output, and
   Search E2E JSONL logs.

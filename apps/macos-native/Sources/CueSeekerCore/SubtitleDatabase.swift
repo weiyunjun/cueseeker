@@ -57,13 +57,7 @@ public struct SubtitleSearchCursor: Equatable, Sendable, Codable {
 }
 
 public enum SubtitleSearchCountState: String, Equatable, Sendable, Codable {
-    case provisional
     case exact
-}
-
-public enum SubtitleSearchMetadataMode: Equatable, Sendable {
-    case exact
-    case provisional
 }
 
 public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
@@ -85,18 +79,6 @@ public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
         )
     }
 
-    public static func provisional(
-        knownResultCount: Int,
-        knownFileCount: Int
-    ) -> SubtitleSearchCountSnapshot {
-        SubtitleSearchCountSnapshot(
-            state: .provisional,
-            knownResultCount: max(0, knownResultCount),
-            knownFileCount: max(0, knownFileCount),
-            exactTotalCount: nil,
-            exactFileSummaryCount: nil
-        )
-    }
 }
 
 public struct LibraryVideo: Equatable, Sendable, Identifiable {
@@ -1073,7 +1055,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         offset: Int = 0,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
-        metadataMode: SubtitleSearchMetadataMode = .exact,
         diagnostics: SubtitleSearchDiagnosticSink? = nil
     ) throws -> SubtitleSearchPage {
         try searchPage(
@@ -1082,7 +1063,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             cursor: SubtitleSearchCursor(offset: offset),
             under: folders,
             inSubtitlePath: subtitlePath,
-            metadataMode: metadataMode,
             diagnostics: diagnostics
         )
     }
@@ -1093,7 +1073,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         cursor: SubtitleSearchCursor?,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
-        metadataMode: SubtitleSearchMetadataMode = .exact,
         diagnostics: SubtitleSearchDiagnosticSink? = nil
     ) throws -> SubtitleSearchPage {
         let searchPageStart = Self.diagnosticNow()
@@ -1193,7 +1172,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("candidateBatchLimit", candidateBatchLimit),
                     .init("scopeCondition", scopeCondition.isEmpty ? "none" : "path"),
                     .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
-                    .init("metadataMode", metadataMode == .provisional ? "provisional" : "exact")
+                    .init("metadataMode", "exact")
                 ]
             )
 
@@ -1356,26 +1335,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
 
             let summariesStart = Self.diagnosticNow()
-            let exposesProvisionalCounts = metadataMode == .provisional && nextCursor != nil
-            let fileSummaries = Self.fileSummaries(
-                for: exposesProvisionalCounts ? pageResults : sortedResults
+            let fileSummaries = Self.fileSummaries(for: sortedResults)
+            let countSnapshot = SubtitleSearchCountSnapshot.exact(
+                totalCount: sortedResults.count,
+                fileSummaryCount: fileSummaries.count
             )
-            let knownResultCount = offset + pageResults.count + (nextCursor == nil ? 0 : 1)
-            let countSnapshot: SubtitleSearchCountSnapshot = exposesProvisionalCounts
-                ? .provisional(
-                    knownResultCount: knownResultCount,
-                    knownFileCount: fileSummaries.count
-                )
-                : .exact(
-                    totalCount: sortedResults.count,
-                    fileSummaryCount: fileSummaries.count
-                )
             emit(
-                exposesProvisionalCounts ? "file_summaries_provisional" : "file_summaries",
+                "file_summaries",
                 since: summariesStart,
                 fields: [
                     .init("summaries", fileSummaries.count),
-                    .init("results", exposesProvisionalCounts ? pageResults.count : sortedResults.count),
+                    .init("results", sortedResults.count),
                     .init("countState", countSnapshot.state.rawValue),
                     .init("knownResultCount", countSnapshot.knownResultCount),
                     .init("knownFileCount", countSnapshot.knownFileCount)
@@ -1402,7 +1372,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             return SubtitleSearchPage(
                 results: pageResults,
-                totalCount: exposesProvisionalCounts ? knownResultCount : sortedResults.count,
+                totalCount: sortedResults.count,
                 fileSummaries: fileSummaries,
                 countSnapshot: countSnapshot,
                 appliedCursor: appliedCursor,

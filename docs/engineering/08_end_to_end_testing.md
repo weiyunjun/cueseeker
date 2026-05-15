@@ -333,11 +333,8 @@ For each query:
 state or spinner, the `Found <count> results in <count> files` summary is
 visible, and the visible result list has not changed for at least two seconds.
 
-If the step under test includes background exact counts, background summaries,
-or delayed metadata, also wait for the documented log or benchmark completion
-event before accepting the final count. Do not infer performance completion
-from a front-end timing display unless that UI surface has already been
-explicitly accepted.
+The current accepted Search flow is exact-count first: the summary count and
+file count must already be complete when the initial result list settles.
 
 ### Per-Query Actions
 
@@ -412,8 +409,8 @@ Acceptance:
 
 - The summary uses `Found <count> results in <count> files`.
 - The Search pane remains responsive while scrolling the broad result set.
-- The list does not display summary-only subtitle-file aliases without an
-  intentional loading/provisional state.
+- The list does not display summary-only subtitle-file aliases without loaded
+  matching rows.
 - Lazy loading, if part of the step, progresses predictably from ordinary
   scrolling and does not require stopping at a precise pixel position.
 - `Collapse All`, if present, changes only the visible collapse state. It must
@@ -442,16 +439,11 @@ Record:
   `Query | page count observed | returned sequence | groups sequence |
   renderedRows sequence | hasMore | cursor sequence | nextCursor sequence |
   duplicate rows | stale rows | Collapse All unexpected load | pass/fail`.
-- For provisional count model steps, the JSONL page records for the run,
+- For exact-count Search steps, the JSONL page records for the run,
   summarized as
   `Query | countState sequence | knownResultCount sequence |
   knownFileCount sequence | totalCount sequence | fileSummaries sequence |
-  provisional used exact totals | pass/fail`.
-- For exact count background completion steps, the JSONL page and completion
-  records for the run, summarized as
-  `Query | initial countState | initial knownResultCount |
-  initial knownFileCount | exact completion event | exact totalCount |
-  exact fileSummaries | completion elapsed ms | pass/fail`.
+  countState stayed exact | pass/fail`.
 - Any visible workflow issue, including stale counts, wrong grouping, empty
   loaded groups, accidental lazy-load triggers, scroll jumps, delayed playback
   selection, or front-end diagnostics that were not explicitly accepted.

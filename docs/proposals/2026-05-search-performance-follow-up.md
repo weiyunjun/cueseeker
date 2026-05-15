@@ -197,8 +197,9 @@ New Socratic definitions:
 - Progress should advance by ASS file, but a large ASS file must not block the
   first useful UI update by requiring all of that file's matches to enter app
   state.
-- Newly visible file groups may show provisional counts until exact per-file
-  counts and summaries complete in the background.
+- Visible Search counts must be exact. `Found <count> results in <count> files`
+  and file-group result counts must not use lower bounds, loaded-row counts, or
+  pagination sentinels.
 - The benchmark headline metrics are:
   - time until the first matching ASS file group preview is rendered;
   - time until the 2nd, 5th, and 10th matching file group previews are rendered;
@@ -300,8 +301,8 @@ stable.
 | ---: | --- | --- | --- |
 | 1 | New benchmark gaps | Test / benchmark, backend-leaning | Fill only the missing benchmark coverage needed to measure file-group preview readiness, exact-count completion, and per-file load-more latency after the baseline has been recorded. |
 | 2 | Search-layer pagination / cursor | Backend-first, AppState integration | Make continuation state an explicit Search-layer cursor so AppState consumes bounded pages instead of deriving the next page from loaded row counts. |
-| 3 | Provisional count model | Backend / state model; no front-end performance display yet | Track known counts without pretending they are final, measured through logs or benchmark output until the UI is stable. |
-| 4 | Exact count background completion | Backend-first | Replace provisional counts with exact totals after the background pass finishes, without repeating expensive Search work per file. |
+| 3 | Provisional count model (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The accepted Search UI semantics require exact visible counts; lower-bound or loaded-row counts must not feed `Found` or file-group totals. |
+| 4 | Exact count background completion (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. Background replacement of provisional counts was rejected; current Search pages return exact total count and exact file summaries before the initial result list settles. |
 | 5 | `fts5vocab` diagnostics | Backend / diagnostic tool | Make high-frequency terms and possible FTS index pollution observable through benchmark or log output before later tuning. |
 | 6 | Precomputed Library/File/Time sorting | Backend / index data | Provide stable product order without recomputing friendly-title order on every Search. |
 | 7 | Block search / completed unit return | Backend-first, front-end consumes results | Let Search emit usable file or block units before the whole corpus finishes. |
@@ -344,8 +345,8 @@ Benchmark rules:
 - Record result shape with the timing:
   - visible file groups;
   - loaded rows;
-  - exact total count when known;
-  - provisional count when exact count is not known yet;
+  - exact total count;
+  - exact file-summary count;
   - summary count update cadence when count progress is part of the step;
   - maximum active rendered row views for virtualization checks.
 - Prefer non-UI automated benchmark coverage for Search-layer timings. During
@@ -364,16 +365,9 @@ Benchmark rules:
   `hasMore` for every observed page. The accepted shape is continuous cursor
   progression with no duplicate rows, no skipped rows, no stale rows from the
   previous query, and no unintended global load after `Collapse All`.
-- For Step 3, Search E2E JSONL evidence must include `countState`,
-  `knownResultCount`, and `knownFileCount` for every observed Search page.
-  `totalCount` and `fileSummaries` are exact-count fields only when
-  `countState` is `exact`; provisional records must not use those fields to
-  imply final totals.
-- For Step 4, any Search page with `countState: provisional` must be followed
-  by an `exact_counts_completed` JSONL record for the same query run. The
-  completion record must carry `countState: exact`, exact `totalCount`, exact
-  `fileSummaries`, and `exactCountsCompletion.completed: true` with
-  `exactCountsCompletion.elapsedMilliseconds`.
+- Steps 3 and 4 are deprecated. Current Search E2E JSONL evidence must show
+  `countState: exact`; `knownResultCount`, `knownFileCount`, `totalCount`, and
+  `fileSummaries` must all represent exact counts for the Search page.
 - For Step 17, clear cache state between benchmark query groups, then run each
   query five times so warm-cache behavior is measured without cross-query
   contamination.
@@ -479,12 +473,17 @@ Read after implementation:
   acceptance should use the fixed E2E cursor sequence in addition to automated
   tests.
 
-### Step 4 Provisional Metadata Smoke Check
+### Step 4 Provisional Metadata Smoke Check (Superseded)
 
 Date: 2026-05-15
 
 Commit under test: working tree after `0c505aa`, before the follow-up commit
 that records this implementation.
+
+This smoke check is retained as historical evidence only. The provisional
+metadata path was rejected because visible `Found` and file-group counts must
+represent exact counts, not lower bounds or pagination sentinels.
+Current `SearchBench` no longer supports `--provisional-metadata`.
 
 Command:
 
@@ -500,11 +499,9 @@ Result:
 
 Read:
 
-- This is a smoke check for the provisional metadata output shape, not the full
-  Step 4 E2E acceptance run.
-- Full Step 4 acceptance still requires app JSONL evidence showing
-  `search_status_completed` with `countState: provisional`, followed by
-  `exact_counts_completed` with `countState: exact`.
+- Superseded. Do not use this output shape as an acceptance target.
+- Current acceptance requires `countState: exact` on Search page records and
+  exact `totalCount` / `fileSummaries` before the initial list settles.
 
 ## Acceptance Standards
 
@@ -679,26 +676,25 @@ Read:
 - Future Search performance work should proceed from group-level FTS plus
   materialized ordering unless a new benchmark proves otherwise.
 
-### Step 4: Ordered First Page With Deferred Metadata
+### Step 4: Ordered First Page With Deferred Metadata (Superseded)
 
 Date: 2026-05-15
 
 Commit under test: working tree after `f14e511`, before the follow-up commit
 that records this benchmark.
 
-This step covers the accepted list's third and fourth items in one narrow
-implementation: return the first ordered page as soon as enough product-ordered
-matches are available, and delay exact total-count/file-summary metadata until
-after the visible page is usable.
+This section is retained as historical benchmark evidence only. The deferred
+metadata design conflicts with the accepted Search UI count semantics because
+visible counts must be exact before the initial list settles.
 
-Implementation notes:
+Historical implementation notes:
 
-- `SubtitleDatabase.searchPage` now supports `metadataMode: .deferred`.
-- Deferred mode scans only far enough to return the requested ordered page plus
+- `SubtitleDatabase.searchPage` supported `metadataMode: .deferred`.
+- Deferred mode scanned only far enough to return the requested ordered page plus
   one lookahead result when materialized order is available.
-- Deferred pages return a lower-bound `totalCount`, `hasMoreResults`, partial
+- Deferred pages returned a lower-bound `totalCount`, `hasMoreResults`, partial
   file summaries for loaded results, and `metadataState: .deferred`.
-- The macOS app uses deferred mode for visible Search pages, then refreshes
+- The macOS app used deferred mode for visible Search pages, then refreshed
   exact total count and file summaries in a background task using a separate
   SQLite connection.
 
