@@ -328,6 +328,35 @@ Benchmark rules:
   query five times so warm-cache behavior is measured without cross-query
   contamination.
 
+### Current Gate A Baseline
+
+Date: 2026-05-15
+
+Commit: `fe8d09a`
+
+Database:
+`/Users/weiyunjun/Library/Application Support/CueSeeker/CueSeeker.sqlite`
+
+Build: SwiftPM debug `SearchBench`
+
+Limit: `1000`
+
+Schema version: `11`
+
+Run shape: one warmup search followed by five hot searches for each query.
+This baseline records the existing `searchPage` complete-metadata path. It is
+comparable with the historical `SearchBench` tables below, but it does not yet
+measure the new file-group progressive UX metrics. Those missing metrics belong
+to Step 1, after this baseline has been recorded.
+
+In this table, `File summaries` is the count of unique matching subtitle files.
+
+| Query | Warmup ms | Results returned | Total count | File summaries | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `大丈夫` | 535.50 | 185 | 185 | 74 | 90.88 | 89.39, 88.91, 89.44, 93.34, 93.31 |
+| `今日` | 316.74 | 1000 | 1282 | 81 | 170.28 | 170.23, 167.20, 167.40, 169.72, 176.85 |
+| `の` | 1447.85 | 1000 | 20770 | 87 | 1125.95 | 1120.03, 1119.29, 1124.35, 1143.77, 1122.32 |
+
 ## Acceptance Standards
 
 General standards:

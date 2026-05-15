@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Recorded the current post-rollback Search Gate A baseline benchmark at
+  commit `fe8d09a`, using `SearchBench` against the local schema 11 database
+  for `大丈夫`, `今日`, and `の`.
 - Reordered the Search optimization backlog so backend, diagnostics, state
   model, index, and maintenance work happen before front-end combined display
   work, while keeping query/result cache as the final implementation step.
