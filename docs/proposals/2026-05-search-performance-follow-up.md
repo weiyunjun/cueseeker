@@ -314,7 +314,7 @@ stable.
 | 13 | File-group progressive display (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The current front-end lazy-loading behavior would not make this step's near-bottom polling effect observable while the Search request itself is still the bottleneck. |
 | 14 | File-group initial preview (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. A smaller file-group preview conflicts with the accepted 100-row lazy-loading unit and would introduce a second loading model. |
 | 15 | File-internal `Show more` (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The accepted interaction is automatic lazy loading, not a separate per-file `Show more` control. |
-| 16 | UI virtualization / windowing validation | Front-end / test | Confirm through tests or logs that loaded rows and rendered row views are separate, and that visible row count stays bounded. |
+| 16 | UI virtualization / windowing validation (Suspended) | Suspended; sequence number retained for traceability | Keep the validation idea, but do not execute in the current Search performance pass. It needs dedicated UI instrumentation and E2E scrolling evidence, and should not block the backend/cache follow-up. |
 | 17 | Query / result cache | Backend / cache | Add repeated-query acceleration last so cache behavior cannot hide earlier correctness or ordering bugs. |
 
 ## Testing Workflow
@@ -804,6 +804,27 @@ Suspended scope:
 | 10 | Filterable / sortable / facet attributes | More likely to support future product filtering/sorting than to reduce the current latency bottleneck. |
 | 11 | Prefix index | Visible English-prefix improvement is real but narrow; exact-count cost remains the dominant broad-query issue. |
 | 12 | FTS `optimize` / `merge` | Maintenance tuning should wait until diagnostics show FTS segment state is a meaningful source of p95/max latency variance. |
+
+### Suspended Step 16
+
+Date: 2026-05-16
+
+Decision:
+
+- Step 16 is suspended, not discarded.
+- The current Search view already uses SwiftUI lazy containers, but the existing
+  E2E `renderedRows` field represents loaded/displayable rows rather than the
+  actual number of active row views.
+- Proper validation requires UI instrumentation that records active and peak
+  row/card views during real scrolling. That work is useful, but it is a
+  front-end capacity validation task and should not block the final Search cache
+  step.
+
+Suspended scope:
+
+| Step | Item | Reason for suspension |
+| ---: | --- | --- |
+| 16 | UI virtualization / windowing validation | Requires dedicated view-lifecycle instrumentation plus E2E scroll evidence; not part of the backend/cache performance path. |
 
 ### Search Input Invalidation Fix
 

@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Suspended Search Step 16 UI virtualization/windowing validation. The idea is
+  retained for dedicated front-end instrumentation and E2E scrolling evidence,
+  but it no longer blocks the final Search cache step.
 - Decoupled Search's UI page limit from exact-count candidate scanning. Search
   still returns first-page and lazy-load pages of `100` results, while exact
   completion scans candidates in larger internal batches to reduce broad-query
