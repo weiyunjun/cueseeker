@@ -851,9 +851,9 @@ Read:
 - `th`, `the`, and `yo` visible-window Search improved materially. `sta` stayed
   effectively flat, and `rem` regressed slightly on visible-window hot average
   while staying within a few milliseconds.
-- Exact-completion timings are not worsened by the final dual-table approach;
-  the broad high-frequency prefixes improved versus the schema 13 baseline in
-  this run.
+- Exact completion uses the primary non-prefix FTS table. In this run the broad
+  high-frequency prefixes improved versus the schema 13 baseline, while `rem`
+  was slightly slower by less than one millisecond.
 
 Acceptance focus:
 
