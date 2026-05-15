@@ -29,6 +29,11 @@ enum SearchStatus: Equatable {
     case failed(String)
 }
 
+enum SearchResultPresentationState: Equatable {
+    case initial
+    case collapsed
+}
+
 enum LibraryStatus: Equatable {
     case idle
     case loading
@@ -271,6 +276,7 @@ final class AppState: ObservableObject {
     @Published var collapsedShioriGroupPaths: Set<String> = []
     @Published private(set) var libraryFolderGroups: [LibraryFolderGroup] = []
     @Published private(set) var libraryPresentationRevision = 0
+    @Published private(set) var searchResultPresentationState: SearchResultPresentationState = .initial
     @Published private(set) var searchResultGroups: [SearchResultFileGroup] = []
     @Published private(set) var shioris: [Shiori] = []
     @Published private(set) var shioriFileGroups: [ShioriFileGroup] = []
@@ -323,6 +329,22 @@ final class AppState: ObservableObject {
         !searchResultGroups.isEmpty
     }
 
+    var canCollapseAllSearchResultGroups: Bool {
+        hasSearchResultGroups
+            && !isSearching
+            && searchStatus == .completed
+            && searchResultPresentationState != .collapsed
+            && !searchFileSummaries.isEmpty
+    }
+
+    var shouldShowSearchGlobalLoadMoreTrigger: Bool {
+        searchResultPresentationState != .collapsed && hasMoreSearchResults
+    }
+
+    var searchGlobalLoadMoreTriggerID: String {
+        "\(loadedGlobalSearchResultCount)-\(isSearching)"
+    }
+
     var hasShioriFileGroups: Bool {
         !shioriFileGroups.isEmpty
     }
@@ -362,24 +384,28 @@ final class AppState: ObservableObject {
         results searchResults: [SubtitleSearchResult],
         fileSummaries searchFileSummaries: [SubtitleSearchFileSummary],
         expandedRowsByPath: [String: [SubtitleSearchResult]],
-        collapsedGroupPaths: Set<String>
+        collapsedGroupPaths: Set<String>,
+        includesSummaryOnlyGroups: Bool
     ) -> [SearchResultFileGroup] {
         let resultsByPath = Dictionary(grouping: searchResults, by: \.subtitlePath)
-        guard !searchFileSummaries.isEmpty || !resultsByPath.isEmpty else {
+        let nonEmptyExpandedRowsByPath = expandedRowsByPath.filter { !$0.value.isEmpty }
+        let loadedPaths = Set(resultsByPath.keys).union(nonEmptyExpandedRowsByPath.keys)
+        guard !searchFileSummaries.isEmpty || !loadedPaths.isEmpty else {
             return []
         }
 
         let summaryByPath = Dictionary(uniqueKeysWithValues: searchFileSummaries.map { ($0.subtitlePath, $0) })
         let summaryPaths = Set(searchFileSummaries.map(\.subtitlePath))
-        let orderedPaths = searchFileSummaries.map(\.subtitlePath)
-        let extraPaths = Set(resultsByPath.keys)
-            .union(expandedRowsByPath.keys)
+        let orderedPaths = searchFileSummaries
+            .map(\.subtitlePath)
+            .filter { includesSummaryOnlyGroups || loadedPaths.contains($0) }
+        let extraPaths = loadedPaths
             .filter { !summaryPaths.contains($0) }
             .sorted(by: Self.searchResultGroupPathSort)
 
         return (orderedPaths + extraPaths).map { path in
             let summary = summaryByPath[path]
-            let groupRows = expandedRowsByPath[path] ?? resultsByPath[path] ?? []
+            let groupRows = nonEmptyExpandedRowsByPath[path] ?? resultsByPath[path] ?? []
             let results = groupRows.sorted(by: Self.searchResultSort)
             return SearchResultFileGroup(
                 subtitlePath: path,
@@ -1138,6 +1164,11 @@ final class AppState: ObservableObject {
     }
 
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
+        if searchResultPresentationState == .collapsed {
+            loadMoreSearchResultGroupRowsIfNeeded(currentResult: result)
+            return
+        }
+
         guard hasMoreSearchResults, !isSearching else {
             return
         }
@@ -1145,6 +1176,18 @@ final class AppState: ObservableObject {
         guard let index = searchResults.firstIndex(where: { $0.entryID == result.entryID }),
               index >= searchResults.count - Self.searchPrefetchThreshold
         else {
+            return
+        }
+
+        loadMoreSearchResultsIfNeeded()
+    }
+
+    func loadMoreSearchResultsIfNeeded() {
+        guard searchResultPresentationState != .collapsed else {
+            return
+        }
+
+        guard hasMoreSearchResults, !isSearching else {
             return
         }
 
@@ -1165,7 +1208,9 @@ final class AppState: ObservableObject {
         if collapsedSearchResultGroupPaths.contains(subtitlePath) {
             collapsedSearchResultGroupPaths.remove(subtitlePath)
             rebuildSearchResultGroups()
-            revealInitialSearchResultGroupPage(for: subtitlePath)
+            if searchResultPresentationState == .collapsed {
+                revealInitialSearchResultGroupPage(for: subtitlePath)
+            }
         } else if hasLoadedRows {
             collapsedSearchResultGroupPaths.insert(subtitlePath)
             rebuildSearchResultGroups()
@@ -1177,13 +1222,12 @@ final class AppState: ObservableObject {
     }
 
     func collapseAllSearchResultGroups() {
-        let groupPaths = Set(searchResultGroups.map(\.id))
-        guard !groupPaths.isEmpty else {
+        guard canCollapseAllSearchResultGroups else {
             return
         }
 
-        let collapsedPaths = collapsedSearchResultGroupPaths.union(groupPaths)
-        guard collapsedPaths != collapsedSearchResultGroupPaths else {
+        let groupPaths = Set(searchFileSummaries.map(\.subtitlePath))
+        guard !groupPaths.isEmpty else {
             return
         }
 
@@ -1191,7 +1235,9 @@ final class AppState: ObservableObject {
             "ACTION UI.SearchResults.collapseAll",
             details: "groups=\(groupPaths.count)"
         )
-        collapsedSearchResultGroupPaths = collapsedPaths
+        searchResultPresentationState = .collapsed
+        expandedSearchResultGroupRowsByPath = [:]
+        collapsedSearchResultGroupPaths = groupPaths
         rebuildSearchResultGroups()
     }
 
@@ -2438,7 +2484,8 @@ final class AppState: ObservableObject {
             results: snapshot.neighborhood,
             fileSummaries: summaries,
             expandedRowsByPath: [:],
-            collapsedGroupPaths: []
+            collapsedGroupPaths: [],
+            includesSummaryOnlyGroups: false
         )
     }
 
@@ -2607,15 +2654,44 @@ final class AppState: ObservableObject {
     }
 
     private func revealInitialSearchResultGroupPage(for subtitlePath: String) {
-        let currentRows = searchResults
-            .filter { $0.subtitlePath == subtitlePath }
-            .sorted(by: Self.searchResultSort)
+        let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
+        if !currentRows.isEmpty {
+            expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
+            rebuildSearchResultGroups()
+        }
+
+        loadSearchResultGroupPage(for: subtitlePath, offset: 0)
+    }
+
+    private func loadMoreSearchResultGroupRowsIfNeeded(currentResult result: SubtitleSearchResult) {
+        let subtitlePath = result.subtitlePath
+        guard searchResultGroupTasks[subtitlePath] == nil else {
+            return
+        }
+
+        let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
+        guard let index = currentRows.firstIndex(where: { $0.entryID == result.entryID }),
+              index >= currentRows.count - Self.searchPrefetchThreshold
+        else {
+            return
+        }
+
+        guard let totalCount = searchFileSummaries.first(where: { $0.subtitlePath == subtitlePath })?.matchCount,
+              currentRows.count < totalCount
+        else {
+            return
+        }
+
+        loadSearchResultGroupPage(for: subtitlePath, offset: currentRows.count)
+    }
+
+    private func loadSearchResultGroupPage(for subtitlePath: String, offset: Int) {
+        guard searchResultGroupTasks[subtitlePath] == nil else {
+            return
+        }
+
+        let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
         let rowsBefore = currentRows.count
-        expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
-        rebuildSearchResultGroups()
-
-        searchResultGroupTasks[subtitlePath]?.cancel()
-
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty, !selectedFolders.isEmpty else {
             return
@@ -2636,7 +2712,7 @@ final class AppState: ObservableObject {
         let loadMoreRun = SearchPerformanceLogger.startRun(
             query: trimmedQuery,
             queryLength: trimmedQuery.count,
-            offset: 0,
+            offset: offset,
             limit: pageSize,
             appending: true,
             debounce: false,
@@ -2650,7 +2726,7 @@ final class AppState: ObservableObject {
                     let results = try database.search(
                         trimmedQuery,
                         limit: pageSize,
-                        offset: 0,
+                        offset: offset,
                         under: folders,
                         inSubtitlePath: subtitlePath
                     )
@@ -2695,7 +2771,15 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                self.expandedSearchResultGroupRowsByPath[subtitlePath] = results
+                let mergedResults: [SubtitleSearchResult]
+                if offset == 0 {
+                    mergedResults = results
+                } else {
+                    let existingEntryIDs = Set(currentRows.map(\.entryID))
+                    mergedResults = (currentRows + results.filter { !existingEntryIDs.contains($0.entryID) })
+                        .sorted(by: Self.searchResultSort)
+                }
+                self.expandedSearchResultGroupRowsByPath[subtitlePath] = mergedResults
                 self.searchResultGroupTasks.removeValue(forKey: subtitlePath)
                 self.rebuildSearchResultGroups()
                 SearchPerformanceLogger.writeE2EFileLoadMore(
@@ -2703,7 +2787,7 @@ final class AppState: ObservableObject {
                     subtitlePath: subtitlePath,
                     subtitleDisplayTitle: subtitleDisplayTitle,
                     rowsBefore: rowsBefore,
-                    rowsAfter: results.count,
+                    rowsAfter: mergedResults.count,
                     returned: results.count,
                     totalCount: totalCount,
                     databaseSearchMilliseconds: databaseSearchMilliseconds,
@@ -2755,6 +2839,12 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func loadedRowsForSearchResultGroup(_ subtitlePath: String) -> [SubtitleSearchResult] {
+        let rows = expandedSearchResultGroupRowsByPath[subtitlePath]
+            ?? searchResults.filter { $0.subtitlePath == subtitlePath }
+        return rows.sorted(by: Self.searchResultSort)
+    }
+
     private func searchResultGroupHasLoadedRows(_ subtitlePath: String) -> Bool {
         if expandedSearchResultGroupRowsByPath[subtitlePath]?.isEmpty == false {
             return true
@@ -2784,6 +2874,7 @@ final class AppState: ObservableObject {
         searchResultTotalCount = 0
         searchFileSummaries = []
         hasMoreSearchResults = false
+        searchResultPresentationState = .initial
         collapsedSearchResultGroupPaths = []
         expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
@@ -2797,7 +2888,8 @@ final class AppState: ObservableObject {
             results: searchResults,
             fileSummaries: searchFileSummaries,
             expandedRowsByPath: expandedSearchResultGroupRowsByPath,
-            collapsedGroupPaths: collapsedSearchResultGroupPaths
+            collapsedGroupPaths: collapsedSearchResultGroupPaths,
+            includesSummaryOnlyGroups: searchResultPresentationState == .collapsed
         )
         renderedSearchResultCount = searchResultGroups.reduce(0) { count, group in
             group.isCollapsed ? count : count + group.results.count

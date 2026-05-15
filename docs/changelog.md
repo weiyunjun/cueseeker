@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the Search result presentation state model: Searching and
+  Initial states now show only loaded non-empty file groups, `Collapse All` is
+  disabled while Search is loading, and Collapsed state uses an all-file alias
+  view with per-file lazy loading.
 - Documented the Search result presentation state model: Searching and Initial
   states may show only file aliases backed by loaded rows, while Collapsed
   state is the explicit all-file collapsed view used by `Collapse All`.

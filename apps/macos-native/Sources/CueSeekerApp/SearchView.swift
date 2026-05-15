@@ -425,6 +425,8 @@ struct SearchView: View {
                         )
                     }
 
+                    searchGlobalLoadMoreTrigger
+
                     if case .searching = appState.searchStatus, !appState.searchResults.isEmpty {
                         ProgressView()
                             .controlSize(.small)
@@ -470,6 +472,8 @@ struct SearchView: View {
                         )
                     }
 
+                    searchGlobalLoadMoreTrigger
+
                     if case .searching = appState.searchStatus, !appState.searchResults.isEmpty {
                         ProgressView()
                             .controlSize(.small)
@@ -481,6 +485,18 @@ struct SearchView: View {
                 .padding(.top, 4)
                 .padding(.bottom, 8)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var searchGlobalLoadMoreTrigger: some View {
+        if appState.shouldShowSearchGlobalLoadMoreTrigger {
+            Color.clear
+                .frame(height: 1)
+                .id(appState.searchGlobalLoadMoreTriggerID)
+                .onAppear {
+                    appState.loadMoreSearchResultsIfNeeded()
+                }
         }
     }
 
@@ -546,6 +562,7 @@ struct SearchView: View {
                         Text("Collapse All")
                             .foregroundStyle(.secondary)
                     }
+                    .disabled(!appState.canCollapseAllSearchResultGroups)
                 }
             }
             .padding(.horizontal, 20)
