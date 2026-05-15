@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a database engineering rule that old-data handling must be explicit and
+  documented; rebuildable derived data should not keep hidden runtime
+  compatibility fallbacks in hot paths.
 - Added Search Step 6 materialized ordering. Schema version 12 now maintains
   `subtitle_search_order_rows` so Search can reuse precomputed subtitle display
   order, and Search E2E JSONL schema version 6 reports whether sorting used

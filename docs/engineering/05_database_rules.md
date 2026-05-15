@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `11`.
+- The current schema version is `12`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -135,6 +135,10 @@ Current mechanism:
   with a single cue line (the common SRT case) and apply line-level validation
   directly to the group's `search_content`. The migration backfills existing
   rows from `subtitle_cue_lines` counts.
+- Schema version `12` adds `subtitle_search_order_rows` as rebuildable derived
+  Search ordering data. It stores subtitle display order so Search can report
+  and reuse materialized order diagnostics instead of treating display-title
+  derivation as hidden hot-path work.
 
 ## 5. Migration Rules
 
@@ -148,6 +152,17 @@ Rules:
 - Failed migrations must not leave the database pretending to be at the target schema version.
 - Migration errors must be surfaced clearly enough for debugging.
 - Production migrations must not rely on test-only data.
+- Code must not add private runtime fallbacks for old or malformed data under
+  the assumption that compatibility might be useful later. If old data needs to
+  be handled, the need must be stated explicitly, the affected data class must
+  be identified as durable user state or rebuildable derived data, and the
+  chosen handling must be documented before implementation.
+- Rebuildable derived data should normally be repaired by an explicit migration,
+  maintenance action, or one-off development script, not by keeping hidden
+  compatibility branches in Search, playback, indexing, or UI hot paths.
+- Any compatibility fallback that remains in code must have a documented reason,
+  a test that exercises the accepted old-data case, and a removal condition
+  unless it is permanent product behavior.
 
 Destructive migrations:
 
