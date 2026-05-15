@@ -6,6 +6,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Fixed Search file-group toggling so a summary-only group with no loaded rows
+  loads its subtitle rows on the first click instead of collapsing first.
 - Added Search Step 1 benchmark-gap observability. Search E2E JSONL now records
   file-group preview milestones, exact-count completion, and per-file load-more
   timings; `SearchBench --step1-gaps` prints matching machine-readable metrics.

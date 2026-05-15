@@ -1157,17 +1157,22 @@ final class AppState: ObservableObject {
     }
 
     func toggleSearchResultGroup(_ subtitlePath: String) {
+        let hasLoadedRows = searchResultGroupHasLoadedRows(subtitlePath)
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResultGroup.toggled",
-            details: "collapsedBefore=\(collapsedSearchResultGroupPaths.contains(subtitlePath))"
+            details: "collapsedBefore=\(collapsedSearchResultGroupPaths.contains(subtitlePath)) loadedRows=\(hasLoadedRows)"
         )
         if collapsedSearchResultGroupPaths.contains(subtitlePath) {
             collapsedSearchResultGroupPaths.remove(subtitlePath)
             rebuildSearchResultGroups()
             revealInitialSearchResultGroupPage(for: subtitlePath)
-        } else {
+        } else if hasLoadedRows {
             collapsedSearchResultGroupPaths.insert(subtitlePath)
             rebuildSearchResultGroups()
+        } else if searchResultGroupTasks[subtitlePath] == nil {
+            revealInitialSearchResultGroupPage(for: subtitlePath)
+        } else {
+            return
         }
     }
 
@@ -2748,6 +2753,14 @@ final class AppState: ObservableObject {
                 )
             }
         }
+    }
+
+    private func searchResultGroupHasLoadedRows(_ subtitlePath: String) -> Bool {
+        if expandedSearchResultGroupRowsByPath[subtitlePath]?.isEmpty == false {
+            return true
+        }
+
+        return searchResults.contains { $0.subtitlePath == subtitlePath }
     }
 
     private func revealInitialGlobalSearchResultPage() {
