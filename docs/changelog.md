@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Decoupled Search's UI page limit from exact-count candidate scanning. Search
+  still returns first-page and lazy-load pages of `100` results, while exact
+  completion scans candidates in larger internal batches to reduce broad-query
+  completion latency.
 - Suspended Search Steps 10, 11, and 12. The Step 11 Latin prefix-index code was
   reverted after benchmark review because its benefit was limited to narrow
   English visible-window cases and did not address the main exact-count cost.

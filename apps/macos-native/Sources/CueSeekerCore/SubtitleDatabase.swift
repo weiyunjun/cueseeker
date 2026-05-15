@@ -406,6 +406,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
+    private static let exactSearchCandidateBatchMinimum = 5_000
 
     private let path: URL
     private let database: SQLiteDatabase
@@ -1282,7 +1283,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         do {
             let setupStart = Self.diagnosticNow()
-            let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
+            let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
             var candidateOffset = 0
             var results: [OrderedSearchResult] = []
             var visiblePrefixResults: [OrderedSearchResult] = []
@@ -2873,8 +2874,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return min(expanded, Int(Int32.max))
     }
 
-    private static func searchCandidateBatchLimit(for limit: Int) -> Int {
-        max(expandedSQLLimit(for: limit), 100)
+    private static func searchCandidateBatchLimit(
+        for limit: Int,
+        mode: SubtitleSearchPageMode
+    ) -> Int {
+        switch mode {
+        case .exact:
+            max(expandedSQLLimit(for: limit), exactSearchCandidateBatchMinimum)
+        case .visibleWindow:
+            max(expandedSQLLimit(for: limit), 100)
+        }
     }
 
     private static func isASCIIWordCharacter(_ character: Character) -> Bool {

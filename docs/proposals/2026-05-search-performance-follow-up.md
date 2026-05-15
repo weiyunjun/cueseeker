@@ -753,6 +753,36 @@ Read:
 - The accepted ordering remains display-title product order; the implementation
   does not change Search's visible ordering semantics.
 
+Exact scan-batch follow-up:
+
+- The Search `limit` parameter is the page/UI return limit, not the internal
+  exact-count scan batch size. The app keeps first-page and lazy-load UI pages
+  at `100` results.
+- Exact-count completion now uses an internal minimum candidate scan batch of
+  `5000`, while visible-window Search keeps the smaller page-derived scan batch
+  so first-page early termination is not regressed.
+- This `5000` value is based on the current development library, whose indexed
+  subtitle set is still small relative to the expected real library size. The
+  best scan-batch value may change as the benchmark corpus grows, so this value
+  must be retested before treating it as a durable tuning constant.
+- Probe benchmark, current library, query `の`, exact mode. Because the pre-fix
+  benchmark tool did not expose scan batch separately, these rows use
+  `limit * 2` as a temporary proxy for scan batch and are useful for trend only:
+
+| Approx. scan batch | Probe limit | Warmup ms | Returned | Total count | File summaries | Hot avg ms | Hot raw ms |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1000 | 500 | 817.50 | 500 | 20770 | 87 | 713.12 | 720.09, 709.89, 708.91, 709.49, 717.20 |
+| 2000 | 1000 | 773.01 | 1000 | 20770 | 87 | 611.93 | 629.70, 609.53, 611.29, 606.70, 602.43 |
+| 3000 | 1500 | 581.34 | 1500 | 20770 | 87 | 560.72 | 564.44, 569.41, 559.06, 554.20, 556.49 |
+| 5000 | 2500 | 561.47 | 2500 | 20770 | 87 | 546.44 | 548.77, 555.98, 544.28, 541.23, 541.92 |
+
+Post-change verification, query `の`, UI `limit=100`:
+
+| Mode | Warmup ms | Returned | Total / known count | File summaries | Count state | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- |
+| exact | 834.88 | 100 | 20770 | 87 | exact | 533.06 | 537.61, 532.14, 528.83, 535.71, 531.02 |
+| visible-window | 7.37 | 100 | 100 | 2 | exactProgress | 0.97 | 1.04, 0.98, 0.95, 0.94, 0.94 |
+
 ### Suspended Steps 10-12
 
 Date: 2026-05-15

@@ -319,7 +319,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Progress.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Progress.mkv")
-    let entries = (0..<150).map { index in
+    let entries = (0..<5_100).map { index in
         SubtitleEntry(
             sequenceNumber: index + 1,
             startTimecode: String(format: "00:00:%02d,000", index % 60),
@@ -350,13 +350,13 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     #expect(!progress.isEmpty)
     #expect(progress.allSatisfy { $0.countState == .exactProgress })
     #expect(progress.map(\.knownResultCount) == progress.map(\.knownResultCount).sorted())
-    #expect(progress.last?.knownResultCount == 100)
+    #expect(progress.last?.knownResultCount == 5_000)
     #expect(progress.last?.knownFileCount == 1)
-    #expect(progress.last?.fileSummaries.map(\.matchCount) == [100])
+    #expect(progress.last?.fileSummaries.map(\.matchCount) == [5_000])
     #expect(page.countState == .exact)
-    #expect(page.totalCount == 150)
-    #expect(page.knownResultCount == 150)
-    #expect(page.fileSummaries.map(\.matchCount) == [150])
+    #expect(page.totalCount == 5_100)
+    #expect(page.knownResultCount == 5_100)
+    #expect(page.fileSummaries.map(\.matchCount) == [5_100])
 }
 
 @Test
