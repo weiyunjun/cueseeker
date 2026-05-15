@@ -125,7 +125,7 @@ CueSeeker.
 | Delayed total count and summaries | Socratic discussion | Medium to high | Medium | Done |
 | `ORDER BY` / `LIMIT` index support | External research validated the discussion direction | Negative for current FTS path | Medium to high | Investigated and rejected |
 | Index sorting / early termination | External research validated the discussion direction | High | Medium | Done with FTS rowid order |
-| Filterable, sortable, and facet-style attributes | External research | Medium to high | Medium to high | Do |
+| Filterable, sortable, and facet-style attributes | External research | Medium for complete metadata | Medium | Done with unindexed FTS attributes |
 | `fts5vocab` diagnostics | External research | Indirect | Low | Do as diagnostics |
 | FTS `optimize` / incremental `merge` | External research | Low to medium | Low to medium | Do as maintenance |
 | FTS `automerge`, `crisismerge`, `usermerge` tuning | External research | Low to medium | Medium | Defer |
@@ -143,7 +143,7 @@ Current implementation order after rollback:
 4. `ORDER BY` / `LIMIT` index support: investigated and rejected for the
    current FTS-driven query path.
 5. Index sorting / early termination with FTS rowid product order.
-6. Filterable, sortable, and facet-style attributes.
+6. Filterable, sortable, and facet-style attributes in FTS rows.
 7. `fts5vocab` diagnostics.
 8. FTS `optimize` / incremental `merge`.
 9. FTS prefix indexes.
@@ -485,6 +485,72 @@ Read:
   first-page path no longer pays the old FTS candidate ordering cost.
 - The one-time migration on the measured local database rebuilt rowids in about
   `2227.29 ms`.
+
+### Step 7: Filterable, Sortable, And Presentation Attributes In FTS
+
+Date: 2026-05-15
+
+Commit under test: working tree after `4f7948f`, before the follow-up commit
+that records this benchmark.
+
+Implementation notes:
+
+- Schema version 19 recreates `subtitle_cue_groups_fts` with unindexed
+  candidate attributes: cue group id, subtitle path/format, video path/name,
+  cue start/end milliseconds, original search content, line count, folder/file
+  order, and display title.
+- Search candidate loading now reads from FTS only. It no longer joins
+  `subtitle_cue_groups`, `subtitle_files`, `subtitle_video_matches`,
+  `video_files`, and `subtitle_search_order_rows` for every FTS hit.
+- The indexed FTS `content` still stores segmented text for matching. The
+  unindexed `search_content` stores original clean cue-group text for display
+  and final line-level validation.
+- Rebuilding FTS rows preserves schema 18's product-ordered rowid behavior.
+
+Query-plan check for `の LIMIT 1001` after migration:
+
+```text
+SCAN f VIRTUAL TABLE INDEX 64:M13
+```
+
+Deferred first-page benchmark:
+
+| Query | Warmup ms | Results returned | Total count shown | File summaries shown | Metadata state | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- |
+| `大丈夫` | 556.72 | 185 | 185 | 74 | complete | 46.32 | 48.89, 45.96, 45.85, 45.73, 45.17 |
+| `今日` | 67.98 | 1000 | 1001 | 23 | deferred | 64.71 | 65.15, 64.60, 65.19, 65.36, 63.23 |
+| `の` | 21.18 | 1000 | 1001 | 11 | deferred | 8.98 | 8.90, 8.88, 9.08, 8.71, 9.34 |
+
+Complete metadata benchmark:
+
+| Query | Warmup ms | Results returned | Total count | File summaries | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `大丈夫` | 62.29 | 185 | 185 | 74 | 55.08 | 57.20, 57.63, 56.36, 52.65, 51.57 |
+| `今日` | 156.80 | 1000 | 1282 | 81 | 112.92 | 118.36, 116.48, 110.54, 109.99, 109.24 |
+| `の` | 806.29 | 1000 | 20770 | 87 | 497.09 | 606.68, 463.68, 468.65, 479.82, 466.63 |
+
+Combined comparison:
+
+| Query | Step 6 first-page ms | Step 7 first-page ms | Step 6 complete ms | Step 7 complete ms | Step 7 approx. time until exact metadata ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `大丈夫` | 46.53 | 46.32 | 50.49 | 55.08 | 46.32 |
+| `今日` | 64.74 | 64.71 | 118.53 | 112.92 | 177.63 |
+| `の` | 8.93 | 8.98 | 572.56 | 497.09 | 506.07 |
+
+Read:
+
+- This step is a modest but accepted optimization, not a large first-page win.
+- The first-page path was already dominated by a single product-ordered FTS
+  batch after Step 6, so removing joins did not materially change it.
+- Complete metadata improved for `今日` and `の` because those paths still scan
+  more candidates and therefore benefit from avoiding per-candidate joins.
+- `大丈夫` complete metadata regressed slightly in the stable rerun. It has only
+  185 matches, so the larger FTS row payload can outweigh the removed joins.
+- The first complete `大丈夫` run had a transient raw outlier
+  `163.92 ms`; the table above uses the immediate rerun, whose raw timings were
+  stable.
+- The one-time v19 migration on the measured local database rebuilt FTS rows in
+  about `2202.26 ms`.
 
 ## Development Decision
 

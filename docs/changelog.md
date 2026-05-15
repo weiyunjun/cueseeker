@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the seventh accepted Search optimization step: schema version 19
+  stores unindexed filterable, sortable, and presentation attributes directly
+  in cue-group FTS rows, letting Search build candidates from FTS without
+  joining subtitle, video, and search-order tables on the hot path. The measured
+  complete metadata benchmark improved for `今日` and `の`, while first-page
+  timings stayed roughly flat.
 - Implemented the sixth accepted Search optimization step: schema version 18
   rebuilds cue-group FTS rows so FTS `rowid` follows materialized product
   order, and Search now uses `ORDER BY f.rowid` for index-sorted early

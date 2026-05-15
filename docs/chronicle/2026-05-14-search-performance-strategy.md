@@ -137,6 +137,12 @@ The implementation evidence refined the Socratic diagnosis:
   without a separate temporary product-order sort. The measured `の` first-page
   benchmark improved from `43.10 ms` to `8.93 ms`, and complete metadata
   improved from `830.48 ms` to `572.56 ms`.
+- The filterable/sortable/facet attributes step applied the same lesson to
+  candidate materialization: keep FTS as the driver and copy Search hot-path
+  attributes into unindexed FTS columns. This removed the per-candidate joins to
+  subtitle, video, and search-order tables. First-page timings stayed roughly
+  flat because Step 6 had already made that path small; complete metadata
+  improved for `今日` and `の`, where the search still scans more candidates.
 
 ## Open Questions
 

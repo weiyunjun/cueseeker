@@ -1529,7 +1529,7 @@ func migrationRebuildsFTSRowsForJapaneseKanaSearch() throws {
 }
 
 @Test
-func migrationToSchemaVersion18RebuildsFTSRowIDProductOrder() throws {
+func migrationRebuildsFTSRowIDProductOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)

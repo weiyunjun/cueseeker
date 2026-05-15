@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `18`.
+- The current schema version is `19`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -149,6 +149,10 @@ Current mechanism:
   materialized product order. Search can then use `ORDER BY f.rowid` to get
   index-sorted early termination without scanning product-order rows outside
   the FTS index.
+- Schema version `19` rebuilds cue-group FTS rows with unindexed filter,
+  sorting, and presentation attributes. The hot Search candidate path can read
+  subtitle path, subtitle format, video identity, cue time, line count, product
+  order, display title, and original search content directly from FTS rows.
 
 ## 5. Migration Rules
 
@@ -364,6 +368,10 @@ Search ranking and query syntax:
   rebuilt from cue groups. Rebuilding the subtitle search-order snapshot should
   also rebuild cue-group FTS rows so `rowid` order remains aligned with Library
   block rank, subtitle-file rank, and cue time.
+- FTS rows may store unindexed attributes required by Search filtering,
+  ordering, and result summaries. Indexed text should remain the segmented FTS
+  `content`; original display/search text must be stored separately so result
+  display and line validation do not consume segmented FTS text.
 - Search-summary counts and file/group summaries should not block first visible
   results if the query engine can return ordered results before the whole corpus
   is searched.

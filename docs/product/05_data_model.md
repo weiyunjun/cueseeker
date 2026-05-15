@@ -346,6 +346,9 @@ Expected FTS data:
 - Link from group FTS rows to subtitle cue groups.
 - FTS `rowid` assigned in materialized product order when the search-order
   snapshot is rebuilt.
+- Unindexed Search attributes copied into FTS rows: subtitle path, subtitle
+  format, video path, video name, cue start/end milliseconds, original search
+  content, line count, folder/file order, and display title.
 
 Han and Japanese kana handling should preserve the practical CJK behavior of
 the existing Flutter implementation while also allowing pure hiragana,
@@ -373,6 +376,10 @@ Cue-group FTS row order is rebuildable derived index state. The `rowid` should
 follow Library block order, subtitle-file order, cue start time, cue end time,
 and cue identity so Search can use SQLite FTS rowid ordering for early
 termination.
+
+The FTS indexed `content` may contain CJK segmentation for matching. The
+unindexed `search_content` field preserves the original clean cue-group text for
+display and final line-level validation.
 
 ## 13. Shiori
 
@@ -423,7 +430,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `18`.
+- Schema version: `19`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -462,6 +469,9 @@ Current native schema:
 - Version 18 rebuilds cue-group FTS rows so FTS `rowid` follows materialized
   product order. Search uses that rowid order to return early pages without a
   separate temporary product-order sort.
+- Version 19 stores unindexed filterable, sortable, and presentation attributes
+  directly in cue-group FTS rows so the Search candidate path can avoid joining
+  subtitle, video, and search-order tables for each FTS hit.
 
 ## 15. Flutter Data Compatibility
 

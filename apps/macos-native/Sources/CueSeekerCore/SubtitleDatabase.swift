@@ -282,7 +282,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 18
+    public static let currentSchemaVersion: Int = 19
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -399,7 +399,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_groups_fts USING fts5(
                 content,
-                cue_group_id UNINDEXED
+                cue_group_id UNINDEXED,
+                subtitle_path UNINDEXED,
+                subtitle_format UNINDEXED,
+                video_path UNINDEXED,
+                video_name UNINDEXED,
+                start_ms UNINDEXED,
+                end_ms UNINDEXED,
+                search_content UNINDEXED,
+                line_count UNINDEXED,
+                folder_order UNINDEXED,
+                file_order UNINDEXED,
+                display_title UNINDEXED
             );
 
             CREATE TABLE IF NOT EXISTS ass_render_segments (
@@ -505,20 +516,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        if previousVersion < 17 {
-            try recreateFTSTables()
-            try rebuildFTSRows()
-            rebuiltFTSRowsForProductOrder = previousVersion >= 16
-        }
-
-        if previousVersion < 9 {
-            try rebuildLibraryPresentationSnapshot()
-            rebuiltFTSRowsForProductOrder = true
-        } else if previousVersion < 16 {
-            try rebuildSubtitleSearchOrderSnapshot()
-            rebuiltFTSRowsForProductOrder = true
-        }
-
         if previousVersion >= 3 && previousVersion < 11,
            try !columnExists(table: "subtitle_cue_groups", column: "line_count") {
             try database.execute(
@@ -538,7 +535,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        if previousVersion < 18 && !rebuiltFTSRowsForProductOrder {
+        if previousVersion < 19 {
+            try recreateFTSTables()
+            try rebuildFTSRows()
+            rebuiltFTSRowsForProductOrder = previousVersion >= 16
+        }
+
+        if previousVersion < 9 {
+            try rebuildLibraryPresentationSnapshot()
+            rebuiltFTSRowsForProductOrder = true
+        } else if previousVersion < 16 {
+            try rebuildSubtitleSearchOrderSnapshot()
+            rebuiltFTSRowsForProductOrder = true
+        }
+
+        if previousVersion < 19 && !rebuiltFTSRowsForProductOrder {
             try rebuildFTSRows()
         }
 
@@ -563,7 +574,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
                 content,
-                cue_group_id UNINDEXED
+                cue_group_id UNINDEXED,
+                subtitle_path UNINDEXED,
+                subtitle_format UNINDEXED,
+                video_path UNINDEXED,
+                video_name UNINDEXED,
+                start_ms UNINDEXED,
+                end_ms UNINDEXED,
+                search_content UNINDEXED,
+                line_count UNINDEXED,
+                folder_order UNINDEXED,
+                file_order UNINDEXED,
+                display_title UNINDEXED
             );
             """
         )
@@ -694,7 +716,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     subtitleFile: subtitleFile,
                     group: group
                 )
-                try insertCueGroupFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
+                try insertCueGroupFTSRow(
+                    cueGroupID: cueGroupID,
+                    searchContent: group.searchContent,
+                    subtitlePath: subtitleFile.path,
+                    subtitleFormat: format,
+                    videoPath: videoFile.path,
+                    videoName: videoFile.lastPathComponent,
+                    startMilliseconds: group.startMilliseconds,
+                    endMilliseconds: group.endMilliseconds,
+                    lineCount: max(1, group.cueLines.count),
+                    displayTitle: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: subtitleFile.path)
+                )
                 for line in group.cueLines {
                     _ = try insertCueLine(cueGroupID: cueGroupID, line: line)
                 }
@@ -1120,11 +1153,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
             var totalMultiLineCandidates = 0
             var totalCueLineRows = 0
             let scopeCondition = pathPrefixes.map {
-                let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
+                let conditions = $0.map { _ in "(f.subtitle_path >= ? AND f.subtitle_path < ?)" }
                     .joined(separator: " OR ")
                 return "AND (\(conditions))"
             } ?? ""
-            let subtitlePathCondition = subtitlePathFilter.map { _ in "AND sf.subtitle_path = ?" } ?? ""
+            let subtitlePathCondition = subtitlePathFilter.map { _ in "AND f.subtitle_path = ?" } ?? ""
             emit(
                 "setup",
                 since: setupStart,
@@ -1139,15 +1172,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let prepareStart = Self.diagnosticNow()
             let statement = try database.prepare(
                 """
-                SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                       g.start_ms, g.end_ms, g.search_content, g.line_count,
-                       sor.folder_order, sor.file_order, sor.display_title
+                SELECT f.cue_group_id, f.subtitle_path, f.subtitle_format,
+                       f.video_path, f.video_name, f.start_ms, f.end_ms,
+                       f.search_content, f.line_count, f.folder_order,
+                       f.file_order, f.display_title
                 FROM subtitle_cue_groups_fts f
-                JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-                JOIN video_files vf ON vf.id = m.video_file_id
-                LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
@@ -2803,31 +2832,114 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func insertCueGroupFTSRow(rowID: Int64? = nil, cueGroupID: Int64, content: String) throws {
+    private func insertCueGroupFTSRow(
+        rowID: Int64? = nil,
+        cueGroupID: Int64,
+        searchContent: String,
+        subtitlePath: String? = nil,
+        subtitleFormat: SubtitleFormat? = nil,
+        videoPath: String? = nil,
+        videoName: String? = nil,
+        startMilliseconds: Int? = nil,
+        endMilliseconds: Int? = nil,
+        lineCount: Int? = nil,
+        searchFolderOrder: Int? = nil,
+        searchFileOrder: Int? = nil,
+        displayTitle: String? = nil
+    ) throws {
         let statement: SQLiteStatement
         if rowID == nil {
             statement = try database.prepare(
                 """
-                INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
-                VALUES (?, ?);
+                INSERT INTO subtitle_cue_groups_fts(
+                    content,
+                    cue_group_id,
+                    subtitle_path,
+                    subtitle_format,
+                    video_path,
+                    video_name,
+                    start_ms,
+                    end_ms,
+                    search_content,
+                    line_count,
+                    folder_order,
+                    file_order,
+                    display_title
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """
             )
         } else {
             statement = try database.prepare(
                 """
-                INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
-                VALUES (?, ?, ?);
+                INSERT INTO subtitle_cue_groups_fts(
+                    rowid,
+                    content,
+                    cue_group_id,
+                    subtitle_path,
+                    subtitle_format,
+                    video_path,
+                    video_name,
+                    start_ms,
+                    end_ms,
+                    search_content,
+                    line_count,
+                    folder_order,
+                    file_order,
+                    display_title
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """
             )
         }
 
+        func bind(_ value: String?, at index: Int32) throws {
+            if let value {
+                try statement.bind(value, at: index)
+            } else {
+                try statement.bindNull(at: index)
+            }
+        }
+
+        func bind(_ value: Int?, at index: Int32) throws {
+            if let value {
+                try statement.bind(value, at: index)
+            } else {
+                try statement.bindNull(at: index)
+            }
+        }
+
+        let indexedContent = Self.segmentCJK(searchContent)
+        let subtitleFormatRawValue = subtitleFormat?.rawValue
         if let rowID {
             try statement.bind(rowID, at: 1)
-            try statement.bind(Self.segmentCJK(content), at: 2)
+            try statement.bind(indexedContent, at: 2)
             try statement.bind(cueGroupID, at: 3)
+            try bind(subtitlePath, at: 4)
+            try bind(subtitleFormatRawValue, at: 5)
+            try bind(videoPath, at: 6)
+            try bind(videoName, at: 7)
+            try bind(startMilliseconds, at: 8)
+            try bind(endMilliseconds, at: 9)
+            try statement.bind(searchContent, at: 10)
+            try bind(lineCount, at: 11)
+            try bind(searchFolderOrder, at: 12)
+            try bind(searchFileOrder, at: 13)
+            try bind(displayTitle, at: 14)
         } else {
-            try statement.bind(Self.segmentCJK(content), at: 1)
+            try statement.bind(indexedContent, at: 1)
             try statement.bind(cueGroupID, at: 2)
+            try bind(subtitlePath, at: 3)
+            try bind(subtitleFormatRawValue, at: 4)
+            try bind(videoPath, at: 5)
+            try bind(videoName, at: 6)
+            try bind(startMilliseconds, at: 7)
+            try bind(endMilliseconds, at: 8)
+            try statement.bind(searchContent, at: 9)
+            try bind(lineCount, at: 10)
+            try bind(searchFolderOrder, at: 11)
+            try bind(searchFileOrder, at: 12)
+            try bind(displayTitle, at: 13)
         }
         try statement.run()
     }
@@ -2899,13 +3011,30 @@ public final class SubtitleDatabase: @unchecked Sendable {
         do {
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
 
-            var groupRows: [(cueGroupID: Int64, content: String)] = []
+            var groupRows: [(
+                cueGroupID: Int64,
+                subtitlePath: String,
+                subtitleFormat: SubtitleFormat,
+                videoPath: String,
+                videoName: String,
+                startMilliseconds: Int,
+                endMilliseconds: Int,
+                searchContent: String,
+                lineCount: Int,
+                searchFolderOrder: Int?,
+                searchFileOrder: Int?,
+                searchDisplayTitle: String?
+            )] = []
             do {
                 let statement = try database.prepare(
                     """
-                    SELECT g.id, g.search_content
+                    SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                           g.start_ms, g.end_ms, g.search_content, g.line_count,
+                           sor.folder_order, sor.file_order, sor.display_title
                     FROM subtitle_cue_groups g
                     JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                    JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                    JOIN video_files vf ON vf.id = m.video_file_id
                     LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
                     ORDER BY CASE WHEN sor.folder_order IS NULL OR sor.file_order IS NULL THEN 1 ELSE 0 END ASC,
                              sor.folder_order ASC,
@@ -2918,7 +3047,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 )
 
                 while try statement.step() {
-                    groupRows.append((statement.int64Column(0), statement.stringColumn(1)))
+                    groupRows.append(
+                        (
+                            cueGroupID: statement.int64Column(0),
+                            subtitlePath: statement.stringColumn(1),
+                            subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
+                            videoPath: statement.stringColumn(3),
+                            videoName: statement.stringColumn(4),
+                            startMilliseconds: statement.intColumn(5),
+                            endMilliseconds: statement.intColumn(6),
+                            searchContent: statement.stringColumn(7),
+                            lineCount: statement.intColumn(8),
+                            searchFolderOrder: statement.nullableIntColumn(9),
+                            searchFileOrder: statement.nullableIntColumn(10),
+                            searchDisplayTitle: statement.nullableStringColumn(11)
+                        )
+                    )
                 }
             }
 
@@ -2927,7 +3071,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 try insertCueGroupFTSRow(
                     rowID: rowID,
                     cueGroupID: row.cueGroupID,
-                    content: row.content
+                    searchContent: row.searchContent,
+                    subtitlePath: row.subtitlePath,
+                    subtitleFormat: row.subtitleFormat,
+                    videoPath: row.videoPath,
+                    videoName: row.videoName,
+                    startMilliseconds: row.startMilliseconds,
+                    endMilliseconds: row.endMilliseconds,
+                    lineCount: row.lineCount,
+                    searchFolderOrder: row.searchFolderOrder,
+                    searchFileOrder: row.searchFileOrder,
+                    displayTitle: row.searchDisplayTitle
                 )
                 rowID += 1
             }
