@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented the Search result presentation state model: Searching and Initial
+  states may show only file aliases backed by loaded rows, while Collapsed
+  state is the explicit all-file collapsed view used by `Collapse All`.
 - Fixed Search file-group toggling so a summary-only group with no loaded rows
   loads its subtitle rows on the first click instead of collapsing first.
 - Added Search Step 1 benchmark-gap observability. Search E2E JSONL now records

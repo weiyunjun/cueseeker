@@ -208,6 +208,41 @@ New Socratic definitions:
 - The playback overlay Search Results list is explicitly out of scope for this
   sequence. It needs its own data-windowing design later.
 
+### Search Result Presentation State Model
+
+The Search results page needs an explicit presentation state model. The exact
+state names may evolve, but the logic relationships are fixed:
+
+| State | Entry | Required behavior |
+| --- | --- | --- |
+| Searching | After the user submits a query and before the active Search/load-more work is complete. | `Collapse All` is disabled. The visible result view may lazy-load more global rows, but every visible ASS/subtitle file alias must have at least one loaded matching row. Empty file aliases and default-collapsed file aliases are not allowed. |
+| Initial | After Search work is complete and before `Collapse All` is clicked. | The visible result view may lazy-load more global rows. Every visible ASS/subtitle file alias must have at least one loaded matching row. Empty file aliases and default-collapsed file aliases are not allowed. |
+| Collapsed | After `Collapse All` is clicked. | Refresh into an all-results file-alias view where every matching ASS/subtitle file is collapsed. Preserve the current selected result. Clicking a file alias expands that file's matching rows, and file-internal lazy loading still applies when the file has more rows than the initial per-file page. |
+
+Lazy loading applies in all states, but the loaded unit differs by state:
+
+- In `Searching` and `Initial`, scrolling near the threshold loads the next
+  global page of 100 matching rows.
+- In `Collapsed`, expanding or scrolling inside a file group loads that file's
+  matching rows in pages, also with a page size of 100 unless a later rule
+  changes it.
+
+The strict alias/result invariant is:
+
+```text
+In Searching or Initial state:
+  visible ASS/subtitle file alias <=> at least one loaded matching row exists
+  for that file in the current Search result view.
+
+In Collapsed state:
+  visible ASS/subtitle file alias <=> the file has at least one match in the
+  complete Search result set.
+```
+
+Sorting and filtering work must build on this state model so later result
+projections do not mix loaded-row views, all-file collapsed views, and
+file-internal lazy loading into one ambiguous UI state.
+
 Deferred methods:
 
 - FTS `automerge`, `crisismerge`, and `usermerge` tuning. These settings can
