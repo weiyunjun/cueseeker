@@ -893,6 +893,42 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
 }
 
 @Test
+func searchPageFailsWhenSearchOrderRowsAreMissing() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Series/Episode.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Series/Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Shared materialized row"
+            )
+        ]
+    )
+    try executeSQLite(at: databaseURL, "DELETE FROM subtitle_search_order_rows;")
+
+    var thrownMessage: String?
+    do {
+        _ = try database.searchPage("shared", limit: 10)
+    } catch {
+        thrownMessage = String(describing: error)
+    }
+
+    #expect(thrownMessage?.contains("Search order rows are missing") == true)
+}
+
+@Test
 func searchLoadsRowsForSpecificSubtitleFileOutsideGlobalPage() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -2489,6 +2525,21 @@ private func readSearchOrderRows(at url: URL) throws -> [SearchOrderRow] {
         )
     }
     return result
+}
+
+private func executeSQLite(at url: URL, _ sql: String) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(database, sql)
 }
 
 private func executeSQLite(_ database: OpaquePointer?, _ sql: String) throws {

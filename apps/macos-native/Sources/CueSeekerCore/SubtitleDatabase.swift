@@ -1217,18 +1217,25 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 ]
             )
 
+            let searchOrderRowsStart = Self.diagnosticNow()
+            try requireCompleteSearchOrderRows(
+                pathPrefixes: pathPrefixes,
+                subtitlePath: subtitlePathFilter
+            )
+            emit("search_order_rows_validated", since: searchOrderRowsStart)
+
             let prepareStart = Self.diagnosticNow()
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
                        g.start_ms, g.end_ms, g.search_content, g.line_count,
-                       sor.display_title, sor.folder_order, sor.file_order
+                       sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
                 FROM subtitle_cue_groups_fts f
                 JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
                 JOIN video_files vf ON vf.id = m.video_file_id
-                LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+                JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
@@ -1276,9 +1283,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                             searchContent: statement.stringColumn(7),
                             lineCount: statement.intColumn(8),
                             order: SearchResultOrder(
-                                displayTitle: statement.nullableStringColumn(9),
-                                folderOrder: statement.nullableIntColumn(10),
-                                fileOrder: statement.nullableIntColumn(11)
+                                subtitleFileName: statement.stringColumn(9),
+                                displayTitle: statement.stringColumn(10),
+                                folderOrder: statement.intColumn(11),
+                                fileOrder: statement.intColumn(12)
                             )
                         )
                     )
@@ -1355,7 +1363,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let sortedOrderedResults = Self.sortedSearchResults(results)
             let sortedResults = sortedOrderedResults.map(\.result)
             let orderSource = Self.searchOrderSource(for: sortedOrderedResults)
-            let materializedOrderRows = sortedOrderedResults.filter(\.order.isMaterialized).count
+            let materializedOrderRows = sortedOrderedResults.count
             emit(
                 "sort_results",
                 since: sortStart,
@@ -1440,12 +1448,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 since: searchPageStart,
                 fields: [.init("error", error.localizedDescription)]
             )
-            return SubtitleSearchPage(
-                results: [],
-                totalCount: 0,
-                fileSummaries: [],
-                appliedCursor: appliedCursor
-            )
+            if Self.isFTSSyntaxError(error) {
+                return SubtitleSearchPage(
+                    results: [],
+                    totalCount: 0,
+                    fileSummaries: [],
+                    appliedCursor: appliedCursor
+                )
+            }
+            throw error
         }
     }
 
@@ -1721,6 +1732,48 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try deleteRows.run()
 
         try insertSearchOrderRows(for: try indexedSearchOrderFiles(inFolderPath: folderPath))
+    }
+
+    private func requireCompleteSearchOrderRows(
+        pathPrefixes: [String]?,
+        subtitlePath: String?
+    ) throws {
+        let scopeCondition = pathPrefixes.map {
+            let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
+                .joined(separator: " OR ")
+            return "AND (\(conditions))"
+        } ?? ""
+        let subtitlePathCondition = subtitlePath.map { _ in "AND sf.subtitle_path = ?" } ?? ""
+        let statement = try database.prepare(
+            """
+            SELECT sf.subtitle_path
+            FROM subtitle_files sf
+            LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            WHERE sor.subtitle_path IS NULL
+            \(scopeCondition)
+            \(subtitlePathCondition)
+            LIMIT 1;
+            """
+        )
+
+        var bindIndex: Int32 = 1
+        if let pathPrefixes {
+            for prefix in pathPrefixes {
+                try statement.bind(prefix, at: bindIndex)
+                bindIndex += 1
+                try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+                bindIndex += 1
+            }
+        }
+        if let subtitlePath {
+            try statement.bind(subtitlePath, at: bindIndex)
+        }
+
+        guard try !statement.step() else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Search order rows are missing for \(statement.stringColumn(0)). Rebuild derived Search order rows before searching."
+            )
+        }
     }
 
     private func indexedSearchOrderFiles(inFolderPath folderPath: String?) throws -> [SearchOrderFile] {
@@ -2112,13 +2165,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private struct SearchResultOrder {
-        let displayTitle: String?
-        let folderOrder: Int?
-        let fileOrder: Int?
-
-        var isMaterialized: Bool {
-            displayTitle != nil && folderOrder != nil && fileOrder != nil
-        }
+        let subtitleFileName: String
+        let displayTitle: String
+        let folderOrder: Int
+        let fileOrder: Int
     }
 
     private struct OrderedSearchResult {
@@ -2199,21 +2249,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private static func sortedSearchResults(_ results: [OrderedSearchResult]) -> [OrderedSearchResult] {
-        let missingDisplayTitlePaths = results.compactMap { orderedResult in
-            orderedResult.order.displayTitle == nil ? orderedResult.result.subtitlePath : nil
-        }
-        let displayTitlesByPath = displayTitlesByPath(for: missingDisplayTitlePaths)
-
         return results.sorted { lhs, rhs in
             let lhsResult = lhs.result
             let rhsResult = rhs.result
-            let lhsDisplayTitle = lhs.order.displayTitle
-                ?? displayTitlesByPath[lhsResult.subtitlePath]
-                ?? URL(fileURLWithPath: lhsResult.subtitlePath).lastPathComponent
-            let rhsDisplayTitle = rhs.order.displayTitle
-                ?? displayTitlesByPath[rhsResult.subtitlePath]
-                ?? URL(fileURLWithPath: rhsResult.subtitlePath).lastPathComponent
-            let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
+            let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(
+                lhs.order.displayTitle,
+                rhs.order.displayTitle
+            )
             if displayTitleComparison != .orderedSame {
                 return displayTitleComparison == .orderedAscending
             }
@@ -2240,14 +2282,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return "none"
         }
 
-        let materializedCount = results.filter(\.order.isMaterialized).count
-        if materializedCount == results.count {
-            return "materialized"
-        }
-        if materializedCount > 0 {
-            return "mixed"
-        }
-        return "computed"
+        return "materialized"
     }
 
     private static func searchNavigationIndex(
@@ -2289,6 +2324,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private static func fileSummaries(for results: [OrderedSearchResult]) -> [SubtitleSearchFileSummary] {
         var countsByPath: [String: Int] = [:]
         var pathsInOrder: [String] = []
+        var fileNamesByPath: [String: String] = [:]
         var displayTitlesByPath: [String: String] = [:]
         for orderedResult in results {
             let result = orderedResult.result
@@ -2296,36 +2332,23 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 pathsInOrder.append(result.subtitlePath)
             }
             countsByPath[result.subtitlePath, default: 0] += 1
-            if let displayTitle = orderedResult.order.displayTitle {
-                displayTitlesByPath[result.subtitlePath] = displayTitle
-            }
-        }
-
-        let missingDisplayTitlePaths = countsByPath.keys.filter { displayTitlesByPath[$0] == nil }
-        for (path, displayTitle) in Self.displayTitlesByPath(for: Array(missingDisplayTitlePaths)) {
-            displayTitlesByPath[path] = displayTitle
+            fileNamesByPath[result.subtitlePath] = orderedResult.order.subtitleFileName
+            displayTitlesByPath[result.subtitlePath] = orderedResult.order.displayTitle
         }
 
         return pathsInOrder
         .map { path in
             SubtitleSearchFileSummary(
                 subtitlePath: path,
-                subtitleFileName: URL(fileURLWithPath: path).lastPathComponent,
-                subtitleDisplayTitle: displayTitlesByPath[path] ?? URL(fileURLWithPath: path).lastPathComponent,
-                matchCount: countsByPath[path] ?? 0
+                subtitleFileName: fileNamesByPath[path]!,
+                subtitleDisplayTitle: displayTitlesByPath[path]!,
+                matchCount: countsByPath[path]!
             )
         }
     }
 
-    private static func displayTitlesByPath(for subtitlePaths: [String]) -> [String: String] {
-        Dictionary(
-            uniqueKeysWithValues: Set(subtitlePaths).map { path in
-                (
-                    path,
-                    SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path)
-                )
-            }
-        )
+    private static func isFTSSyntaxError(_ error: Error) -> Bool {
+        String(describing: error).contains("fts5: syntax error")
     }
 
     private func ftsVocabularyTerms(

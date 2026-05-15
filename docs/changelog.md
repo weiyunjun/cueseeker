@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed Search's hidden runtime fallback for missing materialized order rows.
+  Search now requires `subtitle_search_order_rows` in the hot path and fails
+  when rebuildable ordering data is missing instead of recomputing display
+  titles as an old-data compatibility branch.
 - Added a database engineering rule that old-data handling must be explicit and
   documented; rebuildable derived data should not keep hidden runtime
   compatibility fallbacks in hot paths.
