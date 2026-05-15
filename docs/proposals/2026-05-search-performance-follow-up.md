@@ -308,9 +308,9 @@ stable.
 | 7 | Block search / completed unit return | Backend-first, front-end consumes results | Let Search emit usable file or block units before the whole corpus finishes. |
 | 8 | Exact progress count stream | Backend / state model | Let Search publish exact cumulative counts as work progresses, then final exact totals when complete. Do not expose lower bounds, loaded-row counts, or pagination sentinels as `Found` counts. |
 | 9 | Index sorting / early termination | Backend / database query optimization | Test whether FTS row order or equivalent index-sorted recall improves the new file-preview metrics. |
-| 10 | Filterable / sortable / facet attributes | Backend / data model and index | Test whether denormalized Search hot-path attributes reduce metadata and join cost under the new flow. |
+| 10 | Filterable / sortable / facet attributes (Suspended) | Suspended; sequence number retained for traceability | Keep the idea, but do not execute in the current pass. Expected benefit is more product capability than clear Search latency reduction. |
 | 11 | Prefix index | Backend / index | Support and benchmark English prefix search after core Search semantics are stable. |
-| 12 | FTS `optimize` / `merge` | Backend / maintenance strategy | Treat FTS segment maintenance as a measured maintenance step, not as assumed speed work. |
+| 12 | FTS `optimize` / `merge` (Suspended) | Suspended; sequence number retained for traceability | Keep the maintenance idea, but do not execute until FTS segment diagnostics show meaningful latency variance from segment state. |
 | 13 | File-group progressive display (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The current front-end lazy-loading behavior would not make this step's near-bottom polling effect observable while the Search request itself is still the bottleneck. |
 | 14 | File-group initial preview (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. A smaller file-group preview conflicts with the accepted 100-row lazy-loading unit and would introduce a second loading model. |
 | 15 | File-internal `Show more` (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The accepted interaction is automatic lazy loading, not a separate per-file `Show more` control. |
@@ -752,6 +752,121 @@ Read:
   Swift-side sort cost after candidate validation.
 - The accepted ordering remains display-title product order; the implementation
   does not change Search's visible ordering semantics.
+
+### Step 11: Prefix Index
+
+Date: 2026-05-15
+
+Before version: `0a45d01`
+
+Scope adjustment:
+
+- Step 10 and Step 12 are suspended, not discarded. Step 10 remains a future
+  filter/sort/facet data-model step, and Step 12 remains a future FTS
+  maintenance step. Neither is part of this implementation pass.
+
+Implementation direction:
+
+- Schema version `15` keeps the primary `subtitle_cue_groups_fts` table in the
+  Step 9 product-order rowid shape and adds a separate
+  `subtitle_cue_groups_prefix_fts` table with SQLite FTS5 prefix indexes for
+  Latin token prefix lengths `2`, `3`, and `4`.
+- The Search query planner keeps the existing semantics: a single non-CJK
+  token still maps to `token*`, and line-level validation still requires a
+  token prefix match. This step changes the FTS recall index shape, not product
+  Search semantics.
+- Visible-window searches for single Latin-token prefix queries use the prefix
+  FTS table. Exact completion, CJK Search, multi-token Search, and explicit FTS
+  queries continue using the primary FTS table so prefix-index maintenance does
+  not change their recall path.
+- Migration from schema `13` or the interim schema `14` recreates both FTS
+  tables, then rebuilds rows in the schema `13` product rowid order so Step 9
+  early termination remains active.
+
+Pre-change English benchmark:
+
+- User added an English subtitle corpus before this step.
+- Command shape:
+  `SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" <query> 100`
+- Visible-window comparison uses the same command with `--visible-window`.
+- Baseline schema: `13`.
+
+Visible-window baseline:
+
+| Query | Warmup ms | Returned | Known count | Known file summaries | Count state | Next cursor | Hot avg ms | Hot raw ms | Cold first search ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- | ---: |
+| `th` | 11.74 | 100 | 100 | 1 | exactProgress | 100 | 6.74 | 6.93, 6.64, 6.83, 6.63, 6.69 | 6.92 |
+| `the` | 5.76 | 100 | 100 | 2 | exactProgress | 100 | 4.32 | 4.29, 4.26, 4.53, 4.22, 4.29 | 4.57 |
+| `yo` | 6.93 | 100 | 100 | 1 | exactProgress | 100 | 3.89 | 3.87, 3.86, 3.88, 3.97, 3.87 | 4.35 |
+| `rem` | 14.80 | 100 | 100 | 42 | exactProgress | 100 | 2.46 | 2.62, 2.51, 2.35, 2.39, 2.41 | 2.92 |
+| `sta` | 8.79 | 100 | 100 | 14 | exactProgress | 100 | 2.04 | 2.18, 2.14, 2.01, 1.93, 1.93 | 2.36 |
+
+Exact-completion baseline:
+
+| Query | Warmup ms | Returned | Total count | File summaries | Count state | Hot avg ms | Hot raw ms | Cold first search ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: |
+| `th` | 6245.47 | 100 | 45926 | 267 | exact | 6124.66 | 6212.00, 6189.96, 6138.61, 6011.57, 6071.17 | 6144.23 |
+| `the` | 3036.66 | 100 | 30882 | 263 | exact | 2948.16 | 2907.63, 2930.97, 3028.33, 2907.55, 2966.30 | 2960.52 |
+| `rem` | 21.84 | 100 | 734 | 225 | exact | 14.41 | 14.26, 14.65, 14.42, 14.00, 14.71 | 17.03 |
+| `sta` | 61.17 | 100 | 1885 | 258 | exact | 43.49 | 41.03, 41.15, 40.90, 41.99, 52.39 | 44.51 |
+
+Post-change benchmark:
+
+- The one-time schema 15 migration rebuilt the local primary and prefix FTS
+  tables in `4612.82 ms`.
+
+Visible-window post-change:
+
+| Query | Warmup ms | Returned | Known count | Known file summaries | Count state | Next cursor | Hot avg ms | Hot raw ms | Cold first search ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- | ---: |
+| `th` | 2.31 | 100 | 100 | 1 | exactProgress | 100 | 1.79 | 1.77, 1.75, 1.90, 1.79, 1.76 | 1.93 |
+| `the` | 2.32 | 100 | 100 | 2 | exactProgress | 100 | 2.99 | 3.06, 2.23, 2.96, 3.33, 3.36 | 2.91 |
+| `yo` | 4.53 | 100 | 100 | 1 | exactProgress | 100 | 2.73 | 3.87, 2.37, 3.09, 2.06, 2.25 | 2.48 |
+| `rem` | 3.60 | 100 | 100 | 42 | exactProgress | 100 | 2.88 | 3.26, 2.83, 2.50, 2.58, 3.21 | 3.28 |
+| `sta` | 3.23 | 100 | 100 | 14 | exactProgress | 100 | 2.05 | 2.07, 1.98, 2.11, 2.11, 1.97 | 2.39 |
+
+Exact-completion post-change:
+
+| Query | Warmup ms | Returned | Total count | File summaries | Count state | Hot avg ms | Hot raw ms | Cold first search ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: |
+| `th` | 5523.19 | 100 | 45926 | 267 | exact | 5652.40 | 5738.01, 5492.78, 5694.87, 5897.31, 5439.01 | 5404.10 |
+| `the` | 2891.22 | 100 | 30882 | 263 | exact | 2791.79 | 3023.35, 2845.81, 2717.34, 2655.10, 2717.36 | 2805.96 |
+| `rem` | 17.82 | 100 | 734 | 225 | exact | 15.07 | 15.37, 14.78, 14.92, 15.28, 15.00 | 16.28 |
+| `sta` | 50.56 | 100 | 1885 | 258 | exact | 42.95 | 43.54, 42.91, 42.80, 42.83, 42.67 | 46.91 |
+
+Required CJK visible-window smoke check after schema 15:
+
+| Query | Warmup ms | Returned | Known count | Known file summaries | Count state | Next cursor | Hot avg ms | Hot raw ms | Cold first search ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- | ---: |
+| `大丈夫` | 16.53 | 100 | 100 | 39 | exactProgress | 100 | 2.22 | 2.15, 2.50, 2.63, 1.94, 1.89 | 3.17 |
+| `今日` | 18.56 | 100 | 100 | 14 | exactProgress | 100 | 11.74 | 11.54, 12.27, 11.27, 11.89, 11.73 | 12.30 |
+| `の` | 1.94 | 100 | 100 | 2 | exactProgress | 100 | 1.08 | 1.23, 1.04, 0.99, 1.08, 1.09 | 1.57 |
+
+Read:
+
+- The first single-table prefix attempt improved English visible-window Search
+  but regressed exact completion. The accepted implementation therefore keeps
+  exact completion on the primary non-prefix FTS table and uses the prefix
+  table only for single-token Latin visible-window Search.
+- `th`, `the`, and `yo` visible-window Search improved materially. `sta` stayed
+  effectively flat, and `rem` regressed slightly on visible-window hot average
+  while staying within a few milliseconds.
+- Exact-completion timings are not worsened by the final dual-table approach;
+  the broad high-frequency prefixes improved versus the schema 13 baseline in
+  this run.
+
+Acceptance focus:
+
+- FTS table creation and migration must record `prefix='2 3 4'` on the separate
+  prefix FTS table, not on the primary FTS table.
+- Latin prefix query correctness must remain unchanged.
+- Step 9 `orderSource=ftsRowid` and visible-window early termination must stay
+  active after the FTS table rebuild.
+- Broad high-frequency prefixes such as `th` may still be dominated by exact
+  completion because tens of thousands of rows must be validated and counted.
+  If prefix indexes do not materially improve these exact timings, keep that
+  result explicit rather than reinterpreting the step as a broad Search-speed
+  success.
 
 ### Search Input Invalidation Fix
 

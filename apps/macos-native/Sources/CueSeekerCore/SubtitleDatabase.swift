@@ -402,10 +402,12 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 13
+    public static let currentSchemaVersion: Int = 15
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
+
+    private static let cueGroupFTSPrefixIndexes = "2 3 4"
 
     private let path: URL
     private let database: SQLiteDatabase
@@ -519,6 +521,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
             CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_groups_fts USING fts5(
                 content,
                 cue_group_id UNINDEXED
+            );
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_groups_prefix_fts USING fts5(
+                content,
+                cue_group_id UNINDEXED,
+                prefix='2 3 4'
             );
 
             CREATE TABLE IF NOT EXISTS ass_render_segments (
@@ -650,7 +658,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try rebuildSearchOrderRows()
         }
 
-        if previousVersion < 13 {
+        if previousVersion < 15 {
+            try recreateCueGroupFTSTables()
             try rebuildFTSRows()
         }
 
@@ -1122,6 +1131,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try database.execute("DELETE FROM library_video_rows;")
             try database.execute("DELETE FROM subtitle_search_order_rows;")
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
+            try database.execute("DELETE FROM subtitle_cue_groups_prefix_fts;")
             try database.execute("DELETE FROM ass_render_segments;")
             try database.execute("DELETE FROM subtitle_files;")
             try database.execute("DELETE FROM video_files;")
@@ -1319,18 +1329,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
             emit("search_order_rows_validated", since: searchOrderRowsStart)
 
             let prepareStart = Self.diagnosticNow()
+            let ftsTableName = Self.searchFTSTableName(for: plan, mode: mode)
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
                        g.start_ms, g.end_ms, g.search_content, g.line_count,
                        sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
-                FROM subtitle_cue_groups_fts f
+                FROM \(ftsTableName) f
                 JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
                 JOIN video_files vf ON vf.id = m.video_file_id
                 JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
-                WHERE subtitle_cue_groups_fts MATCH ?
+                WHERE \(ftsTableName) MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
                 ORDER BY f.rowid ASC
@@ -2467,6 +2478,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
+    private static func searchFTSTableName(
+        for plan: SearchQueryPlan,
+        mode: SubtitleSearchPageMode
+    ) -> String {
+        guard mode == .visibleWindow else {
+            return "subtitle_cue_groups_fts"
+        }
+
+        if case .latinPrefix = plan.lineMatchRule {
+            return "subtitle_cue_groups_prefix_fts"
+        }
+
+        return "subtitle_cue_groups_fts"
+    }
+
     private func searchResult(
         for candidate: SearchCandidate,
         lineContents: [String],
@@ -2944,6 +2970,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             try deleteFTS.run()
 
+            let deletePrefixFTS = try database.prepare(
+                """
+                DELETE FROM subtitle_cue_groups_prefix_fts
+                WHERE cue_group_id IN (
+                    SELECT g.id
+                    FROM subtitle_cue_groups g
+                    JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deletePrefixFTS,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deletePrefixFTS.run()
+
             let deleteLibraryRows = try database.prepare(
                 """
                 DELETE FROM library_video_rows
@@ -3287,6 +3331,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         cueGroupID: Int64,
         content: String
     ) throws {
+        let segmentedContent = Self.segmentCJK(content)
         let statement: SQLiteStatement
         if let rowID {
             statement = try database.prepare(
@@ -3296,7 +3341,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 """
             )
             try statement.bind(rowID, at: 1)
-            try statement.bind(Self.segmentCJK(content), at: 2)
+            try statement.bind(segmentedContent, at: 2)
             try statement.bind(cueGroupID, at: 3)
         } else {
             statement = try database.prepare(
@@ -3305,10 +3350,33 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 VALUES (?, ?);
                 """
             )
-            try statement.bind(Self.segmentCJK(content), at: 1)
+            try statement.bind(segmentedContent, at: 1)
             try statement.bind(cueGroupID, at: 2)
         }
         try statement.run()
+
+        let prefixStatement: SQLiteStatement
+        if let rowID {
+            prefixStatement = try database.prepare(
+                """
+                INSERT INTO subtitle_cue_groups_prefix_fts(rowid, content, cue_group_id)
+                VALUES (?, ?, ?);
+                """
+            )
+            try prefixStatement.bind(rowID, at: 1)
+            try prefixStatement.bind(segmentedContent, at: 2)
+            try prefixStatement.bind(cueGroupID, at: 3)
+        } else {
+            prefixStatement = try database.prepare(
+                """
+                INSERT INTO subtitle_cue_groups_prefix_fts(content, cue_group_id)
+                VALUES (?, ?);
+                """
+            )
+            try prefixStatement.bind(segmentedContent, at: 1)
+            try prefixStatement.bind(cueGroupID, at: 2)
+        }
+        try prefixStatement.run()
     }
 
     private func activeCueGroupSelection(
@@ -3384,9 +3452,32 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
+    private func recreateCueGroupFTSTables() throws {
+        try database.execute("DROP TABLE IF EXISTS subtitle_cue_groups_fts;")
+        try database.execute("DROP TABLE IF EXISTS subtitle_cue_groups_prefix_fts;")
+        try database.execute(
+            """
+            CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
+                content,
+                cue_group_id UNINDEXED
+            );
+            """
+        )
+        try database.execute(
+            """
+            CREATE VIRTUAL TABLE subtitle_cue_groups_prefix_fts USING fts5(
+                content,
+                cue_group_id UNINDEXED,
+                prefix='\(Self.cueGroupFTSPrefixIndexes)'
+            );
+            """
+        )
+    }
+
     private func rebuildFTSRowsInProductOrder() throws {
         try requireCompleteSearchOrderRows(pathPrefixes: nil, subtitlePath: nil)
         try database.execute("DELETE FROM subtitle_cue_groups_fts;")
+        try database.execute("DELETE FROM subtitle_cue_groups_prefix_fts;")
 
         var rows: [(cueGroupID: Int64, content: String)] = []
         let statement = try database.prepare(
@@ -3526,6 +3617,20 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try deleteFTS.bind(subtitlePath, at: 1)
         try deleteFTS.run()
 
+        let deletePrefixFTS = try database.prepare(
+            """
+            DELETE FROM subtitle_cue_groups_prefix_fts
+            WHERE cue_group_id IN (
+                SELECT g.id
+                FROM subtitle_cue_groups g
+                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                WHERE sf.subtitle_path = ?
+            );
+            """
+        )
+        try deletePrefixFTS.bind(subtitlePath, at: 1)
+        try deletePrefixFTS.run()
+
         let deleteLibraryRows = try database.prepare(
             "DELETE FROM library_video_rows WHERE subtitle_path = ?;"
         )
@@ -3560,6 +3665,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute(
             """
             DROP TABLE IF EXISTS subtitle_cue_groups_fts;
+            DROP TABLE IF EXISTS subtitle_cue_groups_prefix_fts;
             DROP TABLE IF EXISTS subtitle_cue_lines;
             DROP TABLE IF EXISTS subtitle_cue_groups;
             DROP TABLE IF EXISTS ass_render_segments;
