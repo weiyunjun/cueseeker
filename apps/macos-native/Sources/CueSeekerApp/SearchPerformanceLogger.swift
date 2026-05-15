@@ -848,6 +848,86 @@ enum SearchPerformanceLogger {
         e2eWriter.write(entry)
     }
 
+    static func writeE2EExactCountsCompleted(
+        _ run: SearchPerformanceRun?,
+        totalCount: Int,
+        fileSummaryCount: Int,
+        databaseSearchMilliseconds: Double? = nil,
+        groupCount: Int? = nil,
+        renderedRowCount: Int? = nil
+    ) {
+        guard let run, run.e2eLoggingEnabled else {
+            return
+        }
+
+        let timestamp = now()
+        let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
+        let entry = SearchE2ELogEntry(
+            timestamp: timestampString(),
+            sequence: state.allocateSequence(),
+            runID: run.id,
+            event: "exact_counts_completed",
+            query: run.query,
+            benchmarkMetric: nil,
+            warmupMilliseconds: nil,
+            returned: nil,
+            totalCount: totalCount,
+            fileSummaries: fileSummaryCount,
+            countState: SubtitleSearchCountState.exact.rawValue,
+            knownResultCount: totalCount,
+            knownFileCount: fileSummaryCount,
+            hotAvgMilliseconds: nil,
+            hotRawMilliseconds: nil,
+            currentRunKind: nil,
+            currentRunMilliseconds: nil,
+            hotRunCount: nil,
+            hotTargetRunCount: nil,
+            hasMore: nil,
+            offset: run.offset,
+            cursor: run.cursor,
+            nextCursor: nil,
+            limit: run.limit,
+            groups: groupCount,
+            renderedRows: renderedRowCount,
+            loadedFileGroups: nil,
+            loadedRows: nil,
+            fileGroupPreviewMilestones: nil,
+            exactCountsCompletion: SearchE2EExactCountsSnapshot(
+                completed: true,
+                elapsedMilliseconds: elapsedMilliseconds,
+                totalCount: totalCount,
+                fileSummaries: fileSummaryCount
+            ),
+            perFileLoadMore: nil,
+            databaseMilliseconds: databaseSearchMilliseconds,
+            elapsedMilliseconds: elapsedMilliseconds,
+            firstVisibleMilliseconds: nil,
+            status: "completed",
+            queryLength: run.queryLength,
+            appending: run.appending,
+            debounce: run.debounce,
+            folders: run.folderPaths,
+            error: nil,
+            timings: SearchE2ETimingSnapshot(
+                elapsedMilliseconds: elapsedMilliseconds,
+                databaseSearchMilliseconds: databaseSearchMilliseconds,
+                stateAssignMilliseconds: nil,
+                groupRebuildMilliseconds: nil,
+                statusCompletionMilliseconds: nil,
+                firstVisibleElapsedMilliseconds: nil
+            ),
+            ui: SearchE2EUISnapshot(
+                groupCount: groupCount,
+                renderedRowCount: renderedRowCount,
+                firstVisibleEntryID: nil
+            ),
+            sampleResults: nil,
+            topFileSummaries: nil,
+            firstVisibleResult: nil
+        )
+        e2eWriter.write(entry)
+    }
+
     static func writeE2EFirstVisible(
         _ run: SearchPerformanceRun?,
         result: SubtitleSearchResult,
@@ -867,6 +947,13 @@ enum SearchPerformanceLogger {
         let timestamp = now()
         let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
         let benchmark = state.e2eBenchmarkSnapshot(key: run.e2eBenchmarkKey)
+        let resolvedCountState = benchmark?.countState ?? countState.rawValue
+        let resolvedExactTotalCount = resolvedCountState == SubtitleSearchCountState.exact.rawValue
+            ? (benchmark?.totalCount ?? totalCount)
+            : nil
+        let resolvedExactFileSummaryCount = resolvedCountState == SubtitleSearchCountState.exact.rawValue
+            ? (benchmark?.fileSummaries ?? fileSummaryCount)
+            : nil
         let entry = SearchE2ELogEntry(
             timestamp: timestampString(),
             sequence: state.allocateSequence(),
@@ -876,9 +963,9 @@ enum SearchPerformanceLogger {
             benchmarkMetric: benchmark == nil ? nil : "elapsedMilliseconds",
             warmupMilliseconds: benchmark?.warmupMilliseconds,
             returned: benchmark?.returned ?? resultCount,
-            totalCount: benchmark?.totalCount ?? totalCount,
-            fileSummaries: benchmark?.fileSummaries ?? fileSummaryCount,
-            countState: benchmark?.countState ?? countState.rawValue,
+            totalCount: resolvedExactTotalCount,
+            fileSummaries: resolvedExactFileSummaryCount,
+            countState: resolvedCountState,
             knownResultCount: benchmark?.knownResultCount ?? knownResultCount,
             knownFileCount: benchmark?.knownFileCount ?? knownFileCount,
             hotAvgMilliseconds: benchmark?.hotAvgMilliseconds,

@@ -336,6 +336,7 @@ final class AppState: ObservableObject {
         hasSearchResultGroups
             && !isSearching
             && searchStatus == .completed
+            && searchCountState == .exact
             && searchResultPresentationState != .collapsed
             && !searchFileSummaries.isEmpty
     }
@@ -419,6 +420,30 @@ final class AppState: ObservableObject {
                 isCollapsed: collapsedGroupPaths.contains(path)
             )
         }
+    }
+
+    private static func mergePartialSearchFileSummaries(
+        existing: [SubtitleSearchFileSummary],
+        incoming: [SubtitleSearchFileSummary]
+    ) -> [SubtitleSearchFileSummary] {
+        var mergedByPath = Dictionary(uniqueKeysWithValues: existing.map { ($0.subtitlePath, $0) })
+        var orderedPaths = existing.map(\.subtitlePath)
+
+        for summary in incoming {
+            if let existingSummary = mergedByPath[summary.subtitlePath] {
+                mergedByPath[summary.subtitlePath] = SubtitleSearchFileSummary(
+                    subtitlePath: existingSummary.subtitlePath,
+                    subtitleFileName: existingSummary.subtitleFileName,
+                    subtitleDisplayTitle: existingSummary.subtitleDisplayTitle,
+                    matchCount: existingSummary.matchCount + summary.matchCount
+                )
+            } else {
+                mergedByPath[summary.subtitlePath] = summary
+                orderedPaths.append(summary.subtitlePath)
+            }
+        }
+
+        return orderedPaths.compactMap { mergedByPath[$0] }
     }
 
     private static func makeShioriFileGroups(
@@ -574,6 +599,7 @@ final class AppState: ObservableObject {
             && !indexingStatus.isIndexing
             && !databaseMaintenanceStatus.isCompacting
             && !isSearching
+            && searchMetadataTask == nil
             && libraryStatus != .loading
     }
 
@@ -584,6 +610,8 @@ final class AppState: ObservableObject {
     private var libraryTask: Task<Void, Never>?
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var searchMetadataTask: Task<Void, Never>?
+    private var searchMetadataGeneration = 0
     private var searchNavigationTask: Task<Void, Never>?
     private var currentSubtitleEntriesTask: Task<Void, Never>?
     private var databaseStorageStatsTask: Task<Void, Never>?
@@ -1337,6 +1365,11 @@ final class AppState: ObservableObject {
             return
         }
 
+        guard searchMetadataTask == nil else {
+            databaseMaintenanceStatus = .failed("Search metadata is loading")
+            return
+        }
+
         guard libraryStatus != .loading else {
             databaseMaintenanceStatus = .failed("Library is loading")
             return
@@ -1465,6 +1498,10 @@ final class AppState: ObservableObject {
         let folders = selectedFolders
         let pageSize = Self.searchPageSize
         let offset = cursor.offset
+        let hadExactSearchMetadata = searchCountState == .exact && searchResultTotalCount > 0
+        if !appending {
+            cancelSearchMetadataRefresh()
+        }
         if let activeSearchPerformanceRun {
             SearchPerformanceLogger.mark(activeSearchPerformanceRun, "search_superseded_by_new_search")
             SearchPerformanceLogger.writeE2ESearchPage(
@@ -1589,6 +1626,7 @@ final class AppState: ObservableObject {
                         limit: pageSize,
                         cursor: cursor,
                         under: folders,
+                        metadataMode: .provisional,
                         diagnostics: diagnosticsSink
                     )
                     let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
@@ -1639,13 +1677,29 @@ final class AppState: ObservableObject {
                     searchResults = page.results
                     loadedGlobalSearchResultCount = page.results.count
                 }
-                searchResultTotalCount = page.totalCount
-                searchFileSummaries = page.fileSummaries
-                searchCountState = page.countState
-                searchKnownResultCount = page.knownResultCount
-                searchKnownFileCount = page.knownFileCount
+                if appending, hadExactSearchMetadata {
+                    hasMoreSearchResults = loadedGlobalSearchResultCount < searchResultTotalCount
+                } else if page.countState == .exact {
+                    searchResultTotalCount = page.totalCount
+                    searchFileSummaries = page.fileSummaries
+                    searchCountState = page.countState
+                    searchKnownResultCount = page.knownResultCount
+                    searchKnownFileCount = page.knownFileCount
+                    hasMoreSearchResults = page.hasMore
+                } else {
+                    searchResultTotalCount = page.knownResultCount
+                    searchFileSummaries = appending
+                        ? Self.mergePartialSearchFileSummaries(
+                            existing: searchFileSummaries,
+                            incoming: page.fileSummaries
+                        )
+                        : page.fileSummaries
+                    searchCountState = page.countState
+                    searchKnownResultCount = page.knownResultCount
+                    searchKnownFileCount = searchFileSummaries.count
+                    hasMoreSearchResults = page.hasMore
+                }
                 nextGlobalSearchCursor = page.nextCursor
-                hasMoreSearchResults = page.hasMore
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
@@ -1704,6 +1758,13 @@ final class AppState: ObservableObject {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_no_result_rows_to_render")
                     clearSearchPerformanceRunIfActive(searchPerformanceRun)
                 }
+                if page.countState == .provisional, !appending {
+                    startSearchMetadataRefresh(
+                        query: trimmedQuery,
+                        folders: folders,
+                        run: searchPerformanceRun
+                    )
+                }
             } catch is CancellationError {
                 SearchPerformanceLogger.mark(searchPerformanceRun, "search_cancelled")
                 SearchPerformanceLogger.writeE2ESearchPage(
@@ -1757,6 +1818,119 @@ final class AppState: ObservableObject {
                 clearSearchPerformanceRunIfActive(searchPerformanceRun)
             }
         }
+    }
+
+    private func startSearchMetadataRefresh(
+        query: String,
+        folders: [URL],
+        run: SearchPerformanceRun?
+    ) {
+        searchMetadataTask?.cancel()
+        searchMetadataGeneration += 1
+        let metadataGeneration = searchMetadataGeneration
+        let databaseURL = databaseURL
+        let folderPaths = folders.map(\.path)
+
+        SearchPerformanceLogger.mark(run, "exact_counts_started", status: "searching")
+        searchMetadataTask = Task { [weak self] in
+            do {
+                let metadataLoad = try await Task.detached(priority: .utility) {
+                    let databaseSearchStart = SearchPerformanceLogger.now()
+                    let database = try SubtitleDatabase(path: databaseURL)
+                    try database.migrate()
+                    let page = try database.searchPage(
+                        query,
+                        limit: 1,
+                        cursor: .start,
+                        under: folders,
+                        metadataMode: .exact
+                    )
+                    let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
+                        since: databaseSearchStart
+                    )
+                    return SearchPageLoad(
+                        page: page,
+                        databaseSearchMilliseconds: databaseSearchMilliseconds
+                    )
+                }.value
+
+                guard let self,
+                      self.searchMetadataGeneration == metadataGeneration
+                else {
+                    return
+                }
+
+                guard !Task.isCancelled else {
+                    self.searchMetadataTask = nil
+                    return
+                }
+
+                let activeFolderPaths = self.selectedFolders.map(\.path)
+                guard self.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query,
+                      activeFolderPaths == folderPaths
+                else {
+                    self.searchMetadataTask = nil
+                    return
+                }
+
+                let metadataPage = metadataLoad.page
+                self.searchResultTotalCount = metadataPage.totalCount
+                self.searchFileSummaries = metadataPage.fileSummaries
+                self.searchCountState = .exact
+                self.searchKnownResultCount = metadataPage.totalCount
+                self.searchKnownFileCount = metadataPage.fileSummaries.count
+                self.hasMoreSearchResults = self.loadedGlobalSearchResultCount < metadataPage.totalCount
+                self.searchMetadataTask = nil
+                self.rebuildSearchResultGroups()
+                SearchPerformanceLogger.mark(
+                    run,
+                    "exact_counts_completed",
+                    resultCount: self.searchResults.count,
+                    totalCount: metadataPage.totalCount,
+                    fileSummaryCount: metadataPage.fileSummaries.count,
+                    groupCount: self.searchResultGroups.count,
+                    renderedRowCount: self.renderedSearchResultCount,
+                    status: "completed"
+                )
+                SearchPerformanceLogger.writeE2EExactCountsCompleted(
+                    run,
+                    totalCount: metadataPage.totalCount,
+                    fileSummaryCount: metadataPage.fileSummaries.count,
+                    databaseSearchMilliseconds: metadataLoad.databaseSearchMilliseconds,
+                    groupCount: self.searchResultGroups.count,
+                    renderedRowCount: self.renderedSearchResultCount
+                )
+            } catch is CancellationError {
+                guard let self,
+                      self.searchMetadataGeneration == metadataGeneration
+                else {
+                    return
+                }
+
+                self.searchMetadataTask = nil
+            } catch {
+                guard let self,
+                      self.searchMetadataGeneration == metadataGeneration,
+                      !Task.isCancelled
+                else {
+                    return
+                }
+
+                self.searchMetadataTask = nil
+                SearchPerformanceLogger.mark(
+                    run,
+                    "exact_counts_failed",
+                    status: "failed",
+                    error: Self.errorMessage(for: error)
+                )
+            }
+        }
+    }
+
+    private func cancelSearchMetadataRefresh() {
+        searchMetadataTask?.cancel()
+        searchMetadataTask = nil
+        searchMetadataGeneration += 1
     }
 
     func markSearchResultVisible(_ result: SubtitleSearchResult) {
@@ -2572,6 +2746,7 @@ final class AppState: ObservableObject {
     }
 
     private func clearSearchAndPlaybackState(under folder: URL) {
+        cancelSearchMetadataRefresh()
         searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         searchResultTotalCount = searchFileSummaries.reduce(0) { $0 + $1.matchCount }
@@ -2901,6 +3076,7 @@ final class AppState: ObservableObject {
     }
 
     private func resetSearchResultLoadingState() {
+        cancelSearchMetadataRefresh()
         cancelSearchResultGroupTasks()
         searchNavigationTask?.cancel()
         searchResults = []
@@ -2953,6 +3129,7 @@ final class AppState: ObservableObject {
         libraryTask = nil
         searchTask?.cancel()
         searchTask = nil
+        cancelSearchMetadataRefresh()
         searchNavigationTask?.cancel()
         searchNavigationTask = nil
         currentSubtitleEntriesTask?.cancel()

@@ -242,8 +242,9 @@ these criteria:
 - New Search results must be expanded by default. The Search panel may expose a
   fixed `Collapse All` command for the current result set, but must not retain a
   global collapsed mode across a new query.
-- The Search summary must read `Found <count> results in <count> files` and
-  must not expose rendered-row counts.
+- The Search summary must read `Found <count> results in <count> files` when
+  counts are exact, or `Found at least <count> results in <count> files` while
+  counts are provisional. It must not expose rendered-row counts.
 - Library must not expose a panel-wide `Collapse All` or `Expand All` command;
   Library folder disclosure remains per-folder.
 - The topbar must show Library and Shiori icons immediately to the left of the
@@ -330,8 +331,9 @@ For each query:
 
 "Settled" means the Search pane is no longer showing the empty `Searching`
 state or spinner, the `Found <count> results in <count> files` summary is
-visible when results exist, and the visible result list has not changed for at
-least two seconds.
+visible when exact counts exist, or the `Found at least <count> results in
+<count> files` summary is visible while counts are provisional, and the visible
+result list has not changed for at least two seconds.
 
 If the step under test includes background exact counts, background summaries,
 or delayed metadata, also wait for the documented log or benchmark completion
@@ -356,7 +358,9 @@ Actions:
 
 Acceptance:
 
-- The summary uses `Found <count> results in <count> files`.
+- The summary uses exact `Found <count> results in <count> files` text, or
+  provisional `Found at least <count> results in <count> files` text while
+  background exact counts are still loading.
 - At least one subtitle-file group and one result row are visible.
 - The visible result row contains a plausible match for `大丈夫`.
 - Opening the first result selects the row and opens or seeks playback to the
@@ -381,7 +385,9 @@ Actions:
 
 Acceptance:
 
-- The summary uses `Found <count> results in <count> files`.
+- The summary uses exact `Found <count> results in <count> files` text, or
+  provisional `Found at least <count> results in <count> files` text while
+  background exact counts are still loading.
 - Search results remain grouped by subtitle file.
 - Scrolling three viewport steps does not show empty loaded groups, duplicate
   rows, visibly stale rows from the previous query, or a stuck loading state.
@@ -410,7 +416,9 @@ Actions:
 
 Acceptance:
 
-- The summary uses `Found <count> results in <count> files`.
+- The summary uses exact `Found <count> results in <count> files` text, or
+  provisional `Found at least <count> results in <count> files` text while
+  background exact counts are still loading.
 - The Search pane remains responsive while scrolling the broad result set.
 - The list does not display summary-only subtitle-file aliases without an
   intentional loading/provisional state.
@@ -447,6 +455,11 @@ Record:
   `Query | countState sequence | knownResultCount sequence |
   knownFileCount sequence | totalCount sequence | fileSummaries sequence |
   provisional used exact totals | pass/fail`.
+- For exact count background completion steps, the JSONL page and completion
+  records for the run, summarized as
+  `Query | initial countState | initial knownResultCount |
+  initial knownFileCount | exact completion event | exact totalCount |
+  exact fileSummaries | completion elapsed ms | pass/fail`.
 - Any visible workflow issue, including stale counts, wrong grouping, empty
   loaded groups, accidental lazy-load triggers, scroll jumps, delayed playback
   selection, or front-end diagnostics that were not explicitly accepted.

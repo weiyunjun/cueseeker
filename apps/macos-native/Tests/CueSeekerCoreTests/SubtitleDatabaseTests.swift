@@ -314,6 +314,115 @@ func provisionalSearchCountSnapshotDoesNotExposeExactCounts() {
 }
 
 @Test
+func provisionalSearchPageExposesOnlyKnownCountsUntilExactMetadataCompletes() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/Alpha/Episode.mkv")
+    let betaSubtitle = URL(fileURLWithPath: "/Media/Beta/Episode.srt")
+    let betaVideo = URL(fileURLWithPath: "/Media/Beta/Episode.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: alphaSubtitle,
+        videoFile: alphaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:01,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 1_500,
+                text: "Shared alpha one"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:02,000",
+                endTimecode: "00:00:02,500",
+                startMilliseconds: 2_000,
+                endMilliseconds: 2_500,
+                text: "Shared alpha two"
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: betaSubtitle,
+        videoFile: betaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:03,500",
+                startMilliseconds: 3_000,
+                endMilliseconds: 3_500,
+                text: "Shared beta one"
+            )
+        ]
+    )
+
+    let provisionalPage = try database.searchPage("shared", limit: 2, metadataMode: .provisional)
+
+    #expect(provisionalPage.results.map(\.content) == ["Shared alpha one", "Shared alpha two"])
+    #expect(provisionalPage.countState == .provisional)
+    #expect(provisionalPage.knownResultCount == 3)
+    #expect(provisionalPage.knownFileCount == 1)
+    #expect(provisionalPage.exactTotalCount == nil)
+    #expect(provisionalPage.exactFileSummaryCount == nil)
+    #expect(provisionalPage.totalCount == 3)
+    #expect(provisionalPage.fileSummaries.map(\.subtitleFileName) == ["Episode.srt"])
+    #expect(provisionalPage.fileSummaries.map(\.matchCount) == [2])
+    #expect(provisionalPage.nextCursor?.offset == 2)
+
+    let exactPage = try database.searchPage("shared", limit: 1, metadataMode: .exact)
+    #expect(exactPage.countState == .exact)
+    #expect(exactPage.exactTotalCount == 3)
+    #expect(exactPage.exactFileSummaryCount == 2)
+    #expect(exactPage.fileSummaries.map(\.matchCount) == [2, 1])
+}
+
+@Test
+func provisionalSearchPageReturnsExactCountsWhenAllRowsFitInPage() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
+    let video = URL(fileURLWithPath: "/Media/Alpha/Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitle,
+        videoFile: video,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:01,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 1_500,
+                text: "Shared alpha one"
+            )
+        ]
+    )
+
+    let page = try database.searchPage("shared", limit: 10, metadataMode: .provisional)
+
+    #expect(page.countState == .exact)
+    #expect(page.knownResultCount == 1)
+    #expect(page.knownFileCount == 1)
+    #expect(page.exactTotalCount == 1)
+    #expect(page.exactFileSummaryCount == 1)
+    #expect(page.nextCursor == nil)
+}
+
+@Test
 func searchNavigationUsesCompleteResultOrderAndPlaybackTimeAnchor() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

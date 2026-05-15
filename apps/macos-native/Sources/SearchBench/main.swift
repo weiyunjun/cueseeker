@@ -65,7 +65,7 @@ func formatMs(_ value: Double) -> String {
 }
 
 guard CommandLine.arguments.count >= 3 else {
-    print("Usage: SearchBench <db-path> <query> [limit] [--step1-gaps]")
+    print("Usage: SearchBench <db-path> <query> [limit] [--step1-gaps] [--provisional-metadata]")
     exit(1)
 }
 
@@ -74,11 +74,15 @@ let dbPath = URL(fileURLWithPath: CommandLine.arguments[1])
 let query = CommandLine.arguments[2]
 let limit = extraArguments.first(where: { !$0.hasPrefix("--") }).flatMap(Int.init) ?? 1000
 let includesStep1Gaps = extraArguments.contains("--step1-gaps")
+let metadataMode: SubtitleSearchMetadataMode = extraArguments.contains("--provisional-metadata")
+    ? .provisional
+    : .exact
 
 print("== SearchBench ==")
 print("DB:    \(dbPath.path)")
 print("Query: \"\(query)\"")
 print("Limit: \(limit)")
+print("Metadata mode: \(metadataMode == .provisional ? "provisional" : "exact")")
 print("")
 
 let openStart = Date()
@@ -97,13 +101,15 @@ func timedSearch(
     database: SubtitleDatabase,
     query: String,
     limit: Int,
+    metadataMode: SubtitleSearchMetadataMode,
     subtitlePath: String? = nil
 ) throws -> TimedSearchPage {
     let start = Date()
     let page = try database.searchPage(
         query,
         limit: limit,
-        inSubtitlePath: subtitlePath
+        inSubtitlePath: subtitlePath,
+        metadataMode: metadataMode
     )
     return TimedSearchPage(page: page, milliseconds: milliseconds(since: start))
 }
@@ -200,7 +206,7 @@ func step1GapMetrics(
     )
 }
 
-let warmupRun = try timedSearch(database: database, query: query, limit: limit)
+let warmupRun = try timedSearch(database: database, query: query, limit: limit, metadataMode: metadataMode)
 let warmupPage = warmupRun.page
 let warmupMs = warmupRun.milliseconds
 print("Warmup search:        \(formatMs(warmupMs)) ms")
@@ -216,7 +222,7 @@ print("")
 
 var hotRuns: [TimedSearchPage] = []
 for _ in 0..<5 {
-    hotRuns.append(try timedSearch(database: database, query: query, limit: limit))
+    hotRuns.append(try timedSearch(database: database, query: query, limit: limit, metadataMode: metadataMode))
 }
 
 let times = hotRuns.map(\.milliseconds)
@@ -241,6 +247,7 @@ if includesStep1Gaps {
             database: database,
             query: query,
             limit: perFileLimit,
+            metadataMode: .exact,
             subtitlePath: $0.subtitlePath
         )
     }
@@ -252,6 +259,7 @@ if includesStep1Gaps {
                     database: database,
                     query: query,
                     limit: perFileLimit,
+                    metadataMode: .exact,
                     subtitlePath: perFileSummary.subtitlePath
                 )
             )

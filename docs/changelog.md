@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added Search exact count background completion: visible Search pages can now
+  carry provisional count metadata, then a background exact metadata refresh
+  updates totals and records an `exact_counts_completed` JSONL event.
 - Added the Search provisional count model foundation: Core Search pages now
   expose count state plus known result/file counts, and Search E2E JSONL schema
   version 5 records those fields for Step 3 acceptance.

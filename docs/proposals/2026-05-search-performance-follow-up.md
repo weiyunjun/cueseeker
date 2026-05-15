@@ -369,6 +369,11 @@ Benchmark rules:
   `totalCount` and `fileSummaries` are exact-count fields only when
   `countState` is `exact`; provisional records must not use those fields to
   imply final totals.
+- For Step 4, any Search page with `countState: provisional` must be followed
+  by an `exact_counts_completed` JSONL record for the same query run. The
+  completion record must carry `countState: exact`, exact `totalCount`, exact
+  `fileSummaries`, and `exactCountsCompletion.completed: true` with
+  `exactCountsCompletion.elapsedMilliseconds`.
 - For Step 17, clear cache state between benchmark query groups, then run each
   query five times so warm-cache behavior is measured without cross-query
   contamination.
@@ -473,6 +478,33 @@ Read after implementation:
   Warmup timings remained noisy, especially for broad exact-count queries, so
   acceptance should use the fixed E2E cursor sequence in addition to automated
   tests.
+
+### Step 4 Provisional Metadata Smoke Check
+
+Date: 2026-05-15
+
+Commit under test: working tree after `0c505aa`, before the follow-up commit
+that records this implementation.
+
+Command:
+
+```text
+.build/arm64-apple-macosx/debug/SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" 大丈夫 100 --provisional-metadata
+```
+
+Result:
+
+| Query | Limit | Metadata mode | Warmup ms | Returned | Total count shown | File summaries shown | Count state | Known result count | Known file count | Hot avg ms | Hot raw ms | Cursor | Next cursor |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: |
+| `大丈夫` | 100 | provisional | 538.89 | 100 | 101 | 39 | provisional | 101 | 39 | 59.01 | 60.01, 58.07, 58.19, 60.32, 58.46 | 0 | 100 |
+
+Read:
+
+- This is a smoke check for the provisional metadata output shape, not the full
+  Step 4 E2E acceptance run.
+- Full Step 4 acceptance still requires app JSONL evidence showing
+  `search_status_completed` with `countState: provisional`, followed by
+  `exact_counts_completed` with `countState: exact`.
 
 ## Acceptance Standards
 
