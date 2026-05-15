@@ -306,7 +306,7 @@ stable.
 | 5 | `fts5vocab` diagnostics | Backend / diagnostic tool | Make high-frequency terms and possible FTS index pollution observable through benchmark or log output before later tuning. |
 | 6 | Precomputed Library/File/Time sorting | Backend / index data | Provide stable product order without recomputing friendly-title order on every Search. |
 | 7 | Block search / completed unit return | Backend-first, front-end consumes results | Let Search emit usable file or block units before the whole corpus finishes. |
-| 8 | Delayed count / summaries | Backend / state model | Keep exact totals out of the first useful result path. |
+| 8 | Exact progress count stream | Backend / state model | Let Search publish exact cumulative counts as work progresses, then final exact totals when complete. Do not expose lower bounds, loaded-row counts, or pagination sentinels as `Found` counts. |
 | 9 | Index sorting / early termination | Backend / database query optimization | Test whether FTS row order or equivalent index-sorted recall improves the new file-preview metrics. |
 | 10 | Filterable / sortable / facet attributes | Backend / data model and index | Test whether denormalized Search hot-path attributes reduce metadata and join cost under the new flow. |
 | 11 | Prefix index | Backend / index | Support and benchmark English prefix search after core Search semantics are stable. |
@@ -368,6 +368,11 @@ Benchmark rules:
 - Steps 3 and 4 are deprecated. Current Search E2E JSONL evidence must show
   `countState: exact`; `knownResultCount`, `knownFileCount`, `totalCount`, and
   `fileSummaries` must all represent exact counts for the Search page.
+- For Step 8, every visible count update must be exact for the completed search
+  work represented by that update. `Found <count> results in <count> files` may
+  increase while Search is still running, but it must never use lower-bound,
+  approximate, loaded-row, or pagination-sentinel values. Final completion must
+  update to the exact full-corpus totals and exact file-summary count.
 - For Step 17, clear cache state between benchmark query groups, then run each
   query five times so warm-cache behavior is measured without cross-query
   contamination.

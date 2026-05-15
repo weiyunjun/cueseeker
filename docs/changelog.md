@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Revised Search follow-up Step 8 from delayed counts to exact progress counts:
+  visible `Found` updates may advance during Search, but must always represent
+  exact completed-work counts and final exact full-corpus totals.
 - Added Step 5 Search `fts5vocab` diagnostics. `SubtitleDatabase` now exposes
   explicit FTS vocabulary metrics, `SearchBench` prints them only when
   `CUESEEKER_BENCH_FTS_VOCAB=1` is set, Settings > Developer shows a default-on
