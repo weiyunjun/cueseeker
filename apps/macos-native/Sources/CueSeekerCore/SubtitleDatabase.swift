@@ -175,6 +175,8 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     public let countSnapshot: SubtitleSearchCountSnapshot
     public let appliedCursor: SubtitleSearchCursor
     public let nextCursor: SubtitleSearchCursor?
+    public let orderSource: String?
+    public let materializedOrderRows: Int?
 
     public var hasMore: Bool {
         nextCursor != nil
@@ -206,7 +208,9 @@ public struct SubtitleSearchPage: Equatable, Sendable {
         fileSummaries: [SubtitleSearchFileSummary],
         countSnapshot: SubtitleSearchCountSnapshot? = nil,
         appliedCursor: SubtitleSearchCursor = .start,
-        nextCursor: SubtitleSearchCursor? = nil
+        nextCursor: SubtitleSearchCursor? = nil,
+        orderSource: String? = nil,
+        materializedOrderRows: Int? = nil
     ) {
         self.results = results
         self.totalCount = totalCount
@@ -217,6 +221,8 @@ public struct SubtitleSearchPage: Equatable, Sendable {
         )
         self.appliedCursor = appliedCursor
         self.nextCursor = nextCursor
+        self.orderSource = orderSource
+        self.materializedOrderRows = materializedOrderRows
     }
 }
 
@@ -1349,6 +1355,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let sortedOrderedResults = Self.sortedSearchResults(results)
             let sortedResults = sortedOrderedResults.map(\.result)
             let orderSource = Self.searchOrderSource(for: sortedOrderedResults)
+            let materializedOrderRows = sortedOrderedResults.filter(\.order.isMaterialized).count
             emit(
                 "sort_results",
                 since: sortStart,
@@ -1356,7 +1363,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("results", sortedResults.count),
                     .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count),
                     .init("orderSource", orderSource),
-                    .init("materializedOrderRows", sortedOrderedResults.filter(\.order.isMaterialized).count)
+                    .init("materializedOrderRows", materializedOrderRows)
                 ]
             )
 
@@ -1423,7 +1430,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 fileSummaries: fileSummaries,
                 countSnapshot: countSnapshot,
                 appliedCursor: appliedCursor,
-                nextCursor: nextCursor
+                nextCursor: nextCursor,
+                orderSource: orderSource,
+                materializedOrderRows: materializedOrderRows
             )
         } catch {
             emit(

@@ -105,7 +105,7 @@ private struct SearchPerformanceLogEntry: Sendable {
 }
 
 private struct SearchE2ELogEntry: Encodable, Sendable {
-    let schemaVersion = 5
+    let schemaVersion = 6
     let timestamp: String
     let sequence: UInt64
     let runID: UInt64
@@ -138,6 +138,8 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
     let exactCountsCompletion: SearchE2EExactCountsSnapshot?
     let perFileLoadMore: SearchE2EFileLoadMoreSnapshot?
     let databaseMilliseconds: Double?
+    let orderSource: String?
+    let materializedOrderRows: Int?
     let elapsedMilliseconds: Double
     let firstVisibleMilliseconds: Double?
     let status: String
@@ -186,6 +188,8 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         case exactCountsCompletion
         case perFileLoadMore
         case databaseMilliseconds
+        case orderSource
+        case materializedOrderRows
         case elapsedMilliseconds
         case firstVisibleMilliseconds
         case status
@@ -236,6 +240,8 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         try encodeNullable(exactCountsCompletion, forKey: .exactCountsCompletion, into: &container)
         try encodeNullable(perFileLoadMore, forKey: .perFileLoadMore, into: &container)
         try encodeNullable(databaseMilliseconds, forKey: .databaseMilliseconds, into: &container)
+        try encodeNullable(orderSource, forKey: .orderSource, into: &container)
+        try encodeNullable(materializedOrderRows, forKey: .materializedOrderRows, into: &container)
         try container.encode(elapsedMilliseconds, forKey: .elapsedMilliseconds)
         try encodeNullable(firstVisibleMilliseconds, forKey: .firstVisibleMilliseconds, into: &container)
         try container.encode(status, forKey: .status)
@@ -820,6 +826,8 @@ enum SearchPerformanceLogger {
             exactCountsCompletion: status == "completed" ? samples?.exactCountsCompletion : nil,
             perFileLoadMore: nil,
             databaseMilliseconds: databaseSearchMilliseconds,
+            orderSource: page?.orderSource,
+            materializedOrderRows: page?.materializedOrderRows,
             elapsedMilliseconds: elapsedMilliseconds,
             firstVisibleMilliseconds: nil,
             status: status,
@@ -907,6 +915,8 @@ enum SearchPerformanceLogger {
             exactCountsCompletion: nil,
             perFileLoadMore: nil,
             databaseMilliseconds: nil,
+            orderSource: nil,
+            materializedOrderRows: nil,
             elapsedMilliseconds: elapsedMilliseconds,
             firstVisibleMilliseconds: elapsedMilliseconds,
             status: "visible",
@@ -999,6 +1009,8 @@ enum SearchPerformanceLogger {
                 requestMilliseconds: elapsedMilliseconds
             ),
             databaseMilliseconds: databaseSearchMilliseconds,
+            orderSource: nil,
+            materializedOrderRows: nil,
             elapsedMilliseconds: elapsedMilliseconds,
             firstVisibleMilliseconds: nil,
             status: status,

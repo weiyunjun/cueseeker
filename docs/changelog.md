@@ -8,7 +8,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 - Added Search Step 6 materialized ordering. Schema version 12 now maintains
   `subtitle_search_order_rows` so Search can reuse precomputed subtitle display
-  order and report whether sorting used materialized order diagnostics.
+  order, and Search E2E JSONL schema version 6 reports whether sorting used
+  materialized order diagnostics.
 - Revised Search follow-up Step 8 from delayed counts to exact progress counts:
   visible `Found` updates may advance during Search, but must always represent
   exact completed-work counts and final exact full-corpus totals.
