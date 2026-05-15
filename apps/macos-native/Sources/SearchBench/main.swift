@@ -18,6 +18,7 @@ let dbPath = URL(fileURLWithPath: CommandLine.arguments[1])
 let query = CommandLine.arguments[2]
 let limit = CommandLine.arguments.count >= 4 ? Int(CommandLine.arguments[3]) ?? 1000 : 1000
 let diagnosticsEnabled = ProcessInfo.processInfo.environment["CUESEEKER_BENCH_DIAGNOSTICS"] == "1"
+let vocabularyDiagnosticsEnabled = ProcessInfo.processInfo.environment["CUESEEKER_BENCH_FTS_VOCAB"] == "1"
 let metadataMode: SubtitleSearchMetadataMode =
     ProcessInfo.processInfo.environment["CUESEEKER_BENCH_METADATA"] == "deferred"
     ? .deferred
@@ -61,6 +62,32 @@ let migrateMs = milliseconds(since: migrateStart)
 print("Migrate (one-time):   \(formatMs(migrateMs)) ms")
 print("Schema version:       \(try database.schemaVersion())")
 print("")
+
+if vocabularyDiagnosticsEnabled {
+    let vocabularyStart = Date()
+    let vocabulary = try database.ftsVocabularyDiagnostics(for: query, topLimit: 12)
+    let vocabularyMs = milliseconds(since: vocabularyStart)
+    print("FTS vocabulary diagnostics: \(formatMs(vocabularyMs)) ms")
+    print("  unique terms:       \(vocabulary.uniqueTermCount)")
+    print("  document refs:      \(vocabulary.documentReferenceCount)")
+    print("  occurrences:        \(vocabulary.occurrenceCount)")
+    print("  max term count:     \(vocabulary.maxTermOccurrenceCount)")
+    if vocabulary.queryTerms.isEmpty {
+        print("  query terms:        unavailable for explicit FTS syntax")
+    } else {
+        print("  query terms:")
+        for term in vocabulary.queryTerms {
+            print(
+                "    \(term.term) [\(term.lookupKind.rawValue)] terms=\(term.matchingTermCount) docs=\(term.documentReferenceCount) occurrences=\(term.occurrenceCount)"
+            )
+        }
+    }
+    print("  top terms:")
+    for term in vocabulary.topTerms {
+        print("    \(term.term) docs=\(term.documentCount) occurrences=\(term.occurrenceCount)")
+    }
+    print("")
+}
 
 let warmupStart = Date()
 let warmupPage = try searchPage()

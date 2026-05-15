@@ -372,6 +372,11 @@ Search ranking and query syntax:
   ordering, and result summaries. Indexed text should remain the segmented FTS
   `content`; original display/search text must be stored separately so result
   display and line validation do not consume segmented FTS text.
+- FTS vocabulary diagnostics should use SQLite `fts5vocab` against the
+  cue-group FTS table when investigating high-frequency queries, tokenizer
+  behavior, or index pollution. Diagnostics are read-only observability and
+  should not be treated as an optimization unless benchmark data shows a
+  follow-up indexing change improves Search.
 - Search-summary counts and file/group summaries should not block first visible
   results if the query engine can return ordered results before the whole corpus
   is searched.

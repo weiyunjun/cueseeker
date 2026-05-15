@@ -281,6 +281,34 @@ public struct DatabaseStorageStats: Equatable, Sendable {
     }
 }
 
+public enum FTSVocabularyLookupKind: String, Equatable, Sendable {
+    case exact
+    case prefix
+}
+
+public struct FTSVocabularyTermStat: Equatable, Sendable {
+    public let term: String
+    public let documentCount: Int64
+    public let occurrenceCount: Int64
+}
+
+public struct FTSVocabularyQueryTermStat: Equatable, Sendable {
+    public let term: String
+    public let lookupKind: FTSVocabularyLookupKind
+    public let matchingTermCount: Int64
+    public let documentReferenceCount: Int64
+    public let occurrenceCount: Int64
+}
+
+public struct FTSVocabularyDiagnostics: Equatable, Sendable {
+    public let uniqueTermCount: Int64
+    public let documentReferenceCount: Int64
+    public let occurrenceCount: Int64
+    public let maxTermOccurrenceCount: Int64
+    public let topTerms: [FTSVocabularyTermStat]
+    public let queryTerms: [FTSVocabularyQueryTermStat]
+}
+
 public final class SubtitleDatabase: @unchecked Sendable {
     public static let currentSchemaVersion: Int = 19
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
@@ -636,6 +664,30 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
         try database.execute("VACUUM;")
         try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+    }
+
+    public func ftsVocabularyDiagnostics(
+        for query: String? = nil,
+        topLimit: Int = 20
+    ) throws -> FTSVocabularyDiagnostics {
+        try ensureFTSVocabularyTable()
+
+        let summary = try ftsVocabularySummary()
+        let topTerms = try ftsVocabularyTopTerms(limit: topLimit)
+        let queryLookups = Self.ftsVocabularyLookups(for: query)
+        var queryTerms: [FTSVocabularyQueryTermStat] = []
+        for lookup in queryLookups {
+            queryTerms.append(try ftsVocabularyQueryTermStat(for: lookup))
+        }
+
+        return FTSVocabularyDiagnostics(
+            uniqueTermCount: summary.uniqueTermCount,
+            documentReferenceCount: summary.documentReferenceCount,
+            occurrenceCount: summary.occurrenceCount,
+            maxTermOccurrenceCount: summary.maxTermOccurrenceCount,
+            topTerms: topTerms,
+            queryTerms: queryTerms
+        )
     }
 
     @discardableResult
@@ -2023,6 +2075,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let lineMatchRule: LineMatchRule
     }
 
+    private struct FTSVocabularySummary {
+        let uniqueTermCount: Int64
+        let documentReferenceCount: Int64
+        let occurrenceCount: Int64
+        let maxTermOccurrenceCount: Int64
+    }
+
+    private struct FTSVocabularyLookup {
+        let term: String
+        let kind: FTSVocabularyLookupKind
+    }
+
     private enum LineMatchRule {
         case latinPrefix(String)
         case orderedLatinTokens([String])
@@ -2225,6 +2289,172 @@ public final class SubtitleDatabase: @unchecked Sendable {
             ftsQuery: ftsQuery,
             lineMatchRule: lineMatchRule
         )
+    }
+
+    private func ensureFTSVocabularyTable() throws {
+        try database.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS temp.subtitle_cue_groups_vocab
+            USING fts5vocab(main, subtitle_cue_groups_fts, row);
+            """
+        )
+    }
+
+    private func ftsVocabularySummary() throws -> FTSVocabularySummary {
+        let statement = try database.prepare(
+            """
+            SELECT COUNT(*),
+                   COALESCE(SUM(doc), 0),
+                   COALESCE(SUM(cnt), 0),
+                   COALESCE(MAX(cnt), 0)
+            FROM subtitle_cue_groups_vocab;
+            """
+        )
+
+        guard try statement.step() else {
+            return FTSVocabularySummary(
+                uniqueTermCount: 0,
+                documentReferenceCount: 0,
+                occurrenceCount: 0,
+                maxTermOccurrenceCount: 0
+            )
+        }
+
+        return FTSVocabularySummary(
+            uniqueTermCount: statement.int64Column(0),
+            documentReferenceCount: statement.int64Column(1),
+            occurrenceCount: statement.int64Column(2),
+            maxTermOccurrenceCount: statement.int64Column(3)
+        )
+    }
+
+    private func ftsVocabularyTopTerms(limit: Int) throws -> [FTSVocabularyTermStat] {
+        let cappedLimit = min(max(0, limit), 100)
+        guard cappedLimit > 0 else {
+            return []
+        }
+
+        let statement = try database.prepare(
+            """
+            SELECT term, doc, cnt
+            FROM subtitle_cue_groups_vocab
+            ORDER BY cnt DESC, doc DESC, term ASC
+            LIMIT ?;
+            """
+        )
+        try statement.bind(cappedLimit, at: 1)
+
+        var terms: [FTSVocabularyTermStat] = []
+        while try statement.step() {
+            terms.append(
+                FTSVocabularyTermStat(
+                    term: statement.stringColumn(0),
+                    documentCount: statement.int64Column(1),
+                    occurrenceCount: statement.int64Column(2)
+                )
+            )
+        }
+        return terms
+    }
+
+    private func ftsVocabularyQueryTermStat(
+        for lookup: FTSVocabularyLookup
+    ) throws -> FTSVocabularyQueryTermStat {
+        let statement: SQLiteStatement
+        switch lookup.kind {
+        case .exact:
+            statement = try database.prepare(
+                """
+                SELECT COUNT(*),
+                       COALESCE(SUM(doc), 0),
+                       COALESCE(SUM(cnt), 0)
+                FROM subtitle_cue_groups_vocab
+                WHERE term = ?;
+                """
+            )
+            try statement.bind(lookup.term, at: 1)
+        case .prefix:
+            statement = try database.prepare(
+                """
+                SELECT COUNT(*),
+                       COALESCE(SUM(doc), 0),
+                       COALESCE(SUM(cnt), 0)
+                FROM subtitle_cue_groups_vocab
+                WHERE term >= ? AND term < ?;
+                """
+            )
+            try statement.bind(lookup.term, at: 1)
+            try statement.bind(Self.pathPrefixUpperBound(for: lookup.term), at: 2)
+        }
+
+        guard try statement.step() else {
+            return FTSVocabularyQueryTermStat(
+                term: lookup.term,
+                lookupKind: lookup.kind,
+                matchingTermCount: 0,
+                documentReferenceCount: 0,
+                occurrenceCount: 0
+            )
+        }
+
+        return FTSVocabularyQueryTermStat(
+            term: lookup.term,
+            lookupKind: lookup.kind,
+            matchingTermCount: statement.int64Column(0),
+            documentReferenceCount: statement.int64Column(1),
+            occurrenceCount: statement.int64Column(2)
+        )
+    }
+
+    private static func ftsVocabularyLookups(for query: String?) -> [FTSVocabularyLookup] {
+        guard let query else {
+            return []
+        }
+
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return []
+        }
+
+        let hasExplicitPhrase = trimmed.count >= 2 && trimmed.first == "\"" && trimmed.last == "\""
+        let hasFTSSyntax = hasExplicitPhrase || trimmed.contains("*") || containsFTSOperator(in: trimmed)
+        guard !hasFTSSyntax else {
+            return []
+        }
+
+        if containsCJKSearchCharacter(in: trimmed) {
+            return uniqueVocabularyLookups(
+                segmentCJK(trimmed)
+                    .split(whereSeparator: \.isWhitespace)
+                    .map(String.init),
+                kind: .exact
+            )
+        }
+
+        let tokens = tokenizeLatinTokens(trimmed)
+        guard !tokens.isEmpty else {
+            return []
+        }
+
+        if tokens.count == 1 {
+            return uniqueVocabularyLookups(tokens, kind: .prefix)
+        }
+
+        return uniqueVocabularyLookups(tokens, kind: .exact)
+    }
+
+    private static func uniqueVocabularyLookups(
+        _ terms: [String],
+        kind: FTSVocabularyLookupKind
+    ) -> [FTSVocabularyLookup] {
+        var seen = Set<String>()
+        var lookups: [FTSVocabularyLookup] = []
+        for term in terms where !term.isEmpty {
+            if seen.insert(term).inserted {
+                lookups.append(FTSVocabularyLookup(term: term, kind: kind))
+            }
+        }
+        return lookups
     }
 
     private static func line(_ line: String, matches rule: LineMatchRule) -> Bool {

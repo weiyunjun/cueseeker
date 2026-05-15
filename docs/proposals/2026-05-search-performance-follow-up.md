@@ -126,7 +126,7 @@ CueSeeker.
 | `ORDER BY` / `LIMIT` index support | External research validated the discussion direction | Negative for current FTS path | Medium to high | Investigated and rejected |
 | Index sorting / early termination | External research validated the discussion direction | High | Medium | Done with FTS rowid order |
 | Filterable, sortable, and facet-style attributes | External research | Medium for complete metadata | Medium | Done with unindexed FTS attributes |
-| `fts5vocab` diagnostics | External research | Indirect | Low | Do as diagnostics |
+| `fts5vocab` diagnostics | External research | Indirect | Low | Done as diagnostics |
 | FTS `optimize` / incremental `merge` | External research | Low to medium | Low to medium | Do as maintenance |
 | FTS `automerge`, `crisismerge`, `usermerge` tuning | External research | Low to medium | Medium | Defer |
 | Query/result cache | External research, reprioritized by user feedback | High for repeated queries, none for cold queries | Low to medium | Do last |
@@ -551,6 +551,100 @@ Read:
   stable.
 - The one-time v19 migration on the measured local database rebuilt FTS rows in
   about `2202.26 ms`.
+
+### Step 8: `fts5vocab` Diagnostics
+
+Date: 2026-05-15
+
+Commit under test: working tree after `485a8cd`, before the follow-up commit
+that records this benchmark.
+
+Implementation notes:
+
+- `SubtitleDatabase` exposes FTS vocabulary diagnostics for
+  `subtitle_cue_groups_fts` through SQLite `fts5vocab`.
+- `SearchBench` can print the diagnostics when
+  `CUESEEKER_BENCH_FTS_VOCAB=1` is set.
+- The diagnostics report unique vocabulary terms, total term occurrences,
+  high-frequency terms, and query-term vocabulary scale.
+- This step is observability work. It should explain query cost and index
+  pollution; it is not expected to directly improve default Search timings.
+
+Pre-change benchmark:
+
+| Query | Deferred hot avg ms | Deferred raw ms | Complete hot avg ms | Complete raw ms |
+| --- | ---: | --- | ---: | --- |
+| `大丈夫` | 47.40 | 48.35, 48.46, 48.77, 46.65, 44.75 | 43.83 | 43.40, 43.67, 43.94, 44.02, 44.13 |
+| `今日` | 63.04 | 62.94, 63.06, 62.96, 63.33, 62.92 | 112.76 | 116.80, 121.40, 108.63, 109.59, 107.40 |
+| `の` | 8.78 | 9.06, 9.02, 8.46, 8.69, 8.66 | 463.04 | 460.65, 467.39, 461.35, 462.68, 463.12 |
+
+Diagnostic snapshot before implementation:
+
+| Metric | Value |
+| --- | ---: |
+| Unique vocabulary terms | 11,337 |
+| Total term occurrences | 9,135,487 |
+| Total term-document references | 1,481,292 |
+
+Most frequent terms before implementation:
+
+| Term | Document count | Occurrences |
+| --- | ---: | ---: |
+| `0` | 8,286 | 1,016,421 |
+| `30` | 8,300 | 871,220 |
+| `15` | 8,293 | 726,013 |
+| `b` | 8,314 | 580,844 |
+| `7` | 8,283 | 580,805 |
+| `23` | 8,282 | 580,802 |
+| `m` | 8,568 | 145,494 |
+| `い` | 25,403 | 117,454 |
+| `て` | 23,122 | 102,581 |
+| `的` | 24,841 | 93,126 |
+| `た` | 21,748 | 91,457 |
+| `の` | 20,770 | 88,481 |
+
+Read:
+
+- The top terms show obvious ASS markup/style token pollution such as numbers
+  and tag letters. That is useful evidence for later tokenizer or ASS text
+  cleaning work, but Step 8 only makes the diagnosis repeatable.
+- `の` is both a common query and a very frequent indexed token, so its high
+  result volume is expected.
+- The CJK benchmark queries are segmented into per-character FTS terms, which
+  explains why diagnostics should report query-term scale rather than only the
+  raw query string.
+
+Post-change benchmark with default vocabulary diagnostics disabled:
+
+| Query | Deferred hot avg ms | Deferred raw ms | Complete hot avg ms | Complete raw ms |
+| --- | ---: | --- | ---: | --- |
+| `大丈夫` | 49.88 | 50.72, 49.42, 50.01, 49.44, 49.80 | 46.90 | 46.84, 46.53, 46.46, 47.51, 47.15 |
+| `今日` | 62.99 | 63.68, 64.38, 64.41, 61.96, 60.53 | 114.90 | 118.82, 113.33, 112.96, 113.86, 115.55 |
+| `の` | 8.89 | 9.00, 8.84, 8.86, 8.72, 9.01 | 472.36 | 480.01, 471.36, 469.74, 470.09, 470.62 |
+
+Diagnostic command check:
+
+```bash
+CUESEEKER_BENCH_FTS_VOCAB=1 CUESEEKER_BENCH_METADATA=deferred \
+  .build/arm64-apple-macosx/debug/SearchBench \
+  "/Users/weiyunjun/Library/Application Support/CueSeeker/CueSeeker.sqlite" \
+  "の" 1000
+```
+
+The diagnostic output reported `の [exact] terms=1 docs=20770
+occurrences=88481`, with the same top terms listed above.
+
+Read after implementation:
+
+- The default Search path does not create or query `fts5vocab`; diagnostics are
+  off unless explicitly requested.
+- The benchmark did not show a Search-speed improvement, which is expected for
+  this observability-only step.
+- The diagnostic itself took about `157.02 ms` on the measured local database,
+  so it belongs in development, benchmark, or maintenance surfaces, not in the
+  normal keystroke Search path.
+- The next optimization step should use this evidence when deciding whether FTS
+  maintenance or tokenizer cleanup is worth pursuing.
 
 ## Development Decision
 

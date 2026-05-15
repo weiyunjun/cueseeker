@@ -147,6 +147,60 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
 }
 
 @Test
+func reportsFTSVocabularyDiagnostics() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Vocabulary.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Vocabulary.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Apple application 大丈夫"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "Banana apple 今日"
+            )
+        ]
+    )
+
+    let cjkDiagnostics = try database.ftsVocabularyDiagnostics(for: "大丈夫", topLimit: 5)
+    #expect(cjkDiagnostics.uniqueTermCount > 0)
+    #expect(cjkDiagnostics.occurrenceCount > 0)
+    #expect(cjkDiagnostics.topTerms.count == 5)
+
+    let cjkTerms = Dictionary(uniqueKeysWithValues: cjkDiagnostics.queryTerms.map { ($0.term, $0) })
+    #expect(cjkTerms["大"]?.lookupKind == .exact)
+    #expect(cjkTerms["大"]?.documentReferenceCount == Int64(1))
+    #expect(cjkTerms["丈"]?.occurrenceCount == Int64(1))
+    #expect(cjkTerms["夫"]?.matchingTermCount == Int64(1))
+
+    let latinDiagnostics = try database.ftsVocabularyDiagnostics(for: "app", topLimit: 5)
+    #expect(latinDiagnostics.queryTerms.count == 1)
+    #expect(latinDiagnostics.queryTerms[0].lookupKind == .prefix)
+    #expect(latinDiagnostics.queryTerms[0].matchingTermCount == Int64(2))
+    #expect(latinDiagnostics.queryTerms[0].documentReferenceCount == Int64(3))
+    #expect(latinDiagnostics.queryTerms[0].occurrenceCount == Int64(3))
+}
+
+@Test
 func searchPaginatesBeyondDefaultResultLimit() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

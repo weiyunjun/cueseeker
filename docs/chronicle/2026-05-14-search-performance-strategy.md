@@ -143,6 +143,10 @@ The implementation evidence refined the Socratic diagnosis:
   subtitle, video, and search-order tables. First-page timings stayed roughly
   flat because Step 6 had already made that path small; complete metadata
   improved for `今日` and `の`, where the search still scans more candidates.
+- The `fts5vocab` diagnostics step is not a direct speed optimization. It makes
+  the next questions answerable with data: which query terms are intrinsically
+  high-frequency, and whether the FTS index contains markup/style-token
+  pollution that explains broad candidate sets.
 
 ## Open Questions
 

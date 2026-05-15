@@ -381,6 +381,11 @@ The FTS indexed `content` may contain CJK segmentation for matching. The
 unindexed `search_content` field preserves the original clean cue-group text for
 display and final line-level validation.
 
+FTS vocabulary diagnostics may be generated from the cue-group FTS table to
+inspect high-frequency terms, query-token scale, and possible index pollution.
+These diagnostics are development and maintenance observability; they do not
+change product search semantics.
+
 ## 13. Shiori
 
 Shiori stores saved subtitle cues for later review.

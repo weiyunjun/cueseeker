@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the eighth accepted Search optimization-sequence step as diagnostics:
+  Core and `SearchBench` can now inspect SQLite `fts5vocab` data for cue-group
+  FTS, making high-frequency query terms and possible index pollution visible
+  before later FTS maintenance or tokenizer changes.
 - Implemented the seventh accepted Search optimization step: schema version 19
   stores unindexed filterable, sortable, and presentation attributes directly
   in cue-group FTS rows, letting Search build candidates from FTS without
