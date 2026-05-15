@@ -6,10 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Kept Search E2E JSONL lightweight by default: records now keep benchmark
+  fields, `hasMore`, timings, and small result/file-summary samples instead of
+  storing complete Search result pages.
 - Added default-on Developer settings control for local Search E2E JSONL logs.
-  Each Search run can now write a machine-readable page snapshot aligned with
-  `SubtitleSearchPage`, plus first-visible result evidence for manual E2E
-  testing.
+  Each Search run can now write machine-readable Search evidence plus
+  first-visible result evidence for manual E2E testing.
 - Added a readable Search E2E summary log and moved query, returned, total,
   file-summary, and timing fields to the front of Search E2E JSONL records so
   manual testing can identify each search without expanding full result pages.

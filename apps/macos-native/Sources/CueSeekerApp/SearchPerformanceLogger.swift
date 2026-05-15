@@ -102,6 +102,7 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
     let returned: Int?
     let total: Int?
     let fileSummaries: Int?
+    let hasMore: Bool?
     let offset: Int
     let limit: Int
     let groups: Int?
@@ -131,6 +132,7 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         append("returned", returned, to: &fields)
         append("total", total, to: &fields)
         append("fileSummaries", fileSummaries, to: &fields)
+        append("hasMore", hasMore, to: &fields)
         fields.append("offset=\(offset)")
         fields.append("limit=\(limit)")
         append("groups", groups, to: &fields)
@@ -185,14 +187,27 @@ private struct SearchE2EUISnapshot: Encodable, Sendable {
 }
 
 private struct SearchE2EPageSnapshot: Encodable, Sendable {
-    let results: [SearchE2EResultSnapshot]
-    let totalCount: Int
-    let fileSummaries: [SearchE2EFileSummarySnapshot]
+    private static let sampleResultLimit = 5
+    private static let fileSummaryLimit = 10
 
-    init(page: SubtitleSearchPage) {
-        results = page.results.map(SearchE2EResultSnapshot.init)
+    let returned: Int
+    let totalCount: Int
+    let fileSummaryCount: Int
+    let hasMore: Bool
+    let sampleResults: [SearchE2EResultSnapshot]
+    let topFileSummaries: [SearchE2EFileSummarySnapshot]
+
+    init(page: SubtitleSearchPage, offset: Int) {
+        returned = page.results.count
         totalCount = page.totalCount
-        fileSummaries = page.fileSummaries.map(SearchE2EFileSummarySnapshot.init)
+        fileSummaryCount = page.fileSummaries.count
+        hasMore = offset + page.results.count < page.totalCount
+        sampleResults = page.results
+            .prefix(Self.sampleResultLimit)
+            .map(SearchE2EResultSnapshot.init)
+        topFileSummaries = page.fileSummaries
+            .prefix(Self.fileSummaryLimit)
+            .map(SearchE2EFileSummarySnapshot.init)
     }
 }
 
@@ -469,6 +484,7 @@ enum SearchPerformanceLogger {
 
         let timestamp = now()
         let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
+        let hasMore = page.map { run.offset + $0.results.count < $0.totalCount }
         let entry = SearchE2ELogEntry(
             timestamp: timestampString(),
             sequence: state.allocateSequence(),
@@ -478,6 +494,7 @@ enum SearchPerformanceLogger {
             returned: page?.results.count,
             total: page?.totalCount,
             fileSummaries: page?.fileSummaries.count,
+            hasMore: hasMore,
             offset: run.offset,
             limit: run.limit,
             groups: groupCount,
@@ -504,7 +521,7 @@ enum SearchPerformanceLogger {
                 renderedRowCount: renderedRowCount,
                 firstVisibleEntryID: nil
             ),
-            page: page.map(SearchE2EPageSnapshot.init),
+            page: page.map { SearchE2EPageSnapshot(page: $0, offset: run.offset) },
             firstVisibleResult: nil
         )
         e2eWriter.write(entry)
@@ -534,6 +551,7 @@ enum SearchPerformanceLogger {
             returned: resultCount,
             total: totalCount,
             fileSummaries: fileSummaryCount,
+            hasMore: resultCount < totalCount,
             offset: run.offset,
             limit: run.limit,
             groups: groupCount,

@@ -8,7 +8,7 @@ Search timing logs are written to:
 logs/search-timing/search-timing-YYYY-MM-DD.log
 ```
 
-Search end-to-end JSON snapshots are written to:
+Search end-to-end JSON events are written to:
 
 ```text
 logs/search-e2e/search-e2e-YYYY-MM-DD.jsonl
@@ -30,15 +30,15 @@ Example:
 2026-05-11 19:48:00.100 +08:00 run=2 sequence=17 event=db.fts_batch elapsed=713.02ms phase=420.31ms queryLength=2 offset=0 limit=1000 appending=false debounce=true folders=1 batch=1 candidateOffset=0 candidateBatchLimit=2000 candidates=1428
 ```
 
-Each Search E2E JSONL line uses the same page shape as
-`SubtitleSearchPage`: `results`, `totalCount`, and `fileSummaries`. The
-`results` entries mirror `SubtitleSearchResult`, and `fileSummaries` entries
-mirror `SubtitleSearchFileSummary`, with run metadata and UI timing fields
-around that page snapshot.
+Each Search E2E JSONL line keeps the benchmark fields near the front:
+`query`, `returned`, `total`, `fileSummaries`, `hasMore`, `databaseMilliseconds`,
+and `elapsedMilliseconds`. It does not store the complete Search result page by
+default. The optional `page` payload is a lightweight snapshot with up to five
+sample results and ten file summaries for orientation.
 
 The E2E summary log keeps the benchmark field names visible at the front of the
 line:
 
 ```text
-2026-05-15 15:02:26.948 +08:00 run=1 sequence=21 event=search_status_completed query="你好" returned=95 total=95 fileSummaries=52 offset=0 limit=100 groups=52 renderedRows=95 database=234.73ms elapsed=255.40ms status=completed
+2026-05-15 15:02:26.948 +08:00 run=1 sequence=21 event=search_status_completed query="你好" returned=95 total=95 fileSummaries=52 hasMore=false offset=0 limit=100 groups=52 renderedRows=95 database=234.73ms elapsed=255.40ms status=completed
 ```
