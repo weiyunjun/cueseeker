@@ -617,6 +617,7 @@ final class AppState: ObservableObject {
     private var libraryTask: Task<Void, Never>?
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var searchExactCompletionTask: Task<Void, Never>?
     private var searchNavigationTask: Task<Void, Never>?
     private var currentSubtitleEntriesTask: Task<Void, Never>?
     private var databaseStorageStatsTask: Task<Void, Never>?
@@ -1543,6 +1544,10 @@ final class AppState: ObservableObject {
         debounce: Bool
     ) {
         searchTask?.cancel()
+        if !appending {
+            searchExactCompletionTask?.cancel()
+            searchExactCompletionTask = nil
+        }
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let folders = selectedFolders
@@ -1667,7 +1672,7 @@ final class AppState: ObservableObject {
                 let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
                 let pageLoad = try await Task.detached(priority: .userInitiated) {
                     let databaseSearchStart = SearchPerformanceLogger.now()
-                    let page = try database.searchPage(
+                    let page = try database.searchVisiblePage(
                         trimmedQuery,
                         limit: pageSize,
                         cursor: cursor,
@@ -1722,11 +1727,17 @@ final class AppState: ObservableObject {
                     searchResults = page.results
                     loadedGlobalSearchResultCount = page.results.count
                 }
-                searchResultTotalCount = page.totalCount
-                searchFileSummaries = page.fileSummaries
-                searchCountState = .exact
-                searchKnownResultCount = page.totalCount
-                searchKnownFileCount = page.fileSummaries.count
+                let shouldPreserveExactMetadata = appending && searchCountState == .exact
+                if shouldPreserveExactMetadata && page.countState != .exact {
+                    searchKnownResultCount = max(searchKnownResultCount, page.knownResultCount)
+                    searchKnownFileCount = max(searchKnownFileCount, page.knownFileCount)
+                } else {
+                    searchResultTotalCount = page.totalCount
+                    searchFileSummaries = page.fileSummaries
+                    searchCountState = page.countState
+                    searchKnownResultCount = page.knownResultCount
+                    searchKnownFileCount = page.knownFileCount
+                }
                 hasMoreSearchResults = page.hasMore
                 nextGlobalSearchCursor = page.nextCursor
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
@@ -1758,22 +1769,30 @@ final class AppState: ObservableObject {
                 )
 
                 let completionStart = SearchPerformanceLogger.now()
-                searchStatus = .completed
+                let pageCompletesSearch = page.countState == .exact || shouldPreserveExactMetadata
+                if pageCompletesSearch {
+                    searchStatus = .completed
+                } else {
+                    searchStatus = .searching
+                }
                 let statusCompletionMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
+                let logPageHasExactCounts = page.countState == .exact
+                let statusText = logPageHasExactCounts ? "completed" : "searching"
+                let eventName = logPageHasExactCounts ? "search_status_completed" : "search_visible_page_loaded"
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
-                    "search_status_completed",
+                    eventName,
                     phaseStart: completionStart,
                     resultCount: searchResults.count,
                     totalCount: searchResultTotalCount,
                     fileSummaryCount: searchFileSummaries.count,
                     groupCount: searchResultGroups.count,
                     renderedRowCount: renderedSearchResultCount,
-                    status: "completed"
+                    status: statusText
                 )
                 SearchPerformanceLogger.writeE2ESearchPage(
                     searchPerformanceRun,
-                    event: "search_status_completed",
+                    event: eventName,
                     page: page,
                     databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
                     stateAssignMilliseconds: stateAssignMilliseconds,
@@ -1781,8 +1800,15 @@ final class AppState: ObservableObject {
                     statusCompletionMilliseconds: statusCompletionMilliseconds,
                     groupCount: searchResultGroups.count,
                     renderedRowCount: renderedSearchResultCount,
-                    status: "completed"
+                    status: statusText
                 )
+                if !appending && !pageCompletesSearch {
+                    startSearchExactCompletion(
+                        query: trimmedQuery,
+                        folders: folders,
+                        run: searchPerformanceRun
+                    )
+                }
                 if page.results.isEmpty {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_no_result_rows_to_render")
                     clearSearchPerformanceRunIfActive(searchPerformanceRun)
@@ -1838,6 +1864,161 @@ final class AppState: ObservableObject {
                     error: message
                 )
                 clearSearchPerformanceRunIfActive(searchPerformanceRun)
+            }
+        }
+    }
+
+    private func startSearchExactCompletion(
+        query trimmedQuery: String,
+        folders: [URL],
+        run searchPerformanceRun: SearchPerformanceRun?
+    ) {
+        searchExactCompletionTask?.cancel()
+
+        guard let database = subtitleDatabase else {
+            return
+        }
+
+        let pageSize = Self.searchPageSize
+        let folderPaths = folders.map(\.path)
+        searchExactCompletionTask = Task {
+            do {
+                SearchPerformanceLogger.mark(searchPerformanceRun, "database_exact_completion_started")
+                let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
+                let pageLoad = try await Task.detached(priority: .utility) {
+                    let databaseSearchStart = SearchPerformanceLogger.now()
+                    let page = try database.searchPage(
+                        trimmedQuery,
+                        limit: pageSize,
+                        cursor: .start,
+                        under: folders,
+                        diagnostics: diagnosticsSink
+                    )
+                    let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
+                        since: databaseSearchStart
+                    )
+                    return SearchPageLoad(
+                        page: page,
+                        databaseSearchMilliseconds: databaseSearchMilliseconds
+                    )
+                }.value
+                let page = pageLoad.page
+
+                guard !Task.isCancelled else {
+                    SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_cancelled")
+                    SearchPerformanceLogger.writeE2ESearchPage(
+                        searchPerformanceRun,
+                        event: "search_exact_completion_cancelled",
+                        page: page,
+                        databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
+                        status: "cancelled"
+                    )
+                    return
+                }
+
+                guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                      selectedFolders.map(\.path) == folderPaths
+                else {
+                    SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_stale")
+                    SearchPerformanceLogger.writeE2ESearchPage(
+                        searchPerformanceRun,
+                        event: "search_exact_completion_stale",
+                        page: page,
+                        databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
+                        status: "cancelled"
+                    )
+                    return
+                }
+
+                let stateAssignStart = SearchPerformanceLogger.now()
+                searchResultTotalCount = page.totalCount
+                searchFileSummaries = page.fileSummaries
+                searchCountState = page.countState
+                searchKnownResultCount = page.knownResultCount
+                searchKnownFileCount = page.knownFileCount
+                hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
+                nextGlobalSearchCursor = hasMoreSearchResults
+                    ? (nextGlobalSearchCursor ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount))
+                    : nil
+                let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
+
+                let rebuildStart = SearchPerformanceLogger.now()
+                rebuildSearchResultGroups()
+                let groupRebuildMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: rebuildStart)
+
+                let completionStart = SearchPerformanceLogger.now()
+                searchStatus = .completed
+                searchExactCompletionTask = nil
+                let statusCompletionMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
+                SearchPerformanceLogger.mark(
+                    searchPerformanceRun,
+                    "search_status_completed",
+                    phaseStart: completionStart,
+                    resultCount: searchResults.count,
+                    totalCount: searchResultTotalCount,
+                    fileSummaryCount: searchFileSummaries.count,
+                    groupCount: searchResultGroups.count,
+                    renderedRowCount: renderedSearchResultCount,
+                    status: "completed"
+                )
+                SearchPerformanceLogger.writeE2ESearchPage(
+                    searchPerformanceRun,
+                    event: "search_status_completed",
+                    page: page,
+                    databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
+                    stateAssignMilliseconds: stateAssignMilliseconds,
+                    groupRebuildMilliseconds: groupRebuildMilliseconds,
+                    statusCompletionMilliseconds: statusCompletionMilliseconds,
+                    groupCount: searchResultGroups.count,
+                    renderedRowCount: renderedSearchResultCount,
+                    status: "completed"
+                )
+            } catch is CancellationError {
+                SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_cancelled")
+                SearchPerformanceLogger.writeE2ESearchPage(
+                    searchPerformanceRun,
+                    event: "search_exact_completion_cancelled",
+                    page: nil,
+                    status: "cancelled"
+                )
+                return
+            } catch {
+                guard !Task.isCancelled else {
+                    SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_cancelled_after_error")
+                    SearchPerformanceLogger.writeE2ESearchPage(
+                        searchPerformanceRun,
+                        event: "search_exact_completion_cancelled_after_error",
+                        page: nil,
+                        status: "cancelled"
+                    )
+                    return
+                }
+
+                guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                      selectedFolders.map(\.path) == folderPaths
+                else {
+                    SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_error_stale")
+                    return
+                }
+
+                let message = Self.errorMessage(for: error)
+                searchStatus = .failed(message)
+                searchExactCompletionTask = nil
+                SearchPerformanceLogger.mark(
+                    searchPerformanceRun,
+                    "search_exact_completion_failed",
+                    status: "failed",
+                    error: message
+                )
+                SearchPerformanceLogger.writeE2ESearchPage(
+                    searchPerformanceRun,
+                    event: "search_exact_completion_failed",
+                    page: nil,
+                    groupCount: searchResultGroups.count,
+                    renderedRowCount: renderedSearchResultCount,
+                    status: "failed",
+                    error: message
+                )
             }
         }
     }
@@ -2985,6 +3166,8 @@ final class AppState: ObservableObject {
 
     private func resetSearchResultLoadingState() {
         cancelSearchResultGroupTasks()
+        searchExactCompletionTask?.cancel()
+        searchExactCompletionTask = nil
         searchNavigationTask?.cancel()
         searchResults = []
         searchResultTotalCount = 0
@@ -3036,6 +3219,8 @@ final class AppState: ObservableObject {
         libraryTask = nil
         searchTask?.cancel()
         searchTask = nil
+        searchExactCompletionTask?.cancel()
+        searchExactCompletionTask = nil
         searchNavigationTask?.cancel()
         searchNavigationTask = nil
         currentSubtitleEntriesTask?.cancel()

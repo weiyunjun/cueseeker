@@ -235,6 +235,62 @@ func searchPageReturnsContinuationCursorForNextPage() throws {
 }
 
 @Test
+func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Series.mkv")
+    let entries = (0..<5).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: "00:00:0\(index),000",
+            endTimecode: "00:00:0\(index),500",
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Shared visible line \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+
+    let firstPage = try database.searchVisiblePage("shared", limit: 2, cursor: .start)
+    let secondPage = try database.searchVisiblePage("shared", limit: 3, cursor: firstPage.nextCursor)
+
+    #expect(firstPage.pageMode == .visibleWindow)
+    #expect(firstPage.countState == .exactProgress)
+    #expect(firstPage.totalCount == 2)
+    #expect(firstPage.knownResultCount == 2)
+    #expect(firstPage.exactTotalCount == nil)
+    #expect(firstPage.fileSummaries.map(\.matchCount) == [2])
+    #expect(firstPage.nextCursor?.offset == 2)
+    #expect(firstPage.results.map(\.content) == [
+        "Shared visible line 0",
+        "Shared visible line 1"
+    ])
+
+    #expect(secondPage.countState == .exact)
+    #expect(secondPage.totalCount == 5)
+    #expect(secondPage.exactTotalCount == 5)
+    #expect(secondPage.fileSummaries.map(\.matchCount) == [5])
+    #expect(secondPage.nextCursor == nil)
+    #expect(secondPage.results.map(\.content) == [
+        "Shared visible line 2",
+        "Shared visible line 3",
+        "Shared visible line 4"
+    ])
+}
+
+@Test
 func searchPageReturnsTotalCountsAndFileSummaries() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -1840,6 +1896,84 @@ func paginatedSearchContinuesPastFilteredFTSCandidates() throws {
 
     #expect(firstPage.map(\.content) == ["alpha beta page 100", "alpha beta page 101"])
     #expect(secondPage.map(\.content) == ["alpha beta page 102"])
+}
+
+@Test
+func visibleSearchContinuesPastFilteredFTSCandidates() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/FilteredVisible.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/FilteredVisible.mkv")
+    var cueGroups: [SubtitleCueGroup] = []
+
+    for index in 0..<100 {
+        let startMilliseconds = index * 1_000
+        cueGroups.append(
+            SubtitleCueGroup(
+                sequenceNumber: nil,
+                startTimecode: "\(startMilliseconds)",
+                endTimecode: "\(startMilliseconds + 500)",
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: startMilliseconds + 500,
+                searchContent: "alpha\nbeta",
+                cueLines: [
+                    testCueLine(
+                        eventIndex: index * 2,
+                        startMilliseconds: startMilliseconds,
+                        endMilliseconds: startMilliseconds + 500,
+                        content: "alpha",
+                        displayOrder: 0
+                    ),
+                    testCueLine(
+                        eventIndex: index * 2 + 1,
+                        startMilliseconds: startMilliseconds,
+                        endMilliseconds: startMilliseconds + 500,
+                        content: "beta",
+                        displayOrder: 1
+                    )
+                ]
+            )
+        )
+    }
+
+    for index in 100..<103 {
+        cueGroups.append(
+            testCueGroup(
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + 500,
+                content: "alpha beta visible page \(index)",
+                eventIndex: index
+            )
+        )
+    }
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: cueGroups
+    )
+
+    let firstPage = try database.searchVisiblePage("alpha beta", limit: 2, cursor: .start)
+    let secondPage = try database.searchVisiblePage("alpha beta", limit: 2, cursor: firstPage.nextCursor)
+
+    #expect(firstPage.results.map(\.content) == [
+        "alpha beta visible page 100",
+        "alpha beta visible page 101"
+    ])
+    #expect(firstPage.countState == .exactProgress)
+    #expect(firstPage.totalCount == 2)
+    #expect(firstPage.nextCursor?.offset == 2)
+    #expect(secondPage.results.map(\.content) == ["alpha beta visible page 102"])
+    #expect(secondPage.countState == .exact)
+    #expect(secondPage.totalCount == 3)
+    #expect(secondPage.nextCursor == nil)
 }
 
 @Test

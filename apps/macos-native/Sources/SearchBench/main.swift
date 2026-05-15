@@ -65,7 +65,7 @@ func formatMs(_ value: Double) -> String {
 }
 
 guard CommandLine.arguments.count >= 3 else {
-    print("Usage: SearchBench <db-path> <query> [limit] [--step1-gaps]")
+    print("Usage: SearchBench <db-path> <query> [limit] [--step1-gaps] [--visible-window]")
     exit(1)
 }
 
@@ -74,6 +74,7 @@ let dbPath = URL(fileURLWithPath: CommandLine.arguments[1])
 let query = CommandLine.arguments[2]
 let limit = extraArguments.first(where: { !$0.hasPrefix("--") }).flatMap(Int.init) ?? 1000
 let includesStep1Gaps = extraArguments.contains("--step1-gaps")
+let usesVisibleWindow = extraArguments.contains("--visible-window")
 let environment = ProcessInfo.processInfo.environment
 let includesFTSVocabularyDiagnostics = environment["CUESEEKER_BENCH_FTS_VOCAB"] == "1"
 let ftsVocabularyTopTermLimit = environment["CUESEEKER_BENCH_FTS_VOCAB_LIMIT"].flatMap(Int.init) ?? 12
@@ -82,7 +83,7 @@ print("== SearchBench ==")
 print("DB:    \(dbPath.path)")
 print("Query: \"\(query)\"")
 print("Limit: \(limit)")
-print("Metadata mode: exact")
+print("Metadata mode: \(usesVisibleWindow ? "visibleWindow" : "exact")")
 print("FTS vocab diagnostics: \(includesFTSVocabularyDiagnostics ? "enabled" : "disabled")")
 print("")
 
@@ -105,11 +106,20 @@ func timedSearch(
     subtitlePath: String? = nil
 ) throws -> TimedSearchPage {
     let start = Date()
-    let page = try database.searchPage(
-        query,
-        limit: limit,
-        inSubtitlePath: subtitlePath
-    )
+    let page = if usesVisibleWindow {
+        try database.searchVisiblePage(
+            query,
+            limit: limit,
+            cursor: .start,
+            inSubtitlePath: subtitlePath
+        )
+    } else {
+        try database.searchPage(
+            query,
+            limit: limit,
+            inSubtitlePath: subtitlePath
+        )
+    }
     return TimedSearchPage(page: page, milliseconds: milliseconds(since: start))
 }
 
@@ -289,9 +299,8 @@ let coldStart = Date()
 let coldDatabase = try SubtitleDatabase(path: dbPath)
 try coldDatabase.migrate()
 let coldOpenMs = milliseconds(since: coldStart)
-let coldSearchStart = Date()
-_ = try coldDatabase.searchPage(query, limit: limit)
-let coldSearchMs = milliseconds(since: coldSearchStart)
+let coldRun = try timedSearch(database: coldDatabase, query: query, limit: limit)
+let coldSearchMs = coldRun.milliseconds
 print("Cold open + migrate + 1 search (simulates old per-call pattern):")
 print("  open + migrate:     \(formatMs(coldOpenMs)) ms")
 print("  first search:       \(formatMs(coldSearchMs)) ms")

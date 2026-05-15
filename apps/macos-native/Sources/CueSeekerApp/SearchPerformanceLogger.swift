@@ -105,7 +105,7 @@ private struct SearchPerformanceLogEntry: Sendable {
 }
 
 private struct SearchE2ELogEntry: Encodable, Sendable {
-    let schemaVersion = 6
+    let schemaVersion = 7
     let timestamp: String
     let sequence: UInt64
     let runID: UInt64
@@ -140,6 +140,7 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
     let databaseMilliseconds: Double?
     let orderSource: String?
     let materializedOrderRows: Int?
+    let pageMode: String?
     let elapsedMilliseconds: Double
     let firstVisibleMilliseconds: Double?
     let status: String
@@ -190,6 +191,7 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         case databaseMilliseconds
         case orderSource
         case materializedOrderRows
+        case pageMode
         case elapsedMilliseconds
         case firstVisibleMilliseconds
         case status
@@ -242,6 +244,7 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         try encodeNullable(databaseMilliseconds, forKey: .databaseMilliseconds, into: &container)
         try encodeNullable(orderSource, forKey: .orderSource, into: &container)
         try encodeNullable(materializedOrderRows, forKey: .materializedOrderRows, into: &container)
+        try encodeNullable(pageMode, forKey: .pageMode, into: &container)
         try container.encode(elapsedMilliseconds, forKey: .elapsedMilliseconds)
         try encodeNullable(firstVisibleMilliseconds, forKey: .firstVisibleMilliseconds, into: &container)
         try container.encode(status, forKey: .status)
@@ -802,8 +805,8 @@ enum SearchPerformanceLogger {
             benchmarkMetric: benchmark == nil ? nil : "elapsedMilliseconds",
             warmupMilliseconds: benchmark?.warmupMilliseconds,
             returned: benchmark?.returned ?? samples?.returned,
-            totalCount: benchmark?.totalCount ?? samples?.exactTotalCount,
-            fileSummaries: benchmark?.fileSummaries ?? samples?.exactFileSummaryCount,
+            totalCount: benchmark?.totalCount ?? page?.totalCount ?? samples?.exactTotalCount,
+            fileSummaries: benchmark?.fileSummaries ?? page?.fileSummaries.count ?? samples?.exactFileSummaryCount,
             countState: benchmark?.countState ?? samples?.countState,
             knownResultCount: benchmark?.knownResultCount ?? samples?.knownResultCount,
             knownFileCount: benchmark?.knownFileCount ?? samples?.knownFileCount,
@@ -828,6 +831,7 @@ enum SearchPerformanceLogger {
             databaseMilliseconds: databaseSearchMilliseconds,
             orderSource: page?.orderSource,
             materializedOrderRows: page?.materializedOrderRows,
+            pageMode: page?.pageMode.rawValue,
             elapsedMilliseconds: elapsedMilliseconds,
             firstVisibleMilliseconds: nil,
             status: status,
@@ -876,12 +880,6 @@ enum SearchPerformanceLogger {
         let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
         let benchmark = state.e2eBenchmarkSnapshot(key: run.e2eBenchmarkKey)
         let resolvedCountState = benchmark?.countState ?? countState.rawValue
-        let resolvedExactTotalCount = resolvedCountState == SubtitleSearchCountState.exact.rawValue
-            ? (benchmark?.totalCount ?? totalCount)
-            : nil
-        let resolvedExactFileSummaryCount = resolvedCountState == SubtitleSearchCountState.exact.rawValue
-            ? (benchmark?.fileSummaries ?? fileSummaryCount)
-            : nil
         let entry = SearchE2ELogEntry(
             timestamp: timestampString(),
             sequence: state.allocateSequence(),
@@ -891,8 +889,8 @@ enum SearchPerformanceLogger {
             benchmarkMetric: benchmark == nil ? nil : "elapsedMilliseconds",
             warmupMilliseconds: benchmark?.warmupMilliseconds,
             returned: benchmark?.returned ?? resultCount,
-            totalCount: resolvedExactTotalCount,
-            fileSummaries: resolvedExactFileSummaryCount,
+            totalCount: benchmark?.totalCount ?? totalCount,
+            fileSummaries: benchmark?.fileSummaries ?? fileSummaryCount,
             countState: resolvedCountState,
             knownResultCount: benchmark?.knownResultCount ?? knownResultCount,
             knownFileCount: benchmark?.knownFileCount ?? knownFileCount,
@@ -917,6 +915,7 @@ enum SearchPerformanceLogger {
             databaseMilliseconds: nil,
             orderSource: nil,
             materializedOrderRows: nil,
+            pageMode: nil,
             elapsedMilliseconds: elapsedMilliseconds,
             firstVisibleMilliseconds: elapsedMilliseconds,
             status: "visible",
@@ -1011,6 +1010,7 @@ enum SearchPerformanceLogger {
             databaseMilliseconds: databaseSearchMilliseconds,
             orderSource: nil,
             materializedOrderRows: nil,
+            pageMode: nil,
             elapsedMilliseconds: elapsedMilliseconds,
             firstVisibleMilliseconds: nil,
             status: status,

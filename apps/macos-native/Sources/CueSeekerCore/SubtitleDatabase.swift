@@ -58,6 +58,7 @@ public struct SubtitleSearchCursor: Equatable, Sendable, Codable {
 
 public enum SubtitleSearchCountState: String, Equatable, Sendable, Codable {
     case exact
+    case exactProgress
 }
 
 public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
@@ -79,6 +80,20 @@ public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
         )
     }
 
+    public static func exactProgress(knownResultCount: Int, knownFileCount: Int) -> SubtitleSearchCountSnapshot {
+        SubtitleSearchCountSnapshot(
+            state: .exactProgress,
+            knownResultCount: max(0, knownResultCount),
+            knownFileCount: max(0, knownFileCount),
+            exactTotalCount: nil,
+            exactFileSummaryCount: nil
+        )
+    }
+}
+
+public enum SubtitleSearchPageMode: String, Equatable, Sendable, Codable {
+    case exact
+    case visibleWindow
 }
 
 public struct SubtitleFTSVocabularyTermDiagnostic: Equatable, Sendable {
@@ -175,6 +190,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     public let countSnapshot: SubtitleSearchCountSnapshot
     public let appliedCursor: SubtitleSearchCursor
     public let nextCursor: SubtitleSearchCursor?
+    public let pageMode: SubtitleSearchPageMode
     public let orderSource: String?
     public let materializedOrderRows: Int?
 
@@ -209,6 +225,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
         countSnapshot: SubtitleSearchCountSnapshot? = nil,
         appliedCursor: SubtitleSearchCursor = .start,
         nextCursor: SubtitleSearchCursor? = nil,
+        pageMode: SubtitleSearchPageMode = .exact,
         orderSource: String? = nil,
         materializedOrderRows: Int? = nil
     ) {
@@ -221,6 +238,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
         )
         self.appliedCursor = appliedCursor
         self.nextCursor = nextCursor
+        self.pageMode = pageMode
         self.orderSource = orderSource
         self.materializedOrderRows = materializedOrderRows
     }
@@ -1096,7 +1114,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         offset: Int = 0,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
-        diagnostics: SubtitleSearchDiagnosticSink? = nil
+        diagnostics: SubtitleSearchDiagnosticSink? = nil,
+        mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
         try searchPage(
             query,
@@ -1104,7 +1123,27 @@ public final class SubtitleDatabase: @unchecked Sendable {
             cursor: SubtitleSearchCursor(offset: offset),
             under: folders,
             inSubtitlePath: subtitlePath,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            mode: mode
+        )
+    }
+
+    public func searchVisiblePage(
+        _ query: String,
+        limit: Int = 50,
+        cursor: SubtitleSearchCursor?,
+        under folders: [URL]? = nil,
+        inSubtitlePath subtitlePath: String? = nil,
+        diagnostics: SubtitleSearchDiagnosticSink? = nil
+    ) throws -> SubtitleSearchPage {
+        try searchPage(
+            query,
+            limit: limit,
+            cursor: cursor,
+            under: folders,
+            inSubtitlePath: subtitlePath,
+            diagnostics: diagnostics,
+            mode: .visibleWindow
         )
     }
 
@@ -1114,7 +1153,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         cursor: SubtitleSearchCursor?,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
-        diagnostics: SubtitleSearchDiagnosticSink? = nil
+        diagnostics: SubtitleSearchDiagnosticSink? = nil,
+        mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
         let searchPageStart = Self.diagnosticNow()
         let appliedCursor = cursor ?? .start
@@ -1140,7 +1180,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 results: [],
                 totalCount: 0,
                 fileSummaries: [],
-                appliedCursor: appliedCursor
+                appliedCursor: appliedCursor,
+                pageMode: mode
             )
         }
         emit(
@@ -1161,7 +1202,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 results: [],
                 totalCount: 0,
                 fileSummaries: [],
-                appliedCursor: appliedCursor
+                appliedCursor: appliedCursor,
+                pageMode: mode
             )
         }
 
@@ -1174,7 +1216,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     results: [],
                     totalCount: 0,
                     fileSummaries: [],
-                    appliedCursor: appliedCursor
+                    appliedCursor: appliedCursor,
+                    pageMode: mode
                 )
             }
             pathPrefixes = prefixes
@@ -1196,6 +1239,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
             var candidateOffset = 0
             var results: [OrderedSearchResult] = []
+            var visiblePrefixResults: [OrderedSearchResult] = []
+            var visibleWindowResults: [OrderedSearchResult] = []
+            var acceptedSearchResultCount = 0
+            var reachedVisibleLookahead = false
             var batchIndex = 0
             var totalCandidates = 0
             var totalMultiLineCandidates = 0
@@ -1213,7 +1260,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("candidateBatchLimit", candidateBatchLimit),
                     .init("scopeCondition", scopeCondition.isEmpty ? "none" : "path"),
                     .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
-                    .init("metadataMode", "exact")
+                    .init("metadataMode", mode.rawValue)
                 ]
             )
 
@@ -1328,7 +1375,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 )
 
                 let validationStart = Self.diagnosticNow()
-                let acceptedBefore = results.count
+                let acceptedBefore = acceptedSearchResultCount
                 for candidate in candidates {
                     let lineContents: [String]
                     if candidate.lineCount > 1 {
@@ -1338,10 +1385,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         lineContents = [candidate.searchContent]
                     }
                     if let result = searchResult(for: candidate, lineContents: lineContents, matching: plan) {
-                        results.append(result)
+                        switch mode {
+                        case .exact:
+                            results.append(result)
+                        case .visibleWindow:
+                            if acceptedSearchResultCount < offset + limit {
+                                visiblePrefixResults.append(result)
+                            }
+                            if acceptedSearchResultCount >= offset && visibleWindowResults.count < limit + 1 {
+                                visibleWindowResults.append(result)
+                                reachedVisibleLookahead = visibleWindowResults.count > limit
+                            }
+                        }
+                        acceptedSearchResultCount += 1
                     }
                 }
-                let accepted = results.count - acceptedBefore
+                let accepted = acceptedSearchResultCount - acceptedBefore
                 emit(
                     "line_validation",
                     since: validationStart,
@@ -1350,13 +1409,102 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         .init("candidates", candidates.count),
                         .init("accepted", accepted),
                         .init("rejected", candidates.count - accepted),
-                        .init("acceptedSoFar", results.count)
+                        .init("acceptedSoFar", acceptedSearchResultCount)
                     ]
                 )
+
+                if reachedVisibleLookahead {
+                    break
+                }
 
                 if candidates.count < candidateBatchLimit {
                     break
                 }
+            }
+
+            if mode == .visibleWindow {
+                let pageStart = Self.diagnosticNow()
+                let hasMore = visibleWindowResults.count > limit
+                let pageOrderedResults = Array(visibleWindowResults.prefix(limit))
+                var pageResults = pageOrderedResults.map(\.result)
+                for i in 0..<pageResults.count {
+                    pageResults[i].searchRank = offset + i
+                }
+                let nextCursor = hasMore
+                    ? SubtitleSearchCursor(offset: offset + pageResults.count)
+                    : nil
+                let orderSource = Self.searchOrderSource(for: pageOrderedResults)
+                let materializedOrderRows = visiblePrefixResults.count
+                emit(
+                    "page_slice",
+                    since: pageStart,
+                    fields: [
+                        .init("offset", offset),
+                        .init("cursorOffset", appliedCursor.offset),
+                        .init("nextCursorOffset", nextCursor?.offset ?? -1),
+                        .init("limit", limit),
+                        .init("pageResults", pageResults.count),
+                        .init("hasMore", hasMore ? "true" : "false"),
+                        .init("metadataMode", mode.rawValue)
+                    ]
+                )
+
+                let summariesStart = Self.diagnosticNow()
+                let fileSummaries = Self.fileSummaries(for: visiblePrefixResults)
+                let countSnapshot: SubtitleSearchCountSnapshot = hasMore
+                    ? .exactProgress(
+                        knownResultCount: visiblePrefixResults.count,
+                        knownFileCount: fileSummaries.count
+                    )
+                    : .exact(
+                        totalCount: visiblePrefixResults.count,
+                        fileSummaryCount: fileSummaries.count
+                    )
+                emit(
+                    "file_summaries",
+                    since: summariesStart,
+                    fields: [
+                        .init("summaries", fileSummaries.count),
+                        .init("results", visiblePrefixResults.count),
+                        .init("countState", countSnapshot.state.rawValue),
+                        .init("knownResultCount", countSnapshot.knownResultCount),
+                        .init("knownFileCount", countSnapshot.knownFileCount),
+                        .init("metadataMode", mode.rawValue)
+                    ]
+                )
+
+                emit(
+                    "search_page_complete",
+                    since: searchPageStart,
+                    fields: [
+                        .init("batches", batchIndex),
+                        .init("cursorOffset", appliedCursor.offset),
+                        .init("nextCursorOffset", nextCursor?.offset ?? -1),
+                        .init("totalCandidates", totalCandidates),
+                        .init("multiLineCandidates", totalMultiLineCandidates),
+                        .init("cueLineRows", totalCueLineRows),
+                        .init("accepted", visiblePrefixResults.count),
+                        .init("pageResults", pageResults.count),
+                        .init("summaries", fileSummaries.count),
+                        .init("orderSource", orderSource),
+                        .init("materializedOrderRows", materializedOrderRows),
+                        .init("countState", countSnapshot.state.rawValue),
+                        .init("knownResultCount", countSnapshot.knownResultCount),
+                        .init("knownFileCount", countSnapshot.knownFileCount),
+                        .init("metadataMode", mode.rawValue)
+                    ]
+                )
+                return SubtitleSearchPage(
+                    results: pageResults,
+                    totalCount: countSnapshot.knownResultCount,
+                    fileSummaries: fileSummaries,
+                    countSnapshot: countSnapshot,
+                    appliedCursor: appliedCursor,
+                    nextCursor: nextCursor,
+                    pageMode: mode,
+                    orderSource: orderSource,
+                    materializedOrderRows: materializedOrderRows
+                )
             }
 
             let sortStart = Self.diagnosticNow()
@@ -1439,6 +1587,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 countSnapshot: countSnapshot,
                 appliedCursor: appliedCursor,
                 nextCursor: nextCursor,
+                pageMode: mode,
                 orderSource: orderSource,
                 materializedOrderRows: materializedOrderRows
             )
@@ -1453,7 +1602,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     results: [],
                     totalCount: 0,
                     fileSummaries: [],
-                    appliedCursor: appliedCursor
+                    appliedCursor: appliedCursor,
+                    pageMode: mode
                 )
             }
             throw error

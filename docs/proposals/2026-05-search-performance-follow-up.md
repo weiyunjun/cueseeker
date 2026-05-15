@@ -302,7 +302,7 @@ stable.
 | 1 | New benchmark gaps | Test / benchmark, backend-leaning | Fill only the missing benchmark coverage needed to measure file-group preview readiness, exact-count completion, and per-file load-more latency after the baseline has been recorded. |
 | 2 | Search-layer pagination / cursor | Backend-first, AppState integration | Make continuation state an explicit Search-layer cursor so AppState consumes bounded pages instead of deriving the next page from loaded row counts. |
 | 3 | Provisional count model (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The accepted Search UI semantics require exact visible counts; lower-bound or loaded-row counts must not feed `Found` or file-group totals. |
-| 4 | Exact count background completion (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. Background replacement of provisional counts was rejected; current Search pages return exact total count and exact file summaries before the initial result list settles. |
+| 4 | Exact count background completion (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute as a provisional-count replacement step. Later Search mechanisms may complete full exact totals asynchronously only if visible counts remain exact for completed work and final completion still publishes exact full-corpus totals. |
 | 5 | `fts5vocab` diagnostics | Backend / diagnostic tool | Make high-frequency terms and possible FTS index pollution observable through benchmark or log output before later tuning. |
 | 6 | Precomputed Library/File/Time sorting | Backend / index data | Provide stable product order without recomputing friendly-title order on every Search. |
 | 7 | Block search / completed unit return | Backend-first, front-end consumes results | Let Search emit usable file or block units before the whole corpus finishes. |
@@ -365,9 +365,12 @@ Benchmark rules:
   `hasMore` for every observed page. The accepted shape is continuous cursor
   progression with no duplicate rows, no skipped rows, no stale rows from the
   previous query, and no unintended global load after `Collapse All`.
-- Steps 3 and 4 are deprecated. Current Search E2E JSONL evidence must show
-  `countState: exact`; `knownResultCount`, `knownFileCount`, `totalCount`, and
-  `fileSummaries` must all represent exact counts for the Search page.
+- Steps 3 and 4 are deprecated as provisional-count steps. Search E2E JSONL
+  evidence may show `countState: exactProgress` for visible-window rows, but
+  those rows must represent exact completed-work counts, not lower bounds. The
+  final `search_status_completed` row must show `countState: exact`;
+  `knownResultCount`, `knownFileCount`, `totalCount`, and `fileSummaries` must
+  all represent exact full-corpus counts.
 - For Step 8, every visible count update must be exact for the completed search
   work represented by that update. `Found <count> results in <count> files` may
   increase while Search is still running, but it must never use lower-bound,
@@ -593,6 +596,62 @@ Read:
 - The most frequent terms are dominated by ASS markup/style-like tokens such
   as numbers and tag letters. This makes index pollution observable for later
   FTS maintenance or tokenizer cleanup work.
+
+### Step 7: Block Search / Completed Unit Return
+
+Date: 2026-05-15
+
+Before version: `073b5aa`
+
+Implementation direction:
+
+- The Search layer now has two page modes:
+  - `exact`: preserves the existing full-result scan, exact total count, and
+    exact file summaries.
+  - `visibleWindow`: validates only enough accepted results to return the
+    requested visible page plus one lookahead row.
+- `visibleWindow` reports `exactProgress` counts when more rows remain. These
+  counts are exact for the completed Search work represented by the returned
+  prefix, but they are not final full-corpus totals.
+- AppState consumes `visibleWindow` for initial Search and global lazy-loading
+  pages, then starts a separate exact completion task for the initial Search.
+- Search remains in the Searching state until the exact completion task returns
+  full totals and file summaries. `Collapse All` therefore stays disabled until
+  the complete result-set alias view can be built correctly.
+- `SearchBench` accepts `--visible-window` to measure the early-return path
+  separately from the exact completion path.
+- E2E JSONL schema version `7` records `pageMode` so visible-window rows and
+  exact-completion rows can be separated during analysis.
+
+Acceptance focus:
+
+- Initial visible rows for broad queries should appear before full exact
+  completion.
+- Global lazy-loading should no longer wait for every later page to rescan and
+  sort the complete result set.
+- The final `search_status_completed` log row must still have `countState:
+  exact`, full `totalCount`, and full `fileSummaries`.
+- Searching/Initial alias invariants remain unchanged: visible aliases must
+  have loaded rows; empty or default-collapsed aliases are still invalid.
+
+Initial visible-window benchmark:
+
+- Command shape: `SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" <query> 100 --visible-window`
+- Scope: first visible page, schema 12 local development database.
+
+| Query | Warmup ms | Returned | Known count | Known file summaries | Count state | Next cursor | Hot avg ms | Hot raw ms | Cold new-connection first search ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- | ---: |
+| `大丈夫` | 3.67 | 100 | 100 | 42 | exactProgress | 100 | 2.02 | 2.09, 1.86, 2.23, 2.01, 1.93 | 3.31 |
+| `今日` | 17.57 | 100 | 100 | 2 | exactProgress | 100 | 15.46 | 16.11, 15.35, 15.56, 15.22, 15.08 | 17.12 |
+| `の` | 72.49 | 100 | 100 | 2 | exactProgress | 100 | 84.49 | 75.10, 79.63, 83.97, 92.46, 91.30 | 99.37 |
+
+Read:
+
+- The hot visible-window path is substantially faster than the previous
+  exact-page path for the broad query `の`.
+- `SearchBench` now applies the selected page mode to its cold new-connection
+  check too, so the cold row above measures the same visible-window path rather
+  than the exact full-result path.
 
 ## Acceptance Standards
 
