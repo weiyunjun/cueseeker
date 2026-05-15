@@ -360,6 +360,59 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
 }
 
 @Test
+func searchVisiblePageUsesProductOrderedFTSRowIDsForEarlyTermination() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let betaSubtitle = URL(fileURLWithPath: "/Media/AFolder/Beta.srt")
+    let betaVideo = URL(fileURLWithPath: "/Media/AFolder/Beta.mkv")
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/ZFolder/Alpha.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/ZFolder/Alpha.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: betaSubtitle,
+        videoFile: betaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Shared product-order beta"
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: alphaSubtitle,
+        videoFile: alphaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Shared product-order alpha"
+            )
+        ]
+    )
+
+    let firstVisiblePage = try database.searchVisiblePage("shared product", limit: 1, cursor: .start)
+
+    #expect(firstVisiblePage.results.map(\.subtitlePath) == [alphaSubtitle.path])
+    #expect(firstVisiblePage.results.map(\.content) == ["Shared product-order alpha"])
+    #expect(firstVisiblePage.countState == .exactProgress)
+    #expect(firstVisiblePage.nextCursor?.offset == 1)
+    #expect(firstVisiblePage.orderSource == "ftsRowid")
+}
+
+@Test
 func searchPageReturnsTotalCountsAndFileSummaries() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -1013,7 +1066,7 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
     #expect(page.fileSummaries.map(\.subtitleFileName) == ["aa2.ass", "aa11.ass"])
     #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["葬送的芙莉莲 - 02", "葬送的芙莉莲 - 03"])
     #expect(page.results.map(\.content) == ["Shared second", "Shared eleventh"])
-    #expect(sortFields["orderSource"] == "materialized")
+    #expect(sortFields["orderSource"] == "ftsRowid")
     #expect(sortFields["materializedOrderRows"] == "2")
 }
 

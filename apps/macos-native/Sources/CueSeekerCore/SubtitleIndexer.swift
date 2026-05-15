@@ -102,7 +102,8 @@ public struct SubtitleIndexer {
                 cueGroups: cueGroups,
                 assRenderSegments: assRenderSegments,
                 fileSize: fileSize,
-                modifiedAt: modifiedAt
+                modifiedAt: modifiedAt,
+                rebuildSearchDerivedIndex: false
             )
 
             keptSubtitlePaths.insert(subtitleFile.path)

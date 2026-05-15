@@ -689,6 +689,70 @@ Acceptance focus:
 - Progress updates must not create empty or default-collapsed file aliases in
   Searching or Initial state.
 
+### Step 9: Index Sorting / Early Termination
+
+Date: 2026-05-15
+
+Before version: `be0481d`
+
+Implementation direction:
+
+- Schema version `13` rebuilds `subtitle_cue_groups_fts` so FTS `rowid`
+  follows the existing Search product order: precomputed display title,
+  subtitle path, cue start/end time, then cue group id.
+- Search candidate loading now uses `ORDER BY f.rowid ASC`. The visible-window
+  path can therefore stop after the requested cursor window plus lookahead
+  without first sorting a larger candidate set.
+- Exact Search uses the same FTS rowid product order and no longer performs a
+  separate Swift-side result sort after scanning all candidates.
+- `orderSource` now reports `ftsRowid` for Search pages using this path.
+- `SubtitleIndexer` defers derived Search-order/FTS-rowid rebuilding until the
+  folder indexing pass completes, avoiding a full product-order FTS rebuild for
+  every changed subtitle file during a batch index.
+
+Acceptance focus:
+
+- Visible-window pages must preserve product order even when subtitle files are
+  indexed in a different order.
+- Exact pages must keep the same result identity, grouping, counts, and cursor
+  behavior as before the change.
+- Broad-query first-page and lazy-load DB timings should not regress. If
+  benchmark data shows regression, this step should be reverted or disabled by
+  default before continuing.
+
+Benchmark:
+
+- Command shape:
+  `SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" <query> 100 --visible-window`
+- Exact-completion comparison uses the same command without `--visible-window`.
+- The one-time schema 13 migration rebuilt local FTS rowids in `2567.57 ms`.
+
+Visible-window first-page benchmark:
+
+| Query | Warmup ms | Returned | Known count | Known file summaries | Count state | Next cursor | Hot avg ms | Hot raw ms | Cold first search ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- | ---: |
+| `大丈夫` | 37.14 | 100 | 100 | 39 | exactProgress | 100 | 1.62 | 1.68, 1.63, 1.60, 1.60, 1.62 | 2.22 |
+| `今日` | 14.06 | 100 | 100 | 14 | exactProgress | 100 | 9.93 | 9.90, 9.97, 9.92, 9.93, 9.93 | 10.26 |
+| `の` | 1.54 | 100 | 100 | 2 | exactProgress | 100 | 0.87 | 0.91, 0.88, 0.86, 0.86, 0.85 | 0.95 |
+
+Exact-completion benchmark:
+
+| Query | Warmup ms | Returned | Total count | File summaries | Count state | Hot avg ms | Hot raw ms | Cold first search ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: |
+| `大丈夫` | 3.23 | 100 | 185 | 74 | exact | 2.35 | 2.46, 2.37, 2.32, 2.30, 2.28 | 2.80 |
+| `今日` | 80.97 | 100 | 1282 | 81 | exact | 68.26 | 67.98, 68.11, 68.21, 68.37, 68.60 | 70.74 |
+| `の` | 1645.25 | 100 | 20770 | 87 | exact | 1615.95 | 1611.71, 1617.38, 1624.44, 1611.63, 1614.56 | 1639.63 |
+
+Read:
+
+- The broad visible-window path improved materially. `の` dropped from the
+  previous Step 7 hot average `84.49 ms` to `0.87 ms` after Search could use
+  FTS rowid product order for early termination.
+- Exact completion still scans all matching rows, but it no longer pays the old
+  Swift-side sort cost after candidate validation.
+- The accepted ordering remains display-title product order; the implementation
+  does not change Search's visible ordering semantics.
+
 ### Search Input Invalidation Fix
 
 Date: 2026-05-15

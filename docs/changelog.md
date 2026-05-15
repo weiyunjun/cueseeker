@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented Search Step 9 index-sorted early termination. Schema version 13
+  rebuilds FTS rowids in display-title product Search order, Search reads
+  candidates with `ORDER BY f.rowid`, and exact Search no longer performs an
+  extra Swift-side sort after scanning candidates.
 - Implemented Search Step 8 exact progress count streaming. Background exact
   completion now publishes exact completed-work count updates to the Search
   summary and lightweight JSONL `search_count_progress` records without

@@ -402,7 +402,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 12
+    public static let currentSchemaVersion: Int = 13
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -623,10 +623,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        if previousVersion < 6 {
-            try rebuildFTSRows()
-        }
-
         if previousVersion < 9 {
             try rebuildLibraryPresentationSnapshot()
         }
@@ -652,6 +648,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         if previousVersion < 12 {
             try rebuildSearchOrderRows()
+        }
+
+        if previousVersion < 13 {
+            try rebuildFTSRows()
         }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
@@ -766,7 +766,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         cueGroups: [SubtitleCueGroup],
         assRenderSegments: [ASSRenderSegmentPayload] = [],
         fileSize: Int64? = nil,
-        modifiedAt: Date? = nil
+        modifiedAt: Date? = nil,
+        rebuildSearchDerivedIndex: Bool = true
     ) throws {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
 
@@ -798,7 +799,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
             }
 
-            try rebuildSearchOrderRows(inFolderOfSubtitlePath: subtitleFile.path)
+            if rebuildSearchDerivedIndex {
+                try rebuildSearchDerivedIndexInCurrentTransaction()
+            }
             try deleteOrphanedVideoFiles()
             try database.execute("COMMIT")
         } catch {
@@ -1094,7 +1097,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             try deleteOrphanedVideoFiles()
-            try rebuildSearchOrderRows()
+            try rebuildSearchDerivedIndexInCurrentTransaction()
+            try database.execute("COMMIT")
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func rebuildSearchDerivedIndex() throws {
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            try rebuildSearchDerivedIndexInCurrentTransaction()
             try database.execute("COMMIT")
         } catch {
             try? database.execute("ROLLBACK")
@@ -1319,7 +1333,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
-                ORDER BY g.id ASC
+                ORDER BY f.rowid ASC
                 LIMIT ? OFFSET ?;
                 """
             )
@@ -1569,7 +1583,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             let sortStart = Self.diagnosticNow()
-            let sortedOrderedResults = Self.sortedSearchResults(results)
+            let sortedOrderedResults = results
             let sortedResults = sortedOrderedResults.map(\.result)
             let orderSource = Self.searchOrderSource(for: sortedOrderedResults)
             let materializedOrderRows = sortedOrderedResults.count
@@ -1931,18 +1945,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try insertSearchOrderRows(for: try indexedSearchOrderFiles(inFolderPath: nil))
     }
 
-    private func rebuildSearchOrderRows(inFolderOfSubtitlePath subtitlePath: String) throws {
-        let folderPath = Self.folderPath(forSubtitlePath: subtitlePath)
-        let deleteRows = try database.prepare(
-            """
-            DELETE FROM subtitle_search_order_rows
-            WHERE folder_path = ?;
-            """
-        )
-        try deleteRows.bind(folderPath, at: 1)
-        try deleteRows.run()
-
-        try insertSearchOrderRows(for: try indexedSearchOrderFiles(inFolderPath: folderPath))
+    private func rebuildSearchDerivedIndexInCurrentTransaction() throws {
+        try rebuildSearchOrderRows()
+        try rebuildFTSRowsInProductOrder()
     }
 
     private func requireCompleteSearchOrderRows(
@@ -2487,41 +2492,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    private static func sortedSearchResults(_ results: [OrderedSearchResult]) -> [OrderedSearchResult] {
-        return results.sorted { lhs, rhs in
-            let lhsResult = lhs.result
-            let rhsResult = rhs.result
-            let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(
-                lhs.order.displayTitle,
-                rhs.order.displayTitle
-            )
-            if displayTitleComparison != .orderedSame {
-                return displayTitleComparison == .orderedAscending
-            }
-
-            let pathComparison = lhsResult.subtitlePath.localizedStandardCompare(rhsResult.subtitlePath)
-            if pathComparison != .orderedSame {
-                return pathComparison == .orderedAscending
-            }
-
-            if lhsResult.startMilliseconds != rhsResult.startMilliseconds {
-                return lhsResult.startMilliseconds < rhsResult.startMilliseconds
-            }
-
-            if lhsResult.endMilliseconds != rhsResult.endMilliseconds {
-                return lhsResult.endMilliseconds < rhsResult.endMilliseconds
-            }
-
-            return lhsResult.entryID < rhsResult.entryID
-        }
-    }
-
     private static func searchOrderSource(for results: [OrderedSearchResult]) -> String {
         guard !results.isEmpty else {
             return "none"
         }
 
-        return "materialized"
+        return "ftsRowid"
     }
 
     private static func searchNavigationIndex(
@@ -3028,7 +3004,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             try deleteOrphanedVideoFiles()
-            try rebuildSearchOrderRows()
+            try rebuildSearchDerivedIndexInCurrentTransaction()
             try database.execute("COMMIT")
         } catch {
             try? database.execute("ROLLBACK")
@@ -3306,16 +3282,32 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func insertFTSRow(cueGroupID: Int64, content: String) throws {
-        let statement = try database.prepare(
-            """
-            INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
-            VALUES (?, ?);
-            """
-        )
-
-        try statement.bind(Self.segmentCJK(content), at: 1)
-        try statement.bind(cueGroupID, at: 2)
+    private func insertFTSRow(
+        rowID: Int64? = nil,
+        cueGroupID: Int64,
+        content: String
+    ) throws {
+        let statement: SQLiteStatement
+        if let rowID {
+            statement = try database.prepare(
+                """
+                INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
+                VALUES (?, ?, ?);
+                """
+            )
+            try statement.bind(rowID, at: 1)
+            try statement.bind(Self.segmentCJK(content), at: 2)
+            try statement.bind(cueGroupID, at: 3)
+        } else {
+            statement = try database.prepare(
+                """
+                INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
+                VALUES (?, ?);
+                """
+            )
+            try statement.bind(Self.segmentCJK(content), at: 1)
+            try statement.bind(cueGroupID, at: 2)
+        }
         try statement.run()
     }
 
@@ -3384,31 +3376,43 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private func rebuildFTSRows() throws {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
-            try database.execute("DELETE FROM subtitle_cue_groups_fts;")
-
-            var rows: [(cueGroupID: Int64, content: String)] = []
-            do {
-                let statement = try database.prepare(
-                    """
-                    SELECT id, search_content
-                    FROM subtitle_cue_groups
-                    ORDER BY id ASC;
-                    """
-                )
-
-                while try statement.step() {
-                    rows.append((statement.int64Column(0), statement.stringColumn(1)))
-                }
-            }
-
-            for row in rows {
-                try insertFTSRow(cueGroupID: row.cueGroupID, content: row.content)
-            }
-
+            try rebuildFTSRowsInProductOrder()
             try database.execute("COMMIT")
         } catch {
             try? database.execute("ROLLBACK")
             throw error
+        }
+    }
+
+    private func rebuildFTSRowsInProductOrder() throws {
+        try requireCompleteSearchOrderRows(pathPrefixes: nil, subtitlePath: nil)
+        try database.execute("DELETE FROM subtitle_cue_groups_fts;")
+
+        var rows: [(cueGroupID: Int64, content: String)] = []
+        let statement = try database.prepare(
+            """
+            SELECT g.id, g.search_content
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            ORDER BY sor.display_title COLLATE NOCASE ASC,
+                     sf.subtitle_path COLLATE NOCASE ASC,
+                     g.start_ms ASC,
+                     g.end_ms ASC,
+                     g.id ASC;
+            """
+        )
+
+        while try statement.step() {
+            rows.append((statement.int64Column(0), statement.stringColumn(1)))
+        }
+
+        for (index, row) in rows.enumerated() {
+            try insertFTSRow(
+                rowID: Int64(index + 1),
+                cueGroupID: row.cueGroupID,
+                content: row.content
+            )
         }
     }
 
