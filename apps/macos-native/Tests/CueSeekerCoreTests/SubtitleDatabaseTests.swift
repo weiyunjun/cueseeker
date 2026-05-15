@@ -878,11 +878,18 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
         ]
     )
 
-    let page = try database.searchPage("shared", limit: 10)
+    try FileManager.default.removeItem(at: series)
+
+    let diagnostics = SearchDiagnosticRecorder()
+    let page = try database.searchPage("shared", limit: 10, diagnostics: diagnostics.record)
+    let sortEvent = try #require(diagnostics.events.first { $0.name == "sort_results" })
+    let sortFields = Dictionary(uniqueKeysWithValues: sortEvent.fields.map { ($0.name, $0.value) })
 
     #expect(page.fileSummaries.map(\.subtitleFileName) == ["aa2.ass", "aa11.ass"])
     #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["葬送的芙莉莲 - 02", "葬送的芙莉莲 - 03"])
     #expect(page.results.map(\.content) == ["Shared second", "Shared eleventh"])
+    #expect(sortFields["orderSource"] == "materialized")
+    #expect(sortFields["materializedOrderRows"] == "2")
 }
 
 @Test
@@ -1082,7 +1089,7 @@ func migrationInvalidatesOldASSRenderSegmentAlgorithmVersion() throws {
 }
 
 @Test
-func migrationToSchemaVersion11BackfillsCueGroupLineCount() throws {
+func migrationBackfillsCueGroupLineCountAndSearchOrderRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1099,6 +1106,12 @@ func migrationToSchemaVersion11BackfillsCueGroupLineCount() throws {
     #expect(lineCountByGroupID[1] == 1)
     #expect(lineCountByGroupID[2] == 2)
     #expect(lineCountByGroupID[3] == 3)
+
+    let searchOrderRows = try readSearchOrderRows(at: databaseURL)
+    #expect(searchOrderRows.map(\.subtitlePath) == ["/Media/Sample.ass"])
+    #expect(searchOrderRows.map(\.displayTitle) == ["Sample.ass"])
+    #expect(searchOrderRows.map(\.folderOrder) == [0])
+    #expect(searchOrderRows.map(\.fileOrder) == [0])
 }
 
 @Test
@@ -2423,6 +2436,61 @@ private func readCueGroupLineCounts(at url: URL) throws -> [Int64: Int] {
     return result
 }
 
+private struct SearchOrderRow {
+    let subtitlePath: String
+    let displayTitle: String
+    let folderOrder: Int
+    let fileOrder: Int
+}
+
+private func readSearchOrderRows(at url: URL) throws -> [SearchOrderRow] {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(
+        database,
+        """
+        SELECT subtitle_path, display_title, folder_order, file_order
+        FROM subtitle_search_order_rows
+        ORDER BY folder_order ASC, file_order ASC, subtitle_path ASC;
+        """,
+        -1,
+        &statement,
+        nil
+    ) == SQLITE_OK,
+          let statement
+    else {
+        let message = String(cString: sqlite3_errmsg(database))
+        throw SQLiteFixtureError.executeFailed(message)
+    }
+
+    defer {
+        sqlite3_finalize(statement)
+    }
+
+    var result: [SearchOrderRow] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+        result.append(
+            SearchOrderRow(
+                subtitlePath: String(cString: sqlite3_column_text(statement, 0)),
+                displayTitle: String(cString: sqlite3_column_text(statement, 1)),
+                folderOrder: Int(sqlite3_column_int64(statement, 2)),
+                fileOrder: Int(sqlite3_column_int64(statement, 3))
+            )
+        )
+    }
+    return result
+}
+
 private func executeSQLite(_ database: OpaquePointer?, _ sql: String) throws {
     var errorMessage: UnsafeMutablePointer<CChar>?
     guard sqlite3_exec(database, sql, nil, nil, &errorMessage) == SQLITE_OK else {
@@ -2441,6 +2509,25 @@ private func databaseTestEntry(text: String) -> SubtitleEntry {
         endMilliseconds: 2_000,
         text: text
     )
+}
+
+private final class SearchDiagnosticRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedEvents: [SubtitleSearchDiagnosticEvent] = []
+
+    var events: [SubtitleSearchDiagnosticEvent] {
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+        return recordedEvents
+    }
+
+    func record(_ event: SubtitleSearchDiagnosticEvent) {
+        lock.lock()
+        recordedEvents.append(event)
+        lock.unlock()
+    }
 }
 
 private enum SQLiteFixtureError: Error {

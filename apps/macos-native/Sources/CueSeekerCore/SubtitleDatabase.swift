@@ -351,7 +351,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 11
+    public static let currentSchemaVersion: Int = 12
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -527,6 +527,20 @@ public final class SubtitleDatabase: @unchecked Sendable {
             CREATE INDEX IF NOT EXISTS idx_library_video_rows_order
                 ON library_video_rows(folder_order, video_order);
 
+            CREATE TABLE IF NOT EXISTS subtitle_search_order_rows (
+                subtitle_path TEXT PRIMARY KEY,
+                folder_path TEXT NOT NULL,
+                folder_title TEXT NOT NULL,
+                subtitle_file_name TEXT NOT NULL,
+                display_title TEXT NOT NULL,
+                folder_order INTEGER NOT NULL,
+                file_order INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_order
+                ON subtitle_search_order_rows(folder_order, file_order, subtitle_path);
+
             CREATE TABLE IF NOT EXISTS shioris (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 subtitle_path TEXT NOT NULL,
@@ -583,6 +597,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 ));
                 """
             )
+        }
+
+        if previousVersion < 12 {
+            try rebuildSearchOrderRows()
         }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
@@ -729,6 +747,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
             }
 
+            try rebuildSearchOrderRows(inFolderOfSubtitlePath: subtitleFile.path)
             try deleteOrphanedVideoFiles()
             try database.execute("COMMIT")
         } catch {
@@ -1024,6 +1043,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             try deleteOrphanedVideoFiles()
+            try rebuildSearchOrderRows()
             try database.execute("COMMIT")
         } catch {
             try? database.execute("ROLLBACK")
@@ -1035,6 +1055,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             try database.execute("DELETE FROM library_video_rows;")
+            try database.execute("DELETE FROM subtitle_search_order_rows;")
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
             try database.execute("DELETE FROM ass_render_segments;")
             try database.execute("DELETE FROM subtitle_files;")
@@ -1168,7 +1189,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
             var candidateOffset = 0
-            var results: [SubtitleSearchResult] = []
+            var results: [OrderedSearchResult] = []
             var batchIndex = 0
             var totalCandidates = 0
             var totalMultiLineCandidates = 0
@@ -1194,12 +1215,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                       g.start_ms, g.end_ms, g.search_content, g.line_count
+                       g.start_ms, g.end_ms, g.search_content, g.line_count,
+                       sor.display_title, sor.folder_order, sor.file_order
                 FROM subtitle_cue_groups_fts f
                 JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
                 JOIN video_files vf ON vf.id = m.video_file_id
+                LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
@@ -1245,7 +1268,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
                             startMilliseconds: statement.intColumn(5),
                             endMilliseconds: statement.intColumn(6),
                             searchContent: statement.stringColumn(7),
-                            lineCount: statement.intColumn(8)
+                            lineCount: statement.intColumn(8),
+                            order: SearchResultOrder(
+                                displayTitle: statement.nullableStringColumn(9),
+                                folderOrder: statement.nullableIntColumn(10),
+                                fileOrder: statement.nullableIntColumn(11)
+                            )
                         )
                     )
                 }
@@ -1318,13 +1346,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             let sortStart = Self.diagnosticNow()
-            let sortedResults = Self.sortedSearchResults(results)
+            let sortedOrderedResults = Self.sortedSearchResults(results)
+            let sortedResults = sortedOrderedResults.map(\.result)
+            let orderSource = Self.searchOrderSource(for: sortedOrderedResults)
             emit(
                 "sort_results",
                 since: sortStart,
                 fields: [
                     .init("results", sortedResults.count),
-                    .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count)
+                    .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count),
+                    .init("orderSource", orderSource),
+                    .init("materializedOrderRows", sortedOrderedResults.filter(\.order.isMaterialized).count)
                 ]
             )
 
@@ -1349,7 +1381,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
 
             let summariesStart = Self.diagnosticNow()
-            let fileSummaries = Self.fileSummaries(for: sortedResults)
+            let fileSummaries = Self.fileSummaries(for: sortedOrderedResults)
             let countSnapshot = SubtitleSearchCountSnapshot.exact(
                 totalCount: sortedResults.count,
                 fileSummaryCount: fileSummaries.count
@@ -1379,6 +1411,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("accepted", sortedResults.count),
                     .init("pageResults", pageResults.count),
                     .init("summaries", fileSummaries.count),
+                    .init("orderSource", orderSource),
                     .init("countState", countSnapshot.state.rawValue),
                     .init("knownResultCount", countSnapshot.knownResultCount),
                     .init("knownFileCount", countSnapshot.knownFileCount)
@@ -1659,6 +1692,124 @@ public final class SubtitleDatabase: @unchecked Sendable {
         } catch {
             try? database.execute("ROLLBACK")
             throw error
+        }
+    }
+
+    private func rebuildSearchOrderRows() throws {
+        try database.execute("DELETE FROM subtitle_search_order_rows;")
+        try insertSearchOrderRows(for: try indexedSearchOrderFiles(inFolderPath: nil))
+    }
+
+    private func rebuildSearchOrderRows(inFolderOfSubtitlePath subtitlePath: String) throws {
+        let folderPath = Self.folderPath(forSubtitlePath: subtitlePath)
+        let deleteRows = try database.prepare(
+            """
+            DELETE FROM subtitle_search_order_rows
+            WHERE folder_path = ?;
+            """
+        )
+        try deleteRows.bind(folderPath, at: 1)
+        try deleteRows.run()
+
+        try insertSearchOrderRows(for: try indexedSearchOrderFiles(inFolderPath: folderPath))
+    }
+
+    private func indexedSearchOrderFiles(inFolderPath folderPath: String?) throws -> [SearchOrderFile] {
+        let statement: SQLiteStatement
+        if let folderPath {
+            let prefix = Self.subtitlePathPrefix(forFolderPath: folderPath)
+            statement = try database.prepare(
+                """
+                SELECT subtitle_path
+                FROM subtitle_files
+                WHERE subtitle_path >= ? AND subtitle_path < ?
+                ORDER BY subtitle_path ASC;
+                """
+            )
+            try statement.bind(prefix, at: 1)
+            try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: 2)
+        } else {
+            statement = try database.prepare(
+                """
+                SELECT subtitle_path
+                FROM subtitle_files
+                ORDER BY subtitle_path ASC;
+                """
+            )
+        }
+
+        var files: [SearchOrderFile] = []
+        while try statement.step() {
+            let subtitlePath = statement.stringColumn(0)
+            let folderPath = Self.folderPath(forSubtitlePath: subtitlePath)
+            files.append(
+                SearchOrderFile(
+                    subtitlePath: subtitlePath,
+                    folderPath: folderPath,
+                    folderTitle: URL(fileURLWithPath: folderPath).lastPathComponent,
+                    subtitleFileName: URL(fileURLWithPath: subtitlePath).lastPathComponent
+                )
+            )
+        }
+        return files
+    }
+
+    private func insertSearchOrderRows(for files: [SearchOrderFile]) throws {
+        guard !files.isEmpty else {
+            return
+        }
+
+        let updatedAt = ISO8601DateFormatter().string(from: Date())
+        let filesByFolderPath = Dictionary(grouping: files, by: \.folderPath)
+        let folderPaths = filesByFolderPath.keys.sorted { lhs, rhs in
+            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
+            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
+            if titleComparison != .orderedSame {
+                return titleComparison == .orderedAscending
+            }
+
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+        let insert = try database.prepare(
+            """
+            INSERT INTO subtitle_search_order_rows(
+                subtitle_path,
+                folder_path,
+                folder_title,
+                subtitle_file_name,
+                display_title,
+                folder_order,
+                file_order,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            """
+        )
+
+        for (folderOrder, folderPath) in folderPaths.enumerated() {
+            let files = (filesByFolderPath[folderPath] ?? []).sorted { lhs, rhs in
+                let filenameComparison = lhs.subtitleFileName.localizedStandardCompare(rhs.subtitleFileName)
+                if filenameComparison != .orderedSame {
+                    return filenameComparison == .orderedAscending
+                }
+
+                return lhs.subtitlePath.localizedStandardCompare(rhs.subtitlePath) == .orderedAscending
+            }
+
+            for (fileOrder, file) in files.enumerated() {
+                try insert.bind(file.subtitlePath, at: 1)
+                try insert.bind(file.folderPath, at: 2)
+                try insert.bind(file.folderTitle, at: 3)
+                try insert.bind(file.subtitleFileName, at: 4)
+                try insert.bind(SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: file.subtitlePath), at: 5)
+                try insert.bind(folderOrder, at: 6)
+                try insert.bind(fileOrder, at: 7)
+                try insert.bind(updatedAt, at: 8)
+                try insert.run()
+                try insert.reset()
+                try insert.clearBindings()
+            }
         }
     }
 
@@ -1948,6 +2099,29 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let endMilliseconds: Int
         let searchContent: String
         let lineCount: Int
+        let order: SearchResultOrder
+    }
+
+    private struct SearchResultOrder {
+        let displayTitle: String?
+        let folderOrder: Int?
+        let fileOrder: Int?
+
+        var isMaterialized: Bool {
+            displayTitle != nil && folderOrder != nil && fileOrder != nil
+        }
+    }
+
+    private struct OrderedSearchResult {
+        let result: SubtitleSearchResult
+        let order: SearchResultOrder
+    }
+
+    private struct SearchOrderFile {
+        let subtitlePath: String
+        let folderPath: String
+        let folderTitle: String
+        let subtitleFileName: String
     }
 
     private struct CueGroupSelection {
@@ -1994,50 +2168,77 @@ public final class SubtitleDatabase: @unchecked Sendable {
         for candidate: SearchCandidate,
         lineContents: [String],
         matching plan: SearchQueryPlan
-    ) -> SubtitleSearchResult? {
+    ) -> OrderedSearchResult? {
         guard lineContents.contains(where: { Self.line($0, matches: plan.lineMatchRule) }) else {
             return nil
         }
 
-        return SubtitleSearchResult(
-            entryID: candidate.cueGroupID,
-            subtitlePath: candidate.subtitlePath,
-            subtitleFormat: candidate.subtitleFormat,
-            videoPath: candidate.videoPath,
-            videoName: candidate.videoName,
-            startMilliseconds: candidate.startMilliseconds,
-            endMilliseconds: candidate.endMilliseconds,
-            content: candidate.searchContent,
-            cueLines: lineContents
+        return OrderedSearchResult(
+            result: SubtitleSearchResult(
+                entryID: candidate.cueGroupID,
+                subtitlePath: candidate.subtitlePath,
+                subtitleFormat: candidate.subtitleFormat,
+                videoPath: candidate.videoPath,
+                videoName: candidate.videoName,
+                startMilliseconds: candidate.startMilliseconds,
+                endMilliseconds: candidate.endMilliseconds,
+                content: candidate.searchContent,
+                cueLines: lineContents
+            ),
+            order: candidate.order
         )
     }
 
-    private static func sortedSearchResults(_ results: [SubtitleSearchResult]) -> [SubtitleSearchResult] {
-        let displayTitlesByPath = displayTitlesByPath(for: results.map(\.subtitlePath))
+    private static func sortedSearchResults(_ results: [OrderedSearchResult]) -> [OrderedSearchResult] {
+        let missingDisplayTitlePaths = results.compactMap { orderedResult in
+            orderedResult.order.displayTitle == nil ? orderedResult.result.subtitlePath : nil
+        }
+        let displayTitlesByPath = displayTitlesByPath(for: missingDisplayTitlePaths)
 
         return results.sorted { lhs, rhs in
-            let lhsDisplayTitle = displayTitlesByPath[lhs.subtitlePath] ?? URL(fileURLWithPath: lhs.subtitlePath).lastPathComponent
-            let rhsDisplayTitle = displayTitlesByPath[rhs.subtitlePath] ?? URL(fileURLWithPath: rhs.subtitlePath).lastPathComponent
+            let lhsResult = lhs.result
+            let rhsResult = rhs.result
+            let lhsDisplayTitle = lhs.order.displayTitle
+                ?? displayTitlesByPath[lhsResult.subtitlePath]
+                ?? URL(fileURLWithPath: lhsResult.subtitlePath).lastPathComponent
+            let rhsDisplayTitle = rhs.order.displayTitle
+                ?? displayTitlesByPath[rhsResult.subtitlePath]
+                ?? URL(fileURLWithPath: rhsResult.subtitlePath).lastPathComponent
             let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
             if displayTitleComparison != .orderedSame {
                 return displayTitleComparison == .orderedAscending
             }
 
-            let pathComparison = lhs.subtitlePath.localizedStandardCompare(rhs.subtitlePath)
+            let pathComparison = lhsResult.subtitlePath.localizedStandardCompare(rhsResult.subtitlePath)
             if pathComparison != .orderedSame {
                 return pathComparison == .orderedAscending
             }
 
-            if lhs.startMilliseconds != rhs.startMilliseconds {
-                return lhs.startMilliseconds < rhs.startMilliseconds
+            if lhsResult.startMilliseconds != rhsResult.startMilliseconds {
+                return lhsResult.startMilliseconds < rhsResult.startMilliseconds
             }
 
-            if lhs.endMilliseconds != rhs.endMilliseconds {
-                return lhs.endMilliseconds < rhs.endMilliseconds
+            if lhsResult.endMilliseconds != rhsResult.endMilliseconds {
+                return lhsResult.endMilliseconds < rhsResult.endMilliseconds
             }
 
-            return lhs.entryID < rhs.entryID
+            return lhsResult.entryID < rhsResult.entryID
         }
+    }
+
+    private static func searchOrderSource(for results: [OrderedSearchResult]) -> String {
+        guard !results.isEmpty else {
+            return "none"
+        }
+
+        let materializedCount = results.filter(\.order.isMaterialized).count
+        if materializedCount == results.count {
+            return "materialized"
+        }
+        if materializedCount > 0 {
+            return "mixed"
+        }
+        return "computed"
     }
 
     private static func searchNavigationIndex(
@@ -2076,24 +2277,27 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return nil
     }
 
-    private static func fileSummaries(for results: [SubtitleSearchResult]) -> [SubtitleSearchFileSummary] {
+    private static func fileSummaries(for results: [OrderedSearchResult]) -> [SubtitleSearchFileSummary] {
         var countsByPath: [String: Int] = [:]
-        for result in results {
-            countsByPath[result.subtitlePath, default: 0] += 1
-        }
-
-        let displayTitlesByPath = displayTitlesByPath(for: Array(countsByPath.keys))
-
-        return countsByPath.keys.sorted { lhs, rhs in
-            let lhsDisplayTitle = displayTitlesByPath[lhs] ?? URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsDisplayTitle = displayTitlesByPath[rhs] ?? URL(fileURLWithPath: rhs).lastPathComponent
-            let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
-            if displayTitleComparison != .orderedSame {
-                return displayTitleComparison == .orderedAscending
+        var pathsInOrder: [String] = []
+        var displayTitlesByPath: [String: String] = [:]
+        for orderedResult in results {
+            let result = orderedResult.result
+            if countsByPath[result.subtitlePath] == nil {
+                pathsInOrder.append(result.subtitlePath)
             }
-
-            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+            countsByPath[result.subtitlePath, default: 0] += 1
+            if let displayTitle = orderedResult.order.displayTitle {
+                displayTitlesByPath[result.subtitlePath] = displayTitle
+            }
         }
+
+        let missingDisplayTitlePaths = countsByPath.keys.filter { displayTitlesByPath[$0] == nil }
+        for (path, displayTitle) in Self.displayTitlesByPath(for: Array(missingDisplayTitlePaths)) {
+            displayTitlesByPath[path] = displayTitle
+        }
+
+        return pathsInOrder
         .map { path in
             SubtitleSearchFileSummary(
                 subtitlePath: path,
@@ -2506,6 +2710,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             try deleteLibraryRows.run()
 
+            let deleteSearchOrderRows = try database.prepare(
+                """
+                DELETE FROM subtitle_search_order_rows
+                WHERE (\(libraryRowPrefixCondition)) \(libraryRowKeepCondition);
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteSearchOrderRows,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteSearchOrderRows.run()
+
             let deleteFiles = try database.prepare(
                 """
                 DELETE FROM subtitle_files
@@ -2540,6 +2757,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             try deleteOrphanedVideoFiles()
+            try rebuildSearchOrderRows()
             try database.execute("COMMIT")
         } catch {
             try? database.execute("ROLLBACK")
@@ -3039,6 +3257,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try deleteLibraryRows.bind(subtitlePath, at: 1)
         try deleteLibraryRows.run()
 
+        let deleteSearchOrderRows = try database.prepare(
+            "DELETE FROM subtitle_search_order_rows WHERE subtitle_path = ?;"
+        )
+        try deleteSearchOrderRows.bind(subtitlePath, at: 1)
+        try deleteSearchOrderRows.run()
+
         let deleteFile = try database.prepare(
             "DELETE FROM subtitle_files WHERE subtitle_path = ?;"
         )
@@ -3066,6 +3290,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             DROP TABLE IF EXISTS ass_render_segments;
             DROP TABLE IF EXISTS subtitle_video_matches;
             DROP TABLE IF EXISTS video_files;
+            DROP TABLE IF EXISTS subtitle_search_order_rows;
             DROP TABLE IF EXISTS subtitle_entries_fts;
             DROP TABLE IF EXISTS subtitle_entries;
             DROP TABLE IF EXISTS subtitle_files;
@@ -3210,6 +3435,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     private static func pathPrefixUpperBound(for prefix: String) -> String {
         prefix + "\u{10FFFF}"
+    }
+
+    private static func folderPath(forSubtitlePath subtitlePath: String) -> String {
+        URL(fileURLWithPath: subtitlePath)
+            .deletingLastPathComponent()
+            .standardizedFileURL
+            .path
+    }
+
+    private static func subtitlePathPrefix(forFolderPath folderPath: String) -> String {
+        folderPath.hasSuffix("/") ? folderPath : folderPath + "/"
     }
 
     private static func libraryVideoSort(_ lhs: LibraryVideo, _ rhs: LibraryVideo) -> Bool {
