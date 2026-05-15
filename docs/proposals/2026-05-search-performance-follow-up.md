@@ -437,6 +437,38 @@ measurement only, those preview milestones currently use the complete-page
 elapsed time; later mechanism steps must move them earlier before they can
 count as a Search responsiveness improvement.
 
+### Step 2: Search-layer Pagination / Cursor
+
+Date: 2026-05-15
+
+Comparison:
+
+- Baseline commit: `77eab8f`
+- Implementation commit: `926a9b5`
+- Command shape: `SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" <query> 100`
+- Scope: first Search page, limit `100`, same local schema 11 database.
+
+Result:
+
+| Query | Baseline warmup ms | Baseline hot avg ms | Baseline hot raw ms | Current warmup ms | Current hot avg ms | Current hot raw ms | Returned | Total count | File summaries | Cursor | Next cursor |
+| --- | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| `大丈夫` | 329.35 | 91.47 | 92.45, 90.18, 91.60, 91.65, 91.44 | 559.88 | 90.76 | 90.33, 91.00, 90.58, 90.65, 91.26 | 100 | 185 | 74 | 0 | 100 |
+| `今日` | 1149.00 | 187.04 | 191.60, 191.54, 185.42, 182.71, 183.91 | 334.48 | 185.62 | 184.56, 184.34, 185.65, 186.72, 186.85 | 100 | 1282 | 81 | 0 | 100 |
+| `の` | 5937.47 | 5626.13 | 5714.94, 5586.21, 5629.36, 5560.39, 5639.75 | 6601.57 | 5583.92 | 5540.53, 5595.57, 5577.02, 5600.92, 5605.59 | 100 | 20770 | 87 | 0 | 100 |
+
+Read after implementation:
+
+- Core Search now returns an explicit `SubtitleSearchCursor` and `nextCursor`
+  with each `SubtitleSearchPage`.
+- AppState global Search lazy loading now advances with `nextCursor` from the
+  prior page instead of deriving the next request from loaded row count.
+- Search E2E JSONL schema version `4` records `cursor` and `nextCursor` on
+  Search page records.
+- The hot-average benchmark did not regress for the three required queries.
+  Warmup timings remained noisy, especially for broad exact-count queries, so
+  acceptance should use the fixed E2E cursor sequence in addition to automated
+  tests.
+
 ## Acceptance Standards
 
 General standards:
