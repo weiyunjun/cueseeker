@@ -819,12 +819,53 @@ Decision:
   row/card views during real scrolling. That work is useful, but it is a
   front-end capacity validation task and should not block the final Search cache
   step.
+- The current overall Search latency is acceptable enough that deeper result
+  rendering optimization is valuable future work, not part of the current hot
+  path pass.
 
 Suspended scope:
 
 | Step | Item | Reason for suspension |
 | ---: | --- | --- |
 | 16 | UI virtualization / windowing validation | Requires dedicated view-lifecycle instrumentation plus E2E scroll evidence; not part of the backend/cache performance path. |
+
+Future result-rendering plan:
+
+- Scope: optimize the Search results content area below `Found xx results in yy
+  files`: ASS file groups, result cards/rows, highlighted subtitle text,
+  expansion state, and scrolling/lazy-loading behavior.
+- This is independent from count-label work. `Found` updates may continue in
+  the background, but those updates should not force unchanged visible result
+  cards or file groups to rebuild.
+- Without cache, rendering can only start after the first visible Search page is
+  available, but the data-to-screen path can still be reduced.
+- With cache, Search data can be available almost immediately, so the main
+  remaining cost is SwiftUI result rendering. Repeated-query evidence showed DB
+  time near zero while `first_result_row_appeared` still took about 100 ms.
+
+Candidate future improvements:
+
+- Precompute highlighted display text for Search results instead of rebuilding
+  `AttributedString` values in result-card or row body evaluation.
+- Reduce result-group rebuilds when only counts or Search status change; avoid
+  invalidating stable visible result rows/cards after exact completion or count
+  progress updates.
+- Add dedicated UI lifecycle instrumentation for active result rows/cards,
+  peak active views, first visible row/card elapsed time, and scroll-triggered
+  page append time.
+- Validate real windowing or virtualization for result cards/rows so only the
+  viewport and a small overscan area are actively laid out.
+- Revisit the card grid layout if measurements show that equal-height card
+  sizing forces excessive off-screen `sizeThatFits` work for large ASS groups.
+
+Acceptance direction for a later pass:
+
+- Keep the current Search semantics and 100-row global lazy-loading unit.
+- Measure before and after with the app E2E JSONL, using repeated cached and
+  uncached queries.
+- Use `first_result_row_appeared`, page append elapsed time, active view counts,
+  and visible-result stability during count/status updates as the primary
+  evidence.
 
 ### Step 17 Baseline Before Query/Result Cache
 

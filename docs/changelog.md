@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Recorded the future Search result-rendering optimization plan. The suspended
+  Step 16 scope now explicitly targets the results content area below the
+  `Found` label, with candidate work for precomputed highlights, reduced
+  result-group invalidation, UI lifecycle instrumentation, and viewport
+  windowing validation.
 - Implemented Search Step 17 query/result caching. Bounded Search pages are
   cached in memory by query, scope, cursor, limit, and mode; indexed-content
   mutations clear the cache, and `SearchBench` now reports cache hit/miss stats
