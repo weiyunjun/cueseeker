@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the sixth accepted Search optimization step: schema version 18
+  rebuilds cue-group FTS rows so FTS `rowid` follows materialized product
+  order, and Search now uses `ORDER BY f.rowid` for index-sorted early
+  termination. The measured `の` first-page benchmark improved from `43.10 ms`
+  to `8.93 ms`, and complete metadata improved from `830.48 ms` to `572.56 ms`.
 - Investigated and rejected the `ORDER BY` / `LIMIT` index-support optimization
   for the current SQLite FTS path. A database-copy experiment removed the
   temporary sort from the query plan but turned the measured `の LIMIT 1001`

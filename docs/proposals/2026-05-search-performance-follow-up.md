@@ -124,7 +124,7 @@ CueSeeker.
 | File or Library-block partitioned search with early emission | Socratic discussion | High | High | Done for first-page early return |
 | Delayed total count and summaries | Socratic discussion | Medium to high | Medium | Done |
 | `ORDER BY` / `LIMIT` index support | External research validated the discussion direction | Negative for current FTS path | Medium to high | Investigated and rejected |
-| Index sorting / early termination | External research validated the discussion direction | High | High | Do |
+| Index sorting / early termination | External research validated the discussion direction | High | Medium | Done with FTS rowid order |
 | Filterable, sortable, and facet-style attributes | External research | Medium to high | Medium to high | Do |
 | `fts5vocab` diagnostics | External research | Indirect | Low | Do as diagnostics |
 | FTS `optimize` / incremental `merge` | External research | Low to medium | Low to medium | Do as maintenance |
@@ -142,7 +142,7 @@ Current implementation order after rollback:
 3. Delayed total count and summaries.
 4. `ORDER BY` / `LIMIT` index support: investigated and rejected for the
    current FTS-driven query path.
-5. Index sorting / early termination.
+5. Index sorting / early termination with FTS rowid product order.
 6. Filterable, sortable, and facet-style attributes.
 7. `fts5vocab` diagnostics.
 8. FTS `optimize` / incremental `merge`.
@@ -417,6 +417,74 @@ Decision:
 - Revisit this only if the search projection changes, for example to a search
   engine or table shape that can natively combine term matching with product
   order.
+
+### Step 6: FTS Rowid Index Sorting And Early Termination
+
+Date: 2026-05-15
+
+Commit under test: working tree after `e8afe3d`, before the follow-up commit
+that records this benchmark.
+
+Implementation notes:
+
+- Schema version 18 rebuilds `subtitle_cue_groups_fts` rows with explicit FTS
+  `rowid` values assigned in product order:
+  Library block rank, subtitle-file rank, cue start time, cue end time, cue id.
+- Search now uses `ORDER BY f.rowid ASC` instead of a joined product-order SQL
+  expression.
+- Rebuilding the subtitle search-order snapshot also rebuilds cue-group FTS
+  rows so rowid order stays aligned with the materialized product order.
+- The v18 migration rebuilds existing FTS rows so older schema 17 databases do
+  not keep stale insertion-order rowids.
+
+Query-plan check for `の LIMIT 1001` after migration:
+
+```text
+SCAN f VIRTUAL TABLE INDEX 64:M2
+SEARCH g USING INTEGER PRIMARY KEY
+SEARCH sf USING INTEGER PRIMARY KEY
+SEARCH m USING INDEX sqlite_autoindex_subtitle_video_matches_1
+SEARCH vf USING INTEGER PRIMARY KEY
+SEARCH sor USING INDEX sqlite_autoindex_subtitle_search_order_rows_1 LEFT-JOIN
+```
+
+The plan no longer reports `USE TEMP B-TREE FOR ORDER BY`.
+
+Deferred first-page benchmark:
+
+| Query | Warmup ms | Results returned | Total count shown | File summaries shown | Metadata state | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- |
+| `大丈夫` | 464.30 | 185 | 185 | 74 | complete | 46.53 | 48.27, 46.13, 45.83, 45.95, 46.49 |
+| `今日` | 68.49 | 1000 | 1001 | 23 | deferred | 64.74 | 64.98, 65.65, 64.88, 64.47, 63.75 |
+| `の` | 12.24 | 1000 | 1001 | 11 | deferred | 8.93 | 9.12, 9.21, 8.71, 8.71, 8.91 |
+
+Complete metadata benchmark:
+
+| Query | Warmup ms | Results returned | Total count | File summaries | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `大丈夫` | 54.49 | 185 | 185 | 74 | 50.49 | 50.85, 50.79, 50.24, 50.23, 50.34 |
+| `今日` | 311.59 | 1000 | 1282 | 81 | 118.53 | 120.05, 117.16, 118.79, 118.16, 118.50 |
+| `の` | 604.71 | 1000 | 20770 | 87 | 572.56 | 579.01, 569.37, 578.00, 569.51, 566.91 |
+
+Combined comparison:
+
+| Query | Previous first-page ms | Step 6 first-page ms | Previous complete ms | Step 6 complete ms | Step 6 approx. time until exact metadata ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `大丈夫` | 51.38 | 46.53 | 47.92 | 50.49 | 46.53 |
+| `今日` | 67.28 | 64.74 | 116.39 | 118.53 | 183.27 |
+| `の` | 43.10 | 8.93 | 830.48 | 572.56 | 581.49 |
+
+Read:
+
+- This is the first accepted implementation of index sorting / early
+  termination for the current SQLite FTS path.
+- The important design distinction from Step 5 is that FTS remains the query
+  driver. Product order is encoded into FTS `rowid`, so SQLite can return
+  product-ordered FTS matches directly.
+- The largest gain is for high-frequency CJK queries such as `の`, where the
+  first-page path no longer pays the old FTS candidate ordering cost.
+- The one-time migration on the measured local database rebuilt rowids in about
+  `2227.29 ms`.
 
 ## Development Decision
 

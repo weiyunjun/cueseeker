@@ -237,6 +237,41 @@ func deferredSearchPageReturnsFirstPageBeforeExactMetadata() throws {
 }
 
 @Test
+func rebuildingSearchOrderAssignsFTSRowIDProductOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let zetaSubtitle = URL(fileURLWithPath: "/Media/Zeta.srt")
+    let zetaVideo = URL(fileURLWithPath: "/Media/Zeta.mkv")
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/Alpha.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: zetaSubtitle,
+        videoFile: zetaVideo,
+        entries: [
+            databaseTestEntry(text: "Shared zeta")
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: alphaSubtitle,
+        videoFile: alphaVideo,
+        entries: [
+            databaseTestEntry(text: "Shared alpha")
+        ]
+    )
+
+    try database.rebuildSubtitleSearchOrderSnapshot()
+
+    #expect(try readFTSContentsOrderedByRowID(at: databaseURL) == ["Shared alpha", "Shared zeta"])
+}
+
+@Test
 func searchPageReturnsTotalCountsAndFileSummaries() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -1494,6 +1529,61 @@ func migrationRebuildsFTSRowsForJapaneseKanaSearch() throws {
 }
 
 @Test
+func migrationToSchemaVersion18RebuildsFTSRowIDProductOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let zetaSubtitle = URL(fileURLWithPath: "/Media/Zeta.srt")
+    let zetaVideo = URL(fileURLWithPath: "/Media/Zeta.mkv")
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/Alpha.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: zetaSubtitle,
+        videoFile: zetaVideo,
+        entries: [
+            databaseTestEntry(text: "Shared zeta")
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: alphaSubtitle,
+        videoFile: alphaVideo,
+        entries: [
+            databaseTestEntry(text: "Shared alpha")
+        ]
+    )
+    try database.rebuildSubtitleSearchOrderSnapshot()
+
+    try executeSQLite(
+        at: databaseURL,
+        """
+        DELETE FROM subtitle_cue_groups_fts;
+        INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
+        SELECT 1, search_content, id
+        FROM subtitle_cue_groups
+        WHERE subtitle_path = '/Media/Zeta.srt';
+        INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
+        SELECT 2, search_content, id
+        FROM subtitle_cue_groups
+        WHERE subtitle_path = '/Media/Alpha.srt';
+        PRAGMA user_version = 17;
+        """
+    )
+    #expect(try readFTSContentsOrderedByRowID(at: databaseURL) == ["Shared zeta", "Shared alpha"])
+
+    let migratedDatabase = try SubtitleDatabase(path: databaseURL)
+    try migratedDatabase.migrate()
+
+    #expect(try migratedDatabase.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+    #expect(try readFTSContentsOrderedByRowID(at: databaseURL) == ["Shared alpha", "Shared zeta"])
+}
+
+@Test
 func searchesCueGroupsAndRejectsCrossLineOnlyMatches() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -2258,6 +2348,63 @@ private func readCueGroupLineCounts(at url: URL) throws -> [Int64: Int] {
         result[id] = count
     }
     return result
+}
+
+private func readFTSContentsOrderedByRowID(at url: URL) throws -> [String] {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(
+        database,
+        """
+        SELECT g.search_content
+        FROM subtitle_cue_groups_fts f
+        JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
+        ORDER BY f.rowid ASC;
+        """,
+        -1,
+        &statement,
+        nil
+    ) == SQLITE_OK,
+        let statement
+    else {
+        let message = String(cString: sqlite3_errmsg(database))
+        throw SQLiteFixtureError.executeFailed(message)
+    }
+
+    defer {
+        sqlite3_finalize(statement)
+    }
+
+    var contents: [String] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+        contents.append(String(cString: sqlite3_column_text(statement, 0)))
+    }
+    return contents
+}
+
+private func executeSQLite(at url: URL, _ sql: String) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(database, sql)
 }
 
 private func executeSQLite(_ database: OpaquePointer?, _ sql: String) throws {

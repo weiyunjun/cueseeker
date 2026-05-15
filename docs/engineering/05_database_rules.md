@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `17`.
+- The current schema version is `18`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -145,6 +145,10 @@ Current mechanism:
   production search path uses cue-group FTS recall, keeps line-level validation
   for multi-line cue groups, preserves materialized search ordering, and drops
   the obsolete cue-line FTS table during migration.
+- Schema version `18` rebuilds cue-group FTS rows with FTS `rowid` assigned in
+  materialized product order. Search can then use `ORDER BY f.rowid` to get
+  index-sorted early termination without scanning product-order rows outside
+  the FTS index.
 
 ## 5. Migration Rules
 
@@ -356,6 +360,10 @@ Search ranking and query syntax:
   a temporary `ORDER BY` sort. With the current FTS5 query shape, FTS-driven
   recall plus a small temporary sort is materially faster than product-order
   scans that probe FTS row by row.
+- FTS `rowid` may be used as a derived product-order key when the FTS table is
+  rebuilt from cue groups. Rebuilding the subtitle search-order snapshot should
+  also rebuild cue-group FTS rows so `rowid` order remains aligned with Library
+  block rank, subtitle-file rank, and cue time.
 - Search-summary counts and file/group summaries should not block first visible
   results if the query engine can return ordered results before the whole corpus
   is searched.

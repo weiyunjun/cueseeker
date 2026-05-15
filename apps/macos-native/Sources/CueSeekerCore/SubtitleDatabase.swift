@@ -282,7 +282,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 17
+    public static let currentSchemaVersion: Int = 18
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -297,6 +297,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     public func migrate() throws {
         let previousVersion = try schemaVersion()
+        var rebuiltFTSRowsForProductOrder = false
 
         try database.execute(
             """
@@ -507,12 +508,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
         if previousVersion < 17 {
             try recreateFTSTables()
             try rebuildFTSRows()
+            rebuiltFTSRowsForProductOrder = previousVersion >= 16
         }
 
         if previousVersion < 9 {
             try rebuildLibraryPresentationSnapshot()
+            rebuiltFTSRowsForProductOrder = true
         } else if previousVersion < 16 {
             try rebuildSubtitleSearchOrderSnapshot()
+            rebuiltFTSRowsForProductOrder = true
         }
 
         if previousVersion >= 3 && previousVersion < 11,
@@ -532,6 +536,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 ));
                 """
             )
+        }
+
+        if previousVersion < 18 && !rebuiltFTSRowsForProductOrder {
+            try rebuildFTSRows()
         }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
@@ -1129,15 +1137,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
 
             let prepareStart = Self.diagnosticNow()
-            let productOrderSQL = """
-                CASE WHEN sor.folder_order IS NULL OR sor.file_order IS NULL THEN 1 ELSE 0 END ASC,
-                sor.folder_order ASC,
-                sor.file_order ASC,
-                sf.subtitle_path ASC,
-                g.start_ms ASC,
-                g.end_ms ASC,
-                g.id ASC
-                """
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
@@ -1152,7 +1151,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
-                ORDER BY \(productOrderSQL)
+                ORDER BY f.rowid ASC
                 LIMIT ? OFFSET ?;
                 """
             )
@@ -1290,7 +1289,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 fields: [
                     .init("results", sortedResults.count),
                     .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count),
-                    .init("orderSource", hasCompleteMaterializedOrder ? "materialized" : "fallback")
+                    .init("orderSource", hasCompleteMaterializedOrder ? "fts_rowid" : "fallback")
                 ]
             )
 
@@ -1646,6 +1645,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try? database.execute("ROLLBACK")
             throw error
         }
+
+        try rebuildFTSRows()
     }
 
     private func indexedLibraryVideos(scopedTo pathPrefixes: [String]?) throws -> [LibraryVideo] {
@@ -2802,16 +2803,32 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func insertCueGroupFTSRow(cueGroupID: Int64, content: String) throws {
-        let statement = try database.prepare(
-            """
-            INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
-            VALUES (?, ?);
-            """
-        )
+    private func insertCueGroupFTSRow(rowID: Int64? = nil, cueGroupID: Int64, content: String) throws {
+        let statement: SQLiteStatement
+        if rowID == nil {
+            statement = try database.prepare(
+                """
+                INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
+                VALUES (?, ?);
+                """
+            )
+        } else {
+            statement = try database.prepare(
+                """
+                INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
+                VALUES (?, ?, ?);
+                """
+            )
+        }
 
-        try statement.bind(Self.segmentCJK(content), at: 1)
-        try statement.bind(cueGroupID, at: 2)
+        if let rowID {
+            try statement.bind(rowID, at: 1)
+            try statement.bind(Self.segmentCJK(content), at: 2)
+            try statement.bind(cueGroupID, at: 3)
+        } else {
+            try statement.bind(Self.segmentCJK(content), at: 1)
+            try statement.bind(cueGroupID, at: 2)
+        }
         try statement.run()
     }
 
@@ -2886,9 +2903,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
             do {
                 let statement = try database.prepare(
                     """
-                    SELECT id, search_content
-                    FROM subtitle_cue_groups
-                    ORDER BY id ASC;
+                    SELECT g.id, g.search_content
+                    FROM subtitle_cue_groups g
+                    JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                    LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+                    ORDER BY CASE WHEN sor.folder_order IS NULL OR sor.file_order IS NULL THEN 1 ELSE 0 END ASC,
+                             sor.folder_order ASC,
+                             sor.file_order ASC,
+                             sf.subtitle_path ASC,
+                             g.start_ms ASC,
+                             g.end_ms ASC,
+                             g.id ASC;
                     """
                 )
 
@@ -2897,8 +2922,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
             }
 
+            var rowID: Int64 = 1
             for row in groupRows {
-                try insertCueGroupFTSRow(cueGroupID: row.cueGroupID, content: row.content)
+                try insertCueGroupFTSRow(
+                    rowID: rowID,
+                    cueGroupID: row.cueGroupID,
+                    content: row.content
+                )
+                rowID += 1
             }
 
             try optimizeFTSTables()

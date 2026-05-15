@@ -130,6 +130,13 @@ The implementation evidence refined the Socratic diagnosis:
   This refined the strategy again: under the current SQLite FTS shape, product
   order should remain a presentation/order key after FTS recall rather than the
   primary driver for term matching.
+- The index-sorting / early-termination step then found a better fit for
+  SQLite FTS5: assign FTS `rowid` in materialized product order when rebuilding
+  cue-group FTS rows, then query with `ORDER BY f.rowid`. This keeps FTS as the
+  term-matching driver while letting SQLite return product-ordered matches
+  without a separate temporary product-order sort. The measured `の` first-page
+  benchmark improved from `43.10 ms` to `8.93 ms`, and complete metadata
+  improved from `830.48 ms` to `572.56 ms`.
 
 ## Open Questions
 
@@ -138,9 +145,6 @@ The implementation evidence refined the Socratic diagnosis:
 - Should future Search stream file-complete groups into the UI, or is
   page-level early return enough once exact metadata refresh is in the
   background?
-- If product-order early termination remains desirable, does it require a
-  different search projection or search engine rather than another SQLite join
-  order tweak?
 - Should FTS maintenance commands be exposed as diagnostics, Settings
   maintenance, or automatic post-indexing work?
 
