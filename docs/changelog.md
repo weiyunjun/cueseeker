@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Clarified the Search optimization end-to-end gate: manual app verification
+  must search `大丈夫`, `今日`, and `の` in order, follow documented wait and
+  scroll counts, and record per-query acceptance evidence before a step is
+  accepted.
 - Revised the Search optimization workflow: the active plan now starts with
   three-query baseline data, keeps unstable diagnostics in logs or benchmark
   output instead of front-end UI, and requires automated plus end-to-end

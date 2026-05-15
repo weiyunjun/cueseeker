@@ -252,7 +252,7 @@ These gates must pass before any new Search optimization mechanism starts:
 | A | Baseline benchmark | Run the three benchmark queries, record raw timings, averages, result counts, file counts, and the current commit. No code changes are allowed in this gate. |
 | B | Log or benchmark diagnostics | Add or verify machine-readable diagnostics in logs or benchmark output only. Do not add Search-performance data to the Search panel or front-end Developer UI during unstable work. |
 | C | Automated tests | Add or verify fixture-based tests for Search correctness, including identity, grouping, ordering, folder scope, counts, pagination, and lazy-loading boundaries touched by the planned step. |
-| D | End-to-end test | Update or follow the Search optimization E2E procedure in `docs/engineering/08_end_to_end_testing.md`, then record the observed pass/fail evidence before accepting the step. |
+| D | End-to-end test | Follow the fixed Search E2E sequence in `docs/engineering/08_end_to_end_testing.md`: search `大丈夫`, `今日`, and `の` in order, use the documented waits and scroll counts, and record pass/fail evidence before accepting the step. |
 
 ### Implementation Backlog
 
@@ -321,7 +321,9 @@ Benchmark rules:
   acceptance.
 - Run or update the Search optimization end-to-end procedure before accepting a
   step that affects the app's visible Search workflow, scrolling, collapse or
-  expansion behavior, lazy loading, or playback result selection.
+  expansion behavior, lazy loading, or playback result selection. The procedure
+  must use the fixed query order `大丈夫`, `今日`, `の` and the documented
+  per-query wait and scroll requirements.
 - For Step 17, clear cache state between benchmark query groups, then run each
   query five times so warm-cache behavior is measured without cross-query
   contamination.

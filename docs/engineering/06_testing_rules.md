@@ -191,6 +191,9 @@ Rules:
 - End-to-end evidence is required before accepting a Search optimization step
   that affects visible Search workflow, scrolling, collapse or expansion,
   lazy-loading triggers, or Search-result playback selection.
+- Search optimization end-to-end evidence must run the fixed query sequence
+  `大丈夫`, `今日`, and `の` in order and follow the documented per-query wait,
+  scroll, and acceptance rules.
 - A benchmark regression on the metric targeted by the step must stop the
   sequence. The default follow-up is to revert or disable the change unless the
   user explicitly accepts keeping it with a documented reason.

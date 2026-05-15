@@ -311,28 +311,131 @@ while the optimization path is unstable.
 - The app is launched against an indexed Library that can return Search results
   for at least one broad query and one narrower query.
 
-### Actions
+### Fixed Search Sequence
 
-Perform the actions that match the changed behavior. For a Search workflow
-change, include at least these checks:
+Run the three Search queries in this exact order:
 
-1. Search for a narrow query and verify the result count, grouping, and first
-   visible rows are plausible.
-2. Search for a broad query such as `の`.
-3. Scroll downward far enough to exercise lazy-loading or paging behavior.
-4. Collapse and expand Search result groups if the step touches grouping,
-   counts, or loading triggers.
-5. Select a Search result and verify playback opens or seeks to the expected
-   subtitle context.
+1. `大丈夫`
+2. `今日`
+3. `の`
+
+For each query:
+
+1. Focus the topbar Search field.
+2. Select the full previous query text.
+3. Type the next query exactly.
+4. Press Return once.
+5. Wait for the initial Search result list to settle before recording
+   observations or scrolling.
+
+"Settled" means the Search pane is no longer showing the empty `Searching`
+state or spinner, the `Found <count> results in <count> files` summary is
+visible when results exist, and the visible result list has not changed for at
+least two seconds.
+
+If the step under test includes background exact counts, background summaries,
+or delayed metadata, also wait for the documented log or benchmark completion
+event before accepting the final count. Do not infer performance completion
+from a front-end timing display unless that UI surface has already been
+explicitly accepted.
+
+### Per-Query Actions
+
+#### `大丈夫`
+
+Purpose: narrow-result sanity check.
+
+Actions:
+
+1. Run the fixed Search entry sequence for `大丈夫`.
+2. Wait until the initial list is settled.
+3. Do not scroll unless the changed step specifically targets narrow-query
+   scrolling.
+4. Open the first visible result.
+5. Return to Search if playback opens.
+
+Acceptance:
+
+- The summary uses `Found <count> results in <count> files`.
+- At least one subtitle-file group and one result row are visible.
+- The visible result row contains a plausible match for `大丈夫`.
+- Opening the first result selects the row and opens or seeks playback to the
+  expected subtitle context.
+- No front-end Search-performance diagnostics are visible unless explicitly
+  accepted for the step.
+
+#### `今日`
+
+Purpose: medium-result paging and grouping check.
+
+Actions:
+
+1. Run the fixed Search entry sequence for `今日`.
+2. Wait until the initial list is settled.
+3. Scroll down exactly three full viewport steps. A full viewport step means
+   Page Down once, or a trackpad/mouse-wheel scroll that moves the list by
+   approximately one visible page.
+4. After each viewport step, wait one second before the next scroll.
+5. Open one visible result after the third scroll.
+6. Return to Search if playback opens.
+
+Acceptance:
+
+- The summary uses `Found <count> results in <count> files`.
+- Search results remain grouped by subtitle file.
+- Scrolling three viewport steps does not show empty loaded groups, duplicate
+  rows, visibly stale rows from the previous query, or a stuck loading state.
+- If the step implements lazy loading or paging, any load-more action triggered
+  by these scrolls must be expected by that step and visible in the agreed log
+  or benchmark evidence.
+- Opening a result after scrolling selects the row and opens or seeks playback
+  to the expected subtitle context.
+
+#### `の`
+
+Purpose: broad-query stress check for high-frequency CJK search.
+
+Actions:
+
+1. Run the fixed Search entry sequence for `の`.
+2. Wait until the initial list is settled.
+3. Scroll down exactly six full viewport steps, waiting one second after each
+   step.
+4. If the step includes lazy loading or paging, continue waiting after the sixth
+   viewport step until the documented load-more log event or settled-list state
+   appears, up to ten seconds.
+5. If the Search page exposes `Collapse All`, click it once after the scroll
+   check settles.
+6. Wait two seconds after `Collapse All`.
+
+Acceptance:
+
+- The summary uses `Found <count> results in <count> files`.
+- The Search pane remains responsive while scrolling the broad result set.
+- The list does not display summary-only subtitle-file aliases without an
+  intentional loading/provisional state.
+- Lazy loading, if part of the step, progresses predictably from ordinary
+  scrolling and does not require stopping at a precise pixel position.
+- `Collapse All`, if present, changes only the visible collapse state. It must
+  not trigger an unintended load-more request, append unrelated results, or
+  reveal rows that belong to a different query.
+- No front-end Search-performance diagnostics are visible unless explicitly
+  accepted for the step.
 
 ### Evidence to Record
 
 Record:
 
 - The commit under test.
-- The exact query strings.
+- The exact query strings, in the required order.
 - The benchmark summary for the three required queries.
 - Whether automated tests passed.
+- For each query, the visible summary text after the initial list settles.
+- For `今日`, whether exactly three full viewport scrolls completed without a
+  visible workflow issue.
+- For `の`, whether exactly six full viewport scrolls completed, whether a
+  load-more wait was needed, and whether `Collapse All` triggered any
+  unexpected load.
 - Any log block requested for the step.
 - Any visible workflow issue, including stale counts, wrong grouping, empty
   loaded groups, accidental lazy-load triggers, scroll jumps, delayed playback
@@ -344,8 +447,12 @@ The gate passes only if:
 
 - The benchmark result does not regress on the metric targeted by the step.
 - Automated tests pass.
+- The three-query Search sequence runs in order: `大丈夫`, `今日`, `の`.
 - The visible Search workflow still preserves result identity, grouping,
   ordering, folder scope, lazy-loading behavior, collapse/expand behavior, and
   playback target timestamps.
+- The required wait and scroll counts are followed: no scroll for `大丈夫`
+  unless the step requires it, three full viewport scrolls for `今日`, and six
+  full viewport scrolls for `の`.
 - Search-performance diagnostics remain in logs or benchmark output unless a
   front-end diagnostic surface has already been explicitly accepted.
