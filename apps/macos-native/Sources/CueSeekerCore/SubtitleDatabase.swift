@@ -123,6 +123,14 @@ public enum SubtitleSearchPageMode: String, Equatable, Sendable, Codable {
     case visibleWindow
 }
 
+public struct SubtitleSearchResultCacheStats: Equatable, Sendable {
+    public let entries: Int
+    public let hits: Int
+    public let misses: Int
+    public let stores: Int
+    public let invalidations: Int
+}
+
 public struct SubtitleFTSVocabularyTermDiagnostic: Equatable, Sendable {
     public let term: String
     public let documentCount: Int
@@ -271,6 +279,91 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     }
 }
 
+private struct SearchResultCacheKey: Hashable, Sendable {
+    let query: String
+    let limit: Int
+    let offset: Int
+    let mode: SubtitleSearchPageMode
+    let pathPrefixes: [String]?
+    let subtitlePath: String?
+}
+
+private final class SearchResultPageCache: @unchecked Sendable {
+    private let maxEntries: Int
+    private let lock = NSLock()
+    private var pages: [SearchResultCacheKey: SubtitleSearchPage] = [:]
+    private var keys: [SearchResultCacheKey] = []
+    private var hits = 0
+    private var misses = 0
+    private var stores = 0
+    private var invalidations = 0
+
+    init(maxEntries: Int) {
+        self.maxEntries = max(1, maxEntries)
+    }
+
+    func page(for key: SearchResultCacheKey) -> SubtitleSearchPage? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let page = pages[key] else {
+            misses += 1
+            return nil
+        }
+
+        hits += 1
+        if let index = keys.firstIndex(of: key) {
+            keys.remove(at: index)
+        }
+        keys.append(key)
+        return page
+    }
+
+    func store(_ page: SubtitleSearchPage, for key: SearchResultCacheKey) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if pages[key] == nil {
+            keys.append(key)
+        } else if let index = keys.firstIndex(of: key) {
+            keys.remove(at: index)
+            keys.append(key)
+        }
+
+        pages[key] = page
+        stores += 1
+
+        while keys.count > maxEntries, let first = keys.first {
+            keys.removeFirst()
+            pages.removeValue(forKey: first)
+        }
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if !pages.isEmpty {
+            invalidations += 1
+        }
+        pages.removeAll()
+        keys.removeAll()
+    }
+
+    func stats() -> SubtitleSearchResultCacheStats {
+        lock.lock()
+        defer { lock.unlock() }
+
+        return SubtitleSearchResultCacheStats(
+            entries: pages.count,
+            hits: hits,
+            misses: misses,
+            stores: stores,
+            invalidations: invalidations
+        )
+    }
+}
+
 public struct SearchNavigationAnchor: Equatable, Sendable {
     public let selectedEntryID: Int64?
     public let videoPath: String?
@@ -407,13 +500,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
     private static let exactSearchCandidateBatchMinimum = 5_000
+    private static let maxSearchResultCacheEntries = 64
+    private static let maxCachedSearchPageLimit = 500
 
     private let path: URL
     private let database: SQLiteDatabase
+    private let searchResultCache = SearchResultPageCache(maxEntries: maxSearchResultCacheEntries)
 
     public init(path: URL) throws {
         self.path = path
         database = try SQLiteDatabase(path: path)
+    }
+
+    public func clearSearchResultCache() {
+        searchResultCache.removeAll()
+    }
+
+    public func searchResultCacheStats() -> SubtitleSearchResultCacheStats {
+        searchResultCache.stats()
     }
 
     public func migrate() throws {
@@ -805,6 +909,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
             try deleteOrphanedVideoFiles()
             try database.execute("COMMIT")
+            clearSearchResultCache()
         } catch {
             try? database.execute("ROLLBACK")
             throw error
@@ -1100,6 +1205,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try deleteOrphanedVideoFiles()
             try rebuildSearchDerivedIndexInCurrentTransaction()
             try database.execute("COMMIT")
+            clearSearchResultCache()
         } catch {
             try? database.execute("ROLLBACK")
             throw error
@@ -1111,6 +1217,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         do {
             try rebuildSearchDerivedIndexInCurrentTransaction()
             try database.execute("COMMIT")
+            clearSearchResultCache()
         } catch {
             try? database.execute("ROLLBACK")
             throw error
@@ -1128,6 +1235,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try database.execute("DELETE FROM video_files;")
             try database.execute("DELETE FROM search_paths;")
             try database.execute("COMMIT")
+            clearSearchResultCache()
         } catch {
             try? database.execute("ROLLBACK")
             throw error
@@ -1278,6 +1386,40 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 .init("cursorOffset", appliedCursor.offset),
                 .init("pathPrefixes", pathPrefixes?.count ?? 0),
                 .init("hasSubtitlePathFilter", subtitlePathFilter == nil ? "false" : "true")
+            ]
+        )
+
+        let cacheKey = SearchResultCacheKey(
+            query: query,
+            limit: limit,
+            offset: offset,
+            mode: mode,
+            pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
+            subtitlePath: subtitlePathFilter
+        )
+        let cacheStart = Self.diagnosticNow()
+        if let cachedPage = searchResultCache.page(for: cacheKey) {
+            emit(
+                "search_cache_hit",
+                since: cacheStart,
+                fields: [
+                    .init("metadataMode", mode.rawValue),
+                    .init("limit", limit),
+                    .init("offset", offset),
+                    .init("results", cachedPage.results.count),
+                    .init("totalCount", cachedPage.totalCount),
+                    .init("summaries", cachedPage.fileSummaries.count)
+                ]
+            )
+            return cachedPage
+        }
+        emit(
+            "search_cache_miss",
+            since: cacheStart,
+            fields: [
+                .init("metadataMode", mode.rawValue),
+                .init("limit", limit),
+                .init("offset", offset)
             ]
         )
 
@@ -1570,7 +1712,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         .init("metadataMode", mode.rawValue)
                     ]
                 )
-                return SubtitleSearchPage(
+                let page = SubtitleSearchPage(
                     results: pageResults,
                     totalCount: countSnapshot.knownResultCount,
                     fileSummaries: fileSummaries,
@@ -1581,6 +1723,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     orderSource: orderSource,
                     materializedOrderRows: materializedOrderRows
                 )
+                storeSearchResultPageIfCacheable(page, for: cacheKey, requestedLimit: limit, emit: emit)
+                return page
             }
 
             let sortStart = Self.diagnosticNow()
@@ -1656,7 +1800,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("knownFileCount", countSnapshot.knownFileCount)
                 ]
             )
-            return SubtitleSearchPage(
+            let page = SubtitleSearchPage(
                 results: pageResults,
                 totalCount: sortedResults.count,
                 fileSummaries: fileSummaries,
@@ -1667,6 +1811,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 orderSource: orderSource,
                 materializedOrderRows: materializedOrderRows
             )
+            storeSearchResultPageIfCacheable(page, for: cacheKey, requestedLimit: limit, emit: emit)
+            return page
         } catch {
             emit(
                 "failed",
@@ -2886,6 +3032,34 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
+    private func storeSearchResultPageIfCacheable(
+        _ page: SubtitleSearchPage,
+        for key: SearchResultCacheKey,
+        requestedLimit: Int,
+        emit: (String, UInt64, [SubtitleSearchDiagnosticField]) -> Void
+    ) {
+        guard requestedLimit <= Self.maxCachedSearchPageLimit,
+              page.results.count <= Self.maxCachedSearchPageLimit
+        else {
+            return
+        }
+
+        let storeStart = Self.diagnosticNow()
+        searchResultCache.store(page, for: key)
+        emit(
+            "search_cache_store",
+            storeStart,
+            [
+                .init("metadataMode", page.pageMode.rawValue),
+                .init("limit", requestedLimit),
+                .init("offset", key.offset),
+                .init("results", page.results.count),
+                .init("totalCount", page.totalCount),
+                .init("summaries", page.fileSummaries.count)
+            ]
+        )
+    }
+
     private static func isASCIIWordCharacter(_ character: Character) -> Bool {
         isASCIILetterOrDigit(character) || character == "_"
     }
@@ -3015,6 +3189,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try deleteOrphanedVideoFiles()
             try rebuildSearchDerivedIndexInCurrentTransaction()
             try database.execute("COMMIT")
+            clearSearchResultCache()
         } catch {
             try? database.execute("ROLLBACK")
             throw error
@@ -3387,6 +3562,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         do {
             try rebuildFTSRowsInProductOrder()
             try database.execute("COMMIT")
+            clearSearchResultCache()
         } catch {
             try? database.execute("ROLLBACK")
             throw error

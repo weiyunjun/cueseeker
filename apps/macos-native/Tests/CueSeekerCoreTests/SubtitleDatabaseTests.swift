@@ -360,6 +360,92 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
 }
 
 @Test
+func searchPageUsesResultCacheForRepeatedQueries() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Cache.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Cache.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            databaseTestEntry(text: "Cache query first"),
+            databaseTestEntry(text: "Cache query second")
+        ]
+    )
+
+    let firstDiagnostics = SearchDiagnosticRecorder()
+    let firstPage = try database.searchPage("cache", limit: 10, diagnostics: firstDiagnostics.record)
+    let secondDiagnostics = SearchDiagnosticRecorder()
+    let secondPage = try database.searchPage("cache", limit: 10, diagnostics: secondDiagnostics.record)
+    let stats = database.searchResultCacheStats()
+
+    #expect(firstPage == secondPage)
+    #expect(firstDiagnostics.events.contains { $0.name == "search_cache_miss" })
+    #expect(firstDiagnostics.events.contains { $0.name == "search_cache_store" })
+    #expect(secondDiagnostics.events.contains { $0.name == "search_cache_hit" })
+    #expect(!secondDiagnostics.events.contains { $0.name == "fts_batch" })
+    #expect(stats.entries == 1)
+    #expect(stats.hits == 1)
+    #expect(stats.misses == 1)
+    #expect(stats.stores == 1)
+}
+
+@Test
+func searchResultCacheInvalidatesWhenIndexedContentChanges() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/CacheInvalidation.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/CacheInvalidation.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            databaseTestEntry(text: "Cache invalidation first")
+        ]
+    )
+
+    _ = try database.searchPage("cache", limit: 10)
+    _ = try database.searchPage("cache", limit: 10)
+    #expect(database.searchResultCacheStats().hits == 1)
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            databaseTestEntry(text: "Cache invalidation first"),
+            databaseTestEntry(text: "Cache invalidation second")
+        ]
+    )
+
+    let diagnostics = SearchDiagnosticRecorder()
+    let page = try database.searchPage("cache", limit: 10, diagnostics: diagnostics.record)
+    let stats = database.searchResultCacheStats()
+
+    #expect(page.totalCount == 2)
+    #expect(page.results.map(\.content) == [
+        "Cache invalidation first",
+        "Cache invalidation second"
+    ])
+    #expect(diagnostics.events.contains { $0.name == "search_cache_miss" })
+    #expect(stats.invalidations >= 1)
+    #expect(stats.misses == 2)
+    #expect(stats.stores == 2)
+}
+
+@Test
 func searchVisiblePageUsesProductOrderedFTSRowIDsForEarlyTermination() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

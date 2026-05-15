@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented Search Step 17 query/result caching. Bounded Search pages are
+  cached in memory by query, scope, cursor, limit, and mode; indexed-content
+  mutations clear the cache, and `SearchBench` now reports cache hit/miss stats
+  before clearing its in-process cache.
 - Suspended Search Step 16 UI virtualization/windowing validation. The idea is
   retained for dedicated front-end instrumentation and E2E scrolling evidence,
   but it no longer blocks the final Search cache step.

@@ -131,7 +131,7 @@ the full Search rollback; the active implementation sequence is the accepted
 | `fts5vocab` diagnostics | External research | Indirect | Low | Done as diagnostics |
 | FTS `optimize` / incremental `merge` | External research | Low to medium | Low to medium | Do as maintenance |
 | FTS `automerge`, `crisismerge`, `usermerge` tuning | External research | Low to medium | Medium | Defer |
-| Query/result cache | External research, reprioritized by user feedback | High for repeated queries, none for cold queries | Low to medium | Do last |
+| Query/result cache | External research, reprioritized by user feedback | High for repeated queries, none for cold queries | Low to medium | Done |
 | FTS prefix indexes | External research, accepted for English search | Scenario-specific but important for English prefix search | Medium | Do |
 | FTS contentless or external-content tables | External research | Low | Medium to high | Defer |
 | FTS `detail` / `columnsize` reduction | External research | Low | Medium | Defer |
@@ -315,7 +315,7 @@ stable.
 | 14 | File-group initial preview (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. A smaller file-group preview conflicts with the accepted 100-row lazy-loading unit and would introduce a second loading model. |
 | 15 | File-internal `Show more` (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The accepted interaction is automatic lazy loading, not a separate per-file `Show more` control. |
 | 16 | UI virtualization / windowing validation (Suspended) | Suspended; sequence number retained for traceability | Keep the validation idea, but do not execute in the current Search performance pass. It needs dedicated UI instrumentation and E2E scrolling evidence, and should not block the backend/cache follow-up. |
-| 17 | Query / result cache | Backend / cache | Add repeated-query acceleration last so cache behavior cannot hide earlier correctness or ordering bugs. |
+| 17 | Query / result cache | Backend / cache | Done. Repeated Search pages are cached in memory with explicit invalidation after indexed content changes. |
 
 ## Testing Workflow
 
@@ -845,6 +845,41 @@ Baseline benchmark:
 | `大丈夫` | 10.81 | 100 | 185 | 74 | exact | 3.12 | 2.91, 2.94, 3.07, 3.60, 3.05 | 6.10 |
 | `今日` | 112.42 | 100 | 1282 | 81 | exact | 72.66 | 77.96, 70.31, 71.55, 73.37, 70.09 | 72.63 |
 | `の` | 710.42 | 100 | 20770 | 87 | exact | 554.17 | 573.17, 556.43, 545.65, 548.55, 547.04 | 608.62 |
+
+### Step 17 Query/Result Cache
+
+Date: 2026-05-16
+
+Implementation:
+
+- Search page results are cached in memory per `SubtitleDatabase` instance.
+- Cache keys include query text, UI `limit`, cursor offset, page mode, folder
+  scope, and subtitle-path filter.
+- The cache stores only bounded Search pages: requested limit and returned
+  result count must be at most `500`, avoiding full-result navigation pages in
+  memory.
+- Indexed-content mutations clear the cache after successful commits, including
+  subtitle replacement, folder reconciliation/removal, clearing indexed content,
+  and derived Search-index rebuilds.
+- `SearchBench` prints cache stats and clears its in-process cache before exit.
+  The benchmark database copy in `/private/tmp` was deleted after measurement.
+
+Post-cache benchmark:
+
+| Query | Warmup ms | Returned | Total count | File summaries | Cache hits | Cache misses | Hot avg ms | Hot raw ms | Cold total ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| `大丈夫` | 5.62 | 100 | 185 | 74 | 5 | 1 | 0.01 | 0.03, 0.01, 0.01, 0.01, 0.01 | 4.13 |
+| `今日` | 77.70 | 100 | 1282 | 81 | 5 | 1 | 0.01 | 0.04, 0.01, 0.01, 0.01, 0.01 | 110.17 |
+| `の` | 573.48 | 100 | 20770 | 87 | 5 | 1 | 0.02 | 0.07, 0.01, 0.00, 0.00, 0.00 | 575.61 |
+
+Read:
+
+- Warm repeated Search pages now hit cache and return in effectively zero
+  measured time in `SearchBench`.
+- Cold-query behavior is intentionally unchanged; the first search still pays
+  the normal database cost and then stores the bounded page.
+- The cache does not persist to disk, so app restart or SearchBench process exit
+  clears it. Explicit indexed-content changes also invalidate it in-process.
 
 ### Search Input Invalidation Fix
 
