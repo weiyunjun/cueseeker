@@ -1,6 +1,6 @@
 # Search Performance Follow-up
 
-Status: Deferred
+Status: Active
 
 ## Background
 
@@ -115,7 +115,9 @@ knob.
 
 The following methods came from checking mature SQLite/search-engine
 documentation after the Socratic discussion. They are not all equally useful for
-CueSeeker.
+CueSeeker. The decision column records the earlier investigation status before
+the full Search rollback; the active implementation sequence is the accepted
+17-step plan below.
 
 | Method | Origin | Search-speed value | Engineering effort | Decision |
 | --- | --- | --- | --- | --- |
@@ -190,15 +192,20 @@ Current retained implementation:
 New Socratic definitions:
 
 - "First visible Search result" now means the time until the first matching ASS
-  file has been searched enough to render all matching results from that ASS
-  file.
-- Progress should advance by ASS file: after one or more matching ASS files are
-  ready, render those file groups and update `Found <count> results in
-  <count> files` to reflect only rendered/known file groups.
+  file group can render a bounded preview of matching rows.
+- Progress should advance by ASS file, but a large ASS file must not block the
+  first useful UI update by requiring all of that file's matches to enter app
+  state.
+- Newly visible file groups may show provisional counts until exact per-file
+  counts and summaries complete in the background.
 - The benchmark headline metrics are:
-  - time until the first matching ASS file's results are rendered;
-  - time until all matching results and file counts are complete.
+  - time until the first matching ASS file group preview is rendered;
+  - time until the 2nd, 5th, and 10th matching file group previews are rendered;
+  - time until exact counts and summaries are complete;
+  - time to load another row page inside one subtitle file.
 - The prior page-level "first page" metric is no longer an acceptance metric.
+- The playback overlay Search Results list is explicitly out of scope for this
+  sequence. It needs its own data-windowing design later.
 
 Deferred methods:
 
@@ -213,7 +220,112 @@ Deferred methods:
 - Trigram tokenizer. It targets arbitrary substring search, not CueSeeker's
   current precise subtitle search model.
 
-## Benchmark Plan
+## Excluded Items
+
+The following items are not part of the next implementation sequence:
+
+- Line-level FTS plus time-window deduplication. The measured implementation
+  was a negative optimization and must not be retried automatically.
+- `ORDER BY` / `LIMIT` index support. The prior database-copy experiment showed
+  a severe regression for the current SQLite FTS shape.
+- Playback overlay Search Results lazy loading. It is a separate consumer-side
+  list problem and should be designed after the Search results page is aligned.
+
+## Accepted 17-Step Plan
+
+This is a step-by-step verification sequence. There is no bundled "first
+round". Each step must be implemented, benchmarked, and accepted or rejected
+before moving to the next step. The order is: test and diagnostic capability
+first, then the mature lazy-loading mechanism, then measured data/index tuning,
+with query/result cache last.
+
+| Step | Phase | Item | Source | Purpose |
+| ---: | --- | --- | --- | --- |
+| 1 | Test | New benchmark | Mature lazy-loading plan | Measure the new product target: file-group preview readiness, exact-count completion, and per-file load-more latency. |
+| 2 | Diagnostic | `fts5vocab` diagnostics | Old optimization list | Make high-frequency terms and possible FTS index pollution observable before later tuning. |
+| 3 | Mechanism | UI virtualization / windowing validation | Mature lazy-loading plan | Confirm that loaded rows and rendered row views are separate, and that visible row count stays bounded. |
+| 4 | Mechanism | Search-layer pagination / cursor | Mature lazy-loading plan | Avoid pushing the complete result set into app state at once. |
+| 5 | Mechanism | File-group progressive display | Mature lazy-loading plan | Render ASS/subtitle file groups as they become available. |
+| 6 | Mechanism | File-group initial preview | Mature lazy-loading plan | Show only a bounded preview, such as 20 rows, when a file group first appears. |
+| 7 | Mechanism | File-internal `Show more` | Mature lazy-loading plan | Load additional rows inside one large file group on user action, such as 100 rows per request. |
+| 8 | Mechanism | Provisional count | Mature lazy-loading plan | Show known/displayed counts without pretending they are final. |
+| 9 | Mechanism | Exact count background completion | Mature lazy-loading plan | Replace provisional counts with exact totals after the background pass finishes. |
+| 10 | Mechanism | Precomputed Library/File/Time sorting | Old optimization list | Provide stable product order without recomputing friendly-title order on every Search. |
+| 11 | Mechanism | Block search / completed unit return | Old optimization list | Let Search emit usable file or block units before the whole corpus finishes. |
+| 12 | Mechanism | Delayed count / summaries | Old optimization list | Keep exact totals out of the first useful result path. |
+| 13 | Data tuning | Index sorting / early termination | Old optimization list | Test whether FTS row order or equivalent index-sorted recall improves the new file-preview metrics. |
+| 14 | Data tuning | Filterable / sortable / facet attributes | Old optimization list | Test whether denormalized Search hot-path attributes reduce metadata and join cost under the new flow. |
+| 15 | Data tuning | Prefix index | Old optimization list | Support and benchmark English prefix search after core Search semantics are stable. |
+| 16 | Maintenance tuning | FTS `optimize` / `merge` | Old optimization list | Treat FTS segment maintenance as a measured maintenance step, not as assumed speed work. |
+| 17 | Cache | Query / result cache | Old optimization list | Add repeated-query acceleration last so cache behavior cannot hide earlier correctness or ordering bugs. |
+
+## Testing Workflow
+
+Each step uses the same local database and selected corpus unless the step
+explicitly changes indexing or schema.
+
+Benchmark queries:
+
+- `大丈夫`
+- `今日`
+- `の`
+
+Benchmark rules:
+
+- Run the benchmark before Step 1 to establish the current baseline.
+- After each step, run each query five times and record the average plus all
+  five raw timings.
+- Record at least these timings when applicable:
+  - first file-group preview visible;
+  - 2nd file-group preview visible;
+  - 5th file-group preview visible;
+  - 10th file-group preview visible;
+  - exact counts and summaries complete;
+  - complete Search work finished;
+  - per-file load-more request complete.
+- Record result shape with the timing:
+  - visible file groups;
+  - loaded rows;
+  - exact total count when known;
+  - provisional count when exact count is not known yet;
+  - maximum active rendered row views for virtualization checks.
+- Prefer non-UI automated benchmark coverage for Search-layer timings.
+  UI virtualization can use lightweight instrumentation rather than a full
+  end-to-end test when possible.
+- For Step 17, clear cache state between benchmark query groups, then run each
+  query five times so warm-cache behavior is measured without cross-query
+  contamination.
+
+## Acceptance Standards
+
+General standards:
+
+- The step must preserve Search correctness: result identity, grouping, query
+  matching behavior, result ordering, and playback target timestamps.
+- `swift build`, `swift test`, and `git diff --check` must pass before commit.
+- The benchmark table for the step must be recorded before moving to the next
+  step.
+- If a step is slower on the metric it is meant to improve, the default action
+  is to revert or disable it. Keeping a negative result requires explicit user
+  approval and a documented reason.
+
+Metric-specific standards:
+
+- Test and diagnostic steps are accepted when the agreed measurement is
+  available, repeatable, and does not materially change Search behavior.
+- Mechanism steps are accepted when the intended user-visible behavior works
+  and the new benchmark can observe it directly.
+- Performance steps are accepted only when their target metric improves or
+  stays neutral while providing a documented non-speed benefit.
+- Cache is accepted only if warm repeated queries improve while cold-query
+  behavior, cache invalidation after indexing, and result correctness remain
+  valid.
+
+## Historical Benchmark Plan Before Rollback
+
+The following benchmark plan and results are retained as evidence from the
+rolled-back optimization sequence. They are not the active acceptance standard;
+the active standard is the new Testing Workflow above.
 
 Before code changes for this optimization sequence, record a baseline benchmark
 against the current local app database.
@@ -238,7 +350,7 @@ Rules:
 - Record benchmark results in this document or a linked benchmark artifact
   before merging the next optimization step.
 
-## Benchmark Results
+## Historical Benchmark Results Before Rollback
 
 ### Baseline Before Search Optimizations
 

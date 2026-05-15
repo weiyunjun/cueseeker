@@ -163,14 +163,22 @@ The implementation evidence refined the Socratic diagnosis:
 This new round narrows the product goal before any further Search optimization:
 
 - The old "first page" concept is not the target. The desired first visible
-  unit is the first matching ASS file's complete result group.
-- Search should render by ASS file. Once one or more ASS files have complete
-  known matches, those file groups may appear and the visible result/file count
-  should update to match what is rendered or known.
-- The benchmark standard is now time to render the first matching ASS file, and
-  time to complete all matching results.
+  unit is a matching ASS file group with a bounded preview of rows.
+- A complete ASS file can still be too large to use as the first visible unit.
+  Large files should therefore expose preview rows first and more rows only on
+  user action.
+- Search should render by ASS/subtitle file. Once one or more subtitle-file
+  groups have known preview rows, those groups may appear and the visible
+  result/file count should update to match rendered or known rows.
+- The benchmark standard is now time to render the first matching file-group
+  preview, time to render later file-group previews, time to complete exact
+  counts and summaries, and time to load more rows within one file.
 - The previously benchmarked hybrid cue-line FTS path remains excluded because
   it was a measured negative optimization.
+- `ORDER BY` / `LIMIT` index support is also excluded because prior data showed
+  a severe regression for the current SQLite FTS shape.
+- Playback overlay Search Results lazy loading is explicitly out of scope for
+  this sequence and should be handled as a later consumer-side list design.
 
 ## Open Questions
 
@@ -184,20 +192,44 @@ This new round narrows the product goal before any further Search optimization:
 
 ## Accepted Next Workflow
 
-The user accepted the following implementation workflow:
+The user corrected the implementation workflow after an accidental code change
+was made during a discussion-only turn. The accepted workflow is now explicitly
+stepwise:
 
-1. Update project documentation, including this chronicle.
-2. Implement accepted optimizations in the documented order, with query/result
-   cache moved to the end because cache invalidation should not hide earlier
-   semantic bugs.
-3. Before code changes, benchmark the current implementation by searching
-   `大丈夫`, `今日`, and `の` five times each and recording average timings.
-4. After each optimization step, rerun the same benchmark before beginning the
-   next step.
-5. For query/result cache, clear cache state between benchmark query groups and
-   run each query five times to separate warm-cache effects from cross-query
-   contamination.
-6. Summarize benchmark data across all steps.
+1. Do not bundle the Search work into a broad "first round".
+2. Implement one documented item at a time only after the user explicitly asks
+   for modification or implementation.
+3. Run the agreed benchmark after each item and record the result before moving
+   to the next item.
+4. If a step is a regression on its target metric, stop and revert or disable it
+   unless the user explicitly approves keeping it.
+5. The sequence contains 17 accepted items after excluding line-level/hybrid
+   FTS, `ORDER BY` / `LIMIT` index support, and playback overlay lazy loading.
+
+The accepted order is grouped as test/diagnostic work first, mature
+lazy-loading mechanism second, measured data/index tuning third, and cache
+last:
+
+1. New benchmark.
+2. `fts5vocab` diagnostics.
+3. UI virtualization / windowing validation.
+4. Search-layer pagination / cursor.
+5. File-group progressive display.
+6. File-group initial preview.
+7. File-internal `Show more`.
+8. Provisional count.
+9. Exact count background completion.
+10. Precomputed Library/File/Time sorting.
+11. Block search / completed unit return.
+12. Delayed count / summaries.
+13. Index sorting / early termination.
+14. Filterable / sortable / facet attributes.
+15. Prefix index.
+16. FTS `optimize` / `merge`.
+17. Query / result cache.
+
+The testing workflow and acceptance standards live in
+`docs/proposals/2026-05-search-performance-follow-up.md`.
 
 ## Next Update Trigger
 

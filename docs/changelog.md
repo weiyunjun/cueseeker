@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented the corrected stepwise Search optimization plan: 17 accepted items
+  must proceed one at a time with the new file-group preview benchmark,
+  per-step acceptance data, and explicit exclusions for line-level/hybrid FTS,
+  `ORDER BY` / `LIMIT` index support, and playback overlay lazy loading.
 - Rolled back the Search optimization sequence implementation to the
   pre-optimization baseline after the visible "first page" metric proved
   misaligned with the desired user experience. The Developer Settings category
