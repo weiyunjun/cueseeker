@@ -653,6 +653,33 @@ Read:
   check too, so the cold row above measures the same visible-window path rather
   than the exact full-result path.
 
+### Search Input Invalidation Fix
+
+Date: 2026-05-15
+
+Issue:
+
+- While a visible-window Search is still running, typing a new query in the
+  topbar Search field can be overwritten by the previously submitted query.
+- The root cause is not Search result data itself. The topbar Search field was
+  observing the broad `AppState`, so Search result/status/count publications
+  could trigger `NSViewRepresentable.updateNSView` on the AppKit text view.
+- `SearchTextView.updateNSView` then wrote the SwiftUI binding back into the
+  underlying `NSTextView`, which is unsafe while the field is focused or an IME
+  marked-text composition is active.
+
+Accepted fix:
+
+- The topbar Search field owns a local input state for draft text and focus.
+  `AppState.searchQuery` is only the submitted query.
+- The topbar submits the draft through a command bridge instead of directly
+  observing the Search result state.
+- `SearchTextView` refuses unrelated programmatic text replacement while the
+  text view is focused or has marked text. Explicit user actions such as the
+  clear button still use a forced text-update token.
+- Search result updates may still refresh the result summary and list, but they
+  must not replace the active editable Search draft.
+
 ## Acceptance Standards
 
 General standards:

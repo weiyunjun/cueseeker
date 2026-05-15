@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Isolated the topbar Search input draft from Search result state. Searches can
+  continue updating results and exact counts without overwriting the user's
+  active Search-field editing or IME marked text.
 - Removed Search's hidden runtime fallback for missing materialized order rows.
   Search now requires `subtitle_search_order_rows` in the hot path and fails
   when rebuildable ordering data is missing instead of recomputing display

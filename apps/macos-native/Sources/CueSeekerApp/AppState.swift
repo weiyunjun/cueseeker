@@ -779,6 +779,7 @@ final class AppState: ObservableObject {
 
         AppPerformanceProbe.measure("AppState.clearSearchFocus", thresholdMilliseconds: 4) {
             isSearchFocused = false
+            NotificationCenter.default.post(name: .topbarSearchFocusClearRequested, object: nil)
         }
     }
 

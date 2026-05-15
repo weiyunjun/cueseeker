@@ -5,6 +5,7 @@ struct SearchTextView: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
     @Binding var isFocused: Bool
+    var forcedTextUpdateID: Int = 0
     var onSubmit: () -> Void = {}
 
     func makeNSView(context: Context) -> CustomTextView {
@@ -34,8 +35,18 @@ struct SearchTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ textView: CustomTextView, context: Context) {
-        if textView.string != text {
-            // Keep cursor position if possible, but for simple search box this is fine
+        let shouldForceTextUpdate = context.coordinator.appliedForcedTextUpdateID != forcedTextUpdateID
+        if shouldForceTextUpdate {
+            context.coordinator.appliedForcedTextUpdateID = forcedTextUpdateID
+        }
+        let shouldApplyTextUpdate = SearchTextViewTextUpdatePolicy.shouldApplyProgrammaticTextUpdate(
+            currentText: textView.string,
+            targetText: text,
+            isFocused: textView.window?.firstResponder == textView,
+            hasMarkedText: textView.hasMarkedText(),
+            isForced: shouldForceTextUpdate
+        )
+        if shouldApplyTextUpdate {
             textView.string = text
         }
         
@@ -56,9 +67,11 @@ struct SearchTextView: NSViewRepresentable {
 
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: SearchTextView
+        var appliedForcedTextUpdateID: Int
 
         init(_ parent: SearchTextView) {
             self.parent = parent
+            self.appliedForcedTextUpdateID = parent.forcedTextUpdateID
         }
 
         func textDidChange(_ notification: Notification) {
@@ -73,6 +86,26 @@ struct SearchTextView: NSViewRepresentable {
             }
             return false
         }
+    }
+}
+
+enum SearchTextViewTextUpdatePolicy {
+    static func shouldApplyProgrammaticTextUpdate(
+        currentText: String,
+        targetText: String,
+        isFocused: Bool,
+        hasMarkedText: Bool,
+        isForced: Bool
+    ) -> Bool {
+        guard currentText != targetText else {
+            return false
+        }
+
+        if isForced {
+            return true
+        }
+
+        return !isFocused && !hasMarkedText
     }
 }
 

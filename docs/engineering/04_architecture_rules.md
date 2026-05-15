@@ -219,6 +219,14 @@ Rules:
   views must not subscribe to unrelated high-frequency or high-cardinality state
   when a smaller store, value model, or binding can express the same UI
   responsibility.
+- Editable input draft state must be separated from submitted application
+  state when background work can update the submitted state. For example, the
+  topbar Search field owns its own draft and focus state, while `searchQuery`
+  represents only the submitted query.
+- AppKit-backed editable controls must not overwrite focused text or active
+  IME marked text from `updateNSView` during unrelated SwiftUI invalidations.
+  Programmatic text replacement needs an explicit user action or focused-control
+  ownership signal.
 - Performance diagnostics used to investigate UI stalls, such as run-loop
   observers, automatic `sample` capture, or broad SwiftUI body/layout probes,
   must not become unconditional production behavior. After a regression is

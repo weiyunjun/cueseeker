@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -25,6 +26,9 @@ struct ContentView: View {
                 AppTopBar(backgroundColor: contentBackground)
                     .frame(height: AppShellLayout.topBarHeight)
                     .zIndex(3)
+
+                TopbarCommandBridge()
+                    .frame(width: 0, height: 0)
             }
             .ignoresSafeArea(.container, edges: .top)
             .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
@@ -39,10 +43,6 @@ struct ContentView: View {
 }
 
 private struct AppTopBar: View {
-    @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var layoutState: WorkbenchLayoutState
-    @State private var searchDraft = ""
-
     let backgroundColor: Color
 
     var body: some View {
@@ -56,7 +56,8 @@ private struct AppTopBar: View {
         TitlebarBackgroundView(
             backgroundColor: backgroundColor,
             onDoubleClickZoom: { window in
-                appState.beginTitlebarZoomTransitionFromUser(window: window)
+                NotificationCenter.default.post(name: .topbarTitlebarZoomRequested, object: window)
+                return true
             }
         )
             .overlay(alignment: .center) {
@@ -75,34 +76,51 @@ private struct AppTopBar: View {
                         )
                     }
 
-                    TopbarSearchField(
-                        text: $searchDraft,
-                        isFocused: $appState.isSearchFocused,
-                        onSubmit: {
-                            appState.submitTopbarSearch(searchDraft)
-                        }
-                    )
+                    TopbarSearchInputHost()
                     .frame(width: AppShellLayout.topbarSearchFieldWidth)
-                }
-            }
-            .onAppear {
-                searchDraft = appState.searchQuery
-            }
-            .onChange(of: appState.searchQuery) { query in
-                if !appState.isSearchFocused {
-                    searchDraft = query
-                }
-            }
-            .onChange(of: appState.isSearchFocused) { isFocused in
-                if isFocused, layoutState.panelMode != .search {
-                    appState.activateWorkbenchPanelMode(.search)
                 }
             }
             .simultaneousGesture(
                 TapGesture().onEnded {
-                    appState.dismissBottomPlaybackMenu()
+                    NotificationCenter.default.post(name: .topbarDismissMenusRequested, object: nil)
                 }
             )
+    }
+}
+
+private struct TopbarCommandBridge: View {
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
+
+    var body: some View {
+        Color.clear
+            .onReceive(NotificationCenter.default.publisher(for: .topbarSearchSubmitted)) { notification in
+                guard let query = notification.object as? String else {
+                    return
+                }
+
+                appState.submitTopbarSearch(query)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .topbarSearchFocusChanged)) { notification in
+                guard let isFocused = notification.object as? Bool else {
+                    return
+                }
+
+                appState.isSearchFocused = isFocused
+                if isFocused, layoutState.panelMode != .search {
+                    appState.activateWorkbenchPanelMode(.search)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .topbarDismissMenusRequested)) { _ in
+                appState.dismissBottomPlaybackMenu()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .topbarTitlebarZoomRequested)) { notification in
+                guard let window = notification.object as? NSWindow else {
+                    return
+                }
+
+                _ = appState.beginTitlebarZoomTransitionFromUser(window: window)
+            }
     }
 }
 
@@ -163,10 +181,24 @@ private struct TopbarModeButtonStyle: ButtonStyle {
     }
 }
 
+private struct TopbarSearchInputHost: View {
+    @StateObject private var inputState = TopbarSearchInputState()
+
+    var body: some View {
+        UIInvalidationProbe.count("UI.TopbarSearchInput.body")
+
+        return TopbarSearchField(inputState: inputState)
+            .onChange(of: inputState.isFocused) { isFocused in
+                NotificationCenter.default.post(name: .topbarSearchFocusChanged, object: isFocused)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .topbarSearchFocusClearRequested)) { _ in
+                inputState.requestFocus(false)
+            }
+    }
+}
+
 private struct TopbarSearchField: View {
-    @Binding var text: String
-    @Binding var isFocused: Bool
-    let onSubmit: () -> Void
+    @ObservedObject var inputState: TopbarSearchInputState
     @State private var isHovered = false
 
     var body: some View {
@@ -176,16 +208,19 @@ private struct TopbarSearchField: View {
                 .foregroundStyle(AppShellLayout.topbarSearchIconColor)
 
             SearchTextView(
-                text: $text,
+                text: $inputState.draft,
                 placeholder: "Search subtitles",
-                isFocused: $isFocused,
-                onSubmit: onSubmit
+                isFocused: $inputState.isFocused,
+                forcedTextUpdateID: inputState.forcedTextUpdateID,
+                onSubmit: {
+                    inputState.submit()
+                }
             )
             .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
 
-            if !text.isEmpty {
+            if !inputState.draft.isEmpty {
                 Button {
-                    text = ""
+                    inputState.clearDraft()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 14))
@@ -204,18 +239,18 @@ private struct TopbarSearchField: View {
             RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius)
                 .strokeBorder(
                     topbarSearchBorderColor,
-                    lineWidth: isFocused ? 3 : 1.5
+                    lineWidth: inputState.isFocused ? 3 : 1.5
                 )
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .onTapGesture {
-            isFocused = true
+            inputState.requestFocus(true)
         }
     }
 
     private var topbarSearchBorderColor: Color {
-        if isFocused {
+        if inputState.isFocused {
             return AppShellLayout.topbarSearchBorderColor
         }
         if isHovered {
