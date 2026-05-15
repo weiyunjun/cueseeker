@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added Search Step 1 benchmark-gap observability. Search E2E JSONL now records
+  file-group preview milestones, exact-count completion, and per-file load-more
+  timings; `SearchBench --step1-gaps` prints matching machine-readable metrics.
 - Reworked Search E2E logging into a single JSONL benchmark stream. Completed
   Search records now expose `query`, `warmupMilliseconds`, `returned`,
   `totalCount`, `fileSummaries`, `hotAvgMilliseconds`, and `hotRawMilliseconds`

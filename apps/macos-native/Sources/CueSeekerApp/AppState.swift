@@ -2605,6 +2605,7 @@ final class AppState: ObservableObject {
         let currentRows = searchResults
             .filter { $0.subtitlePath == subtitlePath }
             .sorted(by: Self.searchResultSort)
+        let rowsBefore = currentRows.count
         expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
         rebuildSearchResultGroups()
 
@@ -2620,19 +2621,54 @@ final class AppState: ObservableObject {
             return
         }
         let pageSize = Self.searchPageSize
+        let subtitleDisplayTitle = searchFileSummaries
+            .first(where: { $0.subtitlePath == subtitlePath })?
+            .subtitleDisplayTitle
+            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: subtitlePath)
+        let totalCount = searchFileSummaries
+            .first(where: { $0.subtitlePath == subtitlePath })?
+            .matchCount
+        let loadMoreRun = SearchPerformanceLogger.startRun(
+            query: trimmedQuery,
+            queryLength: trimmedQuery.count,
+            offset: 0,
+            limit: pageSize,
+            appending: true,
+            debounce: false,
+            folderPaths: folders.map(\.path),
+            e2eLoggingEnabled: searchE2ELoggingEnabled
+        )
         searchResultGroupTasks[subtitlePath] = Task { [weak self] in
             do {
-                let results = try await Task.detached(priority: .userInitiated) {
-                    return try database.search(
+                let pageLoad = try await Task.detached(priority: .userInitiated) {
+                    let databaseSearchStart = SearchPerformanceLogger.now()
+                    let results = try database.search(
                         trimmedQuery,
                         limit: pageSize,
                         offset: 0,
                         under: folders,
                         inSubtitlePath: subtitlePath
                     )
+                    let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
+                        since: databaseSearchStart
+                    )
+                    return (results, databaseSearchMilliseconds)
                 }.value
+                let results = pageLoad.0
+                let databaseSearchMilliseconds = pageLoad.1
 
                 guard !Task.isCancelled else {
+                    SearchPerformanceLogger.writeE2EFileLoadMore(
+                        loadMoreRun,
+                        subtitlePath: subtitlePath,
+                        subtitleDisplayTitle: subtitleDisplayTitle,
+                        rowsBefore: rowsBefore,
+                        rowsAfter: nil,
+                        returned: nil,
+                        totalCount: totalCount,
+                        databaseSearchMilliseconds: databaseSearchMilliseconds,
+                        status: "cancelled"
+                    )
                     return
                 }
 
@@ -2640,21 +2676,76 @@ final class AppState: ObservableObject {
                       self.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       self.searchFileSummaries.contains(where: { $0.subtitlePath == subtitlePath })
                 else {
+                    SearchPerformanceLogger.writeE2EFileLoadMore(
+                        loadMoreRun,
+                        subtitlePath: subtitlePath,
+                        subtitleDisplayTitle: subtitleDisplayTitle,
+                        rowsBefore: rowsBefore,
+                        rowsAfter: nil,
+                        returned: results.count,
+                        totalCount: totalCount,
+                        databaseSearchMilliseconds: databaseSearchMilliseconds,
+                        status: "cancelled"
+                    )
                     return
                 }
 
                 self.expandedSearchResultGroupRowsByPath[subtitlePath] = results
                 self.searchResultGroupTasks.removeValue(forKey: subtitlePath)
                 self.rebuildSearchResultGroups()
+                SearchPerformanceLogger.writeE2EFileLoadMore(
+                    loadMoreRun,
+                    subtitlePath: subtitlePath,
+                    subtitleDisplayTitle: subtitleDisplayTitle,
+                    rowsBefore: rowsBefore,
+                    rowsAfter: results.count,
+                    returned: results.count,
+                    totalCount: totalCount,
+                    databaseSearchMilliseconds: databaseSearchMilliseconds,
+                    groupCount: self.searchResultGroups.count,
+                    renderedRowCount: self.renderedSearchResultCount,
+                    status: "completed"
+                )
             } catch is CancellationError {
+                SearchPerformanceLogger.writeE2EFileLoadMore(
+                    loadMoreRun,
+                    subtitlePath: subtitlePath,
+                    subtitleDisplayTitle: subtitleDisplayTitle,
+                    rowsBefore: rowsBefore,
+                    rowsAfter: nil,
+                    returned: nil,
+                    totalCount: totalCount,
+                    status: "cancelled"
+                )
                 return
             } catch {
                 guard !Task.isCancelled else {
+                    SearchPerformanceLogger.writeE2EFileLoadMore(
+                        loadMoreRun,
+                        subtitlePath: subtitlePath,
+                        subtitleDisplayTitle: subtitleDisplayTitle,
+                        rowsBefore: rowsBefore,
+                        rowsAfter: nil,
+                        returned: nil,
+                        totalCount: totalCount,
+                        status: "cancelled"
+                    )
                     return
                 }
 
                 self?.searchResultGroupTasks.removeValue(forKey: subtitlePath)
                 self?.searchStatus = .failed(Self.errorMessage(for: error))
+                SearchPerformanceLogger.writeE2EFileLoadMore(
+                    loadMoreRun,
+                    subtitlePath: subtitlePath,
+                    subtitleDisplayTitle: subtitleDisplayTitle,
+                    rowsBefore: rowsBefore,
+                    rowsAfter: nil,
+                    returned: nil,
+                    totalCount: totalCount,
+                    status: "failed",
+                    error: Self.errorMessage(for: error)
+                )
             }
         }
     }

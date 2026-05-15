@@ -94,7 +94,7 @@ private struct SearchPerformanceLogEntry: Sendable {
 }
 
 private struct SearchE2ELogEntry: Encodable, Sendable {
-    let schemaVersion = 2
+    let schemaVersion = 3
     let timestamp: String
     let sequence: UInt64
     let runID: UInt64
@@ -116,6 +116,11 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
     let limit: Int
     let groups: Int?
     let renderedRows: Int?
+    let loadedFileGroups: Int?
+    let loadedRows: Int?
+    let fileGroupPreviewMilestones: [SearchE2EFileGroupPreviewMilestone]?
+    let exactCountsCompletion: SearchE2EExactCountsSnapshot?
+    let perFileLoadMore: SearchE2EFileLoadMoreSnapshot?
     let databaseMilliseconds: Double?
     let elapsedMilliseconds: Double
     let firstVisibleMilliseconds: Double?
@@ -154,6 +159,11 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         case limit
         case groups
         case renderedRows
+        case loadedFileGroups
+        case loadedRows
+        case fileGroupPreviewMilestones
+        case exactCountsCompletion
+        case perFileLoadMore
         case databaseMilliseconds
         case elapsedMilliseconds
         case firstVisibleMilliseconds
@@ -194,6 +204,11 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         try container.encode(limit, forKey: .limit)
         try encodeNullable(groups, forKey: .groups, into: &container)
         try encodeNullable(renderedRows, forKey: .renderedRows, into: &container)
+        try encodeNullable(loadedFileGroups, forKey: .loadedFileGroups, into: &container)
+        try encodeNullable(loadedRows, forKey: .loadedRows, into: &container)
+        try encodeNullable(fileGroupPreviewMilestones, forKey: .fileGroupPreviewMilestones, into: &container)
+        try encodeNullable(exactCountsCompletion, forKey: .exactCountsCompletion, into: &container)
+        try encodeNullable(perFileLoadMore, forKey: .perFileLoadMore, into: &container)
         try encodeNullable(databaseMilliseconds, forKey: .databaseMilliseconds, into: &container)
         try container.encode(elapsedMilliseconds, forKey: .elapsedMilliseconds)
         try encodeNullable(firstVisibleMilliseconds, forKey: .firstVisibleMilliseconds, into: &container)
@@ -238,6 +253,36 @@ private struct SearchE2EUISnapshot: Encodable, Sendable {
     let firstVisibleEntryID: Int64?
 }
 
+private struct SearchE2EFileGroupPreviewMilestone: Encodable, Sendable {
+    let targetFileGroups: Int
+    let reached: Bool
+    let elapsedMilliseconds: Double?
+    let subtitlePath: String?
+    let subtitleDisplayTitle: String?
+    let loadedRows: Int
+    let totalRows: Int?
+}
+
+private struct SearchE2EExactCountsSnapshot: Encodable, Sendable {
+    let completed: Bool
+    let elapsedMilliseconds: Double?
+    let totalCount: Int?
+    let fileSummaries: Int?
+}
+
+private struct SearchE2EFileLoadMoreSnapshot: Encodable, Sendable {
+    let subtitlePath: String
+    let subtitleDisplayTitle: String
+    let offset: Int
+    let limit: Int
+    let returned: Int?
+    let totalCount: Int?
+    let rowsBefore: Int
+    let rowsAfter: Int?
+    let databaseMilliseconds: Double?
+    let requestMilliseconds: Double
+}
+
 private struct SearchE2ESamples: Sendable {
     private static let sampleResultLimit = 5
     private static let fileSummaryLimit = 10
@@ -248,18 +293,70 @@ private struct SearchE2ESamples: Sendable {
     let totalCount: Int
     let fileSummaryCount: Int
     let hasMore: Bool
+    let loadedFileGroups: Int
+    let loadedRows: Int
+    let fileGroupPreviewMilestones: [SearchE2EFileGroupPreviewMilestone]
+    let exactCountsCompletion: SearchE2EExactCountsSnapshot
 
-    init(page: SubtitleSearchPage, offset: Int) {
+    init(page: SubtitleSearchPage, offset: Int, elapsedMilliseconds: Double) {
         returned = page.results.count
         totalCount = page.totalCount
         fileSummaryCount = page.fileSummaries.count
         hasMore = offset + page.results.count < page.totalCount
+        let loadedRowsByPath = Dictionary(grouping: page.results, by: \.subtitlePath)
+        let loadedSummaryPaths = page.fileSummaries.filter {
+            loadedRowsByPath[$0.subtitlePath]?.isEmpty == false
+        }
+        loadedFileGroups = loadedSummaryPaths.count
+        loadedRows = page.results.count
+        fileGroupPreviewMilestones = Self.previewMilestones(
+            summaries: loadedSummaryPaths,
+            loadedRowsByPath: loadedRowsByPath,
+            elapsedMilliseconds: elapsedMilliseconds
+        )
+        exactCountsCompletion = SearchE2EExactCountsSnapshot(
+            completed: true,
+            elapsedMilliseconds: elapsedMilliseconds,
+            totalCount: page.totalCount,
+            fileSummaries: page.fileSummaries.count
+        )
         sampleResults = page.results
             .prefix(Self.sampleResultLimit)
             .map(SearchE2EResultSnapshot.init)
         topFileSummaries = page.fileSummaries
             .prefix(Self.fileSummaryLimit)
             .map(SearchE2EFileSummarySnapshot.init)
+    }
+
+    private static func previewMilestones(
+        summaries: [SubtitleSearchFileSummary],
+        loadedRowsByPath: [String: [SubtitleSearchResult]],
+        elapsedMilliseconds: Double
+    ) -> [SearchE2EFileGroupPreviewMilestone] {
+        [1, 2, 5, 10].map { target in
+            guard summaries.count >= target else {
+                return SearchE2EFileGroupPreviewMilestone(
+                    targetFileGroups: target,
+                    reached: false,
+                    elapsedMilliseconds: nil,
+                    subtitlePath: nil,
+                    subtitleDisplayTitle: nil,
+                    loadedRows: 0,
+                    totalRows: nil
+                )
+            }
+
+            let summary = summaries[target - 1]
+            return SearchE2EFileGroupPreviewMilestone(
+                targetFileGroups: target,
+                reached: true,
+                elapsedMilliseconds: elapsedMilliseconds,
+                subtitlePath: summary.subtitlePath,
+                subtitleDisplayTitle: summary.subtitleDisplayTitle,
+                loadedRows: loadedRowsByPath[summary.subtitlePath]?.count ?? 0,
+                totalRows: summary.matchCount
+            )
+        }
     }
 }
 
@@ -626,7 +723,13 @@ enum SearchPerformanceLogger {
 
         let timestamp = now()
         let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
-        let samples = page.map { SearchE2ESamples(page: $0, offset: run.offset) }
+        let samples = page.map {
+            SearchE2ESamples(
+                page: $0,
+                offset: run.offset,
+                elapsedMilliseconds: elapsedMilliseconds
+            )
+        }
         let benchmark = makeE2EBenchmarkSnapshot(
             for: run,
             page: page,
@@ -655,6 +758,11 @@ enum SearchPerformanceLogger {
             limit: run.limit,
             groups: groupCount,
             renderedRows: renderedRowCount,
+            loadedFileGroups: samples?.loadedFileGroups,
+            loadedRows: samples?.loadedRows,
+            fileGroupPreviewMilestones: samples?.fileGroupPreviewMilestones,
+            exactCountsCompletion: status == "completed" ? samples?.exactCountsCompletion : nil,
+            perFileLoadMore: nil,
             databaseMilliseconds: databaseSearchMilliseconds,
             elapsedMilliseconds: elapsedMilliseconds,
             firstVisibleMilliseconds: nil,
@@ -722,6 +830,11 @@ enum SearchPerformanceLogger {
             limit: run.limit,
             groups: groupCount,
             renderedRows: renderedRowCount,
+            loadedFileGroups: nil,
+            loadedRows: nil,
+            fileGroupPreviewMilestones: nil,
+            exactCountsCompletion: nil,
+            perFileLoadMore: nil,
             databaseMilliseconds: nil,
             elapsedMilliseconds: elapsedMilliseconds,
             firstVisibleMilliseconds: elapsedMilliseconds,
@@ -747,6 +860,93 @@ enum SearchPerformanceLogger {
             sampleResults: nil,
             topFileSummaries: nil,
             firstVisibleResult: SearchE2EResultSnapshot(result: result)
+        )
+        e2eWriter.write(entry)
+    }
+
+    static func writeE2EFileLoadMore(
+        _ run: SearchPerformanceRun?,
+        subtitlePath: String,
+        subtitleDisplayTitle: String,
+        rowsBefore: Int,
+        rowsAfter: Int?,
+        returned: Int?,
+        totalCount: Int?,
+        databaseSearchMilliseconds: Double? = nil,
+        groupCount: Int? = nil,
+        renderedRowCount: Int? = nil,
+        status: String,
+        error: String? = nil
+    ) {
+        guard let run, run.e2eLoggingEnabled else {
+            return
+        }
+
+        let timestamp = now()
+        let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
+        let entry = SearchE2ELogEntry(
+            timestamp: timestampString(),
+            sequence: state.allocateSequence(),
+            runID: run.id,
+            event: "per_file_load_more_completed",
+            query: run.query,
+            benchmarkMetric: nil,
+            warmupMilliseconds: nil,
+            returned: returned,
+            totalCount: totalCount,
+            fileSummaries: nil,
+            hotAvgMilliseconds: nil,
+            hotRawMilliseconds: nil,
+            currentRunKind: nil,
+            currentRunMilliseconds: nil,
+            hotRunCount: nil,
+            hotTargetRunCount: nil,
+            hasMore: totalCount.map { (rowsAfter ?? rowsBefore) < $0 },
+            offset: run.offset,
+            limit: run.limit,
+            groups: groupCount,
+            renderedRows: renderedRowCount,
+            loadedFileGroups: nil,
+            loadedRows: rowsAfter,
+            fileGroupPreviewMilestones: nil,
+            exactCountsCompletion: nil,
+            perFileLoadMore: SearchE2EFileLoadMoreSnapshot(
+                subtitlePath: subtitlePath,
+                subtitleDisplayTitle: subtitleDisplayTitle,
+                offset: run.offset,
+                limit: run.limit,
+                returned: returned,
+                totalCount: totalCount,
+                rowsBefore: rowsBefore,
+                rowsAfter: rowsAfter,
+                databaseMilliseconds: databaseSearchMilliseconds,
+                requestMilliseconds: elapsedMilliseconds
+            ),
+            databaseMilliseconds: databaseSearchMilliseconds,
+            elapsedMilliseconds: elapsedMilliseconds,
+            firstVisibleMilliseconds: nil,
+            status: status,
+            queryLength: run.queryLength,
+            appending: run.appending,
+            debounce: run.debounce,
+            folders: run.folderPaths,
+            error: error,
+            timings: SearchE2ETimingSnapshot(
+                elapsedMilliseconds: elapsedMilliseconds,
+                databaseSearchMilliseconds: databaseSearchMilliseconds,
+                stateAssignMilliseconds: nil,
+                groupRebuildMilliseconds: nil,
+                statusCompletionMilliseconds: nil,
+                firstVisibleElapsedMilliseconds: nil
+            ),
+            ui: SearchE2EUISnapshot(
+                groupCount: groupCount,
+                renderedRowCount: renderedRowCount,
+                firstVisibleEntryID: nil
+            ),
+            sampleResults: nil,
+            topFileSummaries: nil,
+            firstVisibleResult: nil
         )
         e2eWriter.write(entry)
     }

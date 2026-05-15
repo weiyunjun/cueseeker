@@ -30,10 +30,18 @@ Each Search E2E JSONL line keeps the benchmark table fields at the top level:
 `hotAvgMilliseconds`, and `hotRawMilliseconds`. The rolling benchmark fields
 use `elapsedMilliseconds` as the client end-to-end metric. The same record also
 keeps `databaseMilliseconds`, UI timing breakdowns, rendered counts, and small
-result/file-summary samples for orientation.
+result/file-summary samples for orientation. Schema version 3 also records the
+Step 1 benchmark-gap fields:
+
+- `fileGroupPreviewMilestones`: readiness for the 1st, 2nd, 5th, and 10th
+  loaded file-group previews.
+- `exactCountsCompletion`: when exact result totals and file summaries became
+  available.
+- `perFileLoadMore`: per-subtitle-file page load timing for expand/load-more
+  actions.
 
 Example `search_status_completed` line:
 
 ```json
-{"schemaVersion":2,"timestamp":"2026-05-15 15:09:57.438 +08:00","sequence":51,"runID":1,"event":"search_status_completed","query":"世界","benchmarkMetric":"elapsedMilliseconds","warmupMilliseconds":602.6,"returned":100,"totalCount":2078,"fileSummaries":84,"hotAvgMilliseconds":null,"hotRawMilliseconds":[],"currentRunKind":"warmup","currentRunMilliseconds":602.6,"hotRunCount":0,"hotTargetRunCount":5,"hasMore":true,"offset":0,"limit":100,"groups":84,"renderedRows":100,"databaseMilliseconds":579.74,"elapsedMilliseconds":602.6,"firstVisibleMilliseconds":null,"status":"completed"}
+{"schemaVersion":3,"timestamp":"2026-05-15 15:09:57.438 +08:00","sequence":51,"runID":1,"event":"search_status_completed","query":"世界","benchmarkMetric":"elapsedMilliseconds","warmupMilliseconds":602.6,"returned":100,"totalCount":2078,"fileSummaries":84,"hotAvgMilliseconds":null,"hotRawMilliseconds":[],"currentRunKind":"warmup","currentRunMilliseconds":602.6,"hotRunCount":0,"hotTargetRunCount":5,"hasMore":true,"offset":0,"limit":100,"groups":84,"renderedRows":100,"loadedFileGroups":10,"loadedRows":100,"fileGroupPreviewMilestones":[{"targetFileGroups":1,"reached":true,"elapsedMilliseconds":602.6,"subtitleDisplayTitle":"Ave Mujica - 01","loadedRows":3,"totalRows":3}],"exactCountsCompletion":{"completed":true,"elapsedMilliseconds":602.6,"totalCount":2078,"fileSummaries":84},"databaseMilliseconds":579.74,"elapsedMilliseconds":602.6,"firstVisibleMilliseconds":null,"status":"completed"}
 ```

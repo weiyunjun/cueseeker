@@ -357,6 +357,46 @@ In this table, `File summaries` is the count of unique matching subtitle files.
 | `今日` | 316.74 | 1000 | 1282 | 81 | 170.28 | 170.23, 167.20, 167.40, 169.72, 176.85 |
 | `の` | 1447.85 | 1000 | 20770 | 87 | 1125.95 | 1120.03, 1119.29, 1124.35, 1143.77, 1122.32 |
 
+### Step 1 Benchmark Gap Outputs
+
+Step 1 adds measurement coverage only. It does not change Search ordering,
+pagination semantics, grouping semantics, or the visible Search UI.
+
+The app E2E JSONL stream records the new measurements under schema version 3:
+
+- `fileGroupPreviewMilestones` for the 1st, 2nd, 5th, and 10th loaded
+  file-group previews.
+- `exactCountsCompletion` for exact result totals and file summaries.
+- `perFileLoadMore` for subtitle-path-filtered page loads triggered by
+  per-file expand/load-more behavior.
+
+`SearchBench --step1-gaps` prints a `STEP1_GAPS_JSON` line with matching
+machine-readable metrics for automated benchmark capture.
+
+Verification run:
+
+Date: 2026-05-15
+
+Worktree base before this Step 1 commit: `ff163df`
+
+Command:
+
+```bash
+.build/arm64-apple-macosx/debug/SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" 大丈夫 100 --step1-gaps
+```
+
+Result:
+
+| Query | Limit | Warmup complete ms | Hot avg complete ms | Hot raw complete ms | Returned | Total count | File summaries | Loaded preview groups | Per-file target | Per-file warmup ms | Per-file hot avg ms | Per-file hot raw ms |
+| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- |
+| `大丈夫` | 100 | 478.54 | 90.87 | 89.84, 90.77, 90.36, 91.52, 91.86 | 100 | 185 | 74 | 39 | `Ave Mujica - 01` | 1.07 | 0.74 | 0.77, 0.75, 0.73, 0.72, 0.73 |
+
+Preview milestones were reached for the 1st, 2nd, 5th, and 10th loaded file
+groups in the current complete-page baseline. Because this step adds
+measurement only, those preview milestones currently use the complete-page
+elapsed time; later mechanism steps must move them earlier before they can
+count as a Search responsiveness improvement.
+
 ## Acceptance Standards
 
 General standards:
