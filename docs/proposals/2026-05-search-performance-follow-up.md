@@ -310,9 +310,9 @@ stable.
 | 10 | Filterable / sortable / facet attributes | Backend / data model and index | Test whether denormalized Search hot-path attributes reduce metadata and join cost under the new flow. |
 | 11 | Prefix index | Backend / index | Support and benchmark English prefix search after core Search semantics are stable. |
 | 12 | FTS `optimize` / `merge` | Backend / maintenance strategy | Treat FTS segment maintenance as a measured maintenance step, not as assumed speed work. |
-| 13 | File-group progressive display | Front-end and backend combined: backend grouped output, front-end display | Render ASS/subtitle file groups as they become available after the backend contract is stable. |
-| 14 | File-group initial preview | Front-end and backend combined: backend preview bound, front-end display | Show only a bounded preview, such as 20 rows, when a file group first appears. |
-| 15 | File-internal `Show more` | Front-end and backend combined: front-end control plus backend per-file loading | Load additional rows inside one large file group on user action, such as 100 rows per request. |
+| 13 | File-group progressive display (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The current front-end lazy-loading behavior would not make this step's near-bottom polling effect observable while the Search request itself is still the bottleneck. |
+| 14 | File-group initial preview (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. A smaller file-group preview conflicts with the accepted 100-row lazy-loading unit and would introduce a second loading model. |
+| 15 | File-internal `Show more` (Deprecated) | Deprecated; sequence number retained for traceability | Do not execute. The accepted interaction is automatic lazy loading, not a separate per-file `Show more` control. |
 | 16 | UI virtualization / windowing validation | Front-end / test | Confirm through tests or logs that loaded rows and rendered row views are separate, and that visible row count stays bounded. |
 | 17 | Query / result cache | Backend / cache | Add repeated-query acceleration last so cache behavior cannot hide earlier correctness or ordering bugs. |
 
