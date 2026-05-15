@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Reordered the Search optimization backlog so backend, diagnostics, state
+  model, index, and maintenance work happen before front-end combined display
+  work, while keeping query/result cache as the final implementation step.
 - Clarified the Search optimization end-to-end gate: manual app verification
   must search `大丈夫`, `今日`, and `の` in order, follow documented wait and
   scroll counts, and record per-query acceptance evidence before a step is

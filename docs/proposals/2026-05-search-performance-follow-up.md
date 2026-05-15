@@ -261,25 +261,25 @@ Diagnostic visibility remains in benchmark output or logs unless the user
 explicitly accepts a front-end diagnostic surface after the core mechanism is
 stable.
 
-| Step | Phase | Item | Source | Purpose |
-| ---: | --- | --- | --- | --- |
-| 1 | Test | New benchmark gaps | Mature lazy-loading plan | Fill only the missing benchmark coverage needed to measure file-group preview readiness, exact-count completion, and per-file load-more latency after the baseline has been recorded. |
-| 2 | Mechanism | Search-layer pagination / cursor | Mature lazy-loading plan | Avoid pushing the complete result set into app state at once. |
-| 3 | Mechanism | File-group progressive display | Mature lazy-loading plan | Render ASS/subtitle file groups as they become available. |
-| 4 | Mechanism | File-group initial preview | Mature lazy-loading plan | Show only a bounded preview, such as 20 rows, when a file group first appears. |
-| 5 | Mechanism | File-internal `Show more` | Mature lazy-loading plan | Load additional rows inside one large file group on user action, such as 100 rows per request. |
-| 6 | Mechanism | Provisional count model | Mature lazy-loading plan | Track known counts without pretending they are final, measured through logs or benchmark output until the UI is stable. |
-| 7 | Mechanism | Exact count background completion | Mature lazy-loading plan | Replace provisional counts with exact totals after the background pass finishes, without repeating expensive Search work per file. |
-| 8 | Test | UI virtualization / windowing validation | Mature lazy-loading plan | Confirm through tests or logs that loaded rows and rendered row views are separate, and that visible row count stays bounded. |
-| 9 | Diagnostic | `fts5vocab` diagnostics | Old optimization list | Make high-frequency terms and possible FTS index pollution observable through benchmark or log output before later tuning. |
-| 10 | Mechanism | Precomputed Library/File/Time sorting | Old optimization list | Provide stable product order without recomputing friendly-title order on every Search. |
-| 11 | Mechanism | Block search / completed unit return | Old optimization list | Let Search emit usable file or block units before the whole corpus finishes. |
-| 12 | Mechanism | Delayed count / summaries | Old optimization list | Keep exact totals out of the first useful result path. |
-| 13 | Data tuning | Index sorting / early termination | Old optimization list | Test whether FTS row order or equivalent index-sorted recall improves the new file-preview metrics. |
-| 14 | Data tuning | Filterable / sortable / facet attributes | Old optimization list | Test whether denormalized Search hot-path attributes reduce metadata and join cost under the new flow. |
-| 15 | Data tuning | Prefix index | Old optimization list | Support and benchmark English prefix search after core Search semantics are stable. |
-| 16 | Maintenance tuning | FTS `optimize` / `merge` | Old optimization list | Treat FTS segment maintenance as a measured maintenance step, not as assumed speed work. |
-| 17 | Cache | Query / result cache | Old optimization list | Add repeated-query acceleration last so cache behavior cannot hide earlier correctness or ordering bugs. |
+| Step | Item | Ownership | Purpose |
+| ---: | --- | --- | --- |
+| 1 | New benchmark gaps | Test / benchmark, backend-leaning | Fill only the missing benchmark coverage needed to measure file-group preview readiness, exact-count completion, and per-file load-more latency after the baseline has been recorded. |
+| 2 | Search-layer pagination / cursor | Backend-first, AppState integration | Avoid pushing the complete result set into app state at once while keeping continuation state explicit. |
+| 3 | Provisional count model | Backend / state model; no front-end performance display yet | Track known counts without pretending they are final, measured through logs or benchmark output until the UI is stable. |
+| 4 | Exact count background completion | Backend-first | Replace provisional counts with exact totals after the background pass finishes, without repeating expensive Search work per file. |
+| 5 | `fts5vocab` diagnostics | Backend / diagnostic tool | Make high-frequency terms and possible FTS index pollution observable through benchmark or log output before later tuning. |
+| 6 | Precomputed Library/File/Time sorting | Backend / index data | Provide stable product order without recomputing friendly-title order on every Search. |
+| 7 | Block search / completed unit return | Backend-first, front-end consumes results | Let Search emit usable file or block units before the whole corpus finishes. |
+| 8 | Delayed count / summaries | Backend / state model | Keep exact totals out of the first useful result path. |
+| 9 | Index sorting / early termination | Backend / database query optimization | Test whether FTS row order or equivalent index-sorted recall improves the new file-preview metrics. |
+| 10 | Filterable / sortable / facet attributes | Backend / data model and index | Test whether denormalized Search hot-path attributes reduce metadata and join cost under the new flow. |
+| 11 | Prefix index | Backend / index | Support and benchmark English prefix search after core Search semantics are stable. |
+| 12 | FTS `optimize` / `merge` | Backend / maintenance strategy | Treat FTS segment maintenance as a measured maintenance step, not as assumed speed work. |
+| 13 | File-group progressive display | Front-end and backend combined: backend grouped output, front-end display | Render ASS/subtitle file groups as they become available after the backend contract is stable. |
+| 14 | File-group initial preview | Front-end and backend combined: backend preview bound, front-end display | Show only a bounded preview, such as 20 rows, when a file group first appears. |
+| 15 | File-internal `Show more` | Front-end and backend combined: front-end control plus backend per-file loading | Load additional rows inside one large file group on user action, such as 100 rows per request. |
+| 16 | UI virtualization / windowing validation | Front-end / test | Confirm through tests or logs that loaded rows and rendered row views are separate, and that visible row count stays bounded. |
+| 17 | Query / result cache | Backend / cache | Add repeated-query acceleration last so cache behavior cannot hide earlier correctness or ordering bugs. |
 
 ## Testing Workflow
 
