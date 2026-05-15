@@ -269,6 +269,9 @@ final class AppState: ObservableObject {
     @Published var searchResults: [SubtitleSearchResult] = []
     @Published var searchResultTotalCount = 0
     @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
+    @Published private(set) var searchCountState: SubtitleSearchCountState = .exact
+    @Published private(set) var searchKnownResultCount = 0
+    @Published private(set) var searchKnownFileCount = 0
     @Published var hasMoreSearchResults = false
     @Published var libraryStatus: LibraryStatus = .idle
     @Published var libraryVideos: [LibraryVideo] = []
@@ -1638,6 +1641,9 @@ final class AppState: ObservableObject {
                 }
                 searchResultTotalCount = page.totalCount
                 searchFileSummaries = page.fileSummaries
+                searchCountState = page.countState
+                searchKnownResultCount = page.knownResultCount
+                searchKnownFileCount = page.knownFileCount
                 nextGlobalSearchCursor = page.nextCursor
                 hasMoreSearchResults = page.hasMore
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
@@ -1775,6 +1781,9 @@ final class AppState: ObservableObject {
             activeSearchPerformanceRun,
             result: result,
             resultCount: searchResults.count,
+            countState: searchCountState,
+            knownResultCount: searchKnownResultCount,
+            knownFileCount: searchKnownFileCount,
             totalCount: searchResultTotalCount,
             fileSummaryCount: searchFileSummaries.count,
             groupCount: searchResultGroups.count,
@@ -2402,7 +2411,13 @@ final class AppState: ObservableObject {
 
         if clearExistingResults {
             searchResults = []
+            searchResultTotalCount = 0
+            searchFileSummaries = []
             expandedSearchResultGroupRowsByPath = [:]
+            searchCountState = .exact
+            searchKnownResultCount = 0
+            searchKnownFileCount = 0
+            hasMoreSearchResults = false
             loadedGlobalSearchResultCount = 0
             nextGlobalSearchCursor = nil
             rebuildSearchResultGroups()
@@ -2560,6 +2575,9 @@ final class AppState: ObservableObject {
         searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         searchResultTotalCount = searchFileSummaries.reduce(0) { $0 + $1.matchCount }
+        searchCountState = .exact
+        searchKnownResultCount = searchResultTotalCount
+        searchKnownFileCount = searchFileSummaries.count
         loadedGlobalSearchResultCount = searchResults.count
         nextGlobalSearchCursor = nil
         hasMoreSearchResults = false
@@ -2868,6 +2886,8 @@ final class AppState: ObservableObject {
         expandedSearchResultGroupRowsByPath = [:]
         searchResults = Array(searchResults.prefix(Self.searchPageSize))
         loadedGlobalSearchResultCount = searchResults.count
+        searchKnownResultCount = searchResultTotalCount
+        searchKnownFileCount = searchFileSummaries.count
         hasMoreSearchResults = loadedGlobalSearchResultCount < searchResultTotalCount
         nextGlobalSearchCursor = hasMoreSearchResults
             ? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount)
@@ -2886,6 +2906,9 @@ final class AppState: ObservableObject {
         searchResults = []
         searchResultTotalCount = 0
         searchFileSummaries = []
+        searchCountState = .exact
+        searchKnownResultCount = 0
+        searchKnownFileCount = 0
         hasMoreSearchResults = false
         searchResultPresentationState = .initial
         collapsedSearchResultGroupPaths = []

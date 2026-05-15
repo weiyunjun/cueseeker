@@ -289,9 +289,28 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
     let page = try database.searchPage("shared", limit: 2)
 
     #expect(page.totalCount == 3)
+    #expect(page.countState == .exact)
+    #expect(page.knownResultCount == 3)
+    #expect(page.knownFileCount == 2)
+    #expect(page.exactTotalCount == 3)
+    #expect(page.exactFileSummaryCount == 2)
     #expect(page.fileSummaries.map(\.subtitleFileName) == ["Alpha.srt", "Beta.srt"])
     #expect(page.fileSummaries.map(\.matchCount) == [2, 1])
     #expect(page.results.map(\.content) == ["Shared earlier alpha", "Shared later alpha"])
+}
+
+@Test
+func provisionalSearchCountSnapshotDoesNotExposeExactCounts() {
+    let snapshot = SubtitleSearchCountSnapshot.provisional(
+        knownResultCount: 100,
+        knownFileCount: 4
+    )
+
+    #expect(snapshot.state == .provisional)
+    #expect(snapshot.knownResultCount == 100)
+    #expect(snapshot.knownFileCount == 4)
+    #expect(snapshot.exactTotalCount == nil)
+    #expect(snapshot.exactFileSummaryCount == nil)
 }
 
 @Test

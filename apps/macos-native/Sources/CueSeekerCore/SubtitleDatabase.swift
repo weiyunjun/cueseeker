@@ -44,6 +44,44 @@ public struct SubtitleSearchCursor: Equatable, Sendable, Codable {
     }
 }
 
+public enum SubtitleSearchCountState: String, Equatable, Sendable, Codable {
+    case provisional
+    case exact
+}
+
+public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
+    public let state: SubtitleSearchCountState
+    public let knownResultCount: Int
+    public let knownFileCount: Int
+    public let exactTotalCount: Int?
+    public let exactFileSummaryCount: Int?
+
+    public static func exact(totalCount: Int, fileSummaryCount: Int) -> SubtitleSearchCountSnapshot {
+        let resolvedTotalCount = max(0, totalCount)
+        let resolvedFileSummaryCount = max(0, fileSummaryCount)
+        return SubtitleSearchCountSnapshot(
+            state: .exact,
+            knownResultCount: resolvedTotalCount,
+            knownFileCount: resolvedFileSummaryCount,
+            exactTotalCount: resolvedTotalCount,
+            exactFileSummaryCount: resolvedFileSummaryCount
+        )
+    }
+
+    public static func provisional(
+        knownResultCount: Int,
+        knownFileCount: Int
+    ) -> SubtitleSearchCountSnapshot {
+        SubtitleSearchCountSnapshot(
+            state: .provisional,
+            knownResultCount: max(0, knownResultCount),
+            knownFileCount: max(0, knownFileCount),
+            exactTotalCount: nil,
+            exactFileSummaryCount: nil
+        )
+    }
+}
+
 public struct LibraryVideo: Equatable, Sendable, Identifiable {
     public let videoPath: String
     public let videoName: String
@@ -121,6 +159,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
     public let fileSummaries: [SubtitleSearchFileSummary]
+    public let countSnapshot: SubtitleSearchCountSnapshot
     public let appliedCursor: SubtitleSearchCursor
     public let nextCursor: SubtitleSearchCursor?
 
@@ -128,16 +167,41 @@ public struct SubtitleSearchPage: Equatable, Sendable {
         nextCursor != nil
     }
 
+    public var countState: SubtitleSearchCountState {
+        countSnapshot.state
+    }
+
+    public var knownResultCount: Int {
+        countSnapshot.knownResultCount
+    }
+
+    public var knownFileCount: Int {
+        countSnapshot.knownFileCount
+    }
+
+    public var exactTotalCount: Int? {
+        countSnapshot.exactTotalCount
+    }
+
+    public var exactFileSummaryCount: Int? {
+        countSnapshot.exactFileSummaryCount
+    }
+
     public init(
         results: [SubtitleSearchResult],
         totalCount: Int,
         fileSummaries: [SubtitleSearchFileSummary],
+        countSnapshot: SubtitleSearchCountSnapshot? = nil,
         appliedCursor: SubtitleSearchCursor = .start,
         nextCursor: SubtitleSearchCursor? = nil
     ) {
         self.results = results
         self.totalCount = totalCount
         self.fileSummaries = fileSummaries
+        self.countSnapshot = countSnapshot ?? .exact(
+            totalCount: totalCount,
+            fileSummaryCount: fileSummaries.count
+        )
         self.appliedCursor = appliedCursor
         self.nextCursor = nextCursor
     }

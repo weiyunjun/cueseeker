@@ -364,6 +364,11 @@ Benchmark rules:
   `hasMore` for every observed page. The accepted shape is continuous cursor
   progression with no duplicate rows, no skipped rows, no stale rows from the
   previous query, and no unintended global load after `Collapse All`.
+- For Step 3, Search E2E JSONL evidence must include `countState`,
+  `knownResultCount`, and `knownFileCount` for every observed Search page.
+  `totalCount` and `fileSummaries` are exact-count fields only when
+  `countState` is `exact`; provisional records must not use those fields to
+  imply final totals.
 - For Step 17, clear cache state between benchmark query groups, then run each
   query five times so warm-cache behavior is measured without cross-query
   contamination.
@@ -462,8 +467,8 @@ Read after implementation:
   with each `SubtitleSearchPage`.
 - AppState global Search lazy loading now advances with `nextCursor` from the
   prior page instead of deriving the next request from loaded row count.
-- Search E2E JSONL schema version `4` records `cursor` and `nextCursor` on
-  Search page records.
+- Search E2E JSONL schema version `4` added `cursor` and `nextCursor` on Search
+  page records; later schemas must retain those fields.
 - The hot-average benchmark did not regress for the three required queries.
   Warmup timings remained noisy, especially for broad exact-count queries, so
   acceptance should use the fixed E2E cursor sequence in addition to automated

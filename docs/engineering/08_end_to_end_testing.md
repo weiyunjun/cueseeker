@@ -442,6 +442,11 @@ Record:
   `Query | page count observed | returned sequence | groups sequence |
   renderedRows sequence | hasMore | cursor sequence | nextCursor sequence |
   duplicate rows | stale rows | Collapse All unexpected load | pass/fail`.
+- For provisional count model steps, the JSONL page records for the run,
+  summarized as
+  `Query | countState sequence | knownResultCount sequence |
+  knownFileCount sequence | totalCount sequence | fileSummaries sequence |
+  provisional used exact totals | pass/fail`.
 - Any visible workflow issue, including stale counts, wrong grouping, empty
   loaded groups, accidental lazy-load triggers, scroll jumps, delayed playback
   selection, or front-end diagnostics that were not explicitly accepted.

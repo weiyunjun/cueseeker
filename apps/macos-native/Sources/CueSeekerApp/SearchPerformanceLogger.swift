@@ -105,7 +105,7 @@ private struct SearchPerformanceLogEntry: Sendable {
 }
 
 private struct SearchE2ELogEntry: Encodable, Sendable {
-    let schemaVersion = 4
+    let schemaVersion = 5
     let timestamp: String
     let sequence: UInt64
     let runID: UInt64
@@ -116,6 +116,9 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
     let returned: Int?
     let totalCount: Int?
     let fileSummaries: Int?
+    let countState: String?
+    let knownResultCount: Int?
+    let knownFileCount: Int?
     let hotAvgMilliseconds: Double?
     let hotRawMilliseconds: [Double]?
     let currentRunKind: String?
@@ -161,6 +164,9 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         case returned
         case totalCount
         case fileSummaries
+        case countState
+        case knownResultCount
+        case knownFileCount
         case hotAvgMilliseconds
         case hotRawMilliseconds
         case currentRunKind
@@ -208,6 +214,9 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
         try encodeNullable(returned, forKey: .returned, into: &container)
         try encodeNullable(totalCount, forKey: .totalCount, into: &container)
         try encodeNullable(fileSummaries, forKey: .fileSummaries, into: &container)
+        try encodeNullable(countState, forKey: .countState, into: &container)
+        try encodeNullable(knownResultCount, forKey: .knownResultCount, into: &container)
+        try encodeNullable(knownFileCount, forKey: .knownFileCount, into: &container)
         try encodeNullable(hotAvgMilliseconds, forKey: .hotAvgMilliseconds, into: &container)
         try encodeNullable(hotRawMilliseconds, forKey: .hotRawMilliseconds, into: &container)
         try encodeNullable(currentRunKind, forKey: .currentRunKind, into: &container)
@@ -307,8 +316,11 @@ private struct SearchE2ESamples: Sendable {
     let sampleResults: [SearchE2EResultSnapshot]
     let topFileSummaries: [SearchE2EFileSummarySnapshot]
     let returned: Int
-    let totalCount: Int
-    let fileSummaryCount: Int
+    let exactTotalCount: Int?
+    let exactFileSummaryCount: Int?
+    let countState: String
+    let knownResultCount: Int
+    let knownFileCount: Int
     let hasMore: Bool
     let nextCursor: SearchCursorLogSnapshot?
     let loadedFileGroups: Int
@@ -318,8 +330,11 @@ private struct SearchE2ESamples: Sendable {
 
     init(page: SubtitleSearchPage, elapsedMilliseconds: Double) {
         returned = page.results.count
-        totalCount = page.totalCount
-        fileSummaryCount = page.fileSummaries.count
+        exactTotalCount = page.exactTotalCount
+        exactFileSummaryCount = page.exactFileSummaryCount
+        countState = page.countState.rawValue
+        knownResultCount = page.knownResultCount
+        knownFileCount = page.knownFileCount
         hasMore = page.hasMore
         nextCursor = page.nextCursor.map(SearchCursorLogSnapshot.init)
         let loadedRowsByPath = Dictionary(grouping: page.results, by: \.subtitlePath)
@@ -334,10 +349,10 @@ private struct SearchE2ESamples: Sendable {
             elapsedMilliseconds: elapsedMilliseconds
         )
         exactCountsCompletion = SearchE2EExactCountsSnapshot(
-            completed: true,
-            elapsedMilliseconds: elapsedMilliseconds,
-            totalCount: page.totalCount,
-            fileSummaries: page.fileSummaries.count
+            completed: page.countState == .exact,
+            elapsedMilliseconds: page.countState == .exact ? elapsedMilliseconds : nil,
+            totalCount: page.exactTotalCount,
+            fileSummaries: page.exactFileSummaryCount
         )
         sampleResults = page.results
             .prefix(Self.sampleResultLimit)
@@ -382,8 +397,11 @@ private struct SearchE2ESamples: Sendable {
 private struct SearchE2EBenchmarkMeasurement: Sendable {
     let milliseconds: Double
     let returned: Int
-    let totalCount: Int
-    let fileSummaries: Int
+    let totalCount: Int?
+    let fileSummaries: Int?
+    let countState: String
+    let knownResultCount: Int
+    let knownFileCount: Int
 }
 
 private struct SearchE2EBenchmarkSnapshot: Sendable {
@@ -391,6 +409,9 @@ private struct SearchE2EBenchmarkSnapshot: Sendable {
     let returned: Int?
     let totalCount: Int?
     let fileSummaries: Int?
+    let countState: String?
+    let knownResultCount: Int?
+    let knownFileCount: Int?
     let hotAvgMilliseconds: Double?
     let hotRawMilliseconds: [Double]
     let currentRunKind: String?
@@ -404,6 +425,9 @@ private struct SearchE2EBenchmarkState: Sendable {
     var returned: Int?
     var totalCount: Int?
     var fileSummaries: Int?
+    var countState: String?
+    var knownResultCount: Int?
+    var knownFileCount: Int?
     var hotRawMilliseconds: [Double] = []
 }
 
@@ -503,6 +527,9 @@ private final class SearchPerformanceLoggerState: @unchecked Sendable {
         state.returned = measurement.returned
         state.totalCount = measurement.totalCount
         state.fileSummaries = measurement.fileSummaries
+        state.countState = measurement.countState
+        state.knownResultCount = measurement.knownResultCount
+        state.knownFileCount = measurement.knownFileCount
         e2eBenchmarkStates[key] = state
 
         return snapshot(
@@ -541,6 +568,9 @@ private final class SearchPerformanceLoggerState: @unchecked Sendable {
             returned: state.returned,
             totalCount: state.totalCount,
             fileSummaries: state.fileSummaries,
+            countState: state.countState,
+            knownResultCount: state.knownResultCount,
+            knownFileCount: state.knownFileCount,
             hotAvgMilliseconds: hotAvg,
             hotRawMilliseconds: state.hotRawMilliseconds,
             currentRunKind: currentRunKind,
@@ -766,8 +796,11 @@ enum SearchPerformanceLogger {
             benchmarkMetric: benchmark == nil ? nil : "elapsedMilliseconds",
             warmupMilliseconds: benchmark?.warmupMilliseconds,
             returned: benchmark?.returned ?? samples?.returned,
-            totalCount: benchmark?.totalCount ?? samples?.totalCount,
-            fileSummaries: benchmark?.fileSummaries ?? samples?.fileSummaryCount,
+            totalCount: benchmark?.totalCount ?? samples?.exactTotalCount,
+            fileSummaries: benchmark?.fileSummaries ?? samples?.exactFileSummaryCount,
+            countState: benchmark?.countState ?? samples?.countState,
+            knownResultCount: benchmark?.knownResultCount ?? samples?.knownResultCount,
+            knownFileCount: benchmark?.knownFileCount ?? samples?.knownFileCount,
             hotAvgMilliseconds: benchmark?.hotAvgMilliseconds,
             hotRawMilliseconds: benchmark?.hotRawMilliseconds,
             currentRunKind: benchmark?.currentRunKind,
@@ -819,6 +852,9 @@ enum SearchPerformanceLogger {
         _ run: SearchPerformanceRun?,
         result: SubtitleSearchResult,
         resultCount: Int,
+        countState: SubtitleSearchCountState,
+        knownResultCount: Int,
+        knownFileCount: Int,
         totalCount: Int,
         fileSummaryCount: Int,
         groupCount: Int,
@@ -842,6 +878,9 @@ enum SearchPerformanceLogger {
             returned: benchmark?.returned ?? resultCount,
             totalCount: benchmark?.totalCount ?? totalCount,
             fileSummaries: benchmark?.fileSummaries ?? fileSummaryCount,
+            countState: benchmark?.countState ?? countState.rawValue,
+            knownResultCount: benchmark?.knownResultCount ?? knownResultCount,
+            knownFileCount: benchmark?.knownFileCount ?? knownFileCount,
             hotAvgMilliseconds: benchmark?.hotAvgMilliseconds,
             hotRawMilliseconds: benchmark?.hotRawMilliseconds,
             currentRunKind: benchmark?.currentRunKind,
@@ -920,6 +959,9 @@ enum SearchPerformanceLogger {
             returned: returned,
             totalCount: totalCount,
             fileSummaries: nil,
+            countState: nil,
+            knownResultCount: nil,
+            knownFileCount: nil,
             hotAvgMilliseconds: nil,
             hotRawMilliseconds: nil,
             currentRunKind: nil,
@@ -1090,8 +1132,11 @@ enum SearchPerformanceLogger {
             measurement: SearchE2EBenchmarkMeasurement(
                 milliseconds: elapsedMilliseconds,
                 returned: page.results.count,
-                totalCount: page.totalCount,
-                fileSummaries: page.fileSummaries.count
+                totalCount: page.exactTotalCount,
+                fileSummaries: page.exactFileSummaryCount,
+                countState: page.countState.rawValue,
+                knownResultCount: page.knownResultCount,
+                knownFileCount: page.knownFileCount
             )
         )
     }

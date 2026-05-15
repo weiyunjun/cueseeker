@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the Search provisional count model foundation: Core Search pages now
+  expose count state plus known result/file counts, and Search E2E JSONL schema
+  version 5 records those fields for Step 3 acceptance.
 - Added Search-layer pagination cursor acceptance rules and implemented an
   explicit Search continuation cursor in Core, AppState, benchmark output, and
   Search E2E JSONL logs.
