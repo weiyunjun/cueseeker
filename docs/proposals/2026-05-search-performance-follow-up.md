@@ -902,6 +902,13 @@ Implementation:
 - Indexed-content mutations clear the cache after successful commits, including
   subtitle replacement, folder reconciliation/removal, clearing indexed content,
   and derived Search-index rebuilds.
+- Cache invalidation is intentionally whole-cache invalidation, not incremental
+  patching. Indexed ASS files are not append-only: users may add translations to
+  Japanese subtitles, edit existing lines, retime cues, delete entries, or
+  replace a file. Any such change can alter matches, ordering, group counts,
+  `totalCount`, file summaries, and every cursor page. Clearing cached pages
+  after a successful index mutation preserves correctness without trying to
+  infer which historical queries and scopes were affected.
 - `SearchBench` prints cache stats and clears its in-process cache before exit.
   The benchmark database copy in `/private/tmp` was deleted after measurement.
 

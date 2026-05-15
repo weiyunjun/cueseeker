@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Clarified Search result-cache invalidation rationale: indexed ASS files are
+  mutable, not append-only, so subtitle edits can change matches, ordering,
+  counts, summaries, and cursor pages; successful index mutations therefore
+  clear cached Search pages instead of patching them incrementally.
 - Recorded the future Search result-rendering optimization plan. The suspended
   Step 16 scope now explicitly targets the results content area below the
   `Found` label, with candidate work for precomputed highlights, reduced
