@@ -9,8 +9,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Added Step 5 Search `fts5vocab` diagnostics. `SubtitleDatabase` now exposes
   explicit FTS vocabulary metrics, `SearchBench` prints them only when
   `CUESEEKER_BENCH_FTS_VOCAB=1` is set, Settings > Developer shows a default-on
-  `FTS Vocabulary Diagnostics` switch, and the follow-up plan records the
-  exact-count benchmark plus query-term vocabulary data.
+  `FTS Vocabulary Diagnostics` switch plus inline vocabulary data, and the
+  follow-up plan records the exact-count benchmark plus query-term vocabulary
+  data.
 - Reverted Search visible counts to exact-only semantics. Core Search pages,
   AppState, SearchBench, tests, and E2E docs no longer use provisional Search
   metadata or background exact-count completion; `Found <count> results in

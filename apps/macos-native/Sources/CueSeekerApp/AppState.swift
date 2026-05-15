@@ -57,6 +57,21 @@ enum DatabaseMaintenanceStatus: Equatable {
     }
 }
 
+enum SearchFTSVocabularyDiagnosticsStatus: Equatable {
+    case idle
+    case loading
+    case completed(Date)
+    case failed(String)
+
+    var isLoading: Bool {
+        if case .loading = self {
+            return true
+        }
+
+        return false
+    }
+}
+
 enum PlaybackStatus: Equatable {
     case idle
     case opening
@@ -290,6 +305,8 @@ final class AppState: ObservableObject {
     @Published private(set) var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
     @Published private(set) var databaseStorageStats: DatabaseStorageStats?
     @Published private(set) var databaseMaintenanceStatus: DatabaseMaintenanceStatus = .idle
+    @Published private(set) var searchFTSVocabularyDiagnostics: SubtitleFTSVocabularyDiagnostics?
+    @Published private(set) var searchFTSVocabularyDiagnosticsStatus: SearchFTSVocabularyDiagnosticsStatus = .idle
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var selectedShiori: Shiori?
@@ -326,6 +343,11 @@ final class AppState: ObservableObject {
                 searchFTSVocabularyDiagnosticsEnabled,
                 forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
             )
+            if !searchFTSVocabularyDiagnosticsEnabled {
+                searchFTSVocabularyDiagnosticsTask?.cancel()
+                searchFTSVocabularyDiagnosticsTask = nil
+                searchFTSVocabularyDiagnosticsStatus = .idle
+            }
         }
     }
 
@@ -584,6 +606,7 @@ final class AppState: ObservableObject {
             && !indexingStatus.isIndexing
             && !databaseMaintenanceStatus.isCompacting
             && !isSearching
+            && searchFTSVocabularyDiagnosticsTask == nil
             && libraryStatus != .loading
     }
 
@@ -597,6 +620,7 @@ final class AppState: ObservableObject {
     private var searchNavigationTask: Task<Void, Never>?
     private var currentSubtitleEntriesTask: Task<Void, Never>?
     private var databaseStorageStatsTask: Task<Void, Never>?
+    private var searchFTSVocabularyDiagnosticsTask: Task<Void, Never>?
     private var databaseCompactionTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
     private var playbackSurfaceToggleCooldownTask: Task<Void, Never>?
@@ -1336,6 +1360,46 @@ final class AppState: ObservableObject {
         }
     }
 
+    func refreshSearchFTSVocabularyDiagnostics() {
+        guard searchFTSVocabularyDiagnosticsEnabled else {
+            searchFTSVocabularyDiagnosticsTask?.cancel()
+            searchFTSVocabularyDiagnosticsTask = nil
+            searchFTSVocabularyDiagnosticsStatus = .idle
+            return
+        }
+
+        searchFTSVocabularyDiagnosticsTask?.cancel()
+        guard let database = subtitleDatabase else {
+            searchFTSVocabularyDiagnosticsStatus = .failed("Database is not initialized")
+            return
+        }
+
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchFTSVocabularyDiagnosticsStatus = .loading
+        searchFTSVocabularyDiagnosticsTask = Task {
+            do {
+                let diagnostics = try await Task.detached(priority: .utility) {
+                    try database.ftsVocabularyDiagnostics(for: query)
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                searchFTSVocabularyDiagnostics = diagnostics
+                searchFTSVocabularyDiagnosticsStatus = .completed(Date())
+                searchFTSVocabularyDiagnosticsTask = nil
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                searchFTSVocabularyDiagnosticsStatus = .failed(Self.errorMessage(for: error))
+                searchFTSVocabularyDiagnosticsTask = nil
+            }
+        }
+    }
+
     func compactDatabaseStorage() {
         guard !databaseMaintenanceStatus.isCompacting else {
             return
@@ -1348,6 +1412,11 @@ final class AppState: ObservableObject {
 
         guard !isSearching else {
             databaseMaintenanceStatus = .failed("Search is running")
+            return
+        }
+
+        guard searchFTSVocabularyDiagnosticsTask == nil else {
+            databaseMaintenanceStatus = .failed("Search diagnostics are loading")
             return
         }
 
@@ -2971,6 +3040,8 @@ final class AppState: ObservableObject {
         searchNavigationTask = nil
         currentSubtitleEntriesTask?.cancel()
         currentSubtitleEntriesTask = nil
+        searchFTSVocabularyDiagnosticsTask?.cancel()
+        searchFTSVocabularyDiagnosticsTask = nil
         cancelSearchResultGroupTasks()
 
         if case .loading = libraryStatus {

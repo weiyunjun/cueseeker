@@ -519,7 +519,8 @@ Implementation notes:
 - `SearchBench` prints the diagnostics only when
   `CUESEEKER_BENCH_FTS_VOCAB=1` is set.
 - Settings > Developer exposes an `FTS Vocabulary Diagnostics` switch, default
-  on, so the diagnostic capability is visible in the app's developer surface.
+  on, plus an inline data panel with refresh, vocabulary totals, current-query
+  term stats, and most-frequent terms.
 - Normal Search and normal SearchBench runs do not create or query
   `fts5vocab`.
 - The diagnostics report unique vocabulary terms, total term-document
