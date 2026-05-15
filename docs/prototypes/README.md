@@ -13,6 +13,9 @@ Current prototypes:
 - `macos-native-bottom-player.html`: isolated bottom-player visual exploration
   that keeps the current playback controls but redraws them as a quieter
   macOS-native window chrome surface.
+- `macos-native-search-results.html`: isolated Search results visual
+  exploration that applies the quieter macOS-native chrome and color treatment
+  to the accepted topbar, grouped results, and persistent bottom player.
 
 Major frontend UI implementation work should consult the relevant prototype
 when one exists, following
