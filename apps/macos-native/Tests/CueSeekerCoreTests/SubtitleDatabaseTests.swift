@@ -3,6 +3,23 @@ import SQLite3
 import Testing
 import CueSeekerCore
 
+private final class SearchProgressCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var snapshots: [SubtitleSearchProgressSnapshot] = []
+
+    func append(_ snapshot: SubtitleSearchProgressSnapshot) {
+        lock.lock()
+        snapshots.append(snapshot)
+        lock.unlock()
+    }
+
+    func values() -> [SubtitleSearchProgressSnapshot] {
+        lock.lock()
+        defer { lock.unlock() }
+        return snapshots
+    }
+}
+
 @Test
 func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     let databaseURL = temporaryDatabaseURL()
@@ -288,6 +305,58 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
         "Shared visible line 3",
         "Shared visible line 4"
     ])
+}
+
+@Test
+func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Progress.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Progress.mkv")
+    let entries = (0..<150).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: String(format: "00:00:%02d,000", index % 60),
+            endTimecode: String(format: "00:00:%02d,500", index % 60),
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Progress count stream line \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+
+    let collector = SearchProgressCollector()
+    let page = try database.searchPage(
+        "progress",
+        limit: 50,
+        cursor: .start,
+        progress: { snapshot in
+            collector.append(snapshot)
+        }
+    )
+    let progress = collector.values()
+
+    #expect(!progress.isEmpty)
+    #expect(progress.allSatisfy { $0.countState == .exactProgress })
+    #expect(progress.map(\.knownResultCount) == progress.map(\.knownResultCount).sorted())
+    #expect(progress.last?.knownResultCount == 100)
+    #expect(progress.last?.knownFileCount == 1)
+    #expect(progress.last?.fileSummaries.map(\.matchCount) == [100])
+    #expect(page.countState == .exact)
+    #expect(page.totalCount == 150)
+    #expect(page.knownResultCount == 150)
+    #expect(page.fileSummaries.map(\.matchCount) == [150])
 }
 
 @Test

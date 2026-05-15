@@ -105,7 +105,7 @@ private struct SearchPerformanceLogEntry: Sendable {
 }
 
 private struct SearchE2ELogEntry: Encodable, Sendable {
-    let schemaVersion = 7
+    let schemaVersion = 8
     let timestamp: String
     let sequence: UInt64
     let runID: UInt64
@@ -855,6 +855,83 @@ enum SearchPerformanceLogger {
             ),
             sampleResults: samples?.sampleResults,
             topFileSummaries: samples?.topFileSummaries,
+            firstVisibleResult: nil
+        )
+        e2eWriter.write(entry)
+    }
+
+    static func writeE2ECountProgress(
+        _ run: SearchPerformanceRun?,
+        progress: SubtitleSearchProgressSnapshot,
+        resultCount: Int,
+        groupCount: Int,
+        renderedRowCount: Int
+    ) {
+        guard let run, run.e2eLoggingEnabled else {
+            return
+        }
+
+        let timestamp = now()
+        let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
+        let entry = SearchE2ELogEntry(
+            timestamp: timestampString(),
+            sequence: state.allocateSequence(),
+            runID: run.id,
+            event: "search_count_progress",
+            query: run.query,
+            benchmarkMetric: nil,
+            warmupMilliseconds: nil,
+            returned: resultCount,
+            totalCount: progress.knownResultCount,
+            fileSummaries: progress.knownFileCount,
+            countState: progress.countState.rawValue,
+            knownResultCount: progress.knownResultCount,
+            knownFileCount: progress.knownFileCount,
+            hotAvgMilliseconds: nil,
+            hotRawMilliseconds: nil,
+            currentRunKind: nil,
+            currentRunMilliseconds: nil,
+            hotRunCount: nil,
+            hotTargetRunCount: nil,
+            hasMore: true,
+            offset: run.offset,
+            cursor: run.cursor,
+            nextCursor: nil,
+            limit: run.limit,
+            groups: groupCount,
+            renderedRows: renderedRowCount,
+            loadedFileGroups: nil,
+            loadedRows: resultCount,
+            fileGroupPreviewMilestones: nil,
+            exactCountsCompletion: nil,
+            perFileLoadMore: nil,
+            databaseMilliseconds: nil,
+            orderSource: nil,
+            materializedOrderRows: nil,
+            pageMode: nil,
+            elapsedMilliseconds: elapsedMilliseconds,
+            firstVisibleMilliseconds: nil,
+            status: "searching",
+            queryLength: run.queryLength,
+            appending: run.appending,
+            debounce: run.debounce,
+            folders: run.folderPaths,
+            error: nil,
+            timings: SearchE2ETimingSnapshot(
+                elapsedMilliseconds: elapsedMilliseconds,
+                databaseSearchMilliseconds: nil,
+                stateAssignMilliseconds: nil,
+                groupRebuildMilliseconds: nil,
+                statusCompletionMilliseconds: nil,
+                firstVisibleElapsedMilliseconds: nil
+            ),
+            ui: SearchE2EUISnapshot(
+                groupCount: groupCount,
+                renderedRowCount: renderedRowCount,
+                firstVisibleEntryID: nil
+            ),
+            sampleResults: nil,
+            topFileSummaries: nil,
             firstVisibleResult: nil
         )
         e2eWriter.write(entry)

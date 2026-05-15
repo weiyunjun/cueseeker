@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented Search Step 8 exact progress count streaming. Background exact
+  completion now publishes exact completed-work count updates to the Search
+  summary and lightweight JSONL `search_count_progress` records without
+  creating empty visible file groups.
 - Isolated the topbar Search input draft from Search result state. Searches can
   continue updating results and exact counts without overwriting the user's
   active Search-field editing or IME marked text.

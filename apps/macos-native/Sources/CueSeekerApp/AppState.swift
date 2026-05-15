@@ -272,6 +272,7 @@ final class AppState: ObservableObject {
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
+    private static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
     private static let searchNavigationPanelRadius = 10_000
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
     private static let sidePanelToggleCooldown: TimeInterval = 0.18
@@ -632,6 +633,7 @@ final class AppState: ObservableObject {
     private var pendingSearchVisibleEntryIDs: Set<Int64> = []
     private var activePlaybackSource: ActivePlaybackSource = .none
     private var loadedGlobalSearchResultCount = 0
+    private var lastSearchCountProgressUpdate: UInt64 = 0
     private var nextGlobalSearchCursor: SubtitleSearchCursor?
     private var isSearching: Bool {
         if case .searching = searchStatus {
@@ -1869,6 +1871,60 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func applySearchCountProgress(
+        _ progress: SubtitleSearchProgressSnapshot,
+        query trimmedQuery: String,
+        folderPaths: [String],
+        run searchPerformanceRun: SearchPerformanceRun?
+    ) {
+        guard progress.countState == .exactProgress,
+              searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+              selectedFolders.map(\.path) == folderPaths,
+              searchCountState != .exact,
+              progress.knownResultCount >= searchKnownResultCount,
+              progress.knownFileCount >= searchKnownFileCount
+        else {
+            return
+        }
+
+        let now = SearchPerformanceLogger.now()
+        if lastSearchCountProgressUpdate != 0,
+           now - lastSearchCountProgressUpdate < Self.searchCountProgressMinimumIntervalNanoseconds {
+            return
+        }
+        lastSearchCountProgressUpdate = now
+
+        searchResultTotalCount = progress.knownResultCount
+        searchFileSummaries = progress.fileSummaries
+        searchCountState = progress.countState
+        searchKnownResultCount = progress.knownResultCount
+        searchKnownFileCount = progress.knownFileCount
+        if loadedGlobalSearchResultCount < searchResultTotalCount {
+            hasMoreSearchResults = true
+            nextGlobalSearchCursor = nextGlobalSearchCursor
+                ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount)
+        }
+        rebuildSearchResultGroups()
+
+        SearchPerformanceLogger.mark(
+            searchPerformanceRun,
+            "search_count_progress",
+            resultCount: searchResults.count,
+            totalCount: searchResultTotalCount,
+            fileSummaryCount: searchFileSummaries.count,
+            groupCount: searchResultGroups.count,
+            renderedRowCount: renderedSearchResultCount,
+            status: "searching"
+        )
+        SearchPerformanceLogger.writeE2ECountProgress(
+            searchPerformanceRun,
+            progress: progress,
+            resultCount: searchResults.count,
+            groupCount: searchResultGroups.count,
+            renderedRowCount: renderedSearchResultCount
+        )
+    }
+
     private func startSearchExactCompletion(
         query trimmedQuery: String,
         folders: [URL],
@@ -1882,6 +1938,16 @@ final class AppState: ObservableObject {
 
         let pageSize = Self.searchPageSize
         let folderPaths = folders.map(\.path)
+        let progressSink: SubtitleSearchProgressSink = { [weak self] snapshot in
+            Task { @MainActor [weak self] in
+                self?.applySearchCountProgress(
+                    snapshot,
+                    query: trimmedQuery,
+                    folderPaths: folderPaths,
+                    run: searchPerformanceRun
+                )
+            }
+        }
         searchExactCompletionTask = Task {
             do {
                 SearchPerformanceLogger.mark(searchPerformanceRun, "database_exact_completion_started")
@@ -1893,7 +1959,8 @@ final class AppState: ObservableObject {
                         limit: pageSize,
                         cursor: .start,
                         under: folders,
-                        diagnostics: diagnosticsSink
+                        diagnostics: diagnosticsSink,
+                        progress: progressSink
                     )
                     let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
                         since: databaseSearchStart
@@ -2684,6 +2751,7 @@ final class AppState: ObservableObject {
             searchKnownFileCount = 0
             hasMoreSearchResults = false
             loadedGlobalSearchResultCount = 0
+            lastSearchCountProgressUpdate = 0
             nextGlobalSearchCursor = nil
             rebuildSearchResultGroups()
         }
@@ -3177,6 +3245,7 @@ final class AppState: ObservableObject {
         searchKnownResultCount = 0
         searchKnownFileCount = 0
         hasMoreSearchResults = false
+        lastSearchCountProgressUpdate = 0
         searchResultPresentationState = .initial
         collapsedSearchResultGroupPaths = []
         expandedSearchResultGroupRowsByPath = [:]

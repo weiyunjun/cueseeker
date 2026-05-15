@@ -91,6 +91,33 @@ public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
     }
 }
 
+public struct SubtitleSearchProgressSnapshot: Equatable, Sendable {
+    public let countSnapshot: SubtitleSearchCountSnapshot
+    public let fileSummaries: [SubtitleSearchFileSummary]
+
+    public var countState: SubtitleSearchCountState {
+        countSnapshot.state
+    }
+
+    public var knownResultCount: Int {
+        countSnapshot.knownResultCount
+    }
+
+    public var knownFileCount: Int {
+        countSnapshot.knownFileCount
+    }
+
+    public init(
+        countSnapshot: SubtitleSearchCountSnapshot,
+        fileSummaries: [SubtitleSearchFileSummary]
+    ) {
+        self.countSnapshot = countSnapshot
+        self.fileSummaries = fileSummaries
+    }
+}
+
+public typealias SubtitleSearchProgressSink = @Sendable (SubtitleSearchProgressSnapshot) -> Void
+
 public enum SubtitleSearchPageMode: String, Equatable, Sendable, Codable {
     case exact
     case visibleWindow
@@ -1115,6 +1142,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
+        progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
         try searchPage(
@@ -1124,6 +1152,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             under: folders,
             inSubtitlePath: subtitlePath,
             diagnostics: diagnostics,
+            progress: progress,
             mode: mode
         )
     }
@@ -1134,7 +1163,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         cursor: SubtitleSearchCursor?,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
-        diagnostics: SubtitleSearchDiagnosticSink? = nil
+        diagnostics: SubtitleSearchDiagnosticSink? = nil,
+        progress: SubtitleSearchProgressSink? = nil
     ) throws -> SubtitleSearchPage {
         try searchPage(
             query,
@@ -1143,6 +1173,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             under: folders,
             inSubtitlePath: subtitlePath,
             diagnostics: diagnostics,
+            progress: progress,
             mode: .visibleWindow
         )
     }
@@ -1154,6 +1185,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
+        progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
         let searchPageStart = Self.diagnosticNow()
@@ -1241,6 +1273,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             var results: [OrderedSearchResult] = []
             var visiblePrefixResults: [OrderedSearchResult] = []
             var visibleWindowResults: [OrderedSearchResult] = []
+            var progressFileSummaries = SearchFileSummaryAccumulator()
             var acceptedSearchResultCount = 0
             var reachedVisibleLookahead = false
             var batchIndex = 0
@@ -1388,6 +1421,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         switch mode {
                         case .exact:
                             results.append(result)
+                            progressFileSummaries.add(result)
                         case .visibleWindow:
                             if acceptedSearchResultCount < offset + limit {
                                 visiblePrefixResults.append(result)
@@ -1413,11 +1447,38 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     ]
                 )
 
+                let isLastCandidateBatch = candidates.count < candidateBatchLimit
+                if mode == .exact,
+                   !isLastCandidateBatch,
+                   acceptedSearchResultCount > 0 {
+                    let progressSummaries = progressFileSummaries.fileSummaries()
+                    let countSnapshot = SubtitleSearchCountSnapshot.exactProgress(
+                        knownResultCount: acceptedSearchResultCount,
+                        knownFileCount: progressSummaries.count
+                    )
+                    progress?(
+                        SubtitleSearchProgressSnapshot(
+                            countSnapshot: countSnapshot,
+                            fileSummaries: progressSummaries
+                        )
+                    )
+                    emit(
+                        "count_progress",
+                        since: searchPageStart,
+                        fields: [
+                            .init("countState", countSnapshot.state.rawValue),
+                            .init("knownResultCount", countSnapshot.knownResultCount),
+                            .init("knownFileCount", countSnapshot.knownFileCount),
+                            .init("summaries", progressSummaries.count)
+                        ]
+                    )
+                }
+
                 if reachedVisibleLookahead {
                     break
                 }
 
-                if candidates.count < candidateBatchLimit {
+                if isLastCandidateBatch {
                     break
                 }
             }
@@ -2324,6 +2385,34 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private struct OrderedSearchResult {
         let result: SubtitleSearchResult
         let order: SearchResultOrder
+    }
+
+    private struct SearchFileSummaryAccumulator {
+        private var countsByPath: [String: Int] = [:]
+        private var pathsInOrder: [String] = []
+        private var fileNamesByPath: [String: String] = [:]
+        private var displayTitlesByPath: [String: String] = [:]
+
+        mutating func add(_ orderedResult: OrderedSearchResult) {
+            let result = orderedResult.result
+            if countsByPath[result.subtitlePath] == nil {
+                pathsInOrder.append(result.subtitlePath)
+            }
+            countsByPath[result.subtitlePath, default: 0] += 1
+            fileNamesByPath[result.subtitlePath] = orderedResult.order.subtitleFileName
+            displayTitlesByPath[result.subtitlePath] = orderedResult.order.displayTitle
+        }
+
+        func fileSummaries() -> [SubtitleSearchFileSummary] {
+            pathsInOrder.map { path in
+                SubtitleSearchFileSummary(
+                    subtitlePath: path,
+                    subtitleFileName: fileNamesByPath[path]!,
+                    subtitleDisplayTitle: displayTitlesByPath[path]!,
+                    matchCount: countsByPath[path]!
+                )
+            }
+        }
     }
 
     private struct SearchOrderFile {

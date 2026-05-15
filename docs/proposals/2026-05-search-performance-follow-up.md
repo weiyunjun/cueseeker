@@ -653,6 +653,42 @@ Read:
   check too, so the cold row above measures the same visible-window path rather
   than the exact full-result path.
 
+### Step 8: Exact Progress Count Stream
+
+Date: 2026-05-15
+
+Before version: `4fffc88`
+
+Implementation direction:
+
+- Exact Search now accepts a progress sink and publishes `exactProgress`
+  snapshots while candidate batches are validated.
+- Each progress snapshot contains exact completed-work counts:
+  `knownResultCount`, `knownFileCount`, and per-file summaries for the scanned
+  prefix. It does not expose lower bounds, approximate totals, or pagination
+  sentinels.
+- AppState applies progress snapshots during the background exact-completion
+  task when they still match the submitted query and selected folders. The
+  visible `Found <count> results in <count> files` summary can therefore advance
+  while Search is still running.
+- The visible alias invariant remains unchanged. Searching and Initial views
+  still show only file aliases with loaded rows; progress-only file summaries
+  can update the summary count without creating empty visible groups.
+- Search E2E JSONL schema version `8` adds lightweight
+  `search_count_progress` events. These records include counts, file-summary
+  counts, UI group/rendered-row counts, and elapsed time, but no Search result
+  page payload.
+
+Acceptance focus:
+
+- Progress rows must be monotonic for one Search run and must use
+  `countState: exactProgress`.
+- The final completion row must still use `countState: exact` and publish the
+  exact full-corpus `totalCount` and `fileSummaries`.
+- Progress updates must not re-enable `Collapse All` before exact completion.
+- Progress updates must not create empty or default-collapsed file aliases in
+  Searching or Initial state.
+
 ### Search Input Invalidation Fix
 
 Date: 2026-05-15
