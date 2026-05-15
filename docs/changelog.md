@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added default-on Developer settings control for local Search E2E JSONL logs.
+  Each Search run can now write a machine-readable page snapshot aligned with
+  `SubtitleSearchPage`, plus first-visible result evidence for manual E2E
+  testing.
 - Recorded the current post-rollback Search Gate A baseline benchmark at
   commit `fe8d09a`, using `SearchBench` against the local schema 11 database
   for `大丈夫`, `今日`, and `の`.

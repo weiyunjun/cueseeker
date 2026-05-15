@@ -367,14 +367,26 @@ struct SettingsView: View {
                 Text("Developer")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Diagnostics will be rebuilt after the Search measurement model is realigned.")
+                Text("Configure local diagnostics used during development.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            Label("Search diagnostics are paused", systemImage: "pause.circle")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Search E2E JSON Logs")
+                        .font(.headline)
+                    Text("Record each Search run as JSONL under logs/search-e2e/.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $appState.searchE2ELoggingEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
 
             Spacer()
         }

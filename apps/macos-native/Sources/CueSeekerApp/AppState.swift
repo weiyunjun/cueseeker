@@ -233,6 +233,11 @@ final class WorkbenchLayoutState: ObservableObject {
     }
 }
 
+private struct SearchPageLoad: Sendable {
+    let page: SubtitleSearchPage
+    let databaseSearchMilliseconds: Double
+}
+
 @MainActor
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
@@ -242,6 +247,7 @@ final class AppState: ObservableObject {
     private static let playbackSpeedKey = "playbackSpeed"
     private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
     private static let searchResultThumbnailsEnabledKey = "searchResultThumbnailsEnabled"
+    private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
@@ -297,6 +303,11 @@ final class AppState: ObservableObject {
     @Published var searchResultThumbnailsEnabled = false {
         didSet {
             userDefaults.set(searchResultThumbnailsEnabled, forKey: Self.searchResultThumbnailsEnabledKey)
+        }
+    }
+    @Published var searchE2ELoggingEnabled = true {
+        didSet {
+            userDefaults.set(searchE2ELoggingEnabled, forKey: Self.searchE2ELoggingEnabledKey)
         }
     }
 
@@ -579,13 +590,15 @@ final class AppState: ObservableObject {
             Self.playbackLastNonzeroVolumeKey: 100.0,
             Self.playbackSpeedKey: 1.0,
             Self.playbackSubtitlesVisibleKey: true,
-            Self.searchResultThumbnailsEnabledKey: false
+            Self.searchResultThumbnailsEnabledKey: false,
+            Self.searchE2ELoggingEnabledKey: true
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
 
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         searchResultThumbnailsEnabled = userDefaults.bool(forKey: Self.searchResultThumbnailsEnabledKey)
+        searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -1394,14 +1407,22 @@ final class AppState: ObservableObject {
         let pageSize = Self.searchPageSize
         if let activeSearchPerformanceRun {
             SearchPerformanceLogger.mark(activeSearchPerformanceRun, "search_superseded_by_new_search")
+            SearchPerformanceLogger.writeE2ESearchPage(
+                activeSearchPerformanceRun,
+                event: "search_superseded_by_new_search",
+                page: nil,
+                status: "cancelled"
+            )
         }
         let searchPerformanceRun = SearchPerformanceLogger.startRun(
+            query: trimmedQuery,
             queryLength: trimmedQuery.count,
             offset: offset,
             limit: pageSize,
             appending: appending,
             debounce: debounce,
-            folderCount: folders.count
+            folderPaths: folders.map(\.path),
+            e2eLoggingEnabled: searchE2ELoggingEnabled
         )
         activeSearchPerformanceRun = searchPerformanceRun
         pendingSearchVisibleEntryIDs = []
@@ -1422,6 +1443,12 @@ final class AppState: ObservableObject {
         guard !trimmedQuery.isEmpty else {
             searchStatus = .idle
             SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_empty_query", status: "idle")
+            SearchPerformanceLogger.writeE2ESearchPage(
+                searchPerformanceRun,
+                event: "search_skipped_empty_query",
+                page: nil,
+                status: "idle"
+            )
             clearSearchPerformanceRunIfActive(searchPerformanceRun)
             return
         }
@@ -1430,6 +1457,12 @@ final class AppState: ObservableObject {
             searchStatus = .completed
             selectedSearchResult = nil
             SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_no_folders", status: "completed")
+            SearchPerformanceLogger.writeE2ESearchPage(
+                searchPerformanceRun,
+                event: "search_skipped_no_folders",
+                page: nil,
+                status: "completed"
+            )
             clearSearchPerformanceRunIfActive(searchPerformanceRun)
             return
         }
@@ -1445,6 +1478,13 @@ final class AppState: ObservableObject {
                 status: "failed",
                 error: "Database compaction is running"
             )
+            SearchPerformanceLogger.writeE2ESearchPage(
+                searchPerformanceRun,
+                event: "search_failed_database_compacting",
+                page: nil,
+                status: "failed",
+                error: "Database compaction is running"
+            )
             clearSearchPerformanceRunIfActive(searchPerformanceRun)
             return
         }
@@ -1454,6 +1494,13 @@ final class AppState: ObservableObject {
             SearchPerformanceLogger.mark(
                 searchPerformanceRun,
                 "search_failed_no_database",
+                status: "failed",
+                error: "Database is not initialized"
+            )
+            SearchPerformanceLogger.writeE2ESearchPage(
+                searchPerformanceRun,
+                event: "search_failed_no_database",
+                page: nil,
                 status: "failed",
                 error: "Database is not initialized"
             )
@@ -1474,7 +1521,7 @@ final class AppState: ObservableObject {
 
                 SearchPerformanceLogger.mark(searchPerformanceRun, "database_search_started")
                 let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
-                let page = try await Task.detached(priority: .userInitiated) {
+                let pageLoad = try await Task.detached(priority: .userInitiated) {
                     let databaseSearchStart = SearchPerformanceLogger.now()
                     let page = try database.searchPage(
                         trimmedQuery,
@@ -1482,6 +1529,9 @@ final class AppState: ObservableObject {
                         offset: offset,
                         under: folders,
                         diagnostics: diagnosticsSink
+                    )
+                    let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
+                        since: databaseSearchStart
                     )
                     SearchPerformanceLogger.mark(
                         searchPerformanceRun,
@@ -1491,8 +1541,12 @@ final class AppState: ObservableObject {
                         totalCount: page.totalCount,
                         fileSummaryCount: page.fileSummaries.count
                     )
-                    return page
+                    return SearchPageLoad(
+                        page: page,
+                        databaseSearchMilliseconds: databaseSearchMilliseconds
+                    )
                 }.value
+                let page = pageLoad.page
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "database_page_received_on_main",
@@ -1503,6 +1557,13 @@ final class AppState: ObservableObject {
 
                 guard !Task.isCancelled else {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_cancelled_after_database")
+                    SearchPerformanceLogger.writeE2ESearchPage(
+                        searchPerformanceRun,
+                        event: "search_cancelled_after_database",
+                        page: page,
+                        databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
+                        status: "cancelled"
+                    )
                     return
                 }
 
@@ -1520,6 +1581,7 @@ final class AppState: ObservableObject {
                 searchResultTotalCount = page.totalCount
                 searchFileSummaries = page.fileSummaries
                 hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
+                let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_state_assigned",
@@ -1531,6 +1593,7 @@ final class AppState: ObservableObject {
 
                 let rebuildStart = SearchPerformanceLogger.now()
                 rebuildSearchResultGroups()
+                let groupRebuildMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: rebuildStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_groups_rebuilt",
@@ -1548,6 +1611,7 @@ final class AppState: ObservableObject {
 
                 let completionStart = SearchPerformanceLogger.now()
                 searchStatus = .completed
+                let statusCompletionMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_status_completed",
@@ -1559,16 +1623,40 @@ final class AppState: ObservableObject {
                     renderedRowCount: renderedSearchResultCount,
                     status: "completed"
                 )
+                SearchPerformanceLogger.writeE2ESearchPage(
+                    searchPerformanceRun,
+                    event: "search_status_completed",
+                    page: page,
+                    databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
+                    stateAssignMilliseconds: stateAssignMilliseconds,
+                    groupRebuildMilliseconds: groupRebuildMilliseconds,
+                    statusCompletionMilliseconds: statusCompletionMilliseconds,
+                    groupCount: searchResultGroups.count,
+                    renderedRowCount: renderedSearchResultCount,
+                    status: "completed"
+                )
                 if page.results.isEmpty {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_no_result_rows_to_render")
                     clearSearchPerformanceRunIfActive(searchPerformanceRun)
                 }
             } catch is CancellationError {
                 SearchPerformanceLogger.mark(searchPerformanceRun, "search_cancelled")
+                SearchPerformanceLogger.writeE2ESearchPage(
+                    searchPerformanceRun,
+                    event: "search_cancelled",
+                    page: nil,
+                    status: "cancelled"
+                )
                 return
             } catch {
                 guard !Task.isCancelled else {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_cancelled_after_error")
+                    SearchPerformanceLogger.writeE2ESearchPage(
+                        searchPerformanceRun,
+                        event: "search_cancelled_after_error",
+                        page: nil,
+                        status: "cancelled"
+                    )
                     return
                 }
 
@@ -1589,6 +1677,15 @@ final class AppState: ObservableObject {
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_failed",
+                    status: "failed",
+                    error: message
+                )
+                SearchPerformanceLogger.writeE2ESearchPage(
+                    searchPerformanceRun,
+                    event: "search_failed",
+                    page: nil,
+                    groupCount: searchResultGroups.count,
+                    renderedRowCount: renderedSearchResultCount,
                     status: "failed",
                     error: message
                 )
@@ -1614,6 +1711,15 @@ final class AppState: ObservableObject {
             groupCount: searchResultGroups.count,
             renderedRowCount: renderedSearchResultCount,
             entryID: result.entryID
+        )
+        SearchPerformanceLogger.writeE2EFirstVisible(
+            activeSearchPerformanceRun,
+            result: result,
+            resultCount: searchResults.count,
+            totalCount: searchResultTotalCount,
+            fileSummaryCount: searchFileSummaries.count,
+            groupCount: searchResultGroups.count,
+            renderedRowCount: renderedSearchResultCount
         )
         clearSearchPerformanceRunIfActive(activeSearchPerformanceRun)
     }

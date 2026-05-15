@@ -5,12 +5,15 @@ import CueSeekerCore
 struct SearchPerformanceRun: Sendable {
     let id: UInt64
     let startedAt: UInt64
+    let query: String
     let queryLength: Int
     let offset: Int
     let limit: Int
     let appending: Bool
     let debounce: Bool
     let folderCount: Int
+    let folderPaths: [String]
+    let e2eLoggingEnabled: Bool
 }
 
 private struct SearchPerformanceLogEntry: Sendable {
@@ -89,6 +92,94 @@ private struct SearchPerformanceLogEntry: Sendable {
     }
 }
 
+private struct SearchE2ELogEntry: Encodable, Sendable {
+    let schemaVersion = 1
+    let timestamp: String
+    let sequence: UInt64
+    let runID: UInt64
+    let event: String
+    let query: String
+    let queryLength: Int
+    let offset: Int
+    let limit: Int
+    let appending: Bool
+    let debounce: Bool
+    let folders: [String]
+    let status: String
+    let error: String?
+    let timings: SearchE2ETimingSnapshot
+    let ui: SearchE2EUISnapshot
+    let page: SearchE2EPageSnapshot?
+    let firstVisibleResult: SearchE2EResultSnapshot?
+}
+
+private struct SearchE2ETimingSnapshot: Encodable, Sendable {
+    let elapsedMilliseconds: Double
+    let databaseSearchMilliseconds: Double?
+    let stateAssignMilliseconds: Double?
+    let groupRebuildMilliseconds: Double?
+    let statusCompletionMilliseconds: Double?
+    let firstVisibleElapsedMilliseconds: Double?
+}
+
+private struct SearchE2EUISnapshot: Encodable, Sendable {
+    let groupCount: Int?
+    let renderedRowCount: Int?
+    let firstVisibleEntryID: Int64?
+}
+
+private struct SearchE2EPageSnapshot: Encodable, Sendable {
+    let results: [SearchE2EResultSnapshot]
+    let totalCount: Int
+    let fileSummaries: [SearchE2EFileSummarySnapshot]
+
+    init(page: SubtitleSearchPage) {
+        results = page.results.map(SearchE2EResultSnapshot.init)
+        totalCount = page.totalCount
+        fileSummaries = page.fileSummaries.map(SearchE2EFileSummarySnapshot.init)
+    }
+}
+
+private struct SearchE2EResultSnapshot: Encodable, Sendable {
+    let entryID: Int64
+    let subtitlePath: String
+    let subtitleFormat: String
+    let videoPath: String
+    let videoName: String
+    let startMilliseconds: Int
+    let endMilliseconds: Int
+    let content: String
+    let cueLines: [String]
+    let searchRank: Int
+
+    init(result: SubtitleSearchResult) {
+        entryID = result.entryID
+        subtitlePath = result.subtitlePath
+        subtitleFormat = result.subtitleFormat.rawValue
+        videoPath = result.videoPath
+        videoName = result.videoName
+        startMilliseconds = result.startMilliseconds
+        endMilliseconds = result.endMilliseconds
+        content = result.content
+        cueLines = result.cueLines
+        searchRank = result.searchRank
+    }
+}
+
+private struct SearchE2EFileSummarySnapshot: Encodable, Sendable {
+    let subtitlePath: String
+    let subtitleFileName: String
+    let subtitleDisplayTitle: String
+    let matchCount: Int
+
+    init(summary: SubtitleSearchFileSummary) {
+        subtitlePath = summary.subtitlePath
+        subtitleFileName = summary.subtitleFileName
+        subtitleDisplayTitle = summary.subtitleDisplayTitle
+        matchCount = summary.matchCount
+    }
+}
+
 private final class SearchPerformanceLoggerState: @unchecked Sendable {
     private let lock = NSLock()
     private var nextRunID: UInt64 = 0
@@ -108,6 +199,68 @@ private final class SearchPerformanceLoggerState: @unchecked Sendable {
 
         nextSequence += 1
         return nextSequence
+    }
+}
+
+private final class SearchE2ELogWriter: @unchecked Sendable {
+    private let queue = DispatchQueue(
+        label: "app.cueseeker.search-e2e-log",
+        qos: .utility
+    )
+    private let logger = Logger(subsystem: "com.cueseeker.perf", category: "SearchE2E")
+    private let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }()
+    private var didAnnounceLogPath = false
+
+    func write(_ entry: SearchE2ELogEntry) {
+        queue.async { [weak self] in
+            self?.writeNow(entry)
+        }
+    }
+
+    private func writeNow(_ entry: SearchE2ELogEntry) {
+        do {
+            let fileURL = Self.logFileURL()
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+
+            var data = try encoder.encode(entry)
+            data.append(0x0A)
+            if !FileManager.default.fileExists(atPath: fileURL.path) {
+                FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+            }
+
+            let handle = try FileHandle(forWritingTo: fileURL)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+            try handle.close()
+
+            if !didAnnounceLogPath {
+                didAnnounceLogPath = true
+                logger.warning("MARK SearchE2ELog.path \(fileURL.path, privacy: .public)")
+            }
+        } catch {
+            logger.error("SearchE2ELog.writeFailed \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static func logFileURL() -> URL {
+        AppLogDirectory.fileURL(
+            in: "search-e2e",
+            filename: "search-e2e-\(dateStamp()).jsonl"
+        )
+    }
+
+    private static func dateStamp() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
     }
 }
 
@@ -170,6 +323,7 @@ private final class SearchPerformanceLogWriter: @unchecked Sendable {
 enum SearchPerformanceLogger {
     private static let state = SearchPerformanceLoggerState()
     private static let writer = SearchPerformanceLogWriter()
+    private static let e2eWriter = SearchE2ELogWriter()
 
     #if DEBUG
     private static let isDevelopmentBuild = true
@@ -186,30 +340,137 @@ enum SearchPerformanceLogger {
         DispatchTime.now().uptimeNanoseconds
     }
 
+    static func elapsedMilliseconds(since start: UInt64) -> Double {
+        milliseconds(between: start, and: now())
+    }
+
     static func startRun(
+        query: String,
         queryLength: Int,
         offset: Int,
         limit: Int,
         appending: Bool,
         debounce: Bool,
-        folderCount: Int
+        folderPaths: [String],
+        e2eLoggingEnabled: Bool
     ) -> SearchPerformanceRun? {
-        guard isEnabled else {
+        guard isEnabled || e2eLoggingEnabled else {
             return nil
         }
 
         let run = SearchPerformanceRun(
             id: state.allocateRunID(),
             startedAt: now(),
+            query: query,
             queryLength: queryLength,
             offset: offset,
             limit: limit,
             appending: appending,
             debounce: debounce,
-            folderCount: folderCount
+            folderCount: folderPaths.count,
+            folderPaths: folderPaths,
+            e2eLoggingEnabled: e2eLoggingEnabled
         )
         mark(run, "search_requested")
         return run
+    }
+
+    static func writeE2ESearchPage(
+        _ run: SearchPerformanceRun?,
+        event: String,
+        page: SubtitleSearchPage?,
+        databaseSearchMilliseconds: Double? = nil,
+        stateAssignMilliseconds: Double? = nil,
+        groupRebuildMilliseconds: Double? = nil,
+        statusCompletionMilliseconds: Double? = nil,
+        groupCount: Int? = nil,
+        renderedRowCount: Int? = nil,
+        status: String,
+        error: String? = nil
+    ) {
+        guard let run, run.e2eLoggingEnabled else {
+            return
+        }
+
+        let timestamp = now()
+        let entry = SearchE2ELogEntry(
+            timestamp: timestampString(),
+            sequence: state.allocateSequence(),
+            runID: run.id,
+            event: event,
+            query: run.query,
+            queryLength: run.queryLength,
+            offset: run.offset,
+            limit: run.limit,
+            appending: run.appending,
+            debounce: run.debounce,
+            folders: run.folderPaths,
+            status: status,
+            error: error,
+            timings: SearchE2ETimingSnapshot(
+                elapsedMilliseconds: milliseconds(between: run.startedAt, and: timestamp),
+                databaseSearchMilliseconds: databaseSearchMilliseconds,
+                stateAssignMilliseconds: stateAssignMilliseconds,
+                groupRebuildMilliseconds: groupRebuildMilliseconds,
+                statusCompletionMilliseconds: statusCompletionMilliseconds,
+                firstVisibleElapsedMilliseconds: nil
+            ),
+            ui: SearchE2EUISnapshot(
+                groupCount: groupCount,
+                renderedRowCount: renderedRowCount,
+                firstVisibleEntryID: nil
+            ),
+            page: page.map(SearchE2EPageSnapshot.init),
+            firstVisibleResult: nil
+        )
+        e2eWriter.write(entry)
+    }
+
+    static func writeE2EFirstVisible(
+        _ run: SearchPerformanceRun?,
+        result: SubtitleSearchResult,
+        resultCount: Int,
+        totalCount: Int,
+        fileSummaryCount: Int,
+        groupCount: Int,
+        renderedRowCount: Int
+    ) {
+        guard let run, run.e2eLoggingEnabled else {
+            return
+        }
+
+        let timestamp = now()
+        let entry = SearchE2ELogEntry(
+            timestamp: timestampString(),
+            sequence: state.allocateSequence(),
+            runID: run.id,
+            event: "first_result_row_appeared",
+            query: run.query,
+            queryLength: run.queryLength,
+            offset: run.offset,
+            limit: run.limit,
+            appending: run.appending,
+            debounce: run.debounce,
+            folders: run.folderPaths,
+            status: "visible",
+            error: nil,
+            timings: SearchE2ETimingSnapshot(
+                elapsedMilliseconds: milliseconds(between: run.startedAt, and: timestamp),
+                databaseSearchMilliseconds: nil,
+                stateAssignMilliseconds: nil,
+                groupRebuildMilliseconds: nil,
+                statusCompletionMilliseconds: nil,
+                firstVisibleElapsedMilliseconds: milliseconds(between: run.startedAt, and: timestamp)
+            ),
+            ui: SearchE2EUISnapshot(
+                groupCount: groupCount,
+                renderedRowCount: renderedRowCount,
+                firstVisibleEntryID: result.entryID
+            ),
+            page: nil,
+            firstVisibleResult: SearchE2EResultSnapshot(result: result)
+        )
+        e2eWriter.write(entry)
     }
 
     static func mark(
