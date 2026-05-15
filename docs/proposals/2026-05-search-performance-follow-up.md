@@ -826,6 +826,26 @@ Suspended scope:
 | ---: | --- | --- |
 | 16 | UI virtualization / windowing validation | Requires dedicated view-lifecycle instrumentation plus E2E scroll evidence; not part of the backend/cache performance path. |
 
+### Step 17 Baseline Before Query/Result Cache
+
+Date: 2026-05-16
+
+Scope:
+
+- Current implementation has no Search query/result cache yet.
+- Benchmark copied the app database to `/private/tmp` and ran `SearchBench`
+  against the copy with `limit=100`, exact mode.
+- The temporary database copy was removed after collecting data so later cache
+  experiments can start from a clean local state.
+
+Baseline benchmark:
+
+| Query | Warmup ms | Returned | Total count | File summaries | Count state | Hot avg ms | Hot raw ms | Cold total ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: |
+| `大丈夫` | 10.81 | 100 | 185 | 74 | exact | 3.12 | 2.91, 2.94, 3.07, 3.60, 3.05 | 6.10 |
+| `今日` | 112.42 | 100 | 1282 | 81 | exact | 72.66 | 77.96, 70.31, 71.55, 73.37, 70.09 | 72.63 |
+| `の` | 710.42 | 100 | 20770 | 87 | exact | 554.17 | 573.17, 556.43, 545.65, 548.55, 547.04 | 608.62 |
+
 ### Search Input Invalidation Fix
 
 Date: 2026-05-15
