@@ -518,6 +518,8 @@ Implementation notes:
   `subtitle_cue_groups_fts` through SQLite `fts5vocab`.
 - `SearchBench` prints the diagnostics only when
   `CUESEEKER_BENCH_FTS_VOCAB=1` is set.
+- Settings > Developer exposes an `FTS Vocabulary Diagnostics` switch, default
+  on, so the diagnostic capability is visible in the app's developer surface.
 - Normal Search and normal SearchBench runs do not create or query
   `fts5vocab`.
 - The diagnostics report unique vocabulary terms, total term-document

@@ -388,6 +388,22 @@ struct SettingsView: View {
                     .toggleStyle(.switch)
             }
 
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("FTS Vocabulary Diagnostics")
+                        .font(.headline)
+                    Text("Enable fts5vocab diagnostics for local developer tools.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $appState.searchFTSVocabularyDiagnosticsEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+
             Spacer()
         }
         .padding(24)

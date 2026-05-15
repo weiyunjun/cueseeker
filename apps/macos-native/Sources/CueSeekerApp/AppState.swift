@@ -253,6 +253,7 @@ final class AppState: ObservableObject {
     private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
     private static let searchResultThumbnailsEnabledKey = "searchResultThumbnailsEnabled"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
+    private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
@@ -317,6 +318,14 @@ final class AppState: ObservableObject {
     @Published var searchE2ELoggingEnabled = true {
         didSet {
             userDefaults.set(searchE2ELoggingEnabled, forKey: Self.searchE2ELoggingEnabledKey)
+        }
+    }
+    @Published var searchFTSVocabularyDiagnosticsEnabled = true {
+        didSet {
+            userDefaults.set(
+                searchFTSVocabularyDiagnosticsEnabled,
+                forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
+            )
         }
     }
 
@@ -622,7 +631,8 @@ final class AppState: ObservableObject {
             Self.playbackSpeedKey: 1.0,
             Self.playbackSubtitlesVisibleKey: true,
             Self.searchResultThumbnailsEnabledKey: false,
-            Self.searchE2ELoggingEnabledKey: true
+            Self.searchE2ELoggingEnabledKey: true,
+            Self.searchFTSVocabularyDiagnosticsEnabledKey: true
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
 
@@ -630,6 +640,9 @@ final class AppState: ObservableObject {
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         searchResultThumbnailsEnabled = userDefaults.bool(forKey: Self.searchResultThumbnailsEnabledKey)
         searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
+        searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
+            forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
+        )
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
