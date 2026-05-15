@@ -503,6 +503,89 @@ Read:
 - Current acceptance requires `countState: exact` on Search page records and
   exact `totalCount` / `fileSummaries` before the initial list settles.
 
+### Step 5: `fts5vocab` Diagnostics
+
+Date: 2026-05-15
+
+Before version: `a338672`
+
+Commit under test: working tree after `a338672`, before the follow-up commit
+that records this implementation.
+
+Implementation notes:
+
+- `SubtitleDatabase` exposes explicit FTS vocabulary diagnostics for
+  `subtitle_cue_groups_fts` through SQLite `fts5vocab`.
+- `SearchBench` prints the diagnostics only when
+  `CUESEEKER_BENCH_FTS_VOCAB=1` is set.
+- Normal Search and normal SearchBench runs do not create or query
+  `fts5vocab`.
+- The diagnostics report unique vocabulary terms, total term-document
+  references, total term occurrences, most frequent terms, and the vocabulary
+  scale for the query terms.
+
+Pre-change exact baseline:
+
+| Query | Warmup ms | Returned | Total count | File summaries | Count state | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- |
+| `大丈夫` | 716.71 | 185 | 185 | 74 | exact | 91.69 | 90.54, 88.76, 88.50, 90.33, 100.34 |
+| `今日` | 330.65 | 1000 | 1282 | 81 | exact | 171.81 | 170.42, 170.07, 173.95, 168.02, 176.58 |
+| `の` | 1434.38 | 1000 | 20770 | 87 | exact | 1119.68 | 1108.98, 1116.25, 1123.55, 1137.04, 1112.58 |
+
+Post-change benchmark with vocabulary diagnostics disabled:
+
+| Query | Warmup ms | Returned | Total count | File summaries | Count state | Hot avg ms | Hot raw ms |
+| --- | ---: | ---: | ---: | ---: | --- | ---: | --- |
+| `大丈夫` | 553.53 | 185 | 185 | 74 | exact | 92.26 | 92.93, 91.90, 92.19, 91.96, 92.34 |
+| `今日` | 311.32 | 1000 | 1282 | 81 | exact | 173.73 | 170.48, 168.23, 184.94, 169.25, 175.75 |
+| `の` | 1593.83 | 1000 | 20770 | 87 | exact | 1135.53 | 1132.81, 1131.75, 1135.62, 1131.93, 1145.52 |
+
+Vocabulary totals from explicit diagnostics:
+
+| Metric | Value |
+| --- | ---: |
+| Unique vocabulary terms | 11,337 |
+| Total term-document references | 1,481,292 |
+| Total term occurrences | 9,135,487 |
+
+Query-term diagnostics:
+
+| Query | Diagnostic elapsed ms | Term | Document count | Occurrences |
+| --- | ---: | --- | ---: | ---: |
+| `大丈夫` | 129.40 | `大` | 2,697 | 3,114 |
+| `大丈夫` | 129.40 | `丈` | 263 | 266 |
+| `大丈夫` | 129.40 | `夫` | 431 | 523 |
+| `今日` | 82.77 | `今` | 2,668 | 21,864 |
+| `今日` | 82.77 | `日` | 2,220 | 12,884 |
+| `の` | 83.00 | `の` | 20,770 | 88,481 |
+
+Most frequent terms:
+
+| Term | Document count | Occurrences |
+| --- | ---: | ---: |
+| `0` | 8,286 | 1,016,421 |
+| `30` | 8,300 | 871,220 |
+| `15` | 8,293 | 726,013 |
+| `b` | 8,314 | 580,844 |
+| `7` | 8,283 | 580,805 |
+| `23` | 8,282 | 580,802 |
+| `m` | 8,568 | 145,494 |
+| `い` | 25,403 | 117,454 |
+| `て` | 23,122 | 102,581 |
+| `的` | 24,841 | 93,126 |
+| `た` | 21,748 | 91,457 |
+| `の` | 20,770 | 88,481 |
+
+Read:
+
+- The default Search path is unchanged for diagnostics: `fts5vocab` is queried
+  only when `CUESEEKER_BENCH_FTS_VOCAB=1`.
+- `の` is a high-frequency indexed token: it appears in `20,770` documents and
+  `88,481` occurrences, matching the broad query's large exact result count.
+- The most frequent terms are dominated by ASS markup/style-like tokens such
+  as numbers and tag letters. This makes index pollution observable for later
+  FTS maintenance or tokenizer cleanup work.
+
 ## Acceptance Standards
 
 General standards:
@@ -917,7 +1000,7 @@ Read:
 - The one-time v19 migration on the measured local database rebuilt FTS rows in
   about `2202.26 ms`.
 
-### Step 8: `fts5vocab` Diagnostics
+### Step 8: `fts5vocab` Diagnostics (Historical)
 
 Date: 2026-05-15
 
@@ -989,6 +1072,9 @@ Post-change benchmark with default vocabulary diagnostics disabled:
 
 Diagnostic command check:
 
+Historical command; current `SearchBench` no longer supports deferred metadata
+mode.
+
 ```bash
 CUESEEKER_BENCH_FTS_VOCAB=1 CUESEEKER_BENCH_METADATA=deferred \
   .build/arm64-apple-macosx/debug/SearchBench \
@@ -1008,12 +1094,9 @@ Read after implementation:
 - The diagnostic itself took about `157.02 ms` on the measured local database,
   so it belongs in development, benchmark, or maintenance surfaces, not in the
   normal keystroke Search path.
-- The app now exposes this diagnostic in Settings under `Developer`, with
-  explicit refresh semantics so developers can inspect FTS vocabulary state
-  without adding work to normal Search.
-- The same `Developer` category exposes `Show Search Performance`, enabled by
-  default, which appends first-page and complete metadata timing to the Search
-  result summary for live observation.
+- This historical implementation exposed the diagnostic in Settings under
+  `Developer`. The current accepted Step 5 implementation keeps the diagnostic
+  in Core and `SearchBench` only.
 - The next optimization step should use this evidence when deciding whether FTS
   maintenance or tokenizer cleanup is worth pursuing.
 

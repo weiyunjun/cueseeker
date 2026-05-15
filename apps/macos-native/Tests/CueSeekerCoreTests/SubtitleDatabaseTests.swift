@@ -402,6 +402,64 @@ func searchPageExposesExactCountsWhenAllRowsFitInPage() throws {
 }
 
 @Test
+func ftsVocabularyDiagnosticsReportsTopAndQueryTerms() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/Alpha/Episode.mkv")
+    let betaSubtitle = URL(fileURLWithPath: "/Media/Beta/Episode.srt")
+    let betaVideo = URL(fileURLWithPath: "/Media/Beta/Episode.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: alphaSubtitle,
+        videoFile: alphaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:01,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 1_500,
+                text: "Shared alpha alpha alpha"
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: betaSubtitle,
+        videoFile: betaVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:02,000",
+                endTimecode: "00:00:02,500",
+                startMilliseconds: 2_000,
+                endMilliseconds: 2_500,
+                text: "Shared beta"
+            )
+        ]
+    )
+
+    let diagnostics = try database.ftsVocabularyDiagnostics(for: "shared alpha", topTermLimit: 2)
+
+    #expect(diagnostics.uniqueTermCount >= 3)
+    #expect(diagnostics.totalOccurrences >= 6)
+    #expect(diagnostics.totalDocumentReferences >= 4)
+    #expect(diagnostics.mostFrequentTerms.count == 2)
+    #expect(diagnostics.mostFrequentTerms.first?.term == "alpha")
+    #expect(diagnostics.mostFrequentTerms.first?.documentCount == 1)
+    #expect(diagnostics.mostFrequentTerms.first?.occurrenceCount == 3)
+    #expect(diagnostics.queryTerms.map(\.term) == ["shared", "alpha"])
+    #expect(diagnostics.queryTerms.map(\.documentCount) == [2, 1])
+    #expect(diagnostics.queryTerms.map(\.occurrenceCount) == [2, 3])
+}
+
+@Test
 func searchNavigationUsesCompleteResultOrderAndPlaybackTimeAnchor() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

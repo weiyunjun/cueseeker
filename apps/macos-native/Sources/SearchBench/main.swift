@@ -74,12 +74,16 @@ let dbPath = URL(fileURLWithPath: CommandLine.arguments[1])
 let query = CommandLine.arguments[2]
 let limit = extraArguments.first(where: { !$0.hasPrefix("--") }).flatMap(Int.init) ?? 1000
 let includesStep1Gaps = extraArguments.contains("--step1-gaps")
+let environment = ProcessInfo.processInfo.environment
+let includesFTSVocabularyDiagnostics = environment["CUESEEKER_BENCH_FTS_VOCAB"] == "1"
+let ftsVocabularyTopTermLimit = environment["CUESEEKER_BENCH_FTS_VOCAB_LIMIT"].flatMap(Int.init) ?? 12
 
 print("== SearchBench ==")
 print("DB:    \(dbPath.path)")
 print("Query: \"\(query)\"")
 print("Limit: \(limit)")
 print("Metadata mode: exact")
+print("FTS vocab diagnostics: \(includesFTSVocabularyDiagnostics ? "enabled" : "disabled")")
 print("")
 
 let openStart = Date()
@@ -292,3 +296,31 @@ print("Cold open + migrate + 1 search (simulates old per-call pattern):")
 print("  open + migrate:     \(formatMs(coldOpenMs)) ms")
 print("  first search:       \(formatMs(coldSearchMs)) ms")
 print("  total:              \(formatMs(coldOpenMs + coldSearchMs)) ms")
+
+if includesFTSVocabularyDiagnostics {
+    let diagnosticsStart = Date()
+    let diagnostics = try database.ftsVocabularyDiagnostics(
+        for: query,
+        topTermLimit: ftsVocabularyTopTermLimit
+    )
+    let diagnosticsMs = milliseconds(since: diagnosticsStart)
+
+    print("")
+    print("FTS vocabulary diagnostics:")
+    print("  elapsed:              \(formatMs(diagnosticsMs)) ms")
+    print("  unique terms:         \(diagnostics.uniqueTermCount)")
+    print("  term-doc references:  \(diagnostics.totalDocumentReferences)")
+    print("  term occurrences:     \(diagnostics.totalOccurrences)")
+    print("  query terms:")
+    if diagnostics.queryTerms.isEmpty {
+        print("    none")
+    } else {
+        for term in diagnostics.queryTerms {
+            print("    \(term.term) docs=\(term.documentCount) occurrences=\(term.occurrenceCount)")
+        }
+    }
+    print("  most frequent terms:")
+    for term in diagnostics.mostFrequentTerms {
+        print("    \(term.term) docs=\(term.documentCount) occurrences=\(term.occurrenceCount)")
+    }
+}

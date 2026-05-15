@@ -81,6 +81,20 @@ public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
 
 }
 
+public struct SubtitleFTSVocabularyTermDiagnostic: Equatable, Sendable {
+    public let term: String
+    public let documentCount: Int
+    public let occurrenceCount: Int
+}
+
+public struct SubtitleFTSVocabularyDiagnostics: Equatable, Sendable {
+    public let uniqueTermCount: Int
+    public let totalDocumentReferences: Int
+    public let totalOccurrences: Int
+    public let mostFrequentTerms: [SubtitleFTSVocabularyTermDiagnostic]
+    public let queryTerms: [SubtitleFTSVocabularyTermDiagnostic]
+}
+
 public struct LibraryVideo: Equatable, Sendable, Identifiable {
     public let videoPath: String
     public let videoName: String
@@ -1393,6 +1407,45 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
+    public func ftsVocabularyDiagnostics(
+        for query: String,
+        topTermLimit: Int = 12
+    ) throws -> SubtitleFTSVocabularyDiagnostics {
+        try database.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS temp.subtitle_cue_groups_fts_vocab
+            USING fts5vocab(main, subtitle_cue_groups_fts, 'row');
+            """
+        )
+
+        let totals = try database.prepare(
+            """
+            SELECT COUNT(*), COALESCE(SUM(doc), 0), COALESCE(SUM(cnt), 0)
+            FROM temp.subtitle_cue_groups_fts_vocab;
+            """
+        )
+        _ = try totals.step()
+        let uniqueTermCount = totals.intColumn(0)
+        let totalDocumentReferences = totals.intColumn(1)
+        let totalOccurrences = totals.intColumn(2)
+
+        let topTerms = try ftsVocabularyTerms(
+            matching: nil,
+            limit: max(0, topTermLimit)
+        )
+        let queryTerms = try Self.ftsVocabularyTerms(in: query).map { term in
+            try ftsVocabularyTerm(term)
+        }
+
+        return SubtitleFTSVocabularyDiagnostics(
+            uniqueTermCount: uniqueTermCount,
+            totalDocumentReferences: totalDocumentReferences,
+            totalOccurrences: totalOccurrences,
+            mostFrequentTerms: topTerms,
+            queryTerms: queryTerms
+        )
+    }
+
     public func searchNavigationSnapshot(
         _ query: String,
         under folders: [URL]? = nil,
@@ -2062,6 +2115,60 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
+    private func ftsVocabularyTerms(
+        matching term: String?,
+        limit: Int
+    ) throws -> [SubtitleFTSVocabularyTermDiagnostic] {
+        guard limit > 0 else {
+            return []
+        }
+
+        let statement: SQLiteStatement
+        if let term {
+            statement = try database.prepare(
+                """
+                SELECT term, doc, cnt
+                FROM temp.subtitle_cue_groups_fts_vocab
+                WHERE term = ?
+                LIMIT ?;
+                """
+            )
+            try statement.bind(term, at: 1)
+            try statement.bind(limit, at: 2)
+        } else {
+            statement = try database.prepare(
+                """
+                SELECT term, doc, cnt
+                FROM temp.subtitle_cue_groups_fts_vocab
+                ORDER BY cnt DESC, doc DESC, term ASC
+                LIMIT ?;
+                """
+            )
+            try statement.bind(limit, at: 1)
+        }
+
+        var terms: [SubtitleFTSVocabularyTermDiagnostic] = []
+        while try statement.step() {
+            terms.append(
+                SubtitleFTSVocabularyTermDiagnostic(
+                    term: statement.stringColumn(0),
+                    documentCount: statement.intColumn(1),
+                    occurrenceCount: statement.intColumn(2)
+                )
+            )
+        }
+        return terms
+    }
+
+    private func ftsVocabularyTerm(_ term: String) throws -> SubtitleFTSVocabularyTermDiagnostic {
+        try ftsVocabularyTerms(matching: term, limit: 1).first
+            ?? SubtitleFTSVocabularyTermDiagnostic(
+                term: term,
+                documentCount: 0,
+                occurrenceCount: 0
+            )
+    }
+
     private static func searchQueryPlan(for query: String, limit: Int) -> SearchQueryPlan? {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, limit > 0 else {
@@ -2195,6 +2302,45 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         flushToken()
         return tokens
+    }
+
+    private static func ftsVocabularyTerms(in text: String) -> [String] {
+        let operators = Set(["and", "or", "not", "near"])
+        var terms: [String] = []
+        var seen = Set<String>()
+        var current = ""
+
+        func appendTerm(_ rawTerm: String) {
+            let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !term.isEmpty, !operators.contains(term), seen.insert(term).inserted else {
+                return
+            }
+
+            terms.append(term)
+        }
+
+        func flushCurrent() {
+            appendTerm(current)
+            current = ""
+        }
+
+        for character in text {
+            if character.unicodeScalars.count == 1,
+               let scalar = character.unicodeScalars.first,
+               isCJKSearchCharacter(scalar) {
+                flushCurrent()
+                appendTerm(String(character))
+            } else if isASCIILetterOrDigit(character) {
+                current.append(contentsOf: character.lowercased())
+            } else if character == "'", !current.isEmpty {
+                current.append(character)
+            } else {
+                flushCurrent()
+            }
+        }
+
+        flushCurrent()
+        return terms
     }
 
     private static func matchesOrderedWholeTokens(_ content: String, queryTokens: [String]) -> Bool {
