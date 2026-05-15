@@ -694,13 +694,9 @@ Expected behavior:
   `software`, and `auto`.
 - `Maintenance` contains local database storage stats and the manual
   `Compact Database` action for reclaiming unused SQLite freelist space.
-- `Developer` contains diagnostics and instrumentation that help explain local
-  behavior while developing the app. It includes FTS vocabulary statistics and
-  a `Show Search Performance` toggle.
-- `Show Search Performance` is enabled by default. When enabled, the Search
-  result summary appends the first-page Search time and the complete metadata
-  time after the `Found <count> results in <count> files` or loaded-results
-  summary text.
+- `Developer` is reserved for diagnostics and instrumentation that help explain
+  local behavior while developing the app. Search diagnostics are paused until
+  the new ASS-file-first measurement model is implemented.
 - `Experimental Features` contains unstable feature toggles, including `Search
   Result Thumbnails`, which is off by default.
 - Refreshing database storage stats or switching into `Maintenance` should not

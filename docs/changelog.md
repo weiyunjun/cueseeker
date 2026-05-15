@@ -6,10 +6,18 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Added a Developer Settings category for local diagnostics. It exposes
-  refreshable FTS vocabulary statistics and a default-on Search performance
-  display that appends first-page and complete metadata timing to the Search
-  result summary.
+- Rolled back the Search optimization sequence implementation to the
+  pre-optimization baseline after the visible "first page" metric proved
+  misaligned with the desired user experience. The Developer Settings category
+  remains as a reserved diagnostics surface while Search diagnostics are
+  realigned around ASS-file-first rendering.
+- Opened a new Socratic Search alignment round. The new evaluation target is
+  time until the first matching ASS file's results render, plus time until all
+  results are complete; the previous hybrid cue-line FTS path remains excluded
+  because benchmark data already showed it was a negative optimization.
+- Added a Developer Settings category for local diagnostics. The concrete FTS
+  vocabulary and first/full summary diagnostics were removed with the Search
+  rollback and will be rebuilt against the new measurement model.
 - Added the eighth accepted Search optimization-sequence step as diagnostics:
   Core and `SearchBench` can now inspect SQLite `fts5vocab` data for cue-group
   FTS, making high-frequency query terms and possible index pollution visible

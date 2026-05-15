@@ -152,6 +152,25 @@ The implementation evidence refined the Socratic diagnosis:
   timing display. This keeps the Socratic loop visible during ordinary app use:
   first-page and complete metadata timing can now be observed while changing
   queries, without opening logs.
+- The user then identified a deeper alignment failure: the implemented "first"
+  metric measured page-level readiness, not the time until a useful ASS file
+  group is visible. The code was rolled back to the pre-optimization baseline
+  while keeping the Developer Settings category as a reserved diagnostics
+  surface.
+
+## Second Socratic Search Alignment
+
+This new round narrows the product goal before any further Search optimization:
+
+- The old "first page" concept is not the target. The desired first visible
+  unit is the first matching ASS file's complete result group.
+- Search should render by ASS file. Once one or more ASS files have complete
+  known matches, those file groups may appear and the visible result/file count
+  should update to match what is rendered or known.
+- The benchmark standard is now time to render the first matching ASS file, and
+  time to complete all matching results.
+- The previously benchmarked hybrid cue-line FTS path remains excluded because
+  it was a measured negative optimization.
 
 ## Open Questions
 

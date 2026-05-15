@@ -147,60 +147,6 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
 }
 
 @Test
-func reportsFTSVocabularyDiagnostics() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    let subtitleFile = URL(fileURLWithPath: "/Media/Vocabulary.srt")
-    let videoFile = URL(fileURLWithPath: "/Media/Vocabulary.mkv")
-    try database.replaceEntries(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        entries: [
-            SubtitleEntry(
-                sequenceNumber: 1,
-                startTimecode: "00:00:01,000",
-                endTimecode: "00:00:03,000",
-                startMilliseconds: 1_000,
-                endMilliseconds: 3_000,
-                text: "Apple application 大丈夫"
-            ),
-            SubtitleEntry(
-                sequenceNumber: 2,
-                startTimecode: "00:00:04,000",
-                endTimecode: "00:00:06,000",
-                startMilliseconds: 4_000,
-                endMilliseconds: 6_000,
-                text: "Banana apple 今日"
-            )
-        ]
-    )
-
-    let cjkDiagnostics = try database.ftsVocabularyDiagnostics(for: "大丈夫", topLimit: 5)
-    #expect(cjkDiagnostics.uniqueTermCount > 0)
-    #expect(cjkDiagnostics.occurrenceCount > 0)
-    #expect(cjkDiagnostics.topTerms.count == 5)
-
-    let cjkTerms = Dictionary(uniqueKeysWithValues: cjkDiagnostics.queryTerms.map { ($0.term, $0) })
-    #expect(cjkTerms["大"]?.lookupKind == .exact)
-    #expect(cjkTerms["大"]?.documentReferenceCount == Int64(1))
-    #expect(cjkTerms["丈"]?.occurrenceCount == Int64(1))
-    #expect(cjkTerms["夫"]?.matchingTermCount == Int64(1))
-
-    let latinDiagnostics = try database.ftsVocabularyDiagnostics(for: "app", topLimit: 5)
-    #expect(latinDiagnostics.queryTerms.count == 1)
-    #expect(latinDiagnostics.queryTerms[0].lookupKind == .prefix)
-    #expect(latinDiagnostics.queryTerms[0].matchingTermCount == Int64(2))
-    #expect(latinDiagnostics.queryTerms[0].documentReferenceCount == Int64(3))
-    #expect(latinDiagnostics.queryTerms[0].occurrenceCount == Int64(3))
-}
-
-@Test
 func searchPaginatesBeyondDefaultResultLimit() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -238,91 +184,6 @@ func searchPaginatesBeyondDefaultResultLimit() throws {
     #expect(firstPage[49].content == "Shared searchable line 49")
     #expect(secondPage[0].content == "Shared searchable line 50")
     #expect(secondPage[4].content == "Shared searchable line 54")
-}
-
-@Test
-func deferredSearchPageReturnsFirstPageBeforeExactMetadata() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    let subtitleFile = URL(fileURLWithPath: "/Media/Deferred.srt")
-    let videoFile = URL(fileURLWithPath: "/Media/Deferred.mkv")
-    let entries = (0..<120).map { index in
-        SubtitleEntry(
-            sequenceNumber: index + 1,
-            startTimecode: "00:00:\(String(format: "%02d", index % 60)),000",
-            endTimecode: "00:00:\(String(format: "%02d", index % 60)),500",
-            startMilliseconds: index * 1_000,
-            endMilliseconds: index * 1_000 + 500,
-            text: "Shared deferred searchable line \(index)"
-        )
-    }
-
-    try database.replaceEntries(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        entries: entries
-    )
-    try database.rebuildSubtitleSearchOrderSnapshot()
-
-    let deferredPage = try database.searchPage(
-        "shared",
-        limit: 50,
-        metadataMode: .deferred
-    )
-    let completePage = try database.searchPage("shared", limit: 50)
-
-    #expect(deferredPage.results.count == 50)
-    #expect(deferredPage.totalCount == 51)
-    #expect(deferredPage.hasMoreResults)
-    #expect(deferredPage.metadataState == .deferred)
-    #expect(deferredPage.fileSummaries.map(\.matchCount) == [50])
-
-    #expect(completePage.results.count == 50)
-    #expect(completePage.totalCount == 120)
-    #expect(completePage.hasMoreResults)
-    #expect(completePage.metadataState == .complete)
-    #expect(completePage.fileSummaries.map(\.matchCount) == [120])
-}
-
-@Test
-func rebuildingSearchOrderAssignsFTSRowIDProductOrder() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    let zetaSubtitle = URL(fileURLWithPath: "/Media/Zeta.srt")
-    let zetaVideo = URL(fileURLWithPath: "/Media/Zeta.mkv")
-    let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha.srt")
-    let alphaVideo = URL(fileURLWithPath: "/Media/Alpha.mkv")
-
-    try database.replaceEntries(
-        subtitleFile: zetaSubtitle,
-        videoFile: zetaVideo,
-        entries: [
-            databaseTestEntry(text: "Shared zeta")
-        ]
-    )
-    try database.replaceEntries(
-        subtitleFile: alphaSubtitle,
-        videoFile: alphaVideo,
-        entries: [
-            databaseTestEntry(text: "Shared alpha")
-        ]
-    )
-
-    try database.rebuildSubtitleSearchOrderSnapshot()
-
-    #expect(try readFTSContentsOrderedByRowID(at: databaseURL) == ["Shared alpha", "Shared zeta"])
 }
 
 @Test
@@ -1583,61 +1444,6 @@ func migrationRebuildsFTSRowsForJapaneseKanaSearch() throws {
 }
 
 @Test
-func migrationRebuildsFTSRowIDProductOrder() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    let zetaSubtitle = URL(fileURLWithPath: "/Media/Zeta.srt")
-    let zetaVideo = URL(fileURLWithPath: "/Media/Zeta.mkv")
-    let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha.srt")
-    let alphaVideo = URL(fileURLWithPath: "/Media/Alpha.mkv")
-
-    try database.replaceEntries(
-        subtitleFile: zetaSubtitle,
-        videoFile: zetaVideo,
-        entries: [
-            databaseTestEntry(text: "Shared zeta")
-        ]
-    )
-    try database.replaceEntries(
-        subtitleFile: alphaSubtitle,
-        videoFile: alphaVideo,
-        entries: [
-            databaseTestEntry(text: "Shared alpha")
-        ]
-    )
-    try database.rebuildSubtitleSearchOrderSnapshot()
-
-    try executeSQLite(
-        at: databaseURL,
-        """
-        DELETE FROM subtitle_cue_groups_fts;
-        INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
-        SELECT 1, search_content, id
-        FROM subtitle_cue_groups
-        WHERE subtitle_path = '/Media/Zeta.srt';
-        INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
-        SELECT 2, search_content, id
-        FROM subtitle_cue_groups
-        WHERE subtitle_path = '/Media/Alpha.srt';
-        PRAGMA user_version = 17;
-        """
-    )
-    #expect(try readFTSContentsOrderedByRowID(at: databaseURL) == ["Shared zeta", "Shared alpha"])
-
-    let migratedDatabase = try SubtitleDatabase(path: databaseURL)
-    try migratedDatabase.migrate()
-
-    #expect(try migratedDatabase.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-    #expect(try readFTSContentsOrderedByRowID(at: databaseURL) == ["Shared alpha", "Shared zeta"])
-}
-
-@Test
 func searchesCueGroupsAndRejectsCrossLineOnlyMatches() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -2402,63 +2208,6 @@ private func readCueGroupLineCounts(at url: URL) throws -> [Int64: Int] {
         result[id] = count
     }
     return result
-}
-
-private func readFTSContentsOrderedByRowID(at url: URL) throws -> [String] {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    var statement: OpaquePointer?
-    guard sqlite3_prepare_v2(
-        database,
-        """
-        SELECT g.search_content
-        FROM subtitle_cue_groups_fts f
-        JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-        ORDER BY f.rowid ASC;
-        """,
-        -1,
-        &statement,
-        nil
-    ) == SQLITE_OK,
-        let statement
-    else {
-        let message = String(cString: sqlite3_errmsg(database))
-        throw SQLiteFixtureError.executeFailed(message)
-    }
-
-    defer {
-        sqlite3_finalize(statement)
-    }
-
-    var contents: [String] = []
-    while sqlite3_step(statement) == SQLITE_ROW {
-        contents.append(String(cString: sqlite3_column_text(statement, 0)))
-    }
-    return contents
-}
-
-private func executeSQLite(at url: URL, _ sql: String) throws {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    try executeSQLite(database, sql)
 }
 
 private func executeSQLite(_ database: OpaquePointer?, _ sql: String) throws {

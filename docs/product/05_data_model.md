@@ -18,7 +18,6 @@ Initial entities:
 - Subtitle-to-video match.
 - Subtitle cue group.
 - Subtitle cue line.
-- Subtitle search order row.
 - Index metadata.
 - ASS font resource manifest.
 - Shiori.
@@ -309,46 +308,14 @@ Notes:
 - Playback uses the source subtitle file and system-installed fonts instead of
   this manifest.
 
-## 11.2 Subtitle Search Order Snapshot
-
-Subtitle search order rows are rebuildable derived index data used to keep
-Search in product order without sorting all matched results by display title in
-the hot path.
-
-Expected fields:
-
-- `subtitle_path`
-- `subtitle_format`
-- `video_path`
-- `folder_path`
-- `folder_title`
-- `display_title`
-- `folder_order`
-- `file_order`
-- `updated_at`
-
-Notes:
-
-- `folder_order` and `file_order` are materialized during Library/index
-  snapshot rebuilds.
-- Search order is folder order, file order, cue start time, cue end time, then
-  cue identity.
-- Missing search-order rows are allowed for old or partially rebuilt derived
-  data. Search should fall back to the legacy in-memory order in that case.
-
 ## 12. Full-Text Search
 
 The app should use SQLite FTS5 for subtitle text search.
 
 Expected FTS data:
 
-- Cue-group search content.
-- Link from group FTS rows to subtitle cue groups.
-- FTS `rowid` assigned in materialized product order when the search-order
-  snapshot is rebuilt.
-- Unindexed Search attributes copied into FTS rows: subtitle path, subtitle
-  format, video path, video name, cue start/end milliseconds, original search
-  content, line count, folder/file order, and display title.
+- Cue group search content.
+- Link from FTS row to subtitle cue group.
 
 Han and Japanese kana handling should preserve the practical CJK behavior of
 the existing Flutter implementation while also allowing pure hiragana,
@@ -359,32 +326,14 @@ FTS rows outside that active folder scope are stale derived index data and must
 not appear in user-facing search results.
 
 If an ASS cue group contains multiple languages or styles with the same timing,
-Search should return the parent cue group once, then load all cue lines for that
-group for display in `display_order`.
+FTS should return the cue group once when any contained cue line matches. The
+search result should then load all cue lines for that group and display them in
+`display_order`.
 
 A cue group must not match only because query terms are split across different
-cue lines. At least one cue line must satisfy the query semantics before a group
-is returned.
-
-Search pages may return before exact result metadata is complete. In that case,
-the visible result rows remain ordered and playable, `totalCount` is a lower
-bound, `hasMoreResults` tells the UI whether pagination should continue, and
-file summaries cover the loaded rows until exact summaries are refreshed in the
-background.
-
-Cue-group FTS row order is rebuildable derived index state. The `rowid` should
-follow Library block order, subtitle-file order, cue start time, cue end time,
-and cue identity so Search can use SQLite FTS rowid ordering for early
-termination.
-
-The FTS indexed `content` may contain CJK segmentation for matching. The
-unindexed `search_content` field preserves the original clean cue-group text for
-display and final line-level validation.
-
-FTS vocabulary diagnostics may be generated from the cue-group FTS table to
-inspect high-frequency terms, query-token scale, and possible index pollution.
-These diagnostics are development and maintenance observability; they do not
-change product search semantics.
+cue lines. The search implementation may use cue group content for recall, but
+it must ensure that at least one cue line satisfies the query semantics before a
+group is returned.
 
 ## 13. Shiori
 
@@ -435,7 +384,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `19`.
+- Schema version: `11`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -461,22 +410,6 @@ Current native schema:
   so Search can skip the per-candidate `subtitle_cue_lines` lookup for
   single-line groups. The column is derived index data: it is backfilled from
   `subtitle_cue_lines` counts during migration and written by indexing.
-- Versions 12 through 15 attempted cue-line and hybrid FTS recall. Benchmark
-  data showed this was a negative optimization for search speed, so it is not
-  the current product search projection.
-- Version 16 adds materialized subtitle search order rows so Search can use
-  precomputed folder/file/time ordering and avoid hot-path display-title
-  sorting when the snapshot is complete.
-- Version 17 rolls back cue-line and hybrid FTS recall. Current Search uses
-  cue-group FTS recall, validates multi-line cue groups at line level before
-  returning them, keeps materialized ordering, and drops the obsolete cue-line
-  FTS table during migration.
-- Version 18 rebuilds cue-group FTS rows so FTS `rowid` follows materialized
-  product order. Search uses that rowid order to return early pages without a
-  separate temporary product-order sort.
-- Version 19 stores unindexed filterable, sortable, and presentation attributes
-  directly in cue-group FTS rows so the Search candidate path can avoid joining
-  subtitle, video, and search-order tables for each FTS hit.
 
 ## 15. Flutter Data Compatibility
 

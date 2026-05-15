@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `19`.
+- The current schema version is `11`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -135,24 +135,6 @@ Current mechanism:
   with a single cue line (the common SRT case) and apply line-level validation
   directly to the group's `search_content`. The migration backfills existing
   rows from `subtitle_cue_lines` counts.
-- Schema versions `12` through `15` attempted cue-line and hybrid FTS recall.
-  Benchmarks showed this was a negative search-speed optimization for the
-  measured corpus, so it must not be treated as accepted current architecture.
-- Schema version `16` adds materialized subtitle search order rows. Search can
-  use the precomputed folder rank, file rank, display title, and cue time order
-  instead of rebuilding display-title order in the hot path.
-- Schema version `17` rolls back cue-line and hybrid FTS recall. The current
-  production search path uses cue-group FTS recall, keeps line-level validation
-  for multi-line cue groups, preserves materialized search ordering, and drops
-  the obsolete cue-line FTS table during migration.
-- Schema version `18` rebuilds cue-group FTS rows with FTS `rowid` assigned in
-  materialized product order. Search can then use `ORDER BY f.rowid` to get
-  index-sorted early termination without scanning product-order rows outside
-  the FTS index.
-- Schema version `19` rebuilds cue-group FTS rows with unindexed filter,
-  sorting, and presentation attributes. The hot Search candidate path can read
-  subtitle path, subtitle format, video identity, cue time, line count, product
-  order, display title, and original search content directly from FTS rows.
 
 ## 5. Migration Rules
 
@@ -180,8 +162,8 @@ Destructive migrations:
 Derived index decoupling:
 
 - Search paths, subtitle files, video files, cue groups, cue lines, FTS rows,
-  ASS render segments, ASS font-resource manifests, Library presentation
-  metadata, and subtitle search-order rows are rebuildable local index data.
+  ASS render segments, ASS font-resource manifests, and Library presentation
+  metadata are rebuildable local index data.
 - Library presentation metadata should be materialized during indexing or
   explicit Library refresh. App startup should read it as a snapshot and must
   not derive folder grouping, display titles, or row order from subtitle/video
@@ -326,8 +308,7 @@ Full-text search must use SQLite FTS5.
 
 Rules:
 
-- FTS rows must be linked deterministically to subtitle cue lines and their
-  parent subtitle cue groups.
+- FTS rows must be linked deterministically to subtitle cue groups.
 - Searchable subtitle content must be indexed consistently with the stored cue
   group and cue lines.
 - Updating or deleting cue groups or cue lines must keep FTS data consistent.
@@ -360,34 +341,9 @@ Search ranking and query syntax:
 - Search ordering should prefer materialized product-order keys over
   per-query reconstruction when practical. The intended stable order is Library
   block rank, subtitle-file rank within that block, then cue time.
-- Do not force SQLite Search to scan product-order rows first merely to remove
-  a temporary `ORDER BY` sort. With the current FTS5 query shape, FTS-driven
-  recall plus a small temporary sort is materially faster than product-order
-  scans that probe FTS row by row.
-- FTS `rowid` may be used as a derived product-order key when the FTS table is
-  rebuilt from cue groups. Rebuilding the subtitle search-order snapshot should
-  also rebuild cue-group FTS rows so `rowid` order remains aligned with Library
-  block rank, subtitle-file rank, and cue time.
-- FTS rows may store unindexed attributes required by Search filtering,
-  ordering, and result summaries. Indexed text should remain the segmented FTS
-  `content`; original display/search text must be stored separately so result
-  display and line validation do not consume segmented FTS text.
-- FTS vocabulary diagnostics should use SQLite `fts5vocab` against the
-  cue-group FTS table when investigating high-frequency queries, tokenizer
-  behavior, or index pollution. Diagnostics are read-only observability and
-  should not be treated as an optimization unless benchmark data shows a
-  follow-up indexing change improves Search.
-- Developer-facing database diagnostics may be exposed in Settings, but they
-  must stay out of the default keystroke Search path. FTS vocabulary statistics
-  are allowed to run on explicit refresh and should report query-term scale and
-  high-frequency indexed terms.
 - Search-summary counts and file/group summaries should not block first visible
   results if the query engine can return ordered results before the whole corpus
   is searched.
-- Search pages may return deferred metadata when exact total counts and
-  complete file summaries are still being computed. Deferred pages must expose a
-  lower-bound count, whether more results are available, and enough partial file
-  summaries to render the loaded results.
 - English prefix search is a required scenario. If FTS prefix indexes are added,
   the chosen prefix lengths must be documented with benchmark data and storage
   impact.

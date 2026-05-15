@@ -32,18 +32,6 @@ public struct SubtitleSearchFileSummary: Equatable, Sendable {
     public let subtitleFileName: String
     public let subtitleDisplayTitle: String
     public let matchCount: Int
-
-    public init(
-        subtitlePath: String,
-        subtitleFileName: String,
-        subtitleDisplayTitle: String,
-        matchCount: Int
-    ) {
-        self.subtitlePath = subtitlePath
-        self.subtitleFileName = subtitleFileName
-        self.subtitleDisplayTitle = subtitleDisplayTitle
-        self.matchCount = matchCount
-    }
 }
 
 public struct LibraryVideo: Equatable, Sendable, Identifiable {
@@ -119,36 +107,10 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     }
 }
 
-public enum SubtitleSearchMetadataMode: Equatable, Sendable {
-    case complete
-    case deferred
-}
-
-public enum SubtitleSearchMetadataState: String, Equatable, Sendable {
-    case complete
-    case deferred
-}
-
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
     public let fileSummaries: [SubtitleSearchFileSummary]
-    public let hasMoreResults: Bool
-    public let metadataState: SubtitleSearchMetadataState
-
-    public init(
-        results: [SubtitleSearchResult],
-        totalCount: Int,
-        fileSummaries: [SubtitleSearchFileSummary],
-        hasMoreResults: Bool? = nil,
-        metadataState: SubtitleSearchMetadataState = .complete
-    ) {
-        self.results = results
-        self.totalCount = totalCount
-        self.fileSummaries = fileSummaries
-        self.hasMoreResults = hasMoreResults ?? (results.count < totalCount)
-        self.metadataState = metadataState
-    }
 }
 
 public struct SearchNavigationAnchor: Equatable, Sendable {
@@ -281,36 +243,8 @@ public struct DatabaseStorageStats: Equatable, Sendable {
     }
 }
 
-public enum FTSVocabularyLookupKind: String, Equatable, Sendable {
-    case exact
-    case prefix
-}
-
-public struct FTSVocabularyTermStat: Equatable, Sendable {
-    public let term: String
-    public let documentCount: Int64
-    public let occurrenceCount: Int64
-}
-
-public struct FTSVocabularyQueryTermStat: Equatable, Sendable {
-    public let term: String
-    public let lookupKind: FTSVocabularyLookupKind
-    public let matchingTermCount: Int64
-    public let documentReferenceCount: Int64
-    public let occurrenceCount: Int64
-}
-
-public struct FTSVocabularyDiagnostics: Equatable, Sendable {
-    public let uniqueTermCount: Int64
-    public let documentReferenceCount: Int64
-    public let occurrenceCount: Int64
-    public let maxTermOccurrenceCount: Int64
-    public let topTerms: [FTSVocabularyTermStat]
-    public let queryTerms: [FTSVocabularyQueryTermStat]
-}
-
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 19
+    public static let currentSchemaVersion: Int = 11
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -325,7 +259,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     public func migrate() throws {
         let previousVersion = try schemaVersion()
-        var rebuiltFTSRowsForProductOrder = false
 
         try database.execute(
             """
@@ -427,18 +360,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_groups_fts USING fts5(
                 content,
-                cue_group_id UNINDEXED,
-                subtitle_path UNINDEXED,
-                subtitle_format UNINDEXED,
-                video_path UNINDEXED,
-                video_name UNINDEXED,
-                start_ms UNINDEXED,
-                end_ms UNINDEXED,
-                search_content UNINDEXED,
-                line_count UNINDEXED,
-                folder_order UNINDEXED,
-                file_order UNINDEXED,
-                display_title UNINDEXED
+                cue_group_id UNINDEXED
             );
 
             CREATE TABLE IF NOT EXISTS ass_render_segments (
@@ -498,21 +420,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             CREATE INDEX IF NOT EXISTS idx_library_video_rows_order
                 ON library_video_rows(folder_order, video_order);
 
-            CREATE TABLE IF NOT EXISTS subtitle_search_order_rows (
-                subtitle_path TEXT PRIMARY KEY,
-                subtitle_format TEXT NOT NULL,
-                video_path TEXT NOT NULL,
-                folder_path TEXT NOT NULL,
-                folder_title TEXT NOT NULL,
-                display_title TEXT NOT NULL,
-                folder_order INTEGER NOT NULL,
-                file_order INTEGER NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_order
-                ON subtitle_search_order_rows(folder_order, file_order, subtitle_path);
-
             CREATE TABLE IF NOT EXISTS shioris (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 subtitle_path TEXT NOT NULL,
@@ -544,6 +451,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
+        if previousVersion < 6 {
+            try rebuildFTSRows()
+        }
+
+        if previousVersion < 9 {
+            try rebuildLibraryPresentationSnapshot()
+        }
+
         if previousVersion >= 3 && previousVersion < 11,
            try !columnExists(table: "subtitle_cue_groups", column: "line_count") {
             try database.execute(
@@ -563,24 +478,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        if previousVersion < 19 {
-            try recreateFTSTables()
-            try rebuildFTSRows()
-            rebuiltFTSRowsForProductOrder = previousVersion >= 16
-        }
-
-        if previousVersion < 9 {
-            try rebuildLibraryPresentationSnapshot()
-            rebuiltFTSRowsForProductOrder = true
-        } else if previousVersion < 16 {
-            try rebuildSubtitleSearchOrderSnapshot()
-            rebuiltFTSRowsForProductOrder = true
-        }
-
-        if previousVersion < 19 && !rebuiltFTSRowsForProductOrder {
-            try rebuildFTSRows()
-        }
-
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
     }
 
@@ -592,31 +489,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
         }
         return false
-    }
-
-    private func recreateFTSTables() throws {
-        try database.execute(
-            """
-            DROP TABLE IF EXISTS subtitle_cue_groups_fts;
-            DROP TABLE IF EXISTS subtitle_cue_lines_fts;
-
-            CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
-                content,
-                cue_group_id UNINDEXED,
-                subtitle_path UNINDEXED,
-                subtitle_format UNINDEXED,
-                video_path UNINDEXED,
-                video_name UNINDEXED,
-                start_ms UNINDEXED,
-                end_ms UNINDEXED,
-                search_content UNINDEXED,
-                line_count UNINDEXED,
-                folder_order UNINDEXED,
-                file_order UNINDEXED,
-                display_title UNINDEXED
-            );
-            """
-        )
     }
 
     public func schemaVersion() throws -> Int {
@@ -664,30 +536,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
         try database.execute("VACUUM;")
         try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-    }
-
-    public func ftsVocabularyDiagnostics(
-        for query: String? = nil,
-        topLimit: Int = 20
-    ) throws -> FTSVocabularyDiagnostics {
-        try ensureFTSVocabularyTable()
-
-        let summary = try ftsVocabularySummary()
-        let topTerms = try ftsVocabularyTopTerms(limit: topLimit)
-        let queryLookups = Self.ftsVocabularyLookups(for: query)
-        var queryTerms: [FTSVocabularyQueryTermStat] = []
-        for lookup in queryLookups {
-            queryTerms.append(try ftsVocabularyQueryTermStat(for: lookup))
-        }
-
-        return FTSVocabularyDiagnostics(
-            uniqueTermCount: summary.uniqueTermCount,
-            documentReferenceCount: summary.documentReferenceCount,
-            occurrenceCount: summary.occurrenceCount,
-            maxTermOccurrenceCount: summary.maxTermOccurrenceCount,
-            topTerms: topTerms,
-            queryTerms: queryTerms
-        )
     }
 
     @discardableResult
@@ -768,21 +616,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     subtitleFile: subtitleFile,
                     group: group
                 )
-                try insertCueGroupFTSRow(
-                    cueGroupID: cueGroupID,
-                    searchContent: group.searchContent,
-                    subtitlePath: subtitleFile.path,
-                    subtitleFormat: format,
-                    videoPath: videoFile.path,
-                    videoName: videoFile.lastPathComponent,
-                    startMilliseconds: group.startMilliseconds,
-                    endMilliseconds: group.endMilliseconds,
-                    lineCount: max(1, group.cueLines.count),
-                    displayTitle: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: subtitleFile.path)
-                )
                 for line in group.cueLines {
-                    _ = try insertCueLine(cueGroupID: cueGroupID, line: line)
+                    try insertCueLine(cueGroupID: cueGroupID, line: line)
                 }
+                try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
             }
 
             try deleteOrphanedVideoFiles()
@@ -1091,7 +928,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             try database.execute("DELETE FROM library_video_rows;")
-            try database.execute("DELETE FROM subtitle_search_order_rows;")
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
             try database.execute("DELETE FROM ass_render_segments;")
             try database.execute("DELETE FROM subtitle_files;")
@@ -1126,7 +962,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         offset: Int = 0,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
-        metadataMode: SubtitleSearchMetadataMode = .complete,
         diagnostics: SubtitleSearchDiagnosticSink? = nil
     ) throws -> SubtitleSearchPage {
         let searchPageStart = Self.diagnosticNow()
@@ -1189,50 +1024,43 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         do {
             let setupStart = Self.diagnosticNow()
-            let deferredMetadata = metadataMode == .deferred
-            let candidateBatchLimit = deferredMetadata
-                ? Self.deferredSearchCandidateBatchLimit(for: limit)
-                : Self.searchCandidateBatchLimit(for: limit)
-            let deferredAcceptedTarget = deferredMetadata
-                ? Self.deferredAcceptedTarget(offset: offset, limit: limit)
-                : nil
+            let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit)
             var candidateOffset = 0
             var results: [SubtitleSearchResult] = []
-            var hasCompleteMaterializedOrder = true
-            var stoppedForDeferredPage = false
             var batchIndex = 0
             var totalCandidates = 0
             var totalMultiLineCandidates = 0
             var totalCueLineRows = 0
             let scopeCondition = pathPrefixes.map {
-                let conditions = $0.map { _ in "(f.subtitle_path >= ? AND f.subtitle_path < ?)" }
+                let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
                     .joined(separator: " OR ")
                 return "AND (\(conditions))"
             } ?? ""
-            let subtitlePathCondition = subtitlePathFilter.map { _ in "AND f.subtitle_path = ?" } ?? ""
+            let subtitlePathCondition = subtitlePathFilter.map { _ in "AND sf.subtitle_path = ?" } ?? ""
             emit(
                 "setup",
                 since: setupStart,
                 fields: [
                     .init("candidateBatchLimit", candidateBatchLimit),
                     .init("scopeCondition", scopeCondition.isEmpty ? "none" : "path"),
-                    .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
-                    .init("metadataMode", deferredMetadata ? "deferred" : "complete")
+                    .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true")
                 ]
             )
 
             let prepareStart = Self.diagnosticNow()
             let statement = try database.prepare(
                 """
-                SELECT f.cue_group_id, f.subtitle_path, f.subtitle_format,
-                       f.video_path, f.video_name, f.start_ms, f.end_ms,
-                       f.search_content, f.line_count, f.folder_order,
-                       f.file_order, f.display_title
+                SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                       g.start_ms, g.end_ms, g.search_content, g.line_count
                 FROM subtitle_cue_groups_fts f
+                JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
+                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                JOIN video_files vf ON vf.id = m.video_file_id
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
-                ORDER BY f.rowid ASC
+                ORDER BY g.id ASC
                 LIMIT ? OFFSET ?;
                 """
             )
@@ -1274,10 +1102,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                             startMilliseconds: statement.intColumn(5),
                             endMilliseconds: statement.intColumn(6),
                             searchContent: statement.stringColumn(7),
-                            lineCount: statement.intColumn(8),
-                            searchFolderOrder: statement.nullableIntColumn(9),
-                            searchFileOrder: statement.nullableIntColumn(10),
-                            searchDisplayTitle: statement.nullableStringColumn(11)
+                            lineCount: statement.intColumn(8)
                         )
                     )
                 }
@@ -1298,10 +1123,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
                 candidateOffset += candidates.count
                 totalCandidates += candidates.count
-
-                if candidates.contains(where: { $0.searchFolderOrder == nil || $0.searchFileOrder == nil }) {
-                    hasCompleteMaterializedOrder = false
-                }
 
                 let multiLineCueGroupIDs = candidates
                     .filter { $0.lineCount > 1 }
@@ -1351,26 +1172,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 if candidates.count < candidateBatchLimit {
                     break
                 }
-
-                if let deferredAcceptedTarget,
-                   hasCompleteMaterializedOrder,
-                   results.count >= deferredAcceptedTarget {
-                    stoppedForDeferredPage = true
-                    break
-                }
             }
 
             let sortStart = Self.diagnosticNow()
-            let sortedResults = hasCompleteMaterializedOrder
-                ? results
-                : Self.sortedSearchResults(results)
+            let sortedResults = Self.sortedSearchResults(results)
             emit(
                 "sort_results",
                 since: sortStart,
                 fields: [
                     .init("results", sortedResults.count),
-                    .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count),
-                    .init("orderSource", hasCompleteMaterializedOrder ? "fts_rowid" : "fallback")
+                    .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count)
                 ]
             )
 
@@ -1379,33 +1190,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
             for i in 0..<pageResults.count {
                 pageResults[i].searchRank = offset + i
             }
-            let hasMoreResults = stoppedForDeferredPage
-                ? sortedResults.count > offset + pageResults.count
-                : offset + pageResults.count < sortedResults.count
-            let metadataState: SubtitleSearchMetadataState = stoppedForDeferredPage ? .deferred : .complete
-            let totalCount = stoppedForDeferredPage
-                ? offset + pageResults.count + (hasMoreResults ? 1 : 0)
-                : sortedResults.count
             emit(
                 "page_slice",
                 since: pageStart,
                 fields: [
                     .init("offset", offset),
                     .init("limit", limit),
-                    .init("pageResults", pageResults.count),
-                    .init("hasMoreResults", hasMoreResults ? "true" : "false"),
-                    .init("metadataState", metadataState.rawValue)
+                    .init("pageResults", pageResults.count)
                 ]
             )
 
             let summariesStart = Self.diagnosticNow()
-            let fileSummaries = Self.fileSummaries(for: stoppedForDeferredPage ? pageResults : sortedResults)
+            let fileSummaries = Self.fileSummaries(for: sortedResults)
             emit(
-                stoppedForDeferredPage ? "file_summaries_deferred" : "file_summaries",
+                "file_summaries",
                 since: summariesStart,
                 fields: [
                     .init("summaries", fileSummaries.count),
-                    .init("results", stoppedForDeferredPage ? pageResults.count : sortedResults.count)
+                    .init("results", sortedResults.count)
                 ]
             )
 
@@ -1419,17 +1221,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("cueLineRows", totalCueLineRows),
                     .init("accepted", sortedResults.count),
                     .init("pageResults", pageResults.count),
-                    .init("summaries", fileSummaries.count),
-                    .init("hasMoreResults", hasMoreResults ? "true" : "false"),
-                    .init("metadataState", metadataState.rawValue)
+                    .init("summaries", fileSummaries.count)
                 ]
             )
             return SubtitleSearchPage(
                 results: pageResults,
-                totalCount: totalCount,
-                fileSummaries: fileSummaries,
-                hasMoreResults: hasMoreResults,
-                metadataState: metadataState
+                totalCount: sortedResults.count,
+                fileSummaries: fileSummaries
             )
         } catch {
             emit(
@@ -1655,79 +1453,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try? database.execute("ROLLBACK")
             throw error
         }
-
-        try rebuildSubtitleSearchOrderSnapshot()
-    }
-
-    public func rebuildSubtitleSearchOrderSnapshot() throws {
-        let rows = try indexedSubtitleSearchOrderRows()
-        let rowsByFolderPath = Dictionary(grouping: rows) { row in
-            URL(fileURLWithPath: row.subtitlePath)
-                .deletingLastPathComponent()
-                .standardizedFileURL
-                .path
-        }
-
-        let folderPaths = rowsByFolderPath.keys.sorted { lhs, rhs in
-            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
-            let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
-            if titleComparison != .orderedSame {
-                return titleComparison == .orderedAscending
-            }
-
-            return lhs.localizedStandardCompare(rhs) == .orderedAscending
-        }
-
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
-            try database.execute("DELETE FROM subtitle_search_order_rows;")
-
-            let updatedAt = ISO8601DateFormatter().string(from: Date())
-            let insert = try database.prepare(
-                """
-                INSERT INTO subtitle_search_order_rows(
-                    subtitle_path,
-                    subtitle_format,
-                    video_path,
-                    folder_path,
-                    folder_title,
-                    display_title,
-                    folder_order,
-                    file_order,
-                    updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """
-            )
-
-            for (folderOrder, folderPath) in folderPaths.enumerated() {
-                let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
-                let folderRows = (rowsByFolderPath[folderPath] ?? []).sorted(by: Self.subtitleSearchOrderRowSort)
-
-                for (fileOrder, row) in folderRows.enumerated() {
-                    try insert.bind(row.subtitlePath, at: 1)
-                    try insert.bind(row.subtitleFormat.rawValue, at: 2)
-                    try insert.bind(row.videoPath, at: 3)
-                    try insert.bind(folderPath, at: 4)
-                    try insert.bind(folderTitle, at: 5)
-                    try insert.bind(row.displayTitle, at: 6)
-                    try insert.bind(folderOrder, at: 7)
-                    try insert.bind(fileOrder, at: 8)
-                    try insert.bind(updatedAt, at: 9)
-                    try insert.run()
-                    try insert.reset()
-                    try insert.clearBindings()
-                }
-            }
-
-            try database.execute("COMMIT")
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
-        }
-
-        try rebuildFTSRows()
     }
 
     private func indexedLibraryVideos(scopedTo pathPrefixes: [String]?) throws -> [LibraryVideo] {
@@ -1779,41 +1504,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return videosByPath.values.sorted { lhs, rhs in
             Self.libraryVideoSort(lhs, rhs)
         }
-    }
-
-    private func indexedSubtitleSearchOrderRows() throws -> [SubtitleSearchOrderRow] {
-        let statement = try database.prepare(
-            """
-            SELECT sf.subtitle_path, sf.format, vf.path
-            FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
-            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-            JOIN video_files vf ON vf.id = m.video_file_id
-            ORDER BY sf.subtitle_path ASC, vf.path ASC;
-            """
-        )
-
-        var rowsBySubtitlePath: [String: SubtitleSearchOrderRow] = [:]
-        while try statement.step() {
-            let subtitlePath = statement.stringColumn(0)
-            let subtitleFormat = SubtitleFormat(rawValue: statement.stringColumn(1)) ?? .srt
-            let videoPath = statement.stringColumn(2)
-            let row = SubtitleSearchOrderRow(
-                subtitlePath: subtitlePath,
-                subtitleFormat: subtitleFormat,
-                videoPath: videoPath,
-                displayTitle: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: subtitlePath)
-            )
-
-            if let existing = rowsBySubtitlePath[subtitlePath] {
-                if videoPath.localizedStandardCompare(existing.videoPath) == .orderedAscending {
-                    rowsBySubtitlePath[subtitlePath] = row
-                }
-            } else {
-                rowsBySubtitlePath[subtitlePath] = row
-            }
-        }
-
-        return rowsBySubtitlePath.values.sorted(by: Self.subtitleSearchOrderRowSort)
     }
 
     public func updateVideoDuration(videoFile: URL, duration: Double?) throws {
@@ -2051,16 +1741,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let endMilliseconds: Int
         let searchContent: String
         let lineCount: Int
-        let searchFolderOrder: Int?
-        let searchFileOrder: Int?
-        let searchDisplayTitle: String?
-    }
-
-    private struct SubtitleSearchOrderRow {
-        let subtitlePath: String
-        let subtitleFormat: SubtitleFormat
-        let videoPath: String
-        let displayTitle: String
     }
 
     private struct CueGroupSelection {
@@ -2073,18 +1753,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private struct SearchQueryPlan {
         let ftsQuery: String
         let lineMatchRule: LineMatchRule
-    }
-
-    private struct FTSVocabularySummary {
-        let uniqueTermCount: Int64
-        let documentReferenceCount: Int64
-        let occurrenceCount: Int64
-        let maxTermOccurrenceCount: Int64
-    }
-
-    private struct FTSVocabularyLookup {
-        let term: String
-        let kind: FTSVocabularyLookupKind
     }
 
     private enum LineMatchRule {
@@ -2163,21 +1831,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             return lhs.entryID < rhs.entryID
         }
-    }
-
-    private static func subtitleSearchOrderRowSort(
-        _ lhs: SubtitleSearchOrderRow,
-        _ rhs: SubtitleSearchOrderRow
-    ) -> Bool {
-        let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(
-            lhs.displayTitle,
-            rhs.displayTitle
-        )
-        if displayTitleComparison != .orderedSame {
-            return displayTitleComparison == .orderedAscending
-        }
-
-        return lhs.subtitlePath.localizedStandardCompare(rhs.subtitlePath) == .orderedAscending
     }
 
     private static func searchNavigationIndex(
@@ -2289,172 +1942,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             ftsQuery: ftsQuery,
             lineMatchRule: lineMatchRule
         )
-    }
-
-    private func ensureFTSVocabularyTable() throws {
-        try database.execute(
-            """
-            CREATE VIRTUAL TABLE IF NOT EXISTS temp.subtitle_cue_groups_vocab
-            USING fts5vocab(main, subtitle_cue_groups_fts, row);
-            """
-        )
-    }
-
-    private func ftsVocabularySummary() throws -> FTSVocabularySummary {
-        let statement = try database.prepare(
-            """
-            SELECT COUNT(*),
-                   COALESCE(SUM(doc), 0),
-                   COALESCE(SUM(cnt), 0),
-                   COALESCE(MAX(cnt), 0)
-            FROM subtitle_cue_groups_vocab;
-            """
-        )
-
-        guard try statement.step() else {
-            return FTSVocabularySummary(
-                uniqueTermCount: 0,
-                documentReferenceCount: 0,
-                occurrenceCount: 0,
-                maxTermOccurrenceCount: 0
-            )
-        }
-
-        return FTSVocabularySummary(
-            uniqueTermCount: statement.int64Column(0),
-            documentReferenceCount: statement.int64Column(1),
-            occurrenceCount: statement.int64Column(2),
-            maxTermOccurrenceCount: statement.int64Column(3)
-        )
-    }
-
-    private func ftsVocabularyTopTerms(limit: Int) throws -> [FTSVocabularyTermStat] {
-        let cappedLimit = min(max(0, limit), 100)
-        guard cappedLimit > 0 else {
-            return []
-        }
-
-        let statement = try database.prepare(
-            """
-            SELECT term, doc, cnt
-            FROM subtitle_cue_groups_vocab
-            ORDER BY cnt DESC, doc DESC, term ASC
-            LIMIT ?;
-            """
-        )
-        try statement.bind(cappedLimit, at: 1)
-
-        var terms: [FTSVocabularyTermStat] = []
-        while try statement.step() {
-            terms.append(
-                FTSVocabularyTermStat(
-                    term: statement.stringColumn(0),
-                    documentCount: statement.int64Column(1),
-                    occurrenceCount: statement.int64Column(2)
-                )
-            )
-        }
-        return terms
-    }
-
-    private func ftsVocabularyQueryTermStat(
-        for lookup: FTSVocabularyLookup
-    ) throws -> FTSVocabularyQueryTermStat {
-        let statement: SQLiteStatement
-        switch lookup.kind {
-        case .exact:
-            statement = try database.prepare(
-                """
-                SELECT COUNT(*),
-                       COALESCE(SUM(doc), 0),
-                       COALESCE(SUM(cnt), 0)
-                FROM subtitle_cue_groups_vocab
-                WHERE term = ?;
-                """
-            )
-            try statement.bind(lookup.term, at: 1)
-        case .prefix:
-            statement = try database.prepare(
-                """
-                SELECT COUNT(*),
-                       COALESCE(SUM(doc), 0),
-                       COALESCE(SUM(cnt), 0)
-                FROM subtitle_cue_groups_vocab
-                WHERE term >= ? AND term < ?;
-                """
-            )
-            try statement.bind(lookup.term, at: 1)
-            try statement.bind(Self.pathPrefixUpperBound(for: lookup.term), at: 2)
-        }
-
-        guard try statement.step() else {
-            return FTSVocabularyQueryTermStat(
-                term: lookup.term,
-                lookupKind: lookup.kind,
-                matchingTermCount: 0,
-                documentReferenceCount: 0,
-                occurrenceCount: 0
-            )
-        }
-
-        return FTSVocabularyQueryTermStat(
-            term: lookup.term,
-            lookupKind: lookup.kind,
-            matchingTermCount: statement.int64Column(0),
-            documentReferenceCount: statement.int64Column(1),
-            occurrenceCount: statement.int64Column(2)
-        )
-    }
-
-    private static func ftsVocabularyLookups(for query: String?) -> [FTSVocabularyLookup] {
-        guard let query else {
-            return []
-        }
-
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return []
-        }
-
-        let hasExplicitPhrase = trimmed.count >= 2 && trimmed.first == "\"" && trimmed.last == "\""
-        let hasFTSSyntax = hasExplicitPhrase || trimmed.contains("*") || containsFTSOperator(in: trimmed)
-        guard !hasFTSSyntax else {
-            return []
-        }
-
-        if containsCJKSearchCharacter(in: trimmed) {
-            return uniqueVocabularyLookups(
-                segmentCJK(trimmed)
-                    .split(whereSeparator: \.isWhitespace)
-                    .map(String.init),
-                kind: .exact
-            )
-        }
-
-        let tokens = tokenizeLatinTokens(trimmed)
-        guard !tokens.isEmpty else {
-            return []
-        }
-
-        if tokens.count == 1 {
-            return uniqueVocabularyLookups(tokens, kind: .prefix)
-        }
-
-        return uniqueVocabularyLookups(tokens, kind: .exact)
-    }
-
-    private static func uniqueVocabularyLookups(
-        _ terms: [String],
-        kind: FTSVocabularyLookupKind
-    ) -> [FTSVocabularyLookup] {
-        var seen = Set<String>()
-        var lookups: [FTSVocabularyLookup] = []
-        for term in terms where !term.isEmpty {
-            if seen.insert(term).inserted {
-                lookups.append(FTSVocabularyLookup(term: term, kind: kind))
-            }
-        }
-        return lookups
     }
 
     private static func line(_ line: String, matches rule: LineMatchRule) -> Bool {
@@ -2639,23 +2126,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         max(expandedSQLLimit(for: limit), 100)
     }
 
-    private static func deferredSearchCandidateBatchLimit(for limit: Int) -> Int {
-        max(saturatingIncrement(limit), 100)
-    }
-
-    private static func deferredAcceptedTarget(offset: Int, limit: Int) -> Int {
-        let (pageEnd, pageEndOverflow) = offset.addingReportingOverflow(limit)
-        if pageEndOverflow {
-            return Int.max
-        }
-
-        return saturatingIncrement(pageEnd)
-    }
-
-    private static func saturatingIncrement(_ value: Int) -> Int {
-        value == Int.max ? Int.max : value + 1
-    }
-
     private static func isASCIIWordCharacter(_ character: Character) -> Bool {
         isASCIILetterOrDigit(character) || character == "_"
     }
@@ -2705,7 +2175,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             try deleteASSRenderSegments.run()
 
-            let deleteGroupFTS = try database.prepare(
+            let deleteFTS = try database.prepare(
                 """
                 DELETE FROM subtitle_cue_groups_fts
                 WHERE cue_group_id IN (
@@ -2717,11 +2187,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 """
             )
             try bindStaleEntryParameters(
-                statement: deleteGroupFTS,
+                statement: deleteFTS,
                 folderPathPrefixes: folderPathPrefixes,
                 subtitleFiles: subtitleFiles
             )
-            try deleteGroupFTS.run()
+            try deleteFTS.run()
 
             let deleteLibraryRows = try database.prepare(
                 """
@@ -2735,19 +2205,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 subtitleFiles: subtitleFiles
             )
             try deleteLibraryRows.run()
-
-            let deleteSearchOrderRows = try database.prepare(
-                """
-                DELETE FROM subtitle_search_order_rows
-                WHERE (\(libraryRowPrefixCondition)) \(libraryRowKeepCondition);
-                """
-            )
-            try bindStaleEntryParameters(
-                statement: deleteSearchOrderRows,
-                folderPathPrefixes: folderPathPrefixes,
-                subtitleFiles: subtitleFiles
-            )
-            try deleteSearchOrderRows.run()
 
             let deleteFiles = try database.prepare(
                 """
@@ -2975,7 +2432,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return database.lastInsertRowID()
     }
 
-    private func insertCueLine(cueGroupID: Int64, line: SubtitleCueLine) throws -> Int64 {
+    private func insertCueLine(cueGroupID: Int64, line: SubtitleCueLine) throws {
         let statement = try database.prepare(
             """
             INSERT INTO subtitle_cue_lines(
@@ -3027,8 +2484,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
         try statement.bind(line.displayOrder, at: 13)
         try statement.run()
-
-        return database.lastInsertRowID()
     }
 
     private func insertASSRenderSegment(
@@ -3062,115 +2517,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func insertCueGroupFTSRow(
-        rowID: Int64? = nil,
-        cueGroupID: Int64,
-        searchContent: String,
-        subtitlePath: String? = nil,
-        subtitleFormat: SubtitleFormat? = nil,
-        videoPath: String? = nil,
-        videoName: String? = nil,
-        startMilliseconds: Int? = nil,
-        endMilliseconds: Int? = nil,
-        lineCount: Int? = nil,
-        searchFolderOrder: Int? = nil,
-        searchFileOrder: Int? = nil,
-        displayTitle: String? = nil
-    ) throws {
-        let statement: SQLiteStatement
-        if rowID == nil {
-            statement = try database.prepare(
-                """
-                INSERT INTO subtitle_cue_groups_fts(
-                    content,
-                    cue_group_id,
-                    subtitle_path,
-                    subtitle_format,
-                    video_path,
-                    video_name,
-                    start_ms,
-                    end_ms,
-                    search_content,
-                    line_count,
-                    folder_order,
-                    file_order,
-                    display_title
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """
-            )
-        } else {
-            statement = try database.prepare(
-                """
-                INSERT INTO subtitle_cue_groups_fts(
-                    rowid,
-                    content,
-                    cue_group_id,
-                    subtitle_path,
-                    subtitle_format,
-                    video_path,
-                    video_name,
-                    start_ms,
-                    end_ms,
-                    search_content,
-                    line_count,
-                    folder_order,
-                    file_order,
-                    display_title
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """
-            )
-        }
+    private func insertFTSRow(cueGroupID: Int64, content: String) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
+            VALUES (?, ?);
+            """
+        )
 
-        func bind(_ value: String?, at index: Int32) throws {
-            if let value {
-                try statement.bind(value, at: index)
-            } else {
-                try statement.bindNull(at: index)
-            }
-        }
-
-        func bind(_ value: Int?, at index: Int32) throws {
-            if let value {
-                try statement.bind(value, at: index)
-            } else {
-                try statement.bindNull(at: index)
-            }
-        }
-
-        let indexedContent = Self.segmentCJK(searchContent)
-        let subtitleFormatRawValue = subtitleFormat?.rawValue
-        if let rowID {
-            try statement.bind(rowID, at: 1)
-            try statement.bind(indexedContent, at: 2)
-            try statement.bind(cueGroupID, at: 3)
-            try bind(subtitlePath, at: 4)
-            try bind(subtitleFormatRawValue, at: 5)
-            try bind(videoPath, at: 6)
-            try bind(videoName, at: 7)
-            try bind(startMilliseconds, at: 8)
-            try bind(endMilliseconds, at: 9)
-            try statement.bind(searchContent, at: 10)
-            try bind(lineCount, at: 11)
-            try bind(searchFolderOrder, at: 12)
-            try bind(searchFileOrder, at: 13)
-            try bind(displayTitle, at: 14)
-        } else {
-            try statement.bind(indexedContent, at: 1)
-            try statement.bind(cueGroupID, at: 2)
-            try bind(subtitlePath, at: 3)
-            try bind(subtitleFormatRawValue, at: 4)
-            try bind(videoPath, at: 5)
-            try bind(videoName, at: 6)
-            try bind(startMilliseconds, at: 7)
-            try bind(endMilliseconds, at: 8)
-            try statement.bind(searchContent, at: 9)
-            try bind(lineCount, at: 10)
-            try bind(searchFolderOrder, at: 11)
-            try bind(searchFileOrder, at: 12)
-            try bind(displayTitle, at: 13)
-        }
+        try statement.bind(Self.segmentCJK(content), at: 1)
+        try statement.bind(cueGroupID, at: 2)
         try statement.run()
     }
 
@@ -3241,92 +2597,30 @@ public final class SubtitleDatabase: @unchecked Sendable {
         do {
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
 
-            var groupRows: [(
-                cueGroupID: Int64,
-                subtitlePath: String,
-                subtitleFormat: SubtitleFormat,
-                videoPath: String,
-                videoName: String,
-                startMilliseconds: Int,
-                endMilliseconds: Int,
-                searchContent: String,
-                lineCount: Int,
-                searchFolderOrder: Int?,
-                searchFileOrder: Int?,
-                searchDisplayTitle: String?
-            )] = []
+            var rows: [(cueGroupID: Int64, content: String)] = []
             do {
                 let statement = try database.prepare(
                     """
-                    SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                           g.start_ms, g.end_ms, g.search_content, g.line_count,
-                           sor.folder_order, sor.file_order, sor.display_title
-                    FROM subtitle_cue_groups g
-                    JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                    JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-                    JOIN video_files vf ON vf.id = m.video_file_id
-                    LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
-                    ORDER BY CASE WHEN sor.folder_order IS NULL OR sor.file_order IS NULL THEN 1 ELSE 0 END ASC,
-                             sor.folder_order ASC,
-                             sor.file_order ASC,
-                             sf.subtitle_path ASC,
-                             g.start_ms ASC,
-                             g.end_ms ASC,
-                             g.id ASC;
+                    SELECT id, search_content
+                    FROM subtitle_cue_groups
+                    ORDER BY id ASC;
                     """
                 )
 
                 while try statement.step() {
-                    groupRows.append(
-                        (
-                            cueGroupID: statement.int64Column(0),
-                            subtitlePath: statement.stringColumn(1),
-                            subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
-                            videoPath: statement.stringColumn(3),
-                            videoName: statement.stringColumn(4),
-                            startMilliseconds: statement.intColumn(5),
-                            endMilliseconds: statement.intColumn(6),
-                            searchContent: statement.stringColumn(7),
-                            lineCount: statement.intColumn(8),
-                            searchFolderOrder: statement.nullableIntColumn(9),
-                            searchFileOrder: statement.nullableIntColumn(10),
-                            searchDisplayTitle: statement.nullableStringColumn(11)
-                        )
-                    )
+                    rows.append((statement.int64Column(0), statement.stringColumn(1)))
                 }
             }
 
-            var rowID: Int64 = 1
-            for row in groupRows {
-                try insertCueGroupFTSRow(
-                    rowID: rowID,
-                    cueGroupID: row.cueGroupID,
-                    searchContent: row.searchContent,
-                    subtitlePath: row.subtitlePath,
-                    subtitleFormat: row.subtitleFormat,
-                    videoPath: row.videoPath,
-                    videoName: row.videoName,
-                    startMilliseconds: row.startMilliseconds,
-                    endMilliseconds: row.endMilliseconds,
-                    lineCount: row.lineCount,
-                    searchFolderOrder: row.searchFolderOrder,
-                    searchFileOrder: row.searchFileOrder,
-                    displayTitle: row.searchDisplayTitle
-                )
-                rowID += 1
+            for row in rows {
+                try insertFTSRow(cueGroupID: row.cueGroupID, content: row.content)
             }
-
-            try optimizeFTSTables()
 
             try database.execute("COMMIT")
         } catch {
             try? database.execute("ROLLBACK")
             throw error
         }
-    }
-
-    private func optimizeFTSTables() throws {
-        try database.execute("INSERT INTO subtitle_cue_groups_fts(subtitle_cue_groups_fts) VALUES('optimize');")
     }
 
     private func cueLines(forCueGroupID cueGroupID: Int64) throws -> [SubtitleCueLine] {
@@ -3425,7 +2719,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try deleteASSRenderSegments.bind(subtitlePath, at: 1)
         try deleteASSRenderSegments.run()
 
-        let deleteGroupFTS = try database.prepare(
+        let deleteFTS = try database.prepare(
             """
             DELETE FROM subtitle_cue_groups_fts
             WHERE cue_group_id IN (
@@ -3436,20 +2730,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
             );
             """
         )
-        try deleteGroupFTS.bind(subtitlePath, at: 1)
-        try deleteGroupFTS.run()
+        try deleteFTS.bind(subtitlePath, at: 1)
+        try deleteFTS.run()
 
         let deleteLibraryRows = try database.prepare(
             "DELETE FROM library_video_rows WHERE subtitle_path = ?;"
         )
         try deleteLibraryRows.bind(subtitlePath, at: 1)
         try deleteLibraryRows.run()
-
-        let deleteSearchOrderRows = try database.prepare(
-            "DELETE FROM subtitle_search_order_rows WHERE subtitle_path = ?;"
-        )
-        try deleteSearchOrderRows.bind(subtitlePath, at: 1)
-        try deleteSearchOrderRows.run()
 
         let deleteFile = try database.prepare(
             "DELETE FROM subtitle_files WHERE subtitle_path = ?;"
@@ -3473,12 +2761,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute(
             """
             DROP TABLE IF EXISTS subtitle_cue_groups_fts;
-            DROP TABLE IF EXISTS subtitle_cue_lines_fts;
             DROP TABLE IF EXISTS subtitle_cue_lines;
             DROP TABLE IF EXISTS subtitle_cue_groups;
             DROP TABLE IF EXISTS ass_render_segments;
             DROP TABLE IF EXISTS subtitle_video_matches;
-            DROP TABLE IF EXISTS subtitle_search_order_rows;
             DROP TABLE IF EXISTS video_files;
             DROP TABLE IF EXISTS subtitle_entries_fts;
             DROP TABLE IF EXISTS subtitle_entries;

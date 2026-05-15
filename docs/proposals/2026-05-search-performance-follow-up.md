@@ -135,7 +135,7 @@ CueSeeker.
 | FTS `detail` / `columnsize` reduction | External research | Low | Medium | Defer |
 | Trigram tokenizer | External research | Uncertain for precise search | High | Defer |
 
-Current implementation order after rollback:
+Previous implementation order before the full Search rollback:
 
 1. Materialized Library/File/Time ordering.
 2. Ordered first-page early return.
@@ -157,6 +157,48 @@ Query/result cache is intentionally last. It is valuable for repeated searches,
 but it should be layered on top of the final search semantics so cache
 invalidation does not hide correctness or ordering bugs introduced by earlier
 changes.
+
+## Rollback And New Alignment
+
+Date: 2026-05-15
+
+The Search optimization implementation sequence has been rolled back to the
+pre-optimization baseline recorded after commit `2c1fc91`.
+
+Reason:
+
+- The implementation optimized a page-level "first page" metric: return about
+  100 ordered rows plus enough metadata for the current page.
+- The user-facing target is different: render the first matching ASS file's
+  results as soon as that file is complete, then continue rendering additional
+  ASS files in file-sized increments.
+- For queries with only a small or medium result set, waiting for 100 rows can
+  require scanning most of the final result set. That made the measured
+  `first` timing fail to represent the perceived time until useful results are
+  visible.
+- The cue-line/hybrid FTS path remains excluded. It was already benchmarked as
+  a negative optimization and should not be retried automatically in the new
+  round.
+
+Current retained implementation:
+
+- Baseline group-level FTS Search from before the optimization sequence.
+- The `Developer` Settings category remains as a reserved diagnostics surface,
+  but concrete Search diagnostics are paused until the new measurement model is
+  implemented.
+
+New Socratic definitions:
+
+- "First visible Search result" now means the time until the first matching ASS
+  file has been searched enough to render all matching results from that ASS
+  file.
+- Progress should advance by ASS file: after one or more matching ASS files are
+  ready, render those file groups and update `Found <count> results in
+  <count> files` to reflect only rendered/known file groups.
+- The benchmark headline metrics are:
+  - time until the first matching ASS file's results are rendered;
+  - time until all matching results and file counts are complete.
+- The prior page-level "first page" metric is no longer an acceptance metric.
 
 Deferred methods:
 

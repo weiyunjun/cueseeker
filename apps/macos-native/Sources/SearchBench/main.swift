@@ -17,38 +17,11 @@ guard CommandLine.arguments.count >= 3 else {
 let dbPath = URL(fileURLWithPath: CommandLine.arguments[1])
 let query = CommandLine.arguments[2]
 let limit = CommandLine.arguments.count >= 4 ? Int(CommandLine.arguments[3]) ?? 1000 : 1000
-let diagnosticsEnabled = ProcessInfo.processInfo.environment["CUESEEKER_BENCH_DIAGNOSTICS"] == "1"
-let vocabularyDiagnosticsEnabled = ProcessInfo.processInfo.environment["CUESEEKER_BENCH_FTS_VOCAB"] == "1"
-let metadataMode: SubtitleSearchMetadataMode =
-    ProcessInfo.processInfo.environment["CUESEEKER_BENCH_METADATA"] == "deferred"
-    ? .deferred
-    : .complete
-
-func diagnosticsSink(_ event: SubtitleSearchDiagnosticEvent) {
-    let fields = event.fields
-        .map { "\($0.name)=\($0.value)" }
-        .joined(separator: " ")
-    if fields.isEmpty {
-        print("  diag \(event.name): \(formatMs(event.phaseMilliseconds)) ms")
-    } else {
-        print("  diag \(event.name): \(formatMs(event.phaseMilliseconds)) ms \(fields)")
-    }
-}
-
-func searchPage() throws -> SubtitleSearchPage {
-    try database.searchPage(
-        query,
-        limit: limit,
-        metadataMode: metadataMode,
-        diagnostics: diagnosticsEnabled ? diagnosticsSink : nil
-    )
-}
 
 print("== SearchBench ==")
 print("DB:    \(dbPath.path)")
 print("Query: \"\(query)\"")
 print("Limit: \(limit)")
-print("Metadata mode: \(metadataMode == .deferred ? "deferred" : "complete")")
 print("")
 
 let openStart = Date()
@@ -63,47 +36,19 @@ print("Migrate (one-time):   \(formatMs(migrateMs)) ms")
 print("Schema version:       \(try database.schemaVersion())")
 print("")
 
-if vocabularyDiagnosticsEnabled {
-    let vocabularyStart = Date()
-    let vocabulary = try database.ftsVocabularyDiagnostics(for: query, topLimit: 12)
-    let vocabularyMs = milliseconds(since: vocabularyStart)
-    print("FTS vocabulary diagnostics: \(formatMs(vocabularyMs)) ms")
-    print("  unique terms:       \(vocabulary.uniqueTermCount)")
-    print("  document refs:      \(vocabulary.documentReferenceCount)")
-    print("  occurrences:        \(vocabulary.occurrenceCount)")
-    print("  max term count:     \(vocabulary.maxTermOccurrenceCount)")
-    if vocabulary.queryTerms.isEmpty {
-        print("  query terms:        unavailable for explicit FTS syntax")
-    } else {
-        print("  query terms:")
-        for term in vocabulary.queryTerms {
-            print(
-                "    \(term.term) [\(term.lookupKind.rawValue)] terms=\(term.matchingTermCount) docs=\(term.documentReferenceCount) occurrences=\(term.occurrenceCount)"
-            )
-        }
-    }
-    print("  top terms:")
-    for term in vocabulary.topTerms {
-        print("    \(term.term) docs=\(term.documentCount) occurrences=\(term.occurrenceCount)")
-    }
-    print("")
-}
-
 let warmupStart = Date()
-let warmupPage = try searchPage()
+let warmupPage = try database.searchPage(query, limit: limit)
 let warmupMs = milliseconds(since: warmupStart)
 print("Warmup search:        \(formatMs(warmupMs)) ms")
 print("  results returned:   \(warmupPage.results.count)")
 print("  total count:        \(warmupPage.totalCount)")
 print("  file summaries:     \(warmupPage.fileSummaries.count)")
-print("  has more results:   \(warmupPage.hasMoreResults)")
-print("  metadata state:     \(warmupPage.metadataState.rawValue)")
 print("")
 
 var times: [Double] = []
 for _ in 0..<5 {
     let start = Date()
-    _ = try searchPage()
+    _ = try database.searchPage(query, limit: limit)
     times.append(milliseconds(since: start))
 }
 
@@ -125,12 +70,7 @@ let coldDatabase = try SubtitleDatabase(path: dbPath)
 try coldDatabase.migrate()
 let coldOpenMs = milliseconds(since: coldStart)
 let coldSearchStart = Date()
-_ = try coldDatabase.searchPage(
-    query,
-    limit: limit,
-    metadataMode: metadataMode,
-    diagnostics: diagnosticsEnabled ? diagnosticsSink : nil
-)
+_ = try coldDatabase.searchPage(query, limit: limit)
 let coldSearchMs = milliseconds(since: coldSearchStart)
 print("Cold open + migrate + 1 search (simulates old per-call pattern):")
 print("  open + migrate:     \(formatMs(coldOpenMs)) ms")
