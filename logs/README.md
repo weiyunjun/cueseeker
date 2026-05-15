@@ -14,6 +14,12 @@ Search end-to-end JSON snapshots are written to:
 logs/search-e2e/search-e2e-YYYY-MM-DD.jsonl
 ```
 
+Search end-to-end readable summaries are written to:
+
+```text
+logs/search-e2e/search-e2e-summary-YYYY-MM-DD.log
+```
+
 Each Search event is written on one readable line so timing from different
 development machines can be compared directly from the project folder or pasted
 into an AI debugging session.
@@ -29,3 +35,10 @@ Each Search E2E JSONL line uses the same page shape as
 `results` entries mirror `SubtitleSearchResult`, and `fileSummaries` entries
 mirror `SubtitleSearchFileSummary`, with run metadata and UI timing fields
 around that page snapshot.
+
+The E2E summary log keeps the benchmark field names visible at the front of the
+line:
+
+```text
+2026-05-15 15:02:26.948 +08:00 run=1 sequence=21 event=search_status_completed query="你好" returned=95 total=95 fileSummaries=52 offset=0 limit=100 groups=52 renderedRows=95 database=234.73ms elapsed=255.40ms status=completed
+```

@@ -10,6 +10,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   Each Search run can now write a machine-readable page snapshot aligned with
   `SubtitleSearchPage`, plus first-visible result evidence for manual E2E
   testing.
+- Added a readable Search E2E summary log and moved query, returned, total,
+  file-summary, and timing fields to the front of Search E2E JSONL records so
+  manual testing can identify each search without expanding full result pages.
 - Recorded the current post-rollback Search Gate A baseline benchmark at
   commit `fe8d09a`, using `SearchBench` against the local schema 11 database
   for `大丈夫`, `今日`, and `の`.

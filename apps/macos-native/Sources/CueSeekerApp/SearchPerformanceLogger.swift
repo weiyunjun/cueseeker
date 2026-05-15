@@ -99,18 +99,74 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
     let runID: UInt64
     let event: String
     let query: String
-    let queryLength: Int
+    let returned: Int?
+    let total: Int?
+    let fileSummaries: Int?
     let offset: Int
     let limit: Int
+    let groups: Int?
+    let renderedRows: Int?
+    let databaseMilliseconds: Double?
+    let elapsedMilliseconds: Double
+    let firstVisibleMilliseconds: Double?
+    let status: String
+    let queryLength: Int
     let appending: Bool
     let debounce: Bool
     let folders: [String]
-    let status: String
     let error: String?
     let timings: SearchE2ETimingSnapshot
     let ui: SearchE2EUISnapshot
     let page: SearchE2EPageSnapshot?
     let firstVisibleResult: SearchE2EResultSnapshot?
+
+    var formattedSummaryLine: String {
+        var fields = [
+            timestamp,
+            "run=\(runID)",
+            "sequence=\(sequence)",
+            "event=\(formatValue(event))",
+            "query=\(formatValue(query))"
+        ]
+        append("returned", returned, to: &fields)
+        append("total", total, to: &fields)
+        append("fileSummaries", fileSummaries, to: &fields)
+        fields.append("offset=\(offset)")
+        fields.append("limit=\(limit)")
+        append("groups", groups, to: &fields)
+        append("renderedRows", renderedRows, to: &fields)
+        append("database", databaseMilliseconds.map(formatMilliseconds), to: &fields)
+        fields.append("elapsed=\(formatMilliseconds(elapsedMilliseconds))")
+        append("firstVisible", firstVisibleMilliseconds.map(formatMilliseconds), to: &fields)
+        append("entryID", firstVisibleResult?.entryID, to: &fields)
+        append("rank", firstVisibleResult?.searchRank, to: &fields)
+        append("title", firstVisibleResult?.subtitleDisplayTitle, to: &fields)
+        append("text", firstVisibleResult?.summaryText, to: &fields)
+        fields.append("status=\(formatValue(status))")
+        append("error", error, to: &fields)
+
+        return fields.joined(separator: " ") + "\n"
+    }
+
+    private func append<T>(_ label: String, _ value: T?, to fields: inout [String]) {
+        guard let value else {
+            return
+        }
+
+        fields.append("\(label)=\(formatValue(String(describing: value)))")
+    }
+
+    private func formatMilliseconds(_ value: Double) -> String {
+        String(format: "%.2fms", value)
+    }
+
+    private func formatValue(_ value: String) -> String {
+        guard value.contains(where: { $0.isWhitespace || $0 == "=" || $0 == "\"" }) else {
+            return value
+        }
+
+        return "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\""
+    }
 }
 
 private struct SearchE2ETimingSnapshot: Encodable, Sendable {
@@ -143,6 +199,7 @@ private struct SearchE2EPageSnapshot: Encodable, Sendable {
 private struct SearchE2EResultSnapshot: Encodable, Sendable {
     let entryID: Int64
     let subtitlePath: String
+    let subtitleDisplayTitle: String
     let subtitleFormat: String
     let videoPath: String
     let videoName: String
@@ -155,6 +212,7 @@ private struct SearchE2EResultSnapshot: Encodable, Sendable {
     init(result: SubtitleSearchResult) {
         entryID = result.entryID
         subtitlePath = result.subtitlePath
+        subtitleDisplayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath)
         subtitleFormat = result.subtitleFormat.rawValue
         videoPath = result.videoPath
         videoName = result.videoName
@@ -163,6 +221,14 @@ private struct SearchE2EResultSnapshot: Encodable, Sendable {
         content = result.content
         cueLines = result.cueLines
         searchRank = result.searchRank
+    }
+
+    var summaryText: String {
+        content
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " / ")
     }
 }
 
@@ -208,11 +274,7 @@ private final class SearchE2ELogWriter: @unchecked Sendable {
         qos: .utility
     )
     private let logger = Logger(subsystem: "com.cueseeker.perf", category: "SearchE2E")
-    private let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return encoder
-    }()
+    private let encoder = JSONEncoder()
     private var didAnnounceLogPath = false
 
     func write(_ entry: SearchE2ELogEntry) {
@@ -223,36 +285,49 @@ private final class SearchE2ELogWriter: @unchecked Sendable {
 
     private func writeNow(_ entry: SearchE2ELogEntry) {
         do {
-            let fileURL = Self.logFileURL()
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-
+            let jsonFileURL = Self.jsonLogFileURL()
             var data = try encoder.encode(entry)
             data.append(0x0A)
-            if !FileManager.default.fileExists(atPath: fileURL.path) {
-                FileManager.default.createFile(atPath: fileURL.path, contents: nil)
-            }
-
-            let handle = try FileHandle(forWritingTo: fileURL)
-            try handle.seekToEnd()
-            try handle.write(contentsOf: data)
-            try handle.close()
+            try write(data, to: jsonFileURL)
+            try write(Data(entry.formattedSummaryLine.utf8), to: Self.summaryLogFileURL())
 
             if !didAnnounceLogPath {
                 didAnnounceLogPath = true
-                logger.warning("MARK SearchE2ELog.path \(fileURL.path, privacy: .public)")
+                logger.warning("MARK SearchE2ELog.path \(jsonFileURL.path, privacy: .public)")
+                logger.warning("MARK SearchE2ESummaryLog.path \(Self.summaryLogFileURL().path, privacy: .public)")
             }
         } catch {
             logger.error("SearchE2ELog.writeFailed \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    private static func logFileURL() -> URL {
+    private func write(_ data: Data, to fileURL: URL) throws {
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+        }
+
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: data)
+        try handle.close()
+    }
+
+    private static func jsonLogFileURL() -> URL {
         AppLogDirectory.fileURL(
             in: "search-e2e",
             filename: "search-e2e-\(dateStamp()).jsonl"
+        )
+    }
+
+    private static func summaryLogFileURL() -> URL {
+        AppLogDirectory.fileURL(
+            in: "search-e2e",
+            filename: "search-e2e-summary-\(dateStamp()).log"
         )
     }
 
@@ -393,22 +468,31 @@ enum SearchPerformanceLogger {
         }
 
         let timestamp = now()
+        let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
         let entry = SearchE2ELogEntry(
             timestamp: timestampString(),
             sequence: state.allocateSequence(),
             runID: run.id,
             event: event,
             query: run.query,
-            queryLength: run.queryLength,
+            returned: page?.results.count,
+            total: page?.totalCount,
+            fileSummaries: page?.fileSummaries.count,
             offset: run.offset,
             limit: run.limit,
+            groups: groupCount,
+            renderedRows: renderedRowCount,
+            databaseMilliseconds: databaseSearchMilliseconds,
+            elapsedMilliseconds: elapsedMilliseconds,
+            firstVisibleMilliseconds: nil,
+            status: status,
+            queryLength: run.queryLength,
             appending: run.appending,
             debounce: run.debounce,
             folders: run.folderPaths,
-            status: status,
             error: error,
             timings: SearchE2ETimingSnapshot(
-                elapsedMilliseconds: milliseconds(between: run.startedAt, and: timestamp),
+                elapsedMilliseconds: elapsedMilliseconds,
                 databaseSearchMilliseconds: databaseSearchMilliseconds,
                 stateAssignMilliseconds: stateAssignMilliseconds,
                 groupRebuildMilliseconds: groupRebuildMilliseconds,
@@ -440,27 +524,36 @@ enum SearchPerformanceLogger {
         }
 
         let timestamp = now()
+        let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
         let entry = SearchE2ELogEntry(
             timestamp: timestampString(),
             sequence: state.allocateSequence(),
             runID: run.id,
             event: "first_result_row_appeared",
             query: run.query,
-            queryLength: run.queryLength,
+            returned: resultCount,
+            total: totalCount,
+            fileSummaries: fileSummaryCount,
             offset: run.offset,
             limit: run.limit,
+            groups: groupCount,
+            renderedRows: renderedRowCount,
+            databaseMilliseconds: nil,
+            elapsedMilliseconds: elapsedMilliseconds,
+            firstVisibleMilliseconds: elapsedMilliseconds,
+            status: "visible",
+            queryLength: run.queryLength,
             appending: run.appending,
             debounce: run.debounce,
             folders: run.folderPaths,
-            status: "visible",
             error: nil,
             timings: SearchE2ETimingSnapshot(
-                elapsedMilliseconds: milliseconds(between: run.startedAt, and: timestamp),
+                elapsedMilliseconds: elapsedMilliseconds,
                 databaseSearchMilliseconds: nil,
                 stateAssignMilliseconds: nil,
                 groupRebuildMilliseconds: nil,
                 statusCompletionMilliseconds: nil,
-                firstVisibleElapsedMilliseconds: milliseconds(between: run.startedAt, and: timestamp)
+                firstVisibleElapsedMilliseconds: elapsedMilliseconds
             ),
             ui: SearchE2EUISnapshot(
                 groupCount: groupCount,
