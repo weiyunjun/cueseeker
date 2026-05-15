@@ -329,12 +329,47 @@ struct SearchView: View {
             return nil
         case .searching, .completed, .failed:
             let fileText = appState.searchResultFileCount == 1 ? "file" : "files"
+            let performanceSuffix = searchPerformanceSummarySuffix
             if appState.isSearchResultMetadataComplete {
-                return "Found \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)"
+                return "Found \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)\(performanceSuffix)"
             }
 
-            return "Loaded \(appState.searchResultTotalCount)+ results in \(appState.searchResultFileCount) \(fileText)"
+            return "Loaded \(appState.searchResultTotalCount)+ results in \(appState.searchResultFileCount) \(fileText)\(performanceSuffix)"
         }
+    }
+
+    private var searchPerformanceSummarySuffix: String {
+        guard appState.searchPerformanceDisplayEnabled else {
+            return ""
+        }
+
+        let timing = appState.searchPerformanceTiming
+        guard timing.firstPageMilliseconds != nil || timing.completeMilliseconds != nil else {
+            return ""
+        }
+
+        var parts: [String] = []
+        if let firstPageMilliseconds = timing.firstPageMilliseconds {
+            parts.append("first \(Self.formattedSearchDuration(firstPageMilliseconds))")
+        }
+        if let completeMilliseconds = timing.completeMilliseconds {
+            parts.append("full \(Self.formattedSearchDuration(completeMilliseconds))")
+        } else if !appState.isSearchResultMetadataComplete {
+            parts.append("full ...")
+        }
+
+        guard !parts.isEmpty else {
+            return ""
+        }
+        return " · " + parts.joined(separator: " · ")
+    }
+
+    private static func formattedSearchDuration(_ milliseconds: Double) -> String {
+        if milliseconds >= 1_000 {
+            return String(format: "%.2fs", milliseconds / 1_000)
+        }
+
+        return String(format: "%.0fms", milliseconds)
     }
 
     private var shioriCardList: some View {
@@ -539,6 +574,8 @@ struct SearchView: View {
                 Text(searchResultSummaryText ?? "Search")
                     .font(.system(size: SearchTypography.detailSize))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
                 Spacer()
 

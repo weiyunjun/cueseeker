@@ -7,6 +7,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case library
     case decode
     case maintenance
+    case developer
     case experimentalFeatures
 
     var id: String { rawValue }
@@ -19,6 +20,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "Decode"
         case .maintenance:
             "Maintenance"
+        case .developer:
+            "Developer"
         case .experimentalFeatures:
             "Experimental Features"
         }
@@ -32,6 +35,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "play.rectangle"
         case .maintenance:
             "externaldrive"
+        case .developer:
+            "hammer"
         case .experimentalFeatures:
             "sparkles"
         }
@@ -133,6 +138,8 @@ struct SettingsView: View {
             decodeSettingsContent
         case .maintenance:
             maintenanceSettingsContent
+        case .developer:
+            developerSettingsContent
         case .experimentalFeatures:
             experimentalFeaturesSettingsContent
         }
@@ -354,6 +361,146 @@ struct SettingsView: View {
         }
     }
 
+    private var developerSettingsContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Developer")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Text("Inspect local search diagnostics while developing CueSeeker.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Show Search Performance")
+                            .font(.headline)
+                        Text("Append first-page and complete metadata timing to the Search result summary.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Toggle("", isOn: $appState.searchPerformanceDisplayEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("FTS Vocabulary")
+                            .font(.headline)
+                        Text("Inspect indexed token frequency and query-token scale.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        TextField("Query", text: $appState.developerFTSVocabularyQuery)
+                            .textFieldStyle(.roundedBorder)
+
+                        Button {
+                            appState.developerFTSVocabularyQuery = appState.searchQuery
+                            appState.refreshFTSVocabularyDiagnostics()
+                        } label: {
+                            Label("Use Search Query", systemImage: "text.magnifyingglass")
+                        }
+                        .disabled(appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button {
+                            appState.refreshFTSVocabularyDiagnostics()
+                        } label: {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                    }
+
+                    developerDiagnosticsStatusView
+
+                    if let diagnostics = appState.ftsVocabularyDiagnostics {
+                        vocabularyDiagnosticsView(diagnostics)
+                    } else {
+                        Text("Vocabulary stats unavailable")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(contentBackground)
+        .onAppear {
+            if appState.developerFTSVocabularyQuery.isEmpty {
+                appState.developerFTSVocabularyQuery = appState.searchQuery
+            }
+            appState.refreshFTSVocabularyDiagnostics()
+        }
+    }
+
+    @ViewBuilder
+    private var developerDiagnosticsStatusView: some View {
+        switch appState.developerDiagnosticsStatus {
+        case .idle:
+            EmptyView()
+        case .loading:
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading FTS vocabulary stats...")
+                    .font(.subheadline)
+            }
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.subheadline)
+                .foregroundStyle(.red)
+        }
+    }
+
+    private func vocabularyDiagnosticsView(_ diagnostics: FTSVocabularyDiagnostics) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                metricRow("Unique Terms", value: Self.formattedCount(diagnostics.uniqueTermCount))
+                metricRow("Document References", value: Self.formattedCount(diagnostics.documentReferenceCount))
+                metricRow("Occurrences", value: Self.formattedCount(diagnostics.occurrenceCount))
+                metricRow("Max Term Count", value: Self.formattedCount(diagnostics.maxTermOccurrenceCount))
+            }
+
+            if !diagnostics.queryTerms.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Query Terms")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+
+                    ForEach(diagnostics.queryTerms, id: \.term) { term in
+                        metricRow(
+                            "\(term.term) (\(term.lookupKind.rawValue))",
+                            value: "\(Self.formattedCount(term.documentReferenceCount)) docs / \(Self.formattedCount(term.occurrenceCount)) hits"
+                        )
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Top Terms")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                ForEach(diagnostics.topTerms, id: \.term) { term in
+                    metricRow(
+                        term.term,
+                        value: "\(Self.formattedCount(term.documentCount)) docs / \(Self.formattedCount(term.occurrenceCount)) hits"
+                    )
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private var maintenanceStatusView: some View {
         switch appState.databaseMaintenanceStatus {
@@ -385,14 +532,24 @@ struct SettingsView: View {
     }
 
     private func storageRow(_ title: String, bytes: Int64) -> some View {
+        metricRow(title, value: Self.formattedBytes(bytes))
+    }
+
+    private func metricRow(_ title: String, value: String) -> some View {
         HStack(spacing: 16) {
             Text(title)
                 .font(.subheadline)
             Spacer()
-            Text(Self.formattedBytes(bytes))
+            Text(value)
                 .font(.system(.subheadline, design: .monospaced))
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private static func formattedCount(_ value: Int64) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
     private static func formattedBytes(_ bytes: Int64) -> String {

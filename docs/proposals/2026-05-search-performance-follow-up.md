@@ -643,6 +643,12 @@ Read after implementation:
 - The diagnostic itself took about `157.02 ms` on the measured local database,
   so it belongs in development, benchmark, or maintenance surfaces, not in the
   normal keystroke Search path.
+- The app now exposes this diagnostic in Settings under `Developer`, with
+  explicit refresh semantics so developers can inspect FTS vocabulary state
+  without adding work to normal Search.
+- The same `Developer` category exposes `Show Search Performance`, enabled by
+  default, which appends first-page and complete metadata timing to the Search
+  result summary for live observation.
 - The next optimization step should use this evidence when deciding whether FTS
   maintenance or tokenizer cleanup is worth pursuing.
 

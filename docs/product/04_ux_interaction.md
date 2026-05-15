@@ -685,8 +685,8 @@ Expected behavior:
 - The left category list uses the quiet gray settings/navigation background.
 - The right content area uses the white settings content background.
 - The active native Settings categories are `Library`, `Decode`,
-  `Maintenance`, and `Experimental Features`. `Layout` remains an accepted
-  direction for the Sidebar Position preference when that setting is
+  `Maintenance`, `Developer`, and `Experimental Features`. `Layout` remains an
+  accepted direction for the Sidebar Position preference when that setting is
   reintroduced.
 - `Library` contains current Subtitle Folders management: add folders, index
   selected folders, remove folders with confirmation, and show indexing status.
@@ -694,6 +694,13 @@ Expected behavior:
   `software`, and `auto`.
 - `Maintenance` contains local database storage stats and the manual
   `Compact Database` action for reclaiming unused SQLite freelist space.
+- `Developer` contains diagnostics and instrumentation that help explain local
+  behavior while developing the app. It includes FTS vocabulary statistics and
+  a `Show Search Performance` toggle.
+- `Show Search Performance` is enabled by default. When enabled, the Search
+  result summary appends the first-page Search time and the complete metadata
+  time after the `Found <count> results in <count> files` or loaded-results
+  summary text.
 - `Experimental Features` contains unstable feature toggles, including `Search
   Result Thumbnails`, which is off by default.
 - Refreshing database storage stats or switching into `Maintenance` should not

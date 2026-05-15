@@ -147,6 +147,11 @@ The implementation evidence refined the Socratic diagnosis:
   the next questions answerable with data: which query terms are intrinsically
   high-frequency, and whether the FTS index contains markup/style-token
   pollution that explains broad candidate sets.
+- The follow-up product request turned that diagnostic from a benchmark-only
+  tool into a Developer Settings surface, and added a default-on Search summary
+  timing display. This keeps the Socratic loop visible during ordinary app use:
+  first-page and complete metadata timing can now be observed while changing
+  queries, without opening logs.
 
 ## Open Questions
 

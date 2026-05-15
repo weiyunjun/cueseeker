@@ -52,6 +52,12 @@ enum DatabaseMaintenanceStatus: Equatable {
     }
 }
 
+enum DeveloperDiagnosticsStatus: Equatable {
+    case idle
+    case loading
+    case failed(String)
+}
+
 enum PlaybackStatus: Equatable {
     case idle
     case opening
@@ -138,6 +144,16 @@ struct LibraryFolderGroup: Identifiable {
     var id: String {
         folderPath
     }
+}
+
+struct SearchPerformanceDisplayTiming: Equatable {
+    var firstPageMilliseconds: Double?
+    var completeMilliseconds: Double?
+
+    static let empty = SearchPerformanceDisplayTiming(
+        firstPageMilliseconds: nil,
+        completeMilliseconds: nil
+    )
 }
 
 private struct LibraryPlaybackHistorySnapshot: Sendable {
@@ -242,6 +258,7 @@ final class AppState: ObservableObject {
     private static let playbackSpeedKey = "playbackSpeed"
     private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
     private static let searchResultThumbnailsEnabledKey = "searchResultThumbnailsEnabled"
+    private static let searchPerformanceDisplayEnabledKey = "searchPerformanceDisplayEnabled"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
@@ -275,6 +292,10 @@ final class AppState: ObservableObject {
     @Published private(set) var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
     @Published private(set) var databaseStorageStats: DatabaseStorageStats?
     @Published private(set) var databaseMaintenanceStatus: DatabaseMaintenanceStatus = .idle
+    @Published private(set) var ftsVocabularyDiagnostics: FTSVocabularyDiagnostics?
+    @Published private(set) var developerDiagnosticsStatus: DeveloperDiagnosticsStatus = .idle
+    @Published var developerFTSVocabularyQuery = ""
+    @Published private(set) var searchPerformanceTiming: SearchPerformanceDisplayTiming = .empty
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var selectedShiori: Shiori?
@@ -298,6 +319,11 @@ final class AppState: ObservableObject {
     @Published var searchResultThumbnailsEnabled = false {
         didSet {
             userDefaults.set(searchResultThumbnailsEnabled, forKey: Self.searchResultThumbnailsEnabledKey)
+        }
+    }
+    @Published var searchPerformanceDisplayEnabled = true {
+        didSet {
+            userDefaults.set(searchPerformanceDisplayEnabled, forKey: Self.searchPerformanceDisplayEnabledKey)
         }
     }
 
@@ -580,6 +606,7 @@ final class AppState: ObservableObject {
     private var currentSubtitleEntriesTask: Task<Void, Never>?
     private var databaseStorageStatsTask: Task<Void, Never>?
     private var databaseCompactionTask: Task<Void, Never>?
+    private var developerDiagnosticsTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
     private var playbackSurfaceToggleCooldownTask: Task<Void, Never>?
     private var playbackSidePanelToggleCooldownTask: Task<Void, Never>?
@@ -587,6 +614,7 @@ final class AppState: ObservableObject {
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     private var activeSearchPerformanceRun: SearchPerformanceRun?
     private var pendingSearchVisibleEntryIDs: Set<Int64> = []
+    private var searchPerformanceTimingGeneration = 0
     private var activePlaybackSource: ActivePlaybackSource = .none
     private var loadedGlobalSearchResultCount = 0
     private var isSearching: Bool {
@@ -611,13 +639,15 @@ final class AppState: ObservableObject {
             Self.playbackLastNonzeroVolumeKey: 100.0,
             Self.playbackSpeedKey: 1.0,
             Self.playbackSubtitlesVisibleKey: true,
-            Self.searchResultThumbnailsEnabledKey: false
+            Self.searchResultThumbnailsEnabledKey: false,
+            Self.searchPerformanceDisplayEnabledKey: true
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
 
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         searchResultThumbnailsEnabled = userDefaults.bool(forKey: Self.searchResultThumbnailsEnabledKey)
+        searchPerformanceDisplayEnabled = userDefaults.bool(forKey: Self.searchPerformanceDisplayEnabledKey)
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -1282,6 +1312,46 @@ final class AppState: ObservableObject {
         }
     }
 
+    func refreshFTSVocabularyDiagnostics() {
+        developerDiagnosticsTask?.cancel()
+
+        guard !databaseMaintenanceStatus.isCompacting else {
+            developerDiagnosticsStatus = .failed("Database compaction is running")
+            return
+        }
+
+        guard let database = subtitleDatabase else {
+            developerDiagnosticsStatus = .failed("Database is not initialized")
+            return
+        }
+
+        let query = developerFTSVocabularyQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        developerDiagnosticsStatus = .loading
+        developerDiagnosticsTask = Task {
+            do {
+                let diagnostics = try await Task.detached(priority: .utility) {
+                    try database.ftsVocabularyDiagnostics(
+                        for: query.isEmpty ? nil : query,
+                        topLimit: 12
+                    )
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                ftsVocabularyDiagnostics = diagnostics
+                developerDiagnosticsStatus = .idle
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                developerDiagnosticsStatus = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
     func compactDatabaseStorage() {
         guard !databaseMaintenanceStatus.isCompacting else {
             return
@@ -1433,6 +1503,14 @@ final class AppState: ObservableObject {
         let folders = selectedFolders
         let pageSize = Self.searchPageSize
         let hadCompleteSearchMetadata = isSearchResultMetadataComplete
+        let searchTimingGeneration: Int?
+        if appending {
+            searchTimingGeneration = nil
+        } else {
+            searchPerformanceTimingGeneration += 1
+            searchPerformanceTiming = .empty
+            searchTimingGeneration = searchPerformanceTimingGeneration
+        }
         if let activeSearchPerformanceRun {
             SearchPerformanceLogger.mark(activeSearchPerformanceRun, "search_superseded_by_new_search")
         }
@@ -1513,6 +1591,13 @@ final class AppState: ObservableObject {
                     )
                 }
 
+                let activeSearchTimingStart: UInt64?
+                if let searchTimingGeneration,
+                   self.searchPerformanceTimingGeneration == searchTimingGeneration {
+                    activeSearchTimingStart = SearchPerformanceLogger.now()
+                } else {
+                    activeSearchTimingStart = nil
+                }
                 SearchPerformanceLogger.mark(searchPerformanceRun, "database_search_started")
                 let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
                 let page = try await Task.detached(priority: .userInitiated) {
@@ -1591,6 +1676,15 @@ final class AppState: ObservableObject {
                     totalCount: searchResultTotalCount,
                     fileSummaryCount: searchFileSummaries.count
                 )
+                if let searchTimingGeneration,
+                   self.searchPerformanceTimingGeneration == searchTimingGeneration,
+                   let activeSearchTimingStart {
+                    let elapsed = Self.searchTimingMilliseconds(since: activeSearchTimingStart)
+                    searchPerformanceTiming = SearchPerformanceDisplayTiming(
+                        firstPageMilliseconds: elapsed,
+                        completeMilliseconds: pageMetadataComplete ? elapsed : nil
+                    )
+                }
 
                 let rebuildStart = SearchPerformanceLogger.now()
                 rebuildSearchResultGroups()
@@ -1630,7 +1724,9 @@ final class AppState: ObservableObject {
                 if page.metadataState == .deferred, !hadCompleteSearchMetadata || !appending {
                     startSearchMetadataRefresh(
                         query: trimmedQuery,
-                        folders: folders
+                        folders: folders,
+                        timingGeneration: searchTimingGeneration,
+                        timingStart: activeSearchTimingStart
                     )
                 }
             } catch is CancellationError {
@@ -1669,7 +1765,9 @@ final class AppState: ObservableObject {
 
     private func startSearchMetadataRefresh(
         query: String,
-        folders: [URL]
+        folders: [URL],
+        timingGeneration: Int?,
+        timingStart: UInt64?
     ) {
         searchMetadataTask?.cancel()
         searchMetadataGeneration += 1
@@ -1712,6 +1810,13 @@ final class AppState: ObservableObject {
                 self.searchFileSummaries = metadataPage.fileSummaries
                 self.hasMoreSearchResults = self.loadedGlobalSearchResultCount < metadataPage.totalCount
                 self.isSearchResultMetadataComplete = true
+                if let timingGeneration,
+                   self.searchPerformanceTimingGeneration == timingGeneration,
+                   let timingStart {
+                    var timing = self.searchPerformanceTiming
+                    timing.completeMilliseconds = Self.searchTimingMilliseconds(since: timingStart)
+                    self.searchPerformanceTiming = timing
+                }
                 self.searchMetadataTask = nil
                 self.rebuildSearchResultGroups()
             } catch is CancellationError {
@@ -3061,6 +3166,11 @@ final class AppState: ObservableObject {
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
+    }
+
+    private static func searchTimingMilliseconds(since start: UInt64) -> Double {
+        let now = SearchPerformanceLogger.now()
+        return Double(now - start) / 1_000_000
     }
 
     private static func errorMessage(for error: Error) -> String {

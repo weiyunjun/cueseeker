@@ -377,6 +377,10 @@ Search ranking and query syntax:
   behavior, or index pollution. Diagnostics are read-only observability and
   should not be treated as an optimization unless benchmark data shows a
   follow-up indexing change improves Search.
+- Developer-facing database diagnostics may be exposed in Settings, but they
+  must stay out of the default keystroke Search path. FTS vocabulary statistics
+  are allowed to run on explicit refresh and should report query-term scale and
+  high-frequency indexed terms.
 - Search-summary counts and file/group summaries should not block first visible
   results if the query engine can return ordered results before the whole corpus
   is searched.

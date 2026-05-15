@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a Developer Settings category for local diagnostics. It exposes
+  refreshable FTS vocabulary statistics and a default-on Search performance
+  display that appends first-page and complete metadata timing to the Search
+  result summary.
 - Added the eighth accepted Search optimization-sequence step as diagnostics:
   Core and `SearchBench` can now inspect SQLite `fts5vocab` data for cue-group
   FTS, making high-frequency query terms and possible index pollution visible
