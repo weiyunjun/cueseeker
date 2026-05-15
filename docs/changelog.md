@@ -6,15 +6,16 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Reworked Search E2E logging into a single JSONL benchmark stream. Completed
+  Search records now expose `query`, `warmupMilliseconds`, `returned`,
+  `totalCount`, `fileSummaries`, `hotAvgMilliseconds`, and `hotRawMilliseconds`
+  at the top level, with the separate readable summary log removed.
 - Kept Search E2E JSONL lightweight by default: records now keep benchmark
   fields, `hasMore`, timings, and small result/file-summary samples instead of
   storing complete Search result pages.
 - Added default-on Developer settings control for local Search E2E JSONL logs.
   Each Search run can now write machine-readable Search evidence plus
   first-visible result evidence for manual E2E testing.
-- Added a readable Search E2E summary log and moved query, returned, total,
-  file-summary, and timing fields to the front of Search E2E JSONL records so
-  manual testing can identify each search without expanding full result pages.
 - Recorded the current post-rollback Search Gate A baseline benchmark at
   commit `fe8d09a`, using `SearchBench` against the local schema 11 database
   for `大丈夫`, `今日`, and `の`.

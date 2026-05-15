@@ -14,6 +14,7 @@ struct SearchPerformanceRun: Sendable {
     let folderCount: Int
     let folderPaths: [String]
     let e2eLoggingEnabled: Bool
+    let e2eBenchmarkKey: String
 }
 
 private struct SearchPerformanceLogEntry: Sendable {
@@ -93,15 +94,23 @@ private struct SearchPerformanceLogEntry: Sendable {
 }
 
 private struct SearchE2ELogEntry: Encodable, Sendable {
-    let schemaVersion = 1
+    let schemaVersion = 2
     let timestamp: String
     let sequence: UInt64
     let runID: UInt64
     let event: String
     let query: String
+    let benchmarkMetric: String?
+    let warmupMilliseconds: Double?
     let returned: Int?
-    let total: Int?
+    let totalCount: Int?
     let fileSummaries: Int?
+    let hotAvgMilliseconds: Double?
+    let hotRawMilliseconds: [Double]?
+    let currentRunKind: String?
+    let currentRunMilliseconds: Double?
+    let hotRunCount: Int?
+    let hotTargetRunCount: Int?
     let hasMore: Bool?
     let offset: Int
     let limit: Int
@@ -118,56 +127,99 @@ private struct SearchE2ELogEntry: Encodable, Sendable {
     let error: String?
     let timings: SearchE2ETimingSnapshot
     let ui: SearchE2EUISnapshot
-    let page: SearchE2EPageSnapshot?
+    let sampleResults: [SearchE2EResultSnapshot]?
+    let topFileSummaries: [SearchE2EFileSummarySnapshot]?
     let firstVisibleResult: SearchE2EResultSnapshot?
 
-    var formattedSummaryLine: String {
-        var fields = [
-            timestamp,
-            "run=\(runID)",
-            "sequence=\(sequence)",
-            "event=\(formatValue(event))",
-            "query=\(formatValue(query))"
-        ]
-        append("returned", returned, to: &fields)
-        append("total", total, to: &fields)
-        append("fileSummaries", fileSummaries, to: &fields)
-        append("hasMore", hasMore, to: &fields)
-        fields.append("offset=\(offset)")
-        fields.append("limit=\(limit)")
-        append("groups", groups, to: &fields)
-        append("renderedRows", renderedRows, to: &fields)
-        append("database", databaseMilliseconds.map(formatMilliseconds), to: &fields)
-        fields.append("elapsed=\(formatMilliseconds(elapsedMilliseconds))")
-        append("firstVisible", firstVisibleMilliseconds.map(formatMilliseconds), to: &fields)
-        append("entryID", firstVisibleResult?.entryID, to: &fields)
-        append("rank", firstVisibleResult?.searchRank, to: &fields)
-        append("title", firstVisibleResult?.subtitleDisplayTitle, to: &fields)
-        append("text", firstVisibleResult?.summaryText, to: &fields)
-        fields.append("status=\(formatValue(status))")
-        append("error", error, to: &fields)
-
-        return fields.joined(separator: " ") + "\n"
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case timestamp
+        case sequence
+        case runID
+        case event
+        case query
+        case benchmarkMetric
+        case warmupMilliseconds
+        case returned
+        case totalCount
+        case fileSummaries
+        case hotAvgMilliseconds
+        case hotRawMilliseconds
+        case currentRunKind
+        case currentRunMilliseconds
+        case hotRunCount
+        case hotTargetRunCount
+        case hasMore
+        case offset
+        case limit
+        case groups
+        case renderedRows
+        case databaseMilliseconds
+        case elapsedMilliseconds
+        case firstVisibleMilliseconds
+        case status
+        case queryLength
+        case appending
+        case debounce
+        case folders
+        case error
+        case timings
+        case ui
+        case sampleResults
+        case topFileSummaries
+        case firstVisibleResult
     }
 
-    private func append<T>(_ label: String, _ value: T?, to fields: inout [String]) {
-        guard let value else {
-            return
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(timestamp, forKey: .timestamp)
+        try container.encode(sequence, forKey: .sequence)
+        try container.encode(runID, forKey: .runID)
+        try container.encode(event, forKey: .event)
+        try container.encode(query, forKey: .query)
+        try encodeNullable(benchmarkMetric, forKey: .benchmarkMetric, into: &container)
+        try encodeNullable(warmupMilliseconds, forKey: .warmupMilliseconds, into: &container)
+        try encodeNullable(returned, forKey: .returned, into: &container)
+        try encodeNullable(totalCount, forKey: .totalCount, into: &container)
+        try encodeNullable(fileSummaries, forKey: .fileSummaries, into: &container)
+        try encodeNullable(hotAvgMilliseconds, forKey: .hotAvgMilliseconds, into: &container)
+        try encodeNullable(hotRawMilliseconds, forKey: .hotRawMilliseconds, into: &container)
+        try encodeNullable(currentRunKind, forKey: .currentRunKind, into: &container)
+        try encodeNullable(currentRunMilliseconds, forKey: .currentRunMilliseconds, into: &container)
+        try encodeNullable(hotRunCount, forKey: .hotRunCount, into: &container)
+        try encodeNullable(hotTargetRunCount, forKey: .hotTargetRunCount, into: &container)
+        try encodeNullable(hasMore, forKey: .hasMore, into: &container)
+        try container.encode(offset, forKey: .offset)
+        try container.encode(limit, forKey: .limit)
+        try encodeNullable(groups, forKey: .groups, into: &container)
+        try encodeNullable(renderedRows, forKey: .renderedRows, into: &container)
+        try encodeNullable(databaseMilliseconds, forKey: .databaseMilliseconds, into: &container)
+        try container.encode(elapsedMilliseconds, forKey: .elapsedMilliseconds)
+        try encodeNullable(firstVisibleMilliseconds, forKey: .firstVisibleMilliseconds, into: &container)
+        try container.encode(status, forKey: .status)
+        try container.encode(queryLength, forKey: .queryLength)
+        try container.encode(appending, forKey: .appending)
+        try container.encode(debounce, forKey: .debounce)
+        try container.encode(folders, forKey: .folders)
+        try encodeNullable(error, forKey: .error, into: &container)
+        try container.encode(timings, forKey: .timings)
+        try container.encode(ui, forKey: .ui)
+        try encodeNullable(sampleResults, forKey: .sampleResults, into: &container)
+        try encodeNullable(topFileSummaries, forKey: .topFileSummaries, into: &container)
+        try encodeNullable(firstVisibleResult, forKey: .firstVisibleResult, into: &container)
+    }
+
+    private func encodeNullable<T: Encodable>(
+        _ value: T?,
+        forKey key: CodingKeys,
+        into container: inout KeyedEncodingContainer<CodingKeys>
+    ) throws {
+        if let value {
+            try container.encode(value, forKey: key)
+        } else {
+            try container.encodeNil(forKey: key)
         }
-
-        fields.append("\(label)=\(formatValue(String(describing: value)))")
-    }
-
-    private func formatMilliseconds(_ value: Double) -> String {
-        String(format: "%.2fms", value)
-    }
-
-    private func formatValue(_ value: String) -> String {
-        guard value.contains(where: { $0.isWhitespace || $0 == "=" || $0 == "\"" }) else {
-            return value
-        }
-
-        return "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\""
     }
 }
 
@@ -186,16 +238,16 @@ private struct SearchE2EUISnapshot: Encodable, Sendable {
     let firstVisibleEntryID: Int64?
 }
 
-private struct SearchE2EPageSnapshot: Encodable, Sendable {
+private struct SearchE2ESamples: Sendable {
     private static let sampleResultLimit = 5
     private static let fileSummaryLimit = 10
 
+    let sampleResults: [SearchE2EResultSnapshot]
+    let topFileSummaries: [SearchE2EFileSummarySnapshot]
     let returned: Int
     let totalCount: Int
     let fileSummaryCount: Int
     let hasMore: Bool
-    let sampleResults: [SearchE2EResultSnapshot]
-    let topFileSummaries: [SearchE2EFileSummarySnapshot]
 
     init(page: SubtitleSearchPage, offset: Int) {
         returned = page.results.count
@@ -209,6 +261,34 @@ private struct SearchE2EPageSnapshot: Encodable, Sendable {
             .prefix(Self.fileSummaryLimit)
             .map(SearchE2EFileSummarySnapshot.init)
     }
+}
+
+private struct SearchE2EBenchmarkMeasurement: Sendable {
+    let milliseconds: Double
+    let returned: Int
+    let totalCount: Int
+    let fileSummaries: Int
+}
+
+private struct SearchE2EBenchmarkSnapshot: Sendable {
+    let warmupMilliseconds: Double?
+    let returned: Int?
+    let totalCount: Int?
+    let fileSummaries: Int?
+    let hotAvgMilliseconds: Double?
+    let hotRawMilliseconds: [Double]
+    let currentRunKind: String?
+    let currentRunMilliseconds: Double?
+    let hotRunCount: Int
+    let hotTargetRunCount: Int
+}
+
+private struct SearchE2EBenchmarkState: Sendable {
+    var warmupMilliseconds: Double?
+    var returned: Int?
+    var totalCount: Int?
+    var fileSummaries: Int?
+    var hotRawMilliseconds: [Double] = []
 }
 
 private struct SearchE2EResultSnapshot: Encodable, Sendable {
@@ -262,9 +342,12 @@ private struct SearchE2EFileSummarySnapshot: Encodable, Sendable {
 }
 
 private final class SearchPerformanceLoggerState: @unchecked Sendable {
+    private static let e2eHotTargetRunCount = 5
+
     private let lock = NSLock()
     private var nextRunID: UInt64 = 0
     private var nextSequence: UInt64 = 0
+    private var e2eBenchmarkStates: [String: SearchE2EBenchmarkState] = [:]
 
     func allocateRunID() -> UInt64 {
         lock.lock()
@@ -280,6 +363,75 @@ private final class SearchPerformanceLoggerState: @unchecked Sendable {
 
         nextSequence += 1
         return nextSequence
+    }
+
+    func recordE2EBenchmark(
+        key: String,
+        measurement: SearchE2EBenchmarkMeasurement
+    ) -> SearchE2EBenchmarkSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+
+        var state = e2eBenchmarkStates[key] ?? SearchE2EBenchmarkState()
+        let currentRunKind: String
+        if state.warmupMilliseconds == nil {
+            state.warmupMilliseconds = measurement.milliseconds
+            currentRunKind = "warmup"
+        } else if state.hotRawMilliseconds.count < Self.e2eHotTargetRunCount {
+            state.hotRawMilliseconds.append(measurement.milliseconds)
+            currentRunKind = "hot"
+        } else {
+            currentRunKind = "hot_extra"
+        }
+
+        state.returned = measurement.returned
+        state.totalCount = measurement.totalCount
+        state.fileSummaries = measurement.fileSummaries
+        e2eBenchmarkStates[key] = state
+
+        return snapshot(
+            from: state,
+            currentRunKind: currentRunKind,
+            currentRunMilliseconds: measurement.milliseconds
+        )
+    }
+
+    func e2eBenchmarkSnapshot(key: String) -> SearchE2EBenchmarkSnapshot? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let state = e2eBenchmarkStates[key] else {
+            return nil
+        }
+
+        return snapshot(
+            from: state,
+            currentRunKind: nil,
+            currentRunMilliseconds: nil
+        )
+    }
+
+    private func snapshot(
+        from state: SearchE2EBenchmarkState,
+        currentRunKind: String?,
+        currentRunMilliseconds: Double?
+    ) -> SearchE2EBenchmarkSnapshot {
+        let hotAvg = state.hotRawMilliseconds.isEmpty
+            ? nil
+            : state.hotRawMilliseconds.reduce(0, +) / Double(state.hotRawMilliseconds.count)
+
+        return SearchE2EBenchmarkSnapshot(
+            warmupMilliseconds: state.warmupMilliseconds,
+            returned: state.returned,
+            totalCount: state.totalCount,
+            fileSummaries: state.fileSummaries,
+            hotAvgMilliseconds: hotAvg,
+            hotRawMilliseconds: state.hotRawMilliseconds,
+            currentRunKind: currentRunKind,
+            currentRunMilliseconds: currentRunMilliseconds,
+            hotRunCount: state.hotRawMilliseconds.count,
+            hotTargetRunCount: Self.e2eHotTargetRunCount
+        )
     }
 }
 
@@ -304,12 +456,10 @@ private final class SearchE2ELogWriter: @unchecked Sendable {
             var data = try encoder.encode(entry)
             data.append(0x0A)
             try write(data, to: jsonFileURL)
-            try write(Data(entry.formattedSummaryLine.utf8), to: Self.summaryLogFileURL())
 
             if !didAnnounceLogPath {
                 didAnnounceLogPath = true
                 logger.warning("MARK SearchE2ELog.path \(jsonFileURL.path, privacy: .public)")
-                logger.warning("MARK SearchE2ESummaryLog.path \(Self.summaryLogFileURL().path, privacy: .public)")
             }
         } catch {
             logger.error("SearchE2ELog.writeFailed \(error.localizedDescription, privacy: .public)")
@@ -336,13 +486,6 @@ private final class SearchE2ELogWriter: @unchecked Sendable {
         AppLogDirectory.fileURL(
             in: "search-e2e",
             filename: "search-e2e-\(dateStamp()).jsonl"
-        )
-    }
-
-    private static func summaryLogFileURL() -> URL {
-        AppLogDirectory.fileURL(
-            in: "search-e2e",
-            filename: "search-e2e-summary-\(dateStamp()).log"
         )
     }
 
@@ -415,14 +558,7 @@ enum SearchPerformanceLogger {
     private static let writer = SearchPerformanceLogWriter()
     private static let e2eWriter = SearchE2ELogWriter()
 
-    #if DEBUG
-    private static let isDevelopmentBuild = true
-    #else
-    private static let isDevelopmentBuild = false
-    #endif
-
-    static let isEnabled = isDevelopmentBuild
-        || diagnosticFlag("CUESEEKER_PERF_SEARCH")
+    static let isEnabled = diagnosticFlag("CUESEEKER_PERF_SEARCH")
         || diagnosticFlag("CUESEEKER_PERF_UI")
         || diagnosticFlag("CUESEEKER_PERF")
 
@@ -459,7 +595,13 @@ enum SearchPerformanceLogger {
             debounce: debounce,
             folderCount: folderPaths.count,
             folderPaths: folderPaths,
-            e2eLoggingEnabled: e2eLoggingEnabled
+            e2eLoggingEnabled: e2eLoggingEnabled,
+            e2eBenchmarkKey: e2eBenchmarkKey(
+                query: query,
+                offset: offset,
+                limit: limit,
+                folderPaths: folderPaths
+            )
         )
         mark(run, "search_requested")
         return run
@@ -484,17 +626,31 @@ enum SearchPerformanceLogger {
 
         let timestamp = now()
         let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
-        let hasMore = page.map { run.offset + $0.results.count < $0.totalCount }
+        let samples = page.map { SearchE2ESamples(page: $0, offset: run.offset) }
+        let benchmark = makeE2EBenchmarkSnapshot(
+            for: run,
+            page: page,
+            elapsedMilliseconds: elapsedMilliseconds,
+            status: status
+        )
         let entry = SearchE2ELogEntry(
             timestamp: timestampString(),
             sequence: state.allocateSequence(),
             runID: run.id,
             event: event,
             query: run.query,
-            returned: page?.results.count,
-            total: page?.totalCount,
-            fileSummaries: page?.fileSummaries.count,
-            hasMore: hasMore,
+            benchmarkMetric: benchmark == nil ? nil : "elapsedMilliseconds",
+            warmupMilliseconds: benchmark?.warmupMilliseconds,
+            returned: benchmark?.returned ?? samples?.returned,
+            totalCount: benchmark?.totalCount ?? samples?.totalCount,
+            fileSummaries: benchmark?.fileSummaries ?? samples?.fileSummaryCount,
+            hotAvgMilliseconds: benchmark?.hotAvgMilliseconds,
+            hotRawMilliseconds: benchmark?.hotRawMilliseconds,
+            currentRunKind: benchmark?.currentRunKind,
+            currentRunMilliseconds: benchmark?.currentRunMilliseconds,
+            hotRunCount: benchmark?.hotRunCount,
+            hotTargetRunCount: benchmark?.hotTargetRunCount,
+            hasMore: samples?.hasMore,
             offset: run.offset,
             limit: run.limit,
             groups: groupCount,
@@ -521,7 +677,8 @@ enum SearchPerformanceLogger {
                 renderedRowCount: renderedRowCount,
                 firstVisibleEntryID: nil
             ),
-            page: page.map { SearchE2EPageSnapshot(page: $0, offset: run.offset) },
+            sampleResults: samples?.sampleResults,
+            topFileSummaries: samples?.topFileSummaries,
             firstVisibleResult: nil
         )
         e2eWriter.write(entry)
@@ -542,15 +699,24 @@ enum SearchPerformanceLogger {
 
         let timestamp = now()
         let elapsedMilliseconds = milliseconds(between: run.startedAt, and: timestamp)
+        let benchmark = state.e2eBenchmarkSnapshot(key: run.e2eBenchmarkKey)
         let entry = SearchE2ELogEntry(
             timestamp: timestampString(),
             sequence: state.allocateSequence(),
             runID: run.id,
             event: "first_result_row_appeared",
             query: run.query,
-            returned: resultCount,
-            total: totalCount,
-            fileSummaries: fileSummaryCount,
+            benchmarkMetric: benchmark == nil ? nil : "elapsedMilliseconds",
+            warmupMilliseconds: benchmark?.warmupMilliseconds,
+            returned: benchmark?.returned ?? resultCount,
+            totalCount: benchmark?.totalCount ?? totalCount,
+            fileSummaries: benchmark?.fileSummaries ?? fileSummaryCount,
+            hotAvgMilliseconds: benchmark?.hotAvgMilliseconds,
+            hotRawMilliseconds: benchmark?.hotRawMilliseconds,
+            currentRunKind: benchmark?.currentRunKind,
+            currentRunMilliseconds: benchmark?.currentRunMilliseconds,
+            hotRunCount: benchmark?.hotRunCount,
+            hotTargetRunCount: benchmark?.hotTargetRunCount,
             hasMore: resultCount < totalCount,
             offset: run.offset,
             limit: run.limit,
@@ -578,7 +744,8 @@ enum SearchPerformanceLogger {
                 renderedRowCount: renderedRowCount,
                 firstVisibleEntryID: result.entryID
             ),
-            page: nil,
+            sampleResults: nil,
+            topFileSummaries: nil,
             firstVisibleResult: SearchE2EResultSnapshot(result: result)
         )
         e2eWriter.write(entry)
@@ -674,6 +841,41 @@ enum SearchPerformanceLogger {
             extraFields: extraFields
         )
         writer.write(entry)
+    }
+
+    private static func makeE2EBenchmarkSnapshot(
+        for run: SearchPerformanceRun,
+        page: SubtitleSearchPage?,
+        elapsedMilliseconds: Double,
+        status: String
+    ) -> SearchE2EBenchmarkSnapshot? {
+        guard let page else {
+            return state.e2eBenchmarkSnapshot(key: run.e2eBenchmarkKey)
+        }
+
+        guard status == "completed" else {
+            return state.e2eBenchmarkSnapshot(key: run.e2eBenchmarkKey)
+        }
+
+        return state.recordE2EBenchmark(
+            key: run.e2eBenchmarkKey,
+            measurement: SearchE2EBenchmarkMeasurement(
+                milliseconds: elapsedMilliseconds,
+                returned: page.results.count,
+                totalCount: page.totalCount,
+                fileSummaries: page.fileSummaries.count
+            )
+        )
+    }
+
+    private static func e2eBenchmarkKey(
+        query: String,
+        offset: Int,
+        limit: Int,
+        folderPaths: [String]
+    ) -> String {
+        ([query, "offset=\(offset)", "limit=\(limit)"] + folderPaths)
+            .joined(separator: "\u{1F}")
     }
 
     private static func milliseconds(between start: UInt64, and end: UInt64) -> Double {
