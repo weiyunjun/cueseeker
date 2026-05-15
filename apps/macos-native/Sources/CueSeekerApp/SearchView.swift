@@ -329,10 +329,6 @@ struct SearchView: View {
             return nil
         case .searching, .completed, .failed:
             let fileText = appState.searchResultFileCount == 1 ? "file" : "files"
-            if appState.searchCountState == .provisional {
-                return "Found at least \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)"
-            }
-
             return "Found \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)"
         }
     }
@@ -413,7 +409,6 @@ struct SearchView: View {
                         SearchResultCardGroupView(
                             group: group,
                             query: appState.searchQuery,
-                            countsAreProvisional: appState.searchCountState == .provisional,
                             selectedResult: appState.selectedSearchResult,
                             onToggle: {
                                 appState.clearSearchFocus()
@@ -460,7 +455,6 @@ struct SearchView: View {
                         SearchResultGroupView(
                             group: group,
                             query: appState.searchQuery,
-                            countsAreProvisional: appState.searchCountState == .provisional,
                             selectedResult: appState.selectedSearchResult,
                             showsThumbnails: appState.searchResultThumbnailsEnabled,
                             onToggle: {
@@ -1511,7 +1505,6 @@ private struct EqualHeightCardGridLayout: Layout {
 private struct SearchResultCardGroupView: View {
     let group: SearchResultFileGroup
     let query: String
-    let countsAreProvisional: Bool
     let selectedResult: SubtitleSearchResult?
     let onToggle: () -> Void
     let onOpenResult: (SubtitleSearchResult) -> Void
@@ -1555,7 +1548,7 @@ private struct SearchResultCardGroupView: View {
     }
 
     private var resultCountText: String {
-        "\(countsAreProvisional ? "at least " : "")\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")"
+        "\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")"
     }
 }
 
@@ -1809,7 +1802,6 @@ private struct ShioriCard: View {
 
 private struct SearchResultGroupHeader: View {
     let group: SearchResultFileGroup
-    let countsAreProvisional: Bool
     let isSelected: Bool
     let onToggle: () -> Void
 
@@ -1839,14 +1831,13 @@ private struct SearchResultGroupHeader: View {
     }
 
     private var resultCountText: String {
-        "\(countsAreProvisional ? "at least " : "")\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")"
+        "\(group.totalCount) \(group.totalCount == 1 ? "result" : "results")"
     }
 }
 
 private struct SearchResultGroupView: View {
     let group: SearchResultFileGroup
     let query: String
-    let countsAreProvisional: Bool
     let selectedResult: SubtitleSearchResult?
     let showsThumbnails: Bool
     let onToggle: () -> Void
@@ -1857,7 +1848,6 @@ private struct SearchResultGroupView: View {
         VStack(spacing: 0) {
             SearchResultGroupHeader(
                 group: group,
-                countsAreProvisional: countsAreProvisional,
                 isSelected: selectedResult?.subtitlePath == group.subtitlePath,
                 onToggle: onToggle
             )

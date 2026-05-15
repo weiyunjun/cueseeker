@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed provisional `Found at least ...` Search UI wording. Search summaries
+  now always use `Found <count> results in <count> files`; provisional state
+  remains observable through logs.
 - Added Search exact count background completion: visible Search pages can now
   carry provisional count metadata, then a background exact metadata refresh
   updates totals and records an `exact_counts_completed` JSONL event.
