@@ -17,8 +17,8 @@
       --text-2: #5f6066;
       --text-3: #8b8c92;
       --text-4: #b1b2b7;
-      --card: rgba(0, 0, 0, 0.035);
-      --card-hover: rgba(0, 0, 0, 0.055);
+      --card: #ffffff;
+      --card-hover: #ffffff;
       --selected: rgba(10, 132, 255, 0.1);
       --selected-border: rgba(10, 132, 255, 0.55);
       --accent: #0a84ff;
@@ -350,7 +350,7 @@
     .result-card {
       appearance: none;
       border-radius: 6px;
-      border: 0.5px solid rgba(0, 0, 0, 0.06);
+      border: 0.5px solid rgba(0, 0, 0, 0.12);
       background: var(--card);
       color: var(--text);
       text-align: left;
@@ -1065,7 +1065,7 @@
               <button type="button" data-tab="subs">Subtitles</button>
             </div>
             <div class="sidebar-summary">
-              <span id="sidebarCount">185 results · 8 files shown</span>
+              <span id="sidebarCount">Found 185 results in 74 files</span>
             </div>
           </div>
           <div class="sidebar-list">
@@ -1219,7 +1219,6 @@
     const searchInput = document.getElementById("searchInput");
     const clearSearch = document.getElementById("clearSearch");
     const sidebarCount = document.getElementById("sidebarCount");
-    let visibleFilesShown = 8;
 
     function escapeHTML(value) {
       return value
@@ -1263,16 +1262,15 @@
         count.textContent = `${visibleCards.length} ${visibleCards.length === 1 ? "result" : "results"}`;
       });
 
-      visibleFilesShown = Array.from(document.querySelectorAll(".group")).filter((group) => !group.hidden).length;
       updateSidebarSummary();
     }
 
     function updateSidebarSummary() {
       const activeTab = document.querySelector(".segmented button.active")?.dataset.tab;
       if (activeTab === "subs") {
-        sidebarCount.textContent = "Bilingual · ZH / JA";
+        sidebarCount.textContent = "317 cues";
       } else {
-        sidebarCount.textContent = `185 results · ${visibleFilesShown} files shown`;
+        sidebarCount.textContent = "Found 185 results in 74 files";
       }
     }
 
