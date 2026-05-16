@@ -6,6 +6,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Updated toggle icon button rules so selected state uses the matching filled
+  glyph in addition to selected material and foreground contrast.
 - Required large-scale HTML prototype changes to fork a new prototype file so
   before and after designs remain directly comparable during UI review.
 - Added UI collaboration rules for concept-first component vocabulary, required

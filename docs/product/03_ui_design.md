@@ -95,10 +95,18 @@ Current prototype:
 ui/prototypes/cueseeker-liquid-glass-standalone.html
 ```
 
-This prototype is the current visual baseline for HTML review of the main
-workbench, grouped Search results, Search-launched playback overlay, playback
-side panel, and persistent bottom player. App implementation still requires a
-separate explicit approval after the HTML has been accepted.
+Current review fork for toggle icon button filled-glyph states:
+
+```text
+ui/prototypes/cueseeker-liquid-glass-toggle-icons.html
+```
+
+The standalone prototype remains the current visual baseline for HTML review of
+the main workbench, grouped Search results, Search-launched playback overlay,
+playback side panel, and persistent bottom player. The toggle-icons file is the
+current comparison fork for reviewing filled-glyph toggle states. App
+implementation still requires a separate explicit approval after the HTML has
+been accepted.
 
 Stable design snapshot:
 
@@ -138,8 +146,10 @@ Stable design snapshot:
 - Controls with selected and unselected states use circular icon buttons. In
   light mode, selected state uses a soft gray circular background with inverted
   icon color. In dark mode, selected state uses a light circular background
-  with dark icon color. State must be readable from the button material and
-  foreground contrast, not from changing the semantic glyph.
+  with dark icon color. Toggle icon buttons also switch their semantic glyph:
+  unselected state uses the outline glyph, and selected state uses the matching
+  filled glyph. The glyph switch, selected material, and foreground contrast
+  together define the complete toggle state.
 - The source/title capsule remains white in both Search-results and
   expanded-playback states. The speed capsule uses fixed width and tabular text
   so preset changes do not shift neighboring controls.
