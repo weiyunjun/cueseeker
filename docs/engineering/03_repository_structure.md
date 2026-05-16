@@ -6,7 +6,8 @@ Status: Draft
 
 This document defines repository structure rules for CueSeeker.
 
-It separates active native macOS implementation, archived Flutter code, documentation, scripts, and future support files.
+It separates active native macOS implementation, archived Flutter code,
+documentation, UI collaboration artifacts, scripts, and future support files.
 
 ## 2. Target Structure
 
@@ -24,6 +25,10 @@ CueSeeker/
     proposals/
     decisions/
     changelog.md
+  ui/
+    prototypes/
+    references/
+    assets/
   scripts/
 ```
 
@@ -33,6 +38,7 @@ Rules:
 - The native macOS rewrite must live under `apps/macos-native/`.
 - Archived implementations belong under `archive/`.
 - Project documentation belongs under `docs/`.
+- UI collaboration artifacts belong under `ui/`.
 - Project automation scripts belong under `scripts/`.
 
 ## 3. Active Application Code
@@ -116,7 +122,31 @@ Rules:
 - Missing files in this set should be created as proper rule documents, not vague placeholders.
 - If the formal structure changes, update `00_project_governance.md`, this document, and any affected references.
 
-## 7. Scripts
+## 7. UI Collaboration Artifacts
+
+`ui/` contains local UI artifacts used to align interface design before App
+implementation.
+
+Expected structure:
+
+```text
+ui/
+  prototypes/
+  references/
+  assets/
+```
+
+Rules:
+
+- Local HTML prototypes belong in `ui/prototypes/`, not under `docs/`.
+- Visual reference material belongs in `ui/references/`.
+- Shared prototype assets belong in `ui/assets/`.
+- Stable UI requirements, prototype-to-App mappings, and known native App
+  differences belong in `docs/product/`.
+- HTML prototypes should be treated as collaboration source artifacts. They are
+  not substitutes for stable product documentation.
+
+## 8. Scripts
 
 `scripts/` should contain project automation.
 
@@ -135,7 +165,7 @@ Rules:
 - Scripts used for release or migration must be deterministic enough to review.
 - Generated artifacts should not be committed unless they are required source assets or documented release outputs.
 
-## 8. Test Fixtures
+## 9. Test Fixtures
 
 Test fixtures should live with the native app test target or under a clearly named fixture directory once the native project exists.
 
@@ -146,7 +176,7 @@ Rules:
 - Subtitle fixtures should include valid, malformed, multi-line, and CJK examples.
 - Database fixture files must be isolated from production user databases.
 
-## 9. Generated Files
+## 10. Generated Files
 
 Generated files should be kept out of version control unless they are required source artifacts.
 
@@ -158,7 +188,7 @@ Rules:
 - Dependency cache folders must not be committed.
 - Project files required by the native macOS app may be committed when they are part of the source project.
 
-## 10. Repository Changes
+## 11. Repository Changes
 
 Structural repository changes should be small and documented.
 

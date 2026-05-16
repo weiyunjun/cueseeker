@@ -16,6 +16,11 @@ The interface should prioritize:
 
 The app should avoid marketing-style layouts, decorative hero sections, and unnecessary visual complexity.
 
+UI collaboration and prototype acceptance rules are defined in
+`docs/product/10_ui_collaboration_workflow.md`. App interface changes should
+use local HTML prototypes under `ui/prototypes/` as the visual alignment
+baseline before native implementation.
+
 ## 1.1 Accepted Topbar Card Workbench Transition
 
 The accepted current UI direction is a topbar-driven single-page work surface

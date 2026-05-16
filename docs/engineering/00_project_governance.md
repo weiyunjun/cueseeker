@@ -69,6 +69,9 @@ docs/product/
   05_data_model.md
   06_playback_requirements.md
   07_non_goals.md
+  08_search_interface_llm_brief.md
+  09_product_philosophy.md
+  10_ui_collaboration_workflow.md
 ```
 
 Product documents should describe confirmed requirements, current product behavior, user workflows, UI/UX expectations, and acceptance criteria.
@@ -348,6 +351,10 @@ CueSeeker/
     proposals/
     decisions/
     changelog.md
+  ui/
+    prototypes/
+    references/
+    assets/
   scripts/
 ```
 

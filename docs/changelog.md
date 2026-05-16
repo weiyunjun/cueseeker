@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the UI collaboration workflow: local HTML prototypes now live under
+  the repository-level `ui/` directory and must be visually aligned before App
+  interface implementation begins.
 - Clarified Search result-cache invalidation rationale: indexed ASS files are
   mutable, not append-only, so subtitle edits can change matches, ordering,
   counts, summaries, and cursor pages; successful index mutations therefore

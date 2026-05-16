@@ -198,28 +198,29 @@ Rules:
   `docs/chronicle/` when the user requests that record. The chronicle should
   emphasize why the idea emerged from the question path, not repeat the concrete
   code changes that belong in Git history and `docs/changelog.md`.
-- Before every major frontend UI modification, the AI must consult the relevant
-  HTML prototype or HTML reference when one exists. If no relevant HTML
-  prototype or reference exists, the AI must explicitly remind the user before
-  implementation begins.
-- HTML prototypes and references are alignment aids, not the source of truth.
-  If an HTML prototype or reference conflicts with the current implemented UI
-  design or documented product direction, the AI must explicitly confirm with
-  the user before implementing the conflicting interpretation.
-- A major frontend UI modification means a change that is likely to be
-  visually or structurally ambiguous. Layout changes count, including adding a
-  new view or changing the structure of an existing view. Adding a new element
-  without a direct visual reference also counts.
-- Minor frontend UI adjustments do not count as major UI modifications. This
-  includes changing font color, font size, hover styling, selected styling, or
-  deleting an element.
-- Adding an element does not count as a major UI modification when there is a
-  direct existing reference and the interaction can be copied from that
-  reference, such as adding another button to an existing player control group
-  that already defines the same button style and interaction pattern.
-- The HTML-reference requirement does not apply to dynamic UX effects such as a
-  specific animation, dynamic UI indicators such as a playing marker, or
-  interaction animation details.
+- For every App interface modification, the AI must first create or update the
+  relevant local HTML prototype under `ui/prototypes/`. App code may be changed
+  only after the HTML prototype has been visually aligned and the user has
+  explicitly approved App implementation.
+- If the user provides an original HTML draft, that draft is the visual
+  alignment input. The AI should replicate it locally first, iterate on visual
+  differences in HTML, and only then move accepted details into App code.
+- HTML prototypes should be self-contained files with bundled CSS and
+  JavaScript unless a documented complex-prototype reason justifies splitting
+  assets.
+- HTML prototypes should include basic interaction states such as disclosure,
+  expansion, menu or popover examples, selected states, hover feedback, pressed
+  states, and disabled states where relevant. They do not need to implement real
+  product behavior such as video playback, indexing, database access, or
+  file-system access.
+- Complex UI may be split across multiple focused HTML prototypes when one
+  prototype would be difficult to review or edit.
+- Known differences between the accepted HTML prototype and the native App must
+  be documented in the relevant product UI document before or with App
+  implementation.
+- If an HTML prototype conflicts with the current implemented UI design or
+  documented product direction, the AI must explicitly confirm the intended
+  direction with the user before implementing the conflicting interpretation.
 - Rust shared-core implementation is currently paused. When modifying macOS
   code, the AI must preserve the future shared-core boundary from
   `docs/engineering/04_architecture_rules.md`: product semantics belong in

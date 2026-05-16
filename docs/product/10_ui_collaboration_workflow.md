@@ -1,0 +1,127 @@
+# UI Collaboration Workflow
+
+Status: Draft
+
+## 1. Purpose
+
+This document defines the stable collaboration workflow for CueSeeker interface
+design and App implementation.
+
+The local HTML prototype is the visual alignment source for UI work. App code
+should follow only after the relevant HTML has been visually accepted.
+
+## 2. Directory Ownership
+
+UI collaboration artifacts belong under the repository-level `ui/` directory:
+
+```text
+ui/
+  prototypes/
+  references/
+  assets/
+```
+
+Stable product rules and known differences between HTML prototypes and the App
+belong in `docs/product/`.
+
+## 3. Collaboration Flow
+
+The default UI collaboration flow is:
+
+```text
+User provides an original HTML draft
+Assistant recreates or updates the local HTML prototype
+User reviews visual differences and requests alignment fixes
+Assistant updates the HTML prototype until accepted
+Assistant documents stable rules and known HTML/App differences
+Assistant implements the accepted design in App code only after explicit approval
+```
+
+Rules:
+
+- Every App interface modification must start with a local HTML prototype under
+  `ui/prototypes/`.
+- App code must not be changed for a UI request until the relevant HTML
+  prototype has been visually aligned and the user has explicitly approved App
+  implementation.
+- When the user returns a revised HTML file from another AI workflow, treat that
+  file as the new original draft and repeat the alignment flow.
+- If a required interaction is unclear, confirm it before finalizing the HTML
+  prototype.
+
+## 4. Prototype Requirements
+
+Local HTML prototypes must be easy to share with web-focused AI tools.
+
+Rules:
+
+- Each prototype should be a single self-contained HTML file with bundled CSS
+  and JavaScript.
+- CSS and JavaScript may be split out only when the split is explicitly useful
+  for a complex prototype and documented near the prototype.
+- Prototypes should include basic UI behavior such as disclosure, expansion,
+  popovers, menus, selected states, hover states, pressed states, and disabled
+  states where relevant.
+- Prototypes do not need to implement real product behavior such as video
+  playback, indexing, database access, or file-system access.
+- Complex UI may be split across multiple focused HTML prototypes. For example,
+  a playback page prototype may show the video frame and side panel, while a
+  separate prototype may isolate detailed control-menu interactions.
+
+## 5. HTML And App Differences
+
+HTML prototypes and the native macOS App may differ when platform behavior
+requires it.
+
+Known acceptable difference categories:
+
+- Native macOS window chrome, traffic-light controls, full-screen behavior, and
+  system titlebar mechanics.
+- System materials, vibrancy, focus rings, font rendering, accessibility
+  behavior, and user-selected accent colors.
+- Native media playback, file access, sandboxing, indexing, and database state.
+- Performance-driven virtualization, lazy loading, and rendering details that
+  preserve the accepted visual result.
+
+Rules:
+
+- Differences that affect visible layout, state, interaction, wording, or
+  timing must be documented before or with App implementation.
+- HTML limitations must not silently become App product behavior.
+- App implementation should preserve the accepted visual hierarchy and
+  interaction intent even when native controls require implementation-specific
+  details.
+
+## 6. Design Style
+
+CueSeeker should remain a focused native macOS desktop tool.
+
+Style rules:
+
+- Prefer quiet, dense, readable work surfaces over marketing-style layouts.
+- Keep playback, Search, Library, and Shiori controls visually direct and
+  utilitarian.
+- Use native macOS interaction expectations where they do not conflict with the
+  accepted HTML visual direction.
+- Avoid decorative hero sections, one-off ornament, and ambiguous controls.
+- Preserve the current topbar-driven workbench direction unless a later accepted
+  UI prototype and product document supersede it.
+
+## 7. Prototype Registry
+
+No active HTML prototypes are registered after the `docs/prototypes/` cleanup.
+
+Initial App surface mapping:
+
+| App surface | Required HTML prototype | Status |
+| --- | --- | --- |
+| Main workbench shell | Pending | Waiting for latest user-provided HTML |
+| Search results | Pending | Waiting for latest user-provided HTML |
+| Playback overlay and bottom player | Pending | Waiting for latest user-provided HTML |
+| Library view | Pending | Waiting for latest user-provided HTML |
+| Shiori view | Pending | Waiting for latest user-provided HTML |
+| Settings windows | Pending | Waiting for latest user-provided HTML |
+
+When a prototype is accepted, this registry must record the corresponding
+`ui/prototypes/*.html` file and any known native App differences.
+
