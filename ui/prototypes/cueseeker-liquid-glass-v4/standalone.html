@@ -44,7 +44,7 @@
       --text-3: #7a7c84;
       --text-4: #adafb6;
       --pill-fg: var(--text);
-      --search-page-bg: #ffffff;
+      --search-page-bg: #f4f4f6;
       --search-page-fg: #1a1a1f;
       --search-page-text-2: #4d4e55;
       --search-page-text-3: #7a7c84;
@@ -1152,7 +1152,7 @@
         inset 0.5px 0 0 rgba(255,255,255,0.28),
         inset -0.5px 0 0 rgba(255,255,255,0.28);
       --window-sheen: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 22%, transparent 78%, rgba(255,255,255,0.06) 100%);
-      --toolbar-bg: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.10));
+      --toolbar-bg: linear-gradient(180deg, rgba(246,246,248,0.96), rgba(238,239,243,0.92));
       --circle-fg: rgba(0,0,0,0.78);
       --circle-hover-bg: rgba(255,255,255,0.55);
       --circle-hover-border: rgba(255,255,255,0.85);
@@ -1209,7 +1209,7 @@
       --glass-hud-shadow: 0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.16) inset, 0 -1px 0 rgba(255,255,255,0.05) inset, 0 22px 52px -14px rgba(0,0,0,0.66), 0 8px 20px -8px rgba(0,0,0,0.52);
       --window-inner-ring: inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -0.5px 0 rgba(255,255,255,0.05), inset 0.5px 0 0 rgba(255,255,255,0.08), inset -0.5px 0 0 rgba(255,255,255,0.08);
       --window-sheen: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 24%, transparent 76%, rgba(255,255,255,0.03) 100%);
-      --toolbar-bg: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.03));
+      --toolbar-bg: linear-gradient(180deg, rgba(58,56,66,0.96), rgba(42,41,50,0.94));
       --hairline: rgba(255,255,255,0.10);
       --hairline-soft: rgba(255,255,255,0.07);
       --inner-top: rgba(255,255,255,0.24);
@@ -1267,7 +1267,7 @@
       transition: background 240ms ease, color 180ms ease;
     }
     body::before { background-image: var(--desktop-overlay); }
-    body[data-search-bg="white"] { --search-page-bg: #ffffff; }
+    body[data-search-bg="neutral"] { --search-page-bg: #f4f4f6; }
     body[data-search-bg="red"] { --search-page-bg: #fff1f2; }
     body[data-search-bg="yellow"] { --search-page-bg: #fff8df; }
     body[data-search-bg="blue"] { --search-page-bg: #edf5ff; }
@@ -1306,29 +1306,6 @@
     .toolbar {
       border-bottom-color: var(--hairline-soft);
       background: var(--toolbar-bg);
-    }
-    .window:not(.video-expanded) .toolbar {
-      background: var(--search-page-bg);
-      border-bottom-color: var(--search-page-hairline);
-      color: var(--search-page-fg);
-      --text: var(--search-page-fg);
-      --text-2: var(--search-page-text-2);
-      --text-3: var(--search-page-text-3);
-      --accent: var(--search-page-accent);
-      --accent-soft: var(--search-page-accent-soft);
-      --pill-fg: var(--search-page-fg);
-      --pill-bg: var(--search-page-pill-bg);
-      --pill-border: var(--search-page-pill-border);
-      --pill-hover-bg: var(--search-page-pill-hover-bg);
-      --pill-shadow: var(--search-page-pill-shadow);
-      --inner-top: var(--search-page-inner-top);
-      --field-bg: var(--search-page-field-bg);
-      --field-focus-bg: var(--search-page-field-focus-bg);
-      --field-icon: var(--search-page-field-icon);
-      --circle-fg: var(--search-page-fg);
-      --circle-hover-bg: var(--search-page-pill-hover-bg);
-      --circle-hover-border: var(--search-page-pill-border);
-      --circle-hover-shadow: var(--search-page-pill-shadow);
     }
     .toolbar-actions {
       display: flex;
@@ -1916,7 +1893,7 @@
   </svg>
 
   <div class="test-controls" aria-label="Prototype test controls">
-    <button class="test-button color-toggle ui-capsule ui-capsule--test ui-prototype-control" id="colorToggle" type="button" aria-label="Search background color: White">Color</button>
+    <button class="test-button color-toggle ui-capsule ui-capsule--test ui-prototype-control" id="colorToggle" type="button" aria-label="Search background color: Light gray">Color</button>
     <button class="test-button disable-all-toggle ui-capsule ui-capsule--test ui-prototype-control" id="disableAllToggle" type="button" aria-pressed="false">Disable All</button>
     <button class="theme-toggle ui-capsule ui-capsule--test ui-prototype-control" id="themeToggle" type="button" aria-label="Current theme: light mode. Switch to dark mode" aria-pressed="false">
       <svg width="14" height="14"><use id="themeIcon" href="#sun"></use></svg>
@@ -2346,7 +2323,7 @@ const win = document.getElementById("window");
 
     let isPlaying = false;
     const searchBackgrounds = [
-      { id: "white", label: "White" },
+      { id: "neutral", label: "Light gray" },
       { id: "red", label: "Pale red" },
       { id: "yellow", label: "Pale yellow" },
       { id: "blue", label: "Pale blue" },

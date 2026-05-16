@@ -28,7 +28,7 @@ const win = document.getElementById("window");
 
     let isPlaying = false;
     const searchBackgrounds = [
-      { id: "white", label: "White" },
+      { id: "neutral", label: "Light gray" },
       { id: "red", label: "Pale red" },
       { id: "yellow", label: "Pale yellow" },
       { id: "blue", label: "Pale blue" },
