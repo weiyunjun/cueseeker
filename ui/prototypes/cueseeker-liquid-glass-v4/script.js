@@ -37,6 +37,7 @@ const win = document.getElementById("window");
       { id: "black", label: "Black" },
     ];
     let searchBackgroundIndex = 0;
+    let committedSearchQuery = searchInput.value.trim();
 
     function setTheme(theme) {
       const dark = theme === "dark";
@@ -165,14 +166,19 @@ const win = document.getElementById("window");
       clearSearch.tabIndex = hidden ? -1 : 0;
     }
 
-    function syncSearchFromInput() {
+    function syncSearchDraft() {
       updateClearSearchVisibility();
-      updateSearch(searchInput.value.trim());
     }
 
-    function scheduleSearchSync() {
-      requestAnimationFrame(syncSearchFromInput);
-      setTimeout(syncSearchFromInput, 0);
+    function commitSearchFromInput() {
+      updateClearSearchVisibility();
+      committedSearchQuery = searchInput.value.trim();
+      updateSearch(committedSearchQuery);
+    }
+
+    function scheduleSearchDraftSync() {
+      requestAnimationFrame(syncSearchDraft);
+      setTimeout(syncSearchDraft, 0);
     }
 
     function updateCollapseAllState() {
@@ -203,13 +209,24 @@ const win = document.getElementById("window");
       sourceToggle.querySelector(".source-label").textContent = "Ave Mujica · 01";
     }
 
-    document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
+    function openVideo() {
+      win.classList.add("video-expanded");
+      sourceToggle.setAttribute("aria-pressed", "true");
+    }
+
+    document.querySelectorAll(".result-card").forEach((el) => {
+      el.addEventListener("click", () => {
+        selectRank(el.dataset.rank, el.dataset.time, el.dataset.zh, el.dataset.ja);
+        openVideo();
+      });
+    });
+
+    document.querySelectorAll(".sidebar-row").forEach((el) => {
       el.addEventListener("click", () => {
         selectRank(el.dataset.rank, el.dataset.time, el.dataset.zh, el.dataset.ja);
       });
       el.addEventListener("dblclick", () => {
-        win.classList.add("video-expanded");
-        sourceToggle.setAttribute("aria-pressed", "true");
+        openVideo();
       });
     });
 
@@ -262,11 +279,17 @@ const win = document.getElementById("window");
     updateCollapseAllState();
 
     ["input", "change", "keyup", "search", "cut", "paste", "compositionend", "focus", "blur"].forEach((eventName) => {
-      searchInput.addEventListener(eventName, scheduleSearchSync);
+      searchInput.addEventListener(eventName, scheduleSearchDraftSync);
+    });
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitSearchFromInput();
+      }
     });
     clearSearch.addEventListener("click", () => {
       searchInput.value = "";
-      syncSearchFromInput();
+      syncSearchDraft();
       searchInput.focus();
     });
 
