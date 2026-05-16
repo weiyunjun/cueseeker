@@ -39,6 +39,30 @@
       --text-4: #adafb6;
       --pill-fg: var(--text);
       --search-page-bg: #ffffff;
+      --search-page-fg: #1a1a1f;
+      --search-page-text-2: #4d4e55;
+      --search-page-text-3: #7a7c84;
+      --search-page-text-4: #adafb6;
+      --search-page-selected-fg: #0a1426;
+      --search-page-accent: #0a84ff;
+      --search-page-accent-soft: rgba(10,132,255,0.16);
+      --search-page-highlight: rgba(255,204,0,0.42);
+      --search-page-highlight-text: #4a3300;
+      --search-page-hairline: rgba(0,0,0,0.08);
+      --search-page-inner-top: rgba(255,255,255,0.78);
+      --search-page-pill-bg: rgba(255,255,255,0.62);
+      --search-page-pill-border: rgba(0,0,0,0.08);
+      --search-page-pill-hover-bg: rgba(255,255,255,0.82);
+      --search-page-pill-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.10);
+      --search-page-field-bg: rgba(255,255,255,0.70);
+      --search-page-field-focus-bg: rgba(255,255,255,0.92);
+      --search-page-field-icon: rgba(0,0,0,0.45);
+      --search-page-card-bg: rgba(255,255,255,0.62);
+      --search-page-card-hover-bg: rgba(255,255,255,0.82);
+      --search-page-card-selected-bg: rgba(255,255,255,0.92);
+      --search-page-card-shadow: inset 0 0.5px 0 rgba(255,255,255,0.92), inset 0 -0.5px 0 rgba(255,255,255,0.22), 0 0 0 0.5px rgba(0,0,0,0.08), 0 1px 2px rgba(15,18,30,0.06);
+      --search-page-card-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(0,0,0,0.08), 0 4px 12px -4px rgba(15,18,30,0.14);
+      --search-page-row-hover-bg: rgba(255,255,255,0.62);
 
       --accent: #0a84ff;
       --accent-soft: rgba(10, 132, 255, 0.16);
@@ -253,6 +277,31 @@
 
     .search-state {
       background: var(--search-page-bg);
+      color: var(--search-page-fg);
+      --text: var(--search-page-fg);
+      --text-2: var(--search-page-text-2);
+      --text-3: var(--search-page-text-3);
+      --text-4: var(--search-page-text-4);
+      --text-on-selected-card: var(--search-page-selected-fg);
+      --accent: var(--search-page-accent);
+      --accent-soft: var(--search-page-accent-soft);
+      --highlight: var(--search-page-highlight);
+      --highlight-text: var(--search-page-highlight-text);
+      --pill-fg: var(--search-page-fg);
+      --pill-bg: var(--search-page-pill-bg);
+      --pill-border: var(--search-page-pill-border);
+      --pill-hover-bg: var(--search-page-pill-hover-bg);
+      --pill-shadow: var(--search-page-pill-shadow);
+      --inner-top: var(--search-page-inner-top);
+      --field-bg: var(--search-page-field-bg);
+      --field-focus-bg: var(--search-page-field-focus-bg);
+      --field-icon: var(--search-page-field-icon);
+      --card-bg: var(--search-page-card-bg);
+      --card-hover-bg: var(--search-page-card-hover-bg);
+      --card-selected-bg: var(--search-page-card-selected-bg);
+      --card-shadow: var(--search-page-card-shadow);
+      --card-hover-shadow: var(--search-page-card-hover-shadow);
+      --row-hover-bg: var(--search-page-row-hover-bg);
       transition: opacity 200ms ease, background 220ms ease;
     }
 
@@ -1217,6 +1266,33 @@
     body[data-search-bg="yellow"] { --search-page-bg: #fff8df; }
     body[data-search-bg="blue"] { --search-page-bg: #edf5ff; }
     body[data-search-bg="purple"] { --search-page-bg: #f5efff; }
+    body[data-search-bg="gray"],
+    body[data-search-bg="black"] {
+      --search-page-fg: #f3f1f6;
+      --search-page-text-2: #c9c6d2;
+      --search-page-text-3: #aaa6b6;
+      --search-page-text-4: #817d8d;
+      --search-page-selected-fg: #f8f6fb;
+      --search-page-accent: #6ea6ff;
+      --search-page-accent-soft: rgba(110,166,255,0.18);
+      --search-page-highlight: rgba(255,214,92,0.32);
+      --search-page-highlight-text: #fff0b5;
+      --search-page-hairline: rgba(255,255,255,0.12);
+      --search-page-inner-top: rgba(255,255,255,0.24);
+      --search-page-pill-bg: rgba(255,255,255,0.10);
+      --search-page-pill-border: rgba(255,255,255,0.20);
+      --search-page-pill-hover-bg: rgba(255,255,255,0.16);
+      --search-page-pill-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.06), 0 1px 3px rgba(0,0,0,0.30);
+      --search-page-field-bg: rgba(255,255,255,0.10);
+      --search-page-field-focus-bg: rgba(255,255,255,0.16);
+      --search-page-field-icon: rgba(243,241,246,0.58);
+      --search-page-card-bg: rgba(255,255,255,0.10);
+      --search-page-card-hover-bg: rgba(255,255,255,0.15);
+      --search-page-card-selected-bg: rgba(255,255,255,0.18);
+      --search-page-card-shadow: inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -0.5px 0 rgba(255,255,255,0.05), 0 0 0 0.5px rgba(255,255,255,0.10), 0 1px 2px rgba(0,0,0,0.22);
+      --search-page-card-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.14), 0 5px 14px -5px rgba(0,0,0,0.44);
+      --search-page-row-hover-bg: rgba(255,255,255,0.12);
+    }
     body[data-search-bg="gray"] { --search-page-bg: #2f3035; }
     body[data-search-bg="black"] { --search-page-bg: #000000; }
     .window::before { box-shadow: var(--window-inner-ring); }
@@ -1224,6 +1300,29 @@
     .toolbar {
       border-bottom-color: var(--hairline-soft);
       background: var(--toolbar-bg);
+    }
+    .window:not(.video-expanded) .toolbar {
+      background: var(--search-page-bg);
+      border-bottom-color: var(--search-page-hairline);
+      color: var(--search-page-fg);
+      --text: var(--search-page-fg);
+      --text-2: var(--search-page-text-2);
+      --text-3: var(--search-page-text-3);
+      --accent: var(--search-page-accent);
+      --accent-soft: var(--search-page-accent-soft);
+      --pill-fg: var(--search-page-fg);
+      --pill-bg: var(--search-page-pill-bg);
+      --pill-border: var(--search-page-pill-border);
+      --pill-hover-bg: var(--search-page-pill-hover-bg);
+      --pill-shadow: var(--search-page-pill-shadow);
+      --inner-top: var(--search-page-inner-top);
+      --field-bg: var(--search-page-field-bg);
+      --field-focus-bg: var(--search-page-field-focus-bg);
+      --field-icon: var(--search-page-field-icon);
+      --circle-fg: var(--search-page-fg);
+      --circle-hover-bg: var(--search-page-pill-hover-bg);
+      --circle-hover-border: var(--search-page-pill-border);
+      --circle-hover-shadow: var(--search-page-pill-shadow);
     }
     .toolbar-actions {
       display: flex;
