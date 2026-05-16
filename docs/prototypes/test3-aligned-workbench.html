@@ -17,8 +17,8 @@
       --text-2: #5f6066;
       --text-3: #8b8c92;
       --text-4: #b1b2b7;
-      --card: rgba(0, 0, 0, 0.035);
-      --card-hover: rgba(0, 0, 0, 0.055);
+      --card: #ffffff;
+      --card-hover: rgba(0, 0, 0, 0.02);
       --selected: rgba(10, 132, 255, 0.1);
       --selected-border: rgba(10, 132, 255, 0.58);
       --accent: #0a84ff;
@@ -340,7 +340,7 @@
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
       margin-top: 10px;
       margin-bottom: 14px;
@@ -354,7 +354,7 @@
     .sidebar-row {
       appearance: none;
       border-radius: 6px;
-      border: 0.5px solid rgba(0, 0, 0, 0.06);
+      border: 0.5px solid rgba(0, 0, 0, 0.12);
       background: var(--card);
       color: var(--text);
       text-align: left;
@@ -363,7 +363,7 @@
     }
 
     .result-card {
-      min-height: 104px;
+      min-height: 74px;
       padding: 10px 12px;
       display: flex;
       flex-direction: column;
@@ -576,6 +576,10 @@
       border-color: transparent;
     }
 
+    .sidebar-row:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
     .player {
       background: linear-gradient(180deg, #f2f2f3 0%, #ededee 100%);
       border-top: 0.5px solid rgba(0, 0, 0, 0.12);
@@ -756,6 +760,10 @@
         grid-template-columns: 1fr;
       }
 
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .sidebar {
         display: none;
       }
@@ -763,6 +771,12 @@
       .volume,
       .tools .optional {
         display: none;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .cards {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -934,6 +948,69 @@
               </button>
             </div>
           </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">AVE MUJICA - 04</span>
+              <span class="group-count">1 result</span>
+              <span class="group-duration">24:00</span>
+            </button>
+            <div class="cards">
+              <button class="result-card" type="button" data-rank="9" data-time="12:27" data-zh="没有吉他也没关系对吧" data-ja="ギターなんてなくても大丈夫だったでしょう">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#9</span><span>12:27</span></span>
+                <span class="line">没有吉他也没关系对吧</span>
+                <span class="line">ギターなんてなくても<mark>大丈夫</mark>だったでしょう</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">AVE MUJICA - 05</span>
+              <span class="group-count">2 results</span>
+              <span class="group-duration">24:11</span>
+            </button>
+            <div class="cards">
+              <button class="result-card" type="button" data-rank="10" data-time="06:12" data-zh="别担心 我会处理好的" data-ja="大丈夫 私がなんとかするから">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#10</span><span>06:12</span></span>
+                <span class="line">别担心 我会处理好的</span>
+                <span class="line"><mark>大丈夫</mark> 私がなんとかするから</span>
+              </button>
+              <button class="result-card" type="button" data-rank="11" data-time="18:03" data-zh="我已经没事了" data-ja="もう私は大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#11</span><span>18:03</span></span>
+                <span class="line">我已经没事了</span>
+                <span class="line">もう私は<mark>大丈夫</mark></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">葬送的芙莉莲 - 18</span>
+              <span class="group-count">3 results</span>
+              <span class="group-duration">24:31</span>
+            </button>
+            <div class="cards">
+              <button class="result-card" type="button" data-rank="12" data-time="07:42" data-zh="费伦 你没事吧" data-ja="フェルン 大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#12</span><span>07:42</span></span>
+                <span class="line">费伦 你没事吧</span>
+                <span class="line">フェルン <mark>大丈夫</mark></span>
+              </button>
+              <button class="result-card" type="button" data-rank="13" data-time="17:20" data-zh="没问题 我可以一个人去" data-ja="大丈夫 一人で行ける">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#13</span><span>17:20</span></span>
+                <span class="line">没问题 我可以一个人去</span>
+                <span class="line"><mark>大丈夫</mark> 一人で行ける</span>
+              </button>
+              <button class="result-card" type="button" data-rank="14" data-time="22:05" data-zh="我没事的" data-ja="私なら大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#14</span><span>22:05</span></span>
+                <span class="line">我没事的</span>
+                <span class="line">私なら<mark>大丈夫</mark></span>
+              </button>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -986,6 +1063,21 @@
               <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#6</span><span>14:29</span></span>
               <span class="line">我没事</span>
               <span class="line">私は<mark>大丈夫</mark>だよ</span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="7" data-time="19:49" data-zh="应该没问题吧" data-ja="大丈夫かなぁ">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#7</span><span>19:49</span></span>
+              <span class="line">应该没问题吧</span>
+              <span class="line"><mark>大丈夫</mark>かなぁ</span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="8" data-time="21:36" data-zh="所以已经没事了" data-ja="だから  もう大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#8</span><span>21:36</span></span>
+              <span class="line">所以已经没事了</span>
+              <span class="line">だから　もう<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="9" data-time="12:27" data-zh="没有吉他也没关系对吧" data-ja="ギターなんてなくても大丈夫だったでしょう">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#9</span><span>12:27</span></span>
+              <span class="line">没有吉他也没关系对吧</span>
+              <span class="line">ギターなんてなくても<mark>大丈夫</mark>だったでしょう</span>
             </button>
           </div>
         </aside>
