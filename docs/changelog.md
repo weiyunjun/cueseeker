@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Required each HTML prototype edit to refresh a same-directory
+  `standalone.html` bundled export so the current prototype can be handed to
+  other AI tools without extra packaging.
 - Added the split-source `ui/prototypes/cueseeker-liquid-glass-v4/` prototype
   directory, preserving the v3 visual result while moving editable HTML, CSS,
   and JavaScript into separate source files.

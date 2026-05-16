@@ -86,9 +86,12 @@ Rules:
   `index.html`, `styles.css`, and `script.js`.
 - The editable source directory should be the only place where iterative UI
   changes are made. Generated standalone HTML files are exports, not source.
-- A standalone HTML file with bundled CSS and JavaScript should be generated
-  only when the prototype needs to be shared with another AI or tool that
-  requires a single file.
+- Every time the editable HTML prototype is modified, a bundled standalone HTML
+  export must be generated or refreshed in the same prototype directory.
+- The default export name is `standalone.html`, such as
+  `ui/prototypes/cueseeker-liquid-glass-v4/standalone.html`.
+- The bundled standalone export exists so the current prototype can be handed
+  to another AI or tool without additional packaging steps.
 - Generated standalone exports must be treated as disposable artifacts. If an
   export needs further design changes, the changes should be made in the source
   directory and then exported again.

@@ -9,6 +9,8 @@ Rules:
 
 - Each actively edited prototype should live in a versioned directory with
   `index.html`, `styles.css`, and `script.js`.
+- After every edit to the source HTML prototype, regenerate the bundled
+  `standalone.html` export in the same prototype directory.
 - Do not make iterative design changes in generated standalone HTML exports.
   If a single-file HTML is needed for another AI or tool, generate it from the
   source directory after the source has been updated.
