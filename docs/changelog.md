@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the split-source `ui/prototypes/cueseeker-liquid-glass-v4/` prototype
+  directory, preserving the v3 visual result while moving editable HTML, CSS,
+  and JavaScript into separate source files.
+- Updated the UI collaboration workflow so editable prototypes use normal
+  `index.html`, `styles.css`, and `script.js` source directories, with
+  standalone bundled HTML generated only as a share artifact for other AI tools.
 - Added the `cueseeker-liquid-glass-v3.html` review fork for prototype-only
   theme and disabled-state controls, restored distinct capsule/transport
   control classes, and documented that those test controls are not App UI.
@@ -13,8 +19,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   plus version number instead of semantic change names.
 - Updated toggle icon button rules so selected state uses the matching filled
   glyph in addition to selected material and foreground contrast.
-- Required large-scale HTML prototype changes to fork a new prototype file so
-  before and after designs remain directly comparable during UI review.
+- Required large-scale HTML prototype changes to fork a new versioned prototype
+  source directory so before and after designs remain directly comparable
+  during UI review.
 - Added UI collaboration rules for concept-first component vocabulary, required
   element classification, and explicit scope clarification for element-specific
   versus class-wide UI changes.

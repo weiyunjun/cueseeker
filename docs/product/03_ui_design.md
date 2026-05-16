@@ -99,14 +99,16 @@ Current review fork for Liquid Glass control states and prototype-only review
 controls:
 
 ```text
-ui/prototypes/cueseeker-liquid-glass-v3.html
+ui/prototypes/cueseeker-liquid-glass-v4/
 ```
 
 The standalone prototype remains the current visual baseline for HTML review of
 the main workbench, grouped Search results, Search-launched playback overlay,
-playback side panel, and persistent bottom player. The v3 file is the current
-review fork for control taxonomy, disabled states, prototype theme switching,
-and bottom-player control sizing. Earlier versioned forks remain available for
+playback side panel, and persistent bottom player. The v4 directory is the
+current split-source review fork for control taxonomy, disabled states,
+prototype theme switching, and bottom-player control sizing. It preserves the
+v3 visual result while moving the editable source into `index.html`,
+`styles.css`, and `script.js`. Earlier versioned forks remain available for
 visual comparison. App implementation still requires a separate explicit
 approval after the HTML has been accepted.
 
@@ -213,6 +215,35 @@ Current component classification:
 | Playback speed control | Fixed-width value capsule button |
 | Playback speed menu | Rounded-rectangle popup menu |
 | Playback speed option | Popup menu item |
+
+Current prototype implementation class anchors:
+
+| Component concept | Prototype class anchor |
+| --- | --- |
+| Capsule button | `ui-capsule` |
+| Prototype-only test control | `ui-prototype-control` |
+| Prototype-only test capsule button | `ui-capsule--test` |
+| Capsule command button | `ui-capsule--command` |
+| Source title capsule | `ui-capsule--source` |
+| Fixed-width value capsule | `ui-capsule--value` |
+| Search field capsule | `ui-input-capsule` |
+| Circular icon button | `ui-icon-button` |
+| Circular icon toggle button | `ui-icon-button--toggle` |
+| Topbar circular icon button | `ui-icon-button--topbar` |
+| Embedded circular icon button | `ui-icon-button--embedded` |
+| Transport icon button | `ui-icon-button--transport` |
+| Primary transport icon button | `ui-icon-button--transport-primary` |
+| Segmented control | `ui-segmented-control` |
+| Segmented control option | `ui-segmented-control__option` |
+| Result card | `ui-selectable-card` |
+| Sidebar row | `ui-selectable-row` |
+| Rounded-rectangle popup menu | `ui-popup-menu` |
+| Popup menu item | `ui-popup-menu__item` |
+| Playback progress slider | `ui-slider--progress` |
+| Volume slider | `ui-slider--volume` |
+| Selected state mirror | `ui-is-selected` |
+| Active state mirror | `ui-is-active` |
+| On/off state mirror | `ui-is-on` |
 
 Known HTML/App difference categories for this baseline:
 

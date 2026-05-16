@@ -46,9 +46,9 @@ Rules:
   implementation.
 - When the user returns a revised HTML file from another AI workflow, treat that
   file as the new original draft and repeat the alignment flow.
-- Large-scale HTML prototype changes must fork a new prototype file instead of
-  overwriting the currently accepted or reviewable file, so the user can compare
-  the before and after designs side by side.
+- Large-scale HTML prototype changes must fork a new versioned prototype source
+  directory instead of overwriting the currently accepted or reviewable
+  prototype, so the user can compare the before and after designs side by side.
 - If a required interaction is unclear, confirm it before finalizing the HTML
   prototype.
 
@@ -77,14 +77,21 @@ Rules:
 
 ## 4. Prototype Requirements
 
-Local HTML prototypes must be easy to share with web-focused AI tools.
+Local HTML prototypes must be easy to review, diff, and edit with web-focused
+AI tools.
 
 Rules:
 
-- Each prototype should be a single self-contained HTML file with bundled CSS
-  and JavaScript.
-- CSS and JavaScript may be split out only when the split is explicitly useful
-  for a complex prototype and documented near the prototype.
+- The primary editable prototype format is a normal web source directory with
+  `index.html`, `styles.css`, and `script.js`.
+- The editable source directory should be the only place where iterative UI
+  changes are made. Generated standalone HTML files are exports, not source.
+- A standalone HTML file with bundled CSS and JavaScript should be generated
+  only when the prototype needs to be shared with another AI or tool that
+  requires a single file.
+- Generated standalone exports must be treated as disposable artifacts. If an
+  export needs further design changes, the changes should be made in the source
+  directory and then exported again.
 - Prototypes should include basic UI behavior such as disclosure, expansion,
   popovers, menus, selected states, hover states, pressed states, and disabled
   states where relevant.
@@ -95,14 +102,15 @@ Rules:
   separate prototype may isolate detailed control-menu interactions.
 - When a prototype change affects a broad visual system, such as theme support,
   component taxonomy, page-wide layout, or the shared bottom player style, the
-  assistant must create a new self-contained HTML file under `ui/prototypes/`
+  assistant must create a new versioned source directory under `ui/prototypes/`
   before editing the prototype and leave the prior prototype available for
   visual comparison.
-- New prototype files should use the stable prototype name plus a version
-  number, such as `cueseeker-liquid-glass-v2.html`. Do not encode the change
-  semantics in the file name; Git history and the changelog record what changed.
-- The new file should be registered or proposed in the prototype registry once
-  it becomes the accepted baseline.
+- New prototype directories should use the stable prototype name plus a version
+  number, such as `cueseeker-liquid-glass-v4/`. Do not encode the change
+  semantics in the directory name; Git history and the changelog record what
+  changed.
+- The new prototype directory should be registered or proposed in the prototype
+  registry once it becomes the accepted baseline.
 
 ## 5. HTML And App Differences
 
@@ -154,12 +162,13 @@ Active App surface mapping:
 Current proposed review fork:
 
 ```text
-ui/prototypes/cueseeker-liquid-glass-v3.html
+ui/prototypes/cueseeker-liquid-glass-v4/
 ```
 
-This file is the active review fork for Liquid Glass control states, theme
-review, disabled-state review, and bottom-player control sizing. It does not
-replace the accepted baseline in the table below until the user accepts it.
+This directory is the active review fork for Liquid Glass control states, theme
+review, disabled-state review, bottom-player control sizing, and split-source
+prototype editing. It does not replace the accepted baseline in the table below
+until the user accepts it.
 
 | App surface | Required HTML prototype | Coverage status | Known native App differences |
 | --- | --- | --- | --- |
