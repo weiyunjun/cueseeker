@@ -46,6 +46,9 @@ Rules:
   implementation.
 - When the user returns a revised HTML file from another AI workflow, treat that
   file as the new original draft and repeat the alignment flow.
+- Large-scale HTML prototype changes must fork a new prototype file instead of
+  overwriting the currently accepted or reviewable file, so the user can compare
+  the before and after designs side by side.
 - If a required interaction is unclear, confirm it before finalizing the HTML
   prototype.
 
@@ -90,6 +93,13 @@ Rules:
 - Complex UI may be split across multiple focused HTML prototypes. For example,
   a playback page prototype may show the video frame and side panel, while a
   separate prototype may isolate detailed control-menu interactions.
+- When a prototype change affects a broad visual system, such as theme support,
+  component taxonomy, page-wide layout, or the shared bottom player style, the
+  assistant should create a new self-contained HTML file under `ui/prototypes/`
+  and leave the prior prototype available for visual comparison.
+- The new file should use a clear versioned or purpose-based name and should be
+  registered or proposed in the prototype registry once it becomes the accepted
+  baseline.
 
 ## 5. HTML And App Differences
 
