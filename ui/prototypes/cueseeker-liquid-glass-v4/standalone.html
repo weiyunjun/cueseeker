@@ -1267,40 +1267,6 @@
       transition: background 240ms ease, color 180ms ease;
     }
     body::before { background-image: var(--desktop-overlay); }
-    body[data-search-bg="neutral"] { --search-page-bg: #f4f4f6; }
-    body[data-search-bg="red"] { --search-page-bg: #fff1f2; }
-    body[data-search-bg="yellow"] { --search-page-bg: #fff8df; }
-    body[data-search-bg="blue"] { --search-page-bg: #edf5ff; }
-    body[data-search-bg="purple"] { --search-page-bg: #f5efff; }
-    body[data-search-bg="gray"],
-    body[data-search-bg="black"] {
-      --search-page-fg: #f3f1f6;
-      --search-page-text-2: #c9c6d2;
-      --search-page-text-3: #aaa6b6;
-      --search-page-text-4: #817d8d;
-      --search-page-selected-fg: #f8f6fb;
-      --search-page-accent: #6ea6ff;
-      --search-page-accent-soft: rgba(110,166,255,0.18);
-      --search-page-highlight: rgba(255,214,92,0.32);
-      --search-page-highlight-text: #fff0b5;
-      --search-page-hairline: rgba(255,255,255,0.12);
-      --search-page-inner-top: rgba(255,255,255,0.24);
-      --search-page-pill-bg: rgba(255,255,255,0.10);
-      --search-page-pill-border: rgba(255,255,255,0.20);
-      --search-page-pill-hover-bg: rgba(255,255,255,0.16);
-      --search-page-pill-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.06), 0 1px 3px rgba(0,0,0,0.30);
-      --search-page-field-bg: rgba(255,255,255,0.10);
-      --search-page-field-focus-bg: rgba(255,255,255,0.16);
-      --search-page-field-icon: rgba(243,241,246,0.58);
-      --search-page-card-bg: rgba(255,255,255,0.10);
-      --search-page-card-hover-bg: rgba(255,255,255,0.15);
-      --search-page-card-selected-bg: rgba(255,255,255,0.18);
-      --search-page-card-shadow: inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -0.5px 0 rgba(255,255,255,0.05), 0 0 0 0.5px rgba(255,255,255,0.10), 0 1px 2px rgba(0,0,0,0.22);
-      --search-page-card-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.14), 0 5px 14px -5px rgba(0,0,0,0.44);
-      --search-page-row-hover-bg: rgba(255,255,255,0.12);
-    }
-    body[data-search-bg="gray"] { --search-page-bg: #2f3035; }
-    body[data-search-bg="black"] { --search-page-bg: #000000; }
     .window::before { box-shadow: var(--window-inner-ring); }
     .window::after { background: var(--window-sheen); }
     .toolbar {
@@ -1580,11 +1546,11 @@
     }
 
 
-    /* ============================ PLAYER BAR TRANSLUCENT GLASS ============================ */
+    /* ============================ PLAYER DOCK FIXED HUD ============================ */
     :root {
-      --bar-bg: rgba(248, 248, 250, 0.34);
-      --bar-border: rgba(255, 255, 255, 0.48);
-      --bar-filter: blur(26px) saturate(210%);
+      --player-dock-bg: #f4f4f6;
+      --player-dock-border: rgba(0, 0, 0, 0.10);
+      --player-dock-filter: none;
       --glass-hover: rgba(255, 255, 255, 0.55);
       --glass-hover-border: rgba(255, 255, 255, 0.85);
       --glass-hover-inset: rgba(255, 255, 255, 0.9);
@@ -1596,7 +1562,7 @@
       --menu-item-hover: rgba(0, 0, 0, 0.06);
       --progress-track: rgba(0, 0, 0, 0.08);
       --progress-fill: #3478f6;
-      --shadow-bar:
+      --player-dock-shadow:
         0 0 0 0.5px rgba(0, 0, 0, 0.08),
         inset 0 0.5px 0 rgba(255, 255, 255, 0.58),
         inset 0 -0.5px 0 rgba(255, 255, 255, 0.12),
@@ -1604,9 +1570,9 @@
         0 6px 16px -8px rgba(15, 18, 30, 0.20);
     }
     body[data-theme="dark"] {
-      --bar-bg: rgba(38, 36, 45, 0.38);
-      --bar-border: rgba(255, 255, 255, 0.16);
-      --bar-filter: blur(28px) saturate(220%);
+      --player-dock-bg: #24232b;
+      --player-dock-border: rgba(255, 255, 255, 0.16);
+      --player-dock-filter: none;
       --glass-hover: rgba(255, 255, 255, 0.12);
       --glass-hover-border: rgba(255, 255, 255, 0.22);
       --glass-hover-inset: rgba(255, 255, 255, 0.28);
@@ -1618,7 +1584,7 @@
       --menu-item-hover: rgba(255, 255, 255, 0.08);
       --progress-track: rgba(255, 255, 255, 0.12);
       --progress-fill: #6ea6ff;
-      --shadow-bar:
+      --player-dock-shadow:
         0 0 0 0.5px rgba(255, 255, 255, 0.08),
         inset 0 0.5px 0 rgba(255, 255, 255, 0.22),
         inset 0 -0.5px 0 rgba(255, 255, 255, 0.07),
@@ -1628,11 +1594,11 @@
 
     .player-dock,
     .window.video-expanded .player-dock {
-      background: var(--bar-bg);
-      border: 0.5px solid var(--bar-border);
-      box-shadow: var(--shadow-bar);
-      backdrop-filter: var(--bar-filter);
-      -webkit-backdrop-filter: var(--bar-filter);
+      background: var(--player-dock-bg);
+      border: 0.5px solid var(--player-dock-border);
+      box-shadow: var(--player-dock-shadow);
+      backdrop-filter: var(--player-dock-filter);
+      -webkit-backdrop-filter: var(--player-dock-filter);
       overflow: visible;
       transition: right 240ms cubic-bezier(.22,.61,.36,1), background 400ms ease, box-shadow 220ms ease, color 180ms ease;
     }
@@ -1722,36 +1688,6 @@
     .window.video-expanded .player-dock .source-toggle .source-chevron {
       color: currentColor;
     }
-
-
-
-    /* ============================ ON-VIDEO PLAYER CONTEXT ============================ */
-    .window.video-expanded .player-dock {
-      --circle-fg: rgba(255, 255, 255, 0.92);
-      --circle-hover-bg: rgba(255, 255, 255, 0.14);
-      --circle-hover-border: rgba(255, 255, 255, 0.22);
-      --circle-hover-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.24);
-      --circle-selected-bg: rgba(245, 243, 250, 0.94);
-      --circle-selected-fg: #1a1820;
-      --circle-selected-shadow:
-        inset 0 0.5px 0 rgba(255, 255, 255, 1),
-        0 0 0 0.5px rgba(255, 255, 255, 0.18),
-        0 1px 4px rgba(0, 0, 0, 0.24);
-      --text: rgba(255, 255, 255, 0.92);
-      --text-2: rgba(255, 255, 255, 0.85);
-      --text-3: rgba(255, 255, 255, 0.58);
-      --pill-fg: #1a1a1f;
-      --pill-glass: rgba(255, 255, 255, 0.18);
-      --pill-glass-border: rgba(255, 255, 255, 0.32);
-      --glass-hover: rgba(255, 255, 255, 0.24);
-      --glass-hover-border: rgba(255, 255, 255, 0.34);
-      --glass-hover-inset: rgba(255, 255, 255, 0.30);
-    }
-
-    body[data-theme="dark"] .window.video-expanded .player-dock {
-      --pill-fg: rgba(255, 255, 255, 0.92);
-    }
-
     .player-dock .speed-menu {
       width: auto;
       min-width: 160px;
@@ -1894,7 +1830,6 @@
   </svg>
 
   <div class="test-controls" aria-label="Prototype test controls">
-    <button class="test-button color-toggle ui-capsule ui-capsule--test ui-prototype-control" id="colorToggle" type="button" aria-label="Search background color: Light gray">Color</button>
     <button class="test-button disable-all-toggle ui-capsule ui-capsule--test ui-prototype-control" id="disableAllToggle" type="button" aria-pressed="false">Disable All</button>
     <button class="theme-toggle ui-capsule ui-capsule--test ui-prototype-control" id="themeToggle" type="button" aria-label="Current theme: light mode. Switch to dark mode" aria-pressed="false">
       <svg width="14" height="14"><use id="themeIcon" href="#sun"></use></svg>
@@ -2318,21 +2253,10 @@ const win = document.getElementById("window");
     const themeToggle = document.getElementById("themeToggle");
     const themeLabel = document.getElementById("themeLabel");
     const themeIcon = document.getElementById("themeIcon");
-    const colorToggle = document.getElementById("colorToggle");
     const disableAllToggle = document.getElementById("disableAllToggle");
     const collapseAllButton = document.querySelector("[data-action='collapse-all']");
 
     let isPlaying = false;
-    const searchBackgrounds = [
-      { id: "neutral", label: "Light gray" },
-      { id: "red", label: "Pale red" },
-      { id: "yellow", label: "Pale yellow" },
-      { id: "blue", label: "Pale blue" },
-      { id: "purple", label: "Pale purple" },
-      { id: "gray", label: "Dark gray" },
-      { id: "black", label: "Black" },
-    ];
-    let searchBackgroundIndex = 0;
     let committedSearchQuery = searchInput.value.trim();
 
     function setTheme(theme) {
@@ -2357,19 +2281,8 @@ const win = document.getElementById("window");
       }
     }
 
-    function setSearchBackground(index) {
-      searchBackgroundIndex = index % searchBackgrounds.length;
-      const background = searchBackgrounds[searchBackgroundIndex];
-      document.body.dataset.searchBg = background.id;
-      colorToggle.setAttribute("aria-label", `Search background color: ${background.label}`);
-    }
-
     themeToggle.addEventListener("click", () => {
       setTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
-    });
-
-    colorToggle.addEventListener("click", () => {
-      setSearchBackground(searchBackgroundIndex + 1);
     });
 
     disableAllToggle.addEventListener("click", () => {
@@ -2377,7 +2290,6 @@ const win = document.getElementById("window");
     });
 
     setTheme("light");
-    setSearchBackground(0);
     setControlsDisabled(false);
 
     function setToggleIconButton(button, selected) {
