@@ -1113,7 +1113,7 @@
       --card-selected-bg: rgba(255,255,255,0.85);
       --card-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), inset 0 -0.5px 0 rgba(255,255,255,0.18), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 2px rgba(15,18,30,0.04);
       --card-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.95), 0 0 0 0.5px rgba(0,0,0,0.07), 0 4px 12px -4px rgba(15,18,30,0.12);
-      --card-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,1), inset 0 -0.5px 0 rgba(255,255,255,0.5), 0 0 0 0.5px rgba(10,132,255,0.55), 0 0 0 3px rgba(10,132,255,0.10), 0 6px 18px -4px rgba(15,18,30,0.18);
+      --card-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,1), inset 0 -0.5px 0 rgba(255,255,255,0.5), 0 0 0 2px rgba(10,132,255,0.92), 0 0 0 4px rgba(10,132,255,0.16), 0 6px 18px -4px rgba(15,18,30,0.18);
       --text-on-selected-card: #0a1426;
       --segment-bg: rgba(0,0,0,0.06);
       --segment-active-bg: rgba(255,255,255,0.85);
@@ -1183,7 +1183,7 @@
       --card-selected-bg: rgba(255,255,255,0.16);
       --card-shadow: inset 0 0.5px 0 rgba(255,255,255,0.16), inset 0 -0.5px 0 rgba(255,255,255,0.04), 0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 2px rgba(0,0,0,0.18);
       --card-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.22), 0 0 0 0.5px rgba(255,255,255,0.10), 0 5px 14px -5px rgba(0,0,0,0.42);
-      --card-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,0.28), inset 0 -0.5px 0 rgba(255,255,255,0.08), 0 0 0 0.5px rgba(110,166,255,0.52), 0 0 0 3px rgba(110,166,255,0.14), 0 8px 20px -6px rgba(0,0,0,0.48);
+      --card-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,0.28), inset 0 -0.5px 0 rgba(255,255,255,0.08), 0 0 0 2px rgba(110,166,255,0.88), 0 0 0 4px rgba(110,166,255,0.18), 0 8px 20px -6px rgba(0,0,0,0.48);
       --segment-bg: rgba(255,255,255,0.08);
       --segment-active-bg: rgba(255,255,255,0.16);
       --row-hover-bg: rgba(255,255,255,0.10);
@@ -1352,6 +1352,11 @@
     .result-card:active { transform: scale(0.995); }
     .result-card.selected { background: var(--card-selected-bg); box-shadow: var(--card-selected-shadow); }
     .selected .line { color: var(--text-on-selected-card); }
+    .result-card.selected .rank { gap: 7px; }
+    .result-card.selected .playing {
+      width: 12px;
+      height: 12px;
+    }
 
     .sidebar {
       background: var(--surface-bg);
@@ -1681,20 +1686,9 @@
       -webkit-backdrop-filter: blur(36px) saturate(220%);
     }
 
-    /* Prototype-only disabled-control review state. */
-    .window.controls-disabled button:disabled {
+    /* Prototype-only Disable All only toggles real disabled states for review. */
+    .window button:disabled {
       cursor: not-allowed;
-    }
-    .window.controls-disabled .tool-button:disabled,
-    .window.controls-disabled .icon-button:disabled,
-    .window.controls-disabled .small-button:disabled,
-    .window.controls-disabled .source-toggle:disabled,
-    .window.controls-disabled .speed-button:disabled,
-    .window.controls-disabled .result-card:disabled,
-    .window.controls-disabled .group-header:disabled,
-    .window.controls-disabled .segmented button:disabled,
-    .window.controls-disabled .sidebar-row:disabled,
-    .window.controls-disabled .clear-button:disabled {
       opacity: 0.30;
       pointer-events: none;
     }
