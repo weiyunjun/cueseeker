@@ -275,6 +275,7 @@
     }
 
     .search-state,
+    .library-state,
     .shiori-state,
     .video-state {
       position: absolute;
@@ -284,6 +285,7 @@
     }
 
     .search-state,
+    .library-state,
     .shiori-state {
       background: var(--search-page-bg);
       color: var(--search-page-fg);
@@ -318,6 +320,10 @@
       opacity: 0;
       pointer-events: none;
     }
+    .library-state {
+      opacity: 0;
+      pointer-events: none;
+    }
 
     .video-state {
       display: grid;
@@ -334,10 +340,20 @@
       opacity: 0;
       pointer-events: none;
     }
+    .window.library-mode .search-state,
+    .window.library-mode .shiori-state {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .window.library-mode .library-state {
+      opacity: 1;
+      pointer-events: auto;
+    }
     .window.shiori-mode .shiori-state {
       opacity: 1;
       pointer-events: auto;
     }
+    .window.video-expanded .library-state,
     .window.video-expanded .shiori-state {
       opacity: 0;
       pointer-events: none;
@@ -394,6 +410,13 @@
       padding: 4px 24px 120px; /* room for floating HUD */
     }
 
+    .library-scroll {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+      padding: 18px 28px 120px;
+    }
+
     .group {
       padding: 14px 0 6px;
       border-bottom: 0.5px solid var(--hairline-soft);
@@ -442,6 +465,76 @@
       margin: 10px 0 14px;
     }
     .group.collapsed .cards { display: none; }
+
+    .library-group {
+      padding: 12px 0 10px;
+      border-bottom: 0;
+      margin-bottom: 6px;
+    }
+    .library-group-header {
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 8px 8px 4px;
+      width: min(100%, 720px);
+    }
+    .library-group-header .chevron {
+      margin-top: 2px;
+    }
+    .library-heading {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .library-title {
+      color: var(--text);
+      font-size: 13.5px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .library-count {
+      color: var(--text-3);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .library-episode-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 8px 0 12px 30px;
+    }
+    .library-episode-card {
+      appearance: none;
+      width: 66px;
+      height: 42px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--card-bg);
+      box-shadow: var(--card-shadow);
+      color: var(--text);
+      font-size: 12.5px;
+      font-weight: 700;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease, color 140ms ease;
+    }
+    .library-episode-card:hover {
+      background: var(--card-hover-bg);
+      box-shadow: var(--card-hover-shadow);
+    }
+    .library-episode-card:active {
+      transform: scale(0.96);
+    }
+    .library-episode-card.selected {
+      background: var(--card-selected-bg);
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+      box-shadow: none;
+      color: var(--text-on-selected-card);
+    }
 
     /* Result card — thin glass tile */
     .result-card {
@@ -1928,6 +2021,159 @@
     </header>
 
     <section class="main">
+      <section class="library-state" aria-label="Library">
+        <div class="library-scroll" id="libraryScroll">
+          <section class="group library-group collapsed">
+            <button class="group-header library-group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="library-heading">
+                <span class="library-title">Ave Mujica</span>
+                <span class="library-count">13 episodes</span>
+              </span>
+            </button>
+            <div class="cards library-episode-grid">
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 01">EP01</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 02">EP02</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 03">EP03</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 04">EP04</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 05">EP05</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 06">EP06</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 07">EP07</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 08">EP08</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 09">EP09</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 10">EP10</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 11">EP11</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 12">EP12</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="Ave Mujica - 13">EP13</button>
+            </div>
+          </section>
+
+          <section class="group library-group collapsed">
+            <button class="group-header library-group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="library-heading">
+                <span class="library-title">It's MyGO!!!!!</span>
+                <span class="library-count">13 episodes</span>
+              </span>
+            </button>
+            <div class="cards library-episode-grid">
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 01">EP01</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 02">EP02</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 03">EP03</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 04">EP04</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 05">EP05</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 06">EP06</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 07">EP07</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 08">EP08</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 09">EP09</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 10">EP10</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 11">EP11</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 12">EP12</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="It's MyGO!!!!! - 13">EP13</button>
+            </div>
+          </section>
+
+          <section class="group library-group collapsed">
+            <button class="group-header library-group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="library-heading">
+                <span class="library-title">胜者即是正义</span>
+                <span class="library-count">11 episodes</span>
+              </span>
+            </button>
+            <div class="cards library-episode-grid">
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 01">EP01</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 02">EP02</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 03">EP03</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 04">EP04</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 05">EP05</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 06">EP06</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 07">EP07</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 08">EP08</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 09">EP09</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 10">EP10</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 - 11">EP11</button>
+            </div>
+          </section>
+
+          <section class="group library-group collapsed">
+            <button class="group-header library-group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="library-heading">
+                <span class="library-title">胜者即是正义 2</span>
+                <span class="library-count">10 episodes</span>
+              </span>
+            </button>
+            <div class="cards library-episode-grid">
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 01">EP01</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 02">EP02</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 03">EP03</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 04">EP04</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 05">EP05</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 06">EP06</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 07">EP07</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 08">EP08</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 09">EP09</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 2 - 10">EP10</button>
+            </div>
+          </section>
+
+          <section class="group library-group collapsed">
+            <button class="group-header library-group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="library-heading">
+                <span class="library-title">胜者即是正义 SP</span>
+                <span class="library-count">2 episodes</span>
+              </span>
+            </button>
+            <div class="cards library-episode-grid">
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 SP - 01">EP01</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="胜者即是正义 SP - 02">EP02</button>
+            </div>
+          </section>
+
+          <section class="group library-group collapsed">
+            <button class="group-header library-group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="library-heading">
+                <span class="library-title">葬送的芙莉莲</span>
+                <span class="library-count">28 episodes</span>
+              </span>
+            </button>
+            <div class="cards library-episode-grid">
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 01">EP01</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 02">EP02</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 03">EP03</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 04">EP04</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 05">EP05</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 06">EP06</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 07">EP07</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 08">EP08</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 09">EP09</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 10">EP10</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 11">EP11</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 12">EP12</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 13">EP13</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 14">EP14</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 15">EP15</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 16">EP16</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 17">EP17</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 18">EP18</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 19">EP19</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 20">EP20</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 21">EP21</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 22">EP22</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 23">EP23</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 24">EP24</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 25">EP25</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 26">EP26</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 27">EP27</button>
+              <button class="library-episode-card ui-selectable-card" type="button" data-source="葬送的芙莉莲 - 28">EP28</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
       <section class="search-state" aria-label="Search results">
         <div class="results-header">
           <div class="summary">
@@ -2468,14 +2714,19 @@ const win = document.getElementById("window");
     }
 
     function setContentMode(mode) {
+      const showLibrary = mode === "library";
       const showShiori = mode === "shiori";
-      if (showShiori && !win.classList.contains("shiori-mode")) {
+      const leavingSearch = (showLibrary || showShiori) && !win.classList.contains("library-mode") && !win.classList.contains("shiori-mode");
+      if (leavingSearch) {
         searchModeDraftValue = searchInput.value;
       }
+      win.classList.remove("video-expanded");
+      sourceToggle.setAttribute("aria-pressed", "false");
+      win.classList.toggle("library-mode", showLibrary);
       win.classList.toggle("shiori-mode", showShiori);
+      setTopbarModeButton(libraryToggle, showLibrary);
       setTopbarModeButton(topbarShioriToggle, showShiori);
-      setTopbarModeButton(libraryToggle, false);
-      if (showShiori) {
+      if (showLibrary || showShiori) {
         searchInput.value = "";
       } else {
         searchInput.value = searchModeDraftValue;
@@ -2485,7 +2736,7 @@ const win = document.getElementById("window");
     }
 
     libraryToggle.addEventListener("click", () => {
-      setContentMode("search");
+      setContentMode(win.classList.contains("library-mode") ? "search" : "library");
     });
 
     topbarShioriToggle.addEventListener("click", () => {
@@ -2567,6 +2818,7 @@ const win = document.getElementById("window");
 
     function updateCollapseAllState() {
       if (!collapseAllButtons.length || win.classList.contains("controls-disabled")) return;
+      if (win.classList.contains("library-mode")) return;
       const activeState = win.classList.contains("shiori-mode")
         ? document.querySelector(".shiori-state")
         : document.querySelector(".search-state");
@@ -2605,6 +2857,17 @@ const win = document.getElementById("window");
       sourceToggle.querySelector(".source-label").textContent = cue.dataset.source || "Ave Mujica · 01";
     }
 
+    function selectLibraryEpisode(episode) {
+      document.querySelectorAll(".library-episode-card").forEach((el) => {
+        const selected = el === episode;
+        el.classList.toggle("selected", selected);
+        el.classList.toggle("ui-is-selected", selected);
+      });
+      sourceToggle.querySelector(".source-label").textContent = episode.dataset.source;
+      currentZh.textContent = "";
+      currentJa.textContent = "";
+    }
+
     function openVideo() {
       win.classList.add("video-expanded");
       sourceToggle.setAttribute("aria-pressed", "true");
@@ -2613,6 +2876,13 @@ const win = document.getElementById("window");
     document.querySelectorAll(".result-card").forEach((el) => {
       el.addEventListener("click", () => {
         selectCue(el);
+        openVideo();
+      });
+    });
+
+    document.querySelectorAll(".library-episode-card").forEach((el) => {
+      el.addEventListener("click", () => {
+        selectLibraryEpisode(el);
         openVideo();
       });
     });

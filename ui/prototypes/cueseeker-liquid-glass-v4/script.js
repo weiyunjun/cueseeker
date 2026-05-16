@@ -94,14 +94,19 @@ const win = document.getElementById("window");
     }
 
     function setContentMode(mode) {
+      const showLibrary = mode === "library";
       const showShiori = mode === "shiori";
-      if (showShiori && !win.classList.contains("shiori-mode")) {
+      const leavingSearch = (showLibrary || showShiori) && !win.classList.contains("library-mode") && !win.classList.contains("shiori-mode");
+      if (leavingSearch) {
         searchModeDraftValue = searchInput.value;
       }
+      win.classList.remove("video-expanded");
+      sourceToggle.setAttribute("aria-pressed", "false");
+      win.classList.toggle("library-mode", showLibrary);
       win.classList.toggle("shiori-mode", showShiori);
+      setTopbarModeButton(libraryToggle, showLibrary);
       setTopbarModeButton(topbarShioriToggle, showShiori);
-      setTopbarModeButton(libraryToggle, false);
-      if (showShiori) {
+      if (showLibrary || showShiori) {
         searchInput.value = "";
       } else {
         searchInput.value = searchModeDraftValue;
@@ -111,7 +116,7 @@ const win = document.getElementById("window");
     }
 
     libraryToggle.addEventListener("click", () => {
-      setContentMode("search");
+      setContentMode(win.classList.contains("library-mode") ? "search" : "library");
     });
 
     topbarShioriToggle.addEventListener("click", () => {
@@ -193,6 +198,7 @@ const win = document.getElementById("window");
 
     function updateCollapseAllState() {
       if (!collapseAllButtons.length || win.classList.contains("controls-disabled")) return;
+      if (win.classList.contains("library-mode")) return;
       const activeState = win.classList.contains("shiori-mode")
         ? document.querySelector(".shiori-state")
         : document.querySelector(".search-state");
@@ -231,6 +237,17 @@ const win = document.getElementById("window");
       sourceToggle.querySelector(".source-label").textContent = cue.dataset.source || "Ave Mujica · 01";
     }
 
+    function selectLibraryEpisode(episode) {
+      document.querySelectorAll(".library-episode-card").forEach((el) => {
+        const selected = el === episode;
+        el.classList.toggle("selected", selected);
+        el.classList.toggle("ui-is-selected", selected);
+      });
+      sourceToggle.querySelector(".source-label").textContent = episode.dataset.source;
+      currentZh.textContent = "";
+      currentJa.textContent = "";
+    }
+
     function openVideo() {
       win.classList.add("video-expanded");
       sourceToggle.setAttribute("aria-pressed", "true");
@@ -239,6 +256,13 @@ const win = document.getElementById("window");
     document.querySelectorAll(".result-card").forEach((el) => {
       el.addEventListener("click", () => {
         selectCue(el);
+        openVideo();
+      });
+    });
+
+    document.querySelectorAll(".library-episode-card").forEach((el) => {
+      el.addEventListener("click", () => {
+        selectLibraryEpisode(el);
         openVideo();
       });
     });
