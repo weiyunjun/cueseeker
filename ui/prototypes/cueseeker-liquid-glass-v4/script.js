@@ -22,10 +22,21 @@ const win = document.getElementById("window");
     const themeToggle = document.getElementById("themeToggle");
     const themeLabel = document.getElementById("themeLabel");
     const themeIcon = document.getElementById("themeIcon");
+    const colorToggle = document.getElementById("colorToggle");
     const disableAllToggle = document.getElementById("disableAllToggle");
     const collapseAllButton = document.querySelector("[data-action='collapse-all']");
 
     let isPlaying = false;
+    const searchBackgrounds = [
+      { id: "white", label: "White" },
+      { id: "red", label: "Pale red" },
+      { id: "yellow", label: "Pale yellow" },
+      { id: "blue", label: "Pale blue" },
+      { id: "purple", label: "Pale purple" },
+      { id: "gray", label: "Dark gray" },
+      { id: "black", label: "Black" },
+    ];
+    let searchBackgroundIndex = 0;
 
     function setTheme(theme) {
       const dark = theme === "dark";
@@ -49,8 +60,19 @@ const win = document.getElementById("window");
       }
     }
 
+    function setSearchBackground(index) {
+      searchBackgroundIndex = index % searchBackgrounds.length;
+      const background = searchBackgrounds[searchBackgroundIndex];
+      document.body.dataset.searchBg = background.id;
+      colorToggle.setAttribute("aria-label", `Search background color: ${background.label}`);
+    }
+
     themeToggle.addEventListener("click", () => {
       setTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
+    });
+
+    colorToggle.addEventListener("click", () => {
+      setSearchBackground(searchBackgroundIndex + 1);
     });
 
     disableAllToggle.addEventListener("click", () => {
@@ -58,6 +80,7 @@ const win = document.getElementById("window");
     });
 
     setTheme("light");
+    setSearchBackground(0);
     setControlsDisabled(false);
 
     function setToggleIconButton(button, selected) {

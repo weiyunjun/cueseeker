@@ -44,6 +44,7 @@
       --text-3: #7a7c84;
       --text-4: #adafb6;
       --pill-fg: var(--text);
+      --search-page-bg: #ffffff;
 
       --accent: #0a84ff;
       --accent-soft: rgba(10, 132, 255, 0.16);
@@ -254,6 +255,11 @@
       inset: 0;
       min-height: 0;
       transition: opacity 200ms ease;
+    }
+
+    .search-state {
+      background: var(--search-page-bg);
+      transition: opacity 200ms ease, background 220ms ease;
     }
 
     .video-state {
@@ -1212,6 +1218,13 @@
       transition: background 240ms ease, color 180ms ease;
     }
     body::before { background-image: var(--desktop-overlay); }
+    body[data-search-bg="white"] { --search-page-bg: #ffffff; }
+    body[data-search-bg="red"] { --search-page-bg: #fff1f2; }
+    body[data-search-bg="yellow"] { --search-page-bg: #fff8df; }
+    body[data-search-bg="blue"] { --search-page-bg: #edf5ff; }
+    body[data-search-bg="purple"] { --search-page-bg: #f5efff; }
+    body[data-search-bg="gray"] { --search-page-bg: #2f3035; }
+    body[data-search-bg="black"] { --search-page-bg: #000000; }
     .window::before { box-shadow: var(--window-inner-ring); }
     .window::after { background: var(--window-sheen); }
     .toolbar {
@@ -1288,6 +1301,7 @@
       transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease, box-shadow 180ms ease;
     }
     .disable-all-toggle { min-width: 104px; }
+    .color-toggle { min-width: 72px; }
     .test-button:hover,
     .theme-toggle:hover { background: var(--pill-hover-bg); }
     .test-button:active,
@@ -1803,6 +1817,7 @@
   </svg>
 
   <div class="test-controls" aria-label="Prototype test controls">
+    <button class="test-button color-toggle ui-capsule ui-capsule--test ui-prototype-control" id="colorToggle" type="button" aria-label="Search background color: White">Color</button>
     <button class="test-button disable-all-toggle ui-capsule ui-capsule--test ui-prototype-control" id="disableAllToggle" type="button" aria-pressed="false">Disable All</button>
     <button class="theme-toggle ui-capsule ui-capsule--test ui-prototype-control" id="themeToggle" type="button" aria-label="Current theme: light mode. Switch to dark mode" aria-pressed="false">
       <svg width="14" height="14"><use id="themeIcon" href="#sun"></use></svg>
@@ -2226,10 +2241,21 @@ const win = document.getElementById("window");
     const themeToggle = document.getElementById("themeToggle");
     const themeLabel = document.getElementById("themeLabel");
     const themeIcon = document.getElementById("themeIcon");
+    const colorToggle = document.getElementById("colorToggle");
     const disableAllToggle = document.getElementById("disableAllToggle");
     const collapseAllButton = document.querySelector("[data-action='collapse-all']");
 
     let isPlaying = false;
+    const searchBackgrounds = [
+      { id: "white", label: "White" },
+      { id: "red", label: "Pale red" },
+      { id: "yellow", label: "Pale yellow" },
+      { id: "blue", label: "Pale blue" },
+      { id: "purple", label: "Pale purple" },
+      { id: "gray", label: "Dark gray" },
+      { id: "black", label: "Black" },
+    ];
+    let searchBackgroundIndex = 0;
 
     function setTheme(theme) {
       const dark = theme === "dark";
@@ -2253,8 +2279,19 @@ const win = document.getElementById("window");
       }
     }
 
+    function setSearchBackground(index) {
+      searchBackgroundIndex = index % searchBackgrounds.length;
+      const background = searchBackgrounds[searchBackgroundIndex];
+      document.body.dataset.searchBg = background.id;
+      colorToggle.setAttribute("aria-label", `Search background color: ${background.label}`);
+    }
+
     themeToggle.addEventListener("click", () => {
       setTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
+    });
+
+    colorToggle.addEventListener("click", () => {
+      setSearchBackground(searchBackgroundIndex + 1);
     });
 
     disableAllToggle.addEventListener("click", () => {
@@ -2262,6 +2299,7 @@ const win = document.getElementById("window");
     });
 
     setTheme("light");
+    setSearchBackground(0);
     setControlsDisabled(false);
 
     function setToggleIconButton(button, selected) {

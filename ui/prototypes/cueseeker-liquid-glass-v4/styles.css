@@ -38,6 +38,7 @@
       --text-3: #7a7c84;
       --text-4: #adafb6;
       --pill-fg: var(--text);
+      --search-page-bg: #ffffff;
 
       --accent: #0a84ff;
       --accent-soft: rgba(10, 132, 255, 0.16);
@@ -248,6 +249,11 @@
       inset: 0;
       min-height: 0;
       transition: opacity 200ms ease;
+    }
+
+    .search-state {
+      background: var(--search-page-bg);
+      transition: opacity 200ms ease, background 220ms ease;
     }
 
     .video-state {
@@ -1206,6 +1212,13 @@
       transition: background 240ms ease, color 180ms ease;
     }
     body::before { background-image: var(--desktop-overlay); }
+    body[data-search-bg="white"] { --search-page-bg: #ffffff; }
+    body[data-search-bg="red"] { --search-page-bg: #fff1f2; }
+    body[data-search-bg="yellow"] { --search-page-bg: #fff8df; }
+    body[data-search-bg="blue"] { --search-page-bg: #edf5ff; }
+    body[data-search-bg="purple"] { --search-page-bg: #f5efff; }
+    body[data-search-bg="gray"] { --search-page-bg: #2f3035; }
+    body[data-search-bg="black"] { --search-page-bg: #000000; }
     .window::before { box-shadow: var(--window-inner-ring); }
     .window::after { background: var(--window-sheen); }
     .toolbar {
@@ -1282,6 +1295,7 @@
       transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease, box-shadow 180ms ease;
     }
     .disable-all-toggle { min-width: 104px; }
+    .color-toggle { min-width: 72px; }
     .test-button:hover,
     .theme-toggle:hover { background: var(--pill-hover-bg); }
     .test-button:active,
