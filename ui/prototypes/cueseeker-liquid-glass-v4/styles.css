@@ -1567,7 +1567,7 @@
       --menu-item-hover: rgba(0, 0, 0, 0.06);
       --progress-track: rgba(0, 0, 0, 0.12);
       --progress-fill: rgba(0, 0, 0, 0.54);
-      --progress-thumb: rgba(0, 0, 0, 0.76);
+      --progress-thumb: var(--progress-fill);
       --player-dock-shadow:
         0 0 0 0.5px rgba(0, 0, 0, 0.08),
         inset 0 0.5px 0 rgba(255, 255, 255, 0.58),
@@ -1590,7 +1590,7 @@
       --menu-item-hover: rgba(255, 255, 255, 0.08);
       --progress-track: rgba(255, 255, 255, 0.18);
       --progress-fill: rgba(255, 255, 255, 0.66);
-      --progress-thumb: rgba(255, 255, 255, 0.82);
+      --progress-thumb: var(--progress-fill);
       --player-dock-shadow:
         0 0 0 0.5px rgba(255, 255, 255, 0.08),
         inset 0 0.5px 0 rgba(255, 255, 255, 0.22),
