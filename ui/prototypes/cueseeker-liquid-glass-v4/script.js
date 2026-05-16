@@ -23,6 +23,7 @@ const win = document.getElementById("window");
     const themeLabel = document.getElementById("themeLabel");
     const themeIcon = document.getElementById("themeIcon");
     const disableAllToggle = document.getElementById("disableAllToggle");
+    const collapseAllButton = document.querySelector("[data-action='collapse-all']");
 
     let isPlaying = false;
 
@@ -43,6 +44,9 @@ const win = document.getElementById("window");
       win.querySelectorAll("button").forEach((button) => {
         button.disabled = disabled;
       });
+      if (!disabled) {
+        updateCollapseAllState();
+      }
     }
 
     themeToggle.addEventListener("click", () => {
@@ -127,10 +131,33 @@ const win = document.getElementById("window");
           : `Found <strong>185</strong> results in <strong>74</strong> files`;
       }
       updateSidebarSummary();
+      updateCollapseAllState();
     }
 
     function updateClearSearchVisibility() {
-      clearSearch.hidden = searchInput.value.trim().length === 0;
+      const hidden = searchInput.value.trim().length === 0;
+      clearSearch.hidden = hidden;
+      clearSearch.style.display = hidden ? "none" : "";
+      clearSearch.setAttribute("aria-hidden", hidden ? "true" : "false");
+      clearSearch.tabIndex = hidden ? -1 : 0;
+    }
+
+    function syncSearchFromInput() {
+      updateClearSearchVisibility();
+      updateSearch(searchInput.value.trim());
+    }
+
+    function scheduleSearchSync() {
+      requestAnimationFrame(syncSearchFromInput);
+      setTimeout(syncSearchFromInput, 0);
+    }
+
+    function updateCollapseAllState() {
+      if (!collapseAllButton || win.classList.contains("controls-disabled")) return;
+      const visibleGroups = Array.from(document.querySelectorAll(".group")).filter((group) => !group.hidden);
+      const hasExpandedGroup = visibleGroups.some((group) => !group.classList.contains("collapsed"));
+      collapseAllButton.disabled = !hasExpandedGroup;
+      collapseAllButton.setAttribute("aria-disabled", hasExpandedGroup ? "false" : "true");
     }
 
     function updateSidebarSummary() {
@@ -196,26 +223,27 @@ const win = document.getElementById("window");
     document.querySelectorAll(".group-header").forEach((header) => {
       header.addEventListener("click", () => {
         header.parentElement.classList.toggle("collapsed");
+        updateCollapseAllState();
       });
     });
 
-    document.querySelector("[data-action='collapse-all']").addEventListener("click", (e) => {
+    collapseAllButton.addEventListener("click", (e) => {
       document.querySelectorAll(".group").forEach((group) => {
         group.classList.add("collapsed");
       });
       e.currentTarget.textContent = "Collapse All";
+      updateCollapseAllState();
     });
 
     updateClearSearchVisibility();
+    updateCollapseAllState();
 
-    searchInput.addEventListener("input", (e) => {
-      updateClearSearchVisibility();
-      updateSearch(e.target.value.trim());
+    ["input", "change", "keyup", "search", "cut", "paste", "compositionend", "focus", "blur"].forEach((eventName) => {
+      searchInput.addEventListener(eventName, scheduleSearchSync);
     });
     clearSearch.addEventListener("click", () => {
       searchInput.value = "";
-      updateClearSearchVisibility();
-      updateSearch("");
+      syncSearchFromInput();
       searchInput.focus();
     });
 

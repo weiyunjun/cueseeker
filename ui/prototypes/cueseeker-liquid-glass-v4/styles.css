@@ -886,7 +886,7 @@
     }
     .source-toggle:hover { background: #fff; }
     .source-toggle .source-chevron {
-      color: var(--text-2);
+      color: currentColor;
       display: inline-flex;
       transform: rotate(180deg);
       transition: transform 200ms ease;
@@ -894,7 +894,7 @@
     .window.video-expanded .source-toggle { color: var(--text); }
     .window.video-expanded .source-toggle:hover { background: #fff; }
     .window.video-expanded .source-toggle .source-chevron {
-      color: var(--text-2);
+      color: currentColor;
       transform: rotate(0deg);
     }
 
@@ -1666,7 +1666,7 @@
     }
     .player-dock .source-toggle .source-chevron,
     .window.video-expanded .player-dock .source-toggle .source-chevron {
-      color: rgba(0, 0, 0, 0.58);
+      color: currentColor;
     }
 
 
