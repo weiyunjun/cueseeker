@@ -308,19 +308,10 @@
       font-size: 11.5px;
       transition: background 120ms ease, color 120ms ease, transform 160ms cubic-bezier(.34,1.56,.64,1);
     }
-    .small-button:hover {
+    .small-button:hover:enabled {
       background: rgba(255,255,255,0.76);
-      color: var(--text);
     }
     .small-button:active { transform: scale(0.94); }
-    .small-button:disabled,
-    .small-button:disabled:hover {
-      background: rgba(255,255,255,0.22);
-      border-color: rgba(255,255,255,0.34);
-      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.38);
-      color: var(--text-4);
-      opacity: 1;
-    }
 
     .results-scroll {
       position: absolute;
@@ -1194,7 +1185,7 @@
       --pill-bg: rgba(255,255,255,0.08);
       --pill-bg-strong: rgba(255,255,255,0.14);
       --pill-border: rgba(255,255,255,0.18);
-      --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.10);
+      --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.05), 0 1px 3px rgba(0,0,0,0.30);
       --pill-hover-bg: rgba(255,255,255,0.12);
       --field-bg: rgba(255,255,255,0.09);
       --field-focus-bg: rgba(255,255,255,0.14);
@@ -1348,15 +1339,14 @@
       border: 0.5px solid var(--pill-border);
       background: var(--pill-bg);
       box-shadow: var(--pill-shadow);
-      color: var(--text-2);
+      color: var(--text);
       transition: background 180ms ease, color 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), opacity 180ms ease;
     }
     .small-button:hover:enabled,
-    .speed-button:hover { background: var(--pill-hover-bg); color: var(--text); }
+    .speed-button:hover { background: var(--pill-hover-bg); }
     .small-button:active:enabled,
     .source-toggle:active,
     .speed-button:active { transform: scale(0.94); }
-    .small-button:disabled { opacity: 0.42; cursor: not-allowed; }
 
     .group-header {
       border-radius: 8px;
@@ -1654,6 +1644,32 @@
       background: rgba(255, 255, 255, 0.82);
       color: #1a1a1f;
     }
+    body[data-theme="dark"] .player-dock .source-toggle,
+    body[data-theme="dark"] .window.video-expanded .player-dock .source-toggle {
+      background: var(--pill-bg-strong);
+      border-color: var(--pill-border);
+      color: var(--text);
+      box-shadow: var(--pill-shadow);
+    }
+    body[data-theme="dark"] .player-dock .source-toggle:hover,
+    body[data-theme="dark"] .window.video-expanded .player-dock .source-toggle:hover {
+      background: var(--pill-hover-bg);
+      color: var(--text);
+    }
+    body[data-theme="dark"] .player-dock .speed-button,
+    body[data-theme="dark"] .window.video-expanded .player-dock .speed-button {
+      background: var(--pill-bg);
+      border-color: var(--pill-border);
+      color: var(--text);
+      box-shadow: var(--pill-shadow);
+    }
+    body[data-theme="dark"] .player-dock .speed-button:hover,
+    body[data-theme="dark"] .window.video-expanded .player-dock .speed-button:hover,
+    body[data-theme="dark"] .player-dock .speed-button[aria-expanded="true"],
+    body[data-theme="dark"] .window.video-expanded .player-dock .speed-button[aria-expanded="true"] {
+      background: var(--pill-hover-bg);
+      color: var(--text);
+    }
     .player-dock .source-toggle .source-chevron,
     .window.video-expanded .player-dock .source-toggle .source-chevron {
       color: rgba(0, 0, 0, 0.58);
@@ -1738,14 +1754,6 @@
       opacity: 0.30;
       pointer-events: none;
     }
-    body[data-theme="dark"] .small-button:disabled,
-    body[data-theme="dark"] .small-button:disabled:hover {
-      background: rgba(255,255,255,0.06);
-      border-color: rgba(255,255,255,0.12);
-      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.12);
-      color: rgba(255,255,255,0.34);
-    }
-
   
 
 </style>
@@ -2374,6 +2382,10 @@ const win = document.getElementById("window");
       updateSidebarSummary();
     }
 
+    function updateClearSearchVisibility() {
+      clearSearch.hidden = searchInput.value.trim().length === 0;
+    }
+
     function updateSidebarSummary() {
       const activeTab = document.querySelector(".segmented button.active")?.dataset.tab;
       if (activeTab === "subs") {
@@ -2447,9 +2459,15 @@ const win = document.getElementById("window");
       e.currentTarget.textContent = "Collapse All";
     });
 
-    searchInput.addEventListener("input", (e) => updateSearch(e.target.value.trim()));
+    updateClearSearchVisibility();
+
+    searchInput.addEventListener("input", (e) => {
+      updateClearSearchVisibility();
+      updateSearch(e.target.value.trim());
+    });
     clearSearch.addEventListener("click", () => {
       searchInput.value = "";
+      updateClearSearchVisibility();
       updateSearch("");
       searchInput.focus();
     });

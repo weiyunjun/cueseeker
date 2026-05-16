@@ -129,6 +129,10 @@ const win = document.getElementById("window");
       updateSidebarSummary();
     }
 
+    function updateClearSearchVisibility() {
+      clearSearch.hidden = searchInput.value.trim().length === 0;
+    }
+
     function updateSidebarSummary() {
       const activeTab = document.querySelector(".segmented button.active")?.dataset.tab;
       if (activeTab === "subs") {
@@ -202,9 +206,15 @@ const win = document.getElementById("window");
       e.currentTarget.textContent = "Collapse All";
     });
 
-    searchInput.addEventListener("input", (e) => updateSearch(e.target.value.trim()));
+    updateClearSearchVisibility();
+
+    searchInput.addEventListener("input", (e) => {
+      updateClearSearchVisibility();
+      updateSearch(e.target.value.trim());
+    });
     clearSearch.addEventListener("click", () => {
       searchInput.value = "";
+      updateClearSearchVisibility();
       updateSearch("");
       searchInput.focus();
     });
