@@ -98,12 +98,12 @@ ui/prototypes/cueseeker-liquid-glass-standalone.html
 Current review fork for toggle icon button filled-glyph states:
 
 ```text
-ui/prototypes/cueseeker-liquid-glass-toggle-icons.html
+ui/prototypes/cueseeker-liquid-glass-v2.html
 ```
 
 The standalone prototype remains the current visual baseline for HTML review of
 the main workbench, grouped Search results, Search-launched playback overlay,
-playback side panel, and persistent bottom player. The toggle-icons file is the
+playback side panel, and persistent bottom player. The v2 file is the
 current comparison fork for reviewing filled-glyph toggle states. App
 implementation still requires a separate explicit approval after the HTML has
 been accepted.

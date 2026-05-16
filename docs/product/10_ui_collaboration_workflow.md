@@ -97,9 +97,11 @@ Rules:
   component taxonomy, page-wide layout, or the shared bottom player style, the
   assistant should create a new self-contained HTML file under `ui/prototypes/`
   and leave the prior prototype available for visual comparison.
-- The new file should use a clear versioned or purpose-based name and should be
-  registered or proposed in the prototype registry once it becomes the accepted
-  baseline.
+- New prototype files should use the stable prototype name plus a version
+  number, such as `cueseeker-liquid-glass-v2.html`. Do not encode the change
+  semantics in the file name; Git history and the changelog record what changed.
+- The new file should be registered or proposed in the prototype registry once
+  it becomes the accepted baseline.
 
 ## 5. HTML And App Differences
 

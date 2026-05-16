@@ -6,6 +6,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Standardized HTML prototype naming so broad review forks use a stable name
+  plus version number instead of semantic change names.
 - Updated toggle icon button rules so selected state uses the matching filled
   glyph in addition to selected material and foreground contrast.
 - Required large-scale HTML prototype changes to fork a new prototype file so
