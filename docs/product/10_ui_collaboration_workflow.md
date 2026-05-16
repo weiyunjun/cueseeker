@@ -95,8 +95,9 @@ Rules:
   separate prototype may isolate detailed control-menu interactions.
 - When a prototype change affects a broad visual system, such as theme support,
   component taxonomy, page-wide layout, or the shared bottom player style, the
-  assistant should create a new self-contained HTML file under `ui/prototypes/`
-  and leave the prior prototype available for visual comparison.
+  assistant must create a new self-contained HTML file under `ui/prototypes/`
+  before editing the prototype and leave the prior prototype available for
+  visual comparison.
 - New prototype files should use the stable prototype name plus a version
   number, such as `cueseeker-liquid-glass-v2.html`. Do not encode the change
   semantics in the file name; Git history and the changelog record what changed.
@@ -117,6 +118,10 @@ Known acceptable difference categories:
 - Native media playback, file access, sandboxing, indexing, and database state.
 - Performance-driven virtualization, lazy loading, and rendering details that
   preserve the accepted visual result.
+- Prototype-only test controls used to review themes, disabled states, or other
+  visual states. These controls may sit outside the prototype window, but their
+  placement and behavior must be documented as HTML-only review fixtures before
+  App implementation.
 
 Rules:
 
@@ -145,6 +150,16 @@ Style rules:
 ## 7. Prototype Registry
 
 Active App surface mapping:
+
+Current proposed review fork:
+
+```text
+ui/prototypes/cueseeker-liquid-glass-v3.html
+```
+
+This file is the active review fork for Liquid Glass control states, theme
+review, disabled-state review, and bottom-player control sizing. It does not
+replace the accepted baseline in the table below until the user accepts it.
 
 | App surface | Required HTML prototype | Coverage status | Known native App differences |
 | --- | --- | --- | --- |

@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the `cueseeker-liquid-glass-v3.html` review fork for prototype-only
+  theme and disabled-state controls, restored distinct capsule/transport
+  control classes, and documented that those test controls are not App UI.
 - Standardized HTML prototype naming so broad review forks use a stable name
   plus version number instead of semantic change names.
 - Updated toggle icon button rules so selected state uses the matching filled

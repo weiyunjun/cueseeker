@@ -95,18 +95,20 @@ Current prototype:
 ui/prototypes/cueseeker-liquid-glass-standalone.html
 ```
 
-Current review fork for toggle icon button filled-glyph states:
+Current review fork for Liquid Glass control states and prototype-only review
+controls:
 
 ```text
-ui/prototypes/cueseeker-liquid-glass-v2.html
+ui/prototypes/cueseeker-liquid-glass-v3.html
 ```
 
 The standalone prototype remains the current visual baseline for HTML review of
 the main workbench, grouped Search results, Search-launched playback overlay,
-playback side panel, and persistent bottom player. The v2 file is the
-current comparison fork for reviewing filled-glyph toggle states. App
-implementation still requires a separate explicit approval after the HTML has
-been accepted.
+playback side panel, and persistent bottom player. The v3 file is the current
+review fork for control taxonomy, disabled states, prototype theme switching,
+and bottom-player control sizing. Earlier versioned forks remain available for
+visual comparison. App implementation still requires a separate explicit
+approval after the HTML has been accepted.
 
 Stable design snapshot:
 
@@ -119,7 +121,7 @@ Stable design snapshot:
   optional right side panel.
 - Search results show a compact summary row and a fixed `Collapse All` action.
   `Collapse All` collapses all visible result groups and keeps the same label;
-  it is not an expand-all toggle.
+  it is not an expand-all toggle. It has distinct normal and disabled states.
 - Search result groups are expanded by default. Group headers use a disclosure
   rail, a friendly title, and a muted result count. Result cards use light glass
   backgrounds, hover lift, selected emphasis, readable bilingual text, and
@@ -132,6 +134,8 @@ Stable design snapshot:
   panel can be hidden or restored from the bottom player.
 - The bottom player uses a three-zone layout: current source/title on the left,
   transport controls in the center, and playback operations on the right.
+- The current source/title capsule shows the ASS file alias only. It must not
+  show the selected Search result rank or timestamp.
 - Bottom-player buttons use two primary button forms: circular icon buttons and
   capsule buttons. Circular buttons are used for single-action icon controls.
   Capsule buttons are used for text, values, titles, and controls that require
@@ -153,10 +157,17 @@ Stable design snapshot:
 - The source/title capsule remains white in both Search-results and
   expanded-playback states. The speed capsule uses fixed width and tabular text
   so preset changes do not shift neighboring controls.
+- Transport icon buttons are a larger bottom-player subtype used only for the
+  five centered transport controls. They are intentionally distinct from the
+  smaller right-side operation icon buttons.
 - Pop-up controls use rounded-rectangle menu containers rather than circular
   or capsule button forms. The speed menu is an app-style popover above the
   bottom player; it lists fixed speed presets, keeps row height compact, and
   marks the current preset with a check indicator.
+- The HTML review fork may include prototype-only controls outside the App
+  window, such as a theme mode switcher and a disable-all control-state
+  switcher. These controls exist only to inspect visual states in the HTML
+  prototype and are not part of the native App layout.
 - Prototype interactions include group disclosure, global group collapse,
   subtitle overlay toggling, side-panel visibility toggling, Shiori selected
   state, transport feedback, source/title expansion state, fullscreen feedback,
@@ -167,6 +178,8 @@ Current component classification:
 | Element | Component class |
 | --- | --- |
 | Main workbench background | Liquid Glass work surface |
+| Prototype theme mode switcher | Prototype-only test capsule button |
+| Prototype disable-all switcher | Prototype-only test capsule button |
 | Topbar Library button | Circular icon toggle button |
 | Topbar Shiori button | Circular icon toggle button |
 | Topbar Search input | Search field capsule |
@@ -186,13 +199,13 @@ Current component classification:
 | Side panel result or subtitle row | Sidebar row |
 | Selected side panel row | Selected sidebar row |
 | Bottom player container | Bottom player surface |
-| Current source/title control | Source title capsule |
+| Current source/title control | Source title capsule displaying ASS alias |
 | Volume button | Circular icon button with volume popover |
 | Volume slider panel | Volume popover |
 | Progress scrubber | Playback progress slider |
 | Playback time labels | Time labels |
-| Previous, skip, play, and next controls | Circular transport icon buttons |
-| Primary play/pause control | Primary circular icon button |
+| Previous, skip, play, and next controls | Transport icon buttons |
+| Primary play/pause control | Primary transport icon button |
 | Shiori playback control | Circular icon toggle button |
 | Subtitle visibility control | Circular icon toggle button |
 | Side panel visibility control | Circular icon toggle button |
@@ -209,6 +222,9 @@ Known HTML/App difference categories for this baseline:
 - The HTML uses mock Search data, mock subtitle data, and simulated playback.
   The App must connect these surfaces to real indexed subtitle data, media
   playback, file access, and persisted Shiori state.
+- Prototype-only test controls, including theme switching and disable-all state
+  switching, may sit outside the prototype window. They are review fixtures and
+  must not be implemented as App controls in that location.
 - Native implementation may use AppKit or SwiftUI controls, virtualization,
   lazy loading, and platform-specific rendering as long as visible layout,
   state, wording, and interaction intent remain aligned with the accepted
