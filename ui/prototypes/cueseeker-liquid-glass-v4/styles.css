@@ -268,14 +268,17 @@
       overflow: hidden;
     }
 
-    .search-state, .video-state {
+    .search-state,
+    .shiori-state,
+    .video-state {
       position: absolute;
       inset: 0;
       min-height: 0;
       transition: opacity 200ms ease;
     }
 
-    .search-state {
+    .search-state,
+    .shiori-state {
       background: var(--search-page-bg);
       color: var(--search-page-fg);
       --text: var(--search-page-fg);
@@ -305,6 +308,11 @@
       transition: opacity 200ms ease, background 220ms ease;
     }
 
+    .shiori-state {
+      opacity: 0;
+      pointer-events: none;
+    }
+
     .video-state {
       display: grid;
       grid-template-columns: 1fr 380px;
@@ -313,6 +321,18 @@
     }
 
     .window.video-expanded .search-state {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .window.shiori-mode .search-state {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .window.shiori-mode .shiori-state {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .window.video-expanded .shiori-state {
       opacity: 0;
       pointer-events: none;
     }

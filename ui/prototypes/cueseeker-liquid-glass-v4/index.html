@@ -10,7 +10,7 @@
 
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <symbol id="folder" viewBox="0 0 17 17">
-      <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+      <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"></path>
     </symbol>
     <symbol id="folder-filled" viewBox="0 0 17 17">
       <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="currentColor"></path>
@@ -117,15 +117,15 @@
         <span class="zoom"></span>
       </div>
       <div class="toolbar-center">
-        <button class="tool-button toggle-icon-button ui-icon-button ui-icon-button--topbar ui-icon-button--toggle" type="button" id="libraryToggle" aria-label="Library" aria-pressed="false" data-icon-off="folder" data-icon-on="folder-filled">
+        <button class="tool-button ui-icon-button ui-icon-button--topbar" type="button" id="libraryToggle" aria-label="Library" aria-pressed="false">
           <svg width="17" height="17"><use href="#folder"></use></svg>
         </button>
-        <button class="tool-button toggle-icon-button ui-icon-button ui-icon-button--topbar ui-icon-button--toggle" type="button" id="topbarShioriToggle" aria-label="Shiori" aria-pressed="false" data-icon-off="bookmark" data-icon-on="bookmark-filled">
+        <button class="tool-button ui-icon-button ui-icon-button--topbar" type="button" id="topbarShioriToggle" aria-label="Shiori" aria-pressed="false">
           <svg width="17" height="17"><use href="#bookmark"></use></svg>
         </button>
         <div class="search-field ui-input-capsule" role="search" aria-label="Search subtitles">
           <svg width="13" height="13"><use href="#search"></use></svg>
-          <input id="searchInput" value="大丈夫" spellcheck="false">
+          <input id="searchInput" value="大丈夫" placeholder="Search subtitles" spellcheck="false">
           <button class="clear-button ui-icon-button ui-icon-button--embedded" id="clearSearch" type="button" aria-label="Clear search">
             <svg width="14" height="14"><use href="#clear"></use></svg>
           </button>
@@ -318,6 +318,84 @@
                 <span class="meta"><span class="rank">#19</span><span>16:44</span></span>
                 <span class="line">我没事 真的</span>
                 <span class="line"><mark>大丈夫</mark>だよ ホントに</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="shiori-state" aria-label="Shiori">
+        <div class="results-header">
+          <div class="summary">
+            <span><strong>40</strong> shioris in <strong>13</strong> files</span>
+          </div>
+          <div class="header-actions">
+            <button class="small-button ui-capsule ui-capsule--command" type="button" data-action="collapse-all">Collapse All</button>
+          </div>
+        </div>
+
+        <div class="results-scroll" id="shioriScroll">
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">IT'S MYGO!!!!! - 02</span>
+              <span class="group-count">1 shiori</span>
+            </button>
+            <div class="cards">
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-mygo-02-1" data-rank="1" data-time="00:26" data-source="It's MyGO!!!!! · 02" data-zh="没事吧?" data-ja="大丈夫?">
+                <span class="meta"><span class="rank">#1</span><span>00:26</span></span>
+                <span class="line">没事吧?</span>
+                <span class="line">大丈夫?</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">胜者即是正义 - 04</span>
+              <span class="group-count">1 shiori</span>
+            </button>
+            <div class="cards">
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-legal-high-04-1" data-rank="1" data-time="37:15" data-source="胜者即是正义 · 04" data-zh="你口中所谓的正义 只是居高临下的同情而已" data-ja="君が正義とか抜かしてるものは　上から目線の同情にすぎない。">
+                <span class="meta"><span class="rank">#1</span><span>37:15</span></span>
+                <span class="line">你口中所谓的正义 只是居高临下的同情而已</span>
+                <span class="line">君が正義とか抜かしてるものは　上から目線の同情にすぎない。</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">胜者即是正义 - 09</span>
+              <span class="group-count">1 shiori</span>
+            </button>
+            <div class="cards">
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-legal-high-09-1" data-rank="1" data-time="40:52" data-source="胜者即是正义 · 09" data-zh="一个人努力过了啊 田园" data-ja="１人で　頑張ってたな。　田んぼ。">
+                <span class="meta"><span class="rank">#1</span><span>40:52</span></span>
+                <span class="line">一个人努力过了啊 田园</span>
+                <span class="line">１人で　頑張ってたな。　田んぼ。</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">葬送的芙莉莲 - 09</span>
+              <span class="group-count">2 shioris</span>
+            </button>
+            <div class="cards">
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-frieren-09-1" data-rank="1" data-time="17:24" data-source="葬送的芙莉莲 · 09" data-zh="她到底给这小姑娘做了什么修行" data-ja="この小娘に　どんな修行を叩き込んだ">
+                <span class="meta"><span class="rank">#1</span><span>17:24</span></span>
+                <span class="line">她到底给这小姑娘做了什么修行</span>
+                <span class="line">この小娘に　どんな修行を叩き込んだ</span>
+              </button>
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-frieren-09-2" data-rank="2" data-time="22:53" data-source="葬送的芙莉莲 · 09" data-zh="你听得见我吗" data-ja="Can you hear me">
+                <span class="meta"><span class="rank">#2</span><span>22:53</span></span>
+                <span class="line">你听得见我吗</span>
+                <span class="line">Can you hear me</span>
               </button>
             </div>
           </section>

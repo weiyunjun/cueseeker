@@ -5,6 +5,8 @@
 */
 
 const win = document.getElementById("window");
+    const libraryToggle = document.getElementById("libraryToggle");
+    const topbarShioriToggle = document.getElementById("topbarShioriToggle");
     const sourceToggle = document.getElementById("sourceToggle");
     const currentZh = document.querySelector("[data-current-zh]");
     const currentJa = document.querySelector("[data-current-ja]");
@@ -22,10 +24,11 @@ const win = document.getElementById("window");
     const themeLabel = document.getElementById("themeLabel");
     const themeIcon = document.getElementById("themeIcon");
     const disableAllToggle = document.getElementById("disableAllToggle");
-    const collapseAllButton = document.querySelector("[data-action='collapse-all']");
+    const collapseAllButtons = Array.from(document.querySelectorAll("[data-action='collapse-all']"));
 
     let isPlaying = false;
     let committedSearchQuery = searchInput.value.trim();
+    let searchModeDraftValue = searchInput.value;
 
     function setTheme(theme) {
       const dark = theme === "dark";
@@ -84,6 +87,37 @@ const win = document.getElementById("window");
       button.addEventListener("click", () => toggleIconButton(button));
     });
 
+    function setTopbarModeButton(button, selected) {
+      button.classList.toggle("selected", selected);
+      button.classList.toggle("ui-is-selected", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+    }
+
+    function setContentMode(mode) {
+      const showShiori = mode === "shiori";
+      if (showShiori && !win.classList.contains("shiori-mode")) {
+        searchModeDraftValue = searchInput.value;
+      }
+      win.classList.toggle("shiori-mode", showShiori);
+      setTopbarModeButton(topbarShioriToggle, showShiori);
+      setTopbarModeButton(libraryToggle, false);
+      if (showShiori) {
+        searchInput.value = "";
+      } else {
+        searchInput.value = searchModeDraftValue;
+      }
+      updateClearSearchVisibility();
+      updateCollapseAllState();
+    }
+
+    libraryToggle.addEventListener("click", () => {
+      setContentMode("search");
+    });
+
+    topbarShioriToggle.addEventListener("click", () => {
+      setContentMode(win.classList.contains("shiori-mode") ? "search" : "shiori");
+    });
+
     function escapeHTML(value) {
       return value
         .replaceAll("&", "&amp;")
@@ -107,7 +141,7 @@ const win = document.getElementById("window");
     }
 
     function updateSearch(query) {
-      document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
+      document.querySelectorAll(".search-state .result-card, .sidebar-row").forEach((el) => {
         const matches = !query || el.dataset.zh.includes(query) || el.dataset.ja.includes(query);
         el.hidden = !matches;
         const lines = el.querySelectorAll(".line");
@@ -116,7 +150,7 @@ const win = document.getElementById("window");
       });
 
       let total = 0;
-      document.querySelectorAll(".group").forEach((group) => {
+      document.querySelectorAll(".search-state .group").forEach((group) => {
         const visible = Array.from(group.querySelectorAll(".result-card")).filter((c) => !c.hidden);
         group.hidden = visible.length === 0;
         const count = group.querySelector(".group-count");
@@ -124,7 +158,7 @@ const win = document.getElementById("window");
         total += visible.length;
       });
 
-      const summary = document.querySelector(".summary span");
+      const summary = document.querySelector(".search-state .summary span");
       if (summary) {
         summary.innerHTML = query
           ? `Found <strong>${total}</strong> result${total === 1 ? "" : "s"} for &ldquo;${escapeHTML(query)}&rdquo;`
@@ -158,11 +192,18 @@ const win = document.getElementById("window");
     }
 
     function updateCollapseAllState() {
-      if (!collapseAllButton || win.classList.contains("controls-disabled")) return;
-      const visibleGroups = Array.from(document.querySelectorAll(".group")).filter((group) => !group.hidden);
+      if (!collapseAllButtons.length || win.classList.contains("controls-disabled")) return;
+      const activeState = win.classList.contains("shiori-mode")
+        ? document.querySelector(".shiori-state")
+        : document.querySelector(".search-state");
+      const visibleGroups = Array.from(activeState.querySelectorAll(".group")).filter((group) => !group.hidden);
       const hasExpandedGroup = visibleGroups.some((group) => !group.classList.contains("collapsed"));
-      collapseAllButton.disabled = !hasExpandedGroup;
-      collapseAllButton.setAttribute("aria-disabled", hasExpandedGroup ? "false" : "true");
+      collapseAllButtons.forEach((button) => {
+        const isActiveButton = button.closest(".search-state, .shiori-state") === activeState;
+        if (!isActiveButton) return;
+        button.disabled = !hasExpandedGroup;
+        button.setAttribute("aria-disabled", hasExpandedGroup ? "false" : "true");
+      });
     }
 
     function updateSidebarSummary() {
@@ -175,14 +216,19 @@ const win = document.getElementById("window");
       }
     }
 
-    function selectRank(rank, time, zh, ja) {
+    function selectCue(cue) {
+      const isShiori = Boolean(cue.closest(".shiori-state"));
+      const rank = cue.dataset.rank;
       document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
-        el.classList.toggle("selected", el.dataset.rank === rank);
-        el.classList.toggle("ui-is-selected", el.dataset.rank === rank);
+        const selected = isShiori
+          ? el === cue
+          : !el.closest(".shiori-state") && el.dataset.rank === rank;
+        el.classList.toggle("selected", selected);
+        el.classList.toggle("ui-is-selected", selected);
       });
-      currentZh.textContent = zh;
-      currentJa.textContent = ja;
-      sourceToggle.querySelector(".source-label").textContent = "Ave Mujica · 01";
+      currentZh.textContent = cue.dataset.zh;
+      currentJa.textContent = cue.dataset.ja;
+      sourceToggle.querySelector(".source-label").textContent = cue.dataset.source || "Ave Mujica · 01";
     }
 
     function openVideo() {
@@ -192,14 +238,14 @@ const win = document.getElementById("window");
 
     document.querySelectorAll(".result-card").forEach((el) => {
       el.addEventListener("click", () => {
-        selectRank(el.dataset.rank, el.dataset.time, el.dataset.zh, el.dataset.ja);
+        selectCue(el);
         openVideo();
       });
     });
 
     document.querySelectorAll(".sidebar-row").forEach((el) => {
       el.addEventListener("click", () => {
-        selectRank(el.dataset.rank, el.dataset.time, el.dataset.zh, el.dataset.ja);
+        selectCue(el);
       });
       el.addEventListener("dblclick", () => {
         openVideo();
@@ -239,12 +285,14 @@ const win = document.getElementById("window");
       });
     });
 
-    collapseAllButton.addEventListener("click", (e) => {
-      document.querySelectorAll(".group").forEach((group) => {
-        group.classList.add("collapsed");
+    collapseAllButtons.forEach((button) => {
+      button.addEventListener("click", (e) => {
+        e.currentTarget.closest(".search-state, .shiori-state").querySelectorAll(".group").forEach((group) => {
+          group.classList.add("collapsed");
+        });
+        e.currentTarget.textContent = "Collapse All";
+        updateCollapseAllState();
       });
-      e.currentTarget.textContent = "Collapse All";
-      updateCollapseAllState();
     });
 
     updateClearSearchVisibility();

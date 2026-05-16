@@ -274,14 +274,17 @@
       overflow: hidden;
     }
 
-    .search-state, .video-state {
+    .search-state,
+    .shiori-state,
+    .video-state {
       position: absolute;
       inset: 0;
       min-height: 0;
       transition: opacity 200ms ease;
     }
 
-    .search-state {
+    .search-state,
+    .shiori-state {
       background: var(--search-page-bg);
       color: var(--search-page-fg);
       --text: var(--search-page-fg);
@@ -311,6 +314,11 @@
       transition: opacity 200ms ease, background 220ms ease;
     }
 
+    .shiori-state {
+      opacity: 0;
+      pointer-events: none;
+    }
+
     .video-state {
       display: grid;
       grid-template-columns: 1fr 380px;
@@ -319,6 +327,18 @@
     }
 
     .window.video-expanded .search-state {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .window.shiori-mode .search-state {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .window.shiori-mode .shiori-state {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .window.video-expanded .shiori-state {
       opacity: 0;
       pointer-events: none;
     }
@@ -1783,7 +1803,7 @@
 
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <symbol id="folder" viewBox="0 0 17 17">
-      <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+      <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"></path>
     </symbol>
     <symbol id="folder-filled" viewBox="0 0 17 17">
       <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="currentColor"></path>
@@ -1890,15 +1910,15 @@
         <span class="zoom"></span>
       </div>
       <div class="toolbar-center">
-        <button class="tool-button toggle-icon-button ui-icon-button ui-icon-button--topbar ui-icon-button--toggle" type="button" id="libraryToggle" aria-label="Library" aria-pressed="false" data-icon-off="folder" data-icon-on="folder-filled">
+        <button class="tool-button ui-icon-button ui-icon-button--topbar" type="button" id="libraryToggle" aria-label="Library" aria-pressed="false">
           <svg width="17" height="17"><use href="#folder"></use></svg>
         </button>
-        <button class="tool-button toggle-icon-button ui-icon-button ui-icon-button--topbar ui-icon-button--toggle" type="button" id="topbarShioriToggle" aria-label="Shiori" aria-pressed="false" data-icon-off="bookmark" data-icon-on="bookmark-filled">
+        <button class="tool-button ui-icon-button ui-icon-button--topbar" type="button" id="topbarShioriToggle" aria-label="Shiori" aria-pressed="false">
           <svg width="17" height="17"><use href="#bookmark"></use></svg>
         </button>
         <div class="search-field ui-input-capsule" role="search" aria-label="Search subtitles">
           <svg width="13" height="13"><use href="#search"></use></svg>
-          <input id="searchInput" value="大丈夫" spellcheck="false">
+          <input id="searchInput" value="大丈夫" placeholder="Search subtitles" spellcheck="false">
           <button class="clear-button ui-icon-button ui-icon-button--embedded" id="clearSearch" type="button" aria-label="Clear search">
             <svg width="14" height="14"><use href="#clear"></use></svg>
           </button>
@@ -2097,6 +2117,84 @@
         </div>
       </section>
 
+      <section class="shiori-state" aria-label="Shiori">
+        <div class="results-header">
+          <div class="summary">
+            <span><strong>40</strong> shioris in <strong>13</strong> files</span>
+          </div>
+          <div class="header-actions">
+            <button class="small-button ui-capsule ui-capsule--command" type="button" data-action="collapse-all">Collapse All</button>
+          </div>
+        </div>
+
+        <div class="results-scroll" id="shioriScroll">
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">IT'S MYGO!!!!! - 02</span>
+              <span class="group-count">1 shiori</span>
+            </button>
+            <div class="cards">
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-mygo-02-1" data-rank="1" data-time="00:26" data-source="It's MyGO!!!!! · 02" data-zh="没事吧?" data-ja="大丈夫?">
+                <span class="meta"><span class="rank">#1</span><span>00:26</span></span>
+                <span class="line">没事吧?</span>
+                <span class="line">大丈夫?</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">胜者即是正义 - 04</span>
+              <span class="group-count">1 shiori</span>
+            </button>
+            <div class="cards">
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-legal-high-04-1" data-rank="1" data-time="37:15" data-source="胜者即是正义 · 04" data-zh="你口中所谓的正义 只是居高临下的同情而已" data-ja="君が正義とか抜かしてるものは　上から目線の同情にすぎない。">
+                <span class="meta"><span class="rank">#1</span><span>37:15</span></span>
+                <span class="line">你口中所谓的正义 只是居高临下的同情而已</span>
+                <span class="line">君が正義とか抜かしてるものは　上から目線の同情にすぎない。</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">胜者即是正义 - 09</span>
+              <span class="group-count">1 shiori</span>
+            </button>
+            <div class="cards">
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-legal-high-09-1" data-rank="1" data-time="40:52" data-source="胜者即是正义 · 09" data-zh="一个人努力过了啊 田园" data-ja="１人で　頑張ってたな。　田んぼ。">
+                <span class="meta"><span class="rank">#1</span><span>40:52</span></span>
+                <span class="line">一个人努力过了啊 田园</span>
+                <span class="line">１人で　頑張ってたな。　田んぼ。</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">葬送的芙莉莲 - 09</span>
+              <span class="group-count">2 shioris</span>
+            </button>
+            <div class="cards">
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-frieren-09-1" data-rank="1" data-time="17:24" data-source="葬送的芙莉莲 · 09" data-zh="她到底给这小姑娘做了什么修行" data-ja="この小娘に　どんな修行を叩き込んだ">
+                <span class="meta"><span class="rank">#1</span><span>17:24</span></span>
+                <span class="line">她到底给这小姑娘做了什么修行</span>
+                <span class="line">この小娘に　どんな修行を叩き込んだ</span>
+              </button>
+              <button class="result-card shiori-card ui-selectable-card" type="button" data-item-id="shiori-frieren-09-2" data-rank="2" data-time="22:53" data-source="葬送的芙莉莲 · 09" data-zh="你听得见我吗" data-ja="Can you hear me">
+                <span class="meta"><span class="rank">#2</span><span>22:53</span></span>
+                <span class="line">你听得见我吗</span>
+                <span class="line">Can you hear me</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </section>
+
       <section class="video-state" aria-label="Expanded video">
         <div class="video-stage">
           <div class="video-label">video frame</div>
@@ -2281,6 +2379,8 @@
 */
 
 const win = document.getElementById("window");
+    const libraryToggle = document.getElementById("libraryToggle");
+    const topbarShioriToggle = document.getElementById("topbarShioriToggle");
     const sourceToggle = document.getElementById("sourceToggle");
     const currentZh = document.querySelector("[data-current-zh]");
     const currentJa = document.querySelector("[data-current-ja]");
@@ -2298,10 +2398,11 @@ const win = document.getElementById("window");
     const themeLabel = document.getElementById("themeLabel");
     const themeIcon = document.getElementById("themeIcon");
     const disableAllToggle = document.getElementById("disableAllToggle");
-    const collapseAllButton = document.querySelector("[data-action='collapse-all']");
+    const collapseAllButtons = Array.from(document.querySelectorAll("[data-action='collapse-all']"));
 
     let isPlaying = false;
     let committedSearchQuery = searchInput.value.trim();
+    let searchModeDraftValue = searchInput.value;
 
     function setTheme(theme) {
       const dark = theme === "dark";
@@ -2360,6 +2461,37 @@ const win = document.getElementById("window");
       button.addEventListener("click", () => toggleIconButton(button));
     });
 
+    function setTopbarModeButton(button, selected) {
+      button.classList.toggle("selected", selected);
+      button.classList.toggle("ui-is-selected", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+    }
+
+    function setContentMode(mode) {
+      const showShiori = mode === "shiori";
+      if (showShiori && !win.classList.contains("shiori-mode")) {
+        searchModeDraftValue = searchInput.value;
+      }
+      win.classList.toggle("shiori-mode", showShiori);
+      setTopbarModeButton(topbarShioriToggle, showShiori);
+      setTopbarModeButton(libraryToggle, false);
+      if (showShiori) {
+        searchInput.value = "";
+      } else {
+        searchInput.value = searchModeDraftValue;
+      }
+      updateClearSearchVisibility();
+      updateCollapseAllState();
+    }
+
+    libraryToggle.addEventListener("click", () => {
+      setContentMode("search");
+    });
+
+    topbarShioriToggle.addEventListener("click", () => {
+      setContentMode(win.classList.contains("shiori-mode") ? "search" : "shiori");
+    });
+
     function escapeHTML(value) {
       return value
         .replaceAll("&", "&amp;")
@@ -2383,7 +2515,7 @@ const win = document.getElementById("window");
     }
 
     function updateSearch(query) {
-      document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
+      document.querySelectorAll(".search-state .result-card, .sidebar-row").forEach((el) => {
         const matches = !query || el.dataset.zh.includes(query) || el.dataset.ja.includes(query);
         el.hidden = !matches;
         const lines = el.querySelectorAll(".line");
@@ -2392,7 +2524,7 @@ const win = document.getElementById("window");
       });
 
       let total = 0;
-      document.querySelectorAll(".group").forEach((group) => {
+      document.querySelectorAll(".search-state .group").forEach((group) => {
         const visible = Array.from(group.querySelectorAll(".result-card")).filter((c) => !c.hidden);
         group.hidden = visible.length === 0;
         const count = group.querySelector(".group-count");
@@ -2400,7 +2532,7 @@ const win = document.getElementById("window");
         total += visible.length;
       });
 
-      const summary = document.querySelector(".summary span");
+      const summary = document.querySelector(".search-state .summary span");
       if (summary) {
         summary.innerHTML = query
           ? `Found <strong>${total}</strong> result${total === 1 ? "" : "s"} for &ldquo;${escapeHTML(query)}&rdquo;`
@@ -2434,11 +2566,18 @@ const win = document.getElementById("window");
     }
 
     function updateCollapseAllState() {
-      if (!collapseAllButton || win.classList.contains("controls-disabled")) return;
-      const visibleGroups = Array.from(document.querySelectorAll(".group")).filter((group) => !group.hidden);
+      if (!collapseAllButtons.length || win.classList.contains("controls-disabled")) return;
+      const activeState = win.classList.contains("shiori-mode")
+        ? document.querySelector(".shiori-state")
+        : document.querySelector(".search-state");
+      const visibleGroups = Array.from(activeState.querySelectorAll(".group")).filter((group) => !group.hidden);
       const hasExpandedGroup = visibleGroups.some((group) => !group.classList.contains("collapsed"));
-      collapseAllButton.disabled = !hasExpandedGroup;
-      collapseAllButton.setAttribute("aria-disabled", hasExpandedGroup ? "false" : "true");
+      collapseAllButtons.forEach((button) => {
+        const isActiveButton = button.closest(".search-state, .shiori-state") === activeState;
+        if (!isActiveButton) return;
+        button.disabled = !hasExpandedGroup;
+        button.setAttribute("aria-disabled", hasExpandedGroup ? "false" : "true");
+      });
     }
 
     function updateSidebarSummary() {
@@ -2451,14 +2590,19 @@ const win = document.getElementById("window");
       }
     }
 
-    function selectRank(rank, time, zh, ja) {
+    function selectCue(cue) {
+      const isShiori = Boolean(cue.closest(".shiori-state"));
+      const rank = cue.dataset.rank;
       document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
-        el.classList.toggle("selected", el.dataset.rank === rank);
-        el.classList.toggle("ui-is-selected", el.dataset.rank === rank);
+        const selected = isShiori
+          ? el === cue
+          : !el.closest(".shiori-state") && el.dataset.rank === rank;
+        el.classList.toggle("selected", selected);
+        el.classList.toggle("ui-is-selected", selected);
       });
-      currentZh.textContent = zh;
-      currentJa.textContent = ja;
-      sourceToggle.querySelector(".source-label").textContent = "Ave Mujica · 01";
+      currentZh.textContent = cue.dataset.zh;
+      currentJa.textContent = cue.dataset.ja;
+      sourceToggle.querySelector(".source-label").textContent = cue.dataset.source || "Ave Mujica · 01";
     }
 
     function openVideo() {
@@ -2468,14 +2612,14 @@ const win = document.getElementById("window");
 
     document.querySelectorAll(".result-card").forEach((el) => {
       el.addEventListener("click", () => {
-        selectRank(el.dataset.rank, el.dataset.time, el.dataset.zh, el.dataset.ja);
+        selectCue(el);
         openVideo();
       });
     });
 
     document.querySelectorAll(".sidebar-row").forEach((el) => {
       el.addEventListener("click", () => {
-        selectRank(el.dataset.rank, el.dataset.time, el.dataset.zh, el.dataset.ja);
+        selectCue(el);
       });
       el.addEventListener("dblclick", () => {
         openVideo();
@@ -2515,12 +2659,14 @@ const win = document.getElementById("window");
       });
     });
 
-    collapseAllButton.addEventListener("click", (e) => {
-      document.querySelectorAll(".group").forEach((group) => {
-        group.classList.add("collapsed");
+    collapseAllButtons.forEach((button) => {
+      button.addEventListener("click", (e) => {
+        e.currentTarget.closest(".search-state, .shiori-state").querySelectorAll(".group").forEach((group) => {
+          group.classList.add("collapsed");
+        });
+        e.currentTarget.textContent = "Collapse All";
+        updateCollapseAllState();
       });
-      e.currentTarget.textContent = "Collapse All";
-      updateCollapseAllState();
     });
 
     updateClearSearchVisibility();
