@@ -109,19 +109,17 @@ Style rules:
 
 ## 7. Prototype Registry
 
-No active HTML prototypes are registered after the `docs/prototypes/` cleanup.
+Active App surface mapping:
 
-Initial App surface mapping:
+| App surface | Required HTML prototype | Coverage status | Known native App differences |
+| --- | --- | --- | --- |
+| Main workbench shell | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current Liquid Glass visual baseline for the search-state shell and persistent bottom player | Native titlebar, traffic lights, full-screen transition behavior, system materials, font rendering, and accessibility focus behavior remain App-native |
+| Search results | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for grouped Search results, result cards, disclosure behavior, and fixed `Collapse All` behavior | App data, lazy loading, virtualization, exact counts, and result ordering must come from the native Search pipeline |
+| Search-launched playback overlay and bottom player | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for the video surface, subtitle overlay, right playback side panel, bottom player, speed menu, and visibility toggles | App playback, seeking, file access, fullscreen presentation, subtitle rendering, and persisted playback state remain native behaviors |
+| Shiori playback control | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for the bottom-player Shiori toggle state | App Shiori persistence, duplicate handling, and feedback timing remain native behaviors |
+| Library view | Pending | Waiting for a dedicated accepted HTML prototype | Not yet documented |
+| Full Shiori view | Pending | Waiting for a dedicated accepted HTML prototype | Not yet documented |
+| Settings windows | Pending | Waiting for a dedicated accepted HTML prototype | Native macOS settings-window behavior is expected |
 
-| App surface | Required HTML prototype | Status |
-| --- | --- | --- |
-| Main workbench shell | Pending | Waiting for latest user-provided HTML |
-| Search results | Pending | Waiting for latest user-provided HTML |
-| Playback overlay and bottom player | Pending | Waiting for latest user-provided HTML |
-| Library view | Pending | Waiting for latest user-provided HTML |
-| Shiori view | Pending | Waiting for latest user-provided HTML |
-| Settings windows | Pending | Waiting for latest user-provided HTML |
-
-When a prototype is accepted, this registry must record the corresponding
-`ui/prototypes/*.html` file and any known native App differences.
-
+When a prototype is accepted or superseded, this registry must record the
+corresponding `ui/prototypes/*.html` file and any known native App differences.

@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented the current Liquid Glass HTML prototype as the visual baseline for
+  the main workbench, grouped Search results, Search-launched playback overlay,
+  playback side panel, bottom player, and related native App differences.
 - Accepted the UI collaboration workflow: local HTML prototypes now live under
   the repository-level `ui/` directory and must be visually aligned before App
   interface implementation begins.

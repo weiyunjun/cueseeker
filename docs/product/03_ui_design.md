@@ -67,12 +67,17 @@ First implementation requirements:
 - The overlay side panel places the `Search Results` / `Subtitles` switcher at
   the top and the active count label below on the left. It must not repeat the
   current video title or a `Search playback` label above the tabs.
-- The overlay side panel uses a white background and gray list cards. Selected
-  rows use the system accent color with white text.
-- The bottom-player right controls include a video-sidebar toggle between the
-  subtitle visibility button and playback-speed button. Its icon is three rows
-  of dot-plus-line marks, and its selected state follows the subtitle button's
-  active visual treatment.
+- The overlay side panel uses a light glass surface with compact row cards.
+  Selected rows use a white glass card with accent emphasis instead of a
+  full-width accent fill.
+- The bottom-player right controls include Shiori, copy current subtitle,
+  subtitle visibility, side-panel visibility, playback speed, and fullscreen.
+- Compact operation buttons use circular icon buttons. Active toggle state is
+  shown by a white circular button background and pressed state, while the
+  semantic glyph remains stable across selected and unselected states.
+- Text or value controls use capsules. The current source/title control remains
+  a white capsule, and the playback-speed capsule keeps a fixed width that fits
+  the longest current preset label.
 - Search Results rows may highlight query matches. Subtitles rows represent the
   full subtitle file and must not apply keyword highlighting.
 - Keep the persistent bottom player available across Search, Shiori, and
@@ -81,6 +86,72 @@ First implementation requirements:
 
 The related accepted proposal is
 `docs/proposals/2026-05-topbar-search-single-page-workflow.md`.
+
+## 1.2 Current Liquid Glass Prototype Baseline
+
+Current prototype:
+
+```text
+ui/prototypes/cueseeker-liquid-glass-standalone.html
+```
+
+This prototype is the current visual baseline for HTML review of the main
+workbench, grouped Search results, Search-launched playback overlay, playback
+side panel, and persistent bottom player. App implementation still requires a
+separate explicit approval after the HTML has been accepted.
+
+Stable design snapshot:
+
+- The main surface uses a restrained light Liquid Glass treatment: translucent
+  silver-gray window material, soft internal highlights, subtle hairlines, and
+  low-contrast shadows.
+- The prototype has two primary work states: a grouped Search-results state
+  and an expanded playback state. The expanded playback state preserves the
+  bottom player while replacing the main results area with a video surface and
+  optional right side panel.
+- Search results show a compact summary row and a fixed `Collapse All` action.
+  `Collapse All` collapses all visible result groups and keeps the same label;
+  it is not an expand-all toggle.
+- Search result groups are expanded by default. Group headers use a disclosure
+  rail, a friendly title, and a muted result count. Result cards use light glass
+  backgrounds, hover lift, selected emphasis, readable bilingual text, and
+  inline keyword highlights.
+- The expanded video surface is a black playback frame with a subtitle overlay.
+  The overlay can be shown or hidden from the bottom player without resizing
+  the bottom player controls.
+- The playback side panel contains a two-tab segmented control for Search
+  Results and Subtitles, a compact summary, and scrollable row cards. The side
+  panel can be hidden or restored from the bottom player.
+- The bottom player uses a three-zone layout: current source/title on the left,
+  transport controls in the center, and playback operations on the right.
+- Bottom-player icon controls are compact circular buttons. Selected toggle
+  controls use a white circular background; unselected controls stay visually
+  quiet. State must not depend on swapping the glyph to a different selected
+  or unselected glyph.
+- Longer bottom-player controls use capsules. The source/title capsule remains
+  white in both Search-results and expanded-playback states. The speed capsule
+  uses fixed width and tabular text so preset changes do not shift neighboring
+  controls.
+- The speed menu is an app-style popover above the bottom player. It lists
+  fixed speed presets, keeps row height compact, and marks the current preset
+  with a check indicator.
+- Prototype interactions include group disclosure, global group collapse,
+  subtitle overlay toggling, side-panel visibility toggling, Shiori selected
+  state, transport feedback, source/title expansion state, fullscreen feedback,
+  and speed-menu selection.
+
+Known HTML/App difference categories for this baseline:
+
+- Native macOS window chrome, traffic-light placement, full-screen transitions,
+  system materials, accessibility focus behavior, and font rendering may differ
+  from the HTML prototype while preserving the accepted visual hierarchy.
+- The HTML uses mock Search data, mock subtitle data, and simulated playback.
+  The App must connect these surfaces to real indexed subtitle data, media
+  playback, file access, and persisted Shiori state.
+- Native implementation may use AppKit or SwiftUI controls, virtualization,
+  lazy loading, and platform-specific rendering as long as visible layout,
+  state, wording, and interaction intent remain aligned with the accepted
+  prototype.
 
 ## 2. Main Window
 
@@ -129,31 +200,33 @@ Current shell direction:
 The previous standalone `Search` sidebar item should be removed. The main
 window's current top-level destination is the CueSeeker workbench itself.
 
-Current workbench panel modes:
+Current workbench surfaces:
 
 - Library.
 - Search.
 - Shiori.
 
-These modes are not separate main-window destinations. They are content-panel
-surfaces inside the persistent workbench and are selected through the fixed
-Mode Rail.
+These surfaces are not separate main-window destinations. In the current
+topbar-driven direction, Search is entered through the topbar Search field, and
+Library and Shiori are entered through the topbar controls. Any remaining
+Mode Rail references in this document describe pre-migration surfaces that do
+not yet have an accepted Liquid Glass prototype.
 
 Settings should not be a main-window sidebar section. The formal Settings entry
-belongs in the macOS app menu and may also be mirrored by the Mode Rail bottom
-Settings button. Both entry points open or focus the same independent Settings
-window.
+belongs in the macOS app menu. It opens or focuses the same independent
+Settings window whenever mirrored by another App control.
 
 If top-level navigation returns later, it should remain visually quiet and
 should not compete with Library, Search results, Shiori records, or playback.
 
 ## 4. Main Workspace Panel Model
 
-The main workspace should be organized around playback as the central
-experience, with all current navigation and learning modes using one shared
-left-side content panel.
+The current accepted direction is the topbar-driven Liquid Glass workbench in
+section 1.2. The older shared-panel model below is retained as pre-migration
+context for Library and other surfaces that do not yet have a dedicated
+accepted Liquid Glass prototype.
 
-Conceptual structure:
+Pre-migration conceptual structure:
 
 ```text
 Fixed Mode Rail
@@ -166,7 +239,8 @@ AppShell destination should not appear in the current single-workbench design.
 Settings is app-level configuration and belongs in the macOS app menu and
 independent Settings window, not in main-window navigation.
 
-The Fixed Mode Rail selects the Shared Content Panel mode:
+In the pre-migration panel model, the Fixed Mode Rail selects the Shared
+Content Panel mode:
 
 - Library.
 - Search.
@@ -185,8 +259,7 @@ Accepted first Library panel direction:
   navigation.
 - Library is separate from the Settings `Library` category.
 - Library keeps the left-side gray background treatment.
-- Library can collapse or expand by clicking the selected Library icon in the
-  fixed Mode Rail.
+- Library can collapse or expand by clicking its selected navigation control.
 - Library can be resized horizontally. Its default width should equal its
   minimum width.
 - The Shared Content Panel's first default and minimum width should be `420pt`,
@@ -241,8 +314,8 @@ Accepted first Library panel direction:
 
 ## 5. CueSeeker Workbench And Search Mode
 
-The CueSeeker workbench is the primary screen. Search is a mode inside the
-shared left-side content panel.
+The CueSeeker workbench is the primary screen. Current Search presentation is
+the topbar-driven workflow described in section 1.2.
 
 Search mode is being migrated first to the topbar Search workflow described in
 section 1.1. Requirements in this section that place Search inside the Shared
@@ -305,8 +378,9 @@ Accepted M1 search presentation:
 - The result-count row should include a native rounded bordered button aligned
   to the right of the count text. The button should use the same general visual
   style as the Settings `Index Now` button.
-- The collapse or expand-all button label should reflect the next global action,
-  using English labels such as `Collapse All Results` or `Expand All Results`.
+- The global Search group action uses the fixed label `Collapse All`. Activating
+  it collapses all visible result groups and does not change the control into
+  an expand-all action.
 - Search results are shown as a grouped list with rounded selection backgrounds.
 - Search result scrolling loads additional matches lazily in 100-result pages.
 - Expanding all result groups from the all-collapsed state reveals at most one
@@ -462,17 +536,13 @@ Layout and Selection Behavior:
 
 ## 8. Playback Area And Shared Content Panel
 
-The CueSeeker workbench uses a player-first layout.
+The CueSeeker workbench uses a player-first layout. In the current Liquid Glass
+baseline, Search-launched playback uses the main content area, an optional right
+playback side panel, and the persistent bottom player.
 
-For the Search-first topbar transition, Search-launched playback uses a
-dedicated main-content playback page. This playback page may hide or bypass the
-old Mode Rail and Shared Content Panel when convenient, while Library, Shiori,
-and Settings remain available through their current surfaces until they are
-migrated.
-
-The Playback Area is the central playback and result-detail surface. The Shared
-Content Panel is the left-side Library, Search, and Shiori surface selected by
-the fixed Mode Rail.
+The older Mode Rail and Shared Content Panel model in this section is retained
+only for unmigrated Library, Shiori, and Settings surfaces until dedicated
+accepted prototypes supersede it.
 
 As future navigation or learning features arrive, the Playback Area remains the
 central experience. New panel modes must be documented before implementation
@@ -483,10 +553,10 @@ Playback Area required content:
 - Embedded video.
 - A `Video Folder` button.
 - A `Subtitle Folder` button.
-- For Search-launched playback, `Previous Result`, `Next Result`, `Results`,
-  and `Subtitles` buttons.
+- For Search-launched playback, previous and next result navigation plus a
+  right side panel containing `Search Results` and `Subtitles` tabs.
 - The bottom-player right-side control group includes Shiori, copy current
-  subtitle, subtitle visibility, video-sidebar visibility, playback speed, and
+  subtitle, subtitle visibility, side-panel visibility, playback speed, and
   fullscreen.
 
 Search-launched playback result navigation:
@@ -496,17 +566,15 @@ Search-launched playback result navigation:
 - Result navigation is not scoped to the current video path or subtitle path.
 - Current playback time is used to identify the current Search-result anchor
   before moving backward or forward in the complete result order.
-- The `Results` button opens upward and displays the same grouped Search result
-  content as the Search results page in an overlay above the video. Opening this
-  overlay pauses playback and does not resize or push the video surface. The
-  overlay fills the video area. The current result is selected and scrolled into
-  view. It does not show `Collapse All`.
-- The `Subtitles` button opens upward and displays the current playback subtitle
-  file in timestamp order in an overlay above the video. Opening this overlay
-  pauses playback and does not resize or push the video surface. The overlay
-  fills the video area. It does not use keyword highlighting. The current
-  playback subtitle row uses selected-state context only and is scrolled into
-  view.
+- The `Search Results` side-panel tab displays the active Search result order
+  and keeps the current result selected and scrolled into view when practical.
+  It does not show `Collapse All`.
+- The `Subtitles` side-panel tab displays the current playback subtitle file in
+  timestamp order. It does not use keyword highlighting. The current playback
+  subtitle row uses selected-state context only and is scrolled into view when
+  practical.
+- Hiding or restoring the playback side panel must not pause playback, clear
+  the selected result, or resize the bottom-player controls.
 
 The Playback Area should not show read-only `Start Time`, `Video Path`, or
 `Subtitle Path` metadata labels and values under the video. The previous
@@ -521,7 +589,7 @@ Search mode required content:
 - Search input.
 - Indexing status when relevant.
 - Result count.
-- Collapse or expand-all result control.
+- Fixed `Collapse All` result control.
 - Grouped Search results.
 - Empty, loading, and error states.
 
@@ -569,15 +637,18 @@ Behavior:
 - Playback fullscreen should follow standard macOS Space, Dock, menu bar, app
   switching, and system overlay behavior.
 - Transient playback feedback overlays appear above the video for play/pause, subtitle visibility, seek, volume, and speed changes.
-- The playback speed selector is an app-drawn menu that opens upward from the speed control.
-- The speed control must display fractional presets such as `1.25x` and `1.75x` without truncation.
-- The speed control should show only the current speed value; the preset menu appears on hover rather than through a visible arrow affordance.
-- The speed control hover area, click area, and preset menu width should match.
-- The speed menu should remain open only while the pointer is inside the rectangular hover region spanning from the menu top edge to the speed button bottom edge.
+- The playback speed selector is an app-drawn menu that opens upward from the
+  speed control.
+- The speed control must display fractional presets without truncation and must
+  keep a stable width when the selected preset changes.
+- The speed control should show only the current speed value; it should not add
+  a separate visible arrow affordance.
+- The speed menu uses compact preset rows and marks the current preset with a
+  check indicator.
 - When the volume control is hovered, the volume slider and numeric percentage appear together without moving the playback controls vertically.
 - The timeline hover and drag states must not move the playback controls vertically.
 
-Layout:
+Pre-migration panel layout:
 
 - The fixed Mode Rail appears on the far left of the CueSeeker workbench below
   the titlebar.
@@ -607,9 +678,9 @@ Initial sizing guidance:
 - Shared Content Panel maximum width: available content width minus the Mode
   Rail width and Playback Area minimum width.
 
-The Mode Rail owns Library, Search, and Shiori mode selection. The old titlebar
-side-panel toggles and right-side mode buttons are not part of the current
-layout.
+In the pre-migration panel model, the Mode Rail owns Library, Search, and
+Shiori mode selection. This does not supersede the current Liquid Glass
+prototype baseline for Search-launched playback.
 
 Panel visibility and list lifetime:
 
