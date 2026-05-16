@@ -758,63 +758,66 @@
 
     .speed-menu {
       position: absolute;
-      right: -8px;
-      bottom: calc(100% + 8px);
+      right: -4px;
+      bottom: calc(100% + 6px);
       z-index: 10;
-      width: 132px;
-      padding: 5px;
-      border: 0.5px solid rgba(0, 0, 0, 0.14);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.96);
-      box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.45), 0 5px 14px -8px rgba(0, 0, 0, 0.28), inset 0 0.5px 0 rgba(255, 255, 255, 0.75);
+      width: 108px;
+      padding: 4px;
+      border: 0.5px solid rgba(0, 0, 0, 0.16);
+      border-radius: 7px;
+      background: rgba(246, 246, 247, 0.94);
+      box-shadow: 0 12px 28px -20px rgba(0, 0, 0, 0.52), 0 2px 7px rgba(0, 0, 0, 0.16), inset 0 0.5px 0 rgba(255, 255, 255, 0.8);
       backdrop-filter: blur(18px);
-    }
-
-    .speed-menu::after {
-      content: "";
-      position: absolute;
-      right: 22px;
-      bottom: -5px;
-      width: 9px;
-      height: 9px;
-      background: rgba(255, 255, 255, 0.96);
-      border-right: 0.5px solid rgba(0, 0, 0, 0.14);
-      border-bottom: 0.5px solid rgba(0, 0, 0, 0.14);
-      transform: rotate(45deg);
     }
 
     .speed-option {
       appearance: none;
       width: 100%;
-      height: 26px;
-      padding: 0 8px;
+      height: 23px;
+      padding: 0 8px 0 6px;
       border: 0;
       border-radius: 5px;
       background: transparent;
       color: var(--text);
-      display: flex;
+      display: grid;
+      grid-template-columns: 16px 1fr;
+      column-gap: 4px;
       align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
+      font-size: 12.5px;
+      font-weight: 400;
       font-variant-numeric: tabular-nums;
       text-align: left;
     }
 
-    .speed-option:hover {
-      background: rgba(0, 0, 0, 0.05);
+    .speed-option:hover,
+    .speed-option:focus-visible {
+      outline: 0;
+      background: var(--accent);
+      color: #fff;
     }
 
     .speed-option.selected {
-      background: rgba(10, 132, 255, 0.1);
-      color: var(--accent-2);
-      font-weight: 600;
+      background: transparent;
+      color: var(--text);
+      font-weight: 400;
+    }
+
+    .speed-option.selected:hover,
+    .speed-option.selected:focus-visible {
+      background: var(--accent);
+      color: #fff;
     }
 
     .speed-check {
-      width: 14px;
       color: var(--accent);
-      text-align: right;
+      font-size: 11px;
+      text-align: center;
       opacity: 0;
+    }
+
+    .speed-option:hover .speed-check,
+    .speed-option:focus-visible .speed-check {
+      color: currentColor;
     }
 
     .speed-option.selected .speed-check {
