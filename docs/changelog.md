@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Clarified the Liquid Glass control taxonomy: circular icon buttons, capsule
+  buttons, selected toggle states, pressed scaling, and rounded-rectangle
+  pop-up menu containers are now documented as the current UI baseline.
 - Documented the current Liquid Glass HTML prototype as the visual baseline for
   the main workbench, grouped Search results, Search-launched playback overlay,
   playback side panel, bottom player, and related native App differences.

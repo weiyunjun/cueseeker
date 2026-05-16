@@ -124,17 +124,29 @@ Stable design snapshot:
   panel can be hidden or restored from the bottom player.
 - The bottom player uses a three-zone layout: current source/title on the left,
   transport controls in the center, and playback operations on the right.
-- Bottom-player icon controls are compact circular buttons. Selected toggle
-  controls use a white circular background; unselected controls stay visually
-  quiet. State must not depend on swapping the glyph to a different selected
-  or unselected glyph.
-- Longer bottom-player controls use capsules. The source/title capsule remains
-  white in both Search-results and expanded-playback states. The speed capsule
-  uses fixed width and tabular text so preset changes do not shift neighboring
-  controls.
-- The speed menu is an app-style popover above the bottom player. It lists
-  fixed speed presets, keeps row height compact, and marks the current preset
-  with a check indicator.
+- Bottom-player buttons use two primary button forms: circular icon buttons and
+  capsule buttons. Circular buttons are used for single-action icon controls.
+  Capsule buttons are used for text, values, titles, and controls that require
+  a wider label.
+- Circular icon buttons have no visible container in the normal state. Their
+  hover state introduces a circular glass background, and their pressed state
+  uses a brief scale-down response.
+- Capsule buttons have a visible glass background in the normal state. Hover
+  may subtly strengthen the material but must not introduce a new button form
+  or a strong additional container. Their pressed state also uses a brief
+  scale-down response.
+- Controls with selected and unselected states use circular icon buttons. In
+  light mode, selected state uses a soft gray circular background with inverted
+  icon color. In dark mode, selected state uses a light circular background
+  with dark icon color. State must be readable from the button material and
+  foreground contrast, not from changing the semantic glyph.
+- The source/title capsule remains white in both Search-results and
+  expanded-playback states. The speed capsule uses fixed width and tabular text
+  so preset changes do not shift neighboring controls.
+- Pop-up controls use rounded-rectangle menu containers rather than circular
+  or capsule button forms. The speed menu is an app-style popover above the
+  bottom player; it lists fixed speed presets, keeps row height compact, and
+  marks the current preset with a check indicator.
 - Prototype interactions include group disclosure, global group collapse,
   subtitle overlay toggling, side-panel visibility toggling, Shiori selected
   state, transport feedback, source/title expansion state, fullscreen feedback,
