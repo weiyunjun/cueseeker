@@ -37,6 +37,7 @@
       --text-2: #4d4e55;
       --text-3: #7a7c84;
       --text-4: #adafb6;
+      --pill-fg: var(--text);
 
       --accent: #0a84ff;
       --accent-soft: rgba(10, 132, 255, 0.16);
@@ -294,16 +295,14 @@
       padding: 0 13px;
       border-radius: 999px;
       border: 0.5px solid var(--pill-border);
-      background: rgba(255,255,255,0.56);
-      box-shadow:
-        inset 0 0.5px 0 rgba(255,255,255,0.88),
-        0 0 0 0.5px rgba(0,0,0,0.06);
-      color: var(--text-2);
+      background: var(--pill-bg);
+      box-shadow: var(--pill-shadow);
+      color: var(--pill-fg);
       font-size: 11.5px;
       transition: background 120ms ease, color 120ms ease, transform 160ms cubic-bezier(.34,1.56,.64,1);
     }
     .small-button:hover:enabled {
-      background: rgba(255,255,255,0.76);
+      background: var(--pill-hover-bg);
     }
     .small-button:active { transform: scale(0.94); }
 
@@ -872,27 +871,24 @@
       padding: 0 12px 0 10px;
       flex: 0 1 auto;
       border-radius: 999px;
-      border: 0;
-      background: #fff;
-      color: var(--text);
+      border: 0.5px solid var(--pill-border);
+      background: var(--pill-bg);
+      color: var(--pill-fg);
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      box-shadow:
-        inset 0 0.5px 0 rgba(255,255,255,1),
-        0 0 0 0.5px rgba(0,0,0,0.07),
-        0 1px 3px rgba(0,0,0,0.10);
-      transition: transform 120ms ease;
+      box-shadow: var(--pill-shadow);
+      transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease;
     }
-    .source-toggle:hover { background: #fff; }
+    .source-toggle:hover { background: var(--pill-hover-bg); }
     .source-toggle .source-chevron {
       color: currentColor;
       display: inline-flex;
       transform: rotate(180deg);
       transition: transform 200ms ease;
     }
-    .window.video-expanded .source-toggle { color: var(--text); }
-    .window.video-expanded .source-toggle:hover { background: #fff; }
+    .window.video-expanded .source-toggle { color: var(--pill-fg); }
+    .window.video-expanded .source-toggle:hover { background: var(--pill-hover-bg); }
     .window.video-expanded .source-toggle .source-chevron {
       color: currentColor;
       transform: rotate(0deg);
@@ -976,32 +972,29 @@
 
     .speed-button {
       appearance: none;
-      border: 0;
+      border: 0.5px solid var(--pill-border);
       width: 54px;
       height: 28px;
       padding: 0;
       border-radius: 999px;
-      background: transparent;
-      color: var(--text);
+      background: var(--pill-bg);
+      color: var(--pill-fg);
+      box-shadow: var(--pill-shadow);
       font-size: 12px;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
-      transition: background 100ms ease;
+      transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease;
     }
-    .speed-button:hover { background: rgba(255,255,255,0.55); }
+    .speed-button:hover { background: var(--pill-hover-bg); }
     .speed-button[aria-expanded="true"] {
-      background: rgba(255,255,255,0.7);
-      box-shadow:
-        inset 0 0.5px 0 rgba(255,255,255,0.9),
-        0 0 0 0.5px rgba(0,0,0,0.06);
+      background: var(--pill-hover-bg);
+      box-shadow: var(--pill-shadow);
     }
-    .window.video-expanded .speed-button { color: rgba(255,255,255,0.92); }
-    .window.video-expanded .speed-button:hover { background: rgba(255,255,255,0.16); }
+    .window.video-expanded .speed-button { color: var(--pill-fg); }
+    .window.video-expanded .speed-button:hover { background: var(--pill-hover-bg); }
     .window.video-expanded .speed-button[aria-expanded="true"] {
-      background: rgba(255,255,255,0.22);
-      box-shadow:
-        inset 0 0.5px 0 rgba(255,255,255,0.30),
-        0 0 0 0.5px rgba(255,255,255,0.16);
+      background: var(--pill-hover-bg);
+      box-shadow: var(--pill-shadow);
     }
 
     .speed-control { position: relative; display: inline-flex; flex: 0 0 auto; }
@@ -1107,7 +1100,7 @@
       --circle-selected-fg: #fff;
       --circle-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,0.14), 0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 3px rgba(0,0,0,0.16);
       --pill-bg: rgba(255,255,255,0.50);
-      --pill-bg-strong: rgba(255,255,255,0.72);
+      --pill-fg: var(--text);
       --pill-border: rgba(255,255,255,0.80);
       --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.10);
       --pill-hover-bg: rgba(255,255,255,0.60);
@@ -1177,7 +1170,7 @@
       --circle-selected-fg: #1a1820;
       --circle-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,0.40), 0 0 0 0.5px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.34);
       --pill-bg: rgba(255,255,255,0.08);
-      --pill-bg-strong: rgba(255,255,255,0.14);
+      --pill-fg: var(--text);
       --pill-border: rgba(255,255,255,0.18);
       --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.05), 0 1px 3px rgba(0,0,0,0.30);
       --pill-hover-bg: rgba(255,255,255,0.12);
@@ -1333,7 +1326,7 @@
       border: 0.5px solid var(--pill-border);
       background: var(--pill-bg);
       box-shadow: var(--pill-shadow);
-      color: var(--text);
+      color: var(--pill-fg);
       transition: background 180ms ease, color 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), opacity 180ms ease;
     }
     .small-button:hover:enabled,
@@ -1397,12 +1390,9 @@
     .slider::after { background: var(--progress-fill); }
     .thumb { background: var(--thumb-bg); }
     .source-toggle {
-      background: var(--pill-bg-strong);
-      color: var(--text);
       backdrop-filter: blur(20px) saturate(1.4);
       -webkit-backdrop-filter: blur(20px) saturate(1.4);
     }
-    .source-toggle:hover { background: var(--pill-bg-strong); }
     .play-button {
       background: transparent;
       box-shadow: none;
@@ -1417,10 +1407,9 @@
     .volume-popover .slider::after { background: var(--volume-fill); }
     .speed-button {
       width: 54px;
-      color: var(--text);
       font-variant-numeric: tabular-nums;
     }
-    .speed-button[aria-expanded="true"] { background: var(--pill-bg-strong); }
+    .speed-button[aria-expanded="true"] { background: var(--pill-hover-bg); }
     .speed-menu {
       border-radius: 14px;
       background: var(--menu-bg);
@@ -1451,20 +1440,18 @@
       box-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(255,255,255,0.75), 0 1px 4px rgba(0,0,0,0.22);
     }
     .window.video-expanded .play-button { background: transparent; color: rgba(255,255,255,0.96); }
-    .window.video-expanded .source-toggle {
-      background: rgba(245,243,250,0.92);
-      color: #1a1820;
-      border-color: rgba(255,255,255,0.32);
-    }
-    .window.video-expanded .source-toggle:hover { background: rgba(245,243,250,0.96); }
+    .window.video-expanded .source-toggle,
     .window.video-expanded .speed-button {
-      background: rgba(255,255,255,0.10);
-      color: rgba(255,255,255,0.92);
-      border-color: rgba(255,255,255,0.16);
-      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.18), 0 0 0 0.5px rgba(255,255,255,0.08);
+      background: var(--pill-bg);
+      color: var(--pill-fg);
+      border-color: var(--pill-border);
+      box-shadow: var(--pill-shadow);
     }
+    .window.video-expanded .source-toggle:hover,
     .window.video-expanded .speed-button:hover,
-    .window.video-expanded .speed-button[aria-expanded="true"] { background: rgba(255,255,255,0.18); }
+    .window.video-expanded .speed-button[aria-expanded="true"] {
+      background: var(--pill-hover-bg);
+    }
 
     button.tool-button {
       flex: 0 0 32px;
@@ -1601,68 +1588,25 @@
     }
 
     .player-dock .source-toggle,
-    .window.video-expanded .player-dock .source-toggle {
-      background: rgba(255, 255, 255, 0.86);
-      border: 0.5px solid rgba(255, 255, 255, 0.78);
-      color: #1a1a1f;
-      box-shadow:
-        inset 0 0.5px 0 rgba(255, 255, 255, 1),
-        0 0 0 0.5px rgba(0, 0, 0, 0.06),
-        0 1px 3px rgba(0, 0, 0, 0.10);
+    .window.video-expanded .player-dock .source-toggle,
+    .player-dock .speed-button,
+    .window.video-expanded .player-dock .speed-button {
+      background: var(--pill-bg);
+      border: 0.5px solid var(--pill-border);
+      color: var(--pill-fg);
+      box-shadow: var(--pill-shadow);
       backdrop-filter: blur(20px) saturate(1.4);
       -webkit-backdrop-filter: blur(20px) saturate(1.4);
       transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease;
     }
     .player-dock .source-toggle:hover,
-    .window.video-expanded .player-dock .source-toggle:hover {
-      background: rgba(255, 255, 255, 0.96);
-      color: #1a1a1f;
-    }
-    .player-dock .speed-button,
-    .window.video-expanded .player-dock .speed-button {
-      background: rgba(255, 255, 255, 0.64);
-      border: 0.5px solid rgba(255, 255, 255, 0.76);
-      color: #1a1a1f;
-      box-shadow:
-        inset 0 0.5px 0 rgba(255, 255, 255, 1),
-        0 0 0 0.5px rgba(0, 0, 0, 0.06),
-        0 1px 3px rgba(0, 0, 0, 0.10);
-      backdrop-filter: blur(20px) saturate(1.4);
-      -webkit-backdrop-filter: blur(20px) saturate(1.4);
-      transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease;
-    }
+    .window.video-expanded .player-dock .source-toggle:hover,
     .player-dock .speed-button:hover,
     .window.video-expanded .player-dock .speed-button:hover,
     .player-dock .speed-button[aria-expanded="true"],
     .window.video-expanded .player-dock .speed-button[aria-expanded="true"] {
-      background: rgba(255, 255, 255, 0.82);
-      color: #1a1a1f;
-    }
-    body[data-theme="dark"] .player-dock .source-toggle,
-    body[data-theme="dark"] .window.video-expanded .player-dock .source-toggle {
-      background: var(--pill-bg-strong);
-      border-color: var(--pill-border);
-      color: var(--text);
-      box-shadow: var(--pill-shadow);
-    }
-    body[data-theme="dark"] .player-dock .source-toggle:hover,
-    body[data-theme="dark"] .window.video-expanded .player-dock .source-toggle:hover {
       background: var(--pill-hover-bg);
-      color: var(--text);
-    }
-    body[data-theme="dark"] .player-dock .speed-button,
-    body[data-theme="dark"] .window.video-expanded .player-dock .speed-button {
-      background: var(--pill-bg);
-      border-color: var(--pill-border);
-      color: var(--text);
-      box-shadow: var(--pill-shadow);
-    }
-    body[data-theme="dark"] .player-dock .speed-button:hover,
-    body[data-theme="dark"] .window.video-expanded .player-dock .speed-button:hover,
-    body[data-theme="dark"] .player-dock .speed-button[aria-expanded="true"],
-    body[data-theme="dark"] .window.video-expanded .player-dock .speed-button[aria-expanded="true"] {
-      background: var(--pill-hover-bg);
-      color: var(--text);
+      color: var(--pill-fg);
     }
     .player-dock .source-toggle .source-chevron,
     .window.video-expanded .player-dock .source-toggle .source-chevron {
@@ -1686,11 +1630,16 @@
       --text: rgba(255, 255, 255, 0.92);
       --text-2: rgba(255, 255, 255, 0.85);
       --text-3: rgba(255, 255, 255, 0.58);
+      --pill-fg: #1a1a1f;
       --pill-glass: rgba(255, 255, 255, 0.18);
       --pill-glass-border: rgba(255, 255, 255, 0.32);
       --glass-hover: rgba(255, 255, 255, 0.24);
       --glass-hover-border: rgba(255, 255, 255, 0.34);
       --glass-hover-inset: rgba(255, 255, 255, 0.30);
+    }
+
+    body[data-theme="dark"] .window.video-expanded .player-dock {
+      --pill-fg: rgba(255, 255, 255, 0.92);
     }
 
     .player-dock .speed-menu {
@@ -1738,6 +1687,7 @@
     }
     .window.controls-disabled .tool-button:disabled,
     .window.controls-disabled .icon-button:disabled,
+    .window.controls-disabled .small-button:disabled,
     .window.controls-disabled .source-toggle:disabled,
     .window.controls-disabled .speed-button:disabled,
     .window.controls-disabled .result-card:disabled,
