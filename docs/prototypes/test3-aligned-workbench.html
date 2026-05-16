@@ -17,15 +17,15 @@
       --text-2: #5f6066;
       --text-3: #8b8c92;
       --text-4: #b1b2b7;
-      --card: #ffffff;
-      --card-hover: rgba(0, 0, 0, 0.02);
+      --card: rgba(0, 0, 0, 0.035);
+      --card-hover: rgba(0, 0, 0, 0.055);
       --selected: rgba(10, 132, 255, 0.1);
-      --selected-border: rgba(10, 132, 255, 0.58);
+      --selected-border: rgba(10, 132, 255, 0.55);
       --accent: #0a84ff;
       --accent-2: #0067d6;
       --highlight: rgba(255, 204, 0, 0.34);
       --highlight-text: #473200;
-      --track: rgba(0, 0, 0, 0.11);
+      --track: rgba(0, 0, 0, 0.10);
       --shadow-window: 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 24px 60px -8px rgba(0, 0, 0, 0.32), 0 8px 16px -4px rgba(0, 0, 0, 0.2);
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       --sf: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
@@ -155,6 +155,11 @@
       color: var(--text);
     }
 
+    .search-field:focus-within {
+      border-color: rgba(10, 132, 255, 0.55);
+      box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.18), inset 0 0.5px 0 rgba(255, 255, 255, 0.5);
+    }
+
     .search-field svg {
       color: rgba(0, 0, 0, 0.42);
       flex: 0 0 auto;
@@ -236,7 +241,7 @@
 
     .results-header strong {
       color: var(--text);
-      font-weight: 650;
+      font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
 
@@ -314,13 +319,17 @@
       transition: transform 140ms ease;
     }
 
+    .group-header .chevron {
+      transform: rotate(90deg);
+    }
+
     .group.collapsed .chevron {
-      transform: rotate(-90deg);
+      transform: rotate(0deg);
     }
 
     .group-title {
       font-size: 13px;
-      font-weight: 650;
+      font-weight: 600;
       color: var(--text);
       letter-spacing: -0.005em;
     }
@@ -340,7 +349,7 @@
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 8px;
       margin-top: 10px;
       margin-bottom: 14px;
@@ -350,33 +359,26 @@
       display: none;
     }
 
-    .result-card,
-    .sidebar-row {
+    .result-card {
       appearance: none;
       border-radius: 6px;
-      border: 0.5px solid rgba(0, 0, 0, 0.12);
+      border: 0.5px solid rgba(0, 0, 0, 0.06);
       background: var(--card);
       color: var(--text);
       text-align: left;
       transition: background 80ms ease, border-color 80ms ease, box-shadow 80ms ease;
       user-select: text;
-    }
-
-    .result-card {
-      min-height: 74px;
       padding: 10px 12px;
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
 
-    .result-card:hover,
-    .sidebar-row:hover {
+    .result-card:hover {
       background: var(--card-hover);
     }
 
-    .result-card.selected,
-    .sidebar-row.selected {
+    .result-card.selected {
       background: var(--selected);
       border-color: var(--selected-border);
       box-shadow: 0 0 0 0.5px rgba(10, 132, 255, 0.35);
@@ -396,7 +398,7 @@
     .result-card.selected .meta,
     .sidebar-row.selected .meta {
       color: var(--accent-2);
-      font-weight: 650;
+      font-weight: 600;
     }
 
     .rank {
@@ -420,17 +422,17 @@
     .line {
       color: var(--text);
       font-size: 13.5px;
-      font-weight: 460;
+      font-weight: 450;
       line-height: 1.4;
       letter-spacing: 0;
-      opacity: 0.9;
+      opacity: 0.88;
       text-wrap: pretty;
     }
 
     .selected .line {
       color: #0b1220;
       font-size: 14px;
-      font-weight: 610;
+      font-weight: 600;
       letter-spacing: -0.003em;
       opacity: 1;
     }
@@ -494,7 +496,7 @@
     .subtitle-overlay .overlay-line {
       color: #fff;
       font-size: 22px;
-      font-weight: 620;
+      font-weight: 600;
       line-height: 1.3;
       letter-spacing: -0.005em;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 0, 0, 0.55);
@@ -534,14 +536,14 @@
       background: transparent;
       color: var(--text-2);
       font-size: 12px;
-      font-weight: 520;
+      font-weight: 500;
       letter-spacing: -0.003em;
     }
 
     .segmented button.active {
       background: #fff;
       color: var(--text);
-      font-weight: 650;
+      font-weight: 600;
       box-shadow: 0 0.5px 0 rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.08);
     }
 
@@ -567,17 +569,38 @@
     }
 
     .sidebar-row {
+      appearance: none;
       margin: 2px 8px;
       padding: 8px 10px;
+      border-radius: 6px;
+      border: 0.5px solid transparent;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      transition: background 80ms ease, border-color 80ms ease, box-shadow 80ms ease;
+      user-select: text;
       display: flex;
       flex-direction: column;
       gap: 4px;
-      background: transparent;
-      border-color: transparent;
     }
 
     .sidebar-row:hover {
       background: rgba(0, 0, 0, 0.04);
+    }
+
+    .sidebar-row.selected {
+      background: var(--selected);
+      border-color: var(--selected-border);
+      box-shadow: 0 0 0 0.5px rgba(10, 132, 255, 0.35);
+    }
+
+    .sidebar-row .line {
+      font-size: 12.5px;
+    }
+
+    .sidebar-row.selected .line {
+      font-size: 13px;
+      font-weight: 600;
     }
 
     .player {
@@ -637,6 +660,7 @@
     .thumb {
       position: absolute;
       left: calc(var(--value) - 6px);
+      z-index: 1;
       width: 12px;
       height: 12px;
       border-radius: 50%;
@@ -686,7 +710,7 @@
       white-space: nowrap;
       text-overflow: ellipsis;
       font-size: 12.5px;
-      font-weight: 560;
+      font-weight: 500;
       letter-spacing: -0.005em;
     }
 
@@ -760,10 +784,6 @@
         grid-template-columns: 1fr;
       }
 
-      .cards {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
       .sidebar {
         display: none;
       }
@@ -774,11 +794,6 @@
       }
     }
 
-    @media (max-width: 700px) {
-      .cards {
-        grid-template-columns: 1fr;
-      }
-    }
   </style>
 </head>
 <body>
@@ -853,8 +868,8 @@
         </button>
         <div class="search-field" role="search" aria-label="Search subtitles">
           <svg width="13" height="13"><use href="#search"></use></svg>
-          <input value="大丈夫" spellcheck="false">
-          <button class="clear-button" type="button" aria-label="Clear search">
+          <input id="searchInput" value="大丈夫" spellcheck="false">
+          <button class="clear-button" id="clearSearch" type="button" aria-label="Clear search">
             <svg width="14" height="14"><use href="#clear"></use></svg>
           </button>
         </div>
@@ -989,25 +1004,72 @@
           <section class="group">
             <button class="group-header" type="button">
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">葬送的芙莉莲 - 11</span>
+              <span class="group-count">3 results</span>
+              <span class="group-duration">23:40</span>
+            </button>
+            <div class="cards">
+              <button class="result-card" type="button" data-rank="12" data-time="03:55" data-zh="弗里伦 你还好吗" data-ja="フリーレン 大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#12</span><span>03:55</span></span>
+                <span class="line">弗里伦 你还好吗</span>
+                <span class="line">フリーレン <mark>大丈夫</mark></span>
+              </button>
+              <button class="result-card" type="button" data-rank="13" data-time="11:08" data-zh="嗯 没事" data-ja="ええ 大丈夫よ">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#13</span><span>11:08</span></span>
+                <span class="line">嗯 没事</span>
+                <span class="line">ええ <mark>大丈夫</mark>よ</span>
+              </button>
+              <button class="result-card" type="button" data-rank="14" data-time="20:14" data-zh="这点伤不要紧的" data-ja="この程度の怪我なら大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#14</span><span>20:14</span></span>
+                <span class="line">这点伤不要紧的</span>
+                <span class="line">この程度の怪我なら<mark>大丈夫</mark></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">葬送的芙莉莲 - 18</span>
               <span class="group-count">3 results</span>
               <span class="group-duration">24:31</span>
             </button>
             <div class="cards">
-              <button class="result-card" type="button" data-rank="12" data-time="07:42" data-zh="费伦 你没事吧" data-ja="フェルン 大丈夫">
-                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#12</span><span>07:42</span></span>
+              <button class="result-card" type="button" data-rank="15" data-time="07:42" data-zh="费伦 你没事吧" data-ja="フェルン 大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#15</span><span>07:42</span></span>
                 <span class="line">费伦 你没事吧</span>
                 <span class="line">フェルン <mark>大丈夫</mark></span>
               </button>
-              <button class="result-card" type="button" data-rank="13" data-time="17:20" data-zh="没问题 我可以一个人去" data-ja="大丈夫 一人で行ける">
-                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#13</span><span>17:20</span></span>
+              <button class="result-card" type="button" data-rank="16" data-time="17:20" data-zh="没问题 我可以一个人去" data-ja="大丈夫 一人で行ける">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#16</span><span>17:20</span></span>
                 <span class="line">没问题 我可以一个人去</span>
                 <span class="line"><mark>大丈夫</mark> 一人で行ける</span>
               </button>
-              <button class="result-card" type="button" data-rank="14" data-time="22:05" data-zh="我没事的" data-ja="私なら大丈夫">
-                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#14</span><span>22:05</span></span>
+              <button class="result-card" type="button" data-rank="17" data-time="22:05" data-zh="我没事的" data-ja="私なら大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#17</span><span>22:05</span></span>
                 <span class="line">我没事的</span>
                 <span class="line">私なら<mark>大丈夫</mark></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">BanG Dream! It's MyGO!!!!! - 07</span>
+              <span class="group-count">2 results</span>
+              <span class="group-duration">24:00</span>
+            </button>
+            <div class="cards">
+              <button class="result-card" type="button" data-rank="18" data-time="05:18" data-zh="灯 你没事吧" data-ja="灯 大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#18</span><span>05:18</span></span>
+                <span class="line">灯 你没事吧</span>
+                <span class="line">灯 <mark>大丈夫</mark></span>
+              </button>
+              <button class="result-card" type="button" data-rank="19" data-time="16:44" data-zh="我没事 真的" data-ja="大丈夫だよ ホントに">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#19</span><span>16:44</span></span>
+                <span class="line">我没事 真的</span>
+                <span class="line"><mark>大丈夫</mark>だよ ホントに</span>
               </button>
             </div>
           </section>
@@ -1025,12 +1087,12 @@
         <aside class="sidebar" aria-label="Playback sidebar">
           <div class="sidebar-top">
             <div class="segmented">
-              <button class="active" type="button">Search Results</button>
-              <button type="button">Subtitles</button>
+              <button class="active" type="button" data-tab="results">Search Results</button>
+              <button type="button" data-tab="subs">Subtitles</button>
             </div>
             <div class="sidebar-summary">
-              <span>185 results · 8 files shown</span>
-              <span class="sort">sorted by appearance</span>
+              <span id="sidebarCount">185 results · 8 files shown</span>
+              <span class="sort" id="sidebarSort">sorted by appearance</span>
             </div>
           </div>
           <div class="sidebar-list">
@@ -1079,6 +1141,56 @@
               <span class="line">没有吉他也没关系对吧</span>
               <span class="line">ギターなんてなくても<mark>大丈夫</mark>だったでしょう</span>
             </button>
+            <button class="sidebar-row" type="button" data-rank="10" data-time="06:12" data-zh="别担心 我会处理好的" data-ja="大丈夫 私がなんとかするから">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#10</span><span>06:12</span></span>
+              <span class="line">别担心 我会处理好的</span>
+              <span class="line"><mark>大丈夫</mark> 私がなんとかするから</span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="11" data-time="18:03" data-zh="我已经没事了" data-ja="もう私は大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#11</span><span>18:03</span></span>
+              <span class="line">我已经没事了</span>
+              <span class="line">もう私は<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="12" data-time="03:55" data-zh="弗里伦 你还好吗" data-ja="フリーレン 大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#12</span><span>03:55</span></span>
+              <span class="line">弗里伦 你还好吗</span>
+              <span class="line">フリーレン <mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="13" data-time="11:08" data-zh="嗯 没事" data-ja="ええ 大丈夫よ">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#13</span><span>11:08</span></span>
+              <span class="line">嗯 没事</span>
+              <span class="line">ええ <mark>大丈夫</mark>よ</span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="14" data-time="20:14" data-zh="这点伤不要紧的" data-ja="この程度の怪我なら大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#14</span><span>20:14</span></span>
+              <span class="line">这点伤不要紧的</span>
+              <span class="line">この程度の怪我なら<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="15" data-time="07:42" data-zh="费伦 你没事吧" data-ja="フェルン 大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#15</span><span>07:42</span></span>
+              <span class="line">费伦 你没事吧</span>
+              <span class="line">フェルン <mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="16" data-time="17:20" data-zh="没问题 我可以一个人去" data-ja="大丈夫 一人で行ける">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#16</span><span>17:20</span></span>
+              <span class="line">没问题 我可以一个人去</span>
+              <span class="line"><mark>大丈夫</mark> 一人で行ける</span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="17" data-time="22:05" data-zh="我没事的" data-ja="私なら大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#17</span><span>22:05</span></span>
+              <span class="line">我没事的</span>
+              <span class="line">私なら<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="18" data-time="05:18" data-zh="灯 你没事吧" data-ja="灯 大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#18</span><span>05:18</span></span>
+              <span class="line">灯 你没事吧</span>
+              <span class="line">灯 <mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row" type="button" data-rank="19" data-time="16:44" data-zh="我没事 真的" data-ja="大丈夫だよ ホントに">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#19</span><span>16:44</span></span>
+              <span class="line">我没事 真的</span>
+              <span class="line"><mark>大丈夫</mark>だよ ホントに</span>
+            </button>
           </div>
         </aside>
       </section>
@@ -1086,8 +1198,8 @@
 
     <footer class="player" aria-label="Bottom player">
       <div class="scrubber-row">
-        <span class="time" data-current-time>18:43</span>
-        <div class="slider" style="--value: 78%;">
+        <span class="time">00:30</span>
+        <div class="slider" style="--value: 2.1%;">
           <span class="thumb"></span>
         </div>
         <span class="time end">23:41</span>
@@ -1132,15 +1244,75 @@
   <script>
     const win = document.getElementById("window");
     const sourceToggle = document.getElementById("sourceToggle");
-    const currentTime = document.querySelector("[data-current-time]");
     const currentZh = document.querySelector("[data-current-zh]");
     const currentJa = document.querySelector("[data-current-ja]");
+    const searchInput = document.getElementById("searchInput");
+    const clearSearch = document.getElementById("clearSearch");
+    const sidebarCount = document.getElementById("sidebarCount");
+    const sidebarSort = document.getElementById("sidebarSort");
+    let visibleFilesShown = 8;
+
+    function escapeHTML(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function highlight(value, query) {
+      if (!query) {
+        return escapeHTML(value);
+      }
+      const index = value.indexOf(query);
+      if (index === -1) {
+        return escapeHTML(value);
+      }
+      return [
+        escapeHTML(value.slice(0, index)),
+        "<mark>",
+        escapeHTML(value.slice(index, index + query.length)),
+        "</mark>",
+        highlight(value.slice(index + query.length), query)
+      ].join("");
+    }
+
+    function updateSearch(query) {
+      document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
+        const matches = !query || el.dataset.zh.includes(query) || el.dataset.ja.includes(query);
+        el.hidden = !matches;
+        const lines = el.querySelectorAll(".line");
+        lines[0].innerHTML = highlight(el.dataset.zh, query);
+        lines[1].innerHTML = highlight(el.dataset.ja, query);
+      });
+
+      document.querySelectorAll(".group").forEach((group) => {
+        const visibleCards = Array.from(group.querySelectorAll(".result-card")).filter((card) => !card.hidden);
+        group.hidden = visibleCards.length === 0;
+        const count = group.querySelector(".group-count");
+        count.textContent = `${visibleCards.length} ${visibleCards.length === 1 ? "result" : "results"}`;
+      });
+
+      visibleFilesShown = Array.from(document.querySelectorAll(".group")).filter((group) => !group.hidden).length;
+      updateSidebarSummary();
+    }
+
+    function updateSidebarSummary() {
+      const activeTab = document.querySelector(".segmented button.active")?.dataset.tab;
+      if (activeTab === "subs") {
+        sidebarCount.textContent = "Bilingual · ZH / JA";
+        sidebarSort.textContent = "auto-scroll";
+      } else {
+        sidebarCount.textContent = `185 results · ${visibleFilesShown} files shown`;
+        sidebarSort.textContent = "sorted by appearance";
+      }
+    }
 
     function selectRank(rank, time, zh, ja) {
       document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
         el.classList.toggle("selected", el.dataset.rank === rank);
       });
-      currentTime.textContent = time;
       currentZh.textContent = zh;
       currentJa.textContent = ja;
     }
@@ -1149,6 +1321,16 @@
       el.addEventListener("click", () => {
         selectRank(el.dataset.rank, el.dataset.time, el.dataset.zh, el.dataset.ja);
       });
+    });
+
+    searchInput.addEventListener("input", () => {
+      updateSearch(searchInput.value);
+    });
+
+    clearSearch.addEventListener("click", () => {
+      searchInput.value = "";
+      updateSearch("");
+      searchInput.focus();
     });
 
     document.querySelectorAll(".group-header").forEach((button) => {
@@ -1171,6 +1353,17 @@
       sourceToggle.setAttribute("aria-pressed", String(expanded));
       sourceToggle.setAttribute("aria-label", expanded ? "Collapse video" : "Expand video");
     });
+
+    document.querySelectorAll(".segmented button").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".segmented button").forEach((item) => {
+          item.classList.toggle("active", item === button);
+        });
+        updateSidebarSummary();
+      });
+    });
+
+    updateSearch(searchInput.value);
   </script>
 </body>
 </html>
