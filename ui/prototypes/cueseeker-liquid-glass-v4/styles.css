@@ -475,13 +475,6 @@
     }
 
     .rank { display: inline-flex; align-items: center; gap: 5px; }
-    .playing {
-      color: var(--accent);
-      display: none;
-      width: 8px; height: 8px;
-      flex: 0 0 auto;
-    }
-    .selected .playing { display: inline-flex; }
 
     .line {
       color: var(--text);
@@ -1212,6 +1205,31 @@
       --text-3: #9a96a8;
       --text-4: #6f6a7d;
       --text-on-selected-card: #f8f6fb;
+      --search-page-bg: #1f2027;
+      --search-page-fg: #f3f1f6;
+      --search-page-text-2: #c9c6d2;
+      --search-page-text-3: #aaa6b6;
+      --search-page-text-4: #817d8d;
+      --search-page-selected-fg: #f8f6fb;
+      --search-page-accent: #6ea6ff;
+      --search-page-accent-soft: rgba(110,166,255,0.18);
+      --search-page-highlight: rgba(255,214,92,0.32);
+      --search-page-highlight-text: #fff0b5;
+      --search-page-hairline: rgba(255,255,255,0.12);
+      --search-page-inner-top: rgba(255,255,255,0.24);
+      --search-page-pill-bg: rgba(255,255,255,0.10);
+      --search-page-pill-border: rgba(255,255,255,0.20);
+      --search-page-pill-hover-bg: rgba(255,255,255,0.16);
+      --search-page-pill-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.06), 0 1px 3px rgba(0,0,0,0.30);
+      --search-page-field-bg: rgba(255,255,255,0.10);
+      --search-page-field-focus-bg: rgba(255,255,255,0.16);
+      --search-page-field-icon: rgba(243,241,246,0.58);
+      --search-page-card-bg: rgba(255,255,255,0.10);
+      --search-page-card-hover-bg: rgba(255,255,255,0.15);
+      --search-page-card-selected-bg: rgba(255,255,255,0.18);
+      --search-page-card-shadow: inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -0.5px 0 rgba(255,255,255,0.05), 0 0 0 0.5px rgba(255,255,255,0.10), 0 1px 2px rgba(0,0,0,0.22);
+      --search-page-card-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.14), 0 5px 14px -5px rgba(0,0,0,0.44);
+      --search-page-row-hover-bg: rgba(255,255,255,0.12);
       --accent: #6ea6ff;
       --accent-soft: rgba(110, 166, 255, 0.16);
       --accent-soft-2: rgba(110, 166, 255, 0.28);
@@ -1415,13 +1433,6 @@
       box-shadow: none;
     }
     .selected .line { color: var(--text-on-selected-card); }
-    .result-card.selected .rank,
-    .sidebar-row.selected .rank { gap: 7px; }
-    .result-card.selected .playing,
-    .sidebar-row.selected .playing {
-      width: 12px;
-      height: 12px;
-    }
 
     .sidebar {
       background: var(--surface-bg);
