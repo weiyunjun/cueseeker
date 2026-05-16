@@ -49,6 +49,29 @@ Rules:
 - If a required interaction is unclear, confirm it before finalizing the HTML
   prototype.
 
+## 3.1 Component Vocabulary
+
+UI alignment should use stable component concepts before implementation details.
+
+Rules:
+
+- Describe elements by component class first, such as `search field capsule`,
+  `circular icon toggle button`, `capsule command button`, `segmented control`,
+  `result card`, or `rounded-rectangle popup menu`.
+- If the user asks what a component concept means, explain it by visible shape
+  and behavior first. Use a familiar element analogy second. Do not lead with
+  raw measurements, colors, or CSS values unless the user explicitly asks for
+  implementation detail.
+- Every accepted UI element must be classified in the relevant UI design
+  document. The classification should make clear whether a change targets one
+  specific element or the whole component class.
+- If a requested UI change is ambiguous about scope, ask whether it should be a
+  special treatment for that element or a rule change for every element in the
+  same component class.
+- Component class names are product vocabulary. HTML classes, SwiftUI views,
+  AppKit views, and CSS selectors may use different names as long as the
+  documented component concept is preserved.
+
 ## 4. Prototype Requirements
 
 Local HTML prototypes must be easy to share with web-focused AI tools.

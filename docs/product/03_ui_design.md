@@ -152,6 +152,45 @@ Stable design snapshot:
   state, transport feedback, source/title expansion state, fullscreen feedback,
   and speed-menu selection.
 
+Current component classification:
+
+| Element | Component class |
+| --- | --- |
+| Main workbench background | Liquid Glass work surface |
+| Topbar Library button | Circular icon toggle button |
+| Topbar Shiori button | Circular icon toggle button |
+| Topbar Search input | Search field capsule |
+| Topbar Search clear action | Embedded circular icon button |
+| Search results summary row | Status summary row |
+| `Collapse All` action | Capsule command button with disabled state |
+| Search result group header | Disclosure header row |
+| Search result group expand/collapse action | Disclosure icon button |
+| Search result card | Result card |
+| Search match highlight | Inline text highlight |
+| Expanded playback frame | Video stage surface |
+| Subtitle overlay | Subtitle overlay |
+| Playback side panel surface | Side panel surface |
+| `Search Results` / `Subtitles` switcher | Segmented control |
+| Side panel count and summary | Sidebar summary |
+| Side panel scroll area | Sidebar list container |
+| Side panel result or subtitle row | Sidebar row |
+| Selected side panel row | Selected sidebar row |
+| Bottom player container | Bottom player surface |
+| Current source/title control | Source title capsule |
+| Volume button | Circular icon button with volume popover |
+| Volume slider panel | Volume popover |
+| Progress scrubber | Playback progress slider |
+| Playback time labels | Time labels |
+| Previous, skip, play, and next controls | Circular transport icon buttons |
+| Primary play/pause control | Primary circular icon button |
+| Shiori playback control | Circular icon toggle button |
+| Subtitle visibility control | Circular icon toggle button |
+| Side panel visibility control | Circular icon toggle button |
+| Fullscreen control | Circular icon button |
+| Playback speed control | Fixed-width value capsule button |
+| Playback speed menu | Rounded-rectangle popup menu |
+| Playback speed option | Popup menu item |
+
 Known HTML/App difference categories for this baseline:
 
 - Native macOS window chrome, traffic-light placement, full-screen transitions,

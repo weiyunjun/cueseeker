@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added UI collaboration rules for concept-first component vocabulary, required
+  element classification, and explicit scope clarification for element-specific
+  versus class-wide UI changes.
 - Clarified the Liquid Glass control taxonomy: circular icon buttons, capsule
   buttons, selected toggle states, pressed scaling, and rounded-rectangle
   pop-up menu containers are now documented as the current UI baseline.
