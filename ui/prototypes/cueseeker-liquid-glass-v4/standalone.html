@@ -1,0 +1,2556 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CueSeeker · Liquid Glass v4</title>
+  <style>
+/*
+  CueSeeker Liquid Glass v4 split-source prototype.
+  Styles intentionally preserve v3 visual selectors. The additional ui-*
+  classes in index.html provide the new component taxonomy without changing
+  visual output.
+*/
+
+:root {
+      color-scheme: light;
+
+      /* Liquid Glass tokens */
+      --glass-window-bg: rgba(244, 244, 247, 0.62);
+      --glass-window-border: rgba(255, 255, 255, 0.55);
+      --glass-window-shadow:
+        0 0 0 0.5px rgba(0, 0, 0, 0.12),
+        0 1px 0 rgba(255, 255, 255, 0.6) inset,
+        0 30px 80px -20px rgba(20, 24, 40, 0.35),
+        0 10px 30px -10px rgba(20, 24, 40, 0.18);
+
+      --glass-hud-bg: rgba(248, 248, 250, 0.55);
+      --glass-hud-border: rgba(255, 255, 255, 0.6);
+      --glass-hud-shadow:
+        0 0 0 0.5px rgba(0, 0, 0, 0.10),
+        0 1px 0 rgba(255, 255, 255, 0.75) inset,
+        0 -1px 0 rgba(255, 255, 255, 0.18) inset,
+        0 18px 40px -14px rgba(15, 18, 30, 0.30),
+        0 6px 16px -6px rgba(15, 18, 30, 0.18);
+
+      --glass-thin-bg: rgba(255, 255, 255, 0.32);
+      --glass-thin-border: rgba(255, 255, 255, 0.5);
+
+      --hairline: rgba(0, 0, 0, 0.08);
+      --hairline-soft: rgba(0, 0, 0, 0.05);
+      --inner-top: rgba(255, 255, 255, 0.7);
+
+      --text: #1a1a1f;
+      --text-2: #4d4e55;
+      --text-3: #7a7c84;
+      --text-4: #adafb6;
+
+      --accent: #0a84ff;
+      --accent-soft: rgba(10, 132, 255, 0.16);
+      --accent-soft-2: rgba(10, 132, 255, 0.28);
+      --highlight: rgba(255, 204, 0, 0.42);
+      --highlight-text: #4a3300;
+
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sf: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: var(--sf);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow: hidden;
+    }
+
+    /* Desktop — colorful enough that glass actually shows refraction */
+    body {
+      position: relative;
+      background:
+        radial-gradient(ellipse 60% 50% at 18% 22%, #ffd6a8 0%, transparent 60%),
+        radial-gradient(ellipse 55% 60% at 82% 18%, #c8d4ff 0%, transparent 60%),
+        radial-gradient(ellipse 70% 60% at 80% 88%, #ffc4d6 0%, transparent 55%),
+        radial-gradient(ellipse 55% 60% at 14% 86%, #b6e4d0 0%, transparent 55%),
+        linear-gradient(135deg, #e8e4dc 0%, #d8d6e0 50%, #cdd4dc 100%);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 54px 28px 18px;
+    }
+
+    /* Subtle film grain over the whole desktop for that organic mac wallpaper feel */
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background-image:
+        radial-gradient(circle at 30% 70%, rgba(255,255,255,0.4), transparent 40%),
+        radial-gradient(circle at 70% 30%, rgba(255,255,255,0.25), transparent 40%);
+      pointer-events: none;
+      mix-blend-mode: overlay;
+    }
+
+    button, input { font: inherit; }
+    button { cursor: default; }
+
+    /* ============================ WINDOW ============================ */
+    .window {
+      width: min(1380px, 100%);
+      height: min(900px, calc(100vh - 72px));
+      min-height: 520px;
+      border-radius: 14px;
+      background: var(--glass-window-bg);
+      backdrop-filter: blur(40px) saturate(180%);
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      box-shadow: var(--glass-window-shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 48px minmax(0, 1fr);
+      position: relative;
+    }
+
+    /* Inner refraction edge — a soft inner ring of light */
+    .window::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      box-shadow:
+        inset 0 0.5px 0 rgba(255, 255, 255, 0.7),
+        inset 0 -0.5px 0 rgba(255, 255, 255, 0.18),
+        inset 0.5px 0 0 rgba(255, 255, 255, 0.28),
+        inset -0.5px 0 0 rgba(255, 255, 255, 0.28);
+    }
+
+    /* Tinted noise/blur veneer giving it the silver-gray sheen */
+    .window::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 22%, transparent 78%, rgba(255,255,255,0.06) 100%);
+      mix-blend-mode: screen;
+    }
+
+    /* ============================ TOOLBAR ============================ */
+    .toolbar {
+      position: relative;
+      z-index: 5;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 14px;
+      border-bottom: 0.5px solid rgba(0,0,0,0.06);
+      background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.10));
+    }
+
+    .traffic {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .traffic span {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      box-shadow:
+        inset 0 0.5px 0 rgba(255, 255, 255, 0.55),
+        inset 0 0 0 0.5px rgba(0, 0, 0, 0.10),
+        0 0 0 0.5px rgba(0,0,0,0.04);
+    }
+    .close { background: #ff5f57; }
+    .minimize { background: #febc2e; }
+    .zoom { background: #28c840; }
+
+    .toolbar-center {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Tool buttons in toolbar — small glass pills on hover */
+    .tool-button {
+      appearance: none;
+      border: 0;
+      width: 30px; height: 26px;
+      border-radius: 7px;
+      background: transparent;
+      color: rgba(0, 0, 0, 0.66);
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      transition: background 120ms ease, box-shadow 120ms ease;
+    }
+    .tool-button:hover {
+      background: rgba(255,255,255,0.55);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.8),
+        0 0 0 0.5px rgba(0,0,0,0.06);
+    }
+    .tool-button.selected {
+      background: rgba(255,255,255,0.7);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.9),
+        0 0 0 0.5px rgba(0,0,0,0.08),
+        0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    /* Search field — glass pill */
+    .search-field {
+      height: 30px;
+      min-width: 380px;
+      max-width: 540px;
+      flex: 0 1 460px;
+      margin-left: 6px;
+      padding: 0 10px 0 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.55);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.9),
+        inset 0 -0.5px 0 rgba(255,255,255,0.25),
+        0 0 0 0.5px rgba(0,0,0,0.07),
+        0 1px 2px rgba(0,0,0,0.04);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      transition: box-shadow 140ms ease, background 140ms ease;
+    }
+    .search-field:focus-within {
+      background: rgba(255,255,255,0.85);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,1),
+        0 0 0 0.5px rgba(10,132,255,0.55),
+        0 0 0 3.5px rgba(10,132,255,0.18);
+    }
+    .search-field svg { color: rgba(0,0,0,0.45); flex: 0 0 auto; }
+    .search-field input {
+      min-width: 0; flex: 1;
+      height: 24px;
+      border: 0; outline: 0; background: transparent;
+      color: var(--text);
+      font-size: 13.5px;
+    }
+
+    .clear-button {
+      appearance: none; border: 0; background: transparent; padding: 0;
+      color: rgba(0,0,0,0.42);
+      display: inline-flex; align-items: center;
+    }
+
+    /* ============================ MAIN ============================ */
+    .main {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .search-state, .video-state {
+      position: absolute;
+      inset: 0;
+      min-height: 0;
+      transition: opacity 200ms ease;
+    }
+
+    .video-state {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .window.video-expanded .search-state {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .window.video-expanded .video-state {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ============================ SEARCH RESULTS ============================ */
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px 6px;
+    }
+
+    .results-header .summary {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      color: var(--text-2);
+      font-size: 12.5px;
+    }
+    .results-header strong {
+      color: var(--text);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .header-actions { display: flex; gap: 4px; }
+
+    .small-button {
+      appearance: none;
+      min-width: 92px;
+      height: 26px;
+      padding: 0 13px;
+      border-radius: 999px;
+      border: 0.5px solid var(--pill-border);
+      background: rgba(255,255,255,0.56);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.88),
+        0 0 0 0.5px rgba(0,0,0,0.06);
+      color: var(--text-2);
+      font-size: 11.5px;
+      transition: background 120ms ease, color 120ms ease, transform 160ms cubic-bezier(.34,1.56,.64,1);
+    }
+    .small-button:hover {
+      background: rgba(255,255,255,0.76);
+      color: var(--text);
+    }
+    .small-button:active { transform: scale(0.94); }
+    .small-button:disabled,
+    .small-button:disabled:hover {
+      background: rgba(255,255,255,0.22);
+      border-color: rgba(255,255,255,0.34);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.38);
+      color: var(--text-4);
+      opacity: 1;
+    }
+
+    .results-scroll {
+      position: absolute;
+      left: 0; right: 0; top: 50px; bottom: 0;
+      overflow: auto;
+      padding: 4px 24px 120px; /* room for floating HUD */
+    }
+
+    .group {
+      padding: 14px 0 6px;
+      border-bottom: 0.5px solid var(--hairline-soft);
+      margin-bottom: 6px;
+    }
+    .group:last-child { border-bottom: 0; }
+
+    .group-header {
+      appearance: none;
+      border: 0;
+      width: calc(100% + 12px);
+      margin: 0 -6px;
+      padding: 5px 8px 5px 4px;
+      border-radius: 7px;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+      transition: background 100ms ease;
+    }
+    .group-header:hover { background: rgba(255,255,255,0.4); }
+
+    .group-header .chevron {
+      width: 16px; height: 16px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--text-3);
+      transition: transform 160ms ease;
+      transform: rotate(90deg);
+    }
+    .group.collapsed .chevron { transform: rotate(0deg); }
+    .group-title {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      letter-spacing: -0.005em;
+    }
+    .group-count {
+      color: var(--text-3);
+      font-size: 11.5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 10px;
+      margin: 10px 0 14px;
+    }
+    .group.collapsed .cards { display: none; }
+
+    /* Result card — thin glass tile */
+    .result-card {
+      appearance: none;
+      position: relative;
+      border: 0;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.48);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.85),
+        inset 0 -0.5px 0 rgba(255,255,255,0.18),
+        0 0 0 0.5px rgba(0,0,0,0.06),
+        0 1px 2px rgba(15,18,30,0.04);
+      color: var(--text);
+      text-align: left;
+      padding: 11px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      user-select: text;
+      transition: background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    }
+    .result-card:hover {
+      background: rgba(255,255,255,0.7);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.95),
+        0 0 0 0.5px rgba(0,0,0,0.07),
+        0 4px 12px -4px rgba(15,18,30,0.12);
+    }
+    .result-card.selected {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(40px) saturate(200%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,1),
+        inset 0 -0.5px 0 rgba(255,255,255,0.5),
+        0 0 0 0.5px rgba(10,132,255,0.55),
+        0 0 0 3px rgba(10,132,255,0.10),
+        0 6px 18px -4px rgba(15,18,30,0.18);
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-3);
+      font: 11px var(--mono);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+    }
+    .result-card.selected .meta,
+    .sidebar-row.selected .meta {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .rank { display: inline-flex; align-items: center; gap: 5px; }
+    .playing {
+      color: var(--accent);
+      display: none;
+      width: 8px; height: 8px;
+      flex: 0 0 auto;
+    }
+    .selected .playing { display: inline-flex; }
+
+    .line {
+      color: var(--text);
+      font-size: 13.5px;
+      font-weight: 450;
+      line-height: 1.4;
+      opacity: 0.86;
+      text-wrap: pretty;
+    }
+    .selected .line {
+      color: #0a1426;
+      font-weight: 600;
+      opacity: 1;
+    }
+    .result-card.selected .meta,
+    .sidebar-row.selected .meta {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    mark {
+      background: var(--highlight);
+      color: var(--highlight-text);
+      padding: 1px 3px;
+      border-radius: 3px;
+      font: inherit;
+    }
+
+    /* ============================ VIDEO STATE ============================ */
+    .video-stage {
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .video-stage::before {
+      content: "";
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse at 30% 40%, rgba(120,90,140,0.5), transparent 55%),
+        radial-gradient(ellipse at 70% 60%, rgba(60,80,120,0.5), transparent 60%),
+        repeating-linear-gradient(135deg, #0e0e12 0 18px, #0a0a0e 18px 36px);
+      opacity: 0.9;
+    }
+    .video-stage::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.7) 100%);
+    }
+    .video-label {
+      position: relative;
+      z-index: 1;
+      color: rgba(255,255,255,0.32);
+      font: 11px var(--mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .subtitle-overlay {
+      position: absolute;
+      left: 50%;
+      bottom: 110px;
+      transform: translateX(-50%);
+      z-index: 2;
+      max-width: 80%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 22px;
+      border-radius: 14px;
+      background: rgba(20,20,28,0.42);
+      backdrop-filter: blur(24px) saturate(150%);
+      -webkit-backdrop-filter: blur(24px) saturate(150%);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.18),
+        inset 0 -0.5px 0 rgba(255,255,255,0.06),
+        0 0 0 0.5px rgba(255,255,255,0.10);
+      pointer-events: none;
+    }
+    .subtitle-overlay .overlay-line {
+      color: #fff;
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 1.3;
+      letter-spacing: -0.005em;
+      text-align: center;
+    }
+    .subtitle-overlay .overlay-line + .overlay-line {
+      font-size: 17px;
+      font-weight: 500;
+      opacity: 0.86;
+    }
+
+    /* Sidebar — light glass, dark text, matches window chrome */
+    .sidebar {
+      position: relative;
+      background: rgba(248, 248, 250, 0.55);
+      backdrop-filter: blur(36px) saturate(180%);
+      -webkit-backdrop-filter: blur(36px) saturate(180%);
+      border-left: 0.5px solid rgba(0, 0, 0, 0.08);
+      box-shadow: inset 0.5px 0 0 rgba(255,255,255,0.6);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+    .window.sidebar-hidden .video-state {
+      grid-template-columns: 1fr 0;
+    }
+    .window.sidebar-hidden .sidebar {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(12px);
+    }
+    .window.video-expanded.sidebar-hidden .player-dock {
+      right: 20px;
+    }
+    .sidebar-top {
+      padding: 14px 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 0.5px solid var(--hairline-soft);
+    }
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2px;
+      padding: 2px;
+      width: 100%;
+      border-radius: 9px;
+      background: rgba(0,0,0,0.06);
+      box-shadow:
+        inset 0 0.5px 0 rgba(0,0,0,0.05),
+        0 0 0 0.5px rgba(0,0,0,0.04);
+    }
+    .segmented button {
+      height: 24px;
+      border: 0; border-radius: 7px;
+      background: transparent;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .segmented button.active {
+      background: rgba(255,255,255,0.85);
+      color: var(--text);
+      font-weight: 600;
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.95),
+        0 0 0 0.5px rgba(0,0,0,0.06),
+        0 1px 2px rgba(0,0,0,0.08);
+    }
+    .sidebar-summary {
+      color: var(--text-3);
+      font-size: 11.5px;
+      font-variant-numeric: tabular-nums;
+      padding: 0 2px;
+    }
+    .sidebar-list {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 6px 8px 14px;
+    }
+    .sidebar-row {
+      appearance: none;
+      width: 100%;
+      margin: 2px 0;
+      padding: 9px 11px;
+      border-radius: 8px;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      display: flex; flex-direction: column; gap: 4px;
+      transition: background 100ms ease, box-shadow 100ms ease;
+      user-select: text;
+    }
+    .sidebar-row:hover {
+      background: rgba(255,255,255,0.55);
+    }
+    .sidebar-row.selected {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(40px) saturate(200%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,1),
+        inset 0 -0.5px 0 rgba(255,255,255,0.5),
+        0 0 0 0.5px rgba(10,132,255,0.55),
+        0 0 0 3px rgba(10,132,255,0.10),
+        0 6px 18px -4px rgba(15,18,30,0.18);
+    }
+    .sidebar-row .line {
+      color: var(--text);
+      font-size: 12.5px;
+      opacity: 0.86;
+    }
+    .sidebar-row.selected .line {
+      color: #0a1426;
+      font-weight: 600;
+      opacity: 1;
+    }
+    .sidebar-row .meta {
+      color: var(--text-3);
+    }
+    .sidebar-row.selected .meta {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ============================ FLOATING PLAYER HUD ============================ */
+    .player-dock {
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      bottom: 20px;
+      z-index: 20;
+      margin: 0 auto;
+      max-width: 880px;
+      border-radius: 22px;
+      background: var(--glass-hud-bg);
+      backdrop-filter: blur(32px) saturate(180%);
+      -webkit-backdrop-filter: blur(32px) saturate(180%);
+      box-shadow: var(--glass-hud-shadow);
+      display: flex;
+      flex-direction: column;
+      transition: right 240ms cubic-bezier(.22,.61,.36,1);
+    }
+    /* In video-expanded mode, sidebar (380px) takes the right column; keep HUD over the video only */
+    .window.video-expanded .player-dock {
+      right: 400px;
+      background: rgba(28,28,34,0.48);
+      box-shadow:
+        0 0 0 0.5px rgba(255,255,255,0.12),
+        inset 0 0.5px 0 rgba(255,255,255,0.22),
+        inset 0 -0.5px 0 rgba(255,255,255,0.04),
+        0 22px 50px -14px rgba(0,0,0,0.6),
+        0 8px 18px -6px rgba(0,0,0,0.4);
+    }
+    @media (max-width: 980px) {
+      .window.video-expanded .player-dock { right: 20px; }
+    }
+
+    /* Scrubber row inside the HUD */
+    .scrubber {
+      height: 30px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 0.5px solid rgba(0,0,0,0.07);
+    }
+    .window.video-expanded .scrubber {
+      border-bottom-color: rgba(255,255,255,0.10);
+    }
+
+    .time {
+      width: 38px;
+      color: var(--text-2);
+      font: 11px var(--mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .time.end { color: var(--text-3); text-align: right; }
+    .window.video-expanded .time { color: rgba(255,255,255,0.75); }
+    .window.video-expanded .time.end { color: rgba(255,255,255,0.55); }
+
+    .slider {
+      --value: 0%;
+      position: relative;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      flex: 1;
+    }
+    .slider::before, .slider::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      height: 4px;
+      border-radius: 2px;
+    }
+    .slider::before { right: 0; background: rgba(0,0,0,0.12); }
+    .slider::after { width: var(--value); background: var(--accent); }
+    .window.video-expanded .slider::before { background: rgba(255,255,255,0.18); }
+
+    .thumb {
+      position: absolute;
+      left: calc(var(--value) - 7px);
+      z-index: 1;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow:
+        0 0 0 0.5px rgba(0,0,0,0.18),
+        inset 0 0.5px 0 rgba(255,255,255,0.9),
+        0 1px 3px rgba(0,0,0,0.25),
+        0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    /* Main HUD row — left / center / right tri-column */
+    .player-hud {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      min-width: 0;
+    }
+    .hud-left {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      justify-self: start;
+    }
+    .hud-center {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-self: center;
+    }
+    .hud-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-self: end;
+    }
+
+    .icon-button {
+      appearance: none;
+      border: 0;
+      width: 32px;
+      height: 32px;
+      flex: 0 0 32px;
+      border-radius: 999px;
+      background: transparent;
+      color: rgba(0,0,0,0.78);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 100ms ease, box-shadow 100ms ease, transform 120ms ease;
+    }
+    .icon-button svg {
+      flex: 0 0 auto;
+    }
+    .subtitle-button {
+      width: 32px;
+      height: 32px;
+      flex: 0 0 32px;
+    }
+    .transport-button {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
+    }
+    .transport-button svg {
+      width: 18px;
+      height: 18px;
+    }
+    .transport-primary {
+      width: 44px;
+      height: 44px;
+      flex-basis: 44px;
+    }
+    .transport-primary svg {
+      width: 20px;
+      height: 20px;
+    }
+    .icon-button:hover {
+      background: rgba(255,255,255,0.55);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.9),
+        0 0 0 0.5px rgba(0,0,0,0.05);
+    }
+    .icon-button:active { transform: scale(0.94); }
+    .icon-button.selected {
+      background: #fff;
+      color: #1a1a1f;
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,1),
+        0 0 0 0.5px rgba(0,0,0,0.07),
+        0 1px 3px rgba(0,0,0,0.10);
+    }
+    .window.video-expanded .icon-button {
+      color: rgba(255,255,255,0.96);
+    }
+    .window.video-expanded .icon-button svg {
+      filter: drop-shadow(0 0.5px 1px rgba(0,0,0,0.4));
+    }
+    .window.video-expanded .icon-button:hover {
+      background: rgba(255,255,255,0.18);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.25),
+        0 0 0 0.5px rgba(255,255,255,0.10);
+    }
+    .window.video-expanded .icon-button.selected {
+      background: #fff;
+      color: #1a1a1f;
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,1),
+        0 0 0 0.5px rgba(255,255,255,0.75),
+        0 1px 4px rgba(0,0,0,0.22);
+    }
+    .window.video-expanded .icon-button.selected svg {
+      filter: none;
+    }
+    /* Big play button */
+    .play-button {
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.85);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,1),
+        inset 0 -0.5px 0 rgba(0,0,0,0.04),
+        0 0 0 0.5px rgba(0,0,0,0.07),
+        0 2px 6px rgba(0,0,0,0.10);
+      color: #1a1a1f;
+    }
+    .play-button:hover {
+      background: rgba(255,255,255,0.95);
+    }
+    .window.video-expanded .play-button {
+      background: rgba(255,255,255,0.92);
+      color: #1a1a1f;
+    }
+    .transport-primary.play-button {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 44px;
+    }
+
+    /* Source/Now-playing toggle (left of transport) */
+    .source-toggle {
+      appearance: none;
+      min-width: 38px;
+      height: 32px;
+      max-width: 220px;
+      padding: 0 12px 0 10px;
+      flex: 0 1 auto;
+      border-radius: 999px;
+      border: 0;
+      background: #fff;
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,1),
+        0 0 0 0.5px rgba(0,0,0,0.07),
+        0 1px 3px rgba(0,0,0,0.10);
+      transition: transform 120ms ease;
+    }
+    .source-toggle:hover { background: #fff; }
+    .source-toggle .source-chevron {
+      color: var(--text-2);
+      display: inline-flex;
+      transform: rotate(180deg);
+      transition: transform 200ms ease;
+    }
+    .window.video-expanded .source-toggle { color: var(--text); }
+    .window.video-expanded .source-toggle:hover { background: #fff; }
+    .window.video-expanded .source-toggle .source-chevron {
+      color: var(--text-2);
+      transform: rotate(0deg);
+    }
+
+    .source-label {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+    }
+    /* Volume control mirrors the App: hover expands the slider to the right; click toggles mute. */
+    .volume-host {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      width: 32px;
+      height: 32px;
+      flex: 0 0 32px;
+      overflow: visible;
+    }
+    .volume-popover {
+      position: absolute;
+      left: 32px;
+      top: 50%;
+      transform: translateY(-50%) translateX(-4px);
+      z-index: 50;
+      height: 28px;
+      width: 144px;
+      padding: 0 8px;
+      border-radius: 9px;
+      background: rgba(255,255,255,0.86);
+      backdrop-filter: blur(34px) saturate(180%);
+      -webkit-backdrop-filter: blur(34px) saturate(180%);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.95),
+        0 0 0 0.5px rgba(0,0,0,0.08),
+        0 4px 14px -6px rgba(15,18,30,0.24);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 140ms ease, transform 160ms cubic-bezier(.22,.61,.36,1);
+    }
+    .volume-host:hover .volume-popover {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(-50%) translateX(0);
+    }
+    .volume-popover .slider {
+      flex: 0 0 86px;
+      height: 18px;
+    }
+    .volume-popover .slider::before,
+    .volume-popover .slider::after {
+      height: 5px;
+      border-radius: 999px;
+    }
+    .volume-popover .slider::after { background: rgba(0,0,0,0.64); }
+    .volume-popover .thumb { display: none; }
+    .volume-percent {
+      width: 34px;
+      text-align: right;
+      color: var(--text-3);
+      font: 600 11px var(--mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .window.video-expanded .volume-popover {
+      background: rgba(255,255,255,0.86);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.95),
+        0 0 0 0.5px rgba(0,0,0,0.08),
+        0 4px 14px -6px rgba(0,0,0,0.36);
+    }
+    .window.video-expanded .volume-popover .slider::before { background: rgba(0,0,0,0.12); }
+    .window.video-expanded .volume-popover .slider::after { background: rgba(0,0,0,0.64); }
+
+    .speed-button {
+      appearance: none;
+      border: 0;
+      width: 54px;
+      height: 28px;
+      padding: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      transition: background 100ms ease;
+    }
+    .speed-button:hover { background: rgba(255,255,255,0.55); }
+    .speed-button[aria-expanded="true"] {
+      background: rgba(255,255,255,0.7);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.9),
+        0 0 0 0.5px rgba(0,0,0,0.06);
+    }
+    .window.video-expanded .speed-button { color: rgba(255,255,255,0.92); }
+    .window.video-expanded .speed-button:hover { background: rgba(255,255,255,0.16); }
+    .window.video-expanded .speed-button[aria-expanded="true"] {
+      background: rgba(255,255,255,0.22);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.30),
+        0 0 0 0.5px rgba(255,255,255,0.16);
+    }
+
+    .speed-control { position: relative; display: inline-flex; flex: 0 0 auto; }
+
+    .speed-menu {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 10px);
+      z-index: 60;
+      width: 124px;
+      padding: 5px;
+      border-radius: 11px;
+      background: rgba(248,248,250,0.78);
+      backdrop-filter: blur(40px) saturate(180%);
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      box-shadow:
+        0 0 0 0.5px rgba(0,0,0,0.12),
+        inset 0 0.5px 0 rgba(255,255,255,0.9),
+        0 18px 36px -8px rgba(0,0,0,0.30),
+        0 4px 12px rgba(0,0,0,0.10);
+    }
+
+    .speed-option {
+      appearance: none;
+      width: 100%;
+      height: 26px;
+      padding: 0 10px 0 8px;
+      border: 0; border-radius: 7px;
+      background: transparent;
+      color: var(--text);
+      display: grid;
+      grid-template-columns: 16px 1fr;
+      column-gap: 6px;
+      align-items: center;
+      font-size: 12.5px;
+      font-variant-numeric: tabular-nums;
+      text-align: left;
+    }
+    .speed-option:hover, .speed-option:focus-visible {
+      outline: 0;
+      background: var(--accent);
+      color: #fff;
+    }
+    .speed-check {
+      color: var(--accent);
+      font-size: 11px;
+      text-align: center;
+      opacity: 0;
+    }
+    .speed-option.selected .speed-check { opacity: 1; }
+    .speed-option:hover .speed-check,
+    .speed-option:focus-visible .speed-check { color: currentColor; }
+
+    .hidden { display: none; }
+
+    /* Scrollbar styling — thin, glassy */
+    .results-scroll::-webkit-scrollbar,
+    .sidebar-list::-webkit-scrollbar { width: 10px; }
+    .results-scroll::-webkit-scrollbar-thumb,
+    .sidebar-list::-webkit-scrollbar-thumb {
+      background: rgba(0,0,0,0.18);
+      border: 3px solid transparent;
+      background-clip: padding-box;
+      border-radius: 10px;
+    }
+    .sidebar-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.35); background-clip: padding-box; }
+    .results-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.32); background-clip: padding-box; }
+
+    @media (max-width: 980px) {
+      body { padding: 54px 14px 14px; }
+      .window { height: calc(100vh - 68px); }
+      .test-controls { right: 14px; }
+      .search-field { min-width: 240px; }
+      .video-state { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .volume, .hud-meta { display: none; }
+    }
+
+
+    /* ============================ THEME + COMPONENT CLASS OVERRIDES ============================ */
+    :root {
+      --desktop-bg:
+        radial-gradient(ellipse 60% 50% at 18% 22%, #ffd6a8 0%, transparent 60%),
+        radial-gradient(ellipse 55% 60% at 82% 18%, #c8d4ff 0%, transparent 60%),
+        radial-gradient(ellipse 70% 60% at 80% 88%, #ffc4d6 0%, transparent 55%),
+        radial-gradient(ellipse 55% 60% at 14% 86%, #b6e4d0 0%, transparent 55%),
+        linear-gradient(135deg, #e8e4dc 0%, #d8d6e0 50%, #cdd4dc 100%);
+      --desktop-overlay:
+        radial-gradient(circle at 30% 70%, rgba(255,255,255,0.4), transparent 40%),
+        radial-gradient(circle at 70% 30%, rgba(255,255,255,0.25), transparent 40%);
+      --window-inner-ring:
+        inset 0 0.5px 0 rgba(255,255,255,0.7),
+        inset 0 -0.5px 0 rgba(255,255,255,0.18),
+        inset 0.5px 0 0 rgba(255,255,255,0.28),
+        inset -0.5px 0 0 rgba(255,255,255,0.28);
+      --window-sheen: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 22%, transparent 78%, rgba(255,255,255,0.06) 100%);
+      --toolbar-bg: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.10));
+      --circle-fg: rgba(0,0,0,0.78);
+      --circle-hover-bg: rgba(255,255,255,0.55);
+      --circle-hover-border: rgba(255,255,255,0.85);
+      --circle-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.9), 0 0 0 0.5px rgba(0,0,0,0.05);
+      --circle-selected-bg: rgba(50, 50, 60, 0.72);
+      --circle-selected-fg: #fff;
+      --circle-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,0.14), 0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 3px rgba(0,0,0,0.16);
+      --pill-bg: rgba(255,255,255,0.50);
+      --pill-bg-strong: rgba(255,255,255,0.72);
+      --pill-border: rgba(255,255,255,0.80);
+      --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.10);
+      --pill-hover-bg: rgba(255,255,255,0.60);
+      --field-bg: rgba(255,255,255,0.55);
+      --field-focus-bg: rgba(255,255,255,0.85);
+      --field-icon: rgba(0,0,0,0.45);
+      --surface-bg: rgba(248,248,250,0.55);
+      --card-bg: rgba(255,255,255,0.48);
+      --card-hover-bg: rgba(255,255,255,0.70);
+      --card-selected-bg: rgba(255,255,255,0.85);
+      --card-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), inset 0 -0.5px 0 rgba(255,255,255,0.18), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 2px rgba(15,18,30,0.04);
+      --card-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.95), 0 0 0 0.5px rgba(0,0,0,0.07), 0 4px 12px -4px rgba(15,18,30,0.12);
+      --card-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,1), inset 0 -0.5px 0 rgba(255,255,255,0.5), 0 0 0 0.5px rgba(10,132,255,0.55), 0 0 0 3px rgba(10,132,255,0.10), 0 6px 18px -4px rgba(15,18,30,0.18);
+      --text-on-selected-card: #0a1426;
+      --segment-bg: rgba(0,0,0,0.06);
+      --segment-active-bg: rgba(255,255,255,0.85);
+      --row-hover-bg: rgba(255,255,255,0.55);
+      --row-selected-bg: rgba(255,255,255,0.85);
+      --menu-bg: rgba(248,248,250,0.78);
+      --menu-border: rgba(255,255,255,0.70);
+      --menu-shadow: 0 0 0 0.5px rgba(0,0,0,0.12), inset 0 0.5px 0 rgba(255,255,255,0.9), 0 18px 36px -8px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.10);
+      --menu-item-hover: rgba(0,0,0,0.06);
+      --slider-track: rgba(0,0,0,0.12);
+      --progress-fill: var(--accent);
+      --thumb-bg: #fff;
+      --volume-panel-bg: rgba(255,255,255,0.86);
+      --volume-fill: rgba(0,0,0,0.64);
+      --scrollbar-thumb: rgba(0,0,0,0.18);
+      --scrollbar-thumb-hover: rgba(0,0,0,0.28);
+    }
+
+    body[data-theme="dark"] {
+      color-scheme: dark;
+      --desktop-bg:
+        radial-gradient(ellipse 62% 52% at 18% 20%, rgba(120,80,160,0.28) 0%, transparent 62%),
+        radial-gradient(ellipse 56% 60% at 84% 22%, rgba(50,80,140,0.32) 0%, transparent 62%),
+        radial-gradient(ellipse 68% 64% at 82% 88%, rgba(95,58,96,0.20) 0%, transparent 58%),
+        linear-gradient(135deg, #15141a 0%, #22212b 52%, #1b222c 100%);
+      --desktop-overlay:
+        radial-gradient(circle at 28% 72%, rgba(255,255,255,0.08), transparent 42%),
+        radial-gradient(circle at 72% 28%, rgba(255,255,255,0.06), transparent 42%);
+      --glass-window-bg: rgba(34, 33, 41, 0.68);
+      --glass-window-shadow: 0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.14) inset, 0 34px 90px -20px rgba(0,0,0,0.72), 0 12px 34px -12px rgba(0,0,0,0.56);
+      --glass-hud-bg: rgba(38, 36, 45, 0.66);
+      --glass-hud-shadow: 0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.16) inset, 0 -1px 0 rgba(255,255,255,0.05) inset, 0 22px 52px -14px rgba(0,0,0,0.66), 0 8px 20px -8px rgba(0,0,0,0.52);
+      --window-inner-ring: inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -0.5px 0 rgba(255,255,255,0.05), inset 0.5px 0 0 rgba(255,255,255,0.08), inset -0.5px 0 0 rgba(255,255,255,0.08);
+      --window-sheen: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 24%, transparent 76%, rgba(255,255,255,0.03) 100%);
+      --toolbar-bg: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.03));
+      --hairline: rgba(255,255,255,0.10);
+      --hairline-soft: rgba(255,255,255,0.07);
+      --inner-top: rgba(255,255,255,0.24);
+      --text: #f3f1f6;
+      --text-2: #c5c1cf;
+      --text-3: #9a96a8;
+      --text-4: #6f6a7d;
+      --text-on-selected-card: #f8f6fb;
+      --accent: #6ea6ff;
+      --accent-soft: rgba(110, 166, 255, 0.16);
+      --accent-soft-2: rgba(110, 166, 255, 0.28);
+      --highlight: rgba(255, 214, 92, 0.30);
+      --highlight-text: #fff0b5;
+      --circle-fg: rgba(243,241,246,0.92);
+      --circle-hover-bg: rgba(255,255,255,0.12);
+      --circle-hover-border: rgba(255,255,255,0.22);
+      --circle-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.28), 0 0 0 0.5px rgba(255,255,255,0.08);
+      --circle-selected-bg: rgba(245, 243, 250, 0.92);
+      --circle-selected-fg: #1a1820;
+      --circle-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,0.40), 0 0 0 0.5px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.34);
+      --pill-bg: rgba(255,255,255,0.08);
+      --pill-bg-strong: rgba(255,255,255,0.14);
+      --pill-border: rgba(255,255,255,0.18);
+      --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.10);
+      --pill-hover-bg: rgba(255,255,255,0.12);
+      --field-bg: rgba(255,255,255,0.09);
+      --field-focus-bg: rgba(255,255,255,0.14);
+      --field-icon: rgba(243,241,246,0.54);
+      --surface-bg: rgba(36, 34, 43, 0.46);
+      --card-bg: rgba(255,255,255,0.08);
+      --card-hover-bg: rgba(255,255,255,0.12);
+      --card-selected-bg: rgba(255,255,255,0.16);
+      --card-shadow: inset 0 0.5px 0 rgba(255,255,255,0.16), inset 0 -0.5px 0 rgba(255,255,255,0.04), 0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 2px rgba(0,0,0,0.18);
+      --card-hover-shadow: inset 0 0.5px 0 rgba(255,255,255,0.22), 0 0 0 0.5px rgba(255,255,255,0.10), 0 5px 14px -5px rgba(0,0,0,0.42);
+      --card-selected-shadow: inset 0 0.5px 0 rgba(255,255,255,0.28), inset 0 -0.5px 0 rgba(255,255,255,0.08), 0 0 0 0.5px rgba(110,166,255,0.52), 0 0 0 3px rgba(110,166,255,0.14), 0 8px 20px -6px rgba(0,0,0,0.48);
+      --segment-bg: rgba(255,255,255,0.08);
+      --segment-active-bg: rgba(255,255,255,0.16);
+      --row-hover-bg: rgba(255,255,255,0.10);
+      --row-selected-bg: rgba(255,255,255,0.16);
+      --menu-bg: rgba(40, 36, 48, 0.72);
+      --menu-border: rgba(255,255,255,0.12);
+      --menu-shadow: 0 0 0 0.5px rgba(255,255,255,0.06), inset 0 0.5px 0 rgba(255,255,255,0.16), 0 20px 50px -10px rgba(0,0,0,0.70), 0 4px 14px -4px rgba(0,0,0,0.48);
+      --menu-item-hover: rgba(255,255,255,0.08);
+      --slider-track: rgba(255,255,255,0.14);
+      --progress-fill: #6ea6ff;
+      --thumb-bg: #f7f5fb;
+      --volume-panel-bg: rgba(44, 41, 52, 0.86);
+      --volume-fill: rgba(255,255,255,0.70);
+      --scrollbar-thumb: rgba(255,255,255,0.20);
+      --scrollbar-thumb-hover: rgba(255,255,255,0.30);
+    }
+
+    body {
+      background: var(--desktop-bg);
+      transition: background 240ms ease, color 180ms ease;
+    }
+    body::before { background-image: var(--desktop-overlay); }
+    .window::before { box-shadow: var(--window-inner-ring); }
+    .window::after { background: var(--window-sheen); }
+    .toolbar {
+      border-bottom-color: var(--hairline-soft);
+      background: var(--toolbar-bg);
+    }
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .tool-button,
+    .icon-button {
+      border: 0.5px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--circle-fg);
+      transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 350ms cubic-bezier(.34,1.56,.64,1), color 180ms ease;
+    }
+    .tool-button {
+      width: 32px;
+      height: 32px;
+    }
+    .tool-button:hover,
+    .icon-button:hover {
+      background: var(--circle-hover-bg);
+      border-color: var(--circle-hover-border);
+      box-shadow: var(--circle-hover-shadow);
+      backdrop-filter: blur(18px) saturate(1.3);
+      -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    }
+    .tool-button:active,
+    .icon-button:active { transform: scale(0.9); }
+    .tool-button.selected,
+    .icon-button.selected {
+      --icon-cutout: var(--circle-selected-bg);
+      background: var(--circle-selected-bg);
+      color: var(--circle-selected-fg);
+      border-color: transparent;
+      box-shadow: var(--circle-selected-shadow);
+      backdrop-filter: blur(18px) saturate(1.3);
+      -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    }
+
+    .test-controls {
+      position: fixed;
+      top: 14px;
+      right: 28px;
+      z-index: 200;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .test-button,
+    .theme-toggle {
+      appearance: none;
+      height: 28px;
+      min-width: 82px;
+      padding: 0 11px;
+      border-radius: 999px;
+      border: 0.5px solid var(--pill-border);
+      background: var(--pill-bg);
+      color: var(--text);
+      box-shadow: var(--pill-shadow);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease, box-shadow 180ms ease;
+    }
+    .disable-all-toggle { min-width: 104px; }
+    .test-button:hover,
+    .theme-toggle:hover { background: var(--pill-hover-bg); }
+    .test-button:active,
+    .theme-toggle:active { transform: scale(0.94); }
+    .test-button.on {
+      background: var(--circle-selected-bg);
+      color: var(--circle-selected-fg);
+      border-color: transparent;
+      box-shadow: var(--circle-selected-shadow);
+    }
+
+    .search-field {
+      background: var(--field-bg);
+      border: 0.5px solid var(--pill-border);
+      box-shadow: var(--pill-shadow);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    }
+    .search-field:focus-within {
+      background: var(--field-focus-bg);
+      box-shadow: inset 0 0.5px 0 var(--inner-top), 0 0 0 0.5px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 0 3.5px var(--accent-soft);
+    }
+    .search-field svg { color: var(--field-icon); }
+    .clear-button {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      color: var(--field-icon);
+      justify-content: center;
+      transition: background 160ms ease, box-shadow 160ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 160ms ease;
+    }
+    .clear-button:hover {
+      background: var(--circle-hover-bg);
+      color: var(--text);
+      box-shadow: var(--circle-hover-shadow);
+    }
+    .clear-button:active { transform: scale(0.9); }
+
+    .small-button,
+    .source-toggle,
+    .speed-button {
+      border: 0.5px solid var(--pill-border);
+      background: var(--pill-bg);
+      box-shadow: var(--pill-shadow);
+      color: var(--text-2);
+      transition: background 180ms ease, color 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), opacity 180ms ease;
+    }
+    .small-button:hover:enabled,
+    .speed-button:hover { background: var(--pill-hover-bg); color: var(--text); }
+    .small-button:active:enabled,
+    .source-toggle:active,
+    .speed-button:active { transform: scale(0.94); }
+    .small-button:disabled { opacity: 0.42; cursor: not-allowed; }
+
+    .group-header {
+      border-radius: 8px;
+      color: var(--text);
+      transition: background 140ms ease, transform 140ms ease;
+    }
+    .group-header:hover { background: var(--row-hover-bg); }
+    .group-header:active { transform: scale(0.995); }
+
+    .result-card {
+      background: var(--card-bg);
+      box-shadow: var(--card-shadow);
+      transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+    }
+    .result-card:hover { background: var(--card-hover-bg); box-shadow: var(--card-hover-shadow); }
+    .result-card:active { transform: scale(0.995); }
+    .result-card.selected { background: var(--card-selected-bg); box-shadow: var(--card-selected-shadow); }
+    .selected .line { color: var(--text-on-selected-card); }
+
+    .sidebar {
+      background: var(--surface-bg);
+      border-left-color: var(--hairline);
+      box-shadow: inset 0.5px 0 0 var(--inner-top);
+    }
+    .segmented {
+      border-radius: 999px;
+      background: var(--segment-bg);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.08), 0 0 0 0.5px var(--hairline-soft);
+    }
+    .segmented button {
+      border-radius: 999px;
+      transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+    }
+    .segmented button:active { transform: scale(0.96); }
+    .segmented button.active {
+      background: var(--segment-active-bg);
+      color: var(--text);
+      box-shadow: var(--pill-shadow);
+    }
+    .sidebar-row { transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
+    .sidebar-row:hover { background: var(--row-hover-bg); }
+    .sidebar-row:active { transform: scale(0.995); }
+    .sidebar-row.selected { background: var(--row-selected-bg); box-shadow: var(--card-selected-shadow); }
+    .sidebar-row.selected .line { color: var(--text-on-selected-card); }
+
+    .player-dock {
+      background: var(--glass-hud-bg);
+      box-shadow: var(--glass-hud-shadow);
+      color: var(--text);
+      transition: right 220ms ease, background 220ms ease, box-shadow 220ms ease, color 180ms ease;
+    }
+    .scrubber { border-bottom-color: var(--hairline); }
+    .slider::before { background: var(--slider-track); }
+    .slider::after { background: var(--progress-fill); }
+    .thumb { background: var(--thumb-bg); }
+    .source-toggle {
+      background: var(--pill-bg-strong);
+      color: var(--text);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    }
+    .source-toggle:hover { background: var(--pill-bg-strong); }
+    .play-button {
+      background: transparent;
+      box-shadow: none;
+      color: var(--circle-fg);
+    }
+    .play-button:hover { background: var(--circle-hover-bg); }
+
+    .volume-popover {
+      background: var(--volume-panel-bg);
+      box-shadow: inset 0 0.5px 0 var(--inner-top), 0 0 0 0.5px var(--hairline), 0 4px 14px -6px rgba(0,0,0,0.30);
+    }
+    .volume-popover .slider::after { background: var(--volume-fill); }
+    .speed-button {
+      width: 54px;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .speed-button[aria-expanded="true"] { background: var(--pill-bg-strong); }
+    .speed-menu {
+      border-radius: 14px;
+      background: var(--menu-bg);
+      border: 0.5px solid var(--menu-border);
+      box-shadow: var(--menu-shadow);
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    }
+    .speed-option { height: 28px; border-radius: 8px; transition: background 120ms ease, transform 140ms ease; }
+    .speed-option:hover,
+    .speed-option:focus-visible {
+      background: var(--menu-item-hover);
+      color: var(--text);
+    }
+    .speed-option:active { transform: scale(0.98); }
+    .speed-option.selected { font-weight: 700; }
+
+    .window.video-expanded .icon-button { color: rgba(255,255,255,0.96); }
+    .window.video-expanded .icon-button:hover {
+      background: rgba(255,255,255,0.18);
+      border-color: rgba(255,255,255,0.20);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.25), 0 0 0 0.5px rgba(255,255,255,0.10);
+    }
+    .window.video-expanded .icon-button.selected {
+      --icon-cutout: rgba(245,243,250,0.94);
+      background: rgba(245,243,250,0.94);
+      color: #1a1820;
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(255,255,255,0.75), 0 1px 4px rgba(0,0,0,0.22);
+    }
+    .window.video-expanded .play-button { background: transparent; color: rgba(255,255,255,0.96); }
+    .window.video-expanded .source-toggle {
+      background: rgba(245,243,250,0.92);
+      color: #1a1820;
+      border-color: rgba(255,255,255,0.32);
+    }
+    .window.video-expanded .source-toggle:hover { background: rgba(245,243,250,0.96); }
+    .window.video-expanded .speed-button {
+      background: rgba(255,255,255,0.10);
+      color: rgba(255,255,255,0.92);
+      border-color: rgba(255,255,255,0.16);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.18), 0 0 0 0.5px rgba(255,255,255,0.08);
+    }
+    .window.video-expanded .speed-button:hover,
+    .window.video-expanded .speed-button[aria-expanded="true"] { background: rgba(255,255,255,0.18); }
+
+    button.tool-button {
+      flex: 0 0 32px;
+      min-width: 32px;
+    }
+
+    .results-scroll::-webkit-scrollbar-thumb,
+    .sidebar-list::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      background-clip: padding-box;
+    }
+    .results-scroll::-webkit-scrollbar-thumb:hover,
+    .sidebar-list::-webkit-scrollbar-thumb:hover {
+      background: var(--scrollbar-thumb-hover);
+      background-clip: padding-box;
+    }
+
+
+    /* ============================ PLAYER BAR TRANSLUCENT GLASS ============================ */
+    :root {
+      --bar-bg: rgba(248, 248, 250, 0.34);
+      --bar-border: rgba(255, 255, 255, 0.48);
+      --bar-filter: blur(26px) saturate(210%);
+      --glass-hover: rgba(255, 255, 255, 0.55);
+      --glass-hover-border: rgba(255, 255, 255, 0.85);
+      --glass-hover-inset: rgba(255, 255, 255, 0.9);
+      --pill-glass: rgba(255, 255, 255, 0.5);
+      --pill-glass-border: rgba(255, 255, 255, 0.8);
+      --menu-bg: rgba(250, 248, 250, 0.72);
+      --menu-border: rgba(255, 255, 255, 0.7);
+      --menu-shadow: 0 18px 50px -10px rgba(40, 30, 60, 0.28), 0 4px 14px -4px rgba(40, 30, 60, 0.16);
+      --menu-item-hover: rgba(0, 0, 0, 0.06);
+      --progress-track: rgba(0, 0, 0, 0.08);
+      --progress-fill: #3478f6;
+      --shadow-bar:
+        0 0 0 0.5px rgba(0, 0, 0, 0.08),
+        inset 0 0.5px 0 rgba(255, 255, 255, 0.58),
+        inset 0 -0.5px 0 rgba(255, 255, 255, 0.12),
+        0 18px 42px -16px rgba(15, 18, 30, 0.32),
+        0 6px 16px -8px rgba(15, 18, 30, 0.20);
+    }
+    body[data-theme="dark"] {
+      --bar-bg: rgba(38, 36, 45, 0.38);
+      --bar-border: rgba(255, 255, 255, 0.16);
+      --bar-filter: blur(28px) saturate(220%);
+      --glass-hover: rgba(255, 255, 255, 0.12);
+      --glass-hover-border: rgba(255, 255, 255, 0.22);
+      --glass-hover-inset: rgba(255, 255, 255, 0.28);
+      --pill-glass: rgba(255, 255, 255, 0.08);
+      --pill-glass-border: rgba(255, 255, 255, 0.18);
+      --menu-bg: rgba(40, 36, 48, 0.7);
+      --menu-border: rgba(255, 255, 255, 0.12);
+      --menu-shadow: 0 18px 50px -10px rgba(0, 0, 0, 0.6), 0 4px 14px -4px rgba(0, 0, 0, 0.45);
+      --menu-item-hover: rgba(255, 255, 255, 0.08);
+      --progress-track: rgba(255, 255, 255, 0.12);
+      --progress-fill: #6ea6ff;
+      --shadow-bar:
+        0 0 0 0.5px rgba(255, 255, 255, 0.08),
+        inset 0 0.5px 0 rgba(255, 255, 255, 0.22),
+        inset 0 -0.5px 0 rgba(255, 255, 255, 0.07),
+        0 22px 52px -14px rgba(0, 0, 0, 0.66),
+        0 8px 20px -8px rgba(0, 0, 0, 0.52);
+    }
+
+    .player-dock,
+    .window.video-expanded .player-dock {
+      background: var(--bar-bg);
+      border: 0.5px solid var(--bar-border);
+      box-shadow: var(--shadow-bar);
+      backdrop-filter: var(--bar-filter);
+      -webkit-backdrop-filter: var(--bar-filter);
+      overflow: visible;
+      transition: right 240ms cubic-bezier(.22,.61,.36,1), background 400ms ease, box-shadow 220ms ease, color 180ms ease;
+    }
+
+    .scrubber,
+    .window.video-expanded .scrubber {
+      border-bottom: 0;
+    }
+    .player-dock .time,
+    .window.video-expanded .player-dock .time,
+    .player-dock .time.end,
+    .window.video-expanded .player-dock .time.end {
+      color: var(--text);
+    }
+    .player-dock .scrubber .slider::before,
+    .window.video-expanded .player-dock .scrubber .slider::before {
+      background: var(--progress-track);
+      border-radius: 999px;
+    }
+    .player-dock .scrubber .slider::after,
+    .window.video-expanded .player-dock .scrubber .slider::after {
+      background: var(--progress-fill);
+      border-radius: 999px;
+    }
+    .player-dock .scrubber .thumb,
+    .window.video-expanded .player-dock .scrubber .thumb {
+      background: var(--progress-fill);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+    }
+
+    .player-dock .icon-button,
+    .window.video-expanded .player-dock .icon-button {
+      color: var(--circle-fg);
+      border-color: transparent;
+      box-shadow: none;
+    }
+    .window.video-expanded .player-dock .icon-button svg {
+      filter: none;
+    }
+    .player-dock .icon-button:hover,
+    .window.video-expanded .player-dock .icon-button:hover {
+      background: var(--circle-hover-bg);
+      border-color: var(--circle-hover-border);
+      box-shadow: var(--circle-hover-shadow);
+      backdrop-filter: blur(18px) saturate(1.3);
+      -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    }
+    .player-dock .icon-button.selected,
+    .window.video-expanded .player-dock .icon-button.selected {
+      --icon-cutout: var(--circle-selected-bg);
+      background: var(--circle-selected-bg);
+      color: var(--circle-selected-fg);
+      border-color: transparent;
+      box-shadow: var(--circle-selected-shadow);
+      backdrop-filter: blur(18px) saturate(1.3);
+      -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    }
+    .player-dock .play-button,
+    .window.video-expanded .player-dock .play-button {
+      background: transparent;
+      color: var(--circle-fg);
+      box-shadow: none;
+    }
+
+    .player-dock .source-toggle,
+    .window.video-expanded .player-dock .source-toggle {
+      background: rgba(255, 255, 255, 0.86);
+      border: 0.5px solid rgba(255, 255, 255, 0.78);
+      color: #1a1a1f;
+      box-shadow:
+        inset 0 0.5px 0 rgba(255, 255, 255, 1),
+        0 0 0 0.5px rgba(0, 0, 0, 0.06),
+        0 1px 3px rgba(0, 0, 0, 0.10);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease;
+    }
+    .player-dock .source-toggle:hover,
+    .window.video-expanded .player-dock .source-toggle:hover {
+      background: rgba(255, 255, 255, 0.96);
+      color: #1a1a1f;
+    }
+    .player-dock .speed-button,
+    .window.video-expanded .player-dock .speed-button {
+      background: rgba(255, 255, 255, 0.64);
+      border: 0.5px solid rgba(255, 255, 255, 0.76);
+      color: #1a1a1f;
+      box-shadow:
+        inset 0 0.5px 0 rgba(255, 255, 255, 1),
+        0 0 0 0.5px rgba(0, 0, 0, 0.06),
+        0 1px 3px rgba(0, 0, 0, 0.10);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease;
+    }
+    .player-dock .speed-button:hover,
+    .window.video-expanded .player-dock .speed-button:hover,
+    .player-dock .speed-button[aria-expanded="true"],
+    .window.video-expanded .player-dock .speed-button[aria-expanded="true"] {
+      background: rgba(255, 255, 255, 0.82);
+      color: #1a1a1f;
+    }
+    .player-dock .source-toggle .source-chevron,
+    .window.video-expanded .player-dock .source-toggle .source-chevron {
+      color: rgba(0, 0, 0, 0.58);
+    }
+
+
+
+    /* ============================ ON-VIDEO PLAYER CONTEXT ============================ */
+    .window.video-expanded .player-dock {
+      --circle-fg: rgba(255, 255, 255, 0.92);
+      --circle-hover-bg: rgba(255, 255, 255, 0.14);
+      --circle-hover-border: rgba(255, 255, 255, 0.22);
+      --circle-hover-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.24);
+      --circle-selected-bg: rgba(245, 243, 250, 0.94);
+      --circle-selected-fg: #1a1820;
+      --circle-selected-shadow:
+        inset 0 0.5px 0 rgba(255, 255, 255, 1),
+        0 0 0 0.5px rgba(255, 255, 255, 0.18),
+        0 1px 4px rgba(0, 0, 0, 0.24);
+      --text: rgba(255, 255, 255, 0.92);
+      --text-2: rgba(255, 255, 255, 0.85);
+      --text-3: rgba(255, 255, 255, 0.58);
+      --pill-glass: rgba(255, 255, 255, 0.18);
+      --pill-glass-border: rgba(255, 255, 255, 0.32);
+      --glass-hover: rgba(255, 255, 255, 0.24);
+      --glass-hover-border: rgba(255, 255, 255, 0.34);
+      --glass-hover-inset: rgba(255, 255, 255, 0.30);
+    }
+
+    .player-dock .speed-menu {
+      width: auto;
+      min-width: 160px;
+      padding: 6px;
+      border-radius: 14px;
+      background: var(--menu-bg);
+      border: 0.5px solid var(--menu-border);
+      box-shadow: var(--menu-shadow);
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    }
+    .player-dock .speed-option {
+      height: auto;
+      min-height: 28px;
+      padding: 8px 12px 8px 8px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 120ms ease, transform 140ms ease;
+    }
+    .player-dock .speed-option:hover,
+    .player-dock .speed-option:focus-visible {
+      background: var(--menu-item-hover);
+      color: var(--text);
+    }
+    .player-dock .speed-option.selected {
+      font-weight: 700;
+    }
+    .player-dock .speed-check {
+      color: var(--text);
+    }
+
+
+    /* ============================ DARK VIDEO GLASS TUNING ============================ */
+    body[data-theme="dark"] .sidebar {
+      backdrop-filter: blur(36px) saturate(220%);
+      -webkit-backdrop-filter: blur(36px) saturate(220%);
+    }
+
+    /* Prototype-only disabled-control review state. */
+    .window.controls-disabled button:disabled {
+      cursor: not-allowed;
+    }
+    .window.controls-disabled .tool-button:disabled,
+    .window.controls-disabled .icon-button:disabled,
+    .window.controls-disabled .source-toggle:disabled,
+    .window.controls-disabled .speed-button:disabled,
+    .window.controls-disabled .result-card:disabled,
+    .window.controls-disabled .group-header:disabled,
+    .window.controls-disabled .segmented button:disabled,
+    .window.controls-disabled .sidebar-row:disabled,
+    .window.controls-disabled .clear-button:disabled {
+      opacity: 0.30;
+      pointer-events: none;
+    }
+    body[data-theme="dark"] .small-button:disabled,
+    body[data-theme="dark"] .small-button:disabled:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.12);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.34);
+    }
+
+  
+
+</style>
+</head>
+<body data-theme="light">
+  
+
+  <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+    <symbol id="folder" viewBox="0 0 17 17">
+      <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+    </symbol>
+    <symbol id="folder-filled" viewBox="0 0 17 17">
+      <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="currentColor"></path>
+    </symbol>
+    <symbol id="bookmark" viewBox="0 0 17 17">
+      <path d="M4.5 2.7h8v11.6l-4-3.2-4 3.2V2.7Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+    </symbol>
+    <symbol id="bookmark-filled" viewBox="0 0 17 17">
+      <path d="M4.5 2.7h8v11.6l-4-3.2-4 3.2V2.7Z" fill="currentColor"></path>
+    </symbol>
+    <symbol id="search" viewBox="0 0 17 17">
+      <circle cx="7.3" cy="7.3" r="4.6" fill="none" stroke="currentColor" stroke-width="1.5"></circle>
+      <path d="m10.8 10.8 3.7 3.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="clear" viewBox="0 0 17 17">
+      <circle cx="8.5" cy="8.5" r="6.5" fill="currentColor" opacity="0.28"></circle>
+      <path d="m6.2 6.2 4.6 4.6m0-4.6-4.6 4.6" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="moon" viewBox="0 0 17 17">
+      <path d="M11.7 12.9A6.2 6.2 0 0 1 4.1 5.3a6 6 0 0 0 7.6 7.6Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+    </symbol>
+    <symbol id="sun" viewBox="0 0 17 17">
+      <circle cx="8.5" cy="8.5" r="3.1" fill="none" stroke="currentColor" stroke-width="1.5"></circle>
+      <path d="M8.5 1.8v1.4M8.5 13.8v1.4M1.8 8.5h1.4M13.8 8.5h1.4M3.8 3.8l1 1M12.2 12.2l1 1M13.2 3.8l-1 1M4.8 12.2l-1 1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="chevron" viewBox="0 0 17 17">
+      <path d="m5.5 3.8 5.3 4.7-5.3 4.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+    </symbol>
+    <symbol id="chev-up" viewBox="0 0 17 17">
+      <path d="m4 10.5 4.5-4.5 4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+    </symbol>
+    <symbol id="play-glyph" viewBox="0 0 8 8">
+      <path d="M1.4.6 6.8 4 1.4 7.4Z" fill="currentColor"></path>
+    </symbol>
+    <symbol id="play" viewBox="0 0 17 17">
+      <path d="m5 3.4 8 5.1-8 5.1Z" fill="currentColor"></path>
+    </symbol>
+    <symbol id="pause" viewBox="0 0 17 17">
+      <rect x="4.4" y="3.2" width="2.8" height="10.6" rx="0.7" fill="currentColor"></rect>
+      <rect x="9.8" y="3.2" width="2.8" height="10.6" rx="0.7" fill="currentColor"></rect>
+    </symbol>
+    <symbol id="step-back" viewBox="0 0 17 17">
+      <rect x="3.2" y="3.1" width="1.7" height="10.8" rx="0.5" fill="currentColor"></rect>
+      <path d="M13 3.4 5.8 8.5 13 13.6Z" fill="currentColor"></path>
+    </symbol>
+    <symbol id="step-fwd" viewBox="0 0 17 17">
+      <path d="m4 3.4 7.2 5.1L4 13.6Z" fill="currentColor"></path>
+      <rect x="12.1" y="3.1" width="1.7" height="10.8" rx="0.5" fill="currentColor"></rect>
+    </symbol>
+    <symbol id="play-back" viewBox="0 0 17 17">
+      <path d="M10.7 3.8 6 8.5l4.7 4.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </symbol>
+    <symbol id="play-forward" viewBox="0 0 17 17">
+      <path d="m6.3 3.8 4.7 4.7-4.7 4.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </symbol>
+    <symbol id="speaker" viewBox="0 0 17 17">
+      <path d="M3 6.4v4.2h3l3.8 2.9v-10L6 6.4H3Z" fill="currentColor"></path>
+      <path d="M11.5 5.8c.8.7 1.2 1.6 1.2 2.7s-.4 2-1.2 2.7" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="speaker-muted" viewBox="0 0 17 17">
+      <path d="M3 6.4v4.2h3l3.8 2.9v-10L6 6.4H3Z" fill="currentColor"></path>
+      <path d="m11.7 6.3 3 4.4m0-4.4-3 4.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="pencil-tip" viewBox="0 0 17 17">
+      <path d="M8.5 2.2 12.8 14H9.9l-.7-2.3H5.8L5.1 14H2.2L6.5 2.2h2Z" fill="currentColor"></path>
+      <path d="M6.4 9.4h2.2L7.5 5.6Z" fill="white" opacity="0.82"></path>
+    </symbol>
+    <symbol id="caption" viewBox="0 0 17 17">
+      <path d="M3.2 4.2h10.6c.9 0 1.6.7 1.6 1.6v4.4c0 .9-.7 1.6-1.6 1.6H8.6l-3.1 2v-2H3.2c-.9 0-1.6-.7-1.6-1.6V5.8c0-.9.7-1.6 1.6-1.6Z" fill="currentColor"></path>
+      <path d="M4.6 7.5h2.8m1.7 0h3.2M4.6 9.7h2.5m1.8 0h3.4" fill="none" stroke="#fff" stroke-width="1.15" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="caption-filled" viewBox="0 0 17 17">
+      <path d="M3.1 3.7h10.8c.7 0 1.2.5 1.2 1.2v5.8c0 .7-.5 1.2-1.2 1.2H8.7l-3.1 2.3v-2.3H3.1c-.7 0-1.2-.5-1.2-1.2V4.9c0-.7.5-1.2 1.2-1.2Z" fill="currentColor"></path>
+      <path d="M5 6.6h7M5 9h4.8" fill="none" stroke="var(--icon-cutout, transparent)" stroke-width="1.25" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="list" viewBox="0 0 17 17">
+      <path d="M4.2 5.2h8.6M4.2 8.5h8.6M4.2 11.8h8.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="list-filled" viewBox="0 0 17 17">
+      <rect x="3" y="3" width="11" height="11" rx="2.4" fill="currentColor"></rect>
+      <path d="M5.2 6h6.6M5.2 8.5h6.6M5.2 11h6.6" fill="none" stroke="var(--icon-cutout, transparent)" stroke-width="1.25" stroke-linecap="round"></path>
+    </symbol>
+    <symbol id="viewfinder" viewBox="0 0 17 17">
+      <path d="M3 6.5V3h3.5M14 6.5V3h-3.5M3 10.5V14h3.5M14 10.5V14h-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+    </symbol>
+  </svg>
+
+  <div class="test-controls" aria-label="Prototype test controls">
+    <button class="test-button disable-all-toggle ui-capsule ui-capsule--test ui-prototype-control" id="disableAllToggle" type="button" aria-pressed="false">Disable All</button>
+    <button class="theme-toggle ui-capsule ui-capsule--test ui-prototype-control" id="themeToggle" type="button" aria-label="Current theme: light mode. Switch to dark mode" aria-pressed="false">
+      <svg width="14" height="14"><use id="themeIcon" href="#sun"></use></svg>
+      <span id="themeLabel">Light</span>
+    </button>
+  </div>
+
+  <main class="window" id="window" data-screen-label="CueSeeker Liquid Glass" aria-label="CueSeeker">
+    <header class="toolbar">
+      <div class="traffic" aria-hidden="true">
+        <span class="close"></span>
+        <span class="minimize"></span>
+        <span class="zoom"></span>
+      </div>
+      <div class="toolbar-center">
+        <button class="tool-button toggle-icon-button ui-icon-button ui-icon-button--topbar ui-icon-button--toggle" type="button" id="libraryToggle" aria-label="Library" aria-pressed="false" data-icon-off="folder" data-icon-on="folder-filled">
+          <svg width="17" height="17"><use href="#folder"></use></svg>
+        </button>
+        <button class="tool-button toggle-icon-button ui-icon-button ui-icon-button--topbar ui-icon-button--toggle" type="button" id="topbarShioriToggle" aria-label="Shiori" aria-pressed="false" data-icon-off="bookmark" data-icon-on="bookmark-filled">
+          <svg width="17" height="17"><use href="#bookmark"></use></svg>
+        </button>
+        <div class="search-field ui-input-capsule" role="search" aria-label="Search subtitles">
+          <svg width="13" height="13"><use href="#search"></use></svg>
+          <input id="searchInput" value="大丈夫" spellcheck="false">
+          <button class="clear-button ui-icon-button ui-icon-button--embedded" id="clearSearch" type="button" aria-label="Clear search">
+            <svg width="14" height="14"><use href="#clear"></use></svg>
+          </button>
+        </div>
+      </div>
+      <div class="toolbar-actions" aria-hidden="true"></div>
+    </header>
+
+    <section class="main">
+      <section class="search-state" aria-label="Search results">
+        <div class="results-header">
+          <div class="summary">
+            <span>Found <strong>185</strong> results in <strong>74</strong> files</span>
+          </div>
+          <div class="header-actions">
+            <button class="small-button ui-capsule ui-capsule--command" type="button" data-action="collapse-all">Collapse All</button>
+          </div>
+        </div>
+
+        <div class="results-scroll" id="resultsScroll">
+          <!-- groups generated below; we'll keep inline for direct edit friendliness -->
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">AVE MUJICA — 01</span>
+              <span class="group-count">4 results</span>
+            </button>
+            <div class="cards">
+              <button class="result-card ui-selectable-card" type="button" data-rank="1" data-time="00:30" data-zh="毋庸担心 月霞自会为我们将她唤醒" data-ja="大丈夫 月の光が起こしてくれますわ">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#1</span><span>00:30</span></span>
+                <span class="line">毋庸担心 月霞自会为我们将她唤醒</span>
+                <span class="line"><mark>大丈夫</mark> 月の光が起こしてくれますわ</span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="2" data-time="09:41" data-zh="没问题的 诚实就是你的美德哦" data-ja="大丈夫 あなたの誠実さは美徳よ">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#2</span><span>09:41</span></span>
+                <span class="line">没问题的 诚实就是你的美德哦</span>
+                <span class="line"><mark>大丈夫</mark> あなたの誠実さは美徳よ</span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="3" data-time="18:37" data-zh="祥 武道馆 没问题吧" data-ja="祥  武道館  大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#3</span><span>18:37</span></span>
+                <span class="line">祥 武道馆 没问题吧</span>
+                <span class="line">祥　武道館　<mark>大丈夫</mark></span>
+              </button>
+              <button class="result-card selected ui-selectable-card ui-is-selected" type="button" data-rank="4" data-time="18:43" data-zh="当然没问题" data-ja="大丈夫に決まっているでしょう">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#4</span><span>18:43</span></span>
+                <span class="line">当然没问题</span>
+                <span class="line"><mark>大丈夫</mark>に決まっているでしょう</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">AVE MUJICA — 02</span>
+              <span class="group-count">2 results</span>
+            </button>
+            <div class="cards">
+              <button class="result-card ui-selectable-card" type="button" data-rank="5" data-time="14:26" data-zh="小初 你没事吧" data-ja="ういちゃん 大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#5</span><span>14:26</span></span>
+                <span class="line">小初 你没事吧</span>
+                <span class="line">ういちゃん <mark>大丈夫</mark></span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="6" data-time="14:29" data-zh="我没事" data-ja="私は大丈夫だよ">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#6</span><span>14:29</span></span>
+                <span class="line">我没事</span>
+                <span class="line">私は<mark>大丈夫</mark>だよ</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">AVE MUJICA — 03</span>
+              <span class="group-count">2 results</span>
+            </button>
+            <div class="cards">
+              <button class="result-card ui-selectable-card" type="button" data-rank="7" data-time="19:49" data-zh="应该没问题吧" data-ja="大丈夫かなぁ">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#7</span><span>19:49</span></span>
+                <span class="line">应该没问题吧</span>
+                <span class="line"><mark>大丈夫</mark>かなぁ</span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="8" data-time="21:36" data-zh="所以已经没事了" data-ja="だから  もう大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#8</span><span>21:36</span></span>
+                <span class="line">所以已经没事了</span>
+                <span class="line">だから　もう<mark>大丈夫</mark></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">AVE MUJICA — 04</span>
+              <span class="group-count">1 result</span>
+            </button>
+            <div class="cards">
+              <button class="result-card ui-selectable-card" type="button" data-rank="9" data-time="12:27" data-zh="没有吉他也没关系对吧" data-ja="ギターなんてなくても大丈夫だったでしょう">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#9</span><span>12:27</span></span>
+                <span class="line">没有吉他也没关系对吧</span>
+                <span class="line">ギターなんてなくても<mark>大丈夫</mark>だったでしょう</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">AVE MUJICA — 05</span>
+              <span class="group-count">2 results</span>
+            </button>
+            <div class="cards">
+              <button class="result-card ui-selectable-card" type="button" data-rank="10" data-time="06:12" data-zh="别担心 我会处理好的" data-ja="大丈夫 私がなんとかするから">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#10</span><span>06:12</span></span>
+                <span class="line">别担心 我会处理好的</span>
+                <span class="line"><mark>大丈夫</mark> 私がなんとかするから</span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="11" data-time="18:03" data-zh="我已经没事了" data-ja="もう私は大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#11</span><span>18:03</span></span>
+                <span class="line">我已经没事了</span>
+                <span class="line">もう私は<mark>大丈夫</mark></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">葬送的芙莉莲 — 11</span>
+              <span class="group-count">3 results</span>
+            </button>
+            <div class="cards">
+              <button class="result-card ui-selectable-card" type="button" data-rank="12" data-time="03:55" data-zh="弗里伦 你还好吗" data-ja="フリーレン 大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#12</span><span>03:55</span></span>
+                <span class="line">弗里伦 你还好吗</span>
+                <span class="line">フリーレン <mark>大丈夫</mark></span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="13" data-time="11:08" data-zh="嗯 没事" data-ja="ええ 大丈夫よ">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#13</span><span>11:08</span></span>
+                <span class="line">嗯 没事</span>
+                <span class="line">ええ <mark>大丈夫</mark>よ</span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="14" data-time="20:14" data-zh="这点伤不要紧的" data-ja="この程度の怪我なら大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#14</span><span>20:14</span></span>
+                <span class="line">这点伤不要紧的</span>
+                <span class="line">この程度の怪我なら<mark>大丈夫</mark></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">葬送的芙莉莲 — 18</span>
+              <span class="group-count">3 results</span>
+            </button>
+            <div class="cards">
+              <button class="result-card ui-selectable-card" type="button" data-rank="15" data-time="07:42" data-zh="费伦 你没事吧" data-ja="フェルン 大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#15</span><span>07:42</span></span>
+                <span class="line">费伦 你没事吧</span>
+                <span class="line">フェルン <mark>大丈夫</mark></span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="16" data-time="17:20" data-zh="没问题 我可以一个人去" data-ja="大丈夫 一人で行ける">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#16</span><span>17:20</span></span>
+                <span class="line">没问题 我可以一个人去</span>
+                <span class="line"><mark>大丈夫</mark> 一人で行ける</span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="17" data-time="22:05" data-zh="我没事的" data-ja="私なら大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#17</span><span>22:05</span></span>
+                <span class="line">我没事的</span>
+                <span class="line">私なら<mark>大丈夫</mark></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="group">
+            <button class="group-header" type="button">
+              <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
+              <span class="group-title">BanG Dream! It's MyGO!!!!! — 07</span>
+              <span class="group-count">2 results</span>
+            </button>
+            <div class="cards">
+              <button class="result-card ui-selectable-card" type="button" data-rank="18" data-time="05:18" data-zh="灯 你没事吧" data-ja="灯 大丈夫">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#18</span><span>05:18</span></span>
+                <span class="line">灯 你没事吧</span>
+                <span class="line">灯 <mark>大丈夫</mark></span>
+              </button>
+              <button class="result-card ui-selectable-card" type="button" data-rank="19" data-time="16:44" data-zh="我没事 真的" data-ja="大丈夫だよ ホントに">
+                <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#19</span><span>16:44</span></span>
+                <span class="line">我没事 真的</span>
+                <span class="line"><mark>大丈夫</mark>だよ ホントに</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="video-state" aria-label="Expanded video">
+        <div class="video-stage">
+          <div class="video-label">video frame</div>
+          <div class="subtitle-overlay">
+            <div class="overlay-line" data-current-zh="">当然没问题</div>
+            <div class="overlay-line" data-current-ja="">大丈夫に決まっているでしょう</div>
+          </div>
+        </div>
+        <aside class="sidebar" aria-label="Playback sidebar">
+          <div class="sidebar-top">
+            <div class="segmented ui-segmented-control" role="tablist">
+              <button class="active ui-segmented-control__option ui-is-active" type="button" data-tab="results" role="tab">Search Results</button>
+              <button class="ui-segmented-control__option" type="button" data-tab="subs" role="tab">Subtitles</button>
+            </div>
+            <div class="sidebar-summary">
+              <span id="sidebarCount">Found 185 results in 74 files</span>
+            </div>
+          </div>
+          <div class="sidebar-list" id="sidebarList">
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="1" data-time="00:30" data-zh="毋庸担心 月霞自会为我们将她唤醒" data-ja="大丈夫 月の光が起こしてくれますわ">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#1</span><span>00:30</span></span>
+              <span class="line">毋庸担心 月霞自会为我们将她唤醒</span>
+              <span class="line"><mark>大丈夫</mark> 月の光が起こしてくれますわ</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="2" data-time="09:41" data-zh="没问题的 诚实就是你的美德哦" data-ja="大丈夫 あなたの誠実さは美徳よ">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#2</span><span>09:41</span></span>
+              <span class="line">没问题的 诚实就是你的美德哦</span>
+              <span class="line"><mark>大丈夫</mark> あなたの誠実さは美徳よ</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="3" data-time="18:37" data-zh="祥 武道馆 没问题吧" data-ja="祥  武道館  大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#3</span><span>18:37</span></span>
+              <span class="line">祥 武道馆 没问题吧</span>
+              <span class="line">祥　武道館　<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row selected ui-selectable-row ui-is-selected" type="button" data-rank="4" data-time="18:43" data-zh="当然没问题" data-ja="大丈夫に決まっているでしょう">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#4</span><span>18:43</span></span>
+              <span class="line">当然没问题</span>
+              <span class="line"><mark>大丈夫</mark>に決まっているでしょう</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="5" data-time="14:26" data-zh="小初 你没事吧" data-ja="ういちゃん 大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#5</span><span>14:26</span></span>
+              <span class="line">小初 你没事吧</span>
+              <span class="line">ういちゃん <mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="6" data-time="14:29" data-zh="我没事" data-ja="私は大丈夫だよ">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#6</span><span>14:29</span></span>
+              <span class="line">我没事</span>
+              <span class="line">私は<mark>大丈夫</mark>だよ</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="7" data-time="19:49" data-zh="应该没问题吧" data-ja="大丈夫かなぁ">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#7</span><span>19:49</span></span>
+              <span class="line">应该没问题吧</span>
+              <span class="line"><mark>大丈夫</mark>かなぁ</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="8" data-time="21:36" data-zh="所以已经没事了" data-ja="だから  もう大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#8</span><span>21:36</span></span>
+              <span class="line">所以已经没事了</span>
+              <span class="line">だから　もう<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="9" data-time="12:27" data-zh="没有吉他也没关系对吧" data-ja="ギターなんてなくても大丈夫だったでしょう">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#9</span><span>12:27</span></span>
+              <span class="line">没有吉他也没关系对吧</span>
+              <span class="line">ギターなんてなくても<mark>大丈夫</mark>だったでしょう</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="10" data-time="06:12" data-zh="别担心 我会处理好的" data-ja="大丈夫 私がなんとかするから">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#10</span><span>06:12</span></span>
+              <span class="line">别担心 我会处理好的</span>
+              <span class="line"><mark>大丈夫</mark> 私がなんとかするから</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="11" data-time="18:03" data-zh="我已经没事了" data-ja="もう私は大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#11</span><span>18:03</span></span>
+              <span class="line">我已经没事了</span>
+              <span class="line">もう私は<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="12" data-time="03:55" data-zh="弗里伦 你还好吗" data-ja="フリーレン 大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#12</span><span>03:55</span></span>
+              <span class="line">弗里伦 你还好吗</span>
+              <span class="line">フリーレン <mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="13" data-time="11:08" data-zh="嗯 没事" data-ja="ええ 大丈夫よ">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#13</span><span>11:08</span></span>
+              <span class="line">嗯 没事</span>
+              <span class="line">ええ <mark>大丈夫</mark>よ</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="14" data-time="20:14" data-zh="这点伤不要紧的" data-ja="この程度の怪我なら大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#14</span><span>20:14</span></span>
+              <span class="line">这点伤不要紧的</span>
+              <span class="line">この程度の怪我なら<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="15" data-time="07:42" data-zh="费伦 你没事吧" data-ja="フェルン 大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#15</span><span>07:42</span></span>
+              <span class="line">费伦 你没事吧</span>
+              <span class="line">フェルン <mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="16" data-time="17:20" data-zh="没问题 我可以一个人去" data-ja="大丈夫 一人で行ける">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#16</span><span>17:20</span></span>
+              <span class="line">没问题 我可以一个人去</span>
+              <span class="line"><mark>大丈夫</mark> 一人で行ける</span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="17" data-time="22:05" data-zh="我没事的" data-ja="私なら大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#17</span><span>22:05</span></span>
+              <span class="line">我没事的</span>
+              <span class="line">私なら<mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="18" data-time="05:18" data-zh="灯 你没事吧" data-ja="灯 大丈夫">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#18</span><span>05:18</span></span>
+              <span class="line">灯 你没事吧</span>
+              <span class="line">灯 <mark>大丈夫</mark></span>
+            </button>
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="19" data-time="16:44" data-zh="我没事 真的" data-ja="大丈夫だよ ホントに">
+              <span class="meta"><span class="rank"><svg class="playing"><use href="#play-glyph"></use></svg>#19</span><span>16:44</span></span>
+              <span class="line">我没事 真的</span>
+              <span class="line"><mark>大丈夫</mark>だよ ホントに</span>
+            </button>
+          </div>
+        </aside>
+      </section>
+
+      <!-- Floating Liquid Glass HUD -->
+      <div class="player-dock" id="playerDock">
+        <div class="scrubber">
+          <span class="time" id="curTime">00:30</span>
+          <div class="slider ui-slider ui-slider--progress" id="progress" style="--value: 2.1%;">
+            <span class="thumb"></span>
+          </div>
+          <span class="time end" id="endTime">23:41</span>
+        </div>
+
+        <div class="player-hud">
+          <div class="hud-left">
+            <button class="source-toggle ui-capsule ui-capsule--source" type="button" id="sourceToggle" aria-pressed="false" aria-label="Expand video">
+              <span class="source-chevron"><svg width="11" height="11"><use href="#chev-up"></use></svg></span>
+              <span class="source-label">Ave Mujica · 01</span>
+            </button>
+            <div class="volume-host" id="volumeHost">
+              <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" id="volumeBtn" aria-label="Mute" aria-pressed="false" aria-controls="volumePanel">
+                <svg width="14" height="14"><use id="volumeIcon" href="#speaker"></use></svg>
+              </button>
+              <div class="volume-popover" id="volumePanel" aria-label="Volume">
+                <div class="slider volume-slider ui-slider ui-slider--volume" id="volumeSlider" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="36" tabindex="0" style="--value: 36%;"><span class="thumb"></span></div>
+                <span class="volume-percent" id="volumePercent">36%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hud-center" role="group" aria-label="Transport">
+            <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" aria-label="Previous episode"><svg width="18" height="18"><use href="#step-back"></use></svg></button>
+            <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" aria-label="Previous result"><svg width="18" height="18"><use href="#play-back"></use></svg></button>
+            <button class="icon-button transport-button transport-primary play-button ui-icon-button ui-icon-button--transport ui-icon-button--transport-primary" type="button" id="playBtn" aria-label="Play"><svg width="20" height="20" id="playIcon"><use href="#play"></use></svg></button>
+            <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" aria-label="Next result"><svg width="18" height="18"><use href="#play-forward"></use></svg></button>
+            <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" aria-label="Next episode"><svg width="18" height="18"><use href="#step-fwd"></use></svg></button>
+          </div>
+
+          <div class="hud-right" role="group" aria-label="Tools">
+            <button class="icon-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="shioriToggle" aria-label="Save cue" aria-pressed="true" data-icon-off="bookmark" data-icon-on="bookmark-filled"><svg width="17" height="17"><use href="#bookmark-filled"></use></svg></button>
+            <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" aria-label="Copy Current Subtitle"><svg width="17" height="17"><use href="#pencil-tip"></use></svg></button>
+            <button class="icon-button subtitle-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="subtitleToggle" aria-label="Subtitles" aria-pressed="true" data-icon-off="caption" data-icon-on="caption-filled"><svg width="17" height="17" viewBox="0 0 17 17"><use href="#caption-filled"></use></svg></button>
+            <button class="icon-button side-panel-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="sidePanelToggle" aria-label="Results panel" aria-pressed="true" data-icon-off="list" data-icon-on="list-filled"><svg width="17" height="17" viewBox="0 0 17 17"><use href="#list-filled"></use></svg></button>
+            <div class="speed-control">
+              <button class="speed-button ui-capsule ui-capsule--value" type="button" id="speedButton" aria-label="Playback speed" aria-haspopup="menu" aria-expanded="false">1×</button>
+              <div class="speed-menu ui-popup-menu" id="speedMenu" role="menu" aria-label="Playback speed" hidden="">
+                <button class="speed-option ui-popup-menu__item" type="button" role="menuitemradio" aria-checked="false" data-speed="0.5×"><span class="speed-check">✓</span><span>0.5×</span></button>
+                <button class="speed-option ui-popup-menu__item" type="button" role="menuitemradio" aria-checked="false" data-speed="0.75×"><span class="speed-check">✓</span><span>0.75×</span></button>
+                <button class="speed-option selected ui-popup-menu__item ui-is-selected" type="button" role="menuitemradio" aria-checked="true" data-speed="1×"><span class="speed-check">✓</span><span>1×</span></button>
+                <button class="speed-option ui-popup-menu__item" type="button" role="menuitemradio" aria-checked="false" data-speed="1.25×"><span class="speed-check">✓</span><span>1.25×</span></button>
+                <button class="speed-option ui-popup-menu__item" type="button" role="menuitemradio" aria-checked="false" data-speed="1.5×"><span class="speed-check">✓</span><span>1.5×</span></button>
+                <button class="speed-option ui-popup-menu__item" type="button" role="menuitemradio" aria-checked="false" data-speed="2×"><span class="speed-check">✓</span><span>2×</span></button>
+              </div>
+            </div>
+            <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" aria-label="Fullscreen"><svg width="17" height="17"><use href="#viewfinder"></use></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+/*
+  CueSeeker Liquid Glass v4 split-source prototype interactions.
+  Legacy visual state classes are mirrored with ui-* state classes so future
+  edits can target the component taxonomy while preserving v3 visual parity.
+*/
+
+const win = document.getElementById("window");
+    const sourceToggle = document.getElementById("sourceToggle");
+    const currentZh = document.querySelector("[data-current-zh]");
+    const currentJa = document.querySelector("[data-current-ja]");
+    const searchInput = document.getElementById("searchInput");
+    const clearSearch = document.getElementById("clearSearch");
+    const sidebarCount = document.getElementById("sidebarCount");
+    const speedButton = document.getElementById("speedButton");
+    const speedMenu = document.getElementById("speedMenu");
+    const playBtn = document.getElementById("playBtn");
+    const playIcon = document.getElementById("playIcon");
+    const shioriToggle = document.getElementById("shioriToggle");
+    const subtitleToggle = document.getElementById("subtitleToggle");
+    const sidePanelToggle = document.getElementById("sidePanelToggle");
+    const subtitleOverlay = document.querySelector(".subtitle-overlay");
+    const themeToggle = document.getElementById("themeToggle");
+    const themeLabel = document.getElementById("themeLabel");
+    const themeIcon = document.getElementById("themeIcon");
+    const disableAllToggle = document.getElementById("disableAllToggle");
+
+    let isPlaying = false;
+
+    function setTheme(theme) {
+      const dark = theme === "dark";
+      document.body.dataset.theme = dark ? "dark" : "light";
+      themeLabel.textContent = dark ? "Dark" : "Light";
+      themeIcon.setAttribute("href", dark ? "#moon" : "#sun");
+      themeToggle.setAttribute("aria-label", dark ? "Current theme: dark mode. Switch to light mode" : "Current theme: light mode. Switch to dark mode");
+      themeToggle.setAttribute("aria-pressed", dark ? "true" : "false");
+    }
+
+    function setControlsDisabled(disabled) {
+      win.classList.toggle("controls-disabled", disabled);
+      disableAllToggle.classList.toggle("on", disabled);
+      disableAllToggle.classList.toggle("ui-is-on", disabled);
+      disableAllToggle.setAttribute("aria-pressed", disabled ? "true" : "false");
+      win.querySelectorAll("button").forEach((button) => {
+        button.disabled = disabled;
+      });
+    }
+
+    themeToggle.addEventListener("click", () => {
+      setTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
+    });
+
+    disableAllToggle.addEventListener("click", () => {
+      setControlsDisabled(!win.classList.contains("controls-disabled"));
+    });
+
+    setTheme("light");
+    setControlsDisabled(false);
+
+    function setToggleIconButton(button, selected) {
+      button.classList.toggle("selected", selected);
+      button.classList.toggle("ui-is-selected", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+      const icon = button.querySelector("use");
+      if (icon && button.dataset.iconOff && button.dataset.iconOn) {
+        icon.setAttribute("href", "#" + (selected ? button.dataset.iconOn : button.dataset.iconOff));
+      }
+    }
+
+    function toggleIconButton(button) {
+      const selected = !button.classList.contains("selected");
+      setToggleIconButton(button, selected);
+      return selected;
+    }
+
+    document.querySelectorAll(".toggle-icon-button").forEach((button) => {
+      setToggleIconButton(button, button.classList.contains("selected") || button.getAttribute("aria-pressed") === "true");
+    });
+
+    document.querySelectorAll(".toolbar .toggle-icon-button").forEach((button) => {
+      button.addEventListener("click", () => toggleIconButton(button));
+    });
+
+    function escapeHTML(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function highlight(value, query) {
+      if (!query) return escapeHTML(value);
+      const index = value.indexOf(query);
+      if (index === -1) return escapeHTML(value);
+      return [
+        escapeHTML(value.slice(0, index)),
+        "<mark>",
+        escapeHTML(value.slice(index, index + query.length)),
+        "</mark>",
+        highlight(value.slice(index + query.length), query)
+      ].join("");
+    }
+
+    function updateSearch(query) {
+      document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
+        const matches = !query || el.dataset.zh.includes(query) || el.dataset.ja.includes(query);
+        el.hidden = !matches;
+        const lines = el.querySelectorAll(".line");
+        lines[0].innerHTML = highlight(el.dataset.zh, query);
+        lines[1].innerHTML = highlight(el.dataset.ja, query);
+      });
+
+      let total = 0;
+      document.querySelectorAll(".group").forEach((group) => {
+        const visible = Array.from(group.querySelectorAll(".result-card")).filter((c) => !c.hidden);
+        group.hidden = visible.length === 0;
+        const count = group.querySelector(".group-count");
+        count.textContent = `${visible.length} ${visible.length === 1 ? "result" : "results"}`;
+        total += visible.length;
+      });
+
+      const summary = document.querySelector(".summary span");
+      if (summary) {
+        summary.innerHTML = query
+          ? `Found <strong>${total}</strong> result${total === 1 ? "" : "s"} for &ldquo;${escapeHTML(query)}&rdquo;`
+          : `Found <strong>185</strong> results in <strong>74</strong> files`;
+      }
+      updateSidebarSummary();
+    }
+
+    function updateSidebarSummary() {
+      const activeTab = document.querySelector(".segmented button.active")?.dataset.tab;
+      if (activeTab === "subs") {
+        sidebarCount.textContent = "317 cues";
+      } else {
+        const visible = document.querySelectorAll(".sidebar-row:not([hidden])").length;
+        sidebarCount.textContent = `${visible} result${visible === 1 ? "" : "s"} matching`;
+      }
+    }
+
+    function selectRank(rank, time, zh, ja) {
+      document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
+        el.classList.toggle("selected", el.dataset.rank === rank);
+        el.classList.toggle("ui-is-selected", el.dataset.rank === rank);
+      });
+      currentZh.textContent = zh;
+      currentJa.textContent = ja;
+      sourceToggle.querySelector(".source-label").textContent = "Ave Mujica · 01";
+    }
+
+    document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
+      el.addEventListener("click", () => {
+        selectRank(el.dataset.rank, el.dataset.time, el.dataset.zh, el.dataset.ja);
+      });
+      el.addEventListener("dblclick", () => {
+        win.classList.add("video-expanded");
+        sourceToggle.setAttribute("aria-pressed", "true");
+      });
+    });
+
+    sourceToggle.addEventListener("click", () => {
+      const expanded = win.classList.toggle("video-expanded");
+      sourceToggle.setAttribute("aria-pressed", expanded ? "true" : "false");
+    });
+
+    document.querySelectorAll(".segmented button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".segmented button").forEach((b) => {
+          const active = b === btn;
+          b.classList.toggle("active", active);
+          b.classList.toggle("ui-is-active", active);
+        });
+        updateSidebarSummary();
+      });
+    });
+
+    shioriToggle.addEventListener("click", () => {
+      toggleIconButton(shioriToggle);
+    });
+
+    subtitleToggle.addEventListener("click", () => {
+      const selected = toggleIconButton(subtitleToggle);
+      subtitleOverlay.hidden = !selected;
+    });
+
+    sidePanelToggle.addEventListener("click", () => {
+      const selected = toggleIconButton(sidePanelToggle);
+      win.classList.toggle("sidebar-hidden", !selected);
+    });
+
+    document.querySelectorAll(".group-header").forEach((header) => {
+      header.addEventListener("click", () => {
+        header.parentElement.classList.toggle("collapsed");
+      });
+    });
+
+    document.querySelector("[data-action='collapse-all']").addEventListener("click", (e) => {
+      document.querySelectorAll(".group").forEach((group) => {
+        group.classList.add("collapsed");
+      });
+      e.currentTarget.textContent = "Collapse All";
+    });
+
+    searchInput.addEventListener("input", (e) => updateSearch(e.target.value.trim()));
+    clearSearch.addEventListener("click", () => {
+      searchInput.value = "";
+      updateSearch("");
+      searchInput.focus();
+    });
+
+    // Speed menu
+    speedButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeVolume();
+      const open = speedMenu.hasAttribute("hidden") ? false : true;
+      if (open) {
+        speedMenu.setAttribute("hidden", "");
+        speedButton.setAttribute("aria-expanded", "false");
+      } else {
+        speedMenu.removeAttribute("hidden");
+        speedButton.setAttribute("aria-expanded", "true");
+      }
+    });
+    speedMenu.addEventListener("click", (e) => {
+      const opt = e.target.closest(".speed-option");
+      if (!opt) return;
+      document.querySelectorAll(".speed-option").forEach((o) => {
+        const selected = o === opt;
+        o.classList.toggle("selected", selected);
+        o.classList.toggle("ui-is-selected", selected);
+        o.setAttribute("aria-checked", selected ? "true" : "false");
+      });
+      speedButton.textContent = opt.dataset.speed;
+      speedMenu.setAttribute("hidden", "");
+      speedButton.setAttribute("aria-expanded", "false");
+    });
+
+    // Volume control
+    const volumeBtn = document.getElementById("volumeBtn");
+    const volumeIcon = document.getElementById("volumeIcon");
+    const volumeSlider = document.getElementById("volumeSlider");
+    const volumePercent = document.getElementById("volumePercent");
+    let volume = 36;
+    let lastNonzeroVolume = 36;
+
+    function closeVolume() {
+      // Hover owns visibility, matching the App. This hook only keeps other menu code simple.
+    }
+
+    function setVolume(nextVolume, remember = true) {
+      volume = Math.max(0, Math.min(100, nextVolume));
+      const rounded = Math.round(volume);
+      volumeSlider.style.setProperty("--value", volume + "%");
+      volumeSlider.setAttribute("aria-valuenow", String(rounded));
+      volumePercent.textContent = rounded + "%";
+      volumeIcon.setAttribute("href", volume === 0 ? "#speaker-muted" : "#speaker");
+      volumeBtn.setAttribute("aria-pressed", volume === 0 ? "true" : "false");
+      volumeBtn.setAttribute("aria-label", volume === 0 ? "Unmute" : "Mute");
+      if (remember && volume > 0) {
+        lastNonzeroVolume = volume;
+      }
+    }
+
+    volumeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      speedMenu.setAttribute("hidden", "");
+      speedButton.setAttribute("aria-expanded", "false");
+      setVolume(volume > 0 ? 0 : lastNonzeroVolume, volume === 0);
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!speedMenu.contains(e.target) && e.target !== speedButton) {
+        speedMenu.setAttribute("hidden", "");
+        speedButton.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    // Play/pause toggle
+    playBtn.addEventListener("click", () => {
+      isPlaying = !isPlaying;
+      playIcon.innerHTML = `<use href="#${isPlaying ? "pause" : "play"}"></use>`;
+    });
+
+    // Sliders draggable for tactile feel
+    document.querySelectorAll(".slider").forEach((slider) => {
+      let dragging = false;
+      const update = (clientX) => {
+        const rect = slider.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        if (slider === volumeSlider) {
+          setVolume(pct * 100, pct > 0);
+        } else {
+          slider.style.setProperty("--value", (pct * 100) + "%");
+        }
+      };
+      slider.addEventListener("pointerdown", (e) => {
+        dragging = true;
+        slider.setPointerCapture(e.pointerId);
+        update(e.clientX);
+      });
+      slider.addEventListener("pointermove", (e) => { if (dragging) update(e.clientX); });
+      slider.addEventListener("pointerup", () => { dragging = false; });
+      slider.addEventListener("pointercancel", () => { dragging = false; });
+    });
+  
+
+</script>
+
+
+</body></html>

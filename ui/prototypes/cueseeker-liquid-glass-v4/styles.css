@@ -1118,7 +1118,7 @@
       --pill-bg: rgba(255,255,255,0.50);
       --pill-bg-strong: rgba(255,255,255,0.72);
       --pill-border: rgba(255,255,255,0.80);
-      --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,0.9), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.05);
+      --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.10);
       --pill-hover-bg: rgba(255,255,255,0.60);
       --field-bg: rgba(255,255,255,0.55);
       --field-focus-bg: rgba(255,255,255,0.85);
@@ -1188,7 +1188,7 @@
       --pill-bg: rgba(255,255,255,0.08);
       --pill-bg-strong: rgba(255,255,255,0.14);
       --pill-border: rgba(255,255,255,0.18);
-      --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,0.24), 0 0 0 0.5px rgba(255,255,255,0.05), 0 1px 3px rgba(0,0,0,0.30);
+      --pill-shadow: inset 0 0.5px 0 rgba(255,255,255,1), 0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.10);
       --pill-hover-bg: rgba(255,255,255,0.12);
       --field-bg: rgba(255,255,255,0.09);
       --field-focus-bg: rgba(255,255,255,0.14);
@@ -1633,7 +1633,10 @@
       background: rgba(255, 255, 255, 0.64);
       border: 0.5px solid rgba(255, 255, 255, 0.76);
       color: #1a1a1f;
-      box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.92);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255, 255, 255, 1),
+        0 0 0 0.5px rgba(0, 0, 0, 0.06),
+        0 1px 3px rgba(0, 0, 0, 0.10);
       backdrop-filter: blur(20px) saturate(1.4);
       -webkit-backdrop-filter: blur(20px) saturate(1.4);
       transition: background 180ms ease, transform 180ms cubic-bezier(.34,1.56,.64,1), color 180ms ease;
