@@ -245,11 +245,6 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .sort-note {
-      color: var(--text-3);
-      font-size: 11.5px;
-    }
-
     .header-actions {
       display: flex;
       gap: 3px;
@@ -338,13 +333,6 @@
       color: var(--text-3);
       font-size: 11.5px;
       font-variant-numeric: tabular-nums;
-    }
-
-    .group-duration {
-      margin-left: auto;
-      color: var(--text-4);
-      font: 11px var(--mono);
-      opacity: 0.65;
     }
 
     .cards {
@@ -554,11 +542,6 @@
       color: var(--text-3);
       font-size: 11.5px;
       font-variant-numeric: tabular-nums;
-    }
-
-    .sidebar-summary .sort {
-      color: var(--text-4);
-      font: 11px var(--mono);
     }
 
     .sidebar-list {
@@ -883,10 +866,8 @@
         <div class="results-header">
           <div class="summary">
             <span>Found <strong>185</strong> results in <strong>74</strong> files</span>
-            <span class="sort-note">· sorted by appearance</span>
           </div>
           <div class="header-actions">
-            <button class="small-button" type="button" data-action="expand-all">Expand All</button>
             <button class="small-button" type="button" data-action="collapse-all">Collapse All</button>
           </div>
         </div>
@@ -897,7 +878,6 @@
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">AVE MUJICA - 01</span>
               <span class="group-count">4 results</span>
-              <span class="group-duration">24:08</span>
             </button>
             <div class="cards">
               <button class="result-card" type="button" data-rank="1" data-time="00:30" data-zh="毋庸担心 月霞自会为我们将她唤醒" data-ja="大丈夫 月の光が起こしてくれますわ">
@@ -928,7 +908,6 @@
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">AVE MUJICA - 02</span>
               <span class="group-count">2 results</span>
-              <span class="group-duration">23:59</span>
             </button>
             <div class="cards">
               <button class="result-card" type="button" data-rank="5" data-time="14:26" data-zh="小初 你没事吧" data-ja="ういちゃん 大丈夫">
@@ -949,7 +928,6 @@
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">AVE MUJICA - 03</span>
               <span class="group-count">2 results</span>
-              <span class="group-duration">24:02</span>
             </button>
             <div class="cards">
               <button class="result-card" type="button" data-rank="7" data-time="19:49" data-zh="应该没问题吧" data-ja="大丈夫かなぁ">
@@ -970,7 +948,6 @@
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">AVE MUJICA - 04</span>
               <span class="group-count">1 result</span>
-              <span class="group-duration">24:00</span>
             </button>
             <div class="cards">
               <button class="result-card" type="button" data-rank="9" data-time="12:27" data-zh="没有吉他也没关系对吧" data-ja="ギターなんてなくても大丈夫だったでしょう">
@@ -986,7 +963,6 @@
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">AVE MUJICA - 05</span>
               <span class="group-count">2 results</span>
-              <span class="group-duration">24:11</span>
             </button>
             <div class="cards">
               <button class="result-card" type="button" data-rank="10" data-time="06:12" data-zh="别担心 我会处理好的" data-ja="大丈夫 私がなんとかするから">
@@ -1007,7 +983,6 @@
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">葬送的芙莉莲 - 11</span>
               <span class="group-count">3 results</span>
-              <span class="group-duration">23:40</span>
             </button>
             <div class="cards">
               <button class="result-card" type="button" data-rank="12" data-time="03:55" data-zh="弗里伦 你还好吗" data-ja="フリーレン 大丈夫">
@@ -1033,7 +1008,6 @@
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">葬送的芙莉莲 - 18</span>
               <span class="group-count">3 results</span>
-              <span class="group-duration">24:31</span>
             </button>
             <div class="cards">
               <button class="result-card" type="button" data-rank="15" data-time="07:42" data-zh="费伦 你没事吧" data-ja="フェルン 大丈夫">
@@ -1059,7 +1033,6 @@
               <span class="chevron"><svg width="9" height="9"><use href="#chevron"></use></svg></span>
               <span class="group-title">BanG Dream! It's MyGO!!!!! - 07</span>
               <span class="group-count">2 results</span>
-              <span class="group-duration">24:00</span>
             </button>
             <div class="cards">
               <button class="result-card" type="button" data-rank="18" data-time="05:18" data-zh="灯 你没事吧" data-ja="灯 大丈夫">
@@ -1093,7 +1066,6 @@
             </div>
             <div class="sidebar-summary">
               <span id="sidebarCount">185 results · 8 files shown</span>
-              <span class="sort" id="sidebarSort">sorted by appearance</span>
             </div>
           </div>
           <div class="sidebar-list">
@@ -1215,9 +1187,6 @@
           <div class="slider" style="--value: 36%;">
             <span class="thumb"></span>
           </div>
-          <button class="icon-button" type="button" aria-label="Fullscreen video">
-            <svg width="13" height="13"><use href="#expand"></use></svg>
-          </button>
         </div>
 
         <span class="spacer"></span>
@@ -1250,7 +1219,6 @@
     const searchInput = document.getElementById("searchInput");
     const clearSearch = document.getElementById("clearSearch");
     const sidebarCount = document.getElementById("sidebarCount");
-    const sidebarSort = document.getElementById("sidebarSort");
     let visibleFilesShown = 8;
 
     function escapeHTML(value) {
@@ -1303,10 +1271,8 @@
       const activeTab = document.querySelector(".segmented button.active")?.dataset.tab;
       if (activeTab === "subs") {
         sidebarCount.textContent = "Bilingual · ZH / JA";
-        sidebarSort.textContent = "auto-scroll";
       } else {
         sidebarCount.textContent = `185 results · ${visibleFilesShown} files shown`;
-        sidebarSort.textContent = "sorted by appearance";
       }
     }
 
@@ -1338,10 +1304,6 @@
       button.addEventListener("click", () => {
         button.closest(".group").classList.toggle("collapsed");
       });
-    });
-
-    document.querySelector("[data-action='expand-all']").addEventListener("click", () => {
-      document.querySelectorAll(".group").forEach((group) => group.classList.remove("collapsed"));
     });
 
     document.querySelector("[data-action='collapse-all']").addEventListener("click", () => {
