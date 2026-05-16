@@ -1571,8 +1571,9 @@
       --menu-border: rgba(255, 255, 255, 0.7);
       --menu-shadow: 0 18px 50px -10px rgba(40, 30, 60, 0.28), 0 4px 14px -4px rgba(40, 30, 60, 0.16);
       --menu-item-hover: rgba(0, 0, 0, 0.06);
-      --progress-track: rgba(0, 0, 0, 0.08);
-      --progress-fill: #3478f6;
+      --progress-track: rgba(0, 0, 0, 0.12);
+      --progress-fill: rgba(0, 0, 0, 0.54);
+      --progress-thumb: rgba(0, 0, 0, 0.76);
       --player-dock-shadow:
         0 0 0 0.5px rgba(0, 0, 0, 0.08),
         inset 0 0.5px 0 rgba(255, 255, 255, 0.58),
@@ -1593,8 +1594,9 @@
       --menu-border: rgba(255, 255, 255, 0.12);
       --menu-shadow: 0 18px 50px -10px rgba(0, 0, 0, 0.6), 0 4px 14px -4px rgba(0, 0, 0, 0.45);
       --menu-item-hover: rgba(255, 255, 255, 0.08);
-      --progress-track: rgba(255, 255, 255, 0.12);
-      --progress-fill: #6ea6ff;
+      --progress-track: rgba(255, 255, 255, 0.18);
+      --progress-fill: rgba(255, 255, 255, 0.66);
+      --progress-thumb: rgba(255, 255, 255, 0.82);
       --player-dock-shadow:
         0 0 0 0.5px rgba(255, 255, 255, 0.08),
         inset 0 0.5px 0 rgba(255, 255, 255, 0.22),
@@ -1636,8 +1638,36 @@
     }
     .player-dock .scrubber .thumb,
     .window.video-expanded .player-dock .scrubber .thumb {
-      background: var(--progress-fill);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+      background: var(--progress-thumb);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
+    }
+    .player-dock .scrubber .ui-slider--progress::before,
+    .player-dock .scrubber .ui-slider--progress::after,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress::before,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress::after {
+      height: 3px;
+      transition: height 140ms ease, background 140ms ease;
+    }
+    .player-dock .scrubber .ui-slider--progress:hover::before,
+    .player-dock .scrubber .ui-slider--progress:hover::after,
+    .player-dock .scrubber .ui-slider--progress.is-dragging::before,
+    .player-dock .scrubber .ui-slider--progress.is-dragging::after,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress:hover::before,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress:hover::after,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress.is-dragging::before,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress.is-dragging::after {
+      height: 6px;
+    }
+    .player-dock .scrubber .ui-slider--progress .thumb,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress .thumb {
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+    .player-dock .scrubber .ui-slider--progress:hover .thumb,
+    .player-dock .scrubber .ui-slider--progress.is-dragging .thumb,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress:hover .thumb,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress.is-dragging .thumb {
+      opacity: 1;
     }
 
     .player-dock .icon-button,
@@ -1759,7 +1789,7 @@
       <path d="M2 4.6C2 3.9 2.5 3.4 3.2 3.4h3.2l1.2 1.3h6.2c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3.2C2.5 13.3 2 12.8 2 12.1V4.6Z" fill="currentColor"></path>
     </symbol>
     <symbol id="bookmark" viewBox="0 0 17 17">
-      <path d="M4.5 2.7h8v11.6l-4-3.2-4 3.2V2.7Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+      <path d="M4.7 2.6h7.6v11.7l-3.8-3.1-3.8 3.1V2.6Z" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"></path>
     </symbol>
     <symbol id="bookmark-filled" viewBox="0 0 17 17">
       <path d="M4.5 2.7h8v11.6l-4-3.2-4 3.2V2.7Z" fill="currentColor"></path>
@@ -2221,7 +2251,7 @@
           </div>
 
           <div class="hud-right" role="group" aria-label="Tools">
-            <button class="icon-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="shioriToggle" aria-label="Save cue" aria-pressed="true" data-icon-off="bookmark" data-icon-on="bookmark-filled"><svg width="17" height="17"><use href="#bookmark-filled"></use></svg></button>
+            <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" id="shioriButton" aria-label="Save Shiori"><svg width="17" height="17"><use href="#bookmark"></use></svg></button>
             <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" aria-label="Copy Current Subtitle"><svg width="17" height="17"><use href="#copy"></use></svg></button>
             <button class="icon-button subtitle-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="subtitleToggle" aria-label="Subtitles" aria-pressed="true" data-icon-off="caption" data-icon-on="caption-filled"><svg width="17" height="17" viewBox="0 0 17 17"><use href="#caption-filled"></use></svg></button>
             <button class="icon-button side-panel-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="sidePanelToggle" aria-label="Results panel" aria-pressed="true" data-icon-off="list" data-icon-on="list-filled"><svg width="17" height="17" viewBox="0 0 17 17"><use href="#list-filled"></use></svg></button>
@@ -2261,7 +2291,6 @@ const win = document.getElementById("window");
     const speedMenu = document.getElementById("speedMenu");
     const playBtn = document.getElementById("playBtn");
     const playIcon = document.getElementById("playIcon");
-    const shioriToggle = document.getElementById("shioriToggle");
     const subtitleToggle = document.getElementById("subtitleToggle");
     const sidePanelToggle = document.getElementById("sidePanelToggle");
     const subtitleOverlay = document.querySelector(".subtitle-overlay");
@@ -2469,10 +2498,6 @@ const win = document.getElementById("window");
       });
     });
 
-    shioriToggle.addEventListener("click", () => {
-      toggleIconButton(shioriToggle);
-    });
-
     subtitleToggle.addEventListener("click", () => {
       const selected = toggleIconButton(subtitleToggle);
       subtitleOverlay.hidden = !selected;
@@ -2603,12 +2628,17 @@ const win = document.getElementById("window");
       };
       slider.addEventListener("pointerdown", (e) => {
         dragging = true;
+        slider.classList.add("is-dragging");
         slider.setPointerCapture(e.pointerId);
         update(e.clientX);
       });
       slider.addEventListener("pointermove", (e) => { if (dragging) update(e.clientX); });
-      slider.addEventListener("pointerup", () => { dragging = false; });
-      slider.addEventListener("pointercancel", () => { dragging = false; });
+      const stopDragging = () => {
+        dragging = false;
+        slider.classList.remove("is-dragging");
+      };
+      slider.addEventListener("pointerup", stopDragging);
+      slider.addEventListener("pointercancel", stopDragging);
     });
   
 

@@ -15,7 +15,6 @@ const win = document.getElementById("window");
     const speedMenu = document.getElementById("speedMenu");
     const playBtn = document.getElementById("playBtn");
     const playIcon = document.getElementById("playIcon");
-    const shioriToggle = document.getElementById("shioriToggle");
     const subtitleToggle = document.getElementById("subtitleToggle");
     const sidePanelToggle = document.getElementById("sidePanelToggle");
     const subtitleOverlay = document.querySelector(".subtitle-overlay");
@@ -223,10 +222,6 @@ const win = document.getElementById("window");
       });
     });
 
-    shioriToggle.addEventListener("click", () => {
-      toggleIconButton(shioriToggle);
-    });
-
     subtitleToggle.addEventListener("click", () => {
       const selected = toggleIconButton(subtitleToggle);
       subtitleOverlay.hidden = !selected;
@@ -357,11 +352,16 @@ const win = document.getElementById("window");
       };
       slider.addEventListener("pointerdown", (e) => {
         dragging = true;
+        slider.classList.add("is-dragging");
         slider.setPointerCapture(e.pointerId);
         update(e.clientX);
       });
       slider.addEventListener("pointermove", (e) => { if (dragging) update(e.clientX); });
-      slider.addEventListener("pointerup", () => { dragging = false; });
-      slider.addEventListener("pointercancel", () => { dragging = false; });
+      const stopDragging = () => {
+        dragging = false;
+        slider.classList.remove("is-dragging");
+      };
+      slider.addEventListener("pointerup", stopDragging);
+      slider.addEventListener("pointercancel", stopDragging);
     });
   

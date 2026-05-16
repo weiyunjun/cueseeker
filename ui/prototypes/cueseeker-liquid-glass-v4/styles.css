@@ -1565,8 +1565,9 @@
       --menu-border: rgba(255, 255, 255, 0.7);
       --menu-shadow: 0 18px 50px -10px rgba(40, 30, 60, 0.28), 0 4px 14px -4px rgba(40, 30, 60, 0.16);
       --menu-item-hover: rgba(0, 0, 0, 0.06);
-      --progress-track: rgba(0, 0, 0, 0.08);
-      --progress-fill: #3478f6;
+      --progress-track: rgba(0, 0, 0, 0.12);
+      --progress-fill: rgba(0, 0, 0, 0.54);
+      --progress-thumb: rgba(0, 0, 0, 0.76);
       --player-dock-shadow:
         0 0 0 0.5px rgba(0, 0, 0, 0.08),
         inset 0 0.5px 0 rgba(255, 255, 255, 0.58),
@@ -1587,8 +1588,9 @@
       --menu-border: rgba(255, 255, 255, 0.12);
       --menu-shadow: 0 18px 50px -10px rgba(0, 0, 0, 0.6), 0 4px 14px -4px rgba(0, 0, 0, 0.45);
       --menu-item-hover: rgba(255, 255, 255, 0.08);
-      --progress-track: rgba(255, 255, 255, 0.12);
-      --progress-fill: #6ea6ff;
+      --progress-track: rgba(255, 255, 255, 0.18);
+      --progress-fill: rgba(255, 255, 255, 0.66);
+      --progress-thumb: rgba(255, 255, 255, 0.82);
       --player-dock-shadow:
         0 0 0 0.5px rgba(255, 255, 255, 0.08),
         inset 0 0.5px 0 rgba(255, 255, 255, 0.22),
@@ -1630,8 +1632,36 @@
     }
     .player-dock .scrubber .thumb,
     .window.video-expanded .player-dock .scrubber .thumb {
-      background: var(--progress-fill);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+      background: var(--progress-thumb);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
+    }
+    .player-dock .scrubber .ui-slider--progress::before,
+    .player-dock .scrubber .ui-slider--progress::after,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress::before,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress::after {
+      height: 3px;
+      transition: height 140ms ease, background 140ms ease;
+    }
+    .player-dock .scrubber .ui-slider--progress:hover::before,
+    .player-dock .scrubber .ui-slider--progress:hover::after,
+    .player-dock .scrubber .ui-slider--progress.is-dragging::before,
+    .player-dock .scrubber .ui-slider--progress.is-dragging::after,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress:hover::before,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress:hover::after,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress.is-dragging::before,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress.is-dragging::after {
+      height: 6px;
+    }
+    .player-dock .scrubber .ui-slider--progress .thumb,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress .thumb {
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+    .player-dock .scrubber .ui-slider--progress:hover .thumb,
+    .player-dock .scrubber .ui-slider--progress.is-dragging .thumb,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress:hover .thumb,
+    .window.video-expanded .player-dock .scrubber .ui-slider--progress.is-dragging .thumb {
+      opacity: 1;
     }
 
     .player-dock .icon-button,
