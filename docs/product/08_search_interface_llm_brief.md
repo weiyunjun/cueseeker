@@ -22,6 +22,13 @@ left Mode Rail plus Shared Content Panel documented below and in
 lazy-loading rules still apply to Search mode unless a later section explicitly
 conflicts with the current shell layout.
 
+Current Liquid Glass rewrite note: the accepted direction now uses a topbar
+workbench and an active-playback bottom player. The bottom player is shown only
+while playback exists. Expanded playback owns a top-left `Close` capsule that
+ends the current playback session, clears playback-derived selection highlights,
+and hides playback UI without clearing Search results, Search caches, Library
+rows, Shiori records, or unrelated workbench presentation state.
+
 The Search interface should feel like a focused desktop utility:
 
 - Fast and local.

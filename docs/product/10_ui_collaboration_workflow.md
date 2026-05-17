@@ -35,6 +35,8 @@ User reviews visual differences and requests alignment fixes
 Assistant updates the HTML prototype until accepted
 Assistant updates component and UX mapping documents for accepted class,
 token, layout, state, interaction, timing, and native-difference rules
+Assistant updates stable UI/UX and backend lifecycle documents when the change
+affects product behavior or App state ownership
 Assistant documents any remaining stable rules and known HTML/App differences
 Assistant implements the accepted design in App code only after explicit approval
 ```
@@ -57,6 +59,9 @@ Rules:
   when accepted prototype changes affect layout, sizing, state lifetime,
   interaction flow, timing, animation, visibility, keyboard behavior, focus
   behavior, or native implementation boundaries.
+- Stable UI/UX documents and backend-related documents must also be updated
+  before App code when a prototype change changes playback lifecycle, state
+  ownership, persistence boundaries, or backend teardown semantics.
 - The mapping documents are not optional implementation notes. They are the
   synchronization contract between the accepted HTML prototype and the native
   App rewrite.
@@ -185,16 +190,17 @@ ui/prototypes/cueseeker-liquid-glass-v5/
 ```
 
 This directory is the active review fork for Liquid Glass control states, theme
-review, disabled-state review, bottom-player control sizing, expanded playback
-video geometry, and split-source prototype editing. It does not replace the
-accepted baseline in the table below until the user accepts it.
+review, disabled-state review, active-playback bottom-player control sizing,
+expanded playback video geometry, fullscreen feedback, playback-close UX, and
+split-source prototype editing. It does not replace the accepted baseline in
+the table below until the user accepts it.
 
 | App surface | Required HTML prototype | Coverage status | Known native App differences |
 | --- | --- | --- | --- |
-| Main workbench shell | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current Liquid Glass visual baseline for the search-state shell and persistent bottom player | Native titlebar, traffic lights, full-screen transition behavior, system materials, font rendering, and accessibility focus behavior remain App-native |
+| Main workbench shell | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current Liquid Glass visual baseline for the search-state shell and active-playback bottom player | Native titlebar, traffic lights, full-screen transition behavior, system materials, font rendering, and accessibility focus behavior remain App-native |
 | Search results | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for grouped Search results, result cards, disclosure behavior, and fixed `Collapse All` behavior | App data, lazy loading, virtualization, exact counts, and result ordering must come from the native Search pipeline |
-| Search-launched playback overlay and bottom player | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for the video surface, subtitle overlay, right playback side panel, bottom player, speed menu, and visibility toggles | App playback, seeking, file access, fullscreen presentation, subtitle rendering, and persisted playback state remain native behaviors |
-| Shiori playback control | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for the bottom-player Shiori toggle state | App Shiori persistence, duplicate handling, and feedback timing remain native behaviors |
+| Search-launched playback overlay and bottom player | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for the video surface, close capsule, subtitle overlay, right playback side panel, active-playback bottom player, speed menu, and visibility toggles | App playback, seeking, close lifecycle, file access, fullscreen presentation, subtitle rendering, and persisted playback state remain native behaviors |
+| Shiori playback control | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for the bottom-player Shiori stateful command button without selected fill | App Shiori persistence, duplicate handling, and feedback timing remain native behaviors |
 | Library view | Pending | Waiting for a dedicated accepted HTML prototype | Not yet documented |
 | Full Shiori view | Pending | Waiting for a dedicated accepted HTML prototype | Not yet documented |
 | Settings windows | Pending | Waiting for a dedicated accepted HTML prototype | Native macOS settings-window behavior is expected |

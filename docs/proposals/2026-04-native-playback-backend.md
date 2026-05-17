@@ -7,6 +7,14 @@ app to native-first playback with `libmpv` fallback. ADR-0007 later superseded
 ADR-0006 and removes production `libmpv` compatibility so native playback
 failures are exposed directly.
 
+2026-05 playback-close update: the UI now includes an explicit video-surface
+Close command. Close should stop the current native media session and clear
+current media/subtitle request state, but keep reusable playback infrastructure
+and playback preferences available for the next request. Close must not clear
+Search results, database search caches, Library rows, Shiori records, or
+Library playback history; Library progress is saved only through the existing
+Library playback-history rules.
+
 ## Background
 
 At the start of this proposal, the native macOS app used embedded `libmpv` for
@@ -119,6 +127,12 @@ The first native-backend evaluation should not change the main playback UI.
 The existing Playback Inspector, playback fullscreen behavior, keyboard
 shortcuts, and feedback overlays should continue to work through a backend
 abstraction.
+
+The playback-close command is a lifecycle command above the backend
+implementation. It is allowed to call the native backend's stop path for the
+current request, but it should not destroy reusable backend objects merely to
+hide the UI. The user-visible result is no active playback session and no bottom
+player, not a global reset of Search, Library, or Shiori state.
 
 Potential UI additions after implementation proves useful:
 

@@ -7,11 +7,11 @@
 const win = document.getElementById("window");
     const libraryToggle = document.getElementById("libraryToggle");
     const topbarShioriToggle = document.getElementById("topbarShioriToggle");
-    const sourceToggle = document.getElementById("sourceToggle");
     const mainSurface = document.querySelector(".main");
     const videoStage = document.querySelector(".video-stage");
     const videoFrame = document.querySelector(".video-frame");
     const playerDock = document.getElementById("playerDock");
+    const closePlaybackButton = document.getElementById("closePlaybackButton");
     const currentZh = document.querySelector("[data-current-zh]");
     const currentJa = document.querySelector("[data-current-ja]");
     const searchInput = document.getElementById("searchInput");
@@ -233,6 +233,7 @@ const win = document.getElementById("window");
 
     function togglePrototypeFullscreen() {
       const enteringFullscreen = !document.body.classList.contains("prototype-fullscreen");
+      if (enteringFullscreen && !hasActivePlayback()) return;
       if (enteringFullscreen) {
         openVideo();
       }
@@ -268,6 +269,10 @@ const win = document.getElementById("window");
       return win.classList.contains("video-expanded");
     }
 
+    function hasActivePlayback() {
+      return !win.classList.contains("playback-closed");
+    }
+
     function pointInVideoStage(point) {
       if (!videoStage || !point) return false;
 
@@ -284,8 +289,9 @@ const win = document.getElementById("window");
     }
 
     function setPlayerChromeVisible(visible) {
-      win.classList.toggle("player-chrome-visible", visible);
-      playerDock?.setAttribute("aria-hidden", visible ? "false" : "true");
+      const shouldShow = visible && hasActivePlayback();
+      win.classList.toggle("player-chrome-visible", shouldShow);
+      playerDock?.setAttribute("aria-hidden", shouldShow ? "false" : "true");
     }
 
     function hidePlayerChrome() {
@@ -456,7 +462,6 @@ const win = document.getElementById("window");
         searchModeDraftValue = searchInput.value;
       }
       win.classList.remove("video-expanded");
-      sourceToggle.setAttribute("aria-pressed", "false");
       win.classList.toggle("library-mode", showLibrary);
       win.classList.toggle("shiori-mode", showShiori);
       setTopbarModeButton(libraryToggle, showLibrary);
@@ -591,7 +596,6 @@ const win = document.getElementById("window");
       });
       currentZh.textContent = cue.dataset.zh;
       currentJa.textContent = cue.dataset.ja;
-      sourceToggle.querySelector(".source-label").textContent = cue.dataset.source || "Ave Mujica · 01";
     }
 
     function selectLibraryEpisode(episode) {
@@ -600,20 +604,42 @@ const win = document.getElementById("window");
         el.classList.toggle("selected", selected);
         el.classList.toggle("ui-is-selected", selected);
       });
-      sourceToggle.querySelector(".source-label").textContent = episode.dataset.source;
       currentZh.textContent = "";
       currentJa.textContent = "";
     }
 
     function openVideo() {
+      win.classList.remove("playback-closed");
       win.classList.add("video-expanded");
-      sourceToggle.setAttribute("aria-pressed", "true");
       scheduleVideoFrameLayout();
       if (pointInVideoStage(lastPointerPosition)) {
         showPlayerChrome();
       } else {
         hidePlayerChrome();
       }
+    }
+
+    function closePlaybackSession() {
+      clearPlayerChromeHideTimer();
+      document.body.classList.remove("prototype-fullscreen");
+      fullscreenButton?.setAttribute("aria-label", "Fullscreen");
+      fullscreenIcon?.setAttribute("href", "#viewfinder");
+      win.classList.remove("video-expanded", "player-chrome-visible");
+      win.classList.add("playback-closed");
+      isPlaying = false;
+      playIcon.innerHTML = '<use href="#play"></use>';
+      playBtn.setAttribute("aria-label", "Play");
+      document.querySelectorAll(".result-card.selected, .result-card.ui-is-selected, .sidebar-row.selected, .sidebar-row.ui-is-selected, .library-episode-card.selected, .library-episode-card.ui-is-selected").forEach((el) => {
+        el.classList.remove("selected", "ui-is-selected");
+      });
+      currentZh.textContent = "";
+      currentJa.textContent = "";
+      speedMenu.setAttribute("hidden", "");
+      speedButton.setAttribute("aria-expanded", "false");
+      feedbackHud?.classList.remove("is-visible");
+      if (feedbackHud) feedbackHud.hidden = true;
+      playerDock?.setAttribute("aria-hidden", "true");
+      scheduleVideoFrameLayout();
     }
 
     document.querySelectorAll(".result-card").forEach((el) => {
@@ -639,21 +665,7 @@ const win = document.getElementById("window");
       });
     });
 
-    sourceToggle.addEventListener("click", () => {
-      const expanded = win.classList.toggle("video-expanded");
-      sourceToggle.setAttribute("aria-pressed", expanded ? "true" : "false");
-      if (!expanded && document.body.classList.contains("prototype-fullscreen")) {
-        togglePrototypeFullscreen();
-        syncPlayerChromeBoundary();
-        return;
-      }
-      scheduleVideoFrameLayout();
-      if (expanded && pointInVideoStage(lastPointerPosition)) {
-        showPlayerChrome();
-      } else {
-        syncPlayerChromeBoundary();
-      }
-    });
+    closePlaybackButton.addEventListener("click", closePlaybackSession);
 
     document.querySelectorAll(".segmented button").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -827,6 +839,7 @@ const win = document.getElementById("window");
       if (win.classList.contains("controls-disabled")) return;
       if (isEditableTarget(event.target)) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!hasActivePlayback()) return;
 
       let handled = true;
       switch (event.code) {

@@ -40,6 +40,8 @@ Required:
 - Render playback inside the app window.
 - Pause playback.
 - Toggle play/pause from the video surface.
+- Close the current playback session from an explicit video-surface close
+  command.
 - Seek when a different subtitle result in the same video is selected.
 - Continue playback when the Shared Content Panel is collapsed.
 - Pause playback when the user leaves the CueSeeker workbench for another
@@ -60,6 +62,24 @@ Accepted M2 Library playback behavior:
   through Library.
 - Search-result playback must not read, write, or overwrite Library playback
   history. Search-result jumps remain exact subtitle-context jumps.
+
+Accepted M2 playback-close behavior:
+
+- The video surface owns a top-left `Close` capsule command.
+- Close stops the current native playback session and clears the active
+  playback source.
+- Close exits playback fullscreen first, or as part of the same command, so no
+  playback fullscreen presentation remains after playback is closed.
+- Close clears current playback selection highlights across Search, Library,
+  Shiori, and playback side-panel rows.
+- Close hides the bottom player because there is no active playback session.
+- Close must not clear Search results, database search caches, Library rows,
+  Shiori records, group disclosure presentation state, or unrelated workbench
+  state.
+- If the active playback source is Library, close uses the same Library playback
+  history save path as any other playback stop or source switch.
+- Search-launched and Shiori-launched playback close must not read, write, or
+  overwrite Library playback history.
 
 Out of scope for M1:
 
@@ -297,6 +317,8 @@ Required behavior:
 - Escape should exit playback fullscreen.
 - Switching away from the CueSeeker workbench, closing the main window, or
   terminating the app should leave playback fullscreen cleanly.
+- Closing playback while fullscreen is active should leave playback fullscreen
+  cleanly and then end the current playback session.
 - Switching away from the CueSeeker workbench should pause playback and must not
   leave an orphan playback fullscreen presentation.
 - Fullscreen may later provide temporary access to documented workbench panel
@@ -344,6 +366,8 @@ Implementation constraints:
 - Exiting fullscreen should not rebuild Library or Search result rows. Side
   panel presentation state belongs to the workbench, not to fullscreen playback
   lifecycle.
+- Exiting fullscreen is not the same as closing playback. Fullscreen exit
+  returns to embedded playback; close ends playback and hides playback UI.
 
 ## 8. M2 Playback Controls
 

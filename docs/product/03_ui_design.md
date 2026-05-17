@@ -24,7 +24,7 @@ baseline before native implementation.
 ## 1.1 Accepted Topbar Card Workbench Transition
 
 The accepted current UI direction is a topbar-driven single-page work surface
-with a persistent bottom player.
+with an active-playback bottom player.
 
 This transition supersedes the Mode Rail and Shared Content Panel requirements
 for Search and Shiori. Library is also entered from the topbar, but detailed
@@ -59,7 +59,10 @@ First implementation requirements:
 - Remove the visible Mode Rail, resizable content-panel sidebar, and sidebar
   position setting from the active workbench.
 - Do not render a second Search field inside the Search results page.
-- Clicking a Search result opens the bottom-launched playback overlay.
+- Clicking a Search result opens the playback surface and creates an active
+  playback session.
+- The playback surface exposes a top-left `Close` capsule button. Closing
+  playback ends the current playback session and returns to the workbench.
 - The expanded playback overlay uses a rectangular black background that covers
   the full work area between the topbar and the bottom player, preserves a
   rounded video surface, and shows a right-side panel for `Search Results` and
@@ -75,13 +78,16 @@ First implementation requirements:
 - Compact operation buttons use circular icon buttons. Active toggle state is
   shown by a white circular button background and pressed state, while the
   semantic glyph remains stable across selected and unselected states.
-- Text or value controls use capsules. The current source/title control remains
-  a white capsule, and the playback-speed capsule keeps a fixed width that fits
-  the longest current preset label.
+- Text, command, and value controls use capsules. The playback `Close` command
+  uses the compact capsule form, and the playback-speed capsule keeps a fixed
+  width that fits the longest current preset label.
 - Search Results rows may highlight query matches. Subtitles rows represent the
   full subtitle file and must not apply keyword highlighting.
-- Keep the persistent bottom player available across Search, Shiori, and
-  Library.
+- Show the bottom player only while an active playback session exists. Non-video
+  workbench pages with no active playback must not show the bottom player.
+- The old bottom-player left source/title expand-collapse capsule is removed
+  from the active target UI. The volume button becomes the leftmost bottom-player
+  control; other bottom-player controls keep their relative positions.
 - First-pass visual polish is explicitly secondary to complete functionality.
 
 The related accepted proposal is
@@ -104,7 +110,7 @@ ui/prototypes/cueseeker-liquid-glass-v5/
 
 The standalone prototype remains the current visual baseline for HTML review of
 the main workbench, grouped Search results, Search-launched playback overlay,
-playback side panel, and persistent bottom player. The v5 directory is the
+playback side panel, and active-playback bottom player. The v5 directory is the
 current split-source review fork for control taxonomy, disabled states,
 prototype theme switching, bottom-player control sizing, and expanded playback
 video geometry. Earlier versioned forks remain available for visual comparison.
@@ -116,10 +122,10 @@ Stable design snapshot:
 - The main surface uses a restrained light Liquid Glass treatment: translucent
   silver-gray window material, soft internal highlights, subtle hairlines, and
   low-contrast shadows.
-- The prototype has two primary work states: a grouped Search-results state
-  and an expanded playback state. The expanded playback state preserves the
-  bottom player while replacing the main results area with a video surface and
-  optional right side panel.
+- The prototype has grouped workbench states and an expanded playback state.
+  The expanded playback state shows the active playback bottom player while
+  replacing the main results area with a video surface and optional right side
+  panel.
 - Search results show a compact summary row and a fixed `Collapse All` action.
   `Collapse All` collapses all visible result groups and keeps the same label;
   it is not an expand-all toggle. It has distinct normal and disabled states.
@@ -130,14 +136,16 @@ Stable design snapshot:
 - The expanded video surface is a black playback frame with a subtitle overlay.
   The overlay can be shown or hidden from the bottom player without resizing
   the bottom player controls.
+- The expanded video surface owns a top-left `Close` capsule. It is a command
+  button over the video stage, not a replacement for fullscreen exit.
 - The playback side panel contains a two-tab segmented control for Search
   Results and Subtitles, a compact summary, and scrollable row cards. The side
   panel can be hidden or restored from the bottom player.
 - In the native App, the expanded playback side panel occupies the full right
   column height. The video stage and bottom player occupy the left column and
   are squeezed by that column instead of being covered by the side panel.
-- The bottom player uses a three-zone layout: current source/title on the left,
-  transport controls in the center, and playback operations on the right.
+- The bottom player uses a three-zone layout: volume on the left, transport
+  controls in the center, and playback operations on the right.
 - In expanded playback, the bottom player is positioned from the active left
   black video column, not from the full window. It uses fixed left and right
   margins inside that black base, and its horizontal geometry must update
@@ -157,8 +165,6 @@ Stable design snapshot:
   or click activity hides it. The show and hide animation slides the bottom
   player vertically while fading opacity. This chrome animation must not animate
   the bottom player's horizontal geometry.
-- The current source/title capsule shows the ASS file alias only. It must not
-  show the selected Search result rank or timestamp.
 - Bottom-player buttons use two primary button forms: circular icon buttons and
   capsule buttons. Circular buttons are used for single-action icon controls.
   Capsule buttons are used for text, values, titles, and controls that require
@@ -177,9 +183,9 @@ Stable design snapshot:
   unselected state uses the outline glyph, and selected state uses the matching
   filled glyph. The glyph switch, selected material, and foreground contrast
   together define the complete toggle state.
-- The source/title capsule remains white in both Search-results and
-  expanded-playback states. The speed capsule uses fixed width and tabular text
-  so preset changes do not shift neighboring controls.
+- The Close capsule uses the video-close capsule treatment inside the video
+  stage. The speed capsule uses fixed width and tabular text so preset changes
+  do not shift neighboring controls.
 - Transport icon buttons are a larger bottom-player subtype used only for the
   five centered transport controls. They are intentionally distinct from the
   smaller right-side operation icon buttons.
@@ -192,8 +198,8 @@ Stable design snapshot:
   switcher. These controls exist only to inspect visual states in the HTML
   prototype and are not part of the native App layout.
 - Prototype interactions include group disclosure, global group collapse,
-  subtitle overlay toggling, side-panel visibility toggling, Shiori selected
-  state, transport feedback, source/title expansion state, fullscreen feedback,
+  subtitle overlay toggling, side-panel visibility toggling, Shiori stateful
+  command feedback, transport feedback, playback close, fullscreen feedback,
   and speed-menu selection.
 
 Current component classification:
@@ -222,17 +228,17 @@ Current component classification:
 | Side panel result or subtitle row | Sidebar row |
 | Selected side panel row | Selected sidebar row |
 | Bottom player container | Bottom player surface |
-| Current source/title control | Source title capsule displaying ASS alias |
 | Volume button | Circular icon button with volume popover |
 | Volume slider panel | Volume popover |
 | Progress scrubber | Playback progress slider |
 | Playback time labels | Time labels |
 | Previous, skip, play, and next controls | Transport icon buttons |
 | Primary play/pause control | Primary transport icon button |
-| Shiori playback control | Circular icon toggle button |
+| Shiori playback control | Stateful circular command button |
 | Subtitle visibility control | Circular icon toggle button |
 | Side panel visibility control | Circular icon toggle button |
 | Fullscreen control | Circular icon button |
+| Video Close control | Video close capsule command |
 | Playback speed control | Fixed-width value capsule button |
 | Playback speed menu | Rounded-rectangle popup menu |
 | Playback speed option | Popup menu item |
@@ -245,7 +251,7 @@ Current prototype implementation class anchors:
 | Prototype-only test control | `ui-prototype-control` |
 | Prototype-only test capsule button | `ui-capsule--test` |
 | Capsule command button | `ui-capsule--command` |
-| Source title capsule | `ui-capsule--source` |
+| Video close capsule command | `ui-capsule--video-close` |
 | Fixed-width value capsule | `ui-capsule--value` |
 | Search field capsule | `ui-input-capsule` |
 | Circular icon button | `ui-icon-button` |
@@ -667,7 +673,7 @@ Layout and Selection Behavior:
 
 The CueSeeker workbench uses a player-first layout. In the current Liquid Glass
 baseline, Search-launched playback uses the main content area, an optional right
-playback side panel, and the persistent bottom player.
+playback side panel, and the active-playback bottom player.
 
 The older Mode Rail and Shared Content Panel model in this section is retained
 only for unmigrated Library, Shiori, and Settings surfaces until dedicated

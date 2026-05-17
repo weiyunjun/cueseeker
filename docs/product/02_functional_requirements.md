@@ -419,6 +419,13 @@ Requirements:
 - Allow play and pause.
 - Toggle play/pause by clicking the video surface.
 - Keep clicks in the playback operation controls from falling through to video-surface play or pause.
+- Provide an explicit playback close command in the video surface. Close stops
+  the current playback session, exits playback fullscreen if active, clears
+  playback selection highlights across Search, Library, Shiori, and playback
+  side-panel rows, and returns to the workbench with no active playback UI.
+- Closing playback must not clear Search results, database search caches,
+  Library rows, Shiori records, group disclosure state, or unrelated workbench
+  presentation state.
 - Prefer seek over reload when the current video is already open.
 - Continue playback when the Shared Content Panel is collapsed.
 - Pause playback when the user switches from Search to another top-level section.
@@ -433,6 +440,8 @@ Requirements:
   of the workbench's right column. The video surface and bottom player live in
   the left column and are squeezed by the side panel instead of being covered by
   it.
+- The bottom player is visible only while an active playback session exists.
+  Non-video pages with no active playback must not render the bottom player.
 - The bottom player uses a fixed narrower maximum width and stays centered
   within the current video column. Detailed responsive scaling rules are
   deferred.

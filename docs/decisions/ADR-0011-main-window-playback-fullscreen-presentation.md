@@ -67,6 +67,10 @@ Rules:
 - Cursor hiding and fullscreen chrome visibility are still owned by the playback
   fullscreen manager, but cursor hide/unhide calls must be balanced across
   entry, exit, app deactivation, app reactivation, and failed transitions.
+- Playback close while playback fullscreen is active must first leave the
+  video-only fullscreen presentation, or perform the fullscreen exit as part of
+  the same close command, then stop the current playback session. Close must not
+  leave the user in fullscreen with no active video.
 - App switching while playback fullscreen is active should rely on AppKit's
   normal fullscreen Space behavior and must not reveal a separate CueSeeker
   workbench window that has lost its video surface.
@@ -164,6 +168,8 @@ Required acceptance focus:
   CueSeeker workbench window that lost its video surface.
 - Repeated `F`, Escape, fullscreen button clicks, titlebar double-click zoom, and
   green-button interactions do not leave the app in a half-fullscreen state.
+- The video-stage Close command exits playback fullscreen and ends playback,
+  while the fullscreen exit command only returns to embedded playback.
 - Video should continue animating through fullscreen entry and exit. Any remaining
   freeze should be classified as native presentation-layer work, not as accepted
   fullscreen behavior.

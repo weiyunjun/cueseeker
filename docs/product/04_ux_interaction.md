@@ -267,6 +267,11 @@ Responsiveness boundaries:
   play/pause, fullscreen, subtitle visibility, and playback-control state should
   not rebuild Library rows, Search result rows, or Shiori rows unless the user
   explicitly performs a mode-specific action.
+- Closing playback is an explicit playback-session command. It should clear the
+  current playback selection across Search, Library, Shiori, and playback side
+  panel rows, but it must not clear Search results, database search caches,
+  Shiori records, Library rows, group disclosure presentation state, or any
+  unrelated workbench data.
 - Switching Mode Rail modes should preserve inactive mode state where practical.
   It should not clear Search results, Shiori groups, Library disclosure state,
   selected rows, or playback context.
@@ -438,6 +443,9 @@ M2 playback interaction model:
 - Playback should include progress and seek interaction suitable for reviewing subtitle context.
 - Playback actions should provide clear visual feedback, such as a lightweight operation HUD or animation when the user plays, pauses, seeks, or triggers another command.
 - Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
+- The playback surface should expose a top-left `Close` capsule command. Close
+  ends the current playback session, exits playback fullscreen if necessary,
+  clears playback-derived selection highlights, and hides the bottom player.
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
 - Playback fullscreen should use the main CueSeeker window's AppKit native
   fullscreen behavior, then switch that window into a video-only presentation
@@ -481,6 +489,15 @@ Current M2 implementation and accepted fullscreen correction:
   separate-window playback fullscreen handling for app switching and
   deactivation behavior.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
+- The bottom player is visible only while an active playback session exists.
+  When no playback selection exists, Search, Library, and Shiori workbench pages
+  must not show the bottom player.
+- The bottom-player left source/title collapse control is no longer part of the
+  target UX. The volume button is the leftmost bottom-player control; the other
+  controls keep their relative order.
+- Close playback should stop the current native playback session. It should
+  preserve reusable playback infrastructure, persisted playback preferences,
+  Search result cache, and Library playback history rules.
 - Shortcut and control actions show transient feedback overlays for copying the current subtitle, subtitle visibility, play/pause, relative seek, volume, and speed.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - The speed button hover area, speed button click area, and speed menu width are aligned to the same horizontal bounds.
@@ -655,7 +672,9 @@ M2 keyboard shortcut model:
 - Playback shortcuts should trigger the same playback commands used by visible playback controls.
 - Shortcut handling should not duplicate playback state transitions separately from the playback interaction model.
 - The native menu bar should expose relevant commands so keyboard shortcuts are discoverable through standard macOS menus where practical.
-- Playback shortcuts should be active only when a playback result is selected, the playback interface is visible, and editable text input is not focused.
+- Playback shortcuts should be active only when an active playback session
+  exists, the playback interface is visible, and editable text input is not
+  focused.
 - Read-only selectable text in playback metadata should not suppress playback shortcuts.
 - `Q` should copy the current subtitle to the clipboard.
 - `S` should save the current subtitle as Shiori, or ask whether to remove the
@@ -743,6 +762,12 @@ The app should remember:
 - Shiori records, including their real-world save timestamp.
 - Queue or Learning Session state only after persistence rules are documented.
 - Playback decode mode.
+
+Playback close must not be modeled as a persistence reset. Search results and
+database search caches are Search state. Library resume history is Library
+playback history and is saved according to Library playback rules. Group
+collapse state and scroll position are presentation state unless a separate
+document explicitly defines persistence for them.
 
 The app should not surprise the user by losing local configuration after restart.
 The structural layout persistence should keep each content mode's presentation

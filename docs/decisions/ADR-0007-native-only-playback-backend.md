@@ -55,6 +55,12 @@ Rules:
   active native app code must not import or depend on it.
 - AV1 work should prioritize the hardware decode path on machines that support
   it, while software decode can be used for diagnostics and compatibility work.
+- User-requested playback close must stop the current native media session,
+  clear current media/subtitle request state, and leave no hidden playback
+  running after the video surface disappears. The reusable native playback
+  player, render container infrastructure, decode-mode preference, volume,
+  subtitle visibility, and speed preference may remain alive for the next
+  playback request.
 
 ## Rationale
 
@@ -110,3 +116,8 @@ forces compatibility and smoothness issues to be handled in the native stack.
   compatibility facts and failure reasons rather than backend preference.
 - Packaging should account for FFmpeg and required non-system FFmpeg
   dependencies, but no longer needs to account for `libmpv`.
+- Playback close is a product lifecycle command, not a backend-selection
+  decision. It should not delete Search results, database search caches, Library
+  rows, Shiori records, or Library playback history. If the active source is
+  Library, the close path should save progress through the same Library history
+  mechanism used by stop or source-switch behavior.

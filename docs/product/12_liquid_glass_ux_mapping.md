@@ -30,8 +30,9 @@ Surfaces covered by this UX mapping:
 - Search results.
 - Library grouped episode grid.
 - Shiori grouped cards.
-- Persistent bottom player.
+- Active-playback bottom player.
 - Expanded playback video surface.
+- Playback close lifecycle.
 - Playback input feedback overlay.
 - Expanded playback side panel.
 - Playback fullscreen chrome.
@@ -59,6 +60,10 @@ Rules:
   owned by existing Shiori state.
 - Playback render-view ownership, seek, volume, speed, subtitle track, and
   fullscreen lifecycle remain owned by the playback layer.
+- Playback close is owned by the playback session lifecycle. It must stop the
+  current session and clear playback-derived selection, but it must not clear
+  Search results, database search caches, Library rows, Shiori records, or
+  unrelated workbench presentation state.
 - Settings remains the current independent native Settings window and is not
   part of this UI rewrite.
 - A layout-only change must not rebuild Library rows, Search results, Shiori
@@ -109,21 +114,25 @@ Shiori
 
 Expanded playback is an overlay state entered from an active playback
 selection. It replaces the main content area with the video stage and optional
-side panel while preserving the bottom-player control model.
+side panel while preserving the active-playback bottom-player control model.
 
 Rules:
 
-- The persistent bottom player remains available across Search, Library, and
-  Shiori when playback exists.
+- The bottom player remains available across Search, Library, and Shiori only
+  while an active playback session exists.
+- When no active playback session exists, no bottom player is shown.
 - Switching between Library, Search, and Shiori preserves inactive mode state
-  where practical, including scroll position, disclosure state, selected item,
-  draft Search text, and loaded result state.
+  where practical, including loaded result state, draft Search text, and
+  presentation disclosure state that the existing App state already owns.
 - Switching modes must not rebuild large lists unless the underlying data or
   query inputs changed.
 - Expanded playback may be entered from Search, Library, or Shiori playback
   state when a playable selection exists.
 - Leaving expanded playback returns to the previous workbench surface without
   clearing Search results, Library grouping, Shiori grouping, or playback state.
+- Closing playback is different from leaving expanded playback. Close ends the
+  active playback session, clears playback selection highlights, hides the
+  bottom player, and keeps Search, Library, and Shiori data intact.
 
 ## 6. Search UX
 
@@ -299,22 +308,22 @@ Rules:
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
-| Bottom player uses three zones: source/title, transport, operations. | `.player-hud` | `LiquidGlassBottomPlayer` | Playback state |
-| Left zone contains source/title capsule and volume. | `.source-toggle`, volume control | Bottom player left cluster | Current playback identity and volume |
+| Bottom player uses three zones: volume, transport, operations. | `.player-hud` | `LiquidGlassBottomPlayer` | Active playback state |
+| Left zone contains volume only in the active target UI. | volume control | Bottom player left cluster | Current playback volume |
 | Center zone contains five transport controls. | `.transport-controls` | Bottom player transport cluster | Playback navigation |
 | Right zone contains Shiori, copy, subtitles, side panel, speed, fullscreen. | `.right-controls` | Bottom player operations cluster | Playback and App commands |
 | Progress scrubber spans the bottom-player width above the control row. | `ui-slider--progress` | `LiquidGlassSlider.Kind.progress` | `PlaybackViewModel` |
 
 Rules:
 
+- The bottom player is rendered only while an active playback session exists.
+  Search, Library, and Shiori pages with no active playback must not show it.
 - The bottom player stays visually stable when control values change.
 - Text/value controls use capsule components. Icon-only controls use circular
   icon buttons.
-- The source/title capsule shows the ASS file alias or accepted concise source
-  title only. It must not show selected Search result rank or timestamp.
-- The source/title capsule toggles expanded playback when playback exists. Its
-  chevron rotates between `0°` collapsed and `-90°` expanded over `160ms` with
-  an ease curve instead of swapping to a different chevron symbol.
+- The old source/title capsule and bottom-left expand-collapse affordance are
+  removed from the active target UI.
+- The volume button becomes the leftmost bottom-player control.
 - The speed capsule has fixed width and tabular text so preset changes do not
   shift neighboring controls.
 - The speed capsule displays the existing App playback speed presets. If the
@@ -327,6 +336,9 @@ Rules:
 - Toggle icon controls use stable semantic glyphs with selected-state material
   and foreground contrast. Where the prototype defines matching outline and
   filled glyphs, the App should switch glyphs as part of the selected state.
+- The Shiori save/remove button is a stateful command, not a selected visual
+  toggle. It may change glyph and pressed semantics, but it must not apply
+  selected fill, selected background, or selected shadow styling.
 
 ### 9.2 Transport And Commands
 
@@ -385,6 +397,7 @@ Expanded playback uses this conceptual layout:
 Topbar
 Expanded playback area
   Left black video base
+    Top-left Close capsule
     Aspect-fit video frame
     Floating bottom-player chrome
   Optional right side panel
@@ -403,6 +416,8 @@ Rules:
   before side-panel hiding is considered.
 - The expanded playback surface must not show an extra video-title/avatar block
   inside the video stage or above the side-panel tabs.
+- The top-left `Close` capsule sits inside the video stage above the video base
+  content. It must not resize the video frame or bottom player.
 
 ### 10.2 Video Frame Sizing
 
@@ -467,6 +482,35 @@ Rules:
 - The show/hide animation slides the chrome vertically while fading opacity.
 - The chrome visibility animation must not animate horizontal geometry.
 
+### 10.5 Playback Close UX
+
+| UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
+| --- | --- | --- | --- |
+| Close is a compact capsule command in the top-left video stage. | `ui-capsule--video-close`, `.video-close-button` | `LiquidGlassCapsuleButton.Kind.videoClose`, expanded playback overlay | Playback session lifecycle |
+| Close ends the active playback session. | `.playback-closed` / no active session marker | `PlaybackExpandedLayout`, `BottomPlaybackBar` | `AppState.stopPlayback` or successor close command |
+| Close hides the bottom player after playback ends. | `.player-dock` hidden when no active playback | `BottomPlaybackBar` | Derived active playback session state |
+| Close clears playback-derived selection highlights. | `ui-is-selected` removed from result/sidebar/library/shiori rows | Search, Library, Shiori views | Current playback source and selection state |
+
+Rules:
+
+- Close should stop native media playback, clear the active playback source, and
+  leave the reusable playback player/render infrastructure available for the
+  next open command.
+- If the current source is Library, close must save Library playback history
+  using the same rule as any other Library playback stop or switch.
+- If the current source is Search or Shiori, close must not read, write, or
+  overwrite Library playback resume history.
+- Close must clear the selected Search result, selected Library video, selected
+  Shiori row, and selected playback side-panel row because there is no longer an
+  active playback identity.
+- Close must not clear the submitted Search query, Search result list, database
+  search cache, Shiori records, Library rows, group disclosure presentation
+  state, or unrelated workbench state.
+- Close from playback fullscreen exits fullscreen and ends playback. It must not
+  leave the user in a video-only fullscreen surface without playback.
+- Closing playback is not the same as hiding the side panel, hiding chrome, or
+  exiting fullscreen. Those actions preserve playback; close ends playback.
+
 ## 11. Expanded Playback Side Panel UX
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
@@ -529,8 +573,8 @@ Rules:
 - The fullscreen chrome uses the same non-fullscreen bottom-player visual
   family. The old dark gradient fullscreen control bar is not the target UI.
 - Fullscreen chrome includes the playback controls needed for video review:
-  progress, source/title when appropriate, volume, transport, Shiori, copy,
-  subtitle visibility, speed, and exit fullscreen.
+  progress, volume, transport, Shiori, copy, subtitle visibility, speed, and
+  exit fullscreen.
 - Fullscreen state and expanded-playback side-panel visibility are independent.
   Entering or exiting fullscreen must not hide, show, reset, or otherwise
   mutate the side-panel visibility state.
@@ -558,6 +602,9 @@ Rules:
 - The fullscreen exit control exits playback fullscreen through the existing
   fullscreen manager.
 - `Esc` exits fullscreen when playback fullscreen is active.
+- The video-stage `Close` capsule remains a playback-close command when
+  fullscreen is active: it exits playback fullscreen and closes playback rather
+  than only returning to embedded playback.
 - Collapsing the expanded playback surface while fullscreen is active exits
   fullscreen in the same action so the normal toolbar and prototype test
   controls become visible again.
@@ -710,7 +757,8 @@ Open questions before this mapping becomes accepted:
 - Should Library episode labels use the HTML `EP01` format, or should the
   native App keep number-only rank labels while preserving the same grid
   geometry?
-- Should fullscreen chrome include the source/title capsule, or only transport
-  and operation controls when screen width is constrained?
+- Should fullscreen chrome need any future now-playing identity label after the
+  bottom-left source/title capsule removal, or should it remain transport and
+  operation controls only?
 - Should the floating bottom-player margin inside the black base be a fixed
   token shared by windowed expanded playback and fullscreen playback?
