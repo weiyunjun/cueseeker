@@ -100,7 +100,8 @@ live in that owner, not in individual call sites.
 | `ui-prototype-control` | Prototype-only review control | No production App component | Must not appear in production App UI. |
 | `ui-icon-button` | Icon button base | `LiquidGlassIconButton` / icon `ButtonStyle` | Shared base for icon-only controls. |
 | `ui-icon-button--circle` | Circular icon button | `LiquidGlassIconButton.Kind.circle` | Bottom-player utility controls such as volume, copy, fullscreen. |
-| `ui-icon-button--toggle` | Circular icon toggle button | `LiquidGlassIconButton.Kind.toggle` | Shiori, subtitle visibility, side-panel visibility, topbar mode toggles when selected state applies. |
+| `ui-icon-button--toggle` | Circular icon toggle button | `LiquidGlassIconButton.Kind.toggle` | Subtitle visibility, side-panel visibility, and topbar mode toggles when selected state applies. |
+| `ui-icon-button--stateful-command` | Stateful circular command button | `LiquidGlassIconButton.Kind.statefulCommand` | Bottom-player Shiori save/remove command. The icon may change with saved state, but the button must not use selected fill or selected background styling. |
 | `ui-icon-button--topbar` | Topbar circular icon button | `LiquidGlassIconButton.Kind.topbar` | Library and Shiori topbar buttons. |
 | `ui-icon-button--embedded` | Embedded circular icon button | `LiquidGlassIconButton.Kind.embedded` | Search-field clear action. |
 | `ui-icon-button--transport` | Transport icon button | `LiquidGlassIconButton.Kind.transport` | Previous episode, previous result, next result, next episode. |
@@ -148,7 +149,7 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `:active` | `ButtonStyle.Configuration.isPressed` or drag state | Pressed state should be local and transient. |
 | `:focus-within` | focus binding or AppKit text-view focus callback | Used by the Search field capsule. |
 | `[disabled]` | `Environment(\.isEnabled)` | Disabled visual treatment must be owned by the component style. |
-| `aria-pressed="true"` | Boolean binding such as `isSelected` | Used by toggle controls. |
+| `aria-pressed="true"` | Boolean binding such as `isSelected` or `isActiveCommandState` | Used by toggle controls and stateful command controls. It does not imply `ui-is-selected` unless the component mapping explicitly uses selected visual styling. |
 | `aria-expanded="true"` | Boolean binding such as `isExpanded` | Used by source capsule, menus, and disclosure controls. |
 | `ui-is-selected` | `LiquidGlassControlState.selected` | Persistent selected state. |
 | `ui-is-active` | `LiquidGlassControlState.active` | Active tab or active transient selection. |

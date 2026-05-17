@@ -2777,7 +2777,7 @@
           </div>
 
           <div class="hud-right" role="group" aria-label="Tools">
-            <button class="icon-button ui-icon-button ui-icon-button--circle toggle-icon-button ui-icon-button--toggle" type="button" id="shioriButton" aria-label="Save Shiori" aria-pressed="false" data-icon-off="bookmark" data-icon-on="bookmark-filled"><svg width="17" height="17"><use href="#bookmark"></use></svg></button>
+            <button class="icon-button ui-icon-button ui-icon-button--circle ui-icon-button--stateful-command" type="button" id="shioriButton" aria-label="Save Shiori" aria-pressed="false" data-icon-off="bookmark" data-icon-on="bookmark-filled"><svg width="17" height="17"><use href="#bookmark"></use></svg></button>
             <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" id="copySubtitleButton" aria-label="Copy Current Subtitle"><svg width="17" height="17"><use href="#copy"></use></svg></button>
             <button class="icon-button subtitle-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="subtitleToggle" aria-label="Subtitles" aria-pressed="true" data-icon-off="caption" data-icon-on="caption-filled"><svg width="17" height="17" viewBox="0 0 17 17"><use href="#caption-filled"></use></svg></button>
             <button class="icon-button side-panel-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="sidePanelToggle" aria-label="Results panel" aria-pressed="true" data-icon-off="list" data-icon-on="list-filled"><svg width="17" height="17" viewBox="0 0 17 17"><use href="#list-filled"></use></svg></button>
@@ -2973,7 +2973,7 @@ const win = document.getElementById("window");
 
     function setShioriSaved(saved, showFeedback = true) {
       isShioriSaved = saved;
-      setToggleIconButton(shioriButton, isShioriSaved);
+      setStatefulCommandIconButton(shioriButton, isShioriSaved);
       shioriButton.setAttribute("aria-label", isShioriSaved ? "Remove Shiori" : "Save Shiori");
       if (showFeedback) {
         showPlaybackFeedback({
@@ -3042,7 +3042,7 @@ const win = document.getElementById("window");
       fullscreenButton?.setAttribute("aria-label", enteringFullscreen ? "Exit Fullscreen" : "Fullscreen");
       fullscreenIcon?.setAttribute("href", enteringFullscreen ? "#fullscreen-exit" : "#viewfinder");
       showPlaybackFeedback({
-        label: enteringFullscreen ? "Fullscreen" : "Exit Fullscreen"
+        label: enteringFullscreen ? "Enter Fullscreen" : "Exit Fullscreen"
       });
       scheduleVideoFrameLayout();
     }
@@ -3218,6 +3218,15 @@ const win = document.getElementById("window");
       const icon = button.querySelector("use");
       if (icon && button.dataset.iconOff && button.dataset.iconOn) {
         icon.setAttribute("href", "#" + (selected ? button.dataset.iconOn : button.dataset.iconOff));
+      }
+    }
+
+    function setStatefulCommandIconButton(button, active) {
+      button.classList.remove("selected", "ui-is-selected");
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+      const icon = button.querySelector("use");
+      if (icon && button.dataset.iconOff && button.dataset.iconOn) {
+        icon.setAttribute("href", "#" + (active ? button.dataset.iconOn : button.dataset.iconOff));
       }
     }
 
@@ -3435,6 +3444,11 @@ const win = document.getElementById("window");
     sourceToggle.addEventListener("click", () => {
       const expanded = win.classList.toggle("video-expanded");
       sourceToggle.setAttribute("aria-pressed", expanded ? "true" : "false");
+      if (!expanded && document.body.classList.contains("prototype-fullscreen")) {
+        togglePrototypeFullscreen();
+        syncPlayerChromeBoundary();
+        return;
+      }
       scheduleVideoFrameLayout();
       if (expanded && pointInVideoStage(lastPointerPosition)) {
         showPlayerChrome();
@@ -3618,6 +3632,13 @@ const win = document.getElementById("window");
 
       let handled = true;
       switch (event.code) {
+        case "Escape":
+          if (!document.body.classList.contains("prototype-fullscreen")) {
+            handled = false;
+            break;
+          }
+          togglePrototypeFullscreen();
+          break;
         case "Space":
           togglePlaybackFromUser();
           break;

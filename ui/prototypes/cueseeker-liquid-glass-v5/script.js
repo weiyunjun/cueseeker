@@ -171,7 +171,7 @@ const win = document.getElementById("window");
 
     function setShioriSaved(saved, showFeedback = true) {
       isShioriSaved = saved;
-      setToggleIconButton(shioriButton, isShioriSaved);
+      setStatefulCommandIconButton(shioriButton, isShioriSaved);
       shioriButton.setAttribute("aria-label", isShioriSaved ? "Remove Shiori" : "Save Shiori");
       if (showFeedback) {
         showPlaybackFeedback({
@@ -240,7 +240,7 @@ const win = document.getElementById("window");
       fullscreenButton?.setAttribute("aria-label", enteringFullscreen ? "Exit Fullscreen" : "Fullscreen");
       fullscreenIcon?.setAttribute("href", enteringFullscreen ? "#fullscreen-exit" : "#viewfinder");
       showPlaybackFeedback({
-        label: enteringFullscreen ? "Fullscreen" : "Exit Fullscreen"
+        label: enteringFullscreen ? "Enter Fullscreen" : "Exit Fullscreen"
       });
       scheduleVideoFrameLayout();
     }
@@ -416,6 +416,15 @@ const win = document.getElementById("window");
       const icon = button.querySelector("use");
       if (icon && button.dataset.iconOff && button.dataset.iconOn) {
         icon.setAttribute("href", "#" + (selected ? button.dataset.iconOn : button.dataset.iconOff));
+      }
+    }
+
+    function setStatefulCommandIconButton(button, active) {
+      button.classList.remove("selected", "ui-is-selected");
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+      const icon = button.querySelector("use");
+      if (icon && button.dataset.iconOff && button.dataset.iconOn) {
+        icon.setAttribute("href", "#" + (active ? button.dataset.iconOn : button.dataset.iconOff));
       }
     }
 
@@ -633,6 +642,11 @@ const win = document.getElementById("window");
     sourceToggle.addEventListener("click", () => {
       const expanded = win.classList.toggle("video-expanded");
       sourceToggle.setAttribute("aria-pressed", expanded ? "true" : "false");
+      if (!expanded && document.body.classList.contains("prototype-fullscreen")) {
+        togglePrototypeFullscreen();
+        syncPlayerChromeBoundary();
+        return;
+      }
       scheduleVideoFrameLayout();
       if (expanded && pointInVideoStage(lastPointerPosition)) {
         showPlayerChrome();
@@ -816,6 +830,13 @@ const win = document.getElementById("window");
 
       let handled = true;
       switch (event.code) {
+        case "Escape":
+          if (!document.body.classList.contains("prototype-fullscreen")) {
+            handled = false;
+            break;
+          }
+          togglePrototypeFullscreen();
+          break;
         case "Space":
           togglePlaybackFromUser();
           break;

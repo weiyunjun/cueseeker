@@ -342,6 +342,10 @@ Rules:
   navigation commands.
 - The Shiori control sits immediately before the copy-current-subtitle control
   in the right operation cluster.
+- The bottom-player Shiori control is a stateful command, not a selected visual
+  toggle. Saving and removing Shiori changes the bookmark glyph and feedback,
+  but must not apply selected fill, selected background, or selected shadow
+  styling to the button.
 - Subtitle visibility toggles the current player's subtitle overlay without
   resizing the bottom player.
 - Side-panel visibility toggles the expanded playback side panel without
@@ -536,8 +540,8 @@ Rules:
 - The fullscreen button uses the enter-fullscreen glyph outside fullscreen and
   the two inward-touching arrows exit-fullscreen glyph while fullscreen is
   active.
-- Entering and exiting fullscreen show text-only feedback: `Fullscreen` and
-  `Exit Fullscreen`.
+- Entering and exiting fullscreen show text-only feedback: `Enter Fullscreen`
+  and `Exit Fullscreen`.
 - Text-only fullscreen feedback uses the independent small capsule HUD
   specification, not the larger icon-centered feedback HUD dimensions.
 - The text-only capsule is a single-line, content-width pill centered over the
@@ -553,6 +557,10 @@ Rules:
   chrome control.
 - The fullscreen exit control exits playback fullscreen through the existing
   fullscreen manager.
+- `Esc` exits fullscreen when playback fullscreen is active.
+- Collapsing the expanded playback surface while fullscreen is active exits
+  fullscreen in the same action so the normal toolbar and prototype test
+  controls become visible again.
 - Fullscreen subtitle overlay bottom padding adapts to chrome visibility so
   subtitles do not collide with visible controls.
 
@@ -580,7 +588,8 @@ Rules:
 | `Space` | Toggle play/pause | `#playBtn`, `ui-feedback-hud` | Bottom-player transport button, `LiquidGlassFeedbackOverlay` | `PlaybackViewModel.togglePlayback` | `Play` or `Pause` | Keyboard: none. Mouse/button: normal pointer activity rules. |
 | Left click on visible video surface | Toggle play/pause | `.video-stage`, `.video-frame`, `ui-feedback-hud` | Video stage input layer | Playback command model | `Play` or `Pause` | Shows chrome and resets the idle timer. |
 | `C` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard: none. Button: normal pointer activity rules. |
-| `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen chrome | Existing fullscreen manager | Text-only `Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal chrome; fullscreen entry follows fullscreen rules. |
+| `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen chrome | Existing fullscreen manager | Text-only `Enter Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal chrome; fullscreen entry follows fullscreen rules. |
+| `Esc` | Exit playback fullscreen when active | Prototype fullscreen class, `ui-feedback-hud` | Fullscreen lifecycle handler | Existing fullscreen manager | Text-only `Exit Fullscreen` | Keyboard does not reveal chrome. No-op outside fullscreen. |
 | `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` on the leading side, or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
 | `D` | Next Search result | `#nextResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport next-result button | Search navigation snapshot | `Next Result` on the trailing side, or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
 | `Q` | Copy current subtitle | Copy button, `ui-feedback-hud` | Copy subtitle button | Clipboard command | `Subtitle Copied` or `No Subtitle` | Keyboard: none. Button: normal pointer activity rules. |
