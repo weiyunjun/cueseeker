@@ -134,8 +134,13 @@ Stable design snapshot:
 - The playback side panel contains a two-tab segmented control for Search
   Results and Subtitles, a compact summary, and scrollable row cards. The side
   panel can be hidden or restored from the bottom player.
+- In the native App, the expanded playback side panel occupies the full right
+  column height. The video stage and bottom player occupy the left column and
+  are squeezed by that column instead of being covered by the side panel.
 - The bottom player uses a three-zone layout: current source/title on the left,
   transport controls in the center, and playback operations on the right.
+- The bottom player uses a fixed narrower maximum width and is centered within
+  the active video column. Detailed responsive scaling is a later pass.
 - The current source/title capsule shows the ASS file alias only. It must not
   show the selected Search result rank or timestamp.
 - Bottom-player buttons use two primary button forms: circular icon buttons and
@@ -850,6 +855,7 @@ background treatment.
 Current Settings categories:
 
 - `Library`.
+- `Appearance`.
 - `Decode`.
 - `Experimental Features`.
 
@@ -864,6 +870,11 @@ Required `Library` elements:
 - Per-folder remove action.
 - Remove confirmation dialog explaining that local files will not be deleted.
 - Indexing status.
+
+The `Appearance` category should expose `Appearance Mode` as its first setting.
+The control uses the same app-drawn segmented-control pattern as `Decode >
+Decoder`, with `Light`, `Dark`, and `Auto` choices. `Auto` is the default and
+follows the current macOS system appearance.
 
 The `Decode` category should expose an app-drawn segmented control for
 `hardware`, `software`, and `auto`, avoiding native menu services during the

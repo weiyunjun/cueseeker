@@ -110,6 +110,47 @@ enum BottomPlaybackMenuKind: Equatable {
     case speed
 }
 
+enum AppAppearanceMode: String, CaseIterable, Identifiable {
+    case light
+    case dark
+    case auto
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .light:
+            "Light"
+        case .dark:
+            "Dark"
+        case .auto:
+            "Auto"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .light:
+            .light
+        case .dark:
+            .dark
+        case .auto:
+            nil
+        }
+    }
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .light:
+            NSAppearance(named: .aqua)
+        case .dark:
+            NSAppearance(named: .darkAqua)
+        case .auto:
+            nil
+        }
+    }
+}
+
 struct PlaybackDrawerRequest: Equatable, Identifiable {
     let id = UUID()
     let drawer: PlaybackDrawerKind
@@ -261,6 +302,7 @@ private struct SearchPageLoad: Sendable {
 @MainActor
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
+    private static let appAppearanceModeKey = "appAppearanceMode"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let playbackVolumeKey = "playbackVolume"
     private static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
@@ -322,6 +364,12 @@ final class AppState: ObservableObject {
     @Published private(set) var isPlaybackSurfaceToggleCoolingDown = false
     @Published private(set) var isPlaybackSidePanelToggleCoolingDown = false
     @Published var playbackViewModel: PlaybackViewModel?
+    @Published var appAppearanceMode: AppAppearanceMode = .auto {
+        didSet {
+            userDefaults.set(appAppearanceMode.rawValue, forKey: Self.appAppearanceModeKey)
+            Self.applyAppAppearanceMode(appAppearanceMode)
+        }
+    }
     @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
         didSet {
             userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
@@ -652,6 +700,7 @@ final class AppState: ObservableObject {
 
         userDefaults.register(defaults: [
             "workbenchPanelMode": WorkbenchPanelMode.search.rawValue,
+            Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.playbackVolumeKey: 100.0,
             Self.playbackLastNonzeroVolumeKey: 100.0,
@@ -664,6 +713,9 @@ final class AppState: ObservableObject {
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
 
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
+        let loadedAppAppearanceMode = Self.loadAppAppearanceMode(from: userDefaults)
+        appAppearanceMode = loadedAppAppearanceMode
+        Self.applyAppAppearanceMode(loadedAppAppearanceMode)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         searchResultThumbnailsEnabled = userDefaults.bool(forKey: Self.searchResultThumbnailsEnabledKey)
         searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
@@ -3512,6 +3564,20 @@ final class AppState: ObservableObject {
         userDefaults
             .stringArray(forKey: selectedFolderPathsKey)?
             .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? []
+    }
+
+    private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {
+        NSApp.appearance = mode.nsAppearance
+    }
+
+    private static func loadAppAppearanceMode(from userDefaults: UserDefaults) -> AppAppearanceMode {
+        guard let rawValue = userDefaults.string(forKey: appAppearanceModeKey),
+              let mode = AppAppearanceMode(rawValue: rawValue)
+        else {
+            return .auto
+        }
+
+        return mode
     }
 
     private static func loadPlaybackDecodeMode(from userDefaults: UserDefaults) -> PlaybackDecodeMode {

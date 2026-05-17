@@ -3,6 +3,7 @@ import SwiftUI
 enum BottomPlaybackBarLayout {
     static let reservedHeight: CGFloat = 86
     static let surfaceHeight: CGFloat = 86
+    static let surfaceMaxWidth: CGFloat = 960
     static let surfaceCornerRadius: CGFloat = 0
     static let topContentPadding: CGFloat = 0
     static let bottomContentPadding: CGFloat = 10
@@ -59,7 +60,7 @@ private struct BottomPlaybackBarContent: View {
                         .frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
 
                     transportControls
-                        .frame(width: 400)
+                        .frame(width: 320)
 
                     trailingControls
                         .frame(minWidth: 240, maxWidth: .infinity, alignment: .trailing)
@@ -68,7 +69,7 @@ private struct BottomPlaybackBarContent: View {
             .padding(.horizontal, 22)
             .padding(.top, BottomPlaybackBarLayout.topContentPadding)
             .padding(.bottom, BottomPlaybackBarLayout.bottomContentPadding)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: BottomPlaybackBarLayout.surfaceMaxWidth)
             .frame(height: BottomPlaybackBarLayout.surfaceHeight)
             .background(
                 RoundedRectangle(cornerRadius: BottomPlaybackBarLayout.surfaceCornerRadius)
@@ -531,6 +532,7 @@ private struct EmptyBottomPlaybackBar: View {
                     RoundedRectangle(cornerRadius: BottomPlaybackBarLayout.surfaceCornerRadius)
                         .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                 )
+                .frame(maxWidth: BottomPlaybackBarLayout.surfaceMaxWidth)
                 .frame(height: BottomPlaybackBarLayout.surfaceHeight)
         }
     }

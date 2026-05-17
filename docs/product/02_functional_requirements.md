@@ -429,6 +429,13 @@ Requirements:
 - Provide video-level fullscreen that presents a video-only experience using
   AppKit native fullscreen behavior without exposing the normal app shell as the
   fullscreen surface.
+- In expanded playback, the right playback side panel occupies the full height
+  of the workbench's right column. The video surface and bottom player live in
+  the left column and are squeezed by the side panel instead of being covered by
+  it.
+- The bottom player uses a fixed narrower maximum width and stays centered
+  within the current video column. Detailed responsive scaling rules are
+  deferred.
 - Provide a subtitle visibility toggle.
 - Provide a copy-current-subtitle command from playback controls and keyboard.
 - Provide playback speed control with preset choices from `0.5x` through `2.0x`.
@@ -484,6 +491,7 @@ Settings entry requirements:
 Current Settings categories:
 
 - `Library`.
+- `Appearance`.
 - `Decode`.
 - `Layout`.
 - `Experimental Features`.
@@ -495,6 +503,15 @@ Current Settings categories:
 - Trigger reindexing for selected folders through an `Index Now` action.
 - Remove a selected folder through a confirmation dialog.
 - View indexing status.
+
+`Appearance` settings requirements:
+
+- Choose a persisted app appearance mode from `light`, `dark`, and `auto`.
+- Default to `auto`, matching the current macOS system appearance.
+- Present the appearance mode as the first setting in the `Appearance`
+  category.
+- Use the same app-drawn segmented-control pattern as the `Decode` category's
+  `Decoder` control.
 
 `Decode` settings requirements:
 

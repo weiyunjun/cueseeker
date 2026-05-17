@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the accepted App-side Appearance settings category and updated expanded
+  playback layout rules so the right playback side panel owns a full-height
+  column while the video and centered, narrower bottom player occupy the left
+  column.
 - Required each HTML prototype edit to refresh a same-directory
   `standalone.html` bundled export so the current prototype can be handed to
   other AI tools without extra packaging.

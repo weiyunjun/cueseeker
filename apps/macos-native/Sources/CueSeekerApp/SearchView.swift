@@ -17,44 +17,44 @@ struct SearchView: View {
                     0,
                     geometry.size.height - BottomPlaybackBarLayout.reservedHeight
                 )
-                let playbackAspectRatio = CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9)
-                let overlayMetrics = playbackOverlayMetrics(
+                let isExpandedPlayback = appState.hasPlaybackSelection
+                    && appState.isPlaybackSurfaceExpanded
+                let sidePanelWidth = playbackSidePanelWidth(
                     maxWidth: geometry.size.width,
-                    maxHeight: workspaceHeight,
-                    aspectRatio: playbackAspectRatio,
-                    showsSidePanel: appState.isPlaybackSidePanelVisible
+                    showsSidePanel: isExpandedPlayback && appState.isPlaybackSidePanelVisible
                 )
+                let leftColumnWidth = max(0, geometry.size.width - sidePanelWidth)
 
-                ZStack(alignment: .bottom) {
+                ZStack(alignment: .bottomLeading) {
                     mainContent
                         .frame(width: geometry.size.width, height: workspaceHeight)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .clipped()
-                    .simultaneousGesture(
-                        TapGesture().onEnded {
-                            appState.dismissBottomPlaybackMenu()
-                        }
-                    )
+                        .simultaneousGesture(
+                            TapGesture().onEnded {
+                                appState.dismissBottomPlaybackMenu()
+                            }
+                        )
 
-                    if appState.hasPlaybackSelection, appState.isPlaybackSurfaceExpanded {
-                        PlaybackOverlayWindow(
+                    if isExpandedPlayback {
+                        PlaybackExpandedLayout(
                             playbackSurface: AnyView(playbackSurface),
                             appState: appState,
-                            contentSize: overlayMetrics.outerSize,
-                            sidePanelWidth: overlayMetrics.sidePanelWidth
+                            leftColumnWidth: leftColumnWidth,
+                            sidePanelWidth: sidePanelWidth,
+                            totalHeight: geometry.size.height
                         )
-                        .frame(
-                            width: geometry.size.width,
-                            height: workspaceHeight
-                        )
-                        .padding(.bottom, BottomPlaybackBarLayout.reservedHeight)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
                         .transition(.bottomPlaybackOverlayReveal)
                         .zIndex(10)
+                    } else {
+                        BottomPlaybackBar(appState: appState)
+                            .frame(
+                                width: geometry.size.width,
+                                height: BottomPlaybackBarLayout.reservedHeight
+                            )
+                            .zIndex(20)
                     }
-
-                    BottomPlaybackBar(appState: appState)
-                        .frame(height: BottomPlaybackBarLayout.reservedHeight)
-                        .zIndex(20)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
@@ -90,44 +90,13 @@ struct SearchView: View {
         }
     }
 
-    private func playbackOverlayMetrics(
-        maxWidth: CGFloat,
-        maxHeight: CGFloat,
-        aspectRatio: CGFloat,
-        showsSidePanel: Bool
-    ) -> PlaybackOverlayMetrics {
-        let safeMaxWidth = max(0, maxWidth)
-        let safeMaxHeight = max(0, maxHeight)
-        let safeAspectRatio = max(0.01, aspectRatio)
-        guard safeMaxWidth > 0, safeMaxHeight > 0 else {
-            return PlaybackOverlayMetrics(outerSize: .zero, sidePanelWidth: 0)
+    private func playbackSidePanelWidth(maxWidth: CGFloat, showsSidePanel: Bool) -> CGFloat {
+        guard showsSidePanel else {
+            return 0
         }
 
-        let contentMaxWidth = max(0, safeMaxWidth - PlaybackOverlayLayout.horizontalPadding * 2)
-        let contentMaxHeight = max(0, safeMaxHeight - PlaybackOverlayLayout.verticalPadding * 2)
-        let preferredPanelWidth = showsSidePanel
-            ? min(
-                PlaybackOverlayLayout.sidePanelPreferredWidth,
-                max(PlaybackOverlayLayout.sidePanelMinWidth, contentMaxWidth * 0.30)
-            )
-            : 0
-        let sidePanelWidth = showsSidePanel ? min(preferredPanelWidth, contentMaxWidth * 0.45) : 0
-        let panelGap = showsSidePanel ? PlaybackOverlayLayout.panelGap : 0
-        let videoMaxWidth = max(0, contentMaxWidth - panelGap - sidePanelWidth)
-        let videoHeight = min(contentMaxHeight, videoMaxWidth / safeAspectRatio)
-        let videoWidth = videoHeight * safeAspectRatio
-        let outerSize = CGSize(
-            width: min(
-                safeMaxWidth,
-                videoWidth
-                    + panelGap
-                    + sidePanelWidth
-                    + PlaybackOverlayLayout.horizontalPadding * 2
-            ),
-            height: min(safeMaxHeight, videoHeight + PlaybackOverlayLayout.verticalPadding * 2)
-        )
-
-        return PlaybackOverlayMetrics(outerSize: outerSize, sidePanelWidth: sidePanelWidth)
+        let availableForPanel = max(0, maxWidth - PlaybackOverlayLayout.leftColumnMinimumWidth)
+        return min(PlaybackOverlayLayout.sidePanelPreferredWidth, availableForPanel)
     }
 
     private var libraryPanel: some View {
@@ -634,63 +603,50 @@ private extension AnyTransition {
     }
 }
 
-private struct PlaybackOverlayMetrics {
-    let outerSize: CGSize
-    let sidePanelWidth: CGFloat
-}
-
 private enum PlaybackOverlayLayout {
     static let horizontalPadding: CGFloat = 16
     static let verticalPadding: CGFloat = 8
-    static let panelGap: CGFloat = 12
-    static let sidePanelMinWidth: CGFloat = 320
+    static let leftColumnMinimumWidth: CGFloat = 520
     static let sidePanelPreferredWidth: CGFloat = 380
     static let videoCornerRadius: CGFloat = 16
-    static let panelCornerRadius: CGFloat = 18
 }
 
-private struct PlaybackOverlayWindow: View {
+private struct PlaybackExpandedLayout: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
-    let contentSize: CGSize
+    let leftColumnWidth: CGFloat
     let sidePanelWidth: CGFloat
+    let totalHeight: CGFloat
     @State private var activePanel: PlaybackDrawerKind = .results
 
     var body: some View {
-        GeometryReader { geometry in
-            let overlayWidth = min(contentSize.width, geometry.size.width)
-            let overlayHeight = min(contentSize.height, geometry.size.height)
-            let contentHeight = max(0, overlayHeight - PlaybackOverlayLayout.verticalPadding * 2)
-            let contentWidth = max(0, overlayWidth - PlaybackOverlayLayout.horizontalPadding * 2)
-            let showsSidePanel = appState.isPlaybackSidePanelVisible
-                && appState.playbackViewModel != nil
-                && sidePanelWidth > 0
-            let panelWidth = showsSidePanel ? min(sidePanelWidth, contentWidth * 0.45) : 0
-            let panelGap = showsSidePanel ? PlaybackOverlayLayout.panelGap : 0
-            let videoWidth = max(0, contentWidth - panelWidth - panelGap)
+        let workspaceHeight = max(0, totalHeight - BottomPlaybackBarLayout.reservedHeight)
+        let showsSidePanel = appState.isPlaybackSidePanelVisible
+            && appState.playbackViewModel != nil
+            && sidePanelWidth > 0
 
-            ZStack {
-                Color.black
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                PlaybackOverlayWindow(
+                    playbackSurface: playbackSurface,
+                    appState: appState
+                )
+                .frame(width: leftColumnWidth, height: workspaceHeight)
 
-                HStack(spacing: panelGap) {
-                    videoSurface
-                        .frame(width: videoWidth, height: contentHeight)
-
-                    if showsSidePanel, let viewModel = appState.playbackViewModel {
-                        PlaybackOverlaySidePanel(
-                            appState: appState,
-                            viewModel: viewModel,
-                            activePanel: $activePanel
-                        )
-                        .frame(width: panelWidth, height: contentHeight)
-                    }
-                }
-                .padding(.horizontal, PlaybackOverlayLayout.horizontalPadding)
-                .padding(.vertical, PlaybackOverlayLayout.verticalPadding)
-                .frame(width: overlayWidth, height: overlayHeight, alignment: .center)
+                BottomPlaybackBar(appState: appState)
+                    .frame(width: leftColumnWidth, height: BottomPlaybackBarLayout.reservedHeight)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
+
+            if showsSidePanel, let viewModel = appState.playbackViewModel {
+                PlaybackOverlaySidePanel(
+                    appState: appState,
+                    viewModel: viewModel,
+                    activePanel: $activePanel
+                )
+                .frame(width: sidePanelWidth, height: totalHeight)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .simultaneousGesture(
             TapGesture().onEnded {
                 appState.dismissBottomPlaybackMenu()
@@ -714,6 +670,39 @@ private struct PlaybackOverlayWindow: View {
         }
     }
 
+    private func refreshOverlayLists() {
+        appState.refreshSearchNavigationSnapshot()
+        appState.refreshCurrentSubtitleEntries()
+    }
+
+    private func openPanel(_ panel: PlaybackDrawerKind) {
+        switch panel {
+        case .results:
+            appState.refreshSearchNavigationSnapshot()
+        case .subtitles:
+            appState.refreshCurrentSubtitleEntries()
+        }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            activePanel = panel
+        }
+    }
+}
+
+private struct PlaybackOverlayWindow: View {
+    let playbackSurface: AnyView
+    @ObservedObject var appState: AppState
+
+    var body: some View {
+        ZStack {
+            Color.black
+
+            videoSurface
+                .padding(.horizontal, PlaybackOverlayLayout.horizontalPadding)
+                .padding(.vertical, PlaybackOverlayLayout.verticalPadding)
+        }
+    }
+
     private var videoSurface: some View {
         playbackSurface
             .aspectRatio(
@@ -733,24 +722,6 @@ private struct PlaybackOverlayWindow: View {
                         .padding(12)
                 }
             }
-    }
-
-    private func refreshOverlayLists() {
-        appState.refreshSearchNavigationSnapshot()
-        appState.refreshCurrentSubtitleEntries()
-    }
-
-    private func openPanel(_ panel: PlaybackDrawerKind) {
-        switch panel {
-        case .results:
-            appState.refreshSearchNavigationSnapshot()
-        case .subtitles:
-            appState.refreshCurrentSubtitleEntries()
-        }
-
-        withAnimation(.easeInOut(duration: 0.16)) {
-            activePanel = panel
-        }
     }
 }
 
@@ -782,11 +753,11 @@ private struct PlaybackOverlaySidePanel: View {
         }
         .padding(16)
         .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.panelCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: PlaybackOverlayLayout.panelCornerRadius)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        )
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(width: 1)
+        }
     }
 
     private var tabSwitcher: some View {

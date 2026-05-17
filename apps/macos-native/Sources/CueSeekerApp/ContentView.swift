@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var appState: AppState
+
     private let windowBackground = Color(
         red: 0.955,
         green: 0.955,
@@ -32,6 +34,7 @@ struct ContentView: View {
             }
             .ignoresSafeArea(.container, edges: .top)
             .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
+            .preferredColorScheme(appState.appAppearanceMode.colorScheme)
             .background(LayoutPerformanceProbe(name: "ContentView.layout"))
         }
     }
