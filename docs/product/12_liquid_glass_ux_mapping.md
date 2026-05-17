@@ -505,6 +505,10 @@ Rules:
 - The HTML prototype represents App fullscreen with a local prototype state,
   not with the browser Fullscreen API. This avoids browser-level fullscreen
   behavior being mistaken for the native App fullscreen contract.
+- In the HTML prototype, the fullscreen state marker must not redefine player
+  layout geometry. It must not change window size, body padding, toolbar
+  height, video-stage sizing, video-frame aspect-fit calculation, side-panel
+  participation, or bottom-player positioning.
 - The playback render container must not be duplicated or moved into a second
   backend render state.
 - The normal workbench shell is hidden during playback fullscreen without
@@ -525,6 +529,8 @@ Rules:
   active.
 - Entering and exiting fullscreen show text-only feedback: `Fullscreen` and
   `Exit Fullscreen`.
+- Text-only fullscreen feedback uses the compact capsule HUD size, not the
+  larger icon-centered feedback HUD dimensions.
 - Entering fullscreen immediately hides the chrome and cursor once.
 - Mouse movement or click activity reveals the chrome and cursor.
 - Keyboard playback shortcuts do not reveal the chrome or cursor.

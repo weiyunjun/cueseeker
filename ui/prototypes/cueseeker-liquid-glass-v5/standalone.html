@@ -118,14 +118,6 @@
       mix-blend-mode: overlay;
     }
 
-    body.prototype-fullscreen {
-      background: #000;
-      padding: 0;
-    }
-    body.prototype-fullscreen::before {
-      display: none;
-    }
-
     button, input { font: inherit; }
     button { cursor: default; }
 
@@ -144,25 +136,6 @@
       grid-template-rows: 48px minmax(0, 1fr);
       position: relative;
     }
-    body.prototype-fullscreen .window {
-      width: 100vw;
-      height: 100vh;
-      min-height: 100vh;
-      border-radius: 0;
-      background: #000;
-      box-shadow: none;
-      grid-template-rows: 0 minmax(0, 1fr);
-    }
-    body.prototype-fullscreen .toolbar,
-    body.prototype-fullscreen .test-controls {
-      opacity: 0;
-      pointer-events: none;
-    }
-    body.prototype-fullscreen .window::before,
-    body.prototype-fullscreen .window::after {
-      display: none;
-    }
-
     /* Inner refraction edge — a soft inner ring of light */
     .window::before {
       content: "";
@@ -779,8 +752,11 @@
     .input-feedback-hud[data-feedback-has-icon="false"] {
       min-width: 0;
       min-height: 0;
-      padding: 16px 24px;
+      height: 54px;
+      padding: 0 24px;
       border-radius: 999px;
+      flex-direction: row;
+      gap: 0;
     }
     .input-feedback-hud[hidden] {
       display: none;
