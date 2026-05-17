@@ -337,9 +337,9 @@ Rules:
 - Toggle icon controls use stable semantic glyphs with selected-state material
   and foreground contrast. Where the prototype defines matching outline and
   filled glyphs, the App should switch glyphs as part of the selected state.
-- The Shiori save/remove button is a stateful command, not a selected visual
-  toggle. It may change glyph and pressed semantics, but it must not apply
-  selected fill, selected background, or selected shadow styling.
+- The Shiori save/remove button is an ordinary circular icon command button.
+  Its visible glyph stays the outline bookmark and it does not expose selected,
+  pressed, or filled-bookmark state.
 
 ### 9.2 Transport And Commands
 
@@ -355,10 +355,10 @@ Rules:
   navigation commands.
 - The Shiori control sits immediately before the copy-current-subtitle control
   in the right operation cluster.
-- The bottom-player Shiori control is a stateful command, not a selected visual
-  toggle. Saving and removing Shiori changes the bookmark glyph and feedback,
-  but must not apply selected fill, selected background, or selected shadow
-  styling to the button.
+- The bottom-player Shiori control is a plain command button, not a selected
+  visual toggle and not a stateful command button. Saving and removing Shiori
+  may show feedback animation, but the button itself keeps the same outline
+  bookmark glyph and ordinary circular icon-button styling.
 - Subtitle visibility toggles the current player's subtitle overlay without
   resizing the bottom player.
 - Side-panel visibility toggles the expanded playback side panel without

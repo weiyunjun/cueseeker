@@ -237,7 +237,7 @@ Current component classification:
 | Playback time labels | Time labels |
 | Previous, skip, play, and next controls | Transport icon buttons |
 | Primary play/pause control | Primary transport icon button |
-| Shiori playback control | Stateful circular command button |
+| Shiori playback control | Ordinary circular icon command button |
 | Subtitle visibility control | Circular icon toggle button |
 | Side panel visibility control | Circular icon toggle button |
 | Fullscreen control | Circular icon button |

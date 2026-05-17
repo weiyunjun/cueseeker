@@ -171,8 +171,6 @@ const win = document.getElementById("window");
 
     function setShioriSaved(saved, showFeedback = true) {
       isShioriSaved = saved;
-      setStatefulCommandIconButton(shioriButton, isShioriSaved);
-      shioriButton.setAttribute("aria-label", isShioriSaved ? "Remove Shiori" : "Save Shiori");
       if (showFeedback) {
         showPlaybackFeedback({
           icon: isShioriSaved ? "bookmark-filled" : "bookmark",
@@ -424,15 +422,6 @@ const win = document.getElementById("window");
       const icon = button.querySelector("use");
       if (icon && button.dataset.iconOff && button.dataset.iconOn) {
         icon.setAttribute("href", "#" + (selected ? button.dataset.iconOn : button.dataset.iconOff));
-      }
-    }
-
-    function setStatefulCommandIconButton(button, active) {
-      button.classList.remove("selected", "ui-is-selected");
-      button.setAttribute("aria-pressed", active ? "true" : "false");
-      const icon = button.querySelector("use");
-      if (icon && button.dataset.iconOff && button.dataset.iconOn) {
-        icon.setAttribute("href", "#" + (active ? button.dataset.iconOn : button.dataset.iconOff));
       }
     }
 
