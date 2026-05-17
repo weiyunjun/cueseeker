@@ -105,11 +105,6 @@ enum PlaybackDrawerKind: Equatable {
     case subtitles
 }
 
-enum BottomPlaybackMenuKind: Equatable {
-    case more
-    case speed
-}
-
 enum AppAppearanceMode: String, CaseIterable, Identifiable {
     case light
     case dark
@@ -317,7 +312,6 @@ final class AppState: ObservableObject {
     private static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
     private static let searchNavigationPanelRadius = 10_000
     private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
-    private static let sidePanelToggleCooldown: TimeInterval = 0.18
     private static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
     private static let databaseCompactionMinimumFreelistRatio = 0.25
 
@@ -358,11 +352,8 @@ final class AppState: ObservableObject {
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = true
     @Published var playbackDrawerRequest: PlaybackDrawerRequest?
-    @Published var activeBottomPlaybackMenu: BottomPlaybackMenuKind?
     @Published var startupError: String?
     @Published var isSearchFocused = false
-    @Published private(set) var isPlaybackSurfaceToggleCoolingDown = false
-    @Published private(set) var isPlaybackSidePanelToggleCoolingDown = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published var appAppearanceMode: AppAppearanceMode = .auto {
         didSet {
@@ -544,6 +535,10 @@ final class AppState: ObservableObject {
         currentPlaybackVideoPath != nil
     }
 
+    var isPlaybackPageVisible: Bool {
+        hasPlaybackSelection && isPlaybackSurfaceExpanded
+    }
+
     var currentPlaybackVideoPath: String? {
         selectedLibraryVideo?.videoPath ?? selectedSearchResult?.videoPath ?? selectedShiori?.videoPath
     }
@@ -673,8 +668,6 @@ final class AppState: ObservableObject {
     private var searchFTSVocabularyDiagnosticsTask: Task<Void, Never>?
     private var databaseCompactionTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
-    private var playbackSurfaceToggleCooldownTask: Task<Void, Never>?
-    private var playbackSidePanelToggleCooldownTask: Task<Void, Never>?
     private var windowFrameBeforeUserZoom: NSRect?
     private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     private var activeSearchPerformanceRun: SearchPerformanceRun?
@@ -871,7 +864,6 @@ final class AppState: ObservableObject {
                 details: "from=\(workbenchLayout.panelMode.rawValue) to=\(mode.rawValue)"
             )
             workbenchLayout.selectPanelMode(mode)
-            activeBottomPlaybackMenu = nil
         }
     }
 
@@ -902,101 +894,6 @@ final class AppState: ObservableObject {
         if !started {
             endVideoSizeTransition()
         }
-    }
-
-    func togglePlaybackSurfaceFromUser() {
-        guard hasPlaybackSelection else {
-            return
-        }
-
-        guard !isPlaybackSurfaceToggleCoolingDown else {
-            return
-        }
-
-        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-            return
-        }
-        startPlaybackSurfaceToggleCooldown()
-
-        if isPlaybackSurfaceExpanded {
-            pausePlayback()
-        }
-
-        activeBottomPlaybackMenu = nil
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            isPlaybackSurfaceExpanded.toggle()
-        }
-    }
-
-    func expandPlaybackSurface() {
-        guard hasPlaybackSelection, !isPlaybackSurfaceExpanded else {
-            return
-        }
-
-        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-            return
-        }
-
-        activeBottomPlaybackMenu = nil
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            isPlaybackSurfaceExpanded = true
-        }
-    }
-
-    private func startPlaybackSurfaceToggleCooldown() {
-        isPlaybackSurfaceToggleCoolingDown = true
-        playbackSurfaceToggleCooldownTask?.cancel()
-        playbackSurfaceToggleCooldownTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.sidePanelToggleCooldown * 1_000_000_000))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                self?.isPlaybackSurfaceToggleCoolingDown = false
-                self?.playbackSurfaceToggleCooldownTask = nil
-            }
-        }
-    }
-
-    func togglePlaybackSidePanelFromUser() {
-        guard hasPlaybackSelection else {
-            return
-        }
-
-        guard !isPlaybackSidePanelToggleCoolingDown else {
-            return
-        }
-        startPlaybackSidePanelToggleCooldown()
-
-        activeBottomPlaybackMenu = nil
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            isPlaybackSidePanelVisible.toggle()
-        }
-    }
-
-    private func startPlaybackSidePanelToggleCooldown() {
-        isPlaybackSidePanelToggleCoolingDown = true
-        playbackSidePanelToggleCooldownTask?.cancel()
-        playbackSidePanelToggleCooldownTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.sidePanelToggleCooldown * 1_000_000_000))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                self?.isPlaybackSidePanelToggleCoolingDown = false
-                self?.playbackSidePanelToggleCooldownTask = nil
-            }
-        }
-    }
-
-    func toggleBottomPlaybackMenu(_ menu: BottomPlaybackMenuKind) {
-        activeBottomPlaybackMenu = activeBottomPlaybackMenu == menu ? nil : menu
-    }
-
-    func dismissBottomPlaybackMenu() {
-        activeBottomPlaybackMenu = nil
     }
 
     func openPreviousLibraryVideo() {
@@ -2208,11 +2105,8 @@ final class AppState: ObservableObject {
         selectedSearchResult = result
         selectedShiori = nil
         selectedLibraryVideo = nil
-        activeBottomPlaybackMenu = nil
         isPlaybackSidePanelVisible = true
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            isPlaybackSurfaceExpanded = true
-        }
+        isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
             play(result)
@@ -2230,11 +2124,8 @@ final class AppState: ObservableObject {
         selectedLibraryVideo = video
         selectedSearchResult = nil
         selectedShiori = nil
-        activeBottomPlaybackMenu = nil
         isPlaybackSidePanelVisible = true
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            isPlaybackSurfaceExpanded = true
-        }
+        isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
             play(video)
@@ -2252,11 +2143,8 @@ final class AppState: ObservableObject {
         selectedShiori = shiori
         selectedSearchResult = nil
         selectedLibraryVideo = nil
-        activeBottomPlaybackMenu = nil
         isPlaybackSidePanelVisible = true
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            isPlaybackSurfaceExpanded = true
-        }
+        isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
             play(shiori)

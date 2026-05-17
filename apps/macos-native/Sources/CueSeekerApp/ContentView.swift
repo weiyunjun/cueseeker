@@ -114,9 +114,6 @@ private struct TopbarCommandBridge: View {
                     appState.activateWorkbenchPanelMode(.search)
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .topbarDismissMenusRequested)) { _ in
-                appState.dismissBottomPlaybackMenu()
-            }
             .onReceive(NotificationCenter.default.publisher(for: .topbarTitlebarZoomRequested)) { notification in
                 guard let window = notification.object as? NSWindow else {
                     return

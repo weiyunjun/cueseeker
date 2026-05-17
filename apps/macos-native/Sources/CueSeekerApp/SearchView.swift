@@ -13,47 +13,21 @@ struct SearchView: View {
             UIInvalidationProbe.count("UI.Workbench.body")
 
             return GeometryReader { geometry in
-                let workspaceHeight = max(
-                    0,
-                    geometry.size.height - BottomPlaybackBarLayout.reservedHeight
-                )
-                let isExpandedPlayback = appState.hasPlaybackSelection
-                    && appState.isPlaybackSurfaceExpanded
-                let sidePanelWidth = playbackSidePanelWidth(
-                    maxWidth: geometry.size.width,
-                    showsSidePanel: isExpandedPlayback && appState.isPlaybackSidePanelVisible
-                )
-                let leftColumnWidth = max(0, geometry.size.width - sidePanelWidth)
+                let showsPlaybackRoute = appState.isPlaybackPageVisible
 
-                ZStack(alignment: .bottomLeading) {
+                ZStack {
                     mainContent
-                        .frame(width: geometry.size.width, height: workspaceHeight)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .clipped()
-                        .simultaneousGesture(
-                            TapGesture().onEnded {
-                                appState.dismissBottomPlaybackMenu()
-                            }
-                        )
 
-                    if isExpandedPlayback {
-                        PlaybackExpandedLayout(
+                    if showsPlaybackRoute {
+                        PlaybackRewriteRoute(
                             playbackSurface: AnyView(playbackSurface),
-                            appState: appState,
-                            leftColumnWidth: leftColumnWidth,
-                            sidePanelWidth: sidePanelWidth,
-                            totalHeight: geometry.size.height
+                            appState: appState
                         )
                         .frame(width: geometry.size.width, height: geometry.size.height)
-                        .transition(.bottomPlaybackOverlayReveal)
                         .zIndex(10)
-                    } else {
-                        BottomPlaybackBar(appState: appState)
-                            .frame(
-                                width: geometry.size.width,
-                                height: BottomPlaybackBarLayout.reservedHeight
-                            )
-                            .zIndex(20)
                     }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
@@ -88,15 +62,6 @@ struct SearchView: View {
                 }
             }
         }
-    }
-
-    private func playbackSidePanelWidth(maxWidth: CGFloat, showsSidePanel: Bool) -> CGFloat {
-        guard showsSidePanel else {
-            return 0
-        }
-
-        let availableForPanel = max(0, maxWidth - PlaybackOverlayLayout.leftColumnMinimumWidth)
-        return min(PlaybackOverlayLayout.sidePanelPreferredWidth, availableForPanel)
     }
 
     private var libraryPanel: some View {
@@ -470,48 +435,36 @@ struct SearchView: View {
     }
 
     private var playbackSurface: some View {
-        Group {
-            if appState.isPlaybackSurfaceExpanded {
-                PlaybackView(
-                    player: appState.playbackPlayer,
-                    viewModel: appState.playbackViewModel,
-                    fullscreenManager: appState.playbackFullscreenManager,
-                    onSurfaceTap: {
-                        appState.clearSearchFocus()
-                        appState.togglePlaybackFromUser()
-                    },
+        PlaybackView(
+            player: appState.playbackPlayer,
+            viewModel: appState.playbackViewModel,
+            fullscreenManager: appState.playbackFullscreenManager,
+            onSurfaceTap: {
+                appState.clearSearchFocus()
+                appState.togglePlaybackFromUser()
+            },
+            onCopySubtitle: {
+                appState.clearSearchFocus()
+                appState.copyCurrentSubtitleToClipboard()
+            },
+            onSaveShiori: {
+                appState.clearSearchFocus()
+                appState.toggleCurrentShiori()
+            },
+            isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
+            showsInlineControls: false,
+            onToggleFullscreen: {
+                appState.clearSearchFocus()
+                appState.togglePlaybackFullscreenFromUser(
                     onCopySubtitle: {
-                        appState.clearSearchFocus()
                         appState.copyCurrentSubtitleToClipboard()
                     },
                     onSaveShiori: {
-                        appState.clearSearchFocus()
                         appState.toggleCurrentShiori()
-                    },
-                    isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
-                    showsInlineControls: false,
-                    onToggleFullscreen: {
-                        appState.clearSearchFocus()
-                        appState.togglePlaybackFullscreenFromUser(
-                            onCopySubtitle: {
-                                appState.copyCurrentSubtitleToClipboard()
-                            },
-                            onSaveShiori: {
-                                appState.toggleCurrentShiori()
-                            }
-                        )
-                    }
-                )
-            } else {
-                CollapsedPlaybackSurfacePlaceholder(
-                    title: appState.currentPlaybackTitle,
-                    onExpand: {
-                        appState.clearSearchFocus()
-                        appState.expandPlaybackSurface()
                     }
                 )
             }
-        }
+        )
     }
 
     private var topbarSearchResultsArea: some View {
@@ -583,113 +536,7 @@ struct SearchView: View {
 
 }
 
-private struct BottomPlaybackOverlayRevealModifier: ViewModifier {
-    let progress: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(x: 1, y: max(0.04, progress), anchor: .bottom)
-            .opacity(Double(progress))
-            .offset(y: (1 - progress) * 18)
-    }
-}
-
-private extension AnyTransition {
-    static var bottomPlaybackOverlayReveal: AnyTransition {
-        .modifier(
-            active: BottomPlaybackOverlayRevealModifier(progress: 0),
-            identity: BottomPlaybackOverlayRevealModifier(progress: 1)
-        )
-    }
-}
-
-private enum PlaybackOverlayLayout {
-    static let horizontalPadding: CGFloat = 16
-    static let verticalPadding: CGFloat = 8
-    static let leftColumnMinimumWidth: CGFloat = 520
-    static let sidePanelPreferredWidth: CGFloat = 380
-    static let videoCornerRadius: CGFloat = 16
-}
-
-private struct PlaybackExpandedLayout: View {
-    let playbackSurface: AnyView
-    @ObservedObject var appState: AppState
-    let leftColumnWidth: CGFloat
-    let sidePanelWidth: CGFloat
-    let totalHeight: CGFloat
-    @State private var activePanel: PlaybackDrawerKind = .results
-
-    var body: some View {
-        let workspaceHeight = max(0, totalHeight - BottomPlaybackBarLayout.reservedHeight)
-        let showsSidePanel = appState.isPlaybackSidePanelVisible
-            && appState.playbackViewModel != nil
-            && sidePanelWidth > 0
-
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                PlaybackOverlayWindow(
-                    playbackSurface: playbackSurface,
-                    appState: appState
-                )
-                .frame(width: leftColumnWidth, height: workspaceHeight)
-
-                BottomPlaybackBar(appState: appState)
-                    .frame(width: leftColumnWidth, height: BottomPlaybackBarLayout.reservedHeight)
-            }
-
-            if showsSidePanel, let viewModel = appState.playbackViewModel {
-                PlaybackOverlaySidePanel(
-                    appState: appState,
-                    viewModel: viewModel,
-                    activePanel: $activePanel
-                )
-                .frame(width: sidePanelWidth, height: totalHeight)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                appState.dismissBottomPlaybackMenu()
-            }
-        )
-        .onAppear {
-            refreshOverlayLists()
-            if let request = appState.playbackDrawerRequest {
-                openPanel(request.drawer)
-            }
-        }
-        .onChange(of: appState.playbackDrawerRequest?.id) { _ in
-            guard let request = appState.playbackDrawerRequest else {
-                return
-            }
-
-            openPanel(request.drawer)
-        }
-        .onChange(of: appState.currentPlaybackSubtitlePath) { _ in
-            refreshOverlayLists()
-        }
-    }
-
-    private func refreshOverlayLists() {
-        appState.refreshSearchNavigationSnapshot()
-        appState.refreshCurrentSubtitleEntries()
-    }
-
-    private func openPanel(_ panel: PlaybackDrawerKind) {
-        switch panel {
-        case .results:
-            appState.refreshSearchNavigationSnapshot()
-        case .subtitles:
-            appState.refreshCurrentSubtitleEntries()
-        }
-
-        withAnimation(.easeInOut(duration: 0.16)) {
-            activePanel = panel
-        }
-    }
-}
-
-private struct PlaybackOverlayWindow: View {
+private struct PlaybackRewriteRoute: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
 
@@ -697,478 +544,24 @@ private struct PlaybackOverlayWindow: View {
         ZStack {
             Color.black
 
-            videoSurface
-                .padding(.horizontal, PlaybackOverlayLayout.horizontalPadding)
-                .padding(.vertical, PlaybackOverlayLayout.verticalPadding)
-        }
-    }
-
-    private var videoSurface: some View {
-        playbackSurface
-            .aspectRatio(
-                CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
-                contentMode: .fit
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: PlaybackOverlayLayout.videoCornerRadius))
-            .overlay(alignment: .topLeading) {
-                if case .failed(let message) = appState.playbackStatus {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .font(.system(size: SearchTypography.detailSize))
-                        .foregroundStyle(.red)
-                        .padding(10)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        .padding(12)
-                }
-            }
-    }
-}
-
-private struct PlaybackOverlaySidePanel: View {
-    @ObservedObject var appState: AppState
-    @ObservedObject var viewModel: PlaybackViewModel
-    @Binding var activePanel: PlaybackDrawerKind
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            tabSwitcher
-
-            HStack {
-                Text(countText)
-                    .font(.system(size: SearchTypography.detailSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .frame(height: 28)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(0.045))
-                    )
-
-                Spacer()
-            }
-
-            panelContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .padding(16)
-        .background(Color(nsColor: .textBackgroundColor))
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(Color.primary.opacity(0.08))
-                .frame(width: 1)
-        }
-    }
-
-    private var tabSwitcher: some View {
-        HStack(spacing: 0) {
-            panelTab(.results, title: "Search Results")
-            panelTab(.subtitles, title: "Subtitles")
-        }
-        .padding(4)
-        .background(
-            RoundedRectangle(cornerRadius: 9)
-                .fill(Color.primary.opacity(0.10))
-        )
-    }
-
-    private func panelTab(_ panel: PlaybackDrawerKind, title: String) -> some View {
-        Button {
-            selectPanel(panel)
-        } label: {
-            Text(title)
-                .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                .foregroundStyle(activePanel == panel ? Color.primary : Color.primary.opacity(0.72))
-                .frame(maxWidth: .infinity)
-                .frame(height: 34)
-                .background(
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(activePanel == panel ? Color.primary.opacity(0.18) : Color.clear)
+            playbackSurface
+                .aspectRatio(
+                    CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
+                    contentMode: .fit
                 )
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private var panelContent: some View {
-        switch activePanel {
-        case .results:
-            PlaybackOverlayResultsPanel(appState: appState)
-        case .subtitles:
-            PlaybackOverlaySubtitlesPanel(appState: appState, viewModel: viewModel)
-        }
-    }
-
-    private var countText: String {
-        switch activePanel {
-        case .results:
-            let groupedCount = appState.searchNavigationResultGroups.reduce(0) { $0 + $1.results.count }
-            let fallbackCount = appState.searchResultTotalCount > 0
-                ? appState.searchResultTotalCount
-                : appState.searchResults.count
-            let count = appState.searchNavigationSnapshot?.totalCount
-                ?? (groupedCount > 0 ? groupedCount : fallbackCount)
-            return "\(count) \(count == 1 ? "result" : "results")"
-        case .subtitles:
-            let count = appState.currentSubtitleEntries.count
-            return "\(count) \(count == 1 ? "subtitle" : "subtitles")"
-        }
-    }
-
-    private func selectPanel(_ panel: PlaybackDrawerKind) {
-        switch panel {
-        case .results:
-            appState.refreshSearchNavigationSnapshot()
-        case .subtitles:
-            appState.refreshCurrentSubtitleEntries()
-        }
-
-        withAnimation(.easeInOut(duration: 0.16)) {
-            activePanel = panel
-        }
-    }
-}
-
-private struct PlaybackOverlayResultsPanel: View {
-    @ObservedObject var appState: AppState
-
-    private var results: [SubtitleSearchResult] {
-        if let snapshot = appState.searchNavigationSnapshot {
-            return snapshot.neighborhood
-        }
-
-        let groupedResults = appState.searchNavigationResultGroups.flatMap(\.results)
-        if !groupedResults.isEmpty {
-            return groupedResults
-        }
-
-        return appState.searchResults
-    }
-
-    private var selectedEntryID: Int64? {
-        appState.selectedSearchResult?.entryID
-    }
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    if results.isEmpty {
-                        PlaybackOverlayEmptyList(
-                            title: "No Search Results",
-                            message: "Search Results are available after opening playback from Search."
-                        )
-                        .padding(.top, 28)
-                    } else {
-                        ForEach(results, id: \.entryID) { result in
-                            PlaybackOverlayResultRow(
-                                result: result,
-                                query: appState.searchQuery,
-                                isSelected: selectedEntryID == result.entryID
-                            )
-                            .id(result.entryID)
-                            .listRowAction {
-                                appState.clearSearchFocus()
-                                appState.openSearchResult(result)
-                            }
-                            .focusable(false)
-                        }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black)
+                .overlay(alignment: .topLeading) {
+                    if case .failed(let message) = appState.playbackStatus {
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .font(.system(size: SearchTypography.detailSize))
+                            .foregroundStyle(.red)
+                            .padding(10)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            .padding(12)
                     }
                 }
-                .padding(.trailing, 3)
-                .padding(.bottom, 6)
-            }
-            .onAppear {
-                scrollToSelectedResult(using: proxy)
-            }
-            .onChange(of: selectedEntryID) { _ in
-                scrollToSelectedResult(using: proxy)
-            }
         }
-    }
-
-    private func scrollToSelectedResult(using proxy: ScrollViewProxy) {
-        guard let selectedEntryID else {
-            return
-        }
-
-        withAnimation(.easeInOut(duration: 0.16)) {
-            proxy.scrollTo(selectedEntryID, anchor: .center)
-        }
-    }
-}
-
-private struct PlaybackOverlaySubtitlesPanel: View {
-    @ObservedObject var appState: AppState
-    @ObservedObject var viewModel: PlaybackViewModel
-
-    private var selectedSubtitleEntryID: Int64? {
-        let milliseconds = max(
-            0,
-            Int((viewModel.displayedCurrentTime * 1_000).rounded(.down))
-        )
-        if let active = appState.currentSubtitleEntries.first(where: {
-            $0.startMilliseconds <= milliseconds && milliseconds < $0.endMilliseconds
-        }) {
-            return active.id
-        }
-
-        return appState.currentSubtitleEntries.last(where: {
-            $0.startMilliseconds <= milliseconds
-        })?.id
-    }
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    if appState.currentSubtitleEntries.isEmpty {
-                        PlaybackOverlayEmptyList(
-                            title: "No Subtitles",
-                            message: "No subtitle cues are available for the current video."
-                        )
-                        .padding(.top, 28)
-                    } else {
-                        ForEach(Array(appState.currentSubtitleEntries.enumerated()), id: \.element.id) { index, entry in
-                            PlaybackOverlaySubtitleRow(
-                                entry: entry,
-                                fallbackSequenceNumber: index + 1,
-                                isSelected: entry.id == selectedSubtitleEntryID
-                            )
-                            .id(entry.id)
-                            .listRowAction {
-                                appState.clearSearchFocus()
-                                viewModel.seek(to: Double(entry.startMilliseconds) / 1_000)
-                            }
-                            .focusable(false)
-                        }
-                    }
-                }
-                .padding(.trailing, 3)
-                .padding(.bottom, 6)
-            }
-            .onAppear {
-                scrollToSelectedSubtitle(using: proxy)
-            }
-            .onChange(of: selectedSubtitleEntryID) { _ in
-                scrollToSelectedSubtitle(using: proxy)
-            }
-        }
-    }
-
-    private func scrollToSelectedSubtitle(using proxy: ScrollViewProxy) {
-        guard let selectedSubtitleEntryID else {
-            return
-        }
-
-        withAnimation(.easeInOut(duration: 0.16)) {
-            proxy.scrollTo(selectedSubtitleEntryID, anchor: .center)
-        }
-    }
-}
-
-private struct PlaybackOverlayResultRow: View {
-    let result: SubtitleSearchResult
-    let query: String
-    let isSelected: Bool
-    @State private var isHovered = false
-
-    var body: some View {
-        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
-        let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
-        let highlightState: SearchHighlightState = isSelected
-            ? .selected
-            : (isHovered ? .hover : .default)
-
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Text("#\(result.searchRank + 1)")
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(secondaryTextColor)
-                    .monospacedDigit()
-
-                Spacer(minLength: 8)
-
-                Text(formatTimestamp(result.startMilliseconds))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(secondaryTextColor)
-                    .lineLimit(1)
-                    .monospacedDigit()
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                    Text(highlightedContent(
-                        line,
-                        query: query,
-                        textColor: textColor,
-                        state: highlightState
-                    ))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(textColor)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(rowBackground)
-        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(rowBorder, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-    }
-
-    private var displayLines: [String] {
-        subtitleDisplayLines(content: result.content, cueLines: result.cueLines)
-    }
-
-    private var rowBackground: Color {
-        if isSelected {
-            return Color.accentColor
-        }
-        if isHovered {
-            return Color.primary.opacity(0.075)
-        }
-        return Color.primary.opacity(0.045)
-    }
-
-    private var rowBorder: Color {
-        if isSelected {
-            return Color.clear
-        }
-        if isHovered {
-            return Color.primary.opacity(0.07)
-        }
-        return Color.clear
-    }
-}
-
-private struct PlaybackOverlaySubtitleRow: View {
-    let entry: SubtitleDatabaseEntry
-    let fallbackSequenceNumber: Int
-    let isSelected: Bool
-    @State private var isHovered = false
-
-    var body: some View {
-        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
-        let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
-
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Text("#\(entry.sequenceNumber ?? fallbackSequenceNumber)")
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(secondaryTextColor)
-                    .monospacedDigit()
-
-                Spacer(minLength: 8)
-
-                Text(formatTimestamp(entry.startMilliseconds))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(secondaryTextColor)
-                    .lineLimit(1)
-                    .monospacedDigit()
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                    Text(line)
-                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                        .foregroundStyle(textColor)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(rowBackground)
-        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(rowBorder, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-    }
-
-    private var displayLines: [String] {
-        subtitleDisplayLines(content: entry.content, cueLines: [])
-    }
-
-    private var rowBackground: Color {
-        if isSelected {
-            return Color.accentColor
-        }
-        if isHovered {
-            return Color.primary.opacity(0.075)
-        }
-        return Color.primary.opacity(0.045)
-    }
-
-    private var rowBorder: Color {
-        if isSelected {
-            return Color.clear
-        }
-        if isHovered {
-            return Color.primary.opacity(0.07)
-        }
-        return Color.clear
-    }
-}
-
-private struct PlaybackOverlayEmptyList: View {
-    let title: String
-    let message: String
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Text(title)
-                .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Text(message)
-                .font(.system(size: SearchTypography.detailSize))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
-    }
-}
-
-private struct CollapsedPlaybackSurfacePlaceholder: View {
-    let title: String
-    let onExpand: () -> Void
-
-    var body: some View {
-        Button(action: onExpand) {
-            VStack(spacing: 10) {
-                Image(systemName: "chevron.right.circle.fill")
-                    .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.72))
-
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.82))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Text("Video window collapsed")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(Color.black.opacity(0.045))
     }
 }
 
