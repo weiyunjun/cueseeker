@@ -831,9 +831,17 @@
       box-shadow: var(--glass-hud-shadow);
       display: flex;
       flex-direction: column;
-      transition: background 220ms ease, box-shadow 220ms ease, color 180ms ease;
+      transition:
+        transform 220ms cubic-bezier(.22,.61,.36,1),
+        opacity 150ms ease,
+        background 220ms ease,
+        box-shadow 220ms ease,
+        color 180ms ease;
     }
     .window.video-expanded .player-dock {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(calc(100% + 28px));
       background: rgba(28,28,34,0.48);
       box-shadow:
         0 0 0 0.5px rgba(255,255,255,0.12),
@@ -841,6 +849,11 @@
         inset 0 -0.5px 0 rgba(255,255,255,0.04),
         0 22px 50px -14px rgba(0,0,0,0.6),
         0 8px 18px -6px rgba(0,0,0,0.4);
+    }
+    .window.video-expanded.player-chrome-visible .player-dock {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
     }
     /* Scrubber row inside the HUD */
     .scrubber {
@@ -1586,7 +1599,12 @@
       background: var(--glass-hud-bg);
       box-shadow: var(--glass-hud-shadow);
       color: var(--text);
-      transition: background 220ms ease, box-shadow 220ms ease, color 180ms ease;
+      transition:
+        transform 220ms cubic-bezier(.22,.61,.36,1),
+        opacity 150ms ease,
+        background 220ms ease,
+        box-shadow 220ms ease,
+        color 180ms ease;
     }
     .scrubber { border-bottom-color: var(--hairline); }
     .slider::before { background: var(--slider-track); }
@@ -1730,7 +1748,12 @@
       backdrop-filter: var(--player-dock-filter);
       -webkit-backdrop-filter: var(--player-dock-filter);
       overflow: visible;
-      transition: background 400ms ease, box-shadow 220ms ease, color 180ms ease;
+      transition:
+        transform 220ms cubic-bezier(.22,.61,.36,1),
+        opacity 150ms ease,
+        background 400ms ease,
+        box-shadow 220ms ease,
+        color 180ms ease;
     }
 
     .scrubber,
@@ -2659,7 +2682,10 @@ const win = document.getElementById("window");
     let committedSearchQuery = searchInput.value.trim();
     let searchModeDraftValue = searchInput.value;
     let videoLayoutFrame = 0;
+    let playerChromeHideTimer = 0;
+    let lastPointerPosition = null;
     const playerDockMargin = 20;
+    const playerChromeIdleDelay = 3000;
 
     function parseAspectRatio(value) {
       if (!value) return 16 / 9;
@@ -2684,6 +2710,80 @@ const win = document.getElementById("window");
 
       playerDock.style.setProperty("--player-dock-width", `${dockWidth}px`);
       playerDock.style.setProperty("--player-dock-x", `${dockX}px`);
+    }
+
+    function isVideoExpanded() {
+      return win.classList.contains("video-expanded");
+    }
+
+    function pointInVideoStage(point) {
+      if (!videoStage || !point) return false;
+
+      const rect = videoStage.getBoundingClientRect();
+      return point.x >= rect.left
+        && point.x <= rect.right
+        && point.y >= rect.top
+        && point.y <= rect.bottom;
+    }
+
+    function clearPlayerChromeHideTimer() {
+      clearTimeout(playerChromeHideTimer);
+      playerChromeHideTimer = 0;
+    }
+
+    function setPlayerChromeVisible(visible) {
+      win.classList.toggle("player-chrome-visible", visible);
+      playerDock?.setAttribute("aria-hidden", visible ? "false" : "true");
+    }
+
+    function hidePlayerChrome() {
+      clearPlayerChromeHideTimer();
+      if (isVideoExpanded()) {
+        setPlayerChromeVisible(false);
+      }
+    }
+
+    function schedulePlayerChromeHide() {
+      clearPlayerChromeHideTimer();
+      if (!isVideoExpanded() || !pointInVideoStage(lastPointerPosition)) return;
+
+      playerChromeHideTimer = window.setTimeout(() => {
+        if (isVideoExpanded() && pointInVideoStage(lastPointerPosition)) {
+          setPlayerChromeVisible(false);
+        }
+      }, playerChromeIdleDelay);
+    }
+
+    function showPlayerChrome() {
+      if (!isVideoExpanded()) {
+        clearPlayerChromeHideTimer();
+        setPlayerChromeVisible(true);
+        return;
+      }
+
+      setPlayerChromeVisible(true);
+      schedulePlayerChromeHide();
+    }
+
+    function syncPlayerChromeBoundary() {
+      if (!isVideoExpanded()) {
+        clearPlayerChromeHideTimer();
+        setPlayerChromeVisible(true);
+        return;
+      }
+
+      if (!pointInVideoStage(lastPointerPosition)) {
+        hidePlayerChrome();
+      }
+    }
+
+    function registerPlayerChromeActivity(point) {
+      lastPointerPosition = point;
+      if (pointInVideoStage(point)) {
+        showPlayerChrome();
+      } else {
+        hidePlayerChrome();
+      }
     }
 
     function updateVideoFrameLayout() {
@@ -2715,6 +2815,7 @@ const win = document.getElementById("window");
       videoFrame.style.setProperty("--video-frame-height", `${frameHeight}px`);
       videoFrame.style.setProperty("--video-frame-x", `${frameX}px`);
       videoFrame.style.setProperty("--video-frame-y", `${frameY}px`);
+      syncPlayerChromeBoundary();
     }
 
     function scheduleVideoFrameLayout() {
@@ -2806,6 +2907,7 @@ const win = document.getElementById("window");
       }
       updateClearSearchVisibility();
       updateCollapseAllState();
+      syncPlayerChromeBoundary();
       scheduleVideoFrameLayout();
     }
 
@@ -2946,6 +3048,11 @@ const win = document.getElementById("window");
       win.classList.add("video-expanded");
       sourceToggle.setAttribute("aria-pressed", "true");
       scheduleVideoFrameLayout();
+      if (pointInVideoStage(lastPointerPosition)) {
+        showPlayerChrome();
+      } else {
+        hidePlayerChrome();
+      }
     }
 
     document.querySelectorAll(".result-card").forEach((el) => {
@@ -2975,6 +3082,11 @@ const win = document.getElementById("window");
       const expanded = win.classList.toggle("video-expanded");
       sourceToggle.setAttribute("aria-pressed", expanded ? "true" : "false");
       scheduleVideoFrameLayout();
+      if (expanded && pointInVideoStage(lastPointerPosition)) {
+        showPlayerChrome();
+      } else {
+        syncPlayerChromeBoundary();
+      }
     });
 
     document.querySelectorAll(".segmented button").forEach((btn) => {
@@ -2997,6 +3109,7 @@ const win = document.getElementById("window");
       const selected = toggleIconButton(sidePanelToggle);
       win.classList.toggle("sidebar-hidden", !selected);
       scheduleVideoFrameLayout();
+      syncPlayerChromeBoundary();
     });
 
     document.querySelectorAll(".group-header").forEach((header) => {
@@ -3018,7 +3131,17 @@ const win = document.getElementById("window");
 
     updateClearSearchVisibility();
     updateCollapseAllState();
+    setPlayerChromeVisible(true);
     updateVideoFrameLayout();
+
+    document.addEventListener("pointermove", (event) => {
+      registerPlayerChromeActivity({ x: event.clientX, y: event.clientY });
+    });
+    document.addEventListener("pointerdown", (event) => {
+      registerPlayerChromeActivity({ x: event.clientX, y: event.clientY });
+    });
+    document.addEventListener("pointerleave", hidePlayerChrome);
+    window.addEventListener("blur", hidePlayerChrome);
 
     ["input", "change", "keyup", "search", "cut", "paste", "compositionend", "focus", "blur"].forEach((eventName) => {
       searchInput.addEventListener(eventName, scheduleSearchDraftSync);

@@ -6,13 +6,16 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Updated the `cueseeker-liquid-glass-v5` expanded playback prototype so the
+  bottom player behaves like playback chrome: entering the black video base
+  reveals it, leaving hides it, and three seconds of inactivity inside the
+  black base hides it again without animating horizontal geometry.
 - Added the `cueseeker-liquid-glass-v5` HTML review fork for expanded playback
   video geometry, including a visible aspect-ratio video frame and dynamic
-  positioning against the fixed bottom player.
+  aspect-fit positioning inside the black video base.
 - Added the accepted App-side Appearance settings category and updated expanded
   playback layout rules so the right playback side panel owns a full-height
-  column while the video and centered, narrower bottom player occupy the left
-  column.
+  column while the video and bottom player occupy the left column.
 - Required each HTML prototype edit to refresh a same-directory
   `standalone.html` bundled export so the current prototype can be handed to
   other AI tools without extra packaging.

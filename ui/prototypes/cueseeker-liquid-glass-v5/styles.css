@@ -825,9 +825,17 @@
       box-shadow: var(--glass-hud-shadow);
       display: flex;
       flex-direction: column;
-      transition: background 220ms ease, box-shadow 220ms ease, color 180ms ease;
+      transition:
+        transform 220ms cubic-bezier(.22,.61,.36,1),
+        opacity 150ms ease,
+        background 220ms ease,
+        box-shadow 220ms ease,
+        color 180ms ease;
     }
     .window.video-expanded .player-dock {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(calc(100% + 28px));
       background: rgba(28,28,34,0.48);
       box-shadow:
         0 0 0 0.5px rgba(255,255,255,0.12),
@@ -835,6 +843,11 @@
         inset 0 -0.5px 0 rgba(255,255,255,0.04),
         0 22px 50px -14px rgba(0,0,0,0.6),
         0 8px 18px -6px rgba(0,0,0,0.4);
+    }
+    .window.video-expanded.player-chrome-visible .player-dock {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
     }
     /* Scrubber row inside the HUD */
     .scrubber {
@@ -1580,7 +1593,12 @@
       background: var(--glass-hud-bg);
       box-shadow: var(--glass-hud-shadow);
       color: var(--text);
-      transition: background 220ms ease, box-shadow 220ms ease, color 180ms ease;
+      transition:
+        transform 220ms cubic-bezier(.22,.61,.36,1),
+        opacity 150ms ease,
+        background 220ms ease,
+        box-shadow 220ms ease,
+        color 180ms ease;
     }
     .scrubber { border-bottom-color: var(--hairline); }
     .slider::before { background: var(--slider-track); }
@@ -1724,7 +1742,12 @@
       backdrop-filter: var(--player-dock-filter);
       -webkit-backdrop-filter: var(--player-dock-filter);
       overflow: visible;
-      transition: background 400ms ease, box-shadow 220ms ease, color 180ms ease;
+      transition:
+        transform 220ms cubic-bezier(.22,.61,.36,1),
+        opacity 150ms ease,
+        background 400ms ease,
+        box-shadow 220ms ease,
+        color 180ms ease;
     }
 
     .scrubber,

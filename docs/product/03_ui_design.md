@@ -138,22 +138,25 @@ Stable design snapshot:
   are squeezed by that column instead of being covered by the side panel.
 - The bottom player uses a three-zone layout: current source/title on the left,
   transport controls in the center, and playback operations on the right.
-- The bottom player uses a fixed narrower maximum width and is centered within
-  the active video column. Detailed responsive scaling is a later pass.
+- In expanded playback, the bottom player is positioned from the active left
+  black video column, not from the full window. It uses fixed left and right
+  margins inside that black base, and its horizontal geometry must update
+  immediately during resize without animating `left` or `width`.
 - The HTML prototype represents video with a gray frame labeled as the video
   area. The review default uses `16:9`, but App implementation must use the
   active video's real aspect ratio.
 - In expanded playback, the left column's black base is the positioning
   container. The video frame should keep its aspect ratio and maximize within
   that black base, so either width or height reaches the available limit.
-- Video-frame positioning follows the limiting axis: if width reaches the black
-  base width, horizontal position is fixed and vertical position may move; if
-  height reaches the black base height, vertical position is fixed and
-  horizontal position may move.
-- When vertical position can move, the video frame should be centered as much
-  as possible in the space above the fixed bottom player. If the maximized
-  video cannot fit above the bottom player, the bottom player may float over
-  the video frame.
+- The video frame is centered within the black base after aspect-fit sizing.
+  The bottom player is a floating chrome overlay and does not participate in
+  video-frame layout.
+- In expanded playback, the bottom player follows playback-chrome visibility
+  behavior. Entering the black base shows it; leaving the black base hides it;
+  while the pointer remains inside the black base, three seconds without mouse
+  or click activity hides it. The show and hide animation slides the bottom
+  player vertically while fading opacity. This chrome animation must not animate
+  the bottom player's horizontal geometry.
 - The current source/title capsule shows the ASS file alias only. It must not
   show the selected Search result rank or timestamp.
 - Bottom-player buttons use two primary button forms: circular icon buttons and

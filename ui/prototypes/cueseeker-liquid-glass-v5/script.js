@@ -34,7 +34,10 @@ const win = document.getElementById("window");
     let committedSearchQuery = searchInput.value.trim();
     let searchModeDraftValue = searchInput.value;
     let videoLayoutFrame = 0;
+    let playerChromeHideTimer = 0;
+    let lastPointerPosition = null;
     const playerDockMargin = 20;
+    const playerChromeIdleDelay = 3000;
 
     function parseAspectRatio(value) {
       if (!value) return 16 / 9;
@@ -59,6 +62,80 @@ const win = document.getElementById("window");
 
       playerDock.style.setProperty("--player-dock-width", `${dockWidth}px`);
       playerDock.style.setProperty("--player-dock-x", `${dockX}px`);
+    }
+
+    function isVideoExpanded() {
+      return win.classList.contains("video-expanded");
+    }
+
+    function pointInVideoStage(point) {
+      if (!videoStage || !point) return false;
+
+      const rect = videoStage.getBoundingClientRect();
+      return point.x >= rect.left
+        && point.x <= rect.right
+        && point.y >= rect.top
+        && point.y <= rect.bottom;
+    }
+
+    function clearPlayerChromeHideTimer() {
+      clearTimeout(playerChromeHideTimer);
+      playerChromeHideTimer = 0;
+    }
+
+    function setPlayerChromeVisible(visible) {
+      win.classList.toggle("player-chrome-visible", visible);
+      playerDock?.setAttribute("aria-hidden", visible ? "false" : "true");
+    }
+
+    function hidePlayerChrome() {
+      clearPlayerChromeHideTimer();
+      if (isVideoExpanded()) {
+        setPlayerChromeVisible(false);
+      }
+    }
+
+    function schedulePlayerChromeHide() {
+      clearPlayerChromeHideTimer();
+      if (!isVideoExpanded() || !pointInVideoStage(lastPointerPosition)) return;
+
+      playerChromeHideTimer = window.setTimeout(() => {
+        if (isVideoExpanded() && pointInVideoStage(lastPointerPosition)) {
+          setPlayerChromeVisible(false);
+        }
+      }, playerChromeIdleDelay);
+    }
+
+    function showPlayerChrome() {
+      if (!isVideoExpanded()) {
+        clearPlayerChromeHideTimer();
+        setPlayerChromeVisible(true);
+        return;
+      }
+
+      setPlayerChromeVisible(true);
+      schedulePlayerChromeHide();
+    }
+
+    function syncPlayerChromeBoundary() {
+      if (!isVideoExpanded()) {
+        clearPlayerChromeHideTimer();
+        setPlayerChromeVisible(true);
+        return;
+      }
+
+      if (!pointInVideoStage(lastPointerPosition)) {
+        hidePlayerChrome();
+      }
+    }
+
+    function registerPlayerChromeActivity(point) {
+      lastPointerPosition = point;
+      if (pointInVideoStage(point)) {
+        showPlayerChrome();
+      } else {
+        hidePlayerChrome();
+      }
     }
 
     function updateVideoFrameLayout() {
@@ -90,6 +167,7 @@ const win = document.getElementById("window");
       videoFrame.style.setProperty("--video-frame-height", `${frameHeight}px`);
       videoFrame.style.setProperty("--video-frame-x", `${frameX}px`);
       videoFrame.style.setProperty("--video-frame-y", `${frameY}px`);
+      syncPlayerChromeBoundary();
     }
 
     function scheduleVideoFrameLayout() {
@@ -181,6 +259,7 @@ const win = document.getElementById("window");
       }
       updateClearSearchVisibility();
       updateCollapseAllState();
+      syncPlayerChromeBoundary();
       scheduleVideoFrameLayout();
     }
 
@@ -321,6 +400,11 @@ const win = document.getElementById("window");
       win.classList.add("video-expanded");
       sourceToggle.setAttribute("aria-pressed", "true");
       scheduleVideoFrameLayout();
+      if (pointInVideoStage(lastPointerPosition)) {
+        showPlayerChrome();
+      } else {
+        hidePlayerChrome();
+      }
     }
 
     document.querySelectorAll(".result-card").forEach((el) => {
@@ -350,6 +434,11 @@ const win = document.getElementById("window");
       const expanded = win.classList.toggle("video-expanded");
       sourceToggle.setAttribute("aria-pressed", expanded ? "true" : "false");
       scheduleVideoFrameLayout();
+      if (expanded && pointInVideoStage(lastPointerPosition)) {
+        showPlayerChrome();
+      } else {
+        syncPlayerChromeBoundary();
+      }
     });
 
     document.querySelectorAll(".segmented button").forEach((btn) => {
@@ -372,6 +461,7 @@ const win = document.getElementById("window");
       const selected = toggleIconButton(sidePanelToggle);
       win.classList.toggle("sidebar-hidden", !selected);
       scheduleVideoFrameLayout();
+      syncPlayerChromeBoundary();
     });
 
     document.querySelectorAll(".group-header").forEach((header) => {
@@ -393,7 +483,17 @@ const win = document.getElementById("window");
 
     updateClearSearchVisibility();
     updateCollapseAllState();
+    setPlayerChromeVisible(true);
     updateVideoFrameLayout();
+
+    document.addEventListener("pointermove", (event) => {
+      registerPlayerChromeActivity({ x: event.clientX, y: event.clientY });
+    });
+    document.addEventListener("pointerdown", (event) => {
+      registerPlayerChromeActivity({ x: event.clientX, y: event.clientY });
+    });
+    document.addEventListener("pointerleave", hidePlayerChrome);
+    window.addEventListener("blur", hidePlayerChrome);
 
     ["input", "change", "keyup", "search", "cut", "paste", "compositionend", "focus", "blur"].forEach((eventName) => {
       searchInput.addEventListener(eventName, scheduleSearchDraftSync);
