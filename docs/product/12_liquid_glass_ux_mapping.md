@@ -32,6 +32,7 @@ Surfaces covered by this UX mapping:
 - Shiori grouped cards.
 - Persistent bottom player.
 - Expanded playback video surface.
+- Playback input feedback overlay.
 - Expanded playback side panel.
 - Playback fullscreen chrome.
 
@@ -525,28 +526,90 @@ Rules:
 - Fullscreen subtitle overlay bottom padding adapts to chrome visibility so
   subtitles do not collide with visible controls.
 
-## 13. Keyboard And Focus UX
+## 13. Playback Input, Keyboard, And Feedback UX
+
+### 13.1 Input Eligibility
 
 Rules:
 
-- Keyboard playback shortcuts are active only when playback exists, the
-  playback interface is visible, and editable text input is not focused.
+- Playback shortcuts are active only when playback exists, the playback
+  interface is visible, and editable text input is not focused.
 - Text editing in the Search field must keep standard macOS editing behavior.
+- `Command`, `Control`, and `Option` modified key events are ignored by
+  playback shortcuts.
+- `Shift` is accepted only for the speed shortcuts defined below.
 - Playback shortcuts dispatch through the same command model as playback
-  buttons.
-- `Q` copies the current subtitle.
-- `S` saves the current subtitle as Shiori or follows the existing remove
-  confirmation behavior when already saved.
-- `C` toggles subtitles.
-- `F` enters or exits playback fullscreen.
-- `A` and `D` navigate previous and next Search result when Search navigation
-  is available.
-- `Shift+,` and `Shift+.` decrease or increase playback speed by 0.25x inside
-  the accepted speed range.
-- Shortcut commands show the same transient feedback overlays as matching
-  button commands.
-- Shortcut activity does not reveal expanded-playback or fullscreen chrome
-  unless a later accepted rule explicitly changes that.
+  buttons, mouse video clicks, menu selections, and slider gestures.
+- Commands that are unavailable for the current playback state must not mutate
+  selection, playback, Search data, or Shiori data.
+
+### 13.2 Shortcut And Mouse Command Mapping
+
+| Input | Command | Prototype anchor | SwiftUI owner | Behavior owner | Feedback HUD | Chrome visibility effect |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Space` | Toggle play/pause | `#playBtn`, `ui-feedback-hud` | Bottom-player transport button, `LiquidGlassFeedbackOverlay` | `PlaybackViewModel.togglePlayback` | `Play` or `Pause` | Keyboard: none. Mouse/button: normal pointer activity rules. |
+| Left click on visible video surface | Toggle play/pause | `.video-stage`, `.video-frame`, `ui-feedback-hud` | Video stage input layer | Playback command model | `Play` or `Pause` | Shows chrome and resets the idle timer. |
+| `C` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard: none. Button: normal pointer activity rules. |
+| `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen chrome | Existing fullscreen manager | `Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal chrome; fullscreen entry follows fullscreen rules. |
+| `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
+| `D` | Next Search result | `#nextResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport next-result button | Search navigation snapshot | `Next Result` or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
+| `Q` | Copy current subtitle | Copy button, `ui-feedback-hud` | Copy subtitle button | Clipboard command | `Subtitle Copied` or `No Subtitle` | Keyboard: none. Button: normal pointer activity rules. |
+| `S` | Save or remove Shiori | `#shioriButton`, `ui-feedback-hud` | Shiori toggle button | Shiori command model | `Shiori Saved` or `Shiori Removed` after final state | Keyboard: none. Button: normal pointer activity rules. |
+| `Left Arrow` | Seek backward 5 seconds | Progress slider, `ui-feedback-hud` | Progress slider and feedback overlay | Playback seek command | Accumulated rewind total, such as `- 15s` | Keyboard: none. |
+| `Right Arrow` | Seek forward 5 seconds | Progress slider, `ui-feedback-hud` | Progress slider and feedback overlay | Playback seek command | Accumulated forward total, such as `+ 15s` | Keyboard: none. |
+| `Up Arrow` | Increase volume by 5 | Volume control, `ui-feedback-hud` | Volume button/slider and feedback overlay | Playback volume state | `Volume NN%` | Keyboard: none. |
+| `Down Arrow` | Decrease volume by 5 | Volume control, `ui-feedback-hud` | Volume button/slider and feedback overlay | Playback volume state | `Volume NN%` or `Muted` | Keyboard: none. |
+| `Shift+,` | Decrease speed by 0.25x | `#speedButton`, `ui-feedback-hud` | Speed value capsule and feedback overlay | Playback speed state | Current speed, such as `0.75×` | Keyboard: none. |
+| `Shift+.` | Increase speed by 0.25x | `#speedButton`, `ui-feedback-hud` | Speed value capsule and feedback overlay | Playback speed state | Current speed, such as `1.25×` | Keyboard: none. |
+
+### 13.3 Video Surface Mouse Rules
+
+Rules:
+
+- A primary-button click on the video surface toggles play/pause.
+- The video-surface click handler must ignore clicks that target bottom-player
+  controls, side-panel controls, popup menus, sliders, text inputs, or any
+  other interactive control.
+- Clicking controls must run only that control's command, not the video
+  play/pause command.
+- Mouse movement or click activity inside the black video base follows the
+  chrome visibility rules in sections 10.4 and 12.
+- Mouse activity outside the black video base must not toggle playback.
+- Secondary click behavior is not defined by the Liquid Glass rewrite and must
+  preserve existing platform behavior until separately specified.
+
+### 13.4 Feedback Overlay Rules
+
+Rules:
+
+- Playback command feedback is rendered by `ui-feedback-overlay` and
+  `ui-feedback-hud` over the active video stage.
+- The feedback overlay is non-interactive and must never intercept mouse,
+  keyboard, slider, menu, or video clicks.
+- The feedback HUD is centered within the active black video base, not within
+  the full window when a side panel is visible.
+- The feedback HUD may temporarily sit above subtitles because it is transient,
+  but it must not permanently reserve space or change subtitle layout.
+- The same feedback component is used in expanded playback and playback
+  fullscreen.
+- If the video surface is not visible, the command may still update playback
+  state, but video-stage feedback is shown only when there is a visible video
+  stage to host it.
+- Each accepted command restarts the current feedback HUD instead of stacking
+  multiple HUDs.
+- Repeated relative seek commands in the same direction accumulate inside the
+  feedback timeout, matching the App behavior. For example, three repeated
+  forward seeks display `+ 15s`, and three repeated rewind seeks display
+  `- 15s`.
+- Changing seek direction clears the opposite direction's accumulated total.
+- Relative seek feedback uses the trailing side of the video base for forward
+  seeks and the leading side of the video base for rewind seeks.
+- Recommended timing: fade and scale in within 120-180 ms, hold for 450-700
+  ms, then fade out within 180-240 ms.
+- Repeated keypresses, repeated mouse clicks, and repeated button commands
+  refresh the existing HUD and timer.
+- Feedback animation must not reveal expanded-playback or fullscreen chrome
+  for keyboard-only commands.
 
 ## 14. State Lifetime And Invalidation Boundaries
 

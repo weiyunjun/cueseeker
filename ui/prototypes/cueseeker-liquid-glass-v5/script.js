@@ -21,9 +21,20 @@ const win = document.getElementById("window");
     const speedMenu = document.getElementById("speedMenu");
     const playBtn = document.getElementById("playBtn");
     const playIcon = document.getElementById("playIcon");
+    const previousResultButton = document.getElementById("previousResultButton");
+    const nextResultButton = document.getElementById("nextResultButton");
     const subtitleToggle = document.getElementById("subtitleToggle");
     const sidePanelToggle = document.getElementById("sidePanelToggle");
     const subtitleOverlay = document.querySelector(".subtitle-overlay");
+    const shioriButton = document.getElementById("shioriButton");
+    const copySubtitleButton = document.getElementById("copySubtitleButton");
+    const fullscreenButton = document.getElementById("fullscreenButton");
+    const progressSlider = document.getElementById("progress");
+    const curTime = document.getElementById("curTime");
+    const feedbackLayer = document.querySelector(".ui-feedback-overlay");
+    const feedbackHud = document.getElementById("playbackFeedback");
+    const feedbackIcon = document.getElementById("feedbackIcon");
+    const feedbackLabel = document.getElementById("feedbackLabel");
     const themeToggle = document.getElementById("themeToggle");
     const themeLabel = document.getElementById("themeLabel");
     const themeIcon = document.getElementById("themeIcon");
@@ -31,13 +42,20 @@ const win = document.getElementById("window");
     const collapseAllButtons = Array.from(document.querySelectorAll("[data-action='collapse-all']"));
 
     let isPlaying = false;
+    let isShioriSaved = false;
+    let playbackSeconds = 30;
+    let playbackRate = 1;
+    let accumulatedForwardSeconds = 0;
+    let accumulatedRewindSeconds = 0;
     let committedSearchQuery = searchInput.value.trim();
     let searchModeDraftValue = searchInput.value;
     let videoLayoutFrame = 0;
     let playerChromeHideTimer = 0;
+    let feedbackHideTimer = 0;
     let lastPointerPosition = null;
     const playerDockMargin = 20;
     const playerChromeIdleDelay = 3000;
+    const durationSeconds = 23 * 60 + 41;
 
     function parseAspectRatio(value) {
       if (!value) return 16 / 9;
@@ -47,6 +65,173 @@ const win = document.getElementById("window");
       }
       const numeric = Number(value);
       return Number.isFinite(numeric) && numeric > 0 ? numeric : 16 / 9;
+    }
+
+    function formatPlaybackTime(totalSeconds) {
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = Math.floor(totalSeconds % 60);
+      return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function showPlaybackFeedback({ icon, label, tone = "neutral", position = "center" }) {
+      if (!feedbackHud || !feedbackIcon || !feedbackLabel) return;
+
+      clearTimeout(feedbackHideTimer);
+      feedbackLayer?.setAttribute("data-feedback-position", position);
+      feedbackIcon.setAttribute("href", `#${icon}`);
+      feedbackLabel.textContent = label;
+      feedbackHud.dataset.feedbackTone = tone;
+      feedbackHud.hidden = false;
+      feedbackHud.classList.remove("is-visible");
+      void feedbackHud.offsetWidth;
+      feedbackHud.classList.add("is-visible");
+      feedbackHideTimer = window.setTimeout(() => {
+        feedbackHud.classList.remove("is-visible");
+        feedbackHud.hidden = true;
+        if (position === "trailing") {
+          accumulatedForwardSeconds = 0;
+        } else if (position === "leading") {
+          accumulatedRewindSeconds = 0;
+        } else {
+          accumulatedForwardSeconds = 0;
+          accumulatedRewindSeconds = 0;
+        }
+      }, 900);
+    }
+
+    function setPlaybackProgress(nextSeconds) {
+      playbackSeconds = Math.max(0, Math.min(durationSeconds, nextSeconds));
+      const progress = (playbackSeconds / durationSeconds) * 100;
+      progressSlider?.style.setProperty("--value", `${progress}%`);
+      if (curTime) {
+        curTime.textContent = formatPlaybackTime(playbackSeconds);
+      }
+    }
+
+    function seekRelativeBy(deltaSeconds) {
+      setPlaybackProgress(playbackSeconds + deltaSeconds);
+      if (deltaSeconds > 0) {
+        accumulatedRewindSeconds = 0;
+        accumulatedForwardSeconds += Math.abs(deltaSeconds);
+        showPlaybackFeedback({
+          icon: "play-forward",
+          label: `+ ${accumulatedForwardSeconds}s`,
+          position: "trailing"
+        });
+        return;
+      }
+
+      accumulatedForwardSeconds = 0;
+      accumulatedRewindSeconds += Math.abs(deltaSeconds);
+      showPlaybackFeedback({
+        icon: "play-back",
+        label: `- ${accumulatedRewindSeconds}s`,
+        position: "leading"
+      });
+    }
+
+    function setPlaybackRunning(nextPlaying, showFeedback = true) {
+      isPlaying = nextPlaying;
+      playIcon.innerHTML = `<use href="#${isPlaying ? "pause" : "play"}"></use>`;
+      playBtn.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: isPlaying ? "play" : "pause",
+          label: isPlaying ? "Play" : "Pause"
+        });
+      }
+    }
+
+    function togglePlaybackFromUser(showFeedback = true) {
+      setPlaybackRunning(!isPlaying, showFeedback);
+    }
+
+    function setSubtitlesVisible(visible, showFeedback = true) {
+      setToggleIconButton(subtitleToggle, visible);
+      subtitleOverlay.hidden = !visible;
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: visible ? "caption-filled" : "caption",
+          label: visible ? "Subtitles On" : "Subtitles Off"
+        });
+      }
+    }
+
+    function setShioriSaved(saved, showFeedback = true) {
+      isShioriSaved = saved;
+      setToggleIconButton(shioriButton, isShioriSaved);
+      shioriButton.setAttribute("aria-label", isShioriSaved ? "Remove Shiori" : "Save Shiori");
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: isShioriSaved ? "bookmark-filled" : "bookmark",
+          label: isShioriSaved ? "Shiori Saved" : "Shiori Removed",
+          tone: "success"
+        });
+      }
+    }
+
+    function copyCurrentSubtitleFromUser() {
+      const hasSubtitle = Boolean(currentZh.textContent.trim() || currentJa.textContent.trim());
+      showPlaybackFeedback({
+        icon: "copy",
+        label: hasSubtitle ? "Subtitle Copied" : "No Subtitle",
+        tone: hasSubtitle ? "success" : "neutral"
+      });
+    }
+
+    function setPlaybackSpeed(nextRate, showFeedback = true) {
+      playbackRate = Math.max(0.5, Math.min(2, Math.round(nextRate * 4) / 4));
+      const rateLabel = `${Number.isInteger(playbackRate) ? playbackRate : playbackRate.toFixed(2).replace(/0$/, "")}×`;
+      speedButton.textContent = rateLabel;
+      document.querySelectorAll(".speed-option").forEach((option) => {
+        const selected = option.dataset.speed === rateLabel;
+        option.classList.toggle("selected", selected);
+        option.classList.toggle("ui-is-selected", selected);
+        option.setAttribute("aria-checked", selected ? "true" : "false");
+      });
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: "play-forward",
+          label: rateLabel
+        });
+      }
+    }
+
+    function navigateAdjacentSearchResult(direction) {
+      const rows = Array.from(document.querySelectorAll(".sidebar-row:not([hidden])"));
+      if (!rows.length) {
+        showPlaybackFeedback({ icon: "play-forward", label: "No Result" });
+        return;
+      }
+
+      const selectedIndex = Math.max(0, rows.findIndex((row) => row.classList.contains("selected")));
+      const nextIndex = Math.max(0, Math.min(rows.length - 1, selectedIndex + direction));
+      const nextRow = rows[nextIndex];
+      selectCue(nextRow);
+      openVideo();
+      nextRow.scrollIntoView({ block: "nearest" });
+      showPlaybackFeedback({
+        icon: direction < 0 ? "play-back" : "play-forward",
+        label: direction < 0 ? "Previous Result" : "Next Result"
+      });
+    }
+
+    function togglePrototypeFullscreen() {
+      const enteringFullscreen = !document.body.classList.contains("prototype-fullscreen");
+      if (enteringFullscreen) {
+        openVideo();
+      }
+      document.body.classList.toggle("prototype-fullscreen", enteringFullscreen);
+      fullscreenButton?.setAttribute("aria-label", enteringFullscreen ? "Exit Fullscreen" : "Fullscreen");
+      showPlaybackFeedback({
+        icon: "viewfinder",
+        label: enteringFullscreen ? "Fullscreen" : "Exit Fullscreen"
+      });
+      scheduleVideoFrameLayout();
+    }
+
+    function isEditableTarget(target) {
+      return Boolean(target?.closest("input, textarea, select, [contenteditable='true']"));
     }
 
     function updatePlayerDockLayout(stageRect, mainRect) {
@@ -453,8 +638,26 @@ const win = document.getElementById("window");
     });
 
     subtitleToggle.addEventListener("click", () => {
-      const selected = toggleIconButton(subtitleToggle);
-      subtitleOverlay.hidden = !selected;
+      const selected = !subtitleToggle.classList.contains("selected");
+      setSubtitlesVisible(selected);
+    });
+
+    shioriButton.addEventListener("click", () => {
+      setShioriSaved(!isShioriSaved);
+    });
+
+    copySubtitleButton.addEventListener("click", () => {
+      copyCurrentSubtitleFromUser();
+    });
+
+    fullscreenButton.addEventListener("click", togglePrototypeFullscreen);
+
+    previousResultButton.addEventListener("click", () => {
+      navigateAdjacentSearchResult(-1);
+    });
+
+    nextResultButton.addEventListener("click", () => {
+      navigateAdjacentSearchResult(1);
     });
 
     sidePanelToggle.addEventListener("click", () => {
@@ -526,13 +729,7 @@ const win = document.getElementById("window");
     speedMenu.addEventListener("click", (e) => {
       const opt = e.target.closest(".speed-option");
       if (!opt) return;
-      document.querySelectorAll(".speed-option").forEach((o) => {
-        const selected = o === opt;
-        o.classList.toggle("selected", selected);
-        o.classList.toggle("ui-is-selected", selected);
-        o.setAttribute("aria-checked", selected ? "true" : "false");
-      });
-      speedButton.textContent = opt.dataset.speed;
+      setPlaybackSpeed(Number(opt.dataset.speed.replace("×", "")));
       speedMenu.setAttribute("hidden", "");
       speedButton.setAttribute("aria-expanded", "false");
     });
@@ -549,7 +746,7 @@ const win = document.getElementById("window");
       // Hover owns visibility, matching the App. This hook only keeps other menu code simple.
     }
 
-    function setVolume(nextVolume, remember = true) {
+    function setVolume(nextVolume, remember = true, showFeedback = false) {
       volume = Math.max(0, Math.min(100, nextVolume));
       const rounded = Math.round(volume);
       volumeSlider.style.setProperty("--value", volume + "%");
@@ -561,13 +758,19 @@ const win = document.getElementById("window");
       if (remember && volume > 0) {
         lastNonzeroVolume = volume;
       }
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: volume === 0 ? "speaker-muted" : "speaker",
+          label: volume === 0 ? "Muted" : `Volume ${rounded}%`
+        });
+      }
     }
 
     volumeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       speedMenu.setAttribute("hidden", "");
       speedButton.setAttribute("aria-expanded", "false");
-      setVolume(volume > 0 ? 0 : lastNonzeroVolume, volume === 0);
+      setVolume(volume > 0 ? 0 : lastNonzeroVolume, volume === 0, true);
     });
 
     document.addEventListener("click", (e) => {
@@ -579,8 +782,103 @@ const win = document.getElementById("window");
 
     // Play/pause toggle
     playBtn.addEventListener("click", () => {
-      isPlaying = !isPlaying;
-      playIcon.innerHTML = `<use href="#${isPlaying ? "pause" : "play"}"></use>`;
+      togglePlaybackFromUser();
+    });
+
+    videoStage.addEventListener("click", (event) => {
+      if (!isVideoExpanded() && !document.body.classList.contains("prototype-fullscreen")) return;
+      if (event.button !== 0) return;
+      const interactiveTarget = event.target.closest("button, input, textarea, select, [contenteditable='true'], [role='button'], [role='slider'], [role='menu']");
+      if (interactiveTarget) return;
+      togglePlaybackFromUser();
+      showPlayerChrome();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (win.classList.contains("controls-disabled")) return;
+      if (isEditableTarget(event.target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      let handled = true;
+      switch (event.code) {
+        case "Space":
+          togglePlaybackFromUser();
+          break;
+        case "KeyC":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          setSubtitlesVisible(!subtitleToggle.classList.contains("selected"));
+          break;
+        case "KeyF":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          togglePrototypeFullscreen();
+          break;
+        case "KeyQ":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          copyCurrentSubtitleFromUser();
+          break;
+        case "KeyS":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          setShioriSaved(!isShioriSaved);
+          break;
+        case "KeyA":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          navigateAdjacentSearchResult(-1);
+          break;
+        case "KeyD":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          navigateAdjacentSearchResult(1);
+          break;
+        case "ArrowLeft":
+          seekRelativeBy(-5);
+          break;
+        case "ArrowRight":
+          seekRelativeBy(5);
+          break;
+        case "ArrowUp":
+          setVolume(volume + 5, true, true);
+          break;
+        case "ArrowDown":
+          setVolume(volume - 5, true, true);
+          break;
+        case "Comma":
+          if (event.shiftKey) {
+            setPlaybackSpeed(playbackRate - 0.25);
+          } else {
+            handled = false;
+          }
+          break;
+        case "Period":
+          if (event.shiftKey) {
+            setPlaybackSpeed(playbackRate + 0.25);
+          } else {
+            handled = false;
+          }
+          break;
+        default:
+          handled = false;
+      }
+
+      if (!handled) return;
+      event.preventDefault();
+      event.stopPropagation();
     });
 
     // Sliders draggable for tactile feel

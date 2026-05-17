@@ -82,6 +82,7 @@ Expected SwiftUI building blocks:
 | `LiquidGlassSlider` | Playback progress and volume slider family. |
 | `LiquidGlassPopupMenu` | Rounded-rectangle popup menu and menu item family. |
 | `LiquidGlassSurface` | Shared workbench, bottom-player, sidebar, and video-stage surfaces. |
+| `LiquidGlassFeedbackOverlay` | Transient playback input feedback shown over the active video stage. |
 
 Implementation may choose different final Swift type names, but each accepted
 component class below must have one native owner. Shared visual rules should
@@ -114,6 +115,10 @@ live in that owner, not in individual call sites.
 | `ui-slider` | Slider base | `LiquidGlassSlider` | Shared slider behavior and visuals. |
 | `ui-slider--progress` | Playback progress slider | `LiquidGlassSlider.Kind.progress` | Bottom-player scrubber. |
 | `ui-slider--volume` | Volume slider | `LiquidGlassSlider.Kind.volume` | Volume popover slider. |
+| `ui-feedback-overlay` | Video feedback overlay layer | `LiquidGlassFeedbackOverlay` | Non-interactive layer over the active video stage. |
+| `ui-feedback-hud` | Transient feedback HUD | `LiquidGlassFeedbackOverlay.HUD` | Play, pause, seek, volume, speed, subtitle, Shiori, copy, and fullscreen feedback, with center, leading, and trailing positions. |
+| `ui-feedback-icon` | Feedback icon | `LiquidGlassFeedbackOverlay.Icon` | Command icon inside the transient video feedback HUD. |
+| `ui-feedback-label` | Feedback label | `LiquidGlassFeedbackOverlay.Label` | Short command or state label inside the transient video feedback HUD. |
 | `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Selected cards, selected rows, selected toggles, selected menu item. |
 | `ui-is-active` | Active state marker | `LiquidGlassControlState.active` | Active segmented option and active transient control states. |
 
@@ -128,9 +133,9 @@ live in that owner, not in individual call sites.
 | Library page | `.library-state`, episode cards | Library page view plus disclosure and episode card components | Existing Library folder grouping, collapse state, open video behavior. |
 | Shiori page | `.shiori-state`, grouped cards | Shiori page view plus `LiquidGlassSelectableCard` | Existing Shiori persistence and open behavior. |
 | Bottom player | `.player-dock`, `.player-hud` | `BottomPlaybackBar`, `LiquidGlassBottomPlayer` | Playback view model, seek, volume, speed, navigation, Shiori, copy, subtitles. |
-| Expanded playback | `.video-state`, `.video-stage`, `.video-frame` | `PlaybackExpandedLayout`, video stage surface | Real video aspect ratio, playback render view lifecycle. |
+| Expanded playback | `.video-state`, `.video-stage`, `.video-frame`, `ui-feedback-overlay` | `PlaybackExpandedLayout`, video stage surface, `LiquidGlassFeedbackOverlay` | Real video aspect ratio, playback render view lifecycle, playback input feedback. |
 | Playback side panel | `.sidebar`, `ui-segmented-control`, `ui-selectable-row` | Playback side-panel views plus segmented and row components | Search navigation snapshot, current subtitle entries, row activation. |
-| Fullscreen playback chrome | Prototype bottom-player visual language | Fullscreen overlay using same bottom-player component family | AppKit fullscreen lifecycle, render-view ownership, cursor and chrome visibility timing. |
+| Fullscreen playback chrome | Prototype bottom-player visual language plus `ui-feedback-overlay` | Fullscreen overlay using same bottom-player and feedback component families | AppKit fullscreen lifecycle, render-view ownership, cursor and chrome visibility timing, playback input feedback. |
 
 ## 7. Control State Mapping
 
@@ -151,6 +156,8 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `.video-expanded` | `appState.isPlaybackSurfaceExpanded` | Controls expanded playback layout and bottom-player context. |
 | `.sidebar-hidden` | `!appState.isPlaybackSidePanelVisible` | Controls expanded playback side-panel visibility. |
 | `.player-chrome-visible` | fullscreen or expanded playback chrome state | Drives bottom-player visibility over video. |
+| `data-feedback-position` on `ui-feedback-overlay` | `PlaybackFeedbackPosition` | Center for most commands, leading for rewind, trailing for forward seek. |
+| `.is-visible` on `ui-feedback-hud` | Transient feedback presentation state | Restarts the HUD animation for each accepted command. |
 
 ## 8. Token Mapping
 

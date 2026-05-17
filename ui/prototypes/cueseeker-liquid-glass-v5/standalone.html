@@ -118,6 +118,14 @@
       mix-blend-mode: overlay;
     }
 
+    body.prototype-fullscreen {
+      background: #000;
+      padding: 0;
+    }
+    body.prototype-fullscreen::before {
+      display: none;
+    }
+
     button, input { font: inherit; }
     button { cursor: default; }
 
@@ -135,6 +143,30 @@
       display: grid;
       grid-template-rows: 48px minmax(0, 1fr);
       position: relative;
+    }
+    body.prototype-fullscreen .window {
+      width: 100vw;
+      height: 100vh;
+      min-height: 100vh;
+      border-radius: 0;
+      background: #000;
+      box-shadow: none;
+      grid-template-rows: 0 minmax(0, 1fr);
+    }
+    body.prototype-fullscreen .toolbar,
+    body.prototype-fullscreen .test-controls {
+      opacity: 0;
+      pointer-events: none;
+    }
+    body.prototype-fullscreen .window::before,
+    body.prototype-fullscreen .window::after {
+      display: none;
+    }
+    body.prototype-fullscreen .video-state {
+      grid-template-columns: 1fr;
+    }
+    body.prototype-fullscreen .sidebar {
+      display: none;
     }
 
     /* Inner refraction edge — a soft inner ring of light */
@@ -695,6 +727,111 @@
       font-size: 17px;
       font-weight: 500;
       opacity: 0.86;
+    }
+
+    .input-feedback-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .input-feedback-layer[data-feedback-position="leading"] {
+      justify-content: flex-start;
+      padding-left: 56px;
+    }
+    .input-feedback-layer[data-feedback-position="trailing"] {
+      justify-content: flex-end;
+      padding-right: 56px;
+    }
+    .input-feedback-hud {
+      min-width: 108px;
+      max-width: min(280px, 64%);
+      min-height: 98px;
+      padding: 18px 22px 16px;
+      border-radius: 20px;
+      background: rgba(28, 28, 34, 0.56);
+      color: #fff;
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.22),
+        inset 0 -0.5px 0 rgba(255,255,255,0.06),
+        0 0 0 0.5px rgba(255,255,255,0.12),
+        0 20px 46px -18px rgba(0,0,0,0.74);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      opacity: 0;
+      transform: scale(0.88);
+    }
+    .input-feedback-layer[data-feedback-position="leading"] .input-feedback-hud,
+    .input-feedback-layer[data-feedback-position="trailing"] .input-feedback-hud {
+      min-width: 0;
+      min-height: 0;
+      max-width: min(240px, 42%);
+      padding: 16px 24px;
+      border-radius: 999px;
+      flex-direction: row;
+      gap: 10px;
+    }
+    .input-feedback-hud[hidden] {
+      display: none;
+    }
+    .input-feedback-hud.is-visible {
+      animation: input-feedback-pop 880ms cubic-bezier(.22,.61,.36,1) both;
+    }
+    .input-feedback-icon {
+      width: 34px;
+      height: 34px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.44));
+    }
+    .input-feedback-layer[data-feedback-position="leading"] .input-feedback-icon,
+    .input-feedback-layer[data-feedback-position="trailing"] .input-feedback-icon {
+      width: 30px;
+      height: 30px;
+    }
+    .input-feedback-label {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .input-feedback-hud[data-feedback-tone="success"] {
+      background: rgba(34, 40, 34, 0.58);
+    }
+
+    @keyframes input-feedback-pop {
+      0% {
+        opacity: 0;
+        transform: scale(0.88);
+      }
+      14% {
+        opacity: 1;
+        transform: scale(1.04);
+      }
+      24% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      74% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.96);
+      }
     }
 
     /* Sidebar — light glass, dark text, matches window chrome */
@@ -1916,7 +2053,7 @@
     }
   
 
-</style>
+  </style>
 </head>
 <body data-theme="light">
   
@@ -2477,6 +2614,12 @@
               <div class="overlay-line" data-current-ja="">大丈夫に決まっているでしょう</div>
             </div>
           </div>
+          <div class="input-feedback-layer ui-feedback-overlay" aria-live="polite" aria-atomic="true">
+            <div class="input-feedback-hud ui-feedback-hud" id="playbackFeedback" data-feedback-tone="neutral" hidden>
+              <svg class="input-feedback-icon ui-feedback-icon" width="34" height="34" aria-hidden="true"><use id="feedbackIcon" href="#play"></use></svg>
+              <span class="input-feedback-label ui-feedback-label" id="feedbackLabel">Play</span>
+            </div>
+          </div>
         </div>
         <aside class="sidebar" aria-label="Playback sidebar">
           <div class="sidebar-top">
@@ -2617,15 +2760,15 @@
 
           <div class="hud-center" role="group" aria-label="Transport">
             <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" aria-label="Previous episode"><svg width="18" height="18"><use href="#step-back"></use></svg></button>
-            <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" aria-label="Previous result"><svg width="18" height="18"><use href="#play-back"></use></svg></button>
+            <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" id="previousResultButton" aria-label="Previous result"><svg width="18" height="18"><use href="#play-back"></use></svg></button>
             <button class="icon-button transport-button transport-primary play-button ui-icon-button ui-icon-button--transport ui-icon-button--transport-primary" type="button" id="playBtn" aria-label="Play"><svg width="20" height="20" id="playIcon"><use href="#play"></use></svg></button>
-            <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" aria-label="Next result"><svg width="18" height="18"><use href="#play-forward"></use></svg></button>
+            <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" id="nextResultButton" aria-label="Next result"><svg width="18" height="18"><use href="#play-forward"></use></svg></button>
             <button class="icon-button transport-button ui-icon-button ui-icon-button--transport" type="button" aria-label="Next episode"><svg width="18" height="18"><use href="#step-fwd"></use></svg></button>
           </div>
 
           <div class="hud-right" role="group" aria-label="Tools">
-            <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" id="shioriButton" aria-label="Save Shiori"><svg width="17" height="17"><use href="#bookmark"></use></svg></button>
-            <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" aria-label="Copy Current Subtitle"><svg width="17" height="17"><use href="#copy"></use></svg></button>
+            <button class="icon-button ui-icon-button ui-icon-button--circle toggle-icon-button ui-icon-button--toggle" type="button" id="shioriButton" aria-label="Save Shiori" aria-pressed="false" data-icon-off="bookmark" data-icon-on="bookmark-filled"><svg width="17" height="17"><use href="#bookmark"></use></svg></button>
+            <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" id="copySubtitleButton" aria-label="Copy Current Subtitle"><svg width="17" height="17"><use href="#copy"></use></svg></button>
             <button class="icon-button subtitle-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="subtitleToggle" aria-label="Subtitles" aria-pressed="true" data-icon-off="caption" data-icon-on="caption-filled"><svg width="17" height="17" viewBox="0 0 17 17"><use href="#caption-filled"></use></svg></button>
             <button class="icon-button side-panel-button toggle-icon-button selected ui-icon-button ui-icon-button--circle ui-icon-button--toggle ui-is-selected" type="button" id="sidePanelToggle" aria-label="Results panel" aria-pressed="true" data-icon-off="list" data-icon-on="list-filled"><svg width="17" height="17" viewBox="0 0 17 17"><use href="#list-filled"></use></svg></button>
             <div class="speed-control">
@@ -2639,12 +2782,13 @@
                 <button class="speed-option ui-popup-menu__item" type="button" role="menuitemradio" aria-checked="false" data-speed="2×"><span class="speed-check">✓</span><span>2×</span></button>
               </div>
             </div>
-            <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" aria-label="Fullscreen"><svg width="17" height="17"><use href="#viewfinder"></use></svg></button>
+            <button class="icon-button ui-icon-button ui-icon-button--circle" type="button" id="fullscreenButton" aria-label="Fullscreen"><svg width="17" height="17"><use href="#viewfinder"></use></svg></button>
           </div>
         </div>
       </div>
     </section>
   </main>
+
   <script>
 /*
   CueSeeker Liquid Glass v5 split-source prototype interactions.
@@ -2669,9 +2813,20 @@ const win = document.getElementById("window");
     const speedMenu = document.getElementById("speedMenu");
     const playBtn = document.getElementById("playBtn");
     const playIcon = document.getElementById("playIcon");
+    const previousResultButton = document.getElementById("previousResultButton");
+    const nextResultButton = document.getElementById("nextResultButton");
     const subtitleToggle = document.getElementById("subtitleToggle");
     const sidePanelToggle = document.getElementById("sidePanelToggle");
     const subtitleOverlay = document.querySelector(".subtitle-overlay");
+    const shioriButton = document.getElementById("shioriButton");
+    const copySubtitleButton = document.getElementById("copySubtitleButton");
+    const fullscreenButton = document.getElementById("fullscreenButton");
+    const progressSlider = document.getElementById("progress");
+    const curTime = document.getElementById("curTime");
+    const feedbackLayer = document.querySelector(".ui-feedback-overlay");
+    const feedbackHud = document.getElementById("playbackFeedback");
+    const feedbackIcon = document.getElementById("feedbackIcon");
+    const feedbackLabel = document.getElementById("feedbackLabel");
     const themeToggle = document.getElementById("themeToggle");
     const themeLabel = document.getElementById("themeLabel");
     const themeIcon = document.getElementById("themeIcon");
@@ -2679,13 +2834,20 @@ const win = document.getElementById("window");
     const collapseAllButtons = Array.from(document.querySelectorAll("[data-action='collapse-all']"));
 
     let isPlaying = false;
+    let isShioriSaved = false;
+    let playbackSeconds = 30;
+    let playbackRate = 1;
+    let accumulatedForwardSeconds = 0;
+    let accumulatedRewindSeconds = 0;
     let committedSearchQuery = searchInput.value.trim();
     let searchModeDraftValue = searchInput.value;
     let videoLayoutFrame = 0;
     let playerChromeHideTimer = 0;
+    let feedbackHideTimer = 0;
     let lastPointerPosition = null;
     const playerDockMargin = 20;
     const playerChromeIdleDelay = 3000;
+    const durationSeconds = 23 * 60 + 41;
 
     function parseAspectRatio(value) {
       if (!value) return 16 / 9;
@@ -2695,6 +2857,173 @@ const win = document.getElementById("window");
       }
       const numeric = Number(value);
       return Number.isFinite(numeric) && numeric > 0 ? numeric : 16 / 9;
+    }
+
+    function formatPlaybackTime(totalSeconds) {
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = Math.floor(totalSeconds % 60);
+      return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function showPlaybackFeedback({ icon, label, tone = "neutral", position = "center" }) {
+      if (!feedbackHud || !feedbackIcon || !feedbackLabel) return;
+
+      clearTimeout(feedbackHideTimer);
+      feedbackLayer?.setAttribute("data-feedback-position", position);
+      feedbackIcon.setAttribute("href", `#${icon}`);
+      feedbackLabel.textContent = label;
+      feedbackHud.dataset.feedbackTone = tone;
+      feedbackHud.hidden = false;
+      feedbackHud.classList.remove("is-visible");
+      void feedbackHud.offsetWidth;
+      feedbackHud.classList.add("is-visible");
+      feedbackHideTimer = window.setTimeout(() => {
+        feedbackHud.classList.remove("is-visible");
+        feedbackHud.hidden = true;
+        if (position === "trailing") {
+          accumulatedForwardSeconds = 0;
+        } else if (position === "leading") {
+          accumulatedRewindSeconds = 0;
+        } else {
+          accumulatedForwardSeconds = 0;
+          accumulatedRewindSeconds = 0;
+        }
+      }, 900);
+    }
+
+    function setPlaybackProgress(nextSeconds) {
+      playbackSeconds = Math.max(0, Math.min(durationSeconds, nextSeconds));
+      const progress = (playbackSeconds / durationSeconds) * 100;
+      progressSlider?.style.setProperty("--value", `${progress}%`);
+      if (curTime) {
+        curTime.textContent = formatPlaybackTime(playbackSeconds);
+      }
+    }
+
+    function seekRelativeBy(deltaSeconds) {
+      setPlaybackProgress(playbackSeconds + deltaSeconds);
+      if (deltaSeconds > 0) {
+        accumulatedRewindSeconds = 0;
+        accumulatedForwardSeconds += Math.abs(deltaSeconds);
+        showPlaybackFeedback({
+          icon: "play-forward",
+          label: `+ ${accumulatedForwardSeconds}s`,
+          position: "trailing"
+        });
+        return;
+      }
+
+      accumulatedForwardSeconds = 0;
+      accumulatedRewindSeconds += Math.abs(deltaSeconds);
+      showPlaybackFeedback({
+        icon: "play-back",
+        label: `- ${accumulatedRewindSeconds}s`,
+        position: "leading"
+      });
+    }
+
+    function setPlaybackRunning(nextPlaying, showFeedback = true) {
+      isPlaying = nextPlaying;
+      playIcon.innerHTML = `<use href="#${isPlaying ? "pause" : "play"}"></use>`;
+      playBtn.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: isPlaying ? "play" : "pause",
+          label: isPlaying ? "Play" : "Pause"
+        });
+      }
+    }
+
+    function togglePlaybackFromUser(showFeedback = true) {
+      setPlaybackRunning(!isPlaying, showFeedback);
+    }
+
+    function setSubtitlesVisible(visible, showFeedback = true) {
+      setToggleIconButton(subtitleToggle, visible);
+      subtitleOverlay.hidden = !visible;
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: visible ? "caption-filled" : "caption",
+          label: visible ? "Subtitles On" : "Subtitles Off"
+        });
+      }
+    }
+
+    function setShioriSaved(saved, showFeedback = true) {
+      isShioriSaved = saved;
+      setToggleIconButton(shioriButton, isShioriSaved);
+      shioriButton.setAttribute("aria-label", isShioriSaved ? "Remove Shiori" : "Save Shiori");
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: isShioriSaved ? "bookmark-filled" : "bookmark",
+          label: isShioriSaved ? "Shiori Saved" : "Shiori Removed",
+          tone: "success"
+        });
+      }
+    }
+
+    function copyCurrentSubtitleFromUser() {
+      const hasSubtitle = Boolean(currentZh.textContent.trim() || currentJa.textContent.trim());
+      showPlaybackFeedback({
+        icon: "copy",
+        label: hasSubtitle ? "Subtitle Copied" : "No Subtitle",
+        tone: hasSubtitle ? "success" : "neutral"
+      });
+    }
+
+    function setPlaybackSpeed(nextRate, showFeedback = true) {
+      playbackRate = Math.max(0.5, Math.min(2, Math.round(nextRate * 4) / 4));
+      const rateLabel = `${Number.isInteger(playbackRate) ? playbackRate : playbackRate.toFixed(2).replace(/0$/, "")}×`;
+      speedButton.textContent = rateLabel;
+      document.querySelectorAll(".speed-option").forEach((option) => {
+        const selected = option.dataset.speed === rateLabel;
+        option.classList.toggle("selected", selected);
+        option.classList.toggle("ui-is-selected", selected);
+        option.setAttribute("aria-checked", selected ? "true" : "false");
+      });
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: "play-forward",
+          label: rateLabel
+        });
+      }
+    }
+
+    function navigateAdjacentSearchResult(direction) {
+      const rows = Array.from(document.querySelectorAll(".sidebar-row:not([hidden])"));
+      if (!rows.length) {
+        showPlaybackFeedback({ icon: "play-forward", label: "No Result" });
+        return;
+      }
+
+      const selectedIndex = Math.max(0, rows.findIndex((row) => row.classList.contains("selected")));
+      const nextIndex = Math.max(0, Math.min(rows.length - 1, selectedIndex + direction));
+      const nextRow = rows[nextIndex];
+      selectCue(nextRow);
+      openVideo();
+      nextRow.scrollIntoView({ block: "nearest" });
+      showPlaybackFeedback({
+        icon: direction < 0 ? "play-back" : "play-forward",
+        label: direction < 0 ? "Previous Result" : "Next Result"
+      });
+    }
+
+    function togglePrototypeFullscreen() {
+      const enteringFullscreen = !document.body.classList.contains("prototype-fullscreen");
+      if (enteringFullscreen) {
+        openVideo();
+      }
+      document.body.classList.toggle("prototype-fullscreen", enteringFullscreen);
+      fullscreenButton?.setAttribute("aria-label", enteringFullscreen ? "Exit Fullscreen" : "Fullscreen");
+      showPlaybackFeedback({
+        icon: "viewfinder",
+        label: enteringFullscreen ? "Fullscreen" : "Exit Fullscreen"
+      });
+      scheduleVideoFrameLayout();
+    }
+
+    function isEditableTarget(target) {
+      return Boolean(target?.closest("input, textarea, select, [contenteditable='true']"));
     }
 
     function updatePlayerDockLayout(stageRect, mainRect) {
@@ -3101,8 +3430,26 @@ const win = document.getElementById("window");
     });
 
     subtitleToggle.addEventListener("click", () => {
-      const selected = toggleIconButton(subtitleToggle);
-      subtitleOverlay.hidden = !selected;
+      const selected = !subtitleToggle.classList.contains("selected");
+      setSubtitlesVisible(selected);
+    });
+
+    shioriButton.addEventListener("click", () => {
+      setShioriSaved(!isShioriSaved);
+    });
+
+    copySubtitleButton.addEventListener("click", () => {
+      copyCurrentSubtitleFromUser();
+    });
+
+    fullscreenButton.addEventListener("click", togglePrototypeFullscreen);
+
+    previousResultButton.addEventListener("click", () => {
+      navigateAdjacentSearchResult(-1);
+    });
+
+    nextResultButton.addEventListener("click", () => {
+      navigateAdjacentSearchResult(1);
     });
 
     sidePanelToggle.addEventListener("click", () => {
@@ -3174,13 +3521,7 @@ const win = document.getElementById("window");
     speedMenu.addEventListener("click", (e) => {
       const opt = e.target.closest(".speed-option");
       if (!opt) return;
-      document.querySelectorAll(".speed-option").forEach((o) => {
-        const selected = o === opt;
-        o.classList.toggle("selected", selected);
-        o.classList.toggle("ui-is-selected", selected);
-        o.setAttribute("aria-checked", selected ? "true" : "false");
-      });
-      speedButton.textContent = opt.dataset.speed;
+      setPlaybackSpeed(Number(opt.dataset.speed.replace("×", "")));
       speedMenu.setAttribute("hidden", "");
       speedButton.setAttribute("aria-expanded", "false");
     });
@@ -3197,7 +3538,7 @@ const win = document.getElementById("window");
       // Hover owns visibility, matching the App. This hook only keeps other menu code simple.
     }
 
-    function setVolume(nextVolume, remember = true) {
+    function setVolume(nextVolume, remember = true, showFeedback = false) {
       volume = Math.max(0, Math.min(100, nextVolume));
       const rounded = Math.round(volume);
       volumeSlider.style.setProperty("--value", volume + "%");
@@ -3209,13 +3550,19 @@ const win = document.getElementById("window");
       if (remember && volume > 0) {
         lastNonzeroVolume = volume;
       }
+      if (showFeedback) {
+        showPlaybackFeedback({
+          icon: volume === 0 ? "speaker-muted" : "speaker",
+          label: volume === 0 ? "Muted" : `Volume ${rounded}%`
+        });
+      }
     }
 
     volumeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       speedMenu.setAttribute("hidden", "");
       speedButton.setAttribute("aria-expanded", "false");
-      setVolume(volume > 0 ? 0 : lastNonzeroVolume, volume === 0);
+      setVolume(volume > 0 ? 0 : lastNonzeroVolume, volume === 0, true);
     });
 
     document.addEventListener("click", (e) => {
@@ -3227,8 +3574,103 @@ const win = document.getElementById("window");
 
     // Play/pause toggle
     playBtn.addEventListener("click", () => {
-      isPlaying = !isPlaying;
-      playIcon.innerHTML = `<use href="#${isPlaying ? "pause" : "play"}"></use>`;
+      togglePlaybackFromUser();
+    });
+
+    videoStage.addEventListener("click", (event) => {
+      if (!isVideoExpanded() && !document.body.classList.contains("prototype-fullscreen")) return;
+      if (event.button !== 0) return;
+      const interactiveTarget = event.target.closest("button, input, textarea, select, [contenteditable='true'], [role='button'], [role='slider'], [role='menu']");
+      if (interactiveTarget) return;
+      togglePlaybackFromUser();
+      showPlayerChrome();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (win.classList.contains("controls-disabled")) return;
+      if (isEditableTarget(event.target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      let handled = true;
+      switch (event.code) {
+        case "Space":
+          togglePlaybackFromUser();
+          break;
+        case "KeyC":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          setSubtitlesVisible(!subtitleToggle.classList.contains("selected"));
+          break;
+        case "KeyF":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          togglePrototypeFullscreen();
+          break;
+        case "KeyQ":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          copyCurrentSubtitleFromUser();
+          break;
+        case "KeyS":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          setShioriSaved(!isShioriSaved);
+          break;
+        case "KeyA":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          navigateAdjacentSearchResult(-1);
+          break;
+        case "KeyD":
+          if (event.shiftKey) {
+            handled = false;
+            break;
+          }
+          navigateAdjacentSearchResult(1);
+          break;
+        case "ArrowLeft":
+          seekRelativeBy(-5);
+          break;
+        case "ArrowRight":
+          seekRelativeBy(5);
+          break;
+        case "ArrowUp":
+          setVolume(volume + 5, true, true);
+          break;
+        case "ArrowDown":
+          setVolume(volume - 5, true, true);
+          break;
+        case "Comma":
+          if (event.shiftKey) {
+            setPlaybackSpeed(playbackRate - 0.25);
+          } else {
+            handled = false;
+          }
+          break;
+        case "Period":
+          if (event.shiftKey) {
+            setPlaybackSpeed(playbackRate + 0.25);
+          } else {
+            handled = false;
+          }
+          break;
+        default:
+          handled = false;
+      }
+
+      if (!handled) return;
+      event.preventDefault();
+      event.stopPropagation();
     });
 
     // Sliders draggable for tactile feel
@@ -3266,6 +3708,7 @@ const win = document.getElementById("window");
         .forEach((element) => resizeObserver.observe(element));
     }
   
+
 
   </script>
 
