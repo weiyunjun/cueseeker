@@ -66,6 +66,9 @@ Accepted M2 Library playback behavior:
 Accepted M2 playback-close behavior:
 
 - The video surface owns a top-left `Close` capsule command.
+- For visibility and cursor behavior, player UI means the bottom player plus
+  the video-surface `Close` capsule. Hovering either element keeps player UI
+  visible and prevents idle hiding.
 - Close stops the current native playback session and clears the active
   playback source.
 - Close exits playback fullscreen first, or as part of the same command, so no

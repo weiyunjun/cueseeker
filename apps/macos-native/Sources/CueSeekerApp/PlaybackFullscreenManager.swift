@@ -14,7 +14,6 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     private var chromeHideTask: Task<Void, Never>?
     private var onExitRequest: (() -> Void)?
     private var transitionCompletion: (() -> Void)?
-    private var isCursorHidden = false
     private var isSuppressingInitialHover = false
     private var isFullscreenTransitioning = false
     private var initialHoverLocation: CGPoint?
@@ -163,7 +162,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
 
         chromeHideTask?.cancel()
         chromeHideTask = nil
-        isChromeVisible = false
+        isChromeVisible = true
         endInitialHoverSuppression()
         showCursorIfNeeded()
 
@@ -246,7 +245,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         isFullscreenTransitioning = true
         chromeHideTask?.cancel()
         chromeHideTask = nil
-        isChromeVisible = false
+        isChromeVisible = true
         endInitialHoverSuppression()
         showCursorIfNeeded()
     }
@@ -353,17 +352,22 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         completion?()
     }
 
-    func registerActivity() {
+    func registerActivity(shouldAutoHide: Bool = true) {
         guard isFullscreen else {
             return
         }
 
         endInitialHoverSuppression()
         showChrome()
-        scheduleChromeHide()
+        if shouldAutoHide {
+            scheduleChromeHide()
+        } else {
+            chromeHideTask?.cancel()
+            chromeHideTask = nil
+        }
     }
 
-    func registerHoverActivity(at location: CGPoint) {
+    func registerHoverActivity(at location: CGPoint, shouldAutoHide: Bool) {
         guard isFullscreen else {
             return
         }
@@ -382,7 +386,18 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
             }
         }
 
-        registerActivity()
+        registerActivity(shouldAutoHide: shouldAutoHide)
+    }
+
+    func registerPointerExit() {
+        guard isFullscreen else {
+            return
+        }
+
+        chromeHideTask?.cancel()
+        chromeHideTask = nil
+        isChromeVisible = false
+        showCursorIfNeeded()
     }
 
     func hideChromeImmediately() {
@@ -426,21 +441,11 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     }
 
     private func hideCursorIfNeeded() {
-        guard !isCursorHidden else {
-            return
-        }
-
-        NSCursor.hide()
-        isCursorHidden = true
+        PlaybackCursorVisibility.hide(for: .playbackFullscreen)
     }
 
     private func showCursorIfNeeded() {
-        guard isCursorHidden else {
-            return
-        }
-
-        NSCursor.unhide()
-        isCursorHidden = false
+        PlaybackCursorVisibility.show(for: .playbackFullscreen)
     }
 }
 
@@ -548,6 +553,8 @@ private struct PlaybackFullscreenOverlayView: View {
                 isVisible: appState.isPlaybackSidePanelVisible
             )
             let stageWidth = max(0, geometry.size.width - sidebarWidth)
+            let chromeFrame = playbackChromeFrame(stageWidth: stageWidth, height: geometry.size.height)
+            let closeFrame = fullscreenCloseFrame()
 
             ZStack(alignment: .leading) {
                 Color.clear
@@ -557,6 +564,14 @@ private struct PlaybackFullscreenOverlayView: View {
                         fullscreenManager.registerActivity()
                         viewModel.togglePlayPause()
                     }
+
+                if fullscreenManager.isChromeVisible {
+                    PlaybackCloseButton {
+                        appState.stopPlayback()
+                    }
+                    .offset(x: closeFrame.minX, y: closeFrame.minY)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
 
                 if fullscreenManager.isChromeVisible {
                     PlaybackChromeView(
@@ -599,13 +614,24 @@ private struct PlaybackFullscreenOverlayView: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
-        }
-        .background(Color.clear)
-        .onContinuousHover { phase in
-            if case .active(let location) = phase {
-                fullscreenManager.registerHoverActivity(at: location)
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    guard pointInStage(location, stageWidth: stageWidth, height: geometry.size.height) else {
+                        fullscreenManager.registerPointerExit()
+                        return
+                    }
+                    let isPointInPlayerUI = chromeFrame.contains(location) || closeFrame.contains(location)
+                    fullscreenManager.registerHoverActivity(
+                        at: location,
+                        shouldAutoHide: !isPointInPlayerUI
+                    )
+                case .ended:
+                    fullscreenManager.registerPointerExit()
+                }
             }
         }
+        .background(Color.clear)
         .onAppear {
             refreshSidebarData()
             if let request = appState.playbackDrawerRequest {
@@ -634,5 +660,27 @@ private struct PlaybackFullscreenOverlayView: View {
     private func refreshSidebarData() {
         appState.refreshSearchNavigationSnapshot()
         appState.refreshCurrentSubtitleEntries()
+    }
+
+    private func pointInStage(_ point: CGPoint, stageWidth: CGFloat, height: CGFloat) -> Bool {
+        CGRect(x: 0, y: 0, width: stageWidth, height: height).contains(point)
+    }
+
+    private func playbackChromeFrame(stageWidth: CGFloat, height: CGFloat) -> CGRect {
+        CGRect(
+            x: PlaybackChromeMetrics.horizontalInset,
+            y: max(0, height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.interactiveHeight),
+            width: max(0, stageWidth - PlaybackChromeMetrics.horizontalInset * 2),
+            height: PlaybackChromeMetrics.interactiveHeight
+        )
+    }
+
+    private func fullscreenCloseFrame() -> CGRect {
+        CGRect(
+            x: PlaybackChromeMetrics.horizontalInset,
+            y: 24,
+            width: PlaybackChromeMetrics.closeButtonWidth,
+            height: PlaybackChromeMetrics.closeButtonHeight
+        )
     }
 }

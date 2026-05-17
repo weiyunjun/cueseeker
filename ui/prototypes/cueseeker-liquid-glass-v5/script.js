@@ -243,6 +243,11 @@ const win = document.getElementById("window");
       document.body.classList.toggle("prototype-fullscreen", enteringFullscreen);
       fullscreenButton?.setAttribute("aria-label", enteringFullscreen ? "Exit Fullscreen" : "Fullscreen");
       fullscreenIcon?.setAttribute("href", enteringFullscreen ? "#fullscreen-exit" : "#viewfinder");
+      if (enteringFullscreen) {
+        hidePlayerChrome({ hideCursor: true });
+      } else {
+        showPlayerChrome({ protectsFromAutoHide: true });
+      }
       showPlaybackFeedback({
         label: enteringFullscreen ? "Enter Fullscreen" : "Exit Fullscreen"
       });
@@ -286,9 +291,31 @@ const win = document.getElementById("window");
         && point.y <= rect.bottom;
     }
 
+    function pointInElement(element, point) {
+      if (!element || !point) return false;
+
+      const rect = element.getBoundingClientRect();
+      return point.x >= rect.left
+        && point.x <= rect.right
+        && point.y >= rect.top
+        && point.y <= rect.bottom;
+    }
+
+    function pointInPlayerUi(point) {
+      return pointInElement(playerDock, point) || pointInElement(closePlaybackButton, point);
+    }
+
+    function pointInPlaybackIdleZone(point) {
+      return pointInVideoStage(point) && !pointInPlayerUi(point);
+    }
+
     function clearPlayerChromeHideTimer() {
       clearTimeout(playerChromeHideTimer);
       playerChromeHideTimer = 0;
+    }
+
+    function setPlayerCursorHidden(hidden) {
+      document.body.classList.toggle("player-cursor-hidden", hidden);
     }
 
     function setPlayerChromeVisible(visible) {
@@ -297,25 +324,27 @@ const win = document.getElementById("window");
       playerDock?.setAttribute("aria-hidden", shouldShow ? "false" : "true");
     }
 
-    function hidePlayerChrome() {
+    function hidePlayerChrome({ hideCursor = false } = {}) {
       clearPlayerChromeHideTimer();
       if (isVideoExpanded()) {
         setPlayerChromeVisible(false);
       }
+      setPlayerCursorHidden(Boolean(hideCursor && pointInPlaybackIdleZone(lastPointerPosition)));
     }
 
     function schedulePlayerChromeHide() {
       clearPlayerChromeHideTimer();
-      if (!isVideoExpanded() || !pointInVideoStage(lastPointerPosition)) return;
+      if (!isVideoExpanded() || !pointInPlaybackIdleZone(lastPointerPosition)) return;
 
       playerChromeHideTimer = window.setTimeout(() => {
-        if (isVideoExpanded() && pointInVideoStage(lastPointerPosition)) {
-          setPlayerChromeVisible(false);
+        if (isVideoExpanded() && pointInPlaybackIdleZone(lastPointerPosition)) {
+          hidePlayerChrome({ hideCursor: true });
         }
       }, playerChromeIdleDelay);
     }
 
-    function showPlayerChrome() {
+    function showPlayerChrome({ protectsFromAutoHide = false } = {}) {
+      setPlayerCursorHidden(false);
       if (!isVideoExpanded()) {
         clearPlayerChromeHideTimer();
         setPlayerChromeVisible(true);
@@ -323,27 +352,39 @@ const win = document.getElementById("window");
       }
 
       setPlayerChromeVisible(true);
-      schedulePlayerChromeHide();
+      if (protectsFromAutoHide || pointInPlayerUi(lastPointerPosition)) {
+        clearPlayerChromeHideTimer();
+      } else {
+        schedulePlayerChromeHide();
+      }
     }
 
     function syncPlayerChromeBoundary() {
       if (!isVideoExpanded()) {
         clearPlayerChromeHideTimer();
         setPlayerChromeVisible(true);
+        setPlayerCursorHidden(false);
         return;
       }
 
-      if (!pointInVideoStage(lastPointerPosition)) {
+      if (!pointInVideoStage(lastPointerPosition) && !pointInPlayerUi(lastPointerPosition)) {
         hidePlayerChrome();
+      } else if (pointInPlayerUi(lastPointerPosition)) {
+        showPlayerChrome({ protectsFromAutoHide: true });
+      } else {
+        schedulePlayerChromeHide();
       }
     }
 
     function registerPlayerChromeActivity(point) {
       lastPointerPosition = point;
-      if (pointInVideoStage(point)) {
+      if (pointInPlayerUi(point)) {
+        showPlayerChrome({ protectsFromAutoHide: true });
+      } else if (pointInVideoStage(point)) {
         showPlayerChrome();
       } else {
         hidePlayerChrome();
+        setPlayerCursorHidden(false);
       }
     }
 
@@ -621,6 +662,7 @@ const win = document.getElementById("window");
     function closePlaybackSession() {
       clearPlayerChromeHideTimer();
       document.body.classList.remove("prototype-fullscreen");
+      setPlayerCursorHidden(false);
       fullscreenButton?.setAttribute("aria-label", "Fullscreen");
       fullscreenIcon?.setAttribute("href", "#viewfinder");
       win.classList.remove("video-expanded", "player-chrome-visible");

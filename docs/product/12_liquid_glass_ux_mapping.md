@@ -319,6 +319,9 @@ Rules:
 
 - The bottom player is rendered only while the video playback page is visible.
   Search, Library, and Shiori pages must not show it.
+- In playback visibility rules, `player UI` means the floating bottom player
+  and the video-frame `Close` capsule together. They must show and hide as one
+  playback chrome surface even though `Close` remains a separate close command.
 - The bottom player stays visually stable when control values change.
 - Text/value controls use capsule components. Icon-only controls use circular
   icon buttons.
@@ -329,6 +332,10 @@ Rules:
   shift neighboring controls.
 - Playback time labels have fixed tabular width and must not wrap. The width
   must fit at least `10:00:00` on both current-time and duration labels.
+- The current-time label is right-aligned inside its fixed slot and the
+  duration label is left-aligned inside its fixed slot. Extra width for
+  hour-long videos stays outside the scrubber gap, so the scrubber remains
+  centered and visually close to both time labels.
 - The speed capsule displays the existing App playback speed presets. If the
   HTML prototype omits a currently supported preset, the existing App preset
   range remains the behavior source until a product rule explicitly changes it.
@@ -431,6 +438,9 @@ Rules:
   with a short downward motion and hides upward after pointer leave or the
   three-second inactivity timeout. It remains an independent close command, not
   a bottom-player control.
+- The `Close` capsule is part of player UI for visibility and cursor rules.
+  Hovering it must keep player UI visible and must not start the idle-hide
+  timer.
 
 ### 10.2 Video Frame Sizing
 
@@ -483,12 +493,22 @@ Rules:
 
 Rules:
 
-- Entering the black video base shows the floating bottom-player chrome.
-- Leaving the black video base hides the floating bottom-player chrome.
-- While the pointer remains inside the black video base, mouse movement or
-  click activity shows the chrome and resets a 3-second idle timer.
-- After 3 seconds without mouse or click activity inside the black base, the
-  chrome hides.
+- Player UI means the floating bottom player plus the video-frame `Close`
+  capsule. Visibility rules apply to both together.
+- Entering the black video base shows player UI.
+- Leaving the black video base hides player UI.
+- While the pointer remains inside the black video base but outside player UI,
+  mouse movement or click activity shows player UI and starts or resets a
+  3-second idle timer.
+- Hovering the floating bottom player or the `Close` capsule keeps player UI
+  visible and pauses the idle-hide timer.
+- After 3 seconds with the pointer inside the black video base and outside
+  player UI, player UI hides and the pointer cursor hides.
+- Moving the pointer outside the black video base, including into the right
+  side panel, hides player UI but restores the pointer cursor.
+- Entering playback fullscreen force-hides player UI and the pointer cursor.
+  Exiting playback fullscreen force-shows player UI and restores the pointer
+  cursor. This state switch must not change side-panel visibility.
 - Keyboard playback shortcuts should not reveal the chrome.
 - Hiding the chrome does not pause playback, change selection, or close menus
   except where a menu cannot remain visible without its anchor.

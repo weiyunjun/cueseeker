@@ -162,12 +162,13 @@ Stable design snapshot:
 - The video frame is centered within the black base after aspect-fit sizing.
   The bottom player is a floating chrome overlay and does not participate in
   video-frame layout.
-- In expanded playback, the bottom player follows playback-chrome visibility
-  behavior. Entering the black base shows it; leaving the black base hides it;
-  while the pointer remains inside the black base, three seconds without mouse
-  or click activity hides it. The show and hide animation slides the bottom
-  player vertically while fading opacity. This chrome animation must not animate
-  the bottom player's horizontal geometry.
+- In expanded playback, player UI means the bottom player plus the video-frame
+  `Close` capsule. They follow the same playback-chrome visibility behavior:
+  entering the black base shows player UI; hovering the bottom player or
+  `Close` keeps it visible; three seconds with the pointer inside the black
+  base but outside player UI hides both player UI and cursor. The show and hide
+  animation slides the bottom player vertically while fading opacity. This
+  chrome animation must not animate the bottom player's horizontal geometry.
 - Bottom-player buttons use two primary button forms: circular icon buttons and
   capsule buttons. Circular buttons are used for single-action icon controls.
   Capsule buttons are used for text, values, titles, and controls that require
@@ -187,8 +188,10 @@ Stable design snapshot:
   filled glyph. The glyph switch, selected material, and foreground contrast
   together define the complete toggle state.
 - The Close capsule uses the video-close capsule treatment inside the video
-  frame. The speed capsule uses fixed width and tabular text so preset changes
-  do not shift neighboring controls.
+  frame. It is part of player UI for visibility and cursor rules, but remains
+  a close command rather than a bottom-player control. The speed capsule uses
+  fixed width and tabular text so preset changes do not shift neighboring
+  controls.
 - Transport icon buttons are a larger bottom-player subtype used only for the
   five centered transport controls. They are intentionally distinct from the
   smaller right-side operation icon buttons.

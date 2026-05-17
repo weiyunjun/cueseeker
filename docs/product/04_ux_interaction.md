@@ -489,6 +489,10 @@ Current M2 implementation and accepted fullscreen correction:
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
 - The bottom player is visible only while the video playback page is visible.
   Search, Library, and Shiori workbench pages must not show the bottom player.
+- In playback visibility rules, player UI means the bottom player plus the
+  video-frame `Close` capsule. Hovering either element keeps player UI visible;
+  the three-second idle hide timer only runs while the pointer is in the video
+  base and outside those player UI elements.
 - The bottom-player left source/title collapse control is no longer part of the
   target UX. The volume button is the leftmost bottom-player control; the other
   controls keep their relative order.
