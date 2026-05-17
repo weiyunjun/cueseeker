@@ -773,6 +773,9 @@
       flex-direction: row;
       gap: 10px;
     }
+    .input-feedback-layer[data-feedback-position="trailing"] .input-feedback-hud {
+      flex-direction: row-reverse;
+    }
     .input-feedback-hud[hidden] {
       display: none;
     }

@@ -210,9 +210,12 @@ const win = document.getElementById("window");
       selectCue(nextRow);
       openVideo();
       nextRow.scrollIntoView({ block: "nearest" });
+      accumulatedForwardSeconds = 0;
+      accumulatedRewindSeconds = 0;
       showPlaybackFeedback({
         icon: direction < 0 ? "play-back" : "play-forward",
-        label: direction < 0 ? "Previous Result" : "Next Result"
+        label: direction < 0 ? "Previous Result" : "Next Result",
+        position: direction < 0 ? "leading" : "trailing"
       });
     }
 

@@ -156,7 +156,7 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `.video-expanded` | `appState.isPlaybackSurfaceExpanded` | Controls expanded playback layout and bottom-player context. |
 | `.sidebar-hidden` | `!appState.isPlaybackSidePanelVisible` | Controls expanded playback side-panel visibility. |
 | `.player-chrome-visible` | fullscreen or expanded playback chrome state | Drives bottom-player visibility over video. |
-| `data-feedback-position` on `ui-feedback-overlay` | `PlaybackFeedbackPosition` | Center for most commands, leading for rewind, trailing for forward seek. |
+| `data-feedback-position` on `ui-feedback-overlay` | `PlaybackFeedbackPosition` | Center for most commands, leading for rewind and previous-result navigation, trailing for forward seek and next-result navigation. |
 | `.is-visible` on `ui-feedback-hud` | Transient feedback presentation state | Restarts the HUD animation for each accepted command. |
 
 ## 8. Token Mapping

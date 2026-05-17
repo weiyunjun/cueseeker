@@ -551,8 +551,8 @@ Rules:
 | Left click on visible video surface | Toggle play/pause | `.video-stage`, `.video-frame`, `ui-feedback-hud` | Video stage input layer | Playback command model | `Play` or `Pause` | Shows chrome and resets the idle timer. |
 | `C` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard: none. Button: normal pointer activity rules. |
 | `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen chrome | Existing fullscreen manager | `Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal chrome; fullscreen entry follows fullscreen rules. |
-| `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
-| `D` | Next Search result | `#nextResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport next-result button | Search navigation snapshot | `Next Result` or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
+| `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` on the leading side, or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
+| `D` | Next Search result | `#nextResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport next-result button | Search navigation snapshot | `Next Result` on the trailing side, or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
 | `Q` | Copy current subtitle | Copy button, `ui-feedback-hud` | Copy subtitle button | Clipboard command | `Subtitle Copied` or `No Subtitle` | Keyboard: none. Button: normal pointer activity rules. |
 | `S` | Save or remove Shiori | `#shioriButton`, `ui-feedback-hud` | Shiori toggle button | Shiori command model | `Shiori Saved` or `Shiori Removed` after final state | Keyboard: none. Button: normal pointer activity rules. |
 | `Left Arrow` | Seek backward 5 seconds | Progress slider, `ui-feedback-hud` | Progress slider and feedback overlay | Playback seek command | Accumulated rewind total, such as `- 15s` | Keyboard: none. |
@@ -604,6 +604,9 @@ Rules:
 - Changing seek direction clears the opposite direction's accumulated total.
 - Relative seek feedback uses the trailing side of the video base for forward
   seeks and the leading side of the video base for rewind seeks.
+- Search-result navigation feedback uses the same side placement and inline
+  icon/text ordering as relative seek feedback: leading feedback displays icon
+  before text, while trailing feedback displays text before icon.
 - Recommended timing: fade and scale in within 120-180 ms, hold for 450-700
   ms, then fade out within 180-240 ms.
 - Repeated keypresses, repeated mouse clicks, and repeated button commands
