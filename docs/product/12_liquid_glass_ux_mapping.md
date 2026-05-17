@@ -327,6 +327,8 @@ Rules:
 - The volume button becomes the leftmost bottom-player control.
 - The speed capsule has fixed width and tabular text so preset changes do not
   shift neighboring controls.
+- Playback time labels have fixed tabular width and must not wrap. The width
+  must fit at least `10:00:00` on both current-time and duration labels.
 - The speed capsule displays the existing App playback speed presets. If the
   HTML prototype omits a currently supported preset, the existing App preset
   range remains the behavior source until a product rule explicitly changes it.
@@ -383,7 +385,11 @@ Rules:
 - The speed menu does not need a separate show or hide animation.
 - Hovering the volume button reveals the volume slider and numeric percentage
   together.
+- Volume hover uses the same compact popover motion as the prototype: opacity
+  fade plus a small horizontal offset, not a large slide or layout shift.
 - The volume popover must not move the playback controls vertically.
+- Button pressed and hover animations use compact Liquid Glass timing. Pressed
+  scale should be subtle and must not make repeated commands feel jumpy.
 - The progress scrubber supports hover, drag, and seek.
 - Scrubber hover and drag states may reveal a thumb or strengthen the track,
   but they must not change the bottom-player row height.
@@ -420,6 +426,11 @@ Rules:
 - The `Close` capsule is positioned from the active video frame's top-left
   corner, not from the black base's top-left corner. It must not resize the
   video frame or bottom player.
+- The `Close` capsule is visible only while pointer activity inside the black
+  video base reveals playback chrome. It appears from the video-frame top edge
+  with a short downward motion and hides upward after pointer leave or the
+  three-second inactivity timeout. It remains an independent close command, not
+  a bottom-player control.
 
 ### 10.2 Video Frame Sizing
 
@@ -537,6 +548,10 @@ Rules:
   scroll into view when practical.
 - Selecting another Search result from the side panel preserves the side-panel
   list while playback opens or seeks.
+- Opening playback from Search, Library, or Shiori must not force the playback
+  side panel visible. Previous-result and next-result navigation also must not
+  force the side panel visible. Side-panel visibility is changed only by the
+  bottom-player side-panel toggle or an explicit side-panel command.
 - The side panel must not briefly clear to `0 results` or a loading panel
   during result-to-result jumps when the current Search result list is still
   valid.
@@ -683,8 +698,9 @@ Rules:
 - If the video surface is not visible, the command may still update playback
   state, but video-stage feedback is shown only when there is a visible video
   stage to host it.
-- Each accepted command restarts the current feedback HUD instead of stacking
-  multiple HUDs.
+- Repeated feedback commands while the HUD is already visible update the
+  existing HUD content in place. They may run a small update pulse, but must not
+  remove and recreate the HUD or replay a full fade/scale entry animation.
 - Repeated relative seek commands in the same direction accumulate inside the
   feedback timeout, matching the App behavior. For example, three repeated
   forward seeks display `+ 15s`, and three repeated rewind seeks display

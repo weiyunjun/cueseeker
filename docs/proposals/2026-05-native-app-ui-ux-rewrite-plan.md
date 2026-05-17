@@ -107,7 +107,11 @@ Acceptance criteria:
   playback page.
 - The bottom chrome never appears as a full-width intermediate state.
 - Close ends playback and returns to the normal page.
+- Close follows the same pointer-activity visibility timing as the playback
+  chrome while remaining a separate video-frame anchored command.
 - Right sidebar visibility is independent from fullscreen state.
+- Opening playback or navigating Search results does not force the right
+  playback sidebar visible.
 - `swift test` passes.
 
 ## Phase 3: Rebuild Playback Chrome
@@ -137,6 +141,11 @@ Acceptance criteria:
 - Feedback HUD visuals, placement, icon/text ordering, and animation timing
   match the accepted HTML prototype. Repeated relative seek feedback accumulates
   in the same HUD, and forward feedback displays text before the arrow.
+- Repeated feedback commands update the visible HUD without a full remount or
+  flashing entry animation.
+- Playback time labels fit at least `10:00:00` without wrapping.
+- The speed menu closes on preset selection and on clicks outside the menu.
+- The copy-current-subtitle button uses the prototype copy glyph.
 - Shiori remains a plain fixed-icon command button.
 - Subtitle and sidebar controls may show selected state when active.
 - `swift test` passes.

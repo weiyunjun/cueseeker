@@ -14,10 +14,15 @@ enum ShioriFeedbackState {
     case unavailable
 }
 
+enum PlaybackFeedbackIcon: Equatable {
+    case system(String)
+    case copy
+}
+
 struct PlaybackFeedback: Identifiable, Equatable {
     let id = UUID()
     let position: PlaybackFeedbackPosition
-    let systemImage: String?
+    let icon: PlaybackFeedbackIcon?
     let text: String?
 
     init(
@@ -26,7 +31,17 @@ struct PlaybackFeedback: Identifiable, Equatable {
         text: String?
     ) {
         self.position = position
-        self.systemImage = systemImage
+        self.icon = systemImage.map { .system($0) }
+        self.text = text
+    }
+
+    init(
+        position: PlaybackFeedbackPosition,
+        icon: PlaybackFeedbackIcon?,
+        text: String?
+    ) {
+        self.position = position
+        self.icon = icon
         self.text = text
     }
 }
@@ -236,7 +251,7 @@ public final class PlaybackViewModel: ObservableObject {
         showFeedback(
             PlaybackFeedback(
                 position: .center,
-                systemImage: copied ? "doc.on.doc" : "exclamationmark.triangle",
+                icon: copied ? .copy : .system("exclamationmark.triangle"),
                 text: copied ? "Subtitle Copied" : "No Subtitle"
             ),
             durationMilliseconds: 1_000

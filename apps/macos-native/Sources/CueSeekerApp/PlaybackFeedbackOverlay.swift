@@ -18,21 +18,20 @@ struct PlaybackFeedbackOverlay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
-        .animation(.easeOut(duration: 0.16), value: feedback?.id)
+        .animation(.easeOut(duration: 0.14), value: feedback != nil)
     }
 
     private func centerFeedback(_ feedback: PlaybackFeedback) -> some View {
         feedbackContent(feedback, isSideFeedback: false, isTrailing: false)
             .frame(
-                minWidth: feedback.systemImage == nil ? 0 : 108,
-                maxWidth: feedback.systemImage == nil ? nil : 280,
-                minHeight: feedback.systemImage == nil ? 42 : 98
+                minWidth: feedback.icon == nil ? 0 : 108,
+                maxWidth: feedback.icon == nil ? nil : 280,
+                minHeight: feedback.icon == nil ? 42 : 98
             )
-            .padding(.horizontal, feedback.systemImage == nil ? 18 : 22)
-            .padding(.vertical, feedback.systemImage == nil ? 0 : 18)
-            .background(feedbackBackground(cornerRadius: feedback.systemImage == nil ? 999 : 20))
-        .id(feedback.id)
-        .transition(.opacity.combined(with: .scale(scale: 0.88)))
+            .padding(.horizontal, feedback.icon == nil ? 18 : 22)
+            .padding(.vertical, feedback.icon == nil ? 0 : 18)
+            .background(feedbackBackground(cornerRadius: feedback.icon == nil ? 999 : 20))
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
     }
 
     private func sideFeedback(
@@ -48,8 +47,7 @@ struct PlaybackFeedbackOverlay: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
             .background(feedbackBackground(cornerRadius: 999))
-            .id(feedback.id)
-            .transition(.opacity.combined(with: .scale(scale: 0.88)))
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
             if !isTrailing {
                 Spacer()
@@ -68,20 +66,20 @@ struct PlaybackFeedbackOverlay: View {
             if isSideFeedback {
                 HStack(spacing: 10) {
                     if !isTrailing {
-                        feedbackIcon(feedback.systemImage, size: 30)
+                        feedbackIcon(feedback.icon, size: 30)
                     }
 
                     feedbackText(feedback.text, isTextOnly: false)
 
                     if isTrailing {
-                        feedbackIcon(feedback.systemImage, size: 30)
+                        feedbackIcon(feedback.icon, size: 30)
                     }
                 }
-            } else if feedback.systemImage == nil {
+            } else if feedback.icon == nil {
                 feedbackText(feedback.text, isTextOnly: true)
             } else {
                 VStack(spacing: 10) {
-                    feedbackIcon(feedback.systemImage, size: 34)
+                    feedbackIcon(feedback.icon, size: 34)
                     feedbackText(feedback.text, isTextOnly: false)
                 }
             }
@@ -89,12 +87,21 @@ struct PlaybackFeedbackOverlay: View {
     }
 
     @ViewBuilder
-    private func feedbackIcon(_ name: String?, size: CGFloat) -> some View {
-        if let name {
+    private func feedbackIcon(_ icon: PlaybackFeedbackIcon?, size: CGFloat) -> some View {
+        if let icon {
+            switch icon {
+            case .system(let name):
             Image(systemName: name)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundColor(.white)
                 .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
+            case .copy:
+                PlaybackCopyGlyph()
+                    .stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    .frame(width: size * 0.5, height: size * 0.5)
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
+            }
         }
     }
 

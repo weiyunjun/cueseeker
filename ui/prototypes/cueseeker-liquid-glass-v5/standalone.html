@@ -674,7 +674,19 @@
       font-size: 14px;
       font-weight: 700;
       letter-spacing: 0;
-      transition: background 160ms ease, transform 160ms cubic-bezier(.34,1.56,.64,1), border-color 160ms ease;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-14px);
+      transition:
+        opacity 150ms ease,
+        background 160ms ease,
+        transform 180ms cubic-bezier(.22,.61,.36,1),
+        border-color 160ms ease;
+    }
+    .window.video-expanded.player-chrome-visible .video-close-button {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
     }
     .video-close-button svg {
       width: 18px;
@@ -687,7 +699,7 @@
       border-color: rgba(255,255,255,0.24);
     }
     .video-close-button:active {
-      transform: scale(0.96);
+      transform: translateY(0) scale(0.98);
     }
     .window.playback-closed .video-close-button {
       display: none;
@@ -830,7 +842,14 @@
       display: none;
     }
     .input-feedback-hud.is-visible {
-      animation: input-feedback-pop 880ms cubic-bezier(.22,.61,.36,1) both;
+      opacity: 1;
+      transform: scale(1);
+    }
+    .input-feedback-hud.is-entering {
+      animation: input-feedback-enter 180ms cubic-bezier(.22,.61,.36,1) both;
+    }
+    .input-feedback-hud.is-updating {
+      animation: input-feedback-update 140ms ease-out both;
     }
     .input-feedback-icon {
       width: 34px;
@@ -866,26 +885,25 @@
       background: rgba(34, 40, 34, 0.58);
     }
 
-    @keyframes input-feedback-pop {
+    @keyframes input-feedback-enter {
       0% {
         opacity: 0;
         transform: scale(0.88);
       }
-      14% {
-        opacity: 1;
-        transform: scale(1.04);
-      }
-      24% {
+      100% {
         opacity: 1;
         transform: scale(1);
       }
-      74% {
-        opacity: 1;
+    }
+    @keyframes input-feedback-update {
+      0% {
         transform: scale(1);
+      }
+      45% {
+        transform: scale(1.012);
       }
       100% {
-        opacity: 0;
-        transform: scale(0.96);
+        transform: scale(1);
       }
     }
 
@@ -1061,10 +1079,12 @@
     }
 
     .time {
-      width: 38px;
+      width: 66px;
+      flex: 0 0 66px;
       color: var(--text-2);
       font: 11px var(--mono);
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
     .time.end { color: var(--text-3); text-align: right; }
     .window.video-expanded .time { color: rgba(255,255,255,0.75); }
@@ -2051,7 +2071,7 @@
     }
   
 
-  </style>
+</style>
 </head>
 <body data-theme="light">
   
@@ -2863,8 +2883,12 @@ const win = document.getElementById("window");
     }
 
     function formatPlaybackTime(totalSeconds) {
-      const minutes = Math.floor(totalSeconds / 60);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
       const seconds = Math.floor(totalSeconds % 60);
+      if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      }
       return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 
@@ -2873,6 +2897,7 @@ const win = document.getElementById("window");
 
       clearTimeout(feedbackHideTimer);
       feedbackLayer?.setAttribute("data-feedback-position", position);
+      const wasVisible = !feedbackHud.hidden && feedbackHud.classList.contains("is-visible");
       const hasIcon = Boolean(icon);
       if (hasIcon) {
         feedbackIcon.removeAttribute("hidden");
@@ -2887,11 +2912,11 @@ const win = document.getElementById("window");
       feedbackHud.dataset.feedbackHasIcon = hasIcon ? "true" : "false";
       feedbackHud.classList.toggle("ui-feedback-hud--text-capsule", !hasIcon);
       feedbackHud.hidden = false;
-      feedbackHud.classList.remove("is-visible");
+      feedbackHud.classList.remove("is-entering", "is-updating");
       void feedbackHud.offsetWidth;
-      feedbackHud.classList.add("is-visible");
+      feedbackHud.classList.add("is-visible", wasVisible ? "is-updating" : "is-entering");
       feedbackHideTimer = window.setTimeout(() => {
-        feedbackHud.classList.remove("is-visible");
+        feedbackHud.classList.remove("is-visible", "is-entering", "is-updating");
         feedbackHud.hidden = true;
         if (position === "trailing") {
           accumulatedForwardSeconds = 0;
@@ -3753,8 +3778,7 @@ const win = document.getElementById("window");
     }
   
 
-
-  </script>
+</script>
 
 
 </body></html>

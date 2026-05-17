@@ -2121,7 +2121,6 @@ final class AppState: ObservableObject {
         selectedSearchResult = result
         selectedShiori = nil
         selectedLibraryVideo = nil
-        isPlaybackSidePanelVisible = true
         isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
@@ -2140,7 +2139,6 @@ final class AppState: ObservableObject {
         selectedLibraryVideo = video
         selectedSearchResult = nil
         selectedShiori = nil
-        isPlaybackSidePanelVisible = true
         isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
@@ -2159,7 +2157,6 @@ final class AppState: ObservableObject {
         selectedShiori = shiori
         selectedSearchResult = nil
         selectedLibraryVideo = nil
-        isPlaybackSidePanelVisible = true
         isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()

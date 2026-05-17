@@ -170,7 +170,16 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `.player-chrome-visible` | fullscreen or expanded playback chrome state | Drives bottom-player visibility over video. |
 | `data-feedback-position` on `ui-feedback-overlay` | `PlaybackFeedbackPosition` | Center for most commands, leading for rewind and previous-result navigation, trailing for forward seek and next-result navigation. |
 | `data-feedback-has-icon` on `ui-feedback-hud` | Optional feedback icon state | Text-only feedback hides the icon and selects the `ui-feedback-hud--text-capsule` compact capsule modifier. |
-| `.is-visible` on `ui-feedback-hud` | Transient feedback presentation state | Restarts the HUD animation for each accepted command. |
+| `.is-visible` on `ui-feedback-hud` | Transient feedback presentation state | Shows the HUD while feedback is active; repeated commands update content in place instead of replaying the full entry animation. |
+
+Icon asset rule:
+
+- The copy-current-subtitle command uses the prototype `#copy` glyph, not a
+  platform substitute. SwiftUI should implement it as a mapped custom symbol or
+  shared vector asset so the button and feedback HUD match the HTML icon.
+- Playback command feedback uses the same HUD component when its content
+  changes repeatedly. Repeated commands may update text and run a small update
+  pulse, but must not remount the HUD or replay the full entry animation.
 
 ## 8. Token Mapping
 

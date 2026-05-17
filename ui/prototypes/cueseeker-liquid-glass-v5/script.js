@@ -70,8 +70,12 @@ const win = document.getElementById("window");
     }
 
     function formatPlaybackTime(totalSeconds) {
-      const minutes = Math.floor(totalSeconds / 60);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
       const seconds = Math.floor(totalSeconds % 60);
+      if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      }
       return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 
@@ -80,6 +84,7 @@ const win = document.getElementById("window");
 
       clearTimeout(feedbackHideTimer);
       feedbackLayer?.setAttribute("data-feedback-position", position);
+      const wasVisible = !feedbackHud.hidden && feedbackHud.classList.contains("is-visible");
       const hasIcon = Boolean(icon);
       if (hasIcon) {
         feedbackIcon.removeAttribute("hidden");
@@ -94,11 +99,11 @@ const win = document.getElementById("window");
       feedbackHud.dataset.feedbackHasIcon = hasIcon ? "true" : "false";
       feedbackHud.classList.toggle("ui-feedback-hud--text-capsule", !hasIcon);
       feedbackHud.hidden = false;
-      feedbackHud.classList.remove("is-visible");
+      feedbackHud.classList.remove("is-entering", "is-updating");
       void feedbackHud.offsetWidth;
-      feedbackHud.classList.add("is-visible");
+      feedbackHud.classList.add("is-visible", wasVisible ? "is-updating" : "is-entering");
       feedbackHideTimer = window.setTimeout(() => {
-        feedbackHud.classList.remove("is-visible");
+        feedbackHud.classList.remove("is-visible", "is-entering", "is-updating");
         feedbackHud.hidden = true;
         if (position === "trailing") {
           accumulatedForwardSeconds = 0;

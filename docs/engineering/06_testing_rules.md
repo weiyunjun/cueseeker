@@ -412,6 +412,12 @@ Required M2 playback interaction checks:
 - Playback fullscreen animation checks should also verify top-bar restoration,
   traffic-light restoration, non-duplication of playback overlays, and no
   side-panel animation side effects.
+- Playback chrome checks should verify that time labels fit `10:00:00` without
+  wrapping, speed menus close on outside clicks, Close follows pointer-activity
+  visibility timing, and repeated command feedback updates in place without a
+  flashing full-entry animation.
+- Playback side-panel checks should verify that opening playback and navigating
+  previous or next Search results preserve the current side-panel visibility.
 - ASS timing-source changes are out of scope for the first workbench
   invalidation cleanup. If they are attempted later, manual checks must verify
   that selecting a Search result still updates selection, opens or seeks video,

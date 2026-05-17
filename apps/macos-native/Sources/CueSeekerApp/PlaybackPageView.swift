@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct PlaybackPageView: View {
@@ -68,6 +69,7 @@ private struct PlaybackVideoStage: View {
     @ObservedObject var appState: AppState
     let onClose: () -> Void
     @State private var isChromeVisible = true
+    @State private var isCloseVisible = true
     @State private var chromeHideTask: Task<Void, Never>?
 
     var body: some View {
@@ -87,6 +89,10 @@ private struct PlaybackVideoStage: View {
                     .position(x: frame.midX, y: frame.midY)
 
                 PlaybackCloseButton(action: onClose)
+                    .opacity(isCloseVisible ? 1 : 0)
+                    .offset(y: isCloseVisible ? 0 : -14)
+                    .allowsHitTesting(isCloseVisible)
+                    .animation(.easeOut(duration: 0.18), value: isCloseVisible)
                     .offset(x: frame.minX + 18, y: frame.minY + 18)
 
                 if case .failed(let message) = appState.playbackStatus {
@@ -172,6 +178,7 @@ private struct PlaybackVideoStage: View {
     private func showChromeTemporarily() {
         withAnimation(.easeOut(duration: 0.14)) {
             isChromeVisible = true
+            isCloseVisible = true
         }
         chromeHideTask?.cancel()
         chromeHideTask = Task { @MainActor in
@@ -181,6 +188,7 @@ private struct PlaybackVideoStage: View {
             }
             withAnimation(.easeOut(duration: 0.18)) {
                 isChromeVisible = false
+                isCloseVisible = false
             }
         }
     }
@@ -190,6 +198,7 @@ private struct PlaybackVideoStage: View {
         chromeHideTask = nil
         withAnimation(.easeOut(duration: 0.16)) {
             isChromeVisible = false
+            isCloseVisible = false
         }
     }
 }
@@ -235,8 +244,8 @@ private struct PlaybackCloseButtonStyle: ButtonStyle {
                     )
             )
             .shadow(color: .black.opacity(0.42), radius: 20, y: 12)
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.spring(response: 0.16, dampingFraction: 0.72), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .onHover { isHovered = $0 }
     }
 
@@ -323,6 +332,7 @@ struct PlaybackChromeView: View {
     @ObservedObject var viewModel: PlaybackViewModel
     let controls: PlaybackChromeControls
     @State private var isSpeedMenuVisible = false
+    @State private var speedMenuEventMonitor: Any?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -335,6 +345,16 @@ struct PlaybackChromeView: View {
         .frame(height: PlaybackChromeMetrics.interactiveHeight, alignment: .bottom)
         .overlayPreferenceValue(PlaybackSpeedButtonAnchorKey.self) { anchor in
             speedMenuOverlay(anchor: anchor)
+        }
+        .onChange(of: isSpeedMenuVisible) { isVisible in
+            if isVisible {
+                installSpeedMenuDismissMonitor()
+            } else {
+                removeSpeedMenuDismissMonitor()
+            }
+        }
+        .onDisappear {
+            removeSpeedMenuDismissMonitor()
         }
     }
 
@@ -402,12 +422,16 @@ struct PlaybackChromeView: View {
     private var scrubberRow: some View {
         HStack(spacing: 12) {
             Text(formatPlaybackTime(viewModel.displayedCurrentTime))
-                .frame(width: 46, alignment: .leading)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(width: PlaybackChromeMetrics.timeLabelWidth, alignment: .leading)
 
             PlaybackProgressScrubber(viewModel: viewModel)
 
             Text(formatPlaybackTime(viewModel.duration))
-                .frame(width: 46, alignment: .trailing)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(width: PlaybackChromeMetrics.timeLabelWidth, alignment: .trailing)
         }
         .font(.system(size: 12, weight: .semibold, design: .monospaced))
         .foregroundStyle(.white.opacity(0.82))
@@ -468,7 +492,7 @@ struct PlaybackChromeView: View {
             )
 
             PlaybackChromeIconButton(
-                systemName: "doc.on.doc",
+                icon: .copy,
                 accessibilityLabel: "Copy current subtitle",
                 action: controls.copySubtitle
             )
@@ -516,6 +540,25 @@ struct PlaybackChromeView: View {
         .accessibilityLabel("Playback speed")
         .frame(width: 54, height: 32, alignment: .center)
         .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
+    }
+
+    private func installSpeedMenuDismissMonitor() {
+        removeSpeedMenuDismissMonitor()
+        speedMenuEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+            if isSpeedMenuVisible {
+                DispatchQueue.main.async {
+                    isSpeedMenuVisible = false
+                }
+            }
+            return event
+        }
+    }
+
+    private func removeSpeedMenuDismissMonitor() {
+        if let speedMenuEventMonitor {
+            NSEvent.removeMonitor(speedMenuEventMonitor)
+            self.speedMenuEventMonitor = nil
+        }
     }
 
     private func formatPlaybackTime(_ seconds: Double) -> String {
@@ -607,40 +650,40 @@ private struct PlaybackVolumeControl: View {
                 action: viewModel.toggleMute
             )
 
-            if isHovered {
-                HStack(spacing: 8) {
-                    PlaybackVolumeSlider(volume: Binding(
-                        get: { viewModel.volume },
-                        set: { viewModel.setVolume($0, showsFeedback: false) }
-                    ))
-                    .frame(width: 86, height: 18)
+            HStack(spacing: 8) {
+                PlaybackVolumeSlider(volume: Binding(
+                    get: { viewModel.volume },
+                    set: { viewModel.setVolume($0, showsFeedback: false) }
+                ))
+                .frame(width: 86, height: 18)
 
-                    Text("\(Int(viewModel.volume.rounded()))%")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color.black.opacity(0.62))
-                        .monospacedDigit()
-                        .frame(width: 36, alignment: .trailing)
-                }
-                .padding(.horizontal, 8)
-                .frame(height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 9)
-                        .fill(Color.white.opacity(0.86))
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 9))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9)
-                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
-                )
-                .shadow(color: .black.opacity(0.28), radius: 14, y: 5)
-                .offset(x: 36)
-                .transition(.opacity.combined(with: .move(edge: .leading)))
-                .zIndex(10)
+                Text("\(Int(viewModel.volume.rounded()))%")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Color.black.opacity(0.62))
+                    .monospacedDigit()
+                    .frame(width: 36, alignment: .trailing)
             }
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(Color.white.opacity(0.86))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 9))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9)
+                    .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.28), radius: 14, y: 5)
+            .opacity(isHovered ? 1 : 0)
+            .offset(x: isHovered ? 36 : 32)
+            .allowsHitTesting(isHovered)
+            .animation(.easeOut(duration: 0.16), value: isHovered)
+            .zIndex(10)
         }
         .frame(width: 176, height: 32, alignment: .leading)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.14)) {
+            withAnimation(.easeOut(duration: 0.16)) {
                 isHovered = hovering
             }
         }
@@ -761,18 +804,54 @@ private enum PlaybackChromeButtonKind {
     }
 }
 
+private enum PlaybackChromeIcon {
+    case system(String)
+    case copy
+}
+
 private struct PlaybackChromeIconButton: View {
-    let systemName: String
+    let icon: PlaybackChromeIcon
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
     var isDisabled = false
     let accessibilityLabel: String
     let action: () -> Void
 
+    init(
+        systemName: String,
+        kind: PlaybackChromeButtonKind = .circle,
+        isSelected: Bool = false,
+        isDisabled: Bool = false,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) {
+        self.icon = .system(systemName)
+        self.kind = kind
+        self.isSelected = isSelected
+        self.isDisabled = isDisabled
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+    }
+
+    init(
+        icon: PlaybackChromeIcon,
+        kind: PlaybackChromeButtonKind = .circle,
+        isSelected: Bool = false,
+        isDisabled: Bool = false,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) {
+        self.icon = icon
+        self.kind = kind
+        self.isSelected = isSelected
+        self.isDisabled = isDisabled
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+    }
+
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: kind.symbolSize, weight: .semibold))
+            PlaybackChromeIconView(icon: icon, size: kind.symbolSize)
                 .frame(width: kind.size, height: kind.size)
                 .contentShape(Circle())
         }
@@ -780,6 +859,58 @@ private struct PlaybackChromeIconButton: View {
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.34 : 1)
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct PlaybackChromeIconView: View {
+    let icon: PlaybackChromeIcon
+    let size: CGFloat
+
+    var body: some View {
+        switch icon {
+        case .system(let systemName):
+            Image(systemName: systemName)
+                .font(.system(size: size, weight: .semibold))
+        case .copy:
+            PlaybackCopyGlyph()
+                .stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                .frame(width: 17, height: 17)
+        }
+    }
+}
+
+struct PlaybackCopyGlyph: Shape {
+    func path(in rect: CGRect) -> Path {
+        let scaleX = rect.width / 17
+        let scaleY = rect.height / 17
+
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * scaleX, y: rect.minY + y * scaleY)
+        }
+
+        func scaledRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> CGRect {
+            CGRect(
+                x: rect.minX + x * scaleX,
+                y: rect.minY + y * scaleY,
+                width: width * scaleX,
+                height: height * scaleY
+            )
+        }
+
+        var path = Path()
+        path.addRoundedRect(
+            in: scaledRect(x: 3.2, y: 5.2, width: 8.1, height: 9.2),
+            cornerSize: CGSize(width: 1.2 * scaleX, height: 1.2 * scaleY)
+        )
+        path.move(to: point(6, 2.6))
+        path.addLine(to: point(12.4, 2.6))
+        path.addCurve(
+            to: point(13.8, 4.0),
+            control1: point(12.4, 2.6),
+            control2: point(13.8, 2.6)
+        )
+        path.addLine(to: point(13.8, 11.2))
+        return path
     }
 }
 
@@ -802,8 +933,8 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
                     .strokeBorder(borderColor, lineWidth: 0.5)
             )
             .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
-            .scaleEffect(configuration.isPressed && isEnabled ? 0.94 : 1)
-            .animation(.spring(response: 0.16, dampingFraction: 0.72), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && isEnabled ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .animation(.easeOut(duration: 0.12), value: isHovered)
             .onHover { isHovered = $0 }
     }
@@ -875,8 +1006,8 @@ private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
                     .strokeBorder(Color.white.opacity(0.16), lineWidth: 0.5)
             )
             .shadow(color: .black.opacity(0.24), radius: 8, y: 3)
-            .scaleEffect(configuration.isPressed ? 0.94 : 1)
-            .animation(.spring(response: 0.16, dampingFraction: 0.72), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .onHover { isHovered = $0 }
     }
 
@@ -898,7 +1029,8 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(backgroundColor(isPressed: configuration.isPressed))
             )
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed ? 0.99 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .onHover { isHovered = $0 }
     }
 
@@ -1003,6 +1135,7 @@ enum PlaybackChromeMetrics {
     static let horizontalInset: CGFloat = 20
     static let bottomInset: CGFloat = 20
     static let height: CGFloat = 106
+    static let timeLabelWidth: CGFloat = 70
     static let speedMenuWidth: CGFloat = 172
     static let speedMenuHeight: CGFloat = 234
     static let speedMenuGap: CGFloat = 8
