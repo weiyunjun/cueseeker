@@ -8,8 +8,10 @@ const win = document.getElementById("window");
     const libraryToggle = document.getElementById("libraryToggle");
     const topbarShioriToggle = document.getElementById("topbarShioriToggle");
     const sourceToggle = document.getElementById("sourceToggle");
+    const mainSurface = document.querySelector(".main");
     const videoStage = document.querySelector(".video-stage");
     const videoFrame = document.querySelector(".video-frame");
+    const playerDock = document.getElementById("playerDock");
     const currentZh = document.querySelector("[data-current-zh]");
     const currentJa = document.querySelector("[data-current-ja]");
     const searchInput = document.getElementById("searchInput");
@@ -32,6 +34,7 @@ const win = document.getElementById("window");
     let committedSearchQuery = searchInput.value.trim();
     let searchModeDraftValue = searchInput.value;
     let videoLayoutFrame = 0;
+    const playerDockMargin = 20;
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
@@ -47,13 +50,31 @@ const win = document.getElementById("window");
       return Number.isFinite(numeric) && numeric > 0 ? numeric : 16 / 9;
     }
 
+    function updatePlayerDockLayout(stageRect, mainRect) {
+      if (!playerDock || !mainRect) return;
+
+      const anchorRect = win.classList.contains("video-expanded") && stageRect
+        ? stageRect
+        : mainRect;
+      const anchorWidth = Math.max(0, anchorRect.width);
+      const anchorX = anchorRect.left - mainRect.left;
+      const dockWidth = Math.max(0, anchorWidth - playerDockMargin * 2);
+      const dockX = anchorX + playerDockMargin;
+
+      playerDock.style.setProperty("--player-dock-width", `${dockWidth}px`);
+      playerDock.style.setProperty("--player-dock-x", `${dockX}px`);
+    }
+
     function updateVideoFrameLayout() {
-      if (!videoStage || !videoFrame) return;
+      const mainRect = mainSurface?.getBoundingClientRect();
+      if (!videoStage || !videoFrame || !mainRect) return;
 
       const stageRect = videoStage.getBoundingClientRect();
       const stageWidth = Math.max(0, stageRect.width);
       const stageHeight = Math.max(0, stageRect.height);
       if (stageWidth === 0 || stageHeight === 0) return;
+
+      updatePlayerDockLayout(stageRect, mainRect);
 
       const aspectRatio = parseAspectRatio(videoFrame.dataset.videoAspect);
       let frameWidth;
@@ -75,7 +96,7 @@ const win = document.getElementById("window");
       if (heightLocked) {
         frameY = 0;
       } else if (widthLocked) {
-        const dockRect = document.getElementById("playerDock")?.getBoundingClientRect();
+        const dockRect = playerDock?.getBoundingClientRect();
         const dockTop = dockRect
           ? clamp(dockRect.top - stageRect.top, 0, stageHeight)
           : stageHeight;
