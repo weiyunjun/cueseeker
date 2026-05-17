@@ -565,13 +565,14 @@ private struct PlaybackFullscreenOverlayView: View {
                     )
                     .frame(
                         width: max(0, stageWidth - PlaybackChromeMetrics.horizontalInset * 2),
-                        height: PlaybackChromeMetrics.height
+                        height: PlaybackChromeMetrics.interactiveHeight,
+                        alignment: .bottom
                     )
                     .position(
                         x: stageWidth / 2,
                         y: max(
-                            PlaybackChromeMetrics.height / 2,
-                            geometry.size.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height / 2
+                            PlaybackChromeMetrics.interactiveHeight / 2,
+                            geometry.size.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.interactiveHeight / 2
                         )
                     )
                     .transition(.opacity.combined(with: .move(edge: .bottom)))

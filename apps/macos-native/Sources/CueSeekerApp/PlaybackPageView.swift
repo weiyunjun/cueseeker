@@ -105,7 +105,8 @@ private struct PlaybackVideoStage: View {
                     )
                     .frame(
                         width: max(0, stageSize.width - PlaybackChromeMetrics.horizontalInset * 2),
-                        height: PlaybackChromeMetrics.height
+                        height: PlaybackChromeMetrics.interactiveHeight,
+                        alignment: .bottom
                     )
                     .opacity(isChromeVisible ? 1 : 0)
                     .offset(y: isChromeVisible ? 0 : PlaybackChromeMetrics.hiddenOffset)
@@ -114,8 +115,8 @@ private struct PlaybackVideoStage: View {
                     .position(
                         x: stageSize.width / 2,
                         y: max(
-                            PlaybackChromeMetrics.height / 2,
-                            stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height / 2
+                            PlaybackChromeMetrics.interactiveHeight / 2,
+                            stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.interactiveHeight / 2
                         )
                     )
                 }
@@ -962,7 +963,8 @@ enum PlaybackChromeMetrics {
     static let horizontalInset: CGFloat = 20
     static let bottomInset: CGFloat = 20
     static let height: CGFloat = 106
-    static let hiddenOffset: CGFloat = 128
+    static let interactiveHeight: CGFloat = 360
+    static let hiddenOffset: CGFloat = interactiveHeight + 28
 }
 
 enum PlaybackSidebarMetrics {
