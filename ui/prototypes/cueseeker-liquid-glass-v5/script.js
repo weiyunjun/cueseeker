@@ -29,6 +29,7 @@ const win = document.getElementById("window");
     const shioriButton = document.getElementById("shioriButton");
     const copySubtitleButton = document.getElementById("copySubtitleButton");
     const fullscreenButton = document.getElementById("fullscreenButton");
+    const fullscreenIcon = fullscreenButton?.querySelector("use");
     const progressSlider = document.getElementById("progress");
     const curTime = document.getElementById("curTime");
     const feedbackLayer = document.querySelector(".ui-feedback-overlay");
@@ -73,14 +74,22 @@ const win = document.getElementById("window");
       return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 
-    function showPlaybackFeedback({ icon, label, tone = "neutral", position = "center" }) {
+    function showPlaybackFeedback({ icon = null, label, tone = "neutral", position = "center" }) {
       if (!feedbackHud || !feedbackIcon || !feedbackLabel) return;
 
       clearTimeout(feedbackHideTimer);
       feedbackLayer?.setAttribute("data-feedback-position", position);
-      feedbackIcon.setAttribute("href", `#${icon}`);
+      if (icon) {
+        feedbackIcon.removeAttribute("hidden");
+        feedbackIcon.style.display = "";
+        feedbackIcon.setAttribute("href", `#${icon}`);
+      } else {
+        feedbackIcon.setAttribute("hidden", "");
+        feedbackIcon.style.display = "none";
+      }
       feedbackLabel.textContent = label;
       feedbackHud.dataset.feedbackTone = tone;
+      feedbackHud.dataset.feedbackHasIcon = icon ? "true" : "false";
       feedbackHud.hidden = false;
       feedbackHud.classList.remove("is-visible");
       void feedbackHud.offsetWidth;
@@ -226,8 +235,8 @@ const win = document.getElementById("window");
       }
       document.body.classList.toggle("prototype-fullscreen", enteringFullscreen);
       fullscreenButton?.setAttribute("aria-label", enteringFullscreen ? "Exit Fullscreen" : "Fullscreen");
+      fullscreenIcon?.setAttribute("href", enteringFullscreen ? "#fullscreen-exit" : "#viewfinder");
       showPlaybackFeedback({
-        icon: "viewfinder",
         label: enteringFullscreen ? "Fullscreen" : "Exit Fullscreen"
       });
       scheduleVideoFrameLayout();

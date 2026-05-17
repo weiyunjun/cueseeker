@@ -502,6 +502,9 @@ Rules:
 
 - Fullscreen playback continues to use AppKit native fullscreen behavior and
   the existing playback fullscreen manager.
+- The HTML prototype represents App fullscreen with a local prototype state,
+  not with the browser Fullscreen API. This avoids browser-level fullscreen
+  behavior being mistaken for the native App fullscreen contract.
 - The playback render container must not be duplicated or moved into a second
   backend render state.
 - The normal workbench shell is hidden during playback fullscreen without
@@ -511,9 +514,17 @@ Rules:
 - Fullscreen chrome includes the playback controls needed for video review:
   progress, source/title when appropriate, volume, transport, Shiori, copy,
   subtitle visibility, speed, and exit fullscreen.
-- Workbench-only controls that require the expanded playback side panel are not
-  shown in fullscreen unless a later accepted rule adds fullscreen side-panel
-  behavior.
+- Fullscreen state and expanded-playback side-panel visibility are independent.
+  Entering or exiting fullscreen must not hide, show, reset, or otherwise
+  mutate the side-panel visibility state.
+- If the side panel is visible before entering fullscreen, it remains visible
+  in fullscreen. If it is hidden before entering fullscreen, it remains hidden
+  in fullscreen.
+- The fullscreen button uses the enter-fullscreen glyph outside fullscreen and
+  the two inward-touching arrows exit-fullscreen glyph while fullscreen is
+  active.
+- Entering and exiting fullscreen show text-only feedback: `Fullscreen` and
+  `Exit Fullscreen`.
 - Entering fullscreen immediately hides the chrome and cursor once.
 - Mouse movement or click activity reveals the chrome and cursor.
 - Keyboard playback shortcuts do not reveal the chrome or cursor.
@@ -550,7 +561,7 @@ Rules:
 | `Space` | Toggle play/pause | `#playBtn`, `ui-feedback-hud` | Bottom-player transport button, `LiquidGlassFeedbackOverlay` | `PlaybackViewModel.togglePlayback` | `Play` or `Pause` | Keyboard: none. Mouse/button: normal pointer activity rules. |
 | Left click on visible video surface | Toggle play/pause | `.video-stage`, `.video-frame`, `ui-feedback-hud` | Video stage input layer | Playback command model | `Play` or `Pause` | Shows chrome and resets the idle timer. |
 | `C` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard: none. Button: normal pointer activity rules. |
-| `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen chrome | Existing fullscreen manager | `Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal chrome; fullscreen entry follows fullscreen rules. |
+| `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen chrome | Existing fullscreen manager | Text-only `Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal chrome; fullscreen entry follows fullscreen rules. |
 | `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` on the leading side, or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
 | `D` | Next Search result | `#nextResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport next-result button | Search navigation snapshot | `Next Result` on the trailing side, or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
 | `Q` | Copy current subtitle | Copy button, `ui-feedback-hud` | Copy subtitle button | Clipboard command | `Subtitle Copied` or `No Subtitle` | Keyboard: none. Button: normal pointer activity rules. |
@@ -607,6 +618,8 @@ Rules:
 - Search-result navigation feedback uses the same side placement and inline
   icon/text ordering as relative seek feedback: leading feedback displays icon
   before text, while trailing feedback displays text before icon.
+- Fullscreen enter and exit feedback is text-only and must not render a
+  feedback icon.
 - Recommended timing: fade and scale in within 120-180 ms, hold for 450-700
   ms, then fade out within 180-240 ms.
 - Repeated keypresses, repeated mouse clicks, and repeated button commands
@@ -671,7 +684,5 @@ Open questions before this mapping becomes accepted:
   geometry?
 - Should fullscreen chrome include the source/title capsule, or only transport
   and operation controls when screen width is constrained?
-- Should the expanded-playback side-panel toggle remain visible but disabled in
-  fullscreen, or be omitted from fullscreen chrome entirely?
 - Should the floating bottom-player margin inside the black base be a fixed
   token shared by windowed expanded playback and fullscreen playback?

@@ -156,12 +156,6 @@
     body.prototype-fullscreen .window::after {
       display: none;
     }
-    body.prototype-fullscreen .video-state {
-      grid-template-columns: 1fr;
-    }
-    body.prototype-fullscreen .sidebar {
-      display: none;
-    }
 
     /* Inner refraction edge — a soft inner ring of light */
     .window::before {
@@ -776,6 +770,12 @@
     .input-feedback-layer[data-feedback-position="trailing"] .input-feedback-hud {
       flex-direction: row-reverse;
     }
+    .input-feedback-hud[data-feedback-has-icon="false"] {
+      min-width: 0;
+      min-height: 0;
+      padding: 16px 24px;
+      border-radius: 999px;
+    }
     .input-feedback-hud[hidden] {
       display: none;
     }
@@ -786,6 +786,9 @@
       width: 34px;
       height: 34px;
       filter: drop-shadow(0 1px 2px rgba(0,0,0,0.44));
+    }
+    .input-feedback-icon[hidden] {
+      display: none;
     }
     .input-feedback-layer[data-feedback-position="leading"] .input-feedback-icon,
     .input-feedback-layer[data-feedback-position="trailing"] .input-feedback-icon {
