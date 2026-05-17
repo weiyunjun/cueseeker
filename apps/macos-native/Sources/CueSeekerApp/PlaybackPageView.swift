@@ -310,6 +310,14 @@ extension PlaybackChromeControls {
     }
 }
 
+private struct PlaybackSpeedButtonAnchorKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
+    }
+}
+
 @MainActor
 struct PlaybackChromeView: View {
     @ObservedObject var viewModel: PlaybackViewModel
@@ -317,6 +325,20 @@ struct PlaybackChromeView: View {
     @State private var isSpeedMenuVisible = false
 
     var body: some View {
+        ZStack(alignment: .bottom) {
+            Color.clear
+                .allowsHitTesting(false)
+
+            chromeSurface
+                .zIndex(1)
+        }
+        .frame(height: PlaybackChromeMetrics.interactiveHeight, alignment: .bottom)
+        .overlayPreferenceValue(PlaybackSpeedButtonAnchorKey.self) { anchor in
+            speedMenuOverlay(anchor: anchor)
+        }
+    }
+
+    private var chromeSurface: some View {
         VStack(spacing: 0) {
             scrubberRow
 
@@ -345,6 +367,36 @@ struct PlaybackChromeView: View {
         )
         .shadow(color: .black.opacity(0.36), radius: 26, y: 14)
         .contentShape(RoundedRectangle(cornerRadius: 22))
+    }
+
+    @ViewBuilder
+    private func speedMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
+        if isSpeedMenuVisible, let anchor {
+            GeometryReader { proxy in
+                let buttonFrame = proxy[anchor]
+                let menuWidth = PlaybackChromeMetrics.speedMenuWidth
+                let menuHeight = PlaybackChromeMetrics.speedMenuHeight
+                let x = min(
+                    max(buttonFrame.maxX - menuWidth / 2, menuWidth / 2),
+                    proxy.size.width - menuWidth / 2
+                )
+                let y = max(
+                    menuHeight / 2,
+                    buttonFrame.minY - PlaybackChromeMetrics.speedMenuGap - menuHeight / 2
+                )
+
+                PlaybackChromeSpeedMenu(
+                    selectedSpeed: viewModel.playbackSpeed,
+                    onSelect: { speed in
+                        viewModel.setSpeed(speed)
+                        isSpeedMenuVisible = false
+                    }
+                )
+                .frame(width: menuWidth, height: menuHeight)
+                .position(x: x, y: y)
+                .zIndex(2)
+            }
+        }
     }
 
     private var scrubberRow: some View {
@@ -463,19 +515,7 @@ struct PlaybackChromeView: View {
         .buttonStyle(PlaybackChromeCapsuleButtonStyle(isActive: isSpeedMenuVisible))
         .accessibilityLabel("Playback speed")
         .frame(width: 54, height: 32, alignment: .center)
-        .overlay(alignment: .bottomTrailing) {
-            if isSpeedMenuVisible {
-                PlaybackChromeSpeedMenu(
-                    selectedSpeed: viewModel.playbackSpeed,
-                    onSelect: { speed in
-                        viewModel.setSpeed(speed)
-                        isSpeedMenuVisible = false
-                    }
-                )
-                .offset(y: -40)
-                .zIndex(20)
-            }
-        }
+        .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
     }
 
     private func formatPlaybackTime(_ seconds: Double) -> String {
@@ -963,7 +1003,10 @@ enum PlaybackChromeMetrics {
     static let horizontalInset: CGFloat = 20
     static let bottomInset: CGFloat = 20
     static let height: CGFloat = 106
-    static let interactiveHeight: CGFloat = 360
+    static let speedMenuWidth: CGFloat = 172
+    static let speedMenuHeight: CGFloat = 234
+    static let speedMenuGap: CGFloat = 8
+    static let interactiveHeight: CGFloat = height + speedMenuHeight + speedMenuGap + 24
     static let hiddenOffset: CGFloat = interactiveHeight + 28
 }
 
