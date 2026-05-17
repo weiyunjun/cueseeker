@@ -59,20 +59,7 @@ struct PlaybackPageView: View {
     }
 
     private func playbackSidebarWidth(totalWidth: CGFloat, isVisible: Bool) -> CGFloat {
-        guard isVisible else {
-            return 0
-        }
-
-        let maximumPanelWidth: CGFloat = 380
-        let minimumPanelWidth: CGFloat = 320
-        let minimumStageWidth: CGFloat = 520
-        let availablePanelWidth = totalWidth - minimumStageWidth
-
-        guard availablePanelWidth >= minimumPanelWidth else {
-            return 0
-        }
-
-        return min(maximumPanelWidth, availablePanelWidth)
+        PlaybackSidebarMetrics.width(totalWidth: totalWidth, isVisible: isVisible)
     }
 }
 
@@ -462,20 +449,20 @@ struct PlaybackChromeView: View {
     }
 
     private var speedControl: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Button {
-                isSpeedMenuVisible.toggle()
-            } label: {
-                Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
-                    .font(.system(size: 12, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.94))
-                    .frame(width: 54, height: 28)
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(PlaybackChromeCapsuleButtonStyle(isActive: isSpeedMenuVisible))
-            .accessibilityLabel("Playback speed")
-
+        Button {
+            isSpeedMenuVisible.toggle()
+        } label: {
+            Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
+                .font(.system(size: 12, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.94))
+                .frame(width: 54, height: 28)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PlaybackChromeCapsuleButtonStyle(isActive: isSpeedMenuVisible))
+        .accessibilityLabel("Playback speed")
+        .frame(width: 54, height: 32, alignment: .center)
+        .overlay(alignment: .bottomTrailing) {
             if isSpeedMenuVisible {
                 PlaybackChromeSpeedMenu(
                     selectedSpeed: viewModel.playbackSpeed,
@@ -488,7 +475,6 @@ struct PlaybackChromeView: View {
                 .zIndex(20)
             }
         }
-        .frame(width: 54, height: 32)
     }
 
     private func formatPlaybackTime(_ seconds: Double) -> String {
@@ -886,7 +872,7 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
     }
 }
 
-private struct PlaybackSidebarShell: View {
+struct PlaybackSidebarShell: View {
     @ObservedObject var appState: AppState
     @Binding var activePanel: PlaybackDrawerKind
 
@@ -977,4 +963,23 @@ enum PlaybackChromeMetrics {
     static let bottomInset: CGFloat = 20
     static let height: CGFloat = 106
     static let hiddenOffset: CGFloat = 128
+}
+
+enum PlaybackSidebarMetrics {
+    static func width(totalWidth: CGFloat, isVisible: Bool) -> CGFloat {
+        guard isVisible else {
+            return 0
+        }
+
+        let maximumPanelWidth: CGFloat = 380
+        let minimumPanelWidth: CGFloat = 320
+        let minimumStageWidth: CGFloat = 520
+        let availablePanelWidth = totalWidth - minimumStageWidth
+
+        guard availablePanelWidth >= minimumPanelWidth else {
+            return 0
+        }
+
+        return min(maximumPanelWidth, availablePanelWidth)
+    }
 }

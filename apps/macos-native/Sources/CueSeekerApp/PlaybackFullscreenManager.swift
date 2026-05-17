@@ -96,11 +96,19 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
             }
         }
 
+        let rootView = PlaybackFullscreenRootView(
+            renderView: player.renderView,
+            isSidebarVisible: appState.isPlaybackSidePanelVisible
+        )
+
         let overlayView = NSHostingView(
             rootView: PlaybackFullscreenOverlayView(
                 fullscreenManager: self,
                 viewModel: viewModel,
                 appState: appState,
+                onSidebarVisibilityChanged: { [weak rootView] isVisible in
+                    rootView?.setSidebarVisible(isVisible)
+                },
                 onExit: { [weak self] in
                     Task { @MainActor in
                         self?.requestExitFullscreen()
@@ -110,11 +118,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         )
         overlayView.wantsLayer = true
         overlayView.layer?.backgroundColor = NSColor.clear.cgColor
-
-        let rootView = PlaybackFullscreenRootView(
-            renderView: player.renderView,
-            overlayView: overlayView
-        )
+        rootView.attachOverlayView(overlayView)
 
         fullscreenWindow = window
         fullscreenRootView = rootView
@@ -463,11 +467,12 @@ private final class PlaybackFullscreenWindow: NSWindow {
 
 private final class PlaybackFullscreenRootView: NSView {
     private let renderView: NSView
-    private let overlayView: NSView
+    private var overlayView: NSView?
+    private var isSidebarVisible: Bool
 
-    init(renderView: NSView, overlayView: NSView) {
+    init(renderView: NSView, isSidebarVisible: Bool) {
         self.renderView = renderView
-        self.overlayView = overlayView
+        self.isSidebarVisible = isSidebarVisible
         super.init(frame: .zero)
 
         wantsLayer = true
@@ -475,7 +480,22 @@ private final class PlaybackFullscreenRootView: NSView {
 
         renderView.removeFromSuperview()
         addSubview(renderView)
+    }
+
+    func attachOverlayView(_ overlayView: NSView) {
+        self.overlayView = overlayView
         addSubview(overlayView)
+        needsLayout = true
+    }
+
+    func setSidebarVisible(_ isVisible: Bool) {
+        guard isSidebarVisible != isVisible else {
+            return
+        }
+
+        isSidebarVisible = isVisible
+        needsLayout = true
+        layoutSubtreeIfNeeded()
     }
 
     @available(*, unavailable)
@@ -488,12 +508,21 @@ private final class PlaybackFullscreenRootView: NSView {
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        renderView.frame = bounds
-        overlayView.frame = bounds
+        let sidebarWidth = PlaybackSidebarMetrics.width(
+            totalWidth: bounds.width,
+            isVisible: isSidebarVisible
+        )
+        renderView.frame = CGRect(
+            x: bounds.minX,
+            y: bounds.minY,
+            width: max(0, bounds.width - sidebarWidth),
+            height: bounds.height
+        )
+        overlayView?.frame = bounds
         renderView.needsLayout = true
         renderView.layoutSubtreeIfNeeded()
-        overlayView.needsLayout = true
-        overlayView.layoutSubtreeIfNeeded()
+        overlayView?.needsLayout = true
+        overlayView?.layoutSubtreeIfNeeded()
         CATransaction.commit()
     }
 
@@ -508,29 +537,38 @@ private struct PlaybackFullscreenOverlayView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var appState: AppState
+    let onSidebarVisibilityChanged: (Bool) -> Void
     let onExit: () -> Void
+    @State private var activePanel: PlaybackDrawerKind = .results
 
     var body: some View {
-        ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    fullscreenManager.registerActivity()
-                    viewModel.togglePlayPause()
-                }
+        GeometryReader { geometry in
+            let sidebarWidth = PlaybackSidebarMetrics.width(
+                totalWidth: geometry.size.width,
+                isVisible: appState.isPlaybackSidePanelVisible
+            )
+            let stageWidth = max(0, geometry.size.width - sidebarWidth)
 
-            GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Color.clear
+                    .frame(width: stageWidth, height: geometry.size.height)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        fullscreenManager.registerActivity()
+                        viewModel.togglePlayPause()
+                    }
+
                 if fullscreenManager.isChromeVisible {
                     PlaybackChromeView(
                         viewModel: viewModel,
                         controls: .appState(appState, fullscreenAction: onExit)
                     )
                     .frame(
-                        width: max(0, geometry.size.width - PlaybackChromeMetrics.horizontalInset * 2),
+                        width: max(0, stageWidth - PlaybackChromeMetrics.horizontalInset * 2),
                         height: PlaybackChromeMetrics.height
                     )
                     .position(
-                        x: geometry.size.width / 2,
+                        x: stageWidth / 2,
                         y: max(
                             PlaybackChromeMetrics.height / 2,
                             geometry.size.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height / 2
@@ -538,15 +576,28 @@ private struct PlaybackFullscreenOverlayView: View {
                     )
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
+                PlaybackSubtitleOverlay(
+                    text: viewModel.activeSubtitleText,
+                    bottomPadding: fullscreenManager.isChromeVisible ? 128 : 56
+                )
+                .frame(width: stageWidth, height: geometry.size.height)
+                .allowsHitTesting(false)
+
+                PlaybackFeedbackOverlay(feedback: viewModel.feedback)
+                    .frame(width: stageWidth, height: geometry.size.height)
+                    .allowsHitTesting(false)
+
+                if sidebarWidth > 0 {
+                    PlaybackSidebarShell(
+                        appState: appState,
+                        activePanel: $activePanel
+                    )
+                    .frame(width: sidebarWidth, height: geometry.size.height)
+                    .offset(x: stageWidth)
+                    .transition(.opacity)
+                }
             }
-            .zIndex(2)
-
-            PlaybackSubtitleOverlay(
-                text: viewModel.activeSubtitleText,
-                bottomPadding: fullscreenManager.isChromeVisible ? 128 : 56
-            )
-
-            PlaybackFeedbackOverlay(feedback: viewModel.feedback)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
         }
         .background(Color.clear)
         .onContinuousHover { phase in
@@ -554,6 +605,33 @@ private struct PlaybackFullscreenOverlayView: View {
                 fullscreenManager.registerHoverActivity(at: location)
             }
         }
+        .onAppear {
+            refreshSidebarData()
+            if let request = appState.playbackDrawerRequest {
+                activePanel = request.drawer
+            }
+            onSidebarVisibilityChanged(appState.isPlaybackSidePanelVisible)
+        }
+        .onChange(of: appState.isPlaybackSidePanelVisible) { isVisible in
+            onSidebarVisibilityChanged(isVisible)
+        }
+        .onChange(of: appState.playbackDrawerRequest?.id) { _ in
+            guard let request = appState.playbackDrawerRequest else {
+                return
+            }
+
+            activePanel = request.drawer
+            refreshSidebarData()
+        }
+        .onChange(of: appState.currentPlaybackSubtitlePath) { _ in
+            refreshSidebarData()
+        }
         .animation(.easeInOut(duration: 0.16), value: fullscreenManager.isChromeVisible)
+        .animation(.easeInOut(duration: 0.18), value: appState.isPlaybackSidePanelVisible)
+    }
+
+    private func refreshSidebarData() {
+        appState.refreshSearchNavigationSnapshot()
+        appState.refreshCurrentSubtitleEntries()
     }
 }
