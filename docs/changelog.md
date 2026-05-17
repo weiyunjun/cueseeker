@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Required App interface implementation to follow a fixed synchronization
+  order: update the HTML prototype first, then the Liquid Glass component and
+  UX mapping documents, and only then modify native App code after explicit
+  App implementation approval.
 - Updated the `cueseeker-liquid-glass-v5` expanded playback prototype so the
   bottom player behaves like playback chrome: entering the black video base
   reveals it, leaving hides it, and three seconds of inactivity inside the

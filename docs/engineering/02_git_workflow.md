@@ -202,6 +202,15 @@ Rules:
   relevant local HTML prototype under `ui/prototypes/`. App code may be changed
   only after the HTML prototype has been visually aligned and the user has
   explicitly approved App implementation.
+- For every App interface modification, the required implementation order is:
+  update or create the relevant HTML prototype first; then update the Liquid
+  Glass component mapping document when component classes, tokens, or SwiftUI
+  ownership change; then update the Liquid Glass UX mapping document when
+  layout, state, interaction, timing, or behavior rules change; and only then
+  modify native App code after the user explicitly approves App implementation.
+- The AI must not skip the component mapping or UX mapping step by treating
+  prototype-visible class, layout, timing, or interaction rules as implicit App
+  implementation details.
 - If the user provides an original HTML draft, that draft is the visual
   alignment input. The AI should replicate it locally first, iterate on visual
   differences in HTML, and only then move accepted details into App code.

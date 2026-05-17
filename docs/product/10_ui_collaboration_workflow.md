@@ -33,7 +33,9 @@ User provides an original HTML draft
 Assistant recreates or updates the local HTML prototype
 User reviews visual differences and requests alignment fixes
 Assistant updates the HTML prototype until accepted
-Assistant documents stable rules and known HTML/App differences
+Assistant updates component and UX mapping documents for accepted class,
+token, layout, state, interaction, timing, and native-difference rules
+Assistant documents any remaining stable rules and known HTML/App differences
 Assistant implements the accepted design in App code only after explicit approval
 ```
 
@@ -44,6 +46,20 @@ Rules:
 - App code must not be changed for a UI request until the relevant HTML
   prototype has been visually aligned and the user has explicitly approved App
   implementation.
+- App interface implementation must follow this order: HTML prototype first,
+  Liquid Glass component mapping second, Liquid Glass UX mapping third, native
+  App code last.
+- `docs/product/11_liquid_glass_component_mapping.md` must be updated before
+  App code when accepted prototype changes add, remove, rename, or redefine
+  component classes, token ownership, SwiftUI component ownership, or
+  production/prototype-only boundaries.
+- `docs/product/12_liquid_glass_ux_mapping.md` must be updated before App code
+  when accepted prototype changes affect layout, sizing, state lifetime,
+  interaction flow, timing, animation, visibility, keyboard behavior, focus
+  behavior, or native implementation boundaries.
+- The mapping documents are not optional implementation notes. They are the
+  synchronization contract between the accepted HTML prototype and the native
+  App rewrite.
 - When the user returns a revised HTML file from another AI workflow, treat that
   file as the new original draft and repeat the alignment flow.
 - Large-scale HTML prototype changes must fork a new versioned prototype source
