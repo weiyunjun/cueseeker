@@ -17,9 +17,18 @@ enum ShioriFeedbackState {
 struct PlaybackFeedback: Identifiable, Equatable {
     let id = UUID()
     let position: PlaybackFeedbackPosition
-    let systemImage: String
+    let systemImage: String?
     let text: String?
-    let isCircular: Bool
+
+    init(
+        position: PlaybackFeedbackPosition,
+        systemImage: String? = nil,
+        text: String?
+    ) {
+        self.position = position
+        self.systemImage = systemImage
+        self.text = text
+    }
 }
 
 @MainActor
@@ -133,9 +142,8 @@ public final class PlaybackViewModel: ObservableObject {
             showFeedback(
                 PlaybackFeedback(
                     position: .trailing,
-                    systemImage: "goforward.5",
-                    text: "+ \(accumulatedForwardSeconds)s",
-                    isCircular: false
+                    systemImage: "chevron.right",
+                    text: "+ \(accumulatedForwardSeconds)s"
                 )
             )
         } else {
@@ -144,9 +152,8 @@ public final class PlaybackViewModel: ObservableObject {
             showFeedback(
                 PlaybackFeedback(
                     position: .leading,
-                    systemImage: "gobackward.5",
-                    text: "- \(accumulatedRewindSeconds)s",
-                    isCircular: false
+                    systemImage: "chevron.left",
+                    text: "- \(accumulatedRewindSeconds)s"
                 )
             )
         }
@@ -229,9 +236,8 @@ public final class PlaybackViewModel: ObservableObject {
         showFeedback(
             PlaybackFeedback(
                 position: .center,
-                systemImage: copied ? "pencil.tip" : "exclamationmark.triangle",
-                text: copied ? "Copied" : "No Subtitle",
-                isCircular: false
+                systemImage: copied ? "doc.on.doc" : "exclamationmark.triangle",
+                text: copied ? "Subtitle Copied" : "No Subtitle"
             ),
             durationMilliseconds: 1_000
         )
@@ -243,22 +249,19 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: "bookmark.fill",
-                text: "Shiori Saved",
-                isCircular: false
+                text: "Shiori Saved"
             )
         case .removed:
             PlaybackFeedback(
                 position: .center,
                 systemImage: "bookmark",
-                text: "Shiori Removed",
-                isCircular: false
+                text: "Shiori Removed"
             )
         case .unavailable:
             PlaybackFeedback(
                 position: .center,
                 systemImage: "exclamationmark.triangle",
-                text: "No Subtitle",
-                isCircular: false
+                text: "No Subtitle"
             )
         }
 
@@ -270,9 +273,34 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: isPlaying ? "play.fill" : "pause.fill",
-                text: nil,
-                isCircular: true
+                text: isPlaying ? "Play" : "Pause"
             )
+        )
+    }
+
+    func showSearchNavigationFeedback(
+        direction: SearchResultNavigationDirection,
+        hasResult: Bool
+    ) {
+        showFeedback(
+            PlaybackFeedback(
+                position: direction == .previous ? .leading : .trailing,
+                systemImage: direction == .previous ? "chevron.left" : "chevron.right",
+                text: hasResult
+                    ? (direction == .previous ? "Previous Result" : "Next Result")
+                    : "No Result"
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
+    func showFullscreenFeedback(enteringFullscreen: Bool) {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                text: enteringFullscreen ? "Enter Fullscreen" : "Exit Fullscreen"
+            ),
+            durationMilliseconds: 1_000
         )
     }
 
@@ -281,8 +309,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: isVisible ? "captions.bubble.fill" : "captions.bubble",
-                text: isVisible ? "Subtitles On" : "Subtitles Off",
-                isCircular: false
+                text: isVisible ? "Subtitles On" : "Subtitles Off"
             ),
             durationMilliseconds: 1_000
         )
@@ -292,9 +319,8 @@ public final class PlaybackViewModel: ObservableObject {
         showFeedback(
             PlaybackFeedback(
                 position: .center,
-                systemImage: "speedometer",
-                text: Self.formatSpeed(speed),
-                isCircular: false
+                systemImage: "chevron.right",
+                text: Self.formatSpeed(speed)
             )
         )
     }
@@ -303,9 +329,8 @@ public final class PlaybackViewModel: ObservableObject {
         showFeedback(
             PlaybackFeedback(
                 position: .center,
-                systemImage: volume > 0 ? "speaker.wave.3.fill" : "speaker.slash.fill",
-                text: "\(Int(volume.rounded()))%",
-                isCircular: false
+                systemImage: volume > 0 ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                text: volume > 0 ? "Volume \(Int(volume.rounded()))%" : "Muted"
             )
         )
     }
@@ -438,14 +463,14 @@ public final class PlaybackViewModel: ObservableObject {
 
     static func formatSpeed(_ speed: Double) -> String {
         if speed.rounded() == speed {
-            return String(format: "%.0fx", speed)
+            return String(format: "%.0f×", speed)
         }
 
         if (speed * 10).rounded() == speed * 10 {
-            return String(format: "%.1fx", speed)
+            return String(format: "%.1f×", speed)
         }
 
-        return String(format: "%.2fx", speed)
+        return String(format: "%.2f×", speed)
     }
 }
 

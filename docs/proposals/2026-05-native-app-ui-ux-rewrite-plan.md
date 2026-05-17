@@ -122,6 +122,10 @@ Scope:
 - New speed menu.
 - New fullscreen, subtitle, sidebar, Shiori, copy subtitle, transport, and
   navigation controls.
+- New `LiquidGlassFeedbackOverlay` for playback shortcut, mouse, and button
+  feedback. This includes play/pause, relative seek, Search result navigation,
+  subtitle visibility, speed, volume, Shiori, copy subtitle, and fullscreen
+  text-only feedback.
 - Chrome auto-hide/show behavior for the playback page.
 
 Acceptance criteria:
@@ -130,6 +134,9 @@ Acceptance criteria:
 - Hiding chrome does not resize the video or sidebar.
 - Icons, button size, spacing, selected states, hover states, and pressed states
   match the accepted HTML prototype.
+- Feedback HUD visuals, placement, icon/text ordering, and animation timing
+  match the accepted HTML prototype. Repeated relative seek feedback accumulates
+  in the same HUD, and forward feedback displays text before the arrow.
 - Shiori remains a plain fixed-icon command button.
 - Subtitle and sidebar controls may show selected state when active.
 - `swift test` passes.

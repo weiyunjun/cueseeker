@@ -95,7 +95,7 @@ private enum ActivePlaybackSource: Equatable {
     case shiori
 }
 
-enum SearchResultNavigationDirection {
+enum SearchResultNavigationDirection: Equatable {
     case previous
     case next
 }
@@ -879,6 +879,7 @@ final class AppState: ObservableObject {
             return
         }
 
+        let enteringFullscreen = !playbackFullscreenManager.isFullscreen
         let started = playbackFullscreenManager.toggleFullscreen(
             player: player,
             viewModel: playbackViewModel,
@@ -893,6 +894,8 @@ final class AppState: ObservableObject {
         )
         if !started {
             endVideoSizeTransition()
+        } else {
+            playbackViewModel.showFullscreenFeedback(enteringFullscreen: enteringFullscreen)
         }
     }
 
@@ -939,6 +942,8 @@ final class AppState: ObservableObject {
         )
         if !started {
             endVideoSizeTransition()
+        } else {
+            playbackViewModel?.showFullscreenFeedback(enteringFullscreen: false)
         }
     }
 
@@ -2712,6 +2717,9 @@ final class AppState: ObservableObject {
         else {
             searchNavigationSnapshot = nil
             searchNavigationResultGroups = []
+            if let direction {
+                playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
+            }
             return
         }
 
@@ -2747,8 +2755,11 @@ final class AppState: ObservableObject {
                     nil
                 }
 
-                if let target {
+                if let target, let direction {
+                    self.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: true)
                     self.openSearchResult(target)
+                } else if let direction {
+                    self.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
                 }
             } catch {
                 guard !Task.isCancelled else {
