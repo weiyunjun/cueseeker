@@ -83,8 +83,8 @@ First implementation requirements:
   width that fits the longest current preset label.
 - Search Results rows may highlight query matches. Subtitles rows represent the
   full subtitle file and must not apply keyword highlighting.
-- Show the bottom player only while an active playback session exists. Non-video
-  workbench pages with no active playback must not show the bottom player.
+- Show the bottom player only while the video playback page is visible.
+  Non-video Search, Library, and Shiori pages must not show the bottom player.
 - The old bottom-player left source/title expand-collapse capsule is removed
   from the active target UI. The volume button becomes the leftmost bottom-player
   control; other bottom-player controls keep their relative positions.
@@ -110,7 +110,7 @@ ui/prototypes/cueseeker-liquid-glass-v5/
 
 The standalone prototype remains the current visual baseline for HTML review of
 the main workbench, grouped Search results, Search-launched playback overlay,
-playback side panel, and active-playback bottom player. The v5 directory is the
+playback side panel, and video-page bottom player. The v5 directory is the
 current split-source review fork for control taxonomy, disabled states,
 prototype theme switching, bottom-player control sizing, and expanded playback
 video geometry. Earlier versioned forks remain available for visual comparison.
@@ -123,7 +123,7 @@ Stable design snapshot:
   silver-gray window material, soft internal highlights, subtle hairlines, and
   low-contrast shadows.
 - The prototype has grouped workbench states and an expanded playback state.
-  The expanded playback state shows the active playback bottom player while
+  The expanded playback state shows the video-page bottom player while
   replacing the main results area with a video surface and optional right side
   panel.
 - Search results show a compact summary row and a fixed `Collapse All` action.
@@ -131,13 +131,16 @@ Stable design snapshot:
   it is not an expand-all toggle. It has distinct normal and disabled states.
 - Search result groups are expanded by default. Group headers use a disclosure
   rail, a friendly title, and a muted result count. Result cards use light glass
-  backgrounds, hover lift, selected emphasis, readable bilingual text, and
-  inline keyword highlights.
+  backgrounds, hover lift, readable bilingual text, and inline keyword
+  highlights. Search, Library, and Shiori main-page cards do not retain a
+  selected visual state after activation.
 - The expanded video surface is a black playback frame with a subtitle overlay.
   The overlay can be shown or hidden from the bottom player without resizing
   the bottom player controls.
-- The expanded video surface owns a top-left `Close` capsule. It is a command
-  button over the video stage, not a replacement for fullscreen exit.
+- The expanded video surface owns a `Close` capsule anchored to the active
+  video frame's top-left corner. It is a command button over the actual video
+  image area, not the black base's top-left corner and not a replacement for
+  fullscreen exit.
 - The playback side panel contains a two-tab segmented control for Search
   Results and Subtitles, a compact summary, and scrollable row cards. The side
   panel can be hidden or restored from the bottom player.
@@ -184,7 +187,7 @@ Stable design snapshot:
   filled glyph. The glyph switch, selected material, and foreground contrast
   together define the complete toggle state.
 - The Close capsule uses the video-close capsule treatment inside the video
-  stage. The speed capsule uses fixed width and tabular text so preset changes
+  frame. The speed capsule uses fixed width and tabular text so preset changes
   do not shift neighboring controls.
 - Transport icon buttons are a larger bottom-player subtype used only for the
   five centered transport controls. They are intentionally distinct from the
@@ -652,22 +655,20 @@ shown in the result row.
 
 Layout and Selection Behavior:
 
-- The selected-row background starts on the same left edge as the group
-  disclosure rail. Result-row subtitle text starts on the same left edge
-  as the subtitle file name in the header.
-- The selected-row background and group header text area keep their right
-  edges aligned.
+- In the current Liquid Glass target, Search, Library, and Shiori main-page
+  cards do not retain selected-card visuals after activation. The playback side
+  panel remains the place where the current playback row is visibly selected.
+- Result-row subtitle text starts on the same left edge as the subtitle file
+  name in the header.
 - Rows do not use horizontal dividers. Row separation should come from
   internal padding, group headers, and readable text spacing.
 - Internal wrapped subtitle lines, including SRT line breaks and ASS `\N`
   line breaks rendered inside a single cue line, should use 4pt line
   spacing so bilingual subtitle text does not appear cramped.
-- Selection feedback is an input response, not a playback completion response.
-  Workbench mode selection, Library episode selection, Search result
-  selection, and Shiori row selection must update their visible selected state
-  immediately when the user activates the item. Video opening, seeking, subtitle
-  loading, and ASS rendering preparation may continue afterward but must not
-  delay the selected visual state.
+- Selection feedback for the current playback context belongs to the playback
+  side panel. Workbench mode selection may still show navigation state, but
+  Library episode cards, Search result cards, and Shiori cards should return to
+  their ordinary card styling after activation.
 
 ## 8. Playback Area And Shared Content Panel
 

@@ -118,9 +118,9 @@ side panel while preserving the active-playback bottom-player control model.
 
 Rules:
 
-- The bottom player remains available across Search, Library, and Shiori only
-  while an active playback session exists.
-- When no active playback session exists, no bottom player is shown.
+- The bottom player is shown only in the visible video playback page.
+- Search, Library, and Shiori pages do not show a collapsed bottom-player-only
+  state.
 - Switching between Library, Search, and Shiori preserves inactive mode state
   where practical, including loaded result state, draft Search text, and
   presentation disclosure state that the existing App state already owns.
@@ -214,7 +214,7 @@ Rules:
 | Cards show rank and timestamp metadata. | `.card-meta` | Search result card view | Result rank/time |
 | Cards show complete cue text without truncating subtitle lines. | card body | Search result card view | Cue display lines |
 | Query matches may be highlighted. | highlight spans | Highlight renderer | Search query terms |
-| Selection updates immediately on user activation. | `ui-is-selected` | `LiquidGlassSelectableCard` | Selected result state |
+| Main-page cards do not retain selected visuals after activation. | absence of `ui-is-selected` on main `.result-card` | Search result card view | Playback opening command |
 
 Rules:
 
@@ -224,12 +224,12 @@ Rules:
   height constraints.
 - Card metadata should not infer or display episode labels unless a reliable
   source exists.
-- Selected-card feedback is an input response. It must not wait for video open,
-  seek, subtitle loading, or ASS render preparation.
-- Hover must not override selected state.
-- Search match highlights must stay readable in default, hover, and selected
-  states.
+- Main Search result cards may show hover and pressed feedback, but they return
+  to ordinary card styling after activation.
+- Search match highlights must stay readable in default and hover states.
 - Clicking a Search result opens or updates playback and clears Search focus.
+- The corresponding playback side-panel row should show selected state when the
+  active playback context belongs to that Search result.
 - If the same video is already open, selecting another result in that video
   should seek instead of reopening when practical.
 
@@ -294,7 +294,8 @@ Rules:
 Rules:
 
 - Shiori cards should show complete cue text without truncating subtitle lines.
-- Shiori card selection updates immediately when activated.
+- Shiori cards may show pressed feedback during activation, but they do not
+  retain selected-card visuals after opening playback.
 - Saving or removing a Shiori must not pause playback, reset Search state, or
   rebuild Library rows.
 - Shiori group collapse state is presentation state and must not rebuild Search
@@ -316,8 +317,8 @@ Rules:
 
 Rules:
 
-- The bottom player is rendered only while an active playback session exists.
-  Search, Library, and Shiori pages with no active playback must not show it.
+- The bottom player is rendered only while the video playback page is visible.
+  Search, Library, and Shiori pages must not show it.
 - The bottom player stays visually stable when control values change.
 - Text/value controls use capsule components. Icon-only controls use circular
   icon buttons.
@@ -397,7 +398,7 @@ Expanded playback uses this conceptual layout:
 Topbar
 Expanded playback area
   Left black video base
-    Top-left Close capsule
+    Close capsule anchored to video frame top-left
     Aspect-fit video frame
     Floating bottom-player chrome
   Optional right side panel
@@ -416,8 +417,9 @@ Rules:
   before side-panel hiding is considered.
 - The expanded playback surface must not show an extra video-title/avatar block
   inside the video stage or above the side-panel tabs.
-- The top-left `Close` capsule sits inside the video stage above the video base
-  content. It must not resize the video frame or bottom player.
+- The `Close` capsule is positioned from the active video frame's top-left
+  corner, not from the black base's top-left corner. It must not resize the
+  video frame or bottom player.
 
 ### 10.2 Video Frame Sizing
 
@@ -486,10 +488,10 @@ Rules:
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
-| Close is a compact capsule command in the top-left video stage. | `ui-capsule--video-close`, `.video-close-button` | `LiquidGlassCapsuleButton.Kind.videoClose`, expanded playback overlay | Playback session lifecycle |
+| Close is a compact capsule command at the active video frame's top-left corner. | `ui-capsule--video-close`, `.video-close-button` positioned by video-frame geometry | `LiquidGlassCapsuleButton.Kind.videoClose`, expanded playback overlay | Playback session lifecycle |
 | Close ends the active playback session. | `.playback-closed` / no active session marker | `PlaybackExpandedLayout`, `BottomPlaybackBar` | `AppState.stopPlayback` or successor close command |
 | Close hides the bottom player after playback ends. | `.player-dock` hidden when no active playback | `BottomPlaybackBar` | Derived active playback session state |
-| Close clears playback-derived selection highlights. | `ui-is-selected` removed from result/sidebar/library/shiori rows | Search, Library, Shiori views | Current playback source and selection state |
+| Close clears playback-derived selection highlights. | `ui-is-selected` removed from playback side-panel rows | Playback side-panel views | Current playback source and selection state |
 
 Rules:
 
@@ -500,9 +502,9 @@ Rules:
   using the same rule as any other Library playback stop or switch.
 - If the current source is Search or Shiori, close must not read, write, or
   overwrite Library playback resume history.
-- Close must clear the selected Search result, selected Library video, selected
-  Shiori row, and selected playback side-panel row because there is no longer an
-  active playback identity.
+- Close must clear the selected playback side-panel row because there is no
+  longer an active playback identity. Search, Library, and Shiori main-page
+  cards should already have no retained playback selection visuals.
 - Close must not clear the submitted Search query, Search result list, database
   search cache, Shiori records, Library rows, group disclosure presentation
   state, or unrelated workbench state.

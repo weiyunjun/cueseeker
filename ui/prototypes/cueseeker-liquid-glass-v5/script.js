@@ -369,10 +369,12 @@ const win = document.getElementById("window");
       const frameX = (stageWidth - frameWidth) / 2;
       const frameY = (stageHeight - frameHeight) / 2;
 
-      videoFrame.style.setProperty("--video-frame-width", `${frameWidth}px`);
-      videoFrame.style.setProperty("--video-frame-height", `${frameHeight}px`);
-      videoFrame.style.setProperty("--video-frame-x", `${frameX}px`);
-      videoFrame.style.setProperty("--video-frame-y", `${frameY}px`);
+      [videoStage, videoFrame].forEach((el) => {
+        el.style.setProperty("--video-frame-width", `${frameWidth}px`);
+        el.style.setProperty("--video-frame-height", `${frameHeight}px`);
+        el.style.setProperty("--video-frame-x", `${frameX}px`);
+        el.style.setProperty("--video-frame-y", `${frameY}px`);
+      });
       syncPlayerChromeBoundary();
     }
 
@@ -585,12 +587,14 @@ const win = document.getElementById("window");
     }
 
     function selectCue(cue) {
-      const isShiori = Boolean(cue.closest(".shiori-state"));
+      const isMainSearchResult = Boolean(cue.closest(".search-state"));
+      const isSidebarResult = Boolean(cue.closest(".sidebar"));
       const rank = cue.dataset.rank;
-      document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
-        const selected = isShiori
-          ? el === cue
-          : !el.closest(".shiori-state") && el.dataset.rank === rank;
+      document.querySelectorAll(".result-card, .library-episode-card").forEach((el) => {
+        el.classList.remove("selected", "ui-is-selected");
+      });
+      document.querySelectorAll(".sidebar-row").forEach((el) => {
+        const selected = (isMainSearchResult || isSidebarResult) && el.dataset.rank === rank;
         el.classList.toggle("selected", selected);
         el.classList.toggle("ui-is-selected", selected);
       });
@@ -600,9 +604,10 @@ const win = document.getElementById("window");
 
     function selectLibraryEpisode(episode) {
       document.querySelectorAll(".library-episode-card").forEach((el) => {
-        const selected = el === episode;
-        el.classList.toggle("selected", selected);
-        el.classList.toggle("ui-is-selected", selected);
+        el.classList.remove("selected", "ui-is-selected");
+      });
+      document.querySelectorAll(".sidebar-row").forEach((el) => {
+        el.classList.remove("selected", "ui-is-selected");
       });
       currentZh.textContent = "";
       currentJa.textContent = "";

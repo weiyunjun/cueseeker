@@ -311,15 +311,12 @@ Responsiveness boundaries:
 
 When the user selects a result:
 
-- The selected row turns into a rounded rectangle filled with the macOS
-  system accent color (`Color.accentColor`). Selected row text becomes
-  white. Selected row keyword highlights invert to a translucent-white fill
-  with bolder white text. The row uses no divider lines.
-- Selection feedback must appear immediately on user activation. Library,
-  Search, and Shiori selected states must not wait for video opening, seeking,
-  subtitle loading, or ASS rendering preparation to complete. Delaying the
-  selected state makes the app feel blocked even when the command has already
-  been accepted.
+- In the current Liquid Glass target, Search, Library, and Shiori main-page
+  cards do not retain selected-card visuals after activation.
+- The visible selected-row treatment belongs to the playback side panel. Right
+  playback side-panel rows should still show the current playback context with
+  selected styling and should update immediately when the current playback row
+  changes.
 - The selected row does not show a cue start timestamp. Within a
   subtitle-file group rows are ordered by ascending cue start time, so
   spatial order conveys time order without a dedicated column.
@@ -443,9 +440,10 @@ M2 playback interaction model:
 - Playback should include progress and seek interaction suitable for reviewing subtitle context.
 - Playback actions should provide clear visual feedback, such as a lightweight operation HUD or animation when the user plays, pauses, seeks, or triggers another command.
 - Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
-- The playback surface should expose a top-left `Close` capsule command. Close
-  ends the current playback session, exits playback fullscreen if necessary,
-  clears playback-derived selection highlights, and hides the bottom player.
+- The playback surface should expose a `Close` capsule command anchored to the
+  active video frame's top-left corner. Close ends the current playback session,
+  exits playback fullscreen if necessary, clears playback-derived selection
+  highlights, and hides the bottom player.
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
 - Playback fullscreen should use the main CueSeeker window's AppKit native
   fullscreen behavior, then switch that window into a video-only presentation
@@ -489,9 +487,8 @@ Current M2 implementation and accepted fullscreen correction:
   separate-window playback fullscreen handling for app switching and
   deactivation behavior.
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
-- The bottom player is visible only while an active playback session exists.
-  When no playback selection exists, Search, Library, and Shiori workbench pages
-  must not show the bottom player.
+- The bottom player is visible only while the video playback page is visible.
+  Search, Library, and Shiori workbench pages must not show the bottom player.
 - The bottom-player left source/title collapse control is no longer part of the
   target UX. The volume button is the leftmost bottom-player control; the other
   controls keep their relative order.

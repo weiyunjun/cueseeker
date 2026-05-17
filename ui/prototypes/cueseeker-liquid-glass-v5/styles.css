@@ -368,6 +368,9 @@
       opacity: 1;
       pointer-events: auto;
     }
+    .window:not(.video-expanded) .player-dock {
+      display: none;
+    }
     .window.playback-closed .player-dock {
       display: none;
     }
@@ -644,8 +647,8 @@
     .video-close-button {
       appearance: none;
       position: absolute;
-      top: 18px;
-      left: 18px;
+      top: calc(var(--video-frame-y) + 18px);
+      left: calc(var(--video-frame-x) + 18px);
       z-index: 7;
       height: 42px;
       padding: 0 16px 0 13px;

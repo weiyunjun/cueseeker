@@ -95,7 +95,7 @@ live in that owner, not in individual call sites.
 | --- | --- | --- | --- |
 | `ui-capsule` | Capsule button base | `LiquidGlassCapsuleButton` / capsule `ButtonStyle` | Shared base for visible pill-shaped text/value controls. |
 | `ui-capsule--command` | Capsule command button | `LiquidGlassCapsuleButton.Kind.command` | `Collapse All` and similar compact commands. |
-| `ui-capsule--video-close` | Video close capsule command | `LiquidGlassCapsuleButton.Kind.videoClose` | Top-left close command over the active video stage. |
+| `ui-capsule--video-close` | Video close capsule command | `LiquidGlassCapsuleButton.Kind.videoClose` | Top-left close command anchored to the active video frame. |
 | `ui-capsule--value` | Fixed-width value capsule | `LiquidGlassCapsuleButton.Kind.value` | Playback speed control. |
 | `ui-capsule--test` | Prototype-only test capsule | No production App component | HTML review controls only. |
 | `ui-prototype-control` | Prototype-only review control | No production App component | Must not appear in production App UI. |
@@ -122,7 +122,7 @@ live in that owner, not in individual call sites.
 | `ui-feedback-hud--text-capsule` | Text-only feedback capsule modifier | `LiquidGlassFeedbackOverlay.HUD.Kind.textCapsule` | Independent compact capsule HUD for text-only feedback such as fullscreen enter and exit. No icon slot or icon spacing is reserved. |
 | `ui-feedback-icon` | Feedback icon | `LiquidGlassFeedbackOverlay.Icon` | Command icon inside the transient video feedback HUD; omitted for text-only fullscreen enter and exit feedback. |
 | `ui-feedback-label` | Feedback label | `LiquidGlassFeedbackOverlay.Label` | Short command or state label inside the transient video feedback HUD. |
-| `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Selected cards, selected rows, selected toggles, selected menu item. |
+| `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Playback side-panel selected rows, selected toggles, and selected menu items. Search, Library, and Shiori main-page cards must not use this for playback selection visuals. |
 | `ui-is-active` | Active state marker | `LiquidGlassControlState.active` | Active segmented option and active transient control states. |
 
 Retired active-target component:
@@ -144,7 +144,7 @@ Retired active-target component:
 | Library page | `.library-state`, episode cards | Library page view plus disclosure and episode card components | Existing Library folder grouping, collapse state, open video behavior. |
 | Shiori page | `.shiori-state`, grouped cards | Shiori page view plus `LiquidGlassSelectableCard` | Existing Shiori persistence and open behavior. |
 | Bottom player | `.player-dock`, `.player-hud` | `BottomPlaybackBar`, `LiquidGlassBottomPlayer` | Active playback session visibility, playback view model, seek, volume, speed, navigation, Shiori, copy, subtitles. |
-| Expanded playback | `.video-state`, `.video-stage`, `.video-frame`, `ui-capsule--video-close`, `ui-feedback-overlay` | `PlaybackExpandedLayout`, video stage surface, `LiquidGlassFeedbackOverlay` | Real video aspect ratio, playback render view lifecycle, playback close lifecycle, playback input feedback. |
+| Expanded playback | `.video-state`, `.video-stage`, `.video-frame`, `ui-capsule--video-close`, `ui-feedback-overlay` | `PlaybackExpandedLayout`, video stage surface, `LiquidGlassFeedbackOverlay` | Real video aspect ratio, frame-anchored close placement, playback render view lifecycle, playback close lifecycle, playback input feedback. |
 | Playback side panel | `.sidebar`, `ui-segmented-control`, `ui-selectable-row` | Playback side-panel views plus segmented and row components | Search navigation snapshot, current subtitle entries, row activation. |
 | Fullscreen playback chrome | Prototype bottom-player visual language plus `ui-feedback-overlay` | Fullscreen overlay using same bottom-player and feedback component families | AppKit fullscreen lifecycle, render-view ownership, cursor and chrome visibility timing, playback input feedback. |
 
@@ -160,12 +160,12 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `[disabled]` | `Environment(\.isEnabled)` | Disabled visual treatment must be owned by the component style. |
 | `aria-pressed="true"` | Boolean binding such as `isSelected` or `isActiveCommandState` | Used by toggle controls and stateful command controls. It does not imply `ui-is-selected` unless the component mapping explicitly uses selected visual styling. |
 | `aria-expanded="true"` | Boolean binding such as `isExpanded` | Used by menus and disclosure controls. The retired source/title capsule must not be reintroduced as the expanded-playback toggle. |
-| `ui-is-selected` | `LiquidGlassControlState.selected` | Persistent selected state. |
+| `ui-is-selected` | `LiquidGlassControlState.selected` | Persistent selected state for playback side-panel rows and selected controls only. Main Search, Library, and Shiori cards should not retain selected visuals after activation. |
 | `ui-is-active` | `LiquidGlassControlState.active` | Active tab or active transient selection. |
 | `.is-dragging` | `@GestureState` or local drag state | Sliders should use this for thumb and track emphasis. |
 | `body[data-theme]` | `AppAppearanceMode` / color scheme | Theme tokens should derive from App appearance mode, not prototype-only controls. |
 | `.video-expanded` | `appState.isPlaybackSurfaceExpanded` | Controls expanded playback layout and bottom-player context. |
-| `.playback-closed` / no active playback marker | `appState.hasPlaybackSelection == false` or equivalent derived playback-session state | Hides active-playback bottom player and playback surface after close. This must be derived from the active playback session, not from Search cache or Library data. |
+| `.playback-closed` / no active playback marker | `appState.hasPlaybackSelection == false` or equivalent derived playback-session state | Hides playback UI after close. The bottom player is also hidden whenever `.video-expanded` is false, so non-video Search, Library, and Shiori pages do not show the bottom player. |
 | `.sidebar-hidden` | `!appState.isPlaybackSidePanelVisible` | Controls expanded playback side-panel visibility. |
 | `body.prototype-fullscreen` | `playbackFullscreenManager.isFullscreen` | Prototype-only App fullscreen state marker. It may promote `.main` to a viewport-covering playback surface and disable ancestor visual effects that block fixed positioning, but must not redefine video-stage, video-frame, side-panel, or bottom-player layout rules. |
 | `.player-chrome-visible` | fullscreen or expanded playback chrome state | Drives bottom-player visibility over video. |

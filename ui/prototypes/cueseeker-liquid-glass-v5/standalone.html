@@ -374,6 +374,9 @@
       opacity: 1;
       pointer-events: auto;
     }
+    .window:not(.video-expanded) .player-dock {
+      display: none;
+    }
     .window.playback-closed .player-dock {
       display: none;
     }
@@ -650,8 +653,8 @@
     .video-close-button {
       appearance: none;
       position: absolute;
-      top: 18px;
-      left: 18px;
+      top: calc(var(--video-frame-y) + 18px);
+      left: calc(var(--video-frame-x) + 18px);
       z-index: 7;
       height: 42px;
       padding: 0 16px 0 13px;
@@ -2157,7 +2160,7 @@
     </button>
   </div>
 
-  <main class="window" id="window" data-screen-label="CueSeeker Liquid Glass" aria-label="CueSeeker">
+  <main class="window playback-closed" id="window" data-screen-label="CueSeeker Liquid Glass" aria-label="CueSeeker">
     <header class="toolbar">
       <div class="traffic" aria-hidden="true">
         <span class="close"></span>
@@ -2370,7 +2373,7 @@
                 <span class="line">祥 武道馆 没问题吧</span>
                 <span class="line">祥　武道館　<mark>大丈夫</mark></span>
               </button>
-              <button class="result-card selected ui-selectable-card ui-is-selected" type="button" data-rank="4" data-time="18:43" data-zh="当然没问题" data-ja="大丈夫に決まっているでしょう">
+              <button class="result-card ui-selectable-card" type="button" data-rank="4" data-time="18:43" data-zh="当然没问题" data-ja="大丈夫に決まっているでしょう">
                 <span class="meta"><span class="rank">#4</span><span>18:43</span></span>
                 <span class="line">当然没问题</span>
                 <span class="line"><mark>大丈夫</mark>に決まっているでしょう</span>
@@ -2649,7 +2652,7 @@
               <span class="line">祥 武道馆 没问题吧</span>
               <span class="line">祥　武道館　<mark>大丈夫</mark></span>
             </button>
-            <button class="sidebar-row selected ui-selectable-row ui-is-selected" type="button" data-rank="4" data-time="18:43" data-zh="当然没问题" data-ja="大丈夫に決まっているでしょう">
+            <button class="sidebar-row ui-selectable-row" type="button" data-rank="4" data-time="18:43" data-zh="当然没问题" data-ja="大丈夫に決まっているでしょう">
               <span class="meta"><span class="rank">#4</span><span>18:43</span></span>
               <span class="line">当然没问题</span>
               <span class="line"><mark>大丈夫</mark>に決まっているでしょう</span>
@@ -3159,10 +3162,12 @@ const win = document.getElementById("window");
       const frameX = (stageWidth - frameWidth) / 2;
       const frameY = (stageHeight - frameHeight) / 2;
 
-      videoFrame.style.setProperty("--video-frame-width", `${frameWidth}px`);
-      videoFrame.style.setProperty("--video-frame-height", `${frameHeight}px`);
-      videoFrame.style.setProperty("--video-frame-x", `${frameX}px`);
-      videoFrame.style.setProperty("--video-frame-y", `${frameY}px`);
+      [videoStage, videoFrame].forEach((el) => {
+        el.style.setProperty("--video-frame-width", `${frameWidth}px`);
+        el.style.setProperty("--video-frame-height", `${frameHeight}px`);
+        el.style.setProperty("--video-frame-x", `${frameX}px`);
+        el.style.setProperty("--video-frame-y", `${frameY}px`);
+      });
       syncPlayerChromeBoundary();
     }
 
@@ -3375,12 +3380,14 @@ const win = document.getElementById("window");
     }
 
     function selectCue(cue) {
-      const isShiori = Boolean(cue.closest(".shiori-state"));
+      const isMainSearchResult = Boolean(cue.closest(".search-state"));
+      const isSidebarResult = Boolean(cue.closest(".sidebar"));
       const rank = cue.dataset.rank;
-      document.querySelectorAll(".result-card, .sidebar-row").forEach((el) => {
-        const selected = isShiori
-          ? el === cue
-          : !el.closest(".shiori-state") && el.dataset.rank === rank;
+      document.querySelectorAll(".result-card, .library-episode-card").forEach((el) => {
+        el.classList.remove("selected", "ui-is-selected");
+      });
+      document.querySelectorAll(".sidebar-row").forEach((el) => {
+        const selected = (isMainSearchResult || isSidebarResult) && el.dataset.rank === rank;
         el.classList.toggle("selected", selected);
         el.classList.toggle("ui-is-selected", selected);
       });
@@ -3390,9 +3397,10 @@ const win = document.getElementById("window");
 
     function selectLibraryEpisode(episode) {
       document.querySelectorAll(".library-episode-card").forEach((el) => {
-        const selected = el === episode;
-        el.classList.toggle("selected", selected);
-        el.classList.toggle("ui-is-selected", selected);
+        el.classList.remove("selected", "ui-is-selected");
+      });
+      document.querySelectorAll(".sidebar-row").forEach((el) => {
+        el.classList.remove("selected", "ui-is-selected");
       });
       currentZh.textContent = "";
       currentJa.textContent = "";
