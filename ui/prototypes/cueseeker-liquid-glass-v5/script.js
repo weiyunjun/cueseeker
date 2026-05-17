@@ -34,7 +34,8 @@ const win = document.getElementById("window");
     const curTime = document.getElementById("curTime");
     const feedbackLayer = document.querySelector(".ui-feedback-overlay");
     const feedbackHud = document.getElementById("playbackFeedback");
-    const feedbackIcon = document.getElementById("feedbackIcon");
+    const feedbackIcon = document.querySelector(".ui-feedback-icon");
+    const feedbackIconUse = document.getElementById("feedbackIcon");
     const feedbackLabel = document.getElementById("feedbackLabel");
     const themeToggle = document.getElementById("themeToggle");
     const themeLabel = document.getElementById("themeLabel");
@@ -75,21 +76,23 @@ const win = document.getElementById("window");
     }
 
     function showPlaybackFeedback({ icon = null, label, tone = "neutral", position = "center" }) {
-      if (!feedbackHud || !feedbackIcon || !feedbackLabel) return;
+      if (!feedbackHud || !feedbackIcon || !feedbackIconUse || !feedbackLabel) return;
 
       clearTimeout(feedbackHideTimer);
       feedbackLayer?.setAttribute("data-feedback-position", position);
-      if (icon) {
+      const hasIcon = Boolean(icon);
+      if (hasIcon) {
         feedbackIcon.removeAttribute("hidden");
         feedbackIcon.style.display = "";
-        feedbackIcon.setAttribute("href", `#${icon}`);
+        feedbackIconUse.setAttribute("href", `#${icon}`);
       } else {
         feedbackIcon.setAttribute("hidden", "");
         feedbackIcon.style.display = "none";
       }
       feedbackLabel.textContent = label;
       feedbackHud.dataset.feedbackTone = tone;
-      feedbackHud.dataset.feedbackHasIcon = icon ? "true" : "false";
+      feedbackHud.dataset.feedbackHasIcon = hasIcon ? "true" : "false";
+      feedbackHud.classList.toggle("ui-feedback-hud--text-capsule", !hasIcon);
       feedbackHud.hidden = false;
       feedbackHud.classList.remove("is-visible");
       void feedbackHud.offsetWidth;

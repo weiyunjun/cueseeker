@@ -506,9 +506,14 @@ Rules:
   not with the browser Fullscreen API. This avoids browser-level fullscreen
   behavior being mistaken for the native App fullscreen contract.
 - In the HTML prototype, the fullscreen state marker must not redefine player
-  layout geometry. It must not change window size, body padding, toolbar
-  height, video-stage sizing, video-frame aspect-fit calculation, side-panel
-  participation, or bottom-player positioning.
+  layout rules. It may promote the existing `.main` playback surface to a
+  fixed viewport-covering overlay so it visually covers the toolbar and
+  prototype test controls. It must not change body padding, window size,
+  toolbar height, video-stage sizing rules, video-frame aspect-fit
+  calculation, side-panel participation, or bottom-player anchoring rules.
+- The prototype may disable ancestor-only visual effects that prevent fixed
+  viewport positioning, such as the window backdrop filter, as long as the
+  fullscreen playback surface fully covers the affected shell.
 - The playback render container must not be duplicated or moved into a second
   backend render state.
 - The normal workbench shell is hidden during playback fullscreen without
@@ -529,8 +534,12 @@ Rules:
   active.
 - Entering and exiting fullscreen show text-only feedback: `Fullscreen` and
   `Exit Fullscreen`.
-- Text-only fullscreen feedback uses the compact capsule HUD size, not the
-  larger icon-centered feedback HUD dimensions.
+- Text-only fullscreen feedback uses the independent small capsule HUD
+  specification, not the larger icon-centered feedback HUD dimensions.
+- The text-only capsule is a single-line, content-width pill centered over the
+  active video stage. The HTML target size is 42 px high with 18 px horizontal
+  padding, full capsule radius, 13 px bold label text, no icon slot, and no
+  reserved icon gap.
 - Entering fullscreen immediately hides the chrome and cursor once.
 - Mouse movement or click activity reveals the chrome and cursor.
 - Keyboard playback shortcuts do not reveal the chrome or cursor.

@@ -117,6 +117,7 @@ live in that owner, not in individual call sites.
 | `ui-slider--volume` | Volume slider | `LiquidGlassSlider.Kind.volume` | Volume popover slider. |
 | `ui-feedback-overlay` | Video feedback overlay layer | `LiquidGlassFeedbackOverlay` | Non-interactive layer over the active video stage. |
 | `ui-feedback-hud` | Transient feedback HUD | `LiquidGlassFeedbackOverlay.HUD` | Play, pause, seek, volume, speed, subtitle, Shiori, copy, and fullscreen feedback, with center, leading, and trailing positions. |
+| `ui-feedback-hud--text-capsule` | Text-only feedback capsule modifier | `LiquidGlassFeedbackOverlay.HUD.Kind.textCapsule` | Independent compact capsule HUD for text-only feedback such as fullscreen enter and exit. No icon slot or icon spacing is reserved. |
 | `ui-feedback-icon` | Feedback icon | `LiquidGlassFeedbackOverlay.Icon` | Command icon inside the transient video feedback HUD; omitted for text-only fullscreen enter and exit feedback. |
 | `ui-feedback-label` | Feedback label | `LiquidGlassFeedbackOverlay.Label` | Short command or state label inside the transient video feedback HUD. |
 | `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Selected cards, selected rows, selected toggles, selected menu item. |
@@ -155,10 +156,10 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `body[data-theme]` | `AppAppearanceMode` / color scheme | Theme tokens should derive from App appearance mode, not prototype-only controls. |
 | `.video-expanded` | `appState.isPlaybackSurfaceExpanded` | Controls expanded playback layout and bottom-player context. |
 | `.sidebar-hidden` | `!appState.isPlaybackSidePanelVisible` | Controls expanded playback side-panel visibility. |
-| `body.prototype-fullscreen` | `playbackFullscreenManager.isFullscreen` | Prototype-only App fullscreen state marker. It must not redefine window, video-stage, toolbar, side-panel, or bottom-player geometry. |
+| `body.prototype-fullscreen` | `playbackFullscreenManager.isFullscreen` | Prototype-only App fullscreen state marker. It may promote `.main` to a viewport-covering playback surface and disable ancestor visual effects that block fixed positioning, but must not redefine video-stage, video-frame, side-panel, or bottom-player layout rules. |
 | `.player-chrome-visible` | fullscreen or expanded playback chrome state | Drives bottom-player visibility over video. |
 | `data-feedback-position` on `ui-feedback-overlay` | `PlaybackFeedbackPosition` | Center for most commands, leading for rewind and previous-result navigation, trailing for forward seek and next-result navigation. |
-| `data-feedback-has-icon` on `ui-feedback-hud` | Optional feedback icon state | Text-only feedback hides the icon and uses the compact capsule HUD dimensions. |
+| `data-feedback-has-icon` on `ui-feedback-hud` | Optional feedback icon state | Text-only feedback hides the icon and selects the `ui-feedback-hud--text-capsule` compact capsule modifier. |
 | `.is-visible` on `ui-feedback-hud` | Transient feedback presentation state | Restarts the HUD animation for each accepted command. |
 
 ## 8. Token Mapping

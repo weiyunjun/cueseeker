@@ -272,6 +272,19 @@
       min-height: 0;
       overflow: hidden;
     }
+    body.prototype-fullscreen .window {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      overflow: visible;
+    }
+    body.prototype-fullscreen .main {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      min-height: 0;
+      background: #000;
+      overflow: hidden;
+    }
 
     .search-state,
     .library-state,
@@ -749,14 +762,21 @@
     .input-feedback-layer[data-feedback-position="trailing"] .input-feedback-hud {
       flex-direction: row-reverse;
     }
+    .input-feedback-hud.ui-feedback-hud--text-capsule,
     .input-feedback-hud[data-feedback-has-icon="false"] {
       min-width: 0;
       min-height: 0;
-      height: 54px;
-      padding: 0 24px;
+      height: 42px;
+      padding: 0 18px;
       border-radius: 999px;
       flex-direction: row;
       gap: 0;
+      background: rgba(28, 28, 34, 0.52);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.18),
+        inset 0 -0.5px 0 rgba(255,255,255,0.04),
+        0 0 0 0.5px rgba(255,255,255,0.10),
+        0 14px 30px -18px rgba(0,0,0,0.68);
     }
     .input-feedback-hud[hidden] {
       display: none;
@@ -788,6 +808,11 @@
       font-weight: 700;
       line-height: 1.2;
       letter-spacing: 0;
+    }
+    .input-feedback-hud.ui-feedback-hud--text-capsule .input-feedback-label,
+    .input-feedback-hud[data-feedback-has-icon="false"] .input-feedback-label {
+      font-size: 13px;
+      font-weight: 700;
     }
     .input-feedback-hud[data-feedback-tone="success"] {
       background: rgba(34, 40, 34, 0.58);
@@ -2811,7 +2836,8 @@ const win = document.getElementById("window");
     const curTime = document.getElementById("curTime");
     const feedbackLayer = document.querySelector(".ui-feedback-overlay");
     const feedbackHud = document.getElementById("playbackFeedback");
-    const feedbackIcon = document.getElementById("feedbackIcon");
+    const feedbackIcon = document.querySelector(".ui-feedback-icon");
+    const feedbackIconUse = document.getElementById("feedbackIcon");
     const feedbackLabel = document.getElementById("feedbackLabel");
     const themeToggle = document.getElementById("themeToggle");
     const themeLabel = document.getElementById("themeLabel");
@@ -2852,21 +2878,23 @@ const win = document.getElementById("window");
     }
 
     function showPlaybackFeedback({ icon = null, label, tone = "neutral", position = "center" }) {
-      if (!feedbackHud || !feedbackIcon || !feedbackLabel) return;
+      if (!feedbackHud || !feedbackIcon || !feedbackIconUse || !feedbackLabel) return;
 
       clearTimeout(feedbackHideTimer);
       feedbackLayer?.setAttribute("data-feedback-position", position);
-      if (icon) {
+      const hasIcon = Boolean(icon);
+      if (hasIcon) {
         feedbackIcon.removeAttribute("hidden");
         feedbackIcon.style.display = "";
-        feedbackIcon.setAttribute("href", `#${icon}`);
+        feedbackIconUse.setAttribute("href", `#${icon}`);
       } else {
         feedbackIcon.setAttribute("hidden", "");
         feedbackIcon.style.display = "none";
       }
       feedbackLabel.textContent = label;
       feedbackHud.dataset.feedbackTone = tone;
-      feedbackHud.dataset.feedbackHasIcon = icon ? "true" : "false";
+      feedbackHud.dataset.feedbackHasIcon = hasIcon ? "true" : "false";
+      feedbackHud.classList.toggle("ui-feedback-hud--text-capsule", !hasIcon);
       feedbackHud.hidden = false;
       feedbackHud.classList.remove("is-visible");
       void feedbackHud.offsetWidth;
