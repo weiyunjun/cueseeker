@@ -24,8 +24,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     func toggleFullscreen(
         player: PlaybackPlayer,
         viewModel: PlaybackViewModel,
-        onCopySubtitle: @escaping () -> Void = {},
-        onSaveShiori: @escaping () -> Void = {},
+        appState: AppState,
         onExitRequest: (() -> Void)? = nil,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
@@ -38,8 +37,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
             return enterFullscreen(
                 player: player,
                 viewModel: viewModel,
-                onCopySubtitle: onCopySubtitle,
-                onSaveShiori: onSaveShiori,
+                appState: appState,
                 onExitRequest: onExitRequest,
                 onTransitionCompleted: onTransitionCompleted
             )
@@ -50,8 +48,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     func enterFullscreen(
         player: PlaybackPlayer,
         viewModel: PlaybackViewModel,
-        onCopySubtitle: @escaping () -> Void = {},
-        onSaveShiori: @escaping () -> Void = {},
+        appState: AppState,
         onExitRequest: (() -> Void)? = nil,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
@@ -103,8 +100,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
             rootView: PlaybackFullscreenOverlayView(
                 fullscreenManager: self,
                 viewModel: viewModel,
-                onCopySubtitle: onCopySubtitle,
-                onSaveShiori: onSaveShiori,
+                appState: appState,
                 onExit: { [weak self] in
                     Task { @MainActor in
                         self?.requestExitFullscreen()
@@ -511,8 +507,7 @@ private final class PlaybackFullscreenRootView: NSView {
 private struct PlaybackFullscreenOverlayView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @ObservedObject var viewModel: PlaybackViewModel
-    let onCopySubtitle: () -> Void
-    let onSaveShiori: () -> Void
+    @ObservedObject var appState: AppState
     let onExit: () -> Void
 
     var body: some View {
@@ -524,16 +519,27 @@ private struct PlaybackFullscreenOverlayView: View {
                     viewModel.togglePlayPause()
                 }
 
-            if fullscreenManager.isChromeVisible {
-                PlaybackControlsView(
-                    viewModel: viewModel,
-                    isFullscreen: true,
-                    onCopySubtitle: onCopySubtitle,
-                    onSaveShiori: onSaveShiori,
-                    onToggleFullscreen: onExit
-                )
-                .transition(.opacity)
+            GeometryReader { geometry in
+                if fullscreenManager.isChromeVisible {
+                    PlaybackChromeView(
+                        viewModel: viewModel,
+                        controls: .appState(appState, fullscreenAction: onExit)
+                    )
+                    .frame(
+                        width: max(0, geometry.size.width - PlaybackChromeMetrics.horizontalInset * 2),
+                        height: PlaybackChromeMetrics.height
+                    )
+                    .position(
+                        x: geometry.size.width / 2,
+                        y: max(
+                            PlaybackChromeMetrics.height / 2,
+                            geometry.size.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height / 2
+                        )
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             }
+            .zIndex(2)
 
             PlaybackSubtitleOverlay(
                 text: viewModel.activeSubtitleText,

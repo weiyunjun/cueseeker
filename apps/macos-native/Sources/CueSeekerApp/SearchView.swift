@@ -446,27 +446,6 @@ struct SearchView: View {
             onSurfaceTap: {
                 appState.clearSearchFocus()
                 appState.togglePlaybackFromUser()
-            },
-            onCopySubtitle: {
-                appState.clearSearchFocus()
-                appState.copyCurrentSubtitleToClipboard()
-            },
-            onSaveShiori: {
-                appState.clearSearchFocus()
-                appState.toggleCurrentShiori()
-            },
-            isFullscreenToggleDisabled: layoutState.isVideoSizeTransitionInProgress,
-            showsInlineControls: false,
-            onToggleFullscreen: {
-                appState.clearSearchFocus()
-                appState.togglePlaybackFullscreenFromUser(
-                    onCopySubtitle: {
-                        appState.copyCurrentSubtitleToClipboard()
-                    },
-                    onSaveShiori: {
-                        appState.toggleCurrentShiori()
-                    }
-                )
             }
         )
     }

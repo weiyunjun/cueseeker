@@ -867,10 +867,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    func togglePlaybackFullscreenFromUser(
-        onCopySubtitle: @escaping () -> Void = {},
-        onSaveShiori: @escaping () -> Void = {}
-    ) {
+    func togglePlaybackFullscreenFromUser() {
         guard let player, let playbackViewModel else {
             return
         }
@@ -883,8 +880,7 @@ final class AppState: ObservableObject {
         let started = playbackFullscreenManager.toggleFullscreen(
             player: player,
             viewModel: playbackViewModel,
-            onCopySubtitle: onCopySubtitle,
-            onSaveShiori: onSaveShiori,
+            appState: self,
             onExitRequest: { [weak self] in
                 self?.exitPlaybackFullscreenFromUser()
             },
@@ -2558,14 +2554,7 @@ final class AppState: ObservableObject {
             viewModel.toggleSubtitles()
             return true
         case 3:
-            togglePlaybackFullscreenFromUser(
-                onCopySubtitle: { [weak self] in
-                    self?.copyCurrentSubtitleToClipboard()
-                },
-                onSaveShiori: { [weak self] in
-                    self?.toggleCurrentShiori()
-                }
-            )
+            togglePlaybackFullscreenFromUser()
             return true
         case 49:
             togglePlaybackFromUser()

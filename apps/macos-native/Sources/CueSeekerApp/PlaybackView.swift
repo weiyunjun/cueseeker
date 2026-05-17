@@ -8,11 +8,6 @@ struct PlaybackView: View {
     let viewModel: PlaybackViewModel?
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
-    let onCopySubtitle: () -> Void
-    let onSaveShiori: () -> Void
-    let isFullscreenToggleDisabled: Bool
-    let showsInlineControls: Bool
-    let onToggleFullscreen: () -> Void
 
     var body: some View {
         if let player, let viewModel {
@@ -20,12 +15,7 @@ struct PlaybackView: View {
                 player: player,
                 viewModel: viewModel,
                 fullscreenManager: fullscreenManager,
-                onSurfaceTap: onSurfaceTap,
-                onCopySubtitle: onCopySubtitle,
-                onSaveShiori: onSaveShiori,
-                isFullscreenToggleDisabled: isFullscreenToggleDisabled,
-                showsInlineControls: showsInlineControls,
-                onToggleFullscreen: onToggleFullscreen
+                onSurfaceTap: onSurfaceTap
             )
         } else {
             Color.black
@@ -38,12 +28,6 @@ struct PlaybackVideoView: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
-    let onCopySubtitle: () -> Void
-    let onSaveShiori: () -> Void
-    let isFullscreenToggleDisabled: Bool
-    let showsInlineControls: Bool
-    let onToggleFullscreen: () -> Void
-    @State private var isControlsVisible = false
 
     var body: some View {
         ZStack {
@@ -57,28 +41,15 @@ struct PlaybackVideoView: View {
                         onSurfaceTap()
                     }
             }
-            
-            if showsInlineControls && isControlsVisible && !fullscreenManager.isFullscreen {
-                PlaybackControlsView(
-                    viewModel: viewModel,
-                    isFullscreenToggleDisabled: isFullscreenToggleDisabled,
-                    onCopySubtitle: onCopySubtitle,
-                    onSaveShiori: onSaveShiori,
-                    onToggleFullscreen: onToggleFullscreen
-                )
-            }
 
             if !fullscreenManager.isFullscreen {
                 PlaybackSubtitleOverlay(
                     text: viewModel.activeSubtitleText,
-                    bottomPadding: showsInlineControls && isControlsVisible ? 112 : 28
+                    bottomPadding: 28
                 )
 
                 PlaybackFeedbackOverlay(feedback: viewModel.feedback)
             }
-        }
-        .onHover { hover in
-            isControlsVisible = showsInlineControls && hover
         }
     }
 }

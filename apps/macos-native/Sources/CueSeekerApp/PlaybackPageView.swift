@@ -113,22 +113,22 @@ private struct PlaybackVideoStage: View {
 
                 if let viewModel = appState.playbackViewModel {
                     PlaybackChromeView(
-                        appState: appState,
-                        viewModel: viewModel
+                        viewModel: viewModel,
+                        controls: .appState(appState)
                     )
                     .frame(
-                        width: max(0, stageSize.width - PlaybackPageMetrics.chromeHorizontalInset * 2),
-                        height: PlaybackPageMetrics.chromeHeight
+                        width: max(0, stageSize.width - PlaybackChromeMetrics.horizontalInset * 2),
+                        height: PlaybackChromeMetrics.height
                     )
                     .opacity(isChromeVisible ? 1 : 0)
-                    .offset(y: isChromeVisible ? 0 : PlaybackPageMetrics.chromeHiddenOffset)
+                    .offset(y: isChromeVisible ? 0 : PlaybackChromeMetrics.hiddenOffset)
                     .allowsHitTesting(isChromeVisible)
                     .animation(.easeOut(duration: 0.18), value: isChromeVisible)
                     .position(
                         x: stageSize.width / 2,
                         y: max(
-                            PlaybackPageMetrics.chromeHeight / 2,
-                            stageSize.height - PlaybackPageMetrics.chromeBottomInset - PlaybackPageMetrics.chromeHeight / 2
+                            PlaybackChromeMetrics.height / 2,
+                            stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height / 2
                         )
                     )
                 }
@@ -263,9 +263,69 @@ private struct PlaybackCloseButtonStyle: ButtonStyle {
     }
 }
 
-private struct PlaybackChromeView: View {
-    @ObservedObject var appState: AppState
+@MainActor
+struct PlaybackChromeControls {
+    let canOpenPreviousEpisode: Bool
+    let openPreviousEpisode: () -> Void
+    let canOpenPreviousResult: Bool
+    let openPreviousResult: () -> Void
+    let togglePlayPause: () -> Void
+    let canOpenNextResult: Bool
+    let openNextResult: () -> Void
+    let canOpenNextEpisode: Bool
+    let openNextEpisode: () -> Void
+    let toggleShiori: () -> Void
+    let copySubtitle: () -> Void
+    let isSidePanelVisible: Bool
+    let canToggleSidePanel: Bool
+    let toggleSidePanel: () -> Void
+    let isFullscreen: Bool
+    let isFullscreenToggleDisabled: Bool
+    let toggleFullscreen: () -> Void
+}
+
+@MainActor
+extension PlaybackChromeControls {
+    static func appState(
+        _ appState: AppState,
+        fullscreenAction: (() -> Void)? = nil
+    ) -> PlaybackChromeControls {
+        PlaybackChromeControls(
+            canOpenPreviousEpisode: appState.canOpenPreviousLibraryVideo,
+            openPreviousEpisode: appState.openPreviousLibraryVideo,
+            canOpenPreviousResult: appState.canOpenPreviousSearchResult,
+            openPreviousResult: {
+                appState.openAdjacentSearchResult(.previous)
+            },
+            togglePlayPause: appState.togglePlaybackFromUser,
+            canOpenNextResult: appState.canOpenNextSearchResult,
+            openNextResult: {
+                appState.openAdjacentSearchResult(.next)
+            },
+            canOpenNextEpisode: appState.canOpenNextLibraryVideo,
+            openNextEpisode: appState.openNextLibraryVideo,
+            toggleShiori: {
+                _ = appState.toggleCurrentShiori()
+            },
+            copySubtitle: {
+                _ = appState.copyCurrentSubtitleToClipboard()
+            },
+            isSidePanelVisible: appState.isPlaybackSidePanelVisible,
+            canToggleSidePanel: appState.hasPlaybackSelection,
+            toggleSidePanel: appState.togglePlaybackSidePanelFromUser,
+            isFullscreen: appState.playbackFullscreenManager.isFullscreen,
+            isFullscreenToggleDisabled: appState.isPlaybackFullscreenToggleDisabled,
+            toggleFullscreen: fullscreenAction ?? {
+                appState.togglePlaybackFullscreenFromUser()
+            }
+        )
+    }
+}
+
+@MainActor
+struct PlaybackChromeView: View {
     @ObservedObject var viewModel: PlaybackViewModel
+    let controls: PlaybackChromeControls
     @State private var isSpeedMenuVisible = false
 
     var body: some View {
@@ -321,44 +381,40 @@ private struct PlaybackChromeView: View {
             PlaybackChromeIconButton(
                 systemName: "backward.end.fill",
                 kind: .transport,
-                isDisabled: !appState.canOpenPreviousLibraryVideo,
+                isDisabled: !controls.canOpenPreviousEpisode,
                 accessibilityLabel: "Previous episode",
-                action: appState.openPreviousLibraryVideo
+                action: controls.openPreviousEpisode
             )
 
             PlaybackChromeIconButton(
                 systemName: "chevron.left",
                 kind: .transport,
-                isDisabled: !appState.canOpenPreviousSearchResult,
+                isDisabled: !controls.canOpenPreviousResult,
                 accessibilityLabel: "Previous result",
-                action: {
-                    appState.openAdjacentSearchResult(.previous)
-                }
+                action: controls.openPreviousResult
             )
 
             PlaybackChromeIconButton(
                 systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
                 kind: .primaryTransport,
                 accessibilityLabel: viewModel.isPlaying ? "Pause" : "Play",
-                action: appState.togglePlaybackFromUser
+                action: controls.togglePlayPause
             )
 
             PlaybackChromeIconButton(
                 systemName: "chevron.right",
                 kind: .transport,
-                isDisabled: !appState.canOpenNextSearchResult,
+                isDisabled: !controls.canOpenNextResult,
                 accessibilityLabel: "Next result",
-                action: {
-                    appState.openAdjacentSearchResult(.next)
-                }
+                action: controls.openNextResult
             )
 
             PlaybackChromeIconButton(
                 systemName: "forward.end.fill",
                 kind: .transport,
-                isDisabled: !appState.canOpenNextLibraryVideo,
+                isDisabled: !controls.canOpenNextEpisode,
                 accessibilityLabel: "Next episode",
-                action: appState.openNextLibraryVideo
+                action: controls.openNextEpisode
             )
         }
     }
@@ -368,17 +424,13 @@ private struct PlaybackChromeView: View {
             PlaybackChromeIconButton(
                 systemName: "bookmark",
                 accessibilityLabel: "Shiori",
-                action: {
-                    _ = appState.toggleCurrentShiori()
-                }
+                action: controls.toggleShiori
             )
 
             PlaybackChromeIconButton(
                 systemName: "doc.on.doc",
                 accessibilityLabel: "Copy current subtitle",
-                action: {
-                    _ = appState.copyCurrentSubtitleToClipboard()
-                }
+                action: controls.copySubtitle
             )
 
             PlaybackChromeIconButton(
@@ -390,29 +442,21 @@ private struct PlaybackChromeView: View {
 
             PlaybackChromeIconButton(
                 systemName: "list.bullet",
-                isSelected: appState.isPlaybackSidePanelVisible,
+                isSelected: controls.isSidePanelVisible,
+                isDisabled: !controls.canToggleSidePanel,
                 accessibilityLabel: "Results panel",
-                action: appState.togglePlaybackSidePanelFromUser
+                action: controls.toggleSidePanel
             )
 
             speedControl
 
             PlaybackChromeIconButton(
-                systemName: appState.playbackFullscreenManager.isFullscreen
+                systemName: controls.isFullscreen
                     ? "arrow.down.right.and.arrow.up.left"
                     : "viewfinder",
-                isDisabled: appState.isPlaybackFullscreenToggleDisabled,
+                isDisabled: controls.isFullscreenToggleDisabled,
                 accessibilityLabel: "Fullscreen",
-                action: {
-                    appState.togglePlaybackFullscreenFromUser(
-                        onCopySubtitle: {
-                            _ = appState.copyCurrentSubtitleToClipboard()
-                        },
-                        onSaveShiori: {
-                            _ = appState.toggleCurrentShiori()
-                        }
-                    )
-                }
+                action: controls.toggleFullscreen
             )
         }
     }
@@ -928,9 +972,9 @@ private struct PlaybackSidebarShell: View {
     }
 }
 
-private enum PlaybackPageMetrics {
-    static let chromeHorizontalInset: CGFloat = 20
-    static let chromeBottomInset: CGFloat = 20
-    static let chromeHeight: CGFloat = 106
-    static let chromeHiddenOffset: CGFloat = 128
+enum PlaybackChromeMetrics {
+    static let horizontalInset: CGFloat = 20
+    static let bottomInset: CGFloat = 20
+    static let height: CGFloat = 106
+    static let hiddenOffset: CGFloat = 128
 }
