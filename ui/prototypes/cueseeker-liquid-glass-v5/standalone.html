@@ -831,7 +831,7 @@
       box-shadow: var(--glass-hud-shadow);
       display: flex;
       flex-direction: column;
-      transition: left 240ms cubic-bezier(.22,.61,.36,1), width 240ms cubic-bezier(.22,.61,.36,1);
+      transition: background 220ms ease, box-shadow 220ms ease, color 180ms ease;
     }
     .window.video-expanded .player-dock {
       background: rgba(28,28,34,0.48);
@@ -1586,7 +1586,7 @@
       background: var(--glass-hud-bg);
       box-shadow: var(--glass-hud-shadow);
       color: var(--text);
-      transition: left 220ms ease, width 220ms ease, background 220ms ease, box-shadow 220ms ease, color 180ms ease;
+      transition: background 220ms ease, box-shadow 220ms ease, color 180ms ease;
     }
     .scrubber { border-bottom-color: var(--hairline); }
     .slider::before { background: var(--slider-track); }
@@ -1730,7 +1730,7 @@
       backdrop-filter: var(--player-dock-filter);
       -webkit-backdrop-filter: var(--player-dock-filter);
       overflow: visible;
-      transition: left 240ms cubic-bezier(.22,.61,.36,1), width 240ms cubic-bezier(.22,.61,.36,1), background 400ms ease, box-shadow 220ms ease, color 180ms ease;
+      transition: background 400ms ease, box-shadow 220ms ease, color 180ms ease;
     }
 
     .scrubber,
@@ -2661,10 +2661,6 @@ const win = document.getElementById("window");
     let videoLayoutFrame = 0;
     const playerDockMargin = 20;
 
-    function clamp(value, min, max) {
-      return Math.max(min, Math.min(max, value));
-    }
-
     function parseAspectRatio(value) {
       if (!value) return 16 / 9;
       const ratioParts = String(value).split(":").map((part) => Number(part.trim()));
@@ -2712,23 +2708,8 @@ const win = document.getElementById("window");
         frameHeight = frameWidth / aspectRatio;
       }
 
-      const epsilon = 0.5;
-      const widthLocked = Math.abs(frameWidth - stageWidth) < epsilon;
-      const heightLocked = Math.abs(frameHeight - stageHeight) < epsilon;
-      let frameX = widthLocked ? 0 : (stageWidth - frameWidth) / 2;
-      let frameY;
-
-      if (heightLocked) {
-        frameY = 0;
-      } else if (widthLocked) {
-        const dockRect = playerDock?.getBoundingClientRect();
-        const dockTop = dockRect
-          ? clamp(dockRect.top - stageRect.top, 0, stageHeight)
-          : stageHeight;
-        frameY = clamp((dockTop - frameHeight) / 2, 0, stageHeight - frameHeight);
-      } else {
-        frameY = (stageHeight - frameHeight) / 2;
-      }
+      const frameX = (stageWidth - frameWidth) / 2;
+      const frameY = (stageHeight - frameHeight) / 2;
 
       videoFrame.style.setProperty("--video-frame-width", `${frameWidth}px`);
       videoFrame.style.setProperty("--video-frame-height", `${frameHeight}px`);

@@ -36,10 +36,6 @@ const win = document.getElementById("window");
     let videoLayoutFrame = 0;
     const playerDockMargin = 20;
 
-    function clamp(value, min, max) {
-      return Math.max(min, Math.min(max, value));
-    }
-
     function parseAspectRatio(value) {
       if (!value) return 16 / 9;
       const ratioParts = String(value).split(":").map((part) => Number(part.trim()));
@@ -87,23 +83,8 @@ const win = document.getElementById("window");
         frameHeight = frameWidth / aspectRatio;
       }
 
-      const epsilon = 0.5;
-      const widthLocked = Math.abs(frameWidth - stageWidth) < epsilon;
-      const heightLocked = Math.abs(frameHeight - stageHeight) < epsilon;
-      let frameX = widthLocked ? 0 : (stageWidth - frameWidth) / 2;
-      let frameY;
-
-      if (heightLocked) {
-        frameY = 0;
-      } else if (widthLocked) {
-        const dockRect = playerDock?.getBoundingClientRect();
-        const dockTop = dockRect
-          ? clamp(dockRect.top - stageRect.top, 0, stageHeight)
-          : stageHeight;
-        frameY = clamp((dockTop - frameHeight) / 2, 0, stageHeight - frameHeight);
-      } else {
-        frameY = (stageHeight - frameHeight) / 2;
-      }
+      const frameX = (stageWidth - frameWidth) / 2;
+      const frameY = (stageHeight - frameHeight) / 2;
 
       videoFrame.style.setProperty("--video-frame-width", `${frameWidth}px`);
       videoFrame.style.setProperty("--video-frame-height", `${frameHeight}px`);
