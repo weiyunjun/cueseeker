@@ -22,9 +22,13 @@ struct SearchView: View {
                         .clipped()
 
                     if showsPlaybackRoute {
-                        PlaybackRewriteRoute(
+                        PlaybackPageView(
                             playbackSurface: AnyView(playbackSurface),
-                            appState: appState
+                            appState: appState,
+                            onClose: {
+                                appState.clearSearchFocus()
+                                appState.stopPlayback()
+                            }
                         )
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .zIndex(10)
@@ -534,35 +538,6 @@ struct SearchView: View {
         .background(Color(nsColor: .textBackgroundColor))
     }
 
-}
-
-private struct PlaybackRewriteRoute: View {
-    let playbackSurface: AnyView
-    @ObservedObject var appState: AppState
-
-    var body: some View {
-        ZStack {
-            Color.black
-
-            playbackSurface
-                .aspectRatio(
-                    CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9),
-                    contentMode: .fit
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
-                .overlay(alignment: .topLeading) {
-                    if case .failed(let message) = appState.playbackStatus {
-                        Label(message, systemImage: "exclamationmark.triangle")
-                            .font(.system(size: SearchTypography.detailSize))
-                            .foregroundStyle(.red)
-                            .padding(10)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                            .padding(12)
-                    }
-                }
-        }
-    }
 }
 
 private extension View {

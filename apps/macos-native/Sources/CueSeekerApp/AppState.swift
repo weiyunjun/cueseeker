@@ -2581,6 +2581,9 @@ final class AppState: ObservableObject {
             try player?.stop()
             playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
+            selectedSearchResult = nil
+            selectedLibraryVideo = nil
+            selectedShiori = nil
             isPlaybackSurfaceExpanded = false
             playbackDrawerRequest = nil
             playbackStatus = .idle
