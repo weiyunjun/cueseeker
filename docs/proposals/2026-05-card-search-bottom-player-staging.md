@@ -2,6 +2,15 @@
 
 Status: Draft
 
+Supersession note:
+
+The persistent bottom-player, empty bottom-player, and collapsible
+playback-surface portions of this staging proposal are superseded by
+`docs/proposals/2026-05-native-app-ui-ux-rewrite-plan.md`. The native App
+should delete or disconnect the old playback UI/UX path before rebuilding the
+playback page and playback chrome from the accepted Liquid Glass HTML
+prototype.
+
 ## Background
 
 The next UI/UX direction moves CueSeeker from a side-panel-centered search and

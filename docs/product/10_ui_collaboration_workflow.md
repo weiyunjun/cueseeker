@@ -62,6 +62,10 @@ Rules:
 - Stable UI/UX documents and backend-related documents must also be updated
   before App code when a prototype change changes playback lifecycle, state
   ownership, persistence boundaries, or backend teardown semantics.
+- For large native App UI rewrites, an accepted step document under
+  `docs/proposals/` must define the implementation phases and acceptance gates.
+  If the phase order or acceptance criteria change, update that step document
+  before modifying App code.
 - The mapping documents are not optional implementation notes. They are the
   synchronization contract between the accepted HTML prototype and the native
   App rewrite.
