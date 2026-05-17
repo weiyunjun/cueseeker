@@ -925,6 +925,21 @@ final class AppState: ObservableObject {
         playbackDrawerRequest = PlaybackDrawerRequest(drawer: drawer)
     }
 
+    func togglePlaybackSidePanelFromUser() {
+        guard hasPlaybackSelection else {
+            return
+        }
+
+        guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+            isPlaybackSurfaceExpanded = true
+            isPlaybackSidePanelVisible.toggle()
+        }
+    }
+
     func exitPlaybackFullscreenFromUser() {
         guard playbackFullscreenManager.isFullscreen else {
             return

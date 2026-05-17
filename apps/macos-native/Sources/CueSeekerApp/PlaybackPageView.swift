@@ -80,6 +80,8 @@ private struct PlaybackVideoStage: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
     let onClose: () -> Void
+    @State private var isChromeVisible = true
+    @State private var chromeHideTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geometry in
@@ -109,11 +111,19 @@ private struct PlaybackVideoStage: View {
                         .offset(x: frame.minX + 18, y: frame.minY + 72)
                 }
 
-                PlaybackChromeShell()
+                if let viewModel = appState.playbackViewModel {
+                    PlaybackChromeView(
+                        appState: appState,
+                        viewModel: viewModel
+                    )
                     .frame(
                         width: max(0, stageSize.width - PlaybackPageMetrics.chromeHorizontalInset * 2),
                         height: PlaybackPageMetrics.chromeHeight
                     )
+                    .opacity(isChromeVisible ? 1 : 0)
+                    .offset(y: isChromeVisible ? 0 : PlaybackPageMetrics.chromeHiddenOffset)
+                    .allowsHitTesting(isChromeVisible)
+                    .animation(.easeOut(duration: 0.18), value: isChromeVisible)
                     .position(
                         x: stageSize.width / 2,
                         y: max(
@@ -121,9 +131,25 @@ private struct PlaybackVideoStage: View {
                             stageSize.height - PlaybackPageMetrics.chromeBottomInset - PlaybackPageMetrics.chromeHeight / 2
                         )
                     )
+                }
             }
             .frame(width: stageSize.width, height: stageSize.height)
             .clipped()
+            .onAppear {
+                showChromeTemporarily()
+            }
+            .onDisappear {
+                chromeHideTask?.cancel()
+                chromeHideTask = nil
+            }
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(_):
+                    showChromeTemporarily()
+                case .ended:
+                    hideChrome()
+                }
+            }
         }
     }
 
@@ -153,6 +179,30 @@ private struct PlaybackVideoStage: View {
             width: frameSize.width,
             height: frameSize.height
         )
+    }
+
+    private func showChromeTemporarily() {
+        withAnimation(.easeOut(duration: 0.14)) {
+            isChromeVisible = true
+        }
+        chromeHideTask?.cancel()
+        chromeHideTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            withAnimation(.easeOut(duration: 0.18)) {
+                isChromeVisible = false
+            }
+        }
+    }
+
+    private func hideChrome() {
+        chromeHideTask?.cancel()
+        chromeHideTask = nil
+        withAnimation(.easeOut(duration: 0.16)) {
+            isChromeVisible = false
+        }
     }
 }
 
@@ -213,39 +263,29 @@ private struct PlaybackCloseButtonStyle: ButtonStyle {
     }
 }
 
-private struct PlaybackChromeShell: View {
+private struct PlaybackChromeView: View {
+    @ObservedObject var appState: AppState
+    @ObservedObject var viewModel: PlaybackViewModel
+    @State private var isSpeedMenuVisible = false
+
     var body: some View {
-        VStack(spacing: 14) {
-            Capsule()
-                .fill(Color.white.opacity(0.18))
-                .frame(height: 4)
-                .padding(.horizontal, 34)
+        VStack(spacing: 0) {
+            scrubberRow
 
-            HStack {
-                Circle()
-                    .fill(Color.white.opacity(0.22))
-                    .frame(width: 34, height: 34)
+            ZStack {
+                HStack(spacing: 0) {
+                    PlaybackVolumeControl(viewModel: viewModel)
 
-                Spacer()
+                    Spacer(minLength: 0)
 
-                HStack(spacing: 18) {
-                    ForEach(0..<5, id: \.self) { index in
-                        Circle()
-                            .fill(index == 2 ? Color.white.opacity(0.32) : Color.white.opacity(0.18))
-                            .frame(width: index == 2 ? 42 : 34, height: index == 2 ? 42 : 34)
-                    }
+                    operationsCluster
                 }
+                .padding(.horizontal, 28)
 
-                Spacer()
-
-                Capsule()
-                    .fill(Color.white.opacity(0.16))
-                    .frame(width: 160, height: 34)
+                transportCluster
             }
-            .padding(.horizontal, 28)
+            .frame(height: 58)
         }
-        .padding(.top, 16)
-        .padding(.bottom, 18)
         .background(
             RoundedRectangle(cornerRadius: 22)
                 .fill(Color(red: 0.11, green: 0.11, blue: 0.13).opacity(0.48))
@@ -256,7 +296,549 @@ private struct PlaybackChromeShell: View {
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.36), radius: 26, y: 14)
-        .allowsHitTesting(false)
+        .contentShape(RoundedRectangle(cornerRadius: 22))
+    }
+
+    private var scrubberRow: some View {
+        HStack(spacing: 12) {
+            Text(formatPlaybackTime(viewModel.displayedCurrentTime))
+                .frame(width: 46, alignment: .leading)
+
+            PlaybackProgressScrubber(viewModel: viewModel)
+
+            Text(formatPlaybackTime(viewModel.duration))
+                .frame(width: 46, alignment: .trailing)
+        }
+        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+        .foregroundStyle(.white.opacity(0.82))
+        .monospacedDigit()
+        .padding(.horizontal, 28)
+        .frame(height: 34)
+    }
+
+    private var transportCluster: some View {
+        HStack(spacing: 8) {
+            PlaybackChromeIconButton(
+                systemName: "backward.end.fill",
+                kind: .transport,
+                isDisabled: !appState.canOpenPreviousLibraryVideo,
+                accessibilityLabel: "Previous episode",
+                action: appState.openPreviousLibraryVideo
+            )
+
+            PlaybackChromeIconButton(
+                systemName: "chevron.left",
+                kind: .transport,
+                isDisabled: !appState.canOpenPreviousSearchResult,
+                accessibilityLabel: "Previous result",
+                action: {
+                    appState.openAdjacentSearchResult(.previous)
+                }
+            )
+
+            PlaybackChromeIconButton(
+                systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
+                kind: .primaryTransport,
+                accessibilityLabel: viewModel.isPlaying ? "Pause" : "Play",
+                action: appState.togglePlaybackFromUser
+            )
+
+            PlaybackChromeIconButton(
+                systemName: "chevron.right",
+                kind: .transport,
+                isDisabled: !appState.canOpenNextSearchResult,
+                accessibilityLabel: "Next result",
+                action: {
+                    appState.openAdjacentSearchResult(.next)
+                }
+            )
+
+            PlaybackChromeIconButton(
+                systemName: "forward.end.fill",
+                kind: .transport,
+                isDisabled: !appState.canOpenNextLibraryVideo,
+                accessibilityLabel: "Next episode",
+                action: appState.openNextLibraryVideo
+            )
+        }
+    }
+
+    private var operationsCluster: some View {
+        HStack(spacing: 6) {
+            PlaybackChromeIconButton(
+                systemName: "bookmark",
+                accessibilityLabel: "Shiori",
+                action: {
+                    _ = appState.toggleCurrentShiori()
+                }
+            )
+
+            PlaybackChromeIconButton(
+                systemName: "doc.on.doc",
+                accessibilityLabel: "Copy current subtitle",
+                action: {
+                    _ = appState.copyCurrentSubtitleToClipboard()
+                }
+            )
+
+            PlaybackChromeIconButton(
+                systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
+                isSelected: viewModel.areSubtitlesVisible,
+                accessibilityLabel: "Subtitles",
+                action: viewModel.toggleSubtitles
+            )
+
+            PlaybackChromeIconButton(
+                systemName: "list.bullet",
+                isSelected: appState.isPlaybackSidePanelVisible,
+                accessibilityLabel: "Results panel",
+                action: appState.togglePlaybackSidePanelFromUser
+            )
+
+            speedControl
+
+            PlaybackChromeIconButton(
+                systemName: appState.playbackFullscreenManager.isFullscreen
+                    ? "arrow.down.right.and.arrow.up.left"
+                    : "viewfinder",
+                isDisabled: appState.isPlaybackFullscreenToggleDisabled,
+                accessibilityLabel: "Fullscreen",
+                action: {
+                    appState.togglePlaybackFullscreenFromUser(
+                        onCopySubtitle: {
+                            _ = appState.copyCurrentSubtitleToClipboard()
+                        },
+                        onSaveShiori: {
+                            _ = appState.toggleCurrentShiori()
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    private var speedControl: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Button {
+                isSpeedMenuVisible.toggle()
+            } label: {
+                Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
+                    .font(.system(size: 12, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.94))
+                    .frame(width: 54, height: 28)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(PlaybackChromeCapsuleButtonStyle(isActive: isSpeedMenuVisible))
+            .accessibilityLabel("Playback speed")
+
+            if isSpeedMenuVisible {
+                PlaybackChromeSpeedMenu(
+                    selectedSpeed: viewModel.playbackSpeed,
+                    onSelect: { speed in
+                        viewModel.setSpeed(speed)
+                        isSpeedMenuVisible = false
+                    }
+                )
+                .offset(y: -40)
+                .zIndex(20)
+            }
+        }
+        .frame(width: 54, height: 32)
+    }
+
+    private func formatPlaybackTime(_ seconds: Double) -> String {
+        let safeSeconds = seconds.isFinite ? max(0, seconds) : 0
+        let totalSeconds = Int(safeSeconds.rounded(.down))
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+private struct PlaybackProgressScrubber: View {
+    @ObservedObject var viewModel: PlaybackViewModel
+    @State private var isHovered = false
+    @State private var dragTime: Double?
+
+    var body: some View {
+        GeometryReader { geometry in
+            let duration = max(0, viewModel.duration)
+            let displayTime = dragTime ?? viewModel.displayedCurrentTime
+            let progress = duration > 0
+                ? min(max(displayTime / duration, 0), 1)
+                : 0
+            let width = max(0, geometry.size.width)
+            let filledWidth = width * progress
+            let trackHeight: CGFloat = (isHovered || dragTime != nil) ? 6 : 3
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.16))
+                    .frame(height: trackHeight)
+
+                Capsule()
+                    .fill(Color.white.opacity(0.68))
+                    .frame(width: filledWidth, height: trackHeight)
+
+                Circle()
+                    .fill(Color.white.opacity(0.92))
+                    .frame(width: 12, height: 12)
+                    .offset(x: filledWidth - 6)
+                    .opacity(isHovered || dragTime != nil ? 1 : 0)
+            }
+            .frame(height: 18, alignment: .center)
+            .contentShape(Rectangle())
+            .onHover { isHovered = $0 }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        guard duration > 0, width > 0 else {
+                            return
+                        }
+                        dragTime = seekTime(for: value.location.x, width: width, duration: duration)
+                    }
+                    .onEnded { value in
+                        guard duration > 0, width > 0 else {
+                            dragTime = nil
+                            return
+                        }
+                        let finalTime = seekTime(for: value.location.x, width: width, duration: duration)
+                        dragTime = nil
+                        viewModel.seek(to: finalTime)
+                    }
+            )
+        }
+        .frame(height: 18)
+    }
+
+    private func seekTime(for xPosition: CGFloat, width: CGFloat, duration: Double) -> Double {
+        let progress = Double(min(max(xPosition / max(width, 1), 0), 1))
+        return progress * duration
+    }
+}
+
+private struct PlaybackVolumeControl: View {
+    @ObservedObject var viewModel: PlaybackViewModel
+    @State private var isHovered = false
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            PlaybackChromeIconButton(
+                systemName: volumeIcon,
+                accessibilityLabel: "Mute",
+                action: viewModel.toggleMute
+            )
+
+            if isHovered {
+                HStack(spacing: 8) {
+                    PlaybackVolumeSlider(volume: Binding(
+                        get: { viewModel.volume },
+                        set: { viewModel.setVolume($0, showsFeedback: false) }
+                    ))
+                    .frame(width: 86, height: 18)
+
+                    Text("\(Int(viewModel.volume.rounded()))%")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Color.black.opacity(0.62))
+                        .monospacedDigit()
+                        .frame(width: 36, alignment: .trailing)
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 9)
+                        .fill(Color.white.opacity(0.86))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 9))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9)
+                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.28), radius: 14, y: 5)
+                .offset(x: 36)
+                .transition(.opacity.combined(with: .move(edge: .leading)))
+                .zIndex(10)
+            }
+        }
+        .frame(width: 176, height: 32, alignment: .leading)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.14)) {
+                isHovered = hovering
+            }
+        }
+    }
+
+    private var volumeIcon: String {
+        if viewModel.volume <= 0 {
+            return "speaker.slash.fill"
+        }
+        if viewModel.volume < 33 {
+            return "speaker.wave.1.fill"
+        }
+        if viewModel.volume < 66 {
+            return "speaker.wave.2.fill"
+        }
+        return "speaker.wave.3.fill"
+    }
+}
+
+private struct PlaybackVolumeSlider: View {
+    @Binding var volume: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = max(0, geometry.size.width)
+            let progress = min(max(volume / 100, 0), 1)
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.black.opacity(0.12))
+                    .frame(height: 5)
+
+                Capsule()
+                    .fill(Color.black.opacity(0.64))
+                    .frame(width: width * progress, height: 5)
+            }
+            .frame(height: 18, alignment: .center)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        volume = Double(min(max(value.location.x / max(width, 1), 0), 1)) * 100
+                    }
+            )
+        }
+    }
+}
+
+private struct PlaybackChromeSpeedMenu: View {
+    let selectedSpeed: Double
+    let onSelect: (Double) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(PlaybackViewModel.speedPresets, id: \.self) { speed in
+                Button {
+                    onSelect(speed)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .opacity(abs(selectedSpeed - speed) < 0.01 ? 1 : 0)
+                            .frame(width: 14)
+
+                        Text(PlaybackViewModel.formatSpeed(speed))
+                            .font(.system(size: 13, weight: abs(selectedSpeed - speed) < 0.01 ? .bold : .medium))
+                            .monospacedDigit()
+
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(.white.opacity(0.94))
+                    .padding(.horizontal, 8)
+                    .frame(width: 160, height: 30)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(PlaybackChromeMenuButtonStyle(isSelected: abs(selectedSpeed - speed) < 0.01))
+            }
+        }
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(red: 0.11, green: 0.11, blue: 0.13).opacity(0.86))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.42), radius: 24, y: 12)
+    }
+}
+
+private enum PlaybackChromeButtonKind {
+    case circle
+    case transport
+    case primaryTransport
+
+    var size: CGFloat {
+        switch self {
+        case .circle:
+            return 32
+        case .transport:
+            return 40
+        case .primaryTransport:
+            return 44
+        }
+    }
+
+    var symbolSize: CGFloat {
+        switch self {
+        case .circle:
+            return 15
+        case .transport:
+            return 18
+        case .primaryTransport:
+            return 20
+        }
+    }
+}
+
+private struct PlaybackChromeIconButton: View {
+    let systemName: String
+    var kind: PlaybackChromeButtonKind = .circle
+    var isSelected = false
+    var isDisabled = false
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: kind.symbolSize, weight: .semibold))
+                .frame(width: kind.size, height: kind.size)
+                .contentShape(Circle())
+        }
+        .buttonStyle(PlaybackChromeIconButtonStyle(kind: kind, isSelected: isSelected))
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.34 : 1)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct PlaybackChromeIconButtonStyle: ButtonStyle {
+    let kind: PlaybackChromeButtonKind
+    let isSelected: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(foregroundColor)
+            .background(
+                Circle()
+                    .fill(backgroundColor(isPressed: configuration.isPressed))
+                    .background(materialBackground(isPressed: configuration.isPressed))
+            )
+            .overlay(
+                Circle()
+                    .strokeBorder(borderColor, lineWidth: 0.5)
+            )
+            .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
+            .scaleEffect(configuration.isPressed && isEnabled ? 0.94 : 1)
+            .animation(.spring(response: 0.16, dampingFraction: 0.72), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.12), value: isHovered)
+            .onHover { isHovered = $0 }
+    }
+
+    private var foregroundColor: Color {
+        guard isEnabled else {
+            return .white.opacity(0.46)
+        }
+        return isSelected ? Color(red: 0.10, green: 0.10, blue: 0.12) : .white.opacity(0.96)
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        guard isEnabled else {
+            return .clear
+        }
+        if isSelected {
+            return Color.white.opacity(isPressed ? 0.82 : 0.92)
+        }
+        if isHovered || isPressed {
+            return Color.white.opacity(isPressed ? 0.14 : 0.18)
+        }
+        return .clear
+    }
+
+    @ViewBuilder
+    private func materialBackground(isPressed: Bool) -> some View {
+        if isEnabled && (isHovered || isSelected || isPressed) {
+            Circle()
+                .fill(.ultraThinMaterial)
+        }
+    }
+
+    private var borderColor: Color {
+        guard isEnabled else {
+            return .clear
+        }
+        if isSelected {
+            return Color.white.opacity(0.7)
+        }
+        return isHovered ? Color.white.opacity(0.10) : .clear
+    }
+
+    private var shadowColor: Color {
+        isSelected ? Color.black.opacity(0.22) : Color.black.opacity(0)
+    }
+
+    private var shadowRadius: CGFloat {
+        isSelected ? 4 : 0
+    }
+
+    private var shadowY: CGFloat {
+        isSelected ? 1 : 0
+    }
+}
+
+private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
+    let isActive: Bool
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Capsule()
+                    .fill(backgroundColor(isPressed: configuration.isPressed))
+                    .background(.ultraThinMaterial, in: Capsule())
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.24), radius: 8, y: 3)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.spring(response: 0.16, dampingFraction: 0.72), value: configuration.isPressed)
+            .onHover { isHovered = $0 }
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        if isPressed || isActive || isHovered {
+            return Color.white.opacity(0.20)
+        }
+        return Color.white.opacity(0.12)
+    }
+}
+
+private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(backgroundColor(isPressed: configuration.isPressed))
+            )
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .onHover { isHovered = $0 }
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        if isPressed || isHovered {
+            return Color.white.opacity(0.14)
+        }
+        if isSelected {
+            return Color.white.opacity(0.10)
+        }
+        return .clear
     }
 }
 
@@ -350,4 +932,5 @@ private enum PlaybackPageMetrics {
     static let chromeHorizontalInset: CGFloat = 20
     static let chromeBottomInset: CGFloat = 20
     static let chromeHeight: CGFloat = 106
+    static let chromeHiddenOffset: CGFloat = 128
 }
