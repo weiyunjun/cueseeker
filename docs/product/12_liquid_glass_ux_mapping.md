@@ -514,6 +514,10 @@ Rules:
 - The prototype may disable ancestor-only visual effects that prevent fixed
   viewport positioning, such as the window backdrop filter, as long as the
   fullscreen playback surface fully covers the affected shell.
+- The fullscreen playback surface must preserve the non-fullscreen window glass
+  background behind the side panel. Black fullscreen backing belongs only to the
+  video stage, so the side panel keeps the same glass appearance whether
+  fullscreen is active or not.
 - The playback render container must not be duplicated or moved into a second
   backend render state.
 - The normal workbench shell is hidden during playback fullscreen without

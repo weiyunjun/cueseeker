@@ -276,7 +276,7 @@
       inset: 0;
       z-index: 300;
       min-height: 0;
-      background: #000;
+      background: var(--glass-window-bg);
       overflow: hidden;
     }
 
