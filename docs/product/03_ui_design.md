@@ -99,18 +99,17 @@ Current review fork for Liquid Glass control states and prototype-only review
 controls:
 
 ```text
-ui/prototypes/cueseeker-liquid-glass-v4/
+ui/prototypes/cueseeker-liquid-glass-v5/
 ```
 
 The standalone prototype remains the current visual baseline for HTML review of
 the main workbench, grouped Search results, Search-launched playback overlay,
-playback side panel, and persistent bottom player. The v4 directory is the
+playback side panel, and persistent bottom player. The v5 directory is the
 current split-source review fork for control taxonomy, disabled states,
-prototype theme switching, and bottom-player control sizing. It preserves the
-v3 visual result while moving the editable source into `index.html`,
-`styles.css`, and `script.js`. Earlier versioned forks remain available for
-visual comparison. App implementation still requires a separate explicit
-approval after the HTML has been accepted.
+prototype theme switching, bottom-player control sizing, and expanded playback
+video geometry. Earlier versioned forks remain available for visual comparison.
+App implementation still requires a separate explicit approval after the HTML
+has been accepted.
 
 Stable design snapshot:
 
@@ -141,6 +140,20 @@ Stable design snapshot:
   transport controls in the center, and playback operations on the right.
 - The bottom player uses a fixed narrower maximum width and is centered within
   the active video column. Detailed responsive scaling is a later pass.
+- The HTML prototype represents video with a gray frame labeled as the video
+  area. The review default uses `16:9`, but App implementation must use the
+  active video's real aspect ratio.
+- In expanded playback, the left column's black base is the positioning
+  container. The video frame should keep its aspect ratio and maximize within
+  that black base, so either width or height reaches the available limit.
+- Video-frame positioning follows the limiting axis: if width reaches the black
+  base width, horizontal position is fixed and vertical position may move; if
+  height reaches the black base height, vertical position is fixed and
+  horizontal position may move.
+- When vertical position can move, the video frame should be centered as much
+  as possible in the space above the fixed bottom player. If the maximized
+  video cannot fit above the bottom player, the bottom player may float over
+  the video frame.
 - The current source/title capsule shows the ASS file alias only. It must not
   show the selected Search result rank or timestamp.
 - Bottom-player buttons use two primary button forms: circular icon buttons and

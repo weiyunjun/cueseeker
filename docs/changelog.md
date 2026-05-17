@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the `cueseeker-liquid-glass-v5` HTML review fork for expanded playback
+  video geometry, including a visible aspect-ratio video frame and dynamic
+  positioning against the fixed bottom player.
 - Added the accepted App-side Appearance settings category and updated expanded
   playback layout rules so the right playback side panel owns a full-height
   column while the video and centered, narrower bottom player occupy the left

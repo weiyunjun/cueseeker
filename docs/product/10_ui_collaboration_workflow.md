@@ -165,13 +165,13 @@ Active App surface mapping:
 Current proposed review fork:
 
 ```text
-ui/prototypes/cueseeker-liquid-glass-v4/
+ui/prototypes/cueseeker-liquid-glass-v5/
 ```
 
 This directory is the active review fork for Liquid Glass control states, theme
-review, disabled-state review, bottom-player control sizing, and split-source
-prototype editing. It does not replace the accepted baseline in the table below
-until the user accepts it.
+review, disabled-state review, bottom-player control sizing, expanded playback
+video geometry, and split-source prototype editing. It does not replace the
+accepted baseline in the table below until the user accepts it.
 
 | App surface | Required HTML prototype | Coverage status | Known native App differences |
 | --- | --- | --- | --- |
