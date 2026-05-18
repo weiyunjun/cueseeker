@@ -187,8 +187,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func adjustTrafficLights() {
         AppPerformanceProbe.measure("AppDelegate.adjustTrafficLights", thresholdMilliseconds: 8) {
             guard let window = self.window else { return }
-        
-            if window.styleMask.contains(.fullScreen) {
+
+            // Suppress the native traffic lights in fullscreen and on the video
+            // page; the video page draws its own custom top-bar cluster.
+            if window.styleMask.contains(.fullScreen) || appState.isPlaybackPageVisible {
                 windowButtonsProxy?.isHidden = true
                 return
             }
