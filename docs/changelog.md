@@ -6,6 +6,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Hid the custom topbar during playback fullscreen and let the playback page
+  occupy the fullscreen window from the top edge.
 - Routed playback fullscreen through the existing workbench window so the
   playback render surface remains in the main window hierarchy during the
   fullscreen minimum loop.

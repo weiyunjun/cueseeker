@@ -4,6 +4,18 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
 
+    var body: some View {
+        ContentRootView(
+            appState: appState,
+            fullscreenManager: appState.playbackFullscreenManager
+        )
+    }
+}
+
+private struct ContentRootView: View {
+    @ObservedObject var appState: AppState
+    @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+
     private let windowBackground = Color(
         red: 0.955,
         green: 0.955,
@@ -15,6 +27,8 @@ struct ContentView: View {
         AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count("UI.ContentView.body")
 
+            let isPlaybackFullscreen = fullscreenManager.isFullscreen
+
             return ZStack(alignment: .topLeading) {
                 windowBackground
                     .ignoresSafeArea()
@@ -22,12 +36,14 @@ struct ContentView: View {
                 HStack(spacing: 0) {
                     mainWorkspace
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.top, AppShellLayout.topBarHeight)
+                        .padding(.top, isPlaybackFullscreen ? 0 : AppShellLayout.topBarHeight)
                 }
 
-                AppTopBar(backgroundColor: contentBackground)
-                    .frame(height: AppShellLayout.topBarHeight)
-                    .zIndex(3)
+                if !isPlaybackFullscreen {
+                    AppTopBar(backgroundColor: contentBackground)
+                        .frame(height: AppShellLayout.topBarHeight)
+                        .zIndex(3)
+                }
 
                 TopbarCommandBridge()
                     .frame(width: 0, height: 0)
