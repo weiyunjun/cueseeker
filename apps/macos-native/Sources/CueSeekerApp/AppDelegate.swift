@@ -211,13 +211,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         AppPerformanceProbe.measure("AppDelegate.adjustTrafficLights", thresholdMilliseconds: 8) {
             guard let window = self.window else { return }
 
-            // Suppress the native traffic lights in fullscreen and on the video
-            // page; the video page draws its own custom top-bar cluster. The
-            // buttons themselves must be hidden, not just the proxy: AppKit can
-            // re-add the standard buttons to the real titlebar, so hiding only
-            // the proxy leaves them visible on the non-fullscreen video page.
-            if window.styleMask.contains(.fullScreen) || appState.isPlaybackPageVisible {
-                for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            let standardButtons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+
+            // Fullscreen: macOS owns the native fullscreen titlebar (close +
+            // exit-fullscreen). The windowed video page may have hidden these
+            // buttons, so restore them and just hide our reparenting proxy.
+            if window.styleMask.contains(.fullScreen) {
+                for type in standardButtons {
+                    window.standardWindowButton(type)?.isHidden = false
+                }
+                windowButtonsProxy?.isHidden = true
+                return
+            }
+
+            // Windowed video page: the custom top-bar cluster replaces the
+            // native buttons, so hide them and the proxy. The buttons must be
+            // hidden directly, not just the proxy, because AppKit can re-add
+            // the standard buttons to the real titlebar.
+            if appState.isPlaybackPageVisible {
+                for type in standardButtons {
                     window.standardWindowButton(type)?.isHidden = true
                 }
                 windowButtonsProxy?.isHidden = true
