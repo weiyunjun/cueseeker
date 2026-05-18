@@ -377,6 +377,14 @@
     .window.playback-closed .player-dock {
       display: none;
     }
+    /* Video page is a dedicated presentation: hide the workbench toolbar and
+       let the video cover the entire window (info page fully occluded). */
+    .window.video-expanded {
+      grid-template-rows: minmax(0, 1fr);
+    }
+    .window.video-expanded .toolbar {
+      display: none;
+    }
 
     /* ============================ SEARCH RESULTS ============================ */
     .results-header {
@@ -943,7 +951,7 @@
       width: min(420px, calc(100% - 48px));
       z-index: 15;
       border-radius: 18px;
-      background: rgba(248, 248, 250, 0.62);
+      background: rgba(247, 248, 250, 0.94);
       backdrop-filter: blur(40px) saturate(180%);
       -webkit-backdrop-filter: blur(40px) saturate(180%);
       border: 0.5px solid rgba(0, 0, 0, 0.10);
