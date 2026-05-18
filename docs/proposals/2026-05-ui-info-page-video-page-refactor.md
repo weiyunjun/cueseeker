@@ -151,10 +151,22 @@ places.
 Startup RSS regressed from approximately 30 MB to 60–70 MB. The likely cause is
 that the rewrite plan's Phase 1 delete gate was not completed cleanly, so old UI
 code, retained observers, or stale view trees coexist with the new code.
-Approximately 30 MB is the baseline metric. The regression must be diagnosed and
-the measured RSS reported as an explicit acceptance number before concluding
-that the rewrite fixes it; no unapproved mitigation may be silently layered on.
-This work is effectively finishing the Phase 1 code-structure gate properly.
+Approximately 30 MB is the baseline metric.
+
+Sequencing (revised): a dedicated mid-stream "fix the memory regression" step is
+mis-placed because the suspected source is the old playback/video path that
+S1–S5 rebuild (so much of the bloat should be reclaimed as a side effect), and
+because the info-page card-visual rebuild (rewrite-plan Phase 5) is a separate
+later stage whose memory contribution is unknown. Therefore:
+
+- Record the ~30 MB baseline and the current 60–70 MB up front (measurement
+  only; satisfies the git-workflow §10 benchmark-report rule).
+- Re-measure RSS after each structural step (S1–S5).
+- Do the actual diagnosis and residual cleanup at the end of the video-page
+  implementation (S7), and report the measured RSS as an explicit number; no
+  unapproved mitigation may be silently layered on.
+- App-wide memory acceptance is deferred until the separate info-page Phase 5
+  rebuild is also done and measured.
 
 ## HTML Prototype Change List (v6)
 
@@ -189,8 +201,7 @@ Documentation-first, per `docs/engineering/02_git_workflow.md` §10,
    domains stay separate; product semantics stay out of views).
 7. Obtain explicit App-implementation approval (separate from prototype
    approval).
-8. Implement, sequenced within the rewrite plan's visual-rebuild stages (player
-   Chrome → right-panel visual → main-page cards), then update
+8. Implement per the App Implementation Steps (S1–S7) below, then update
    `docs/changelog.md` on completion.
 
 Phasing of the App work:
@@ -204,6 +215,67 @@ Phasing of the App work:
   the view.
 - Phase 3 — Subtitle-driven search/play: select subtitle text in the panel →
   search → play.
+
+## App Implementation Steps (S1–S7)
+
+These steps implement Phase 1 (structural) only. Phase 2 and Phase 3 are out of
+scope and will be planned separately.
+
+Scope: this implementation is the **video page**. The info-page card-visual
+rebuild (rewrite-plan Phase 5: Search/Library/Shiori cards) is a **separate
+later stage** and is not part of these steps. The only info-page-adjacent change
+here is S1 structural wiring (keep the info page alive, hide its toolbar on the
+video page, remember the originating mode); it is not an info-page visual
+change.
+
+Non-negotiables for every step: `swift test` stays green; do not touch the seek
+or native render path (`PlaybackViewModel.performSeek`, `PlaybackView` render
+wrapper, `PlaybackRenderHostView`, native player); product semantics stay out of
+views; each step is its own commit and reports before/after short hashes.
+
+- **S1 — Presentation split + navigation/return target.** AppState remembers the
+  originating info-page mode; the video page is a dedicated full-window
+  presentation layered above a still-alive info page (not destroyed); hide
+  `AppTopBar`/`.toolbar` while the video page is shown; close returns to the
+  originating mode with state intact. No new visuals. Files: `AppState.swift`,
+  `SearchView.swift`, `ContentView.swift`. Risk: medium. Verify: open/close
+  returns to the correct mode; info-page state preserved.
+- **S2 — Custom video-page top bar.** New `VideoTopBar` (centered title +
+  custom-drawn traffic-light cluster: red = return to info page, yellow =
+  collapse, green = fullscreen); remove the old video-frame Close capsule;
+  suppress the native NSWindow traffic lights on the video page (coordinate with
+  `AppDelegate.WindowButtonsProxyView` / `adjustTrafficLights()`); the top bar
+  is Player UI. Risk: medium-high. Verify visually against prototype v6.
+- **S3 — Player-UI / cursor visibility state machine (v1).** Implement the v1
+  state machine per doc 12 §10.4 / prototype v6; reconcile with
+  `PlaybackFullscreenManager.beginInitialPointerSuppression()` /
+  `hidePlayerUI(hideCursor:)` so cursor hiding is not done in two places. Risk:
+  medium. Verify the two reported bugs stay fixed (dock-hover idle hide;
+  blur/refocus).
+- **S4 — Overlay middle panel (core layout change).** `PlaybackPageView`:
+  `HStack(video + sidebar)` → video stage fills the window + centered floating
+  overlay; remove `PlaybackSidebarMetrics` squeeze math; restore the Search
+  Results / Subtitles content (logic exists: `searchNavigationResultGroups`,
+  `currentSubtitleEntries`); opaque panel; visibility via the bottom-bar
+  three-line toggle; never auto-hides; click-row → seek; feedback overlay above
+  the panel. Risk: medium-high. Verify seek smoothness is unaffected and the
+  panel never resizes the video stage.
+- **S5 — Fullscreen simplification + ADR-0011 convergence.** With the collapsed
+  dedicated video page, verify ADR-0011 acceptance passes trivially (no freeze,
+  no workbench relayout flash); converge the `69861f2` render-sync band-aid
+  where no longer needed. The measured fullscreen result must be reported (no
+  silent reinterpretation). Risk: medium.
+- **S6 — Memory: baseline + per-step measurement.** Record the ~30 MB baseline
+  and current 60–70 MB before S1; re-measure RSS after each of S1–S5. This is
+  measurement/tracking only, not a mid-stream fix.
+- **S7 — Full UX regression + end memory diagnosis + changelog.** End-to-end
+  validation (rewrite-plan Phase 6); diagnose and clean any residual memory
+  bloat from the old playback path and report the measured RSS as an explicit
+  number; update `docs/changelog.md`. App-wide memory acceptance still waits for
+  the separate info-page Phase 5.
+
+Dependencies: S1 first; S2 and S3 may follow S1 in parallel; S4 after S1; S5
+depends on S1 + S4; S6 runs alongside S1–S5 as measurement; S7 last.
 
 ## Acceptance
 
@@ -220,8 +292,9 @@ Phasing of the App work:
 ## Step Document Rule
 
 This document plus ADR-0013 are the required step documents for this refactor.
-If a decision, sequence, or acceptance criterion changes, update these documents
-before changing App code.
+The App Implementation Steps (S1–S7) section is the authoritative step plan for
+App code. If a decision, step, sequence, or acceptance criterion changes, update
+these documents before changing App code.
 
 ## Decision
 
