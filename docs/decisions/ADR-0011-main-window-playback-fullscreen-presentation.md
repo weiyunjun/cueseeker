@@ -25,6 +25,23 @@ Confirmed implementation contract:
 - The first repair pass should focus on fullscreen windowing and presentation
   ownership before revisiting detailed player-UI chrome visibility rules.
 
+Current implementation sequence:
+
+1. Confirm the target fullscreen contract in documentation before native App
+   code changes.
+2. Implement the main-window fullscreen minimum loop. The playback fullscreen
+   command should put the existing workbench window into AppKit fullscreen,
+   keep the playback render container in that same window hierarchy, and avoid
+   creating a dedicated playback fullscreen window. Acceptance for this step is
+   that Cmd-Tab away and then returning to CueSeeker restores the fullscreen
+   playback window with the video surface still present.
+3. Refine the video-only playback presentation by hiding normal workbench chrome
+   without destroying workbench state.
+4. Remove the obsolete dedicated playback fullscreen window path.
+5. Validate lifecycle edges for repeated `F`, the fullscreen button, Escape,
+   Close, Cmd-Tab, and playback during enter or exit transitions before
+   continuing detailed player-chrome visibility work.
+
 ## Background
 
 ADR-0010 replaced the old borderless Theater Mode with a dedicated playback

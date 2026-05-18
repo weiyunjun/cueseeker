@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Defined the second playback fullscreen repair step: route playback fullscreen
+  through the existing workbench window, keep the render container in that
+  window hierarchy, and accept Cmd-Tab return to the fullscreen video surface as
+  the minimum-loop validation.
 - Resumed implementation of the main-window playback fullscreen ADR: fullscreen
   repair now targets one AppKit fullscreen workbench window, no dedicated
   playback fullscreen window, and no cross-window playback render-view movement
