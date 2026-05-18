@@ -443,6 +443,15 @@ Current implementation notes and accepted fullscreen correction:
 - The speed preset menu opens from the bottom player's speed button on click and has no separate show or hide animation.
 - The playback fullscreen implementation uses AppKit fullscreen lifecycle
   instead of manual Theater Mode deactivation handling.
+- The next fullscreen repair pass should first make the playback fullscreen
+  manager an explicit state machine, then bind video-only presentation to
+  AppKit fullscreen lifecycle callbacks, then add native render-view transition
+  hooks. If playback still freezes during fullscreen entry or exit after those
+  corrections, the remaining work should be treated as display-layer research.
+- Metal/`CAMetalLayer` research is a possible future display/presentation-layer
+  replacement for `AVSampleBufferDisplayLayer`. It does not mean CueSeeker must
+  replace FFmpeg demuxing, VideoToolbox decoding, or the existing playback
+  engine contract before the fullscreen state-machine repair is validated.
 - Read-only selectable metadata text does not count as editable text input for playback shortcut suppression.
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.

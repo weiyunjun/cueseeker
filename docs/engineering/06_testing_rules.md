@@ -414,6 +414,25 @@ Required M2 playback interaction checks:
 - Playback fullscreen animation checks should also verify top-bar restoration,
   traffic-light restoration, non-duplication of playback overlays, and no
   side-panel animation side effects.
+- Playback fullscreen state-machine checks should verify that repeated `F`,
+  fullscreen button clicks, and Escape during entering or exiting fullscreen are
+  serialized by explicit state rather than by a fixed cooldown. A failed enter
+  or failed exit callback must return the manager to a known non-transitioning
+  state.
+- Playback fullscreen lifecycle checks should verify that AppKit will-enter,
+  did-enter, will-exit, did-exit, and fail callbacks are the source of
+  fullscreen transition completion. Tests and manual verification should reject
+  guessed fixed delays as the mechanism for declaring fullscreen complete.
+- Playback native render-view transition checks should verify that the same
+  native playback render view and display layer remain in the main window
+  hierarchy through fullscreen entry, active fullscreen, and exit. The display
+  layer frame should be synchronized through native layout hooks; fullscreen
+  transition handling should not use `flushAndRemoveImage` as a workaround.
+- If video still freezes during fullscreen transition after the state-machine
+  and render-view checks pass while audio continues, the result should be
+  recorded as display-layer research input. A Metal/`CAMetalLayer` investigation
+  must be documented separately before replacing the current
+  `AVSampleBufferDisplayLayer` presentation path.
 - Playback chrome checks should verify that time labels fit `10:00:00` without
   wrapping while keeping the scrubber gap compact, speed menus close on outside
   clicks, player UI means bottom player plus `Close`, player UI has only

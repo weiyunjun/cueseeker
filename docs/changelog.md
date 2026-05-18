@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Documented the next playback fullscreen repair plan: make fullscreen an
+  explicit player state machine, bind video-only presentation to AppKit
+  lifecycle callbacks, add native render-view transition hooks, and treat
+  Metal/`CAMetalLayer` as future display-layer research only if the current
+  `AVSampleBufferDisplayLayer` path still freezes after those fixes.
 - Removed the obsolete dedicated playback fullscreen window code path now that
   playback fullscreen is routed through the main workbench window.
 - Hid the custom topbar during playback fullscreen and let the playback page

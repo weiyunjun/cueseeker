@@ -27,20 +27,35 @@ Confirmed implementation contract:
 
 Current implementation sequence:
 
-1. Confirm the target fullscreen contract in documentation before native App
-   code changes.
-2. Implement the main-window fullscreen minimum loop. The playback fullscreen
-   command should put the existing workbench window into AppKit fullscreen,
-   keep the playback render container in that same window hierarchy, and avoid
-   creating a dedicated playback fullscreen window. Acceptance for this step is
-   that Cmd-Tab away and then returning to CueSeeker restores the fullscreen
-   playback window with the video surface still present.
-3. Refine the video-only playback presentation by hiding normal workbench chrome
-   without destroying workbench state.
-4. Remove the obsolete dedicated playback fullscreen window path.
-5. Validate lifecycle edges for repeated `F`, the fullscreen button, Escape,
-   Close, Cmd-Tab, and playback during enter or exit transitions before
-   continuing detailed player-chrome visibility work.
+1. Replace the playback fullscreen Bool combination with an explicit player
+   fullscreen state machine. Acceptance: playback fullscreen has distinct
+   windowed, entering-system-fullscreen, active-fullscreen, and
+   exiting-system-fullscreen states; repeated `F`, fullscreen button, and Escape
+   commands during entering or exiting are ignored instead of starting another
+   transition; ordinary app fullscreen remains distinct from playback
+   fullscreen; failed AppKit fullscreen callbacks return the manager to a known
+   state.
+2. Bind playback fullscreen presentation to AppKit's native fullscreen
+   lifecycle. Acceptance: `toggleFullScreen` is the only standard-path system
+   fullscreen entry or exit trigger; video-only presentation starts from AppKit
+   will-enter callbacks and ordinary workbench presentation is restored only
+   after did-exit callbacks; Cmd-Tab away and back returns to the fullscreen
+   video presentation; no fixed guessed delay is used to finish fullscreen
+   transition state.
+3. Add native render-view fullscreen transition hooks without changing the
+   playback decode pipeline. Acceptance: the singleton native playback render
+   view and its display layer remain in the main window hierarchy; fullscreen
+   entry, active fullscreen, and exit force native layout/frame synchronization;
+   `flushAndRemoveImage` is not used as a fullscreen-transition workaround; if
+   visible video still freezes while audio continues, the result is recorded as
+   a display-layer issue rather than accepted fullscreen behavior.
+4. Explore a rendering-layer replacement only if the state-machine and native
+   layout fixes leave a reproducible transition freeze. Acceptance: the
+   investigation compares the current `AVSampleBufferDisplayLayer` presentation
+   path with a possible Metal/`CAMetalLayer` presentation path for decoded
+   `CVPixelBuffer` frames; the investigation is documented before any renderer
+   replacement is implemented; it does not imply replacing FFmpeg demuxing or
+   VideoToolbox decoding.
 
 ## Background
 
@@ -178,6 +193,30 @@ Known risks:
 - Future broad UI redesigns can invalidate assumptions in the playback
   fullscreen presentation layer. The fullscreen state model should be kept
   narrow and explicit before larger UI work resumes.
+
+## Future Technical Exploration
+
+The accepted repair path remains a fullscreen state-machine and presentation
+ownership change first. It should not be treated as a playback decoder rewrite.
+
+CueSeeker's current native playback path demuxes and decodes video before the
+display layer presents frames. A future Metal/`CAMetalLayer` exploration would
+replace only the final presentation layer: decoded `CVPixelBuffer` frames would
+be rendered into a GPU-backed Metal layer instead of being wrapped into
+`CMSampleBuffer` values and enqueued into `AVSampleBufferDisplayLayer`.
+
+This exploration becomes relevant only if:
+
+- the playback fullscreen state machine is explicit and stable;
+- the render container remains in the main window hierarchy through AppKit
+  fullscreen entry and exit;
+- native layout hooks prove that the display layer frame is synchronized before,
+  during, and after the transition; and
+- video still visibly freezes during fullscreen transition while audio continues.
+
+The purpose of that exploration would be to evaluate display-layer control,
+resize/fullscreen synchronization, black-background ownership, and future
+subtitle composition. It must not silently change the selected decode strategy.
 
 ## Acceptance Focus
 
