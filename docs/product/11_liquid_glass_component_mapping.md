@@ -19,30 +19,38 @@ accepted direction until the user approves it.
 Current HTML source:
 
 ```text
-ui/prototypes/cueseeker-liquid-glass-v5/
+ui/prototypes/cueseeker-liquid-glass-v6/
 ```
+
+This pass reflects the info-page / video-page refactor
+(`docs/proposals/2026-05-ui-info-page-video-page-refactor.md`, ADR-0013): the
+video page is a dedicated full-window presentation, the playback side panel is a
+centered overlay, the video-page Close capsule is removed, and a custom
+video-page top bar replaces it.
 
 Included App surfaces:
 
-- Main workbench shell.
-- Topbar Library, Shiori, and Search controls.
+- Main workbench shell (info page only; hidden on the video page).
+- Topbar Library, Shiori, and Search controls (info page only).
 - Search results.
 - Library grouped episode grid.
 - Shiori grouped cards.
 - Active-playback bottom player.
-- Expanded playback video surface.
-- Expanded playback side panel.
+- Video page video surface (dedicated full-window presentation).
+- Video page top bar (custom traffic-light cluster plus centered title).
+- Video page centered overlay panel (replaces the former right side panel).
 - Playback fullscreen chrome.
-- Playback close capsule.
 
 Out of scope for this mapping pass:
 
 - Settings window UI.
 - Prototype-only review controls such as theme switching and disable-all
   controls.
-- Native window chrome, traffic lights, AppKit fullscreen lifecycle, playback
+- The real native NSWindow traffic lights, AppKit fullscreen lifecycle, playback
   backend, database, indexing, Search pagination, lazy loading, and first-screen
-  render behavior.
+  render behavior. The real NSWindow traffic lights are suppressed on the video
+  page; the in-scope video-page traffic-light cluster is a custom-drawn product
+  control, not the native window buttons.
 
 ## 3. Mapping Principles
 
@@ -82,8 +90,10 @@ Expected SwiftUI building blocks:
 | `LiquidGlassSelectableRow` | Selectable sidebar/list row surface. |
 | `LiquidGlassSlider` | Playback progress and volume slider family. |
 | `LiquidGlassPopupMenu` | Rounded-rectangle popup menu and menu item family. |
-| `LiquidGlassSurface` | Shared workbench, bottom-player, sidebar, and video-stage surfaces. |
-| `LiquidGlassFeedbackOverlay` | Transient playback input feedback shown over the active video stage. |
+| `LiquidGlassSurface` | Shared workbench, bottom-player, overlay-panel, and video-stage surfaces. |
+| `LiquidGlassFeedbackOverlay` | Transient playback input feedback shown over the active video stage, above the overlay panel. |
+| `LiquidGlassVideoTopBar` | Video-page top bar: left window-control cluster plus centered video title. |
+| `LiquidGlassWindowControlButton` | Custom-drawn traffic-light control (close, minimize, zoom) with app-defined semantics, not the native NSWindow buttons. |
 
 Implementation may choose different final Swift type names, but each accepted
 component class below must have one native owner. Shared visual rules should
@@ -95,7 +105,6 @@ live in that owner, not in individual call sites.
 | --- | --- | --- | --- |
 | `ui-capsule` | Capsule button base | `LiquidGlassCapsuleButton` / capsule `ButtonStyle` | Shared base for visible pill-shaped text/value controls. |
 | `ui-capsule--command` | Capsule command button | `LiquidGlassCapsuleButton.Kind.command` | `Collapse All` and similar compact commands. |
-| `ui-capsule--video-close` | Video close capsule command | `LiquidGlassCapsuleButton.Kind.videoClose` | Top-left close command anchored to the active video frame. |
 | `ui-capsule--value` | Fixed-width value capsule | `LiquidGlassCapsuleButton.Kind.value` | Playback speed control. |
 | `ui-capsule--test` | Prototype-only test capsule | No production App component | HTML review controls only. |
 | `ui-prototype-control` | Prototype-only review control | No production App component | Must not appear in production App UI. |
@@ -124,28 +133,50 @@ live in that owner, not in individual call sites.
 | `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Playback side-panel selected rows, selected toggles, and selected menu items. Search, Library, and Shiori main-page cards must not use this for playback selection visuals. |
 | `ui-is-active` | Active state marker | `LiquidGlassControlState.active` | Active segmented option and active transient control states. |
 
-Retired active-target component:
+### 5.1 Video-page top bar anchors (v6)
+
+These are surface-level component anchors (not `ui-*` classes) introduced by the
+info-page / video-page refactor. They are Player UI and share the
+`player-chrome-visible` show/hide state with the bottom player.
+
+| HTML class anchor | Product component concept | SwiftUI owner | App usage |
+| --- | --- | --- | --- |
+| `.video-topbar` | Video-page top bar surface | `LiquidGlassVideoTopBar` | Full-width bar at the top of the video page; centered title with a left control cluster. |
+| `.video-traffic` | Window-control cluster | `LiquidGlassVideoTopBar` cluster group | Groups the three custom window-control buttons. |
+| `.vt-dot` | Window-control button base | `LiquidGlassWindowControlButton` | Shared base for the custom traffic-light controls; glyph reveals on cluster hover/focus. |
+| `.vt-close` | Close control (red) | `LiquidGlassWindowControlButton.Kind.close` | Closes the video page and returns to the originating info page. It is NOT a quit/window-close. |
+| `.vt-min` | Minimize control (yellow) | `LiquidGlassWindowControlButton.Kind.minimize` | Collapses playback. |
+| `.vt-zoom` | Zoom control (green) | `LiquidGlassWindowControlButton.Kind.zoom` | Enters fullscreen. |
+| `.video-title` | Centered video title | `LiquidGlassVideoTopBar` title | Centered alias of the playing source; truncates with ellipsis. |
+| `.video-topbar-spacer` | Layout balance spacer | Layout-only | Keeps the title optically centered opposite the control cluster; no Swift component required. |
+
+Retired active-target components:
 
 - `ui-capsule--source` / `.source-toggle` belonged to the previous
   bottom-player source/title expand-collapse control. The active target UI
   removes that bottom-left collapse control, so SwiftUI should not implement it
   as the entry point for expanded playback. Playback opens from Search, Library,
-  or Shiori activation, and closes through the video-stage `Close` capsule.
+  or Shiori activation.
+- `ui-capsule--video-close` / `.video-close-button` was the video-frame-anchored
+  close capsule. The v6 refactor removes it; closing the video page is now the
+  `.vt-close` control in the video-page top bar, which returns to the
+  originating info page. SwiftUI must not implement the close capsule.
 
 ## 6. Surface Mapping
 
 | App surface | HTML source concept | SwiftUI owner to create or refactor | Behavior owner to preserve |
 | --- | --- | --- | --- |
-| Main workbench shell | `.window`, `.main`, `.toolbar` | `ContentView`, `AppTopBar`, `LiquidGlassSurface` | `AppState`, `WorkbenchLayoutState`, native window setup. |
+| Main workbench shell | `.window`, `.main`, `.toolbar` | `ContentView`, `AppTopBar`, `LiquidGlassSurface` | `AppState`, `WorkbenchLayoutState`, native window setup. The workbench `.toolbar` is the info-page chrome only and is hidden while the video page is shown. |
 | Topbar mode buttons | `ui-icon-button--topbar` | `LiquidGlassIconButton.Kind.topbar` | `activateWorkbenchPanelMode`. |
 | Topbar Search | `ui-input-capsule`, `ui-icon-button--embedded` | `LiquidGlassSearchField` | `TopbarSearchInputState`, Return-submit flow. |
 | Search page | `.search-state`, result groups, `ui-selectable-card` | Search page view plus `LiquidGlassSelectableCard` | Existing Search query, grouping, lazy loading, load-more, exact counts. |
 | Library page | `.library-state`, episode cards | Library page view plus disclosure and episode card components | Existing Library folder grouping, collapse state, open video behavior. |
 | Shiori page | `.shiori-state`, grouped cards | Shiori page view plus `LiquidGlassSelectableCard` | Existing Shiori persistence and open behavior. |
 | Bottom player | `.player-dock`, `.player-hud` | `BottomPlaybackBar`, `LiquidGlassBottomPlayer` | Active playback session visibility, playback view model, seek, volume, speed, navigation, Shiori, copy, subtitles. |
-| Expanded playback | `.video-state`, `.video-stage`, `.video-frame`, `ui-capsule--video-close`, `ui-feedback-overlay` | `PlaybackExpandedLayout`, video stage surface, `LiquidGlassFeedbackOverlay` | Real video aspect ratio, frame-anchored close placement, playback render view lifecycle, playback close lifecycle, playback input feedback. |
-| Playback side panel | `.sidebar`, `ui-segmented-control`, `ui-selectable-row` | Playback side-panel views plus segmented and row components | Search navigation snapshot, current subtitle entries, row activation. |
-| Fullscreen playback chrome | Prototype bottom-player visual language plus `ui-feedback-overlay` | Fullscreen overlay using same bottom-player and feedback component families | AppKit fullscreen lifecycle, render-view ownership, cursor and chrome visibility timing, playback input feedback. |
+| Video page | `.video-state`, `.video-stage`, `.video-frame`, `ui-feedback-overlay` | `PlaybackExpandedLayout`, video stage surface, `LiquidGlassFeedbackOverlay` | Dedicated full-window presentation layered above a live info page; real video aspect ratio; playback render view lifecycle; playback close lifecycle (returns to the originating info page); playback input feedback. The feedback overlay renders above the centered overlay panel. |
+| Video page top bar | `.video-topbar`, `.video-traffic`, `.vt-dot`, `.vt-close`, `.vt-min`, `.vt-zoom`, `.video-title` | `LiquidGlassVideoTopBar`, `LiquidGlassWindowControlButton` | Player UI; shares `player-chrome-visible` show/hide with the bottom player. Close returns to the originating info page; zoom enters fullscreen. Native NSWindow traffic lights are suppressed on the video page. |
+| Video page overlay panel | `.sidebar`, `ui-segmented-control`, `ui-selectable-row` | Overlay-panel views plus segmented and row components | Search navigation snapshot, current subtitle entries, row activation. Centered floating overlay over the video; does NOT squeeze the video stage; visibility is independent of `player-chrome-visible` and is driven only by the bottom-bar panel toggle; never auto-hides. |
+| Fullscreen playback chrome | Prototype bottom-player and video-page top bar visual language plus `ui-feedback-overlay` | Fullscreen overlay using the same bottom-player, top-bar, and feedback component families | AppKit fullscreen lifecycle, render-view ownership, cursor and chrome visibility timing, playback input feedback. |
 
 ## 7. Control State Mapping
 
@@ -163,12 +194,12 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `ui-is-active` | `LiquidGlassControlState.active` | Active tab or active transient selection. |
 | `.is-dragging` | `@GestureState` or local drag state | Sliders should use this for thumb and track emphasis. |
 | `body[data-theme]` | `AppAppearanceMode` / color scheme | Theme tokens should derive from App appearance mode, not prototype-only controls. |
-| `.video-expanded` | `appState.isPlaybackSurfaceExpanded` | Controls expanded playback layout and bottom-player context. |
+| `.video-expanded` | `appState.isPlaybackSurfaceExpanded` | Controls the video-page presentation. The video page is a dedicated full-window presentation layered above a live info page; the workbench `.toolbar` is hidden while it is shown. |
 | `.playback-closed` / no active playback marker | `appState.hasPlaybackSelection == false` or equivalent derived playback-session state | Hides playback UI after close. The bottom player is also hidden whenever `.video-expanded` is false, so non-video Search, Library, and Shiori pages do not show the bottom player. |
-| `.sidebar-hidden` | `!appState.isPlaybackSidePanelVisible` | Controls expanded playback side-panel visibility. |
+| `.sidebar-hidden` | `!appState.isPlaybackSidePanelVisible` | Controls the centered overlay panel visibility. Driven only by the bottom-bar panel toggle; independent of `player-chrome-visible`; the panel never auto-hides. |
 | `body.prototype-fullscreen` | `playbackFullscreenManager.isFullscreen` | Prototype-only App fullscreen state marker. It may promote `.main` to a viewport-covering playback surface and disable ancestor visual effects that block fixed positioning, but must not redefine video-stage, video-frame, side-panel, or bottom-player layout rules. |
-| `.player-chrome-visible` | fullscreen or expanded playback player-UI visible state | Drives player UI visibility over video. Player UI means the floating bottom player plus the video-frame `Close` capsule, and it has only visible / not-visible states. |
-| `body.player-cursor-hidden` | playback cursor-hidden state | Hides the pointer cursor only while the current player UI state requires cursor hiding. Mouse movement clears this state. |
+| `.player-chrome-visible` | video-page player-UI visible state | Drives Player UI visibility over the video. Player UI now means the bottom player plus the video-page top bar (the Close capsule is removed). Show/hide follows the Player-UI / cursor visibility state machine (v1) defined in `docs/product/12_liquid_glass_ux_mapping.md`. |
+| `body.player-cursor-hidden` | playback cursor-hidden state | Hides the pointer cursor per the Player-UI / cursor visibility state machine (v1) in `docs/product/12_liquid_glass_ux_mapping.md`. Only real pointer movement (not clicks or keys) re-shows it. |
 | `data-feedback-position` on `ui-feedback-overlay` | `PlaybackFeedbackPosition` | Center for most commands, leading for rewind and previous-result navigation, trailing for forward seek and next-result navigation. |
 | `data-feedback-has-icon` on `ui-feedback-hud` | Optional feedback icon state | Text-only feedback hides the icon and selects the `ui-feedback-hud--text-capsule` compact capsule modifier. |
 | `.is-visible` on `ui-feedback-hud` | Transient feedback presentation state | Shows the HUD while feedback is active; repeated commands update content in place instead of replaying the full entry animation. |
@@ -230,7 +261,7 @@ Required workflow for future UI class changes:
 Optional future automation:
 
 - Add a machine-readable component manifest such as
-  `ui/prototypes/cueseeker-liquid-glass-v5/component-map.json`.
+  `ui/prototypes/cueseeker-liquid-glass-v6/component-map.json`.
 - Generate a Swift enum skeleton from that manifest.
 - Add a drift check that reports unmapped `ui-*` classes in the prototype.
 
