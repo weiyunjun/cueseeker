@@ -19,6 +19,7 @@ struct PlaybackPageView: View {
                 PlaybackVideoStage(
                     playbackSurface: playbackSurface,
                     appState: appState,
+                    fullscreenManager: appState.playbackFullscreenManager,
                     onClose: onClose
                 )
                 .frame(width: stageWidth, height: geometry.size.height)
@@ -67,6 +68,7 @@ struct PlaybackPageView: View {
 private struct PlaybackVideoStage: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppState
+    @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onClose: () -> Void
     @State private var isPlayerUIVisible = true
     @State private var chromeHideTask: Task<Void, Never>?
@@ -88,7 +90,7 @@ private struct PlaybackVideoStage: View {
                     .background(Color.black)
                     .position(x: frame.midX, y: frame.midY)
 
-                if isPlayerUIVisible {
+                if isPlayerUIVisible, !fullscreenManager.isFullscreen {
                     LiquidGlassVideoTopBar(
                         title: appState.currentPlaybackDisplayTitle,
                         onClose: onClose,

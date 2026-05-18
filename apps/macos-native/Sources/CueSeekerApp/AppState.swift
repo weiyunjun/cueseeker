@@ -957,35 +957,13 @@ final class AppState: ObservableObject {
     }
 
     func minimizePlaybackWindowFromUser() {
-        guard let window = player?.renderView.window
+        // Minimize is windowed-only (the custom top bar is hidden in
+        // fullscreen, which has no minimize affordance), so just miniaturize
+        // the window to the Dock.
+        let window = player?.renderView.window
             ?? NSApplication.shared.keyWindow
             ?? NSApplication.shared.mainWindow
-        else {
-            return
-        }
-
-        // macOS cannot miniaturize a window that is in a fullscreen Space, so
-        // exit playback fullscreen first and miniaturize on completion.
-        guard playbackFullscreenManager.isFullscreen else {
-            window.miniaturize(nil)
-            return
-        }
-
-        guard beginVideoSizeTransition() else {
-            return
-        }
-
-        let started = playbackFullscreenManager.exitFullscreen(
-            animated: true,
-            onTransitionCompleted: { [weak self] in
-                self?.endVideoSizeTransition()
-                window.miniaturize(nil)
-            }
-        )
-        if !started {
-            endVideoSizeTransition()
-            window.miniaturize(nil)
-        }
+        window?.miniaturize(nil)
     }
 
     private func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {

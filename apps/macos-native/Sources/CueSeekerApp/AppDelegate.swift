@@ -133,6 +133,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window?.titleVisibility = .visible
         windowButtonsProxy?.isHidden = true
         appState.workbenchLayout.isAppFullscreen = true
+        syncPlaybackWindowTitle()
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        // On the video page (including fullscreen via the native titlebar
+        // close), close means "return to the originating info page", not quit.
+        guard sender === window, appState.isPlaybackPageVisible else {
+            return true
+        }
+        appState.clearSearchFocus()
+        appState.stopPlayback()
+        return false
+    }
+
+    private func syncPlaybackWindowTitle() {
+        guard let window else { return }
+        let desiredTitle = appState.isPlaybackPageVisible
+            ? appState.currentPlaybackDisplayTitle
+            : "CueSeeker"
+        if window.title != desiredTitle {
+            window.title = desiredTitle
+        }
     }
 
     func windowDidEnterFullScreen(_ notification: Notification) {
@@ -181,6 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowDidUpdate(_ notification: Notification) {
         AppPerformanceProbe.measure("AppDelegate.windowDidUpdate", thresholdMilliseconds: 8) {
             adjustTrafficLights()
+            syncPlaybackWindowTitle()
         }
     }
     
