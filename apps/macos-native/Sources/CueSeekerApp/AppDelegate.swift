@@ -129,26 +129,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
+        appState.playbackFullscreenManager.windowWillEnterFullScreen(notification)
         window?.titleVisibility = .visible
         windowButtonsProxy?.isHidden = true
         appState.workbenchLayout.isAppFullscreen = true
     }
 
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        appState.playbackFullscreenManager.windowDidEnterFullScreen(notification)
+    }
+
     func windowWillExitFullScreen(_ notification: Notification) {
+        appState.playbackFullscreenManager.windowWillExitFullScreen(notification)
         window?.titleVisibility = .hidden
         appState.workbenchLayout.isAppFullscreen = false
     }
 
     func windowWillClose(_ notification: Notification) {
+        appState.playbackFullscreenManager.windowWillClose(notification)
         appState.saveCurrentLibraryPlaybackHistorySynchronously()
         appState.playbackFullscreenManager.exitFullscreen()
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
+        appState.playbackFullscreenManager.windowDidExitFullScreen(notification)
         window?.titleVisibility = .hidden
         DispatchQueue.main.async { [weak self] in
             self?.adjustTrafficLights()
         }
+    }
+
+    func windowDidFailToEnterFullScreen(_ window: NSWindow) {
+        appState.playbackFullscreenManager.windowDidFailToEnterFullScreen(window)
+        window.titleVisibility = .hidden
+        appState.workbenchLayout.isAppFullscreen = false
+        DispatchQueue.main.async { [weak self] in
+            self?.adjustTrafficLights()
+        }
+    }
+
+    func windowDidFailToExitFullScreen(_ window: NSWindow) {
+        appState.playbackFullscreenManager.windowDidFailToExitFullScreen(window)
     }
     
     func windowDidResize(_ notification: Notification) {

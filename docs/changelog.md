@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Routed playback fullscreen through the existing workbench window so the
+  playback render surface remains in the main window hierarchy during the
+  fullscreen minimum loop.
 - Defined the second playback fullscreen repair step: route playback fullscreen
   through the existing workbench window, keep the render container in that
   window hierarchy, and accept Cmd-Tab return to the fullscreen video surface as

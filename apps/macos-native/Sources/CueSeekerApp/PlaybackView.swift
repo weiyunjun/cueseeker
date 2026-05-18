@@ -31,25 +31,19 @@ struct PlaybackVideoView: View {
 
     var body: some View {
         ZStack {
-            if fullscreenManager.isFullscreen {
-                Color.clear
-            } else {
-                PlaybackRenderViewWrapper(player: player)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onSurfaceTap()
-                    }
-            }
+            PlaybackRenderViewWrapper(player: player)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onSurfaceTap()
+                }
 
-            if !fullscreenManager.isFullscreen {
-                PlaybackSubtitleOverlay(
-                    text: viewModel.activeSubtitleText,
-                    bottomPadding: 28
-                )
+            PlaybackSubtitleOverlay(
+                text: viewModel.activeSubtitleText,
+                bottomPadding: 28
+            )
 
-                PlaybackFeedbackOverlay(feedback: viewModel.feedback)
-            }
+            PlaybackFeedbackOverlay(feedback: viewModel.feedback)
         }
     }
 }
