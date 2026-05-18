@@ -1,6 +1,6 @@
 # Native App UI/UX Rewrite Plan
 
-Status: Accepted
+Status: Accepted (partially superseded — see "Superseded By")
 
 ## Background
 
@@ -224,6 +224,23 @@ collapsible playback-surface portions of
 It does not supersede backend playback decisions, Search performance decisions,
 Library history behavior, Shiori persistence, or the Liquid Glass mapping
 documents.
+
+## Superseded By
+
+`docs/proposals/2026-05-ui-info-page-video-page-refactor.md` (and ADR-0013)
+amends and partially supersedes this plan. The delete-then-rebuild discipline,
+preserved non-UI behavior, prototype/mapping-as-source-of-truth rule, and
+Settings exclusion remain in force. The following are changed by the successor:
+
+- The Close capsule (Phase 2) is removed; close moves to a new video-page
+  top-bar button meaning "return to the info page".
+- The right sidebar that squeezes the video (Phase 4) becomes an overlay middle
+  panel that does not squeeze the video.
+- A new video-page top bar (traffic-light buttons + centered title) is added.
+- The Phase 3 chrome auto-hide rule is replaced by the Player-UI / cursor
+  visibility state machine (v1) in the successor.
+
+Refer to the successor for the current playback-page visual design.
 
 ## Decision
 
