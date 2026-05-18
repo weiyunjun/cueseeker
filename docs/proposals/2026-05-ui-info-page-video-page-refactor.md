@@ -103,9 +103,14 @@ The video page is composed of:
 - Custom top bar: a centered video title and a left custom-drawn traffic-light
   cluster. Close returns to the info page (a deliberate accepted tradeoff,
   analogous to Windows apps where close minimizes to tray); minimize
-  miniaturizes the window to the Dock (native NSWindow miniaturize; while
-  playback fullscreen is active it exits fullscreen first, then miniaturizes);
-  maximize enters fullscreen. The real NSWindow traffic lights are
+  miniaturizes the window to the Dock (native NSWindow miniaturize); maximize
+  enters fullscreen. The custom top bar is shown only in windowed mode; in
+  fullscreen it is hidden and the macOS native fullscreen titlebar (auto-shown
+  on top-edge hover) takes over, showing native close + exit-fullscreen and the
+  centered video alias, with no minimize control. The native fullscreen close
+  is intercepted so it performs the app close semantic (exit fullscreen + stop
+  playback + return to the originating info page) and never quits the app.
+  The real NSWindow traffic lights are
   hidden/suppressed on the video page so they do not conflict with
   `AppDelegate.WindowButtonsProxyView` / `adjustTrafficLights()`. This is a
   native-mechanics concern handled outside the HTML prototype.
@@ -245,6 +250,8 @@ views; each step is its own commit and reports before/after short hashes.
 - **S2 — Custom video-page top bar.** New `VideoTopBar` (centered title +
   custom-drawn traffic-light cluster: red = return to info page, yellow =
   minimize (native NSWindow miniaturize to the Dock), green = fullscreen);
+  the custom top bar is windowed-only — in fullscreen it is hidden and the
+  native macOS fullscreen titlebar takes over (see doc 12 §12);
   remove the old video-frame Close capsule;
   suppress the native NSWindow traffic lights on the video page (coordinate with
   `AppDelegate.WindowButtonsProxyView` / `adjustTrafficLights()`); the top bar

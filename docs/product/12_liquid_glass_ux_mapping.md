@@ -449,7 +449,9 @@ Rules:
   to the originating info page (not quit), minimize miniaturizes the app window
   to the Dock (native `NSWindow.miniaturize`, a native-mechanics control outside
   the HTML prototype), zoom enters fullscreen. The real native NSWindow traffic
-  lights are suppressed on the video page.
+  lights are suppressed on the video page. The custom top bar is windowed-only;
+  in fullscreen it is not shown and the macOS native fullscreen titlebar takes
+  over (see §12).
 - The centered overlay panel floats above the video and does NOT squeeze or
   resize the video base. Showing or hiding it must not change video available
   size.
@@ -687,15 +689,23 @@ Rules:
 - The fullscreen exit control exits playback fullscreen through the existing
   fullscreen manager.
 - `Esc` exits fullscreen when playback fullscreen is active.
-- The video-page top-bar close control remains a playback-close command when
-  fullscreen is active: it exits playback fullscreen, ends playback, and
-  returns to the originating info page rather than only returning to embedded
-  playback.
-- Minimizing (the yellow top-bar control) miniaturizes the app window to the
-  Dock (native `NSWindow.miniaturize`). While playback fullscreen is active it
-  first exits fullscreen in the same action — so the normal info page and its
-  toolbar are restored — and then miniaturizes the window, because macOS cannot
-  miniaturize a window that is in a fullscreen Space.
+- In fullscreen the custom video-page top bar is NOT shown. The macOS native
+  fullscreen titlebar (auto-shown when the pointer reaches the top edge) is the
+  only top chrome: native close, native green/exit-fullscreen, and the centered
+  video alias. There is no minimize control in fullscreen.
+- So the native fullscreen titlebar shows the alias, the app sets
+  `window.title` to the current playback display title while the video page is
+  shown and restores `"CueSeeker"` when returning to the info page;
+  `titleVisibility` stays `.visible` only in fullscreen.
+- Clicking the native fullscreen close button is intercepted (via
+  `windowShouldClose`) and performs the playback-close command: it exits
+  playback fullscreen, ends playback, and returns to the originating info page.
+  It must NOT quit the app or close the window, even though
+  `applicationShouldTerminateAfterLastWindowClosed` is true.
+- The native fullscreen green button exits playback fullscreen through the
+  existing fullscreen manager.
+- Minimize is windowed-only. There is no minimize affordance in fullscreen and
+  the app must not exit fullscreen merely to miniaturize.
 - Fullscreen subtitle overlay bottom padding adapts to chrome visibility so
   subtitles do not collide with visible controls.
 
@@ -826,7 +836,13 @@ Allowed differences:
   miniaturize to the Dock, zoom = fullscreen) own those interactions. The
   minimize control is realized by native `NSWindow.miniaturize`, a
   native-mechanics behavior intentionally outside the HTML prototype; the
-  prototype's `.vt-min` shows only a local "Minimize" stub.
+  prototype's `.vt-min` shows only a local "Minimize" stub. In fullscreen the
+  custom top bar is not shown at all: the macOS native fullscreen titlebar
+  provides close and exit-fullscreen, the app sets `window.title` to the video
+  alias so that titlebar shows it centered, and the native fullscreen close is
+  intercepted (`windowShouldClose`) to run the app close semantic instead of
+  quitting. This native fullscreen titlebar behavior is intentionally outside
+  the HTML prototype.
 - Native AppKit fullscreen transitions and Space behavior.
 - Native material and vibrancy implementations that preserve the accepted
   visual hierarchy.
