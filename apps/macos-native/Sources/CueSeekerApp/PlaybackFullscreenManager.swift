@@ -9,10 +9,6 @@ enum PlaybackFullscreenState: Equatable {
     case activeFullscreen
     case exitingSystemFullscreen
 
-    var isFullscreenPresented: Bool {
-        self != .windowed
-    }
-
     var isTransitioning: Bool {
         switch self {
         case .enteringSystemFullscreen, .exitingSystemFullscreen:
@@ -26,6 +22,7 @@ enum PlaybackFullscreenState: Equatable {
 @MainActor
 final class PlaybackFullscreenManager: ObservableObject {
     @Published private(set) var state: PlaybackFullscreenState = .windowed
+    @Published private(set) var isVideoOnlyPresentationVisible = false
     @Published private(set) var isChromeVisible = false
 
     private weak var fullscreenWindow: NSWindow?
@@ -37,7 +34,7 @@ final class PlaybackFullscreenManager: ObservableObject {
     private let initialPointerMovementThreshold: CGFloat = 0.5
 
     var isFullscreen: Bool {
-        state.isFullscreenPresented
+        isVideoOnlyPresentationVisible
     }
 
     var isTransitioning: Bool {
@@ -87,13 +84,12 @@ final class PlaybackFullscreenManager: ObservableObject {
         state = didEnterSystemFullscreenForPlayback
             ? .enteringSystemFullscreen
             : .activeFullscreen
-        beginInitialPointerSuppression()
-        hidePlayerUI(hideCursor: true)
 
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
 
         guard didEnterSystemFullscreenForPlayback else {
+            activatePlaybackPresentation()
             completeFullscreenTransition()
             return true
         }
@@ -145,6 +141,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         endInitialPointerSuppression()
         PlaybackCursorVisibility.show(for: .playbackFullscreen)
 
+        isVideoOnlyPresentationVisible = false
         fullscreenWindow = nil
         didEnterSystemFullscreenForPlayback = false
         state = .windowed
@@ -152,6 +149,9 @@ final class PlaybackFullscreenManager: ObservableObject {
 
     func windowWillEnterFullScreen(_ notification: Notification) {
         guard notification.object as? NSWindow === fullscreenWindow else { return }
+        guard state == .enteringSystemFullscreen else { return }
+
+        activatePlaybackPresentation()
     }
 
     func windowDidEnterFullScreen(_ notification: Notification) {
@@ -220,6 +220,12 @@ final class PlaybackFullscreenManager: ObservableObject {
         let completion = transitionCompletion
         transitionCompletion = nil
         completion?()
+    }
+
+    private func activatePlaybackPresentation() {
+        isVideoOnlyPresentationVisible = true
+        beginInitialPointerSuppression()
+        hidePlayerUI(hideCursor: true)
     }
 
     func registerPointerMove(
