@@ -2924,6 +2924,7 @@ const win = document.getElementById("window");
     let playerChromeHideTimer = 0;
     let feedbackHideTimer = 0;
     let lastPointerPosition = null;
+    let appFocused = true;
     const playerDockMargin = 20;
     const playerChromeIdleDelay = 3000;
     const durationSeconds = 23 * 60 + 41;
@@ -3113,7 +3114,7 @@ const win = document.getElementById("window");
       fullscreenButton?.setAttribute("aria-label", enteringFullscreen ? "Exit Fullscreen" : "Fullscreen");
       fullscreenIcon?.setAttribute("href", enteringFullscreen ? "#fullscreen-exit" : "#viewfinder");
       if (enteringFullscreen) {
-        hidePlayerChrome({ hideCursor: true });
+        hidePlayerUIAndCursor();
       }
       showPlaybackFeedback({
         label: enteringFullscreen ? "Enter Fullscreen" : "Exit Fullscreen"
@@ -3158,19 +3159,12 @@ const win = document.getElementById("window");
         && point.y <= rect.bottom;
     }
 
-    function pointInElement(element, point) {
-      if (!element || !point) return false;
-
-      const rect = element.getBoundingClientRect();
-      return point.x >= rect.left
-        && point.x <= rect.right
-        && point.y >= rect.top
-        && point.y <= rect.bottom;
-    }
-
-    function pointInPlayerUi(point) {
-      return pointInElement(playerDock, point) || pointInElement(videoTopbar, point);
-    }
+    /* ---- Player-UI / cursor visibility state machine (v1) ----
+       Player area = the video page; videoStage fills the window, so being over
+       the dock/top bar is still "in the player area" (no exemption). Player UI
+       = top bar + bottom dock. Only real pointer movement counts as activity
+       (clicks/keys do not). No transition animation. See
+       docs/proposals/2026-05-ui-info-page-video-page-refactor.md. */
 
     function clearPlayerChromeHideTimer() {
       clearTimeout(playerChromeHideTimer);
@@ -3181,80 +3175,60 @@ const win = document.getElementById("window");
       document.body.classList.toggle("player-cursor-hidden", Boolean(hidden));
     }
 
-    function captureDisplayCheckZone() {
-      if (!videoStage) return null;
-
-      return {
-        playerRect: videoStage.getBoundingClientRect(),
-        excludedRects: [playerDock, videoTopbar]
-          .filter(Boolean)
-          .map((element) => element.getBoundingClientRect())
-      };
-    }
-
-    function pointInRect(point, rect) {
-      if (!point || !rect) return false;
-      return point.x >= rect.left
-        && point.x <= rect.right
-        && point.y >= rect.top
-        && point.y <= rect.bottom;
-    }
-
-    function pointInCapturedDisplayCheckZone(point, zone) {
-      if (!zone || !pointInRect(point, zone.playerRect)) return false;
-      return !zone.excludedRects.some((rect) => pointInRect(point, rect));
-    }
-
     function setPlayerChromeVisible(visible) {
       const shouldShow = visible && hasActivePlayback();
       win.classList.toggle("player-chrome-visible", shouldShow);
       playerDock?.setAttribute("aria-hidden", shouldShow ? "false" : "true");
     }
 
-    function hidePlayerChrome({ hideCursor = false } = {}) {
+    // Shown -> Hidden, UI only, cursor untouched: rule 7(1) move-out / 7(3) blur.
+    function hidePlayerUIOnly() {
       clearPlayerChromeHideTimer();
-      if (isVideoExpanded()) {
-        setPlayerChromeVisible(false);
-      }
-      setPlayerCursorHidden(hideCursor);
+      setPlayerChromeVisible(false);
     }
 
+    // Shown -> Hidden, UI + cursor: rule 7(2) idle / rule 9 fullscreen enter.
+    function hidePlayerUIAndCursor() {
+      clearPlayerChromeHideTimer();
+      setPlayerChromeVisible(false);
+      setPlayerCursorHidden(true);
+    }
+
+    // rule 7(2): in player area, no movement for 3s -> hide UI + cursor.
+    // Applies even when the pointer rests on the dock/top bar.
     function schedulePlayerChromeHide() {
       clearPlayerChromeHideTimer();
-      if (!isVideoExpanded()) return;
-
-      const zone = captureDisplayCheckZone();
-      if (!pointInCapturedDisplayCheckZone(lastPointerPosition, zone)) return;
-
+      if (!isVideoExpanded() || !appFocused) return;
+      if (!pointInVideoStage(lastPointerPosition)) return;
       playerChromeHideTimer = window.setTimeout(() => {
-        if (isVideoExpanded() && pointInCapturedDisplayCheckZone(lastPointerPosition, zone)) {
-          hidePlayerChrome({ hideCursor: true });
+        if (isVideoExpanded() && appFocused
+            && pointInVideoStage(lastPointerPosition)) {
+          hidePlayerUIAndCursor();
         }
       }, playerChromeIdleDelay);
     }
 
+    // Hidden -> Shown, UI + cursor (then re-arm the idle timer).
     function showPlayerChrome() {
       setPlayerCursorHidden(false);
-      if (!isVideoExpanded()) {
-        clearPlayerChromeHideTimer();
-        setPlayerChromeVisible(true);
-        return;
-      }
-
       setPlayerChromeVisible(true);
-      schedulePlayerChromeHide();
+      if (isVideoExpanded()) {
+        schedulePlayerChromeHide();
+      } else {
+        clearPlayerChromeHideTimer();
+      }
     }
 
+    // Called only for real pointer movement (synthetic same-position moves are
+    // filtered by the listener). rule 5 / 7(1) / 8.
     function registerPlayerChromeActivity(point) {
       lastPointerPosition = point;
-      setPlayerCursorHidden(false);
-      if (pointInPlayerUi(point)) {
-        setPlayerChromeVisible(true);
-        clearPlayerChromeHideTimer();
-      } else if (pointInVideoStage(point)) {
-        showPlayerChrome();
+      if (!appFocused) return;          // rule 8 requires App focus
+      setPlayerCursorHidden(false);     // rule 5: movement shows the cursor
+      if (pointInVideoStage(point)) {
+        showPlayerChrome();             // rule 8 + re-arm rule 7(2) timer
       } else {
-        hidePlayerChrome({ hideCursor: false });
+        hidePlayerUIOnly();             // rule 7(1): moved out of player area
       }
     }
 
@@ -3664,10 +3638,30 @@ const win = document.getElementById("window");
     updateVideoFrameLayout();
 
     document.addEventListener("pointermove", (event) => {
-      registerPlayerChromeActivity({ x: event.clientX, y: event.clientY });
+      const point = { x: event.clientX, y: event.clientY };
+      // rule 10: only real movement counts. Filter synthetic same-position
+      // moves (e.g. the one some browsers fire on window focus regain) so
+      // refocusing alone does not show the chrome (rule 8).
+      if (lastPointerPosition
+          && point.x === lastPointerPosition.x
+          && point.y === lastPointerPosition.y) {
+        return;
+      }
+      registerPlayerChromeActivity(point);
     });
-    document.addEventListener("pointerleave", () => hidePlayerChrome({ hideCursor: false }));
-    window.addEventListener("blur", () => hidePlayerChrome({ hideCursor: false }));
+    // rule 7(1): pointer left the player area -> hide UI only, keep cursor.
+    document.addEventListener("pointerleave", () => {
+      if (isVideoExpanded()) hidePlayerUIOnly();
+    });
+    // rule 7(3): App lost focus -> hide UI only, cursor untouched.
+    window.addEventListener("blur", () => {
+      appFocused = false;
+      if (isVideoExpanded()) hidePlayerUIOnly();
+    });
+    // rule 8: regaining focus alone must NOT show; wait for real movement.
+    window.addEventListener("focus", () => {
+      appFocused = true;
+    });
 
     ["input", "change", "keyup", "search", "cut", "paste", "compositionend", "focus", "blur"].forEach((eventName) => {
       searchInput.addEventListener(eventName, scheduleSearchDraftSync);
