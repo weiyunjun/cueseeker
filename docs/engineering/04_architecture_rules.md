@@ -477,6 +477,37 @@ Rules:
 - Playback shortcut handling should route through shared playback state instead of duplicating command behavior in individual views.
 - Further visual polish should remain incremental.
 
+### 7.1 Info-page / video-page refactor (v6)
+
+This subsection reconciles §7 with the info-page / video-page refactor. The
+authoritative behavior is `docs/product/12_liquid_glass_ux_mapping.md`
+(§5, §10.1, §10.4, §11), `docs/proposals/2026-05-ui-info-page-video-page-refactor.md`,
+and ADR-0013. The §7 invalidation-domain and product-semantics rules above are
+preserved; the following points clarify how they apply.
+
+- The video page is a dedicated full-window presentation layered above a still
+  alive info-page workbench (Library / Search / Shiori). It is not a route swap
+  and does not make playback the collapsible auxiliary pane. The separate
+  invalidation domains are preserved while the video page is shown: info-page
+  rows and presentation state must not be rebuilt, and video-page overlay-panel
+  updates (Search navigation snapshot, current subtitle entries) must not
+  invalidate Library rows or the native playback render.
+- The centered overlay panel floats over the video and does not change the
+  video's available size. Toggling it is therefore NOT a video-size-changing
+  command and is OUTSIDE the serialized resize gate defined above. The
+  previously enumerated "bottom-player video overlay expand/collapse" control is
+  removed by this refactor and no longer participates in that gate.
+- On the video page the native NSWindow traffic lights are suppressed and a
+  custom-drawn top-bar control cluster provides app semantics: close returns to
+  the originating info-page mode (not quit), minimize collapses playback, zoom
+  enters fullscreen. These are presentation/platform controls; they must
+  dispatch through shared playback and navigation state and must not embed
+  product semantics in the view.
+- Product semantics stay out of views: the overlay panel renders existing
+  shared app state (Search navigation snapshot, current subtitle entries) and
+  must not reimplement Search, subtitle, or indexing logic. This preserves the
+  module boundary in §2 and §5.
+
 ## 8. File Access and Sandboxing
 
 Local subtitle and video file access is a core product requirement.
