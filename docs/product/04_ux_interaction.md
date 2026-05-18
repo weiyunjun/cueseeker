@@ -35,6 +35,25 @@ This Search workflow supersedes the old side-panel Search entry point. Library,
 Shiori, and Settings may remain in their current surfaces until later migration
 work changes them.
 
+Info-page / video-page model (refactor; see
+`docs/proposals/2026-05-ui-info-page-video-page-refactor.md`, ADR-0013, and the
+authoritative behavior in `docs/product/12_liquid_glass_ux_mapping.md`):
+
+- The info page is the workbench (Library / Search / Shiori). The video page is
+  a dedicated full-window presentation layered above a still-alive info page,
+  not a route swap, so info-page state, scroll, disclosure, and Search cache
+  stay alive underneath.
+- Selecting a playable result opens the video page. The originating info-page
+  mode is remembered.
+- Closing the video page (the top-bar close control) ends the session and
+  returns to that originating info-page mode with its state intact.
+- A search performed from the video page updates shared Search state, so the
+  info page reflects it on return without a rebuild.
+- Where older sections below describe a bottom-launched overlay, a squeezing
+  right side panel, an expand/collapse video chevron, or a drawer that pauses
+  playback, the video-page behavior in doc 12 (§5, §10.1, §10.4, §11)
+  supersedes those descriptions.
+
 Known-content review may also start from Library:
 
 ```text
@@ -71,19 +90,16 @@ Accepted topbar Search transition:
   Search UI pass.
 - First-pass Search UI polish is less important than complete Search-to-playback
   functionality.
-- Clicking a Search result expands the bottom-launched playback overlay. The
-  expanded overlay keeps the video on the left and shows a right-side panel for
-  `Search Results` and `Subtitles`.
-- The bottom player's video expand or collapse control uses one right-pointing
-  chevron. When the toggle takes effect, the chevron rotates between `0°`
-  (collapsed) and `-90°` (expanded) over `160ms` with an ease curve instead of
-  swapping to a different chevron symbol.
-- The bottom player provides a video-sidebar toggle between the subtitle
-  visibility and playback-speed controls. It shows or hides the overlay's
-  right-side panel without moving the bottom-player controls.
-- Because hiding or showing the video sidebar changes the video layout, the
-  toggle follows the same rapid-repeat guard as other playback-size-changing
-  commands.
+- Clicking a Search result opens the dedicated video page (full-window video
+  with its own top bar). There is no bottom-launched squeezing overlay.
+- There is no video expand/collapse chevron control; the video page is entered
+  by selecting a playable result and left through the top-bar close control.
+- The bottom player provides a panel toggle between the subtitle visibility and
+  playback-speed controls. It shows or hides the centered overlay panel
+  (`Search Results` / `Subtitles`) without moving the bottom-player controls.
+- The overlay panel floats over the video and does not change video size, so
+  toggling it is not a playback-size-changing command and is not subject to the
+  rapid-repeat resize guard. The panel never auto-hides.
 - The `Search Results` panel lists search matches and may highlight the active
   query. The `Subtitles` panel lists the full subtitle-file cues by source
   sequence number and timestamp without query highlighting.
@@ -359,18 +375,19 @@ Search-launched playback result navigation:
 - The app should be able to show the current Search-result position and total
   result count from the same ordered result source.
 
-The playback `Results` drawer should show the same grouped Search result content
-as the Search results page. The current row uses selected state and should be
-scrolled into view. The drawer is an overlay above the video surface, fills the
-video area, does not resize the video, pauses playback when opened, and does not
-include `Collapse All`.
+The video-page `Results` tab shows the same grouped Search result content as the
+Search results page. The current row uses selected state and should be scrolled
+into view. It lives in the centered overlay panel, which floats over the video,
+does not resize the video, does not pause playback, never auto-hides, and does
+not include `Collapse All`. Clicking a row during playback seeks to or opens
+that result.
 
-The playback `Subtitles` drawer shows the current subtitle file in timestamp
+The video-page `Subtitles` tab shows the current subtitle file in timestamp
 order. It does not apply keyword highlighting because it is context navigation,
 not query-match presentation. The row corresponding to the current playback
-subtitle uses selected state only and should be scrolled into view. The drawer
-is an overlay above the video surface, fills the video area, does not resize the
-video, and pauses playback when opened.
+subtitle uses selected state only and should be scrolled into view. It lives in
+the same centered overlay panel, does not resize the video, and does not pause
+playback. Clicking a row seeks to that subtitle.
 
 ## 6. Visual Feedback and Hover
 
@@ -417,11 +434,11 @@ Topbar Search playback interaction:
 - The first command row includes `Video Folder`, `Subtitle Folder`,
   `Previous Result`, `Next Result`, `Results`, and `Subtitles`.
 - `A` triggers `Previous Result`; `D` triggers `Next Result`.
-- `Results` and `Subtitles` open upward from the command row and rotate their
-  chevron affordance upward while open. They appear as overlays above the video
-  surface, fill the video area, and pause playback when opened.
-- `Results` is a nearby Search-result context drawer.
-- `Subtitles` is a current-subtitle-file context drawer.
+- `Results` and `Subtitles` are tabs in the centered overlay panel toggled from
+  the bottom player. The panel floats over the video, does not resize the
+  video, does not pause playback, and never auto-hides.
+- `Results` is a nearby Search-result context tab.
+- `Subtitles` is a current-subtitle-file context tab.
 
 Keyboard interactions should not interfere with text input.
 
@@ -440,10 +457,13 @@ M2 playback interaction model:
 - Playback should include progress and seek interaction suitable for reviewing subtitle context.
 - Playback actions should provide clear visual feedback, such as a lightweight operation HUD or animation when the user plays, pauses, seeks, or triggers another command.
 - Playback buttons, progress controls, click interactions, and keyboard shortcuts should dispatch through the same underlying playback command model.
-- The playback surface should expose a `Close` capsule command anchored to the
-  active video frame's top-left corner. Close ends the current playback session,
-  exits playback fullscreen if necessary, clears playback-derived selection
-  highlights, and hides the bottom player.
+- The video page exposes its close command as the red traffic-light control in
+  the video-page top bar. Close ends the current playback session, exits
+  playback fullscreen if necessary, clears playback-derived selection
+  highlights, hides the bottom player and top bar, and returns to the
+  originating info-page mode with its state intact. There is no video-frame
+  Close capsule. Minimize (yellow) collapses playback; zoom (green) enters
+  fullscreen.
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
 - Playback fullscreen should use the main CueSeeker window's AppKit native
   fullscreen behavior, then switch that window into a video-only presentation
@@ -456,9 +476,12 @@ M2 playback interaction model:
   cursor once, regardless of whether player UI was visible before fullscreen.
 - Player UI visibility is driven by mouse movement, not mouse clicks or
   keyboard shortcuts.
-- While player UI is visible, three seconds without mouse movement inside the
-  frozen display-check area hides player UI and, when the pointer is in the
-  player area, the mouse cursor.
+- While player UI is visible, three seconds without mouse movement anywhere in
+  the player area (including over the bottom bar or top bar) hides player UI
+  and, when the pointer is in the player area and the App is focused, the mouse
+  cursor. There is no frozen display-check area. The full chrome-visibility
+  contract is the Player-UI / cursor visibility state machine (v1) in
+  `docs/product/12_liquid_glass_ux_mapping.md` §10.4.
 - App switching while playback fullscreen is active should follow standard
   macOS Space behavior and should not reveal a separate CueSeeker workbench
   window that has lost its video surface.
@@ -495,10 +518,11 @@ Current M2 implementation and accepted fullscreen correction:
 - The bottom player is visible only while the video playback page is visible.
   Search, Library, and Shiori workbench pages must not show the bottom player.
 - In playback visibility rules, player UI means the bottom player plus the
-  video-frame `Close` capsule. Player UI has only visible and not-visible
-  states. The three-second idle hide timer freezes the display-check area when
-  the pointer stops moving, and later layout or side-panel changes do not
-  recalculate that frozen area.
+  video-page top bar. Player UI has only visible and not-visible states and
+  follows the Player-UI / cursor visibility state machine (v1) in
+  `docs/product/12_liquid_glass_ux_mapping.md` §10.4. There is no frozen
+  display-check area and no dock/top-bar exemption; regaining App focus alone
+  does not reveal player UI.
 - The bottom-player left source/title collapse control is no longer part of the
   target UX. The volume button is the leftmost bottom-player control; the other
   controls keep their relative order.
