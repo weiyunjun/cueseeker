@@ -20,21 +20,30 @@ direction until the user approves it.
 Current HTML source:
 
 ```text
-ui/prototypes/cueseeker-liquid-glass-v5/
+ui/prototypes/cueseeker-liquid-glass-v6/
 ```
+
+This pass reflects the info-page / video-page refactor
+(`docs/proposals/2026-05-ui-info-page-video-page-refactor.md`, ADR-0013) and
+**supersedes** the following earlier rules in this document: the §10.1
+side-panel-squeeze layout, the §10.4 floating-chrome visibility model, and the
+video-frame `Close` capsule lifecycle (§10.5). The video page is now a dedicated
+full-window presentation; the side content is a centered overlay that does not
+squeeze the video; close moves to a custom video-page top bar.
 
 Surfaces covered by this UX mapping:
 
-- Main workbench shell.
-- Topbar Library, Shiori, and Search controls.
+- Main workbench shell (info page only; hidden on the video page).
+- Topbar Library, Shiori, and Search controls (info page only).
 - Search results.
 - Library grouped episode grid.
 - Shiori grouped cards.
 - Active-playback bottom player.
-- Expanded playback video surface.
-- Playback close lifecycle.
+- Video page video surface (dedicated full-window presentation).
+- Video page top bar (custom traffic-light cluster plus centered title).
+- Playback close lifecycle (via the video-page top bar, returns to the info page).
 - Playback input feedback overlay.
-- Expanded playback side panel.
+- Video page centered overlay panel (replaces the former right side panel).
 - Playback fullscreen chrome.
 
 Explicitly excluded:
@@ -61,9 +70,13 @@ Rules:
 - Playback render-view ownership, seek, volume, speed, subtitle track, and
   fullscreen lifecycle remain owned by the playback layer.
 - Playback close is owned by the playback session lifecycle. It must stop the
-  current session and clear playback-derived selection, but it must not clear
-  Search results, database search caches, Library rows, Shiori records, or
-  unrelated workbench presentation state.
+  current session and clear playback-derived selection, then return to the
+  originating info page, but it must not clear Search results, database search
+  caches, Library rows, Shiori records, or unrelated workbench presentation
+  state.
+- The centered overlay panel must never resize the video stage. Toggling the
+  panel must not change video available size, so playback render and seek are
+  not disturbed.
 - Settings remains the current independent native Settings window and is not
   part of this UI rewrite.
 - A layout-only change must not rebuild Library rows, Search results, Shiori
@@ -112,27 +125,33 @@ Search
 Shiori
 ```
 
-Expanded playback is an overlay state entered from an active playback
-selection. It replaces the main content area with the video stage and optional
-side panel while preserving the active-playback bottom-player control model.
+The video page is a dedicated full-window presentation layered above a still
+alive info page. It is entered from an active playback selection. It is not a
+route swap: the info page (Library, Search, or Shiori) keeps its state, scroll,
+disclosure, and Search cache alive underneath while the video page is shown. The
+workbench `.toolbar` is hidden on the video page; the video page has its own
+custom top bar.
 
 Rules:
 
-- The bottom player is shown only in the visible video playback page.
+- The bottom player and the video-page top bar are shown only on the visible
+  video page.
 - Search, Library, and Shiori pages do not show a collapsed bottom-player-only
-  state.
+  state and reserve no playback chrome space.
 - Switching between Library, Search, and Shiori preserves inactive mode state
   where practical, including loaded result state, draft Search text, and
   presentation disclosure state that the existing App state already owns.
 - Switching modes must not rebuild large lists unless the underlying data or
   query inputs changed.
-- Expanded playback may be entered from Search, Library, or Shiori playback
-  state when a playable selection exists.
-- Leaving expanded playback returns to the previous workbench surface without
-  clearing Search results, Library grouping, Shiori grouping, or playback state.
-- Closing playback is different from leaving expanded playback. Close ends the
-  active playback session, clears playback selection highlights, hides the
-  bottom player, and keeps Search, Library, and Shiori data intact.
+- The video page may be entered from Search, Library, or Shiori playback state
+  when a playable selection exists.
+- The originating info-page mode is remembered. Closing the video page returns
+  to that mode with its state intact (query, results, scroll, disclosure).
+- A search performed from the video page updates shared Search state, so the
+  still-alive info page reflects it on return without a rebuild.
+- Closing playback ends the active playback session, clears playback selection
+  highlights, hides the bottom player and top bar, returns to the originating
+  info page, and keeps Search, Library, and Shiori data intact.
 
 ## 6. Search UX
 
@@ -228,7 +247,7 @@ Rules:
   to ordinary card styling after activation.
 - Search match highlights must stay readable in default and hover states.
 - Clicking a Search result opens or updates playback and clears Search focus.
-- The corresponding playback side-panel row should show selected state when the
+- The corresponding overlay-panel row should show selected state when the
   active playback context belongs to that Search result.
 - If the same video is already open, selecting another result in that video
   should seek instead of reopening when practical.
@@ -312,7 +331,7 @@ Rules:
 | Bottom player uses three zones: volume, transport, operations. | `.player-hud` | `LiquidGlassBottomPlayer` | Active playback state |
 | Left zone contains volume only in the active target UI. | volume control | Bottom player left cluster | Current playback volume |
 | Center zone contains five transport controls. | `.transport-controls` | Bottom player transport cluster | Playback navigation |
-| Right zone contains Shiori, copy, subtitles, side panel, speed, fullscreen. | `.right-controls` | Bottom player operations cluster | Playback and App commands |
+| Right zone contains Shiori, copy, subtitles, overlay-panel toggle, speed, fullscreen. | `.right-controls` | Bottom player operations cluster | Playback and App commands |
 | Progress scrubber spans the bottom-player width above the control row. | `ui-slider--progress` | `LiquidGlassSlider.Kind.progress` | `PlaybackViewModel` |
 
 Rules:
@@ -320,8 +339,8 @@ Rules:
 - The bottom player is rendered only while the video playback page is visible.
   Search, Library, and Shiori pages must not show it.
 - In playback visibility rules, `player UI` means the floating bottom player
-  and the video-frame `Close` capsule together. They must show and hide as one
-  playback chrome surface even though `Close` remains a separate close command.
+  and the video-page top bar together. They show and hide as one playback
+  chrome surface per the state machine in §10.4.
 - The bottom player stays visually stable when control values change.
 - Text/value controls use capsule components. Icon-only controls use circular
   icon buttons.
@@ -370,8 +389,8 @@ Rules:
   bookmark glyph and ordinary circular icon-button styling.
 - Subtitle visibility toggles the current player's subtitle overlay without
   resizing the bottom player.
-- Side-panel visibility toggles the expanded playback side panel without
-  moving the bottom-player controls.
+- The panel toggle shows or hides the centered overlay panel without moving or
+  resizing the video or the bottom-player controls.
 - Fullscreen enters or exits playback fullscreen through the existing playback
   fullscreen manager.
 - Clicking a bottom-player control must not fall through to video-surface
@@ -405,46 +424,46 @@ Rules:
 
 ### 10.1 Layout Structure
 
-Expanded playback uses this conceptual layout:
+The video page uses this conceptual layout (supersedes the prior
+side-panel-squeeze layout):
 
 ```text
-Topbar
-Expanded playback area
-  Left black video base
-    Close capsule anchored to video frame top-left
+Video page (fills the window; workbench toolbar hidden)
+  Black video base (fills the window)
+    Custom video-page top bar (player UI)
+      Left traffic-light cluster (close, minimize, zoom)
+      Centered video title
     Aspect-fit video frame
-    Floating bottom-player chrome
-  Optional right side panel
+    Floating bottom-player chrome (player UI)
+  Centered overlay panel (floats over the video; does not squeeze it)
+  Feedback overlay (above the overlay panel)
 ```
 
 Rules:
 
-- Expanded playback replaces the main content area with a black playback base
-  and optional right side panel.
-- The right side panel occupies the full right column height.
-- The video stage and floating bottom player occupy the left column.
-- When the side panel is visible, it squeezes the left black video base. It
-  does not cover the video base.
-- Hiding the side panel restores that width to the black video base.
-- The side panel keeps a usable minimum width. The video frame scales down
-  before side-panel hiding is considered.
-- The expanded playback surface must not show an extra video-title/avatar block
-  inside the video stage or above the side-panel tabs.
-- The `Close` capsule is positioned from the active video frame's top-left
-  corner, not from the black base's top-left corner. It must not resize the
-  video frame or bottom player.
-- The `Close` capsule is visible only when player UI is visible. It appears and
-  disappears without a player-UI visibility animation. It remains an
-  independent close command, not a bottom-player control.
-- The `Close` capsule is part of player UI for visibility and cursor rules.
-  Mouse movement over it keeps player UI visible and must not start the
-  idle-hide timer.
+- The video page fills the whole window. The black video base is the full-window
+  sizing container; the workbench `.toolbar` is hidden.
+- The custom top bar spans the top of the video page: a left traffic-light
+  cluster and a centered video title. It is player UI.
+- The traffic-light controls are custom-drawn with app semantics: close returns
+  to the originating info page (not quit), minimize collapses playback, zoom
+  enters fullscreen. The real native NSWindow traffic lights are suppressed on
+  the video page.
+- The centered overlay panel floats above the video and does NOT squeeze or
+  resize the video base. Showing or hiding it must not change video available
+  size.
+- The overlay panel never auto-hides. Its visibility is driven only by the
+  bottom-player panel toggle and is independent of player-UI visibility.
+- There is no video-frame `Close` capsule. Closing is the top-bar close control.
+- The video page must not show an extra video-title/avatar block inside the
+  video stage or above the overlay-panel tabs; the only title is the centered
+  top-bar title.
 
 ### 10.2 Video Frame Sizing
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
-| The black left column is the sizing container. | `.video-stage` | `PlaybackExpandedLayout` | Window geometry |
+| The full-window black video base is the sizing container. | `.video-stage` | `PlaybackExpandedLayout` | Window geometry |
 | The video frame uses the active video's real aspect ratio. | `.video-frame[data-video-aspect]` | Video stage layout | `PlaybackViewModel.videoAspectRatio` |
 | The frame maximizes inside the black base. | JS frame layout logic | Video stage layout | GeometryReader |
 | Either width or height reaches the available limit. | JS frame layout logic | Video stage layout | GeometryReader |
@@ -453,8 +472,8 @@ Rules:
 
 Sizing algorithm:
 
-1. Measure the left black video base after the side panel and topbar have been
-   laid out.
+1. Measure the full-window black video base. The overlay panel floats over the
+   video and is not subtracted; there is no squeezing side column.
 2. Read the active video's real aspect ratio. Fall back to `16:9` only when no
    video ratio is available.
 3. If `baseWidth / baseHeight` is wider than the video ratio, set
@@ -477,11 +496,12 @@ Rules:
 
 Rules:
 
-- In expanded playback, the bottom player is positioned from the active left
-  black video base, not from the full window width.
+- On the video page, the black video base fills the window, so the bottom
+  player is positioned from the full-window black base.
 - The bottom player uses fixed left and right margins inside the black base.
 - The bottom player's horizontal position and width update immediately during
-  resize, side-panel show/hide, and window geometry changes.
+  resize and window geometry changes. The overlay panel does not squeeze the
+  video, so toggling it does not move or resize the bottom player.
 - Horizontal position and width changes must not animate.
 - Player UI visibility changes must not animate. The bottom-player chrome
   appears and disappears as a discrete visible/not-visible state.
@@ -490,36 +510,41 @@ Rules:
 
 ### 10.4 Floating Chrome Visibility
 
+This is the Player-UI / cursor visibility state machine (v1). It supersedes the
+prior display-check-area model. It is user-provided and may be tuned later.
+
+Definitions:
+
+- Player UI means the bottom player plus the video-page top bar.
+- Player area means the video page; the black video base fills the window, so
+  resting the pointer on the bottom bar or top bar is still inside the player
+  area. There is no frozen display-check area and no dock/top-bar exemption.
+- Shown means player UI and cursor are visible. Hidden means player UI is not
+  visible; the cursor follows the policy below.
+- The centered overlay panel is not player UI. Its visibility is independent of
+  this state machine and it never auto-hides.
+
 Rules:
 
-- Player UI means the floating bottom player plus the video-frame `Close`
-  capsule. Visibility rules apply to both together.
-- Player area means the App area excluding the top bar and right side panel
-  during non-fullscreen playback, and excluding the right side panel during
-  playback fullscreen.
-- Player UI area means the occupied bounds of the bottom player and `Close`
-  capsule when they exist.
-- Display-check area means player area minus player UI area.
-- Player UI has only two states: visible and not visible. There is no
-  player-UI show or hide animation.
-- Mouse movement shows the pointer cursor.
-- Switching from visible to not visible hides player UI. If the pointer is in
-  the player area at that switch, it also hides the pointer cursor.
-- Switching from not visible to visible shows player UI and the pointer cursor.
-- Entering the playback page means there was no playback page and a playback
-  page now exists. This initializes player UI in the visible state.
-- While player UI is visible, moving the pointer from the player area to another
-  area switches player UI to not visible.
-- While player UI is visible, if the pointer is in the display-check area and
-  does not move for 3 seconds, player UI switches to not visible. The
-  display-check area is frozen from the first measurement when the pointer
-  stopped moving; later layout, fullscreen, or side-panel changes do not
-  recalculate that frozen area.
-- While player UI is not visible, pointer movement inside the player area
-  switches player UI to visible.
-- Entering playback fullscreen force-switches player UI to not visible and
-  force-hides the pointer cursor.
-- Mouse clicks, keyboard shortcuts, side-panel toggles, layout changes, and
+- Two states only, mouse-movement-driven, with no transition animation. Mouse
+  clicks and keystrokes do not count as activity: they neither reset the idle
+  timer nor restore the Shown state.
+- Entering the video page initializes the Shown state.
+- Shown switches to Hidden when any of these occurs: (1) the pointer moves out
+  of the player area; (2) the pointer is in the player area and does not move
+  for 3 seconds; (3) the App loses focus. Cursor policy on the transition: if
+  the pointer is in the player area and the App is focused, hide player UI and
+  the cursor; otherwise hide player UI only and keep the cursor. So case (1)
+  hides UI only, case (2) hides UI and cursor, case (3) hides UI only.
+- Hidden switches to Shown only when the App is focused, the pointer is in the
+  player area, and the pointer moves; this shows player UI and the cursor.
+- Mouse movement always shows the cursor.
+- Entering playback fullscreen force-switches to Hidden with both player UI and
+  cursor hidden. This applies at the entry moment only; afterward the normal
+  rules apply inside fullscreen.
+- Regaining App focus alone must not show player UI; a real pointer movement is
+  required.
+- Mouse clicks, keyboard shortcuts, panel toggles, layout changes, and
   fullscreen exit do not reveal player UI by themselves.
 - Hiding the chrome does not pause playback, change selection, or close menus
   except where a menu cannot remain visible without its anchor.
@@ -530,10 +555,10 @@ Rules:
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
-| Close is a compact capsule command at the active video frame's top-left corner. | `ui-capsule--video-close`, `.video-close-button` positioned by video-frame geometry | `LiquidGlassCapsuleButton.Kind.videoClose`, expanded playback overlay | Playback session lifecycle |
-| Close ends the active playback session. | `.playback-closed` / no active session marker | `PlaybackExpandedLayout`, `BottomPlaybackBar` | `AppState.stopPlayback` or successor close command |
+| Close is the red traffic-light control in the video-page top bar. | `.vt-close` in `.video-topbar` | `LiquidGlassWindowControlButton.Kind.close`, `LiquidGlassVideoTopBar` | Playback session lifecycle |
+| Close ends the active playback session and returns to the originating info page. | `.playback-closed` / no active session marker | `PlaybackExpandedLayout`, `BottomPlaybackBar` | `AppState.stopPlayback` or successor close command |
 | Close hides the bottom player after playback ends. | `.player-dock` hidden when no active playback | `BottomPlaybackBar` | Derived active playback session state |
-| Close clears playback-derived selection highlights. | `ui-is-selected` removed from playback side-panel rows | Playback side-panel views | Current playback source and selection state |
+| Close clears playback-derived selection highlights. | `ui-is-selected` removed from overlay-panel rows | Overlay-panel views | Current playback source and selection state |
 
 Rules:
 
@@ -544,27 +569,33 @@ Rules:
   using the same rule as any other Library playback stop or switch.
 - If the current source is Search or Shiori, close must not read, write, or
   overwrite Library playback resume history.
-- Close must clear the selected playback side-panel row because there is no
-  longer an active playback identity. Search, Library, and Shiori main-page
-  cards should already have no retained playback selection visuals.
+- Close must clear the selected overlay-panel row because there is no longer an
+  active playback identity. Search, Library, and Shiori main-page cards should
+  already have no retained playback selection visuals.
 - Close must not clear the submitted Search query, Search result list, database
   search cache, Shiori records, Library rows, group disclosure presentation
   state, or unrelated workbench state.
 - Close from playback fullscreen exits fullscreen and ends playback. It must not
   leave the user in a video-only fullscreen surface without playback.
-- Closing playback is not the same as hiding the side panel, hiding chrome, or
-  exiting fullscreen. Those actions preserve playback; close ends playback.
+- Closing playback is not the same as hiding the overlay panel, hiding chrome,
+  or exiting fullscreen. Those actions preserve playback; close ends playback
+  and returns to the originating info page.
 
-## 11. Expanded Playback Side Panel UX
+## 11. Video Page Overlay Panel UX
+
+The former right side panel is now a centered overlay that floats over the
+video. Its internal content (tabs, count, rows) is unchanged; only its
+container and placement changed.
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
-| Side panel contains `Search Results` and `Subtitles` tabs. | `ui-segmented-control` | `LiquidGlassSegmentedControl` | Active drawer state |
-| Tabs sit at the top. | `.sidebar-top` | Side panel view | None |
-| Active count label sits below tabs on the left. | `.sidebar-summary` | Side panel summary | Search/subtitle counts |
-| No video title or `Search playback` label appears above tabs. | absence rule | Side panel view | None |
+| The overlay panel is a centered floating panel over the video and does not squeeze the video. | `.sidebar` | Overlay-panel view, `LiquidGlassSurface` | None |
+| Panel contains `Search Results` and `Subtitles` tabs. | `ui-segmented-control` | `LiquidGlassSegmentedControl` | Active drawer state |
+| Tabs sit at the top. | `.sidebar-top` | Overlay-panel view | None |
+| Active count label sits below tabs on the left. | `.sidebar-summary` | Overlay-panel summary | Search/subtitle counts |
+| No video title or `Search playback` label appears above tabs. | absence rule | Overlay-panel view | None |
 | Rows use compact selectable row cards. | `ui-selectable-row` | `LiquidGlassSelectableRow` | Search/subtitle row data |
-| The panel can be hidden or restored from the bottom player. | `#sidePanelToggle` | Bottom-player side-panel button | `isPlaybackSidePanelVisible` |
+| The panel can be hidden or restored only from the bottom-player panel toggle; it never auto-hides. | `#sidePanelToggle` | Bottom-player panel button | `isPlaybackSidePanelVisible` |
 
 Rules:
 
@@ -577,17 +608,23 @@ Rules:
 - Subtitles rows do not apply keyword highlighting.
 - The current playback subtitle row uses selected state for context and should
   scroll into view when practical.
-- Selecting another Search result from the side panel preserves the side-panel
+- Clicking a row during playback seeks to or opens that result; this is the
+  intended baseline interaction.
+- Selecting another Search result from the overlay panel preserves the panel
   list while playback opens or seeks.
-- Opening playback from Search, Library, or Shiori must not force the playback
-  side panel visible. Previous-result and next-result navigation also must not
-  force the side panel visible. Side-panel visibility is changed only by the
-  bottom-player side-panel toggle or an explicit side-panel command.
-- The side panel must not briefly clear to `0 results` or a loading panel
+- Opening playback from Search, Library, or Shiori must not force the overlay
+  panel visible. Previous-result and next-result navigation also must not force
+  it visible. Overlay-panel visibility is changed only by the bottom-player
+  panel toggle and is independent of player-UI visibility.
+- The overlay panel must not briefly clear to `0 results` or a loading panel
   during result-to-result jumps when the current Search result list is still
   valid.
-- Hiding or restoring the side panel must not pause playback, clear selection,
-  or resize the bottom-player controls.
+- Hiding or restoring the overlay panel must not pause playback, clear
+  selection, resize the video, or resize the bottom-player controls.
+- The overlay panel floats above the video, never auto-hides, and is not part
+  of player UI for the §10.4 visibility state machine.
+- The feedback overlay renders above the overlay panel so command feedback is
+  not occluded by it.
 
 ## 12. Playback Fullscreen UX
 
@@ -606,14 +643,13 @@ Rules:
   fixed viewport-covering overlay so it visually covers the toolbar and
   prototype test controls. It must not change body padding, window size,
   toolbar height, video-stage sizing rules, video-frame aspect-fit
-  calculation, side-panel participation, or bottom-player anchoring rules.
+  calculation, overlay-panel participation, or bottom-player anchoring rules.
 - The prototype may disable ancestor-only visual effects that prevent fixed
   viewport positioning, such as the window backdrop filter, as long as the
   fullscreen playback surface fully covers the affected shell.
-- The fullscreen playback surface must preserve the non-fullscreen window glass
-  background behind the side panel. Black fullscreen backing belongs only to the
-  video stage, so the side panel keeps the same glass appearance whether
-  fullscreen is active or not.
+- The overlay panel keeps the same appearance whether fullscreen is active or
+  not. Black fullscreen backing belongs only to the video stage; the overlay
+  panel floats over the video unchanged in fullscreen.
 - The playback render container must not be duplicated or moved into a second
   backend render state.
 - The normal workbench shell is hidden during playback fullscreen without
@@ -623,10 +659,10 @@ Rules:
 - Fullscreen chrome includes the playback controls needed for video review:
   progress, volume, transport, Shiori, copy, subtitle visibility, speed, and
   exit fullscreen.
-- Fullscreen state and expanded-playback side-panel visibility are independent.
-  Entering or exiting fullscreen must not hide, show, reset, or otherwise
-  mutate the side-panel visibility state.
-- If the side panel is visible before entering fullscreen, it remains visible
+- Fullscreen state and overlay-panel visibility are independent. Entering or
+  exiting fullscreen must not hide, show, reset, or otherwise mutate the
+  overlay-panel visibility state.
+- If the overlay panel is visible before entering fullscreen, it remains visible
   in fullscreen. If it is hidden before entering fullscreen, it remains hidden
   in fullscreen.
 - The fullscreen button uses the enter-fullscreen glyph outside fullscreen and
@@ -640,23 +676,23 @@ Rules:
   active video stage. The HTML target size is 42 px high with 18 px horizontal
   padding, full capsule radius, 13 px bold label text, no icon slot, and no
   reserved icon gap.
-- Entering fullscreen immediately hides player UI and cursor once.
-- Mouse movement inside the player area reveals player UI and cursor.
-- Keyboard playback shortcuts do not reveal the chrome or cursor.
-- Mouse clicks do not reveal player UI.
-- After 3 seconds without mouse movement in the frozen display-check area,
-  fullscreen player UI and cursor hide again.
+- Player UI and cursor visibility in fullscreen follow the §10.4 Player-UI /
+  cursor visibility state machine (v1). Entering fullscreen force-hides player
+  UI and cursor once; only real pointer movement in the player area reveals
+  them; keyboard and clicks do not; after 3 seconds without movement they hide
+  again. There is no frozen display-check area.
 - Clicking the video surface toggles play/pause unless the click targets a
   chrome control.
 - The fullscreen exit control exits playback fullscreen through the existing
   fullscreen manager.
 - `Esc` exits fullscreen when playback fullscreen is active.
-- The video-stage `Close` capsule remains a playback-close command when
-  fullscreen is active: it exits playback fullscreen and closes playback rather
-  than only returning to embedded playback.
-- Collapsing the expanded playback surface while fullscreen is active exits
-  fullscreen in the same action so the normal toolbar and prototype test
-  controls become visible again.
+- The video-page top-bar close control remains a playback-close command when
+  fullscreen is active: it exits playback fullscreen, ends playback, and
+  returns to the originating info page rather than only returning to embedded
+  playback.
+- Minimizing (the yellow top-bar control) while fullscreen is active exits
+  fullscreen in the same action so the normal info page and its toolbar become
+  visible again.
 - Fullscreen subtitle overlay bottom padding adapts to chrome visibility so
   subtitles do not collide with visible controls.
 
@@ -703,8 +739,8 @@ Rules:
 
 - A primary-button click on the video surface toggles play/pause.
 - The video-surface click handler must ignore clicks that target bottom-player
-  controls, side-panel controls, popup menus, sliders, text inputs, or any
-  other interactive control.
+  controls, overlay-panel controls, top-bar controls, popup menus, sliders,
+  text inputs, or any other interactive control.
 - Clicking controls must run only that control's command, not the video
   play/pause command.
 - Mouse movement inside the black video base follows the player UI visibility
@@ -721,8 +757,9 @@ Rules:
   `ui-feedback-hud` over the active video stage.
 - The feedback overlay is non-interactive and must never intercept mouse,
   keyboard, slider, menu, or video clicks.
-- The feedback HUD is centered within the active black video base, not within
-  the full window when a side panel is visible.
+- The feedback HUD is centered within the full-window black video base. The
+  overlay panel does not squeeze the video, and the feedback overlay renders
+  above the overlay panel so feedback is never occluded by it.
 - The feedback HUD may temporarily sit above subtitles because it is transient,
   but it must not permanently reserve space or change subtitle layout.
 - The same feedback component is used in expanded playback and playback
@@ -780,7 +817,10 @@ The App may differ from HTML when platform behavior requires it.
 
 Allowed differences:
 
-- Native traffic lights and titlebar mechanics.
+- Native traffic lights and titlebar mechanics on the info page. On the video
+  page the real NSWindow traffic lights are suppressed and the custom video-page
+  top-bar controls (close = return to info page, minimize, zoom = fullscreen)
+  own those interactions.
 - Native AppKit fullscreen transitions and Space behavior.
 - Native material and vibrancy implementations that preserve the accepted
   visual hierarchy.
