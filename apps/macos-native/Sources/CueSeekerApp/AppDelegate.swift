@@ -189,8 +189,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             guard let window = self.window else { return }
 
             // Suppress the native traffic lights in fullscreen and on the video
-            // page; the video page draws its own custom top-bar cluster.
+            // page; the video page draws its own custom top-bar cluster. The
+            // buttons themselves must be hidden, not just the proxy: AppKit can
+            // re-add the standard buttons to the real titlebar, so hiding only
+            // the proxy leaves them visible on the non-fullscreen video page.
             if window.styleMask.contains(.fullScreen) || appState.isPlaybackPageVisible {
+                for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                    window.standardWindowButton(type)?.isHidden = true
+                }
                 windowButtonsProxy?.isHidden = true
                 return
             }
@@ -216,7 +222,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
             for type in buttons {
                 guard let button = window.standardWindowButton(type) else { continue }
-            
+
+                // Restore visibility after video-page / fullscreen suppression.
+                button.isHidden = false
+
                 if button.superview !== proxy {
                     proxy.addSubview(button)
                 }
