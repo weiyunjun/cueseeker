@@ -70,9 +70,7 @@ private struct PlaybackVideoStage: View {
     @ObservedObject var appState: AppState
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onClose: () -> Void
-    @State private var isPlayerUIVisible = true
-    @State private var chromeHideTask: Task<Void, Never>?
-    @State private var lastPointerLocation: CGPoint?
+    @StateObject private var chrome = PlaybackChromeVisibilityModel()
 
     var body: some View {
         GeometryReader { geometry in
@@ -90,7 +88,7 @@ private struct PlaybackVideoStage: View {
                     .background(Color.black)
                     .position(x: frame.midX, y: frame.midY)
 
-                if isPlayerUIVisible, !fullscreenManager.isFullscreen {
+                if chrome.isPlayerUIVisible, !fullscreenManager.isFullscreen {
                     LiquidGlassVideoTopBar(
                         title: appState.currentPlaybackDisplayTitle,
                         onClose: onClose,
@@ -116,7 +114,7 @@ private struct PlaybackVideoStage: View {
                         .offset(x: frame.minX + 18, y: frame.minY + 72)
                 }
 
-                if isPlayerUIVisible, let viewModel = appState.playbackViewModel {
+                if chrome.isPlayerUIVisible, let viewModel = appState.playbackViewModel {
                     PlaybackChromeView(
                         viewModel: viewModel,
                         controls: .appState(appState)
@@ -138,19 +136,25 @@ private struct PlaybackVideoStage: View {
             .frame(width: stageSize.width, height: stageSize.height)
             .clipped()
             .onAppear {
-                initializePlayerUI(stageSize: stageSize, videoFrame: frame)
+                chrome.enterVideoPage()
             }
             .onDisappear {
-                chromeHideTask?.cancel()
-                chromeHideTask = nil
-                PlaybackCursorVisibility.show(for: .expandedPlayback)
+                chrome.leaveVideoPage()
             }
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let location):
-                    handlePointerActivity(at: location, stageSize: stageSize, videoFrame: frame)
+                    chrome.pointerMoved(
+                        to: location,
+                        isInPlayerArea: isPointInPlayerArea(location, stageSize: stageSize)
+                    )
                 case .ended:
-                    hidePlayerUI(hideCursor: false)
+                    chrome.pointerExited()
+                }
+            }
+            .onChange(of: fullscreenManager.state) { newState in
+                if newState == .enteringSystemFullscreen || newState == .activeFullscreen {
+                    chrome.enteringFullscreen()
                 }
             }
         }
@@ -184,116 +188,8 @@ private struct PlaybackVideoStage: View {
         )
     }
 
-    private func handlePointerActivity(at location: CGPoint, stageSize: CGSize, videoFrame: CGRect) {
-        lastPointerLocation = location
-        PlaybackCursorVisibility.show(for: .expandedPlayback)
-        guard isPointInPlayerArea(location, stageSize: stageSize) else {
-            hidePlayerUI(hideCursor: false)
-            return
-        }
-
-        if !isPlayerUIVisible {
-            showPlayerUI()
-        }
-
-        chromeHideTask?.cancel()
-        guard !isPointInPlayerUI(location, stageSize: stageSize, videoFrame: videoFrame) else {
-            return
-        }
-        schedulePlayerUIHide(
-            zone: captureDisplayCheckZone(stageSize: stageSize, videoFrame: videoFrame)
-        )
-    }
-
-    private func initializePlayerUI(stageSize: CGSize, videoFrame: CGRect) {
-        showPlayerUI()
-        guard lastPointerLocation != nil else {
-            return
-        }
-        schedulePlayerUIHide(
-            zone: captureDisplayCheckZone(stageSize: stageSize, videoFrame: videoFrame)
-        )
-    }
-
-    private func showPlayerUI() {
-        isPlayerUIVisible = true
-        PlaybackCursorVisibility.show(for: .expandedPlayback)
-    }
-
-    private func hidePlayerUI(hideCursor: Bool) {
-        chromeHideTask?.cancel()
-        chromeHideTask = nil
-        isPlayerUIVisible = false
-        if hideCursor {
-            PlaybackCursorVisibility.hide(for: .expandedPlayback)
-        } else {
-            PlaybackCursorVisibility.show(for: .expandedPlayback)
-        }
-    }
-
-    private func schedulePlayerUIHide(zone: PlaybackDisplayCheckZone) {
-        guard let lastPointerLocation, zone.contains(lastPointerLocation) else {
-            return
-        }
-        chromeHideTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard !Task.isCancelled else {
-                return
-            }
-            guard zone.contains(lastPointerLocation) else {
-                return
-            }
-            hidePlayerUI(hideCursor: true)
-        }
-    }
-
     private func isPointInPlayerArea(_ point: CGPoint, stageSize: CGSize) -> Bool {
         CGRect(origin: .zero, size: stageSize).contains(point)
-    }
-
-    private func isPointInPlayerUI(_ point: CGPoint, stageSize: CGSize, videoFrame: CGRect) -> Bool {
-        bottomPlayerFrame(stageSize: stageSize).contains(point)
-            || videoTopBarFrame(stageSize: stageSize).contains(point)
-    }
-
-    private func captureDisplayCheckZone(stageSize: CGSize, videoFrame: CGRect) -> PlaybackDisplayCheckZone {
-        PlaybackDisplayCheckZone(
-            playerArea: CGRect(origin: .zero, size: stageSize),
-            excludedAreas: [
-                bottomPlayerFrame(stageSize: stageSize),
-                videoTopBarFrame(stageSize: stageSize)
-            ]
-        )
-    }
-
-    private func bottomPlayerFrame(stageSize: CGSize) -> CGRect {
-        CGRect(
-            x: PlaybackChromeMetrics.horizontalInset,
-            y: max(
-                0,
-                stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height
-            ),
-            width: max(0, stageSize.width - PlaybackChromeMetrics.horizontalInset * 2),
-            height: PlaybackChromeMetrics.height
-        )
-    }
-
-    private func videoTopBarFrame(stageSize: CGSize) -> CGRect {
-        CGRect(
-            x: 0,
-            y: 0,
-            width: stageSize.width,
-            height: PlaybackChromeMetrics.videoTopBarHeight
-        )
-    }
-}
-
-struct PlaybackDisplayCheckZone {
-    let playerArea: CGRect
-    let excludedAreas: [CGRect]
-
-    func contains(_ point: CGPoint) -> Bool {
-        playerArea.contains(point) && !excludedAreas.contains { $0.contains(point) }
     }
 }
 

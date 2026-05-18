@@ -23,16 +23,11 @@ enum PlaybackFullscreenState: Equatable {
 final class PlaybackFullscreenManager: ObservableObject {
     @Published private(set) var state: PlaybackFullscreenState = .windowed
     @Published private(set) var isVideoOnlyPresentationVisible = false
-    @Published private(set) var isChromeVisible = false
 
     private weak var fullscreenWindow: NSWindow?
     private weak var fullscreenPlayer: PlaybackPlayer?
-    private var chromeHideTask: Task<Void, Never>?
     private var transitionCompletion: (() -> Void)?
     private var didEnterSystemFullscreenForPlayback = false
-    private var isSuppressingInitialPointerMove = false
-    private var initialPointerLocation: CGPoint?
-    private let initialPointerMovementThreshold: CGFloat = 0.5
 
     var isFullscreen: Bool {
         isVideoOnlyPresentationVisible
@@ -117,9 +112,6 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         let window = fullscreenWindow
 
-        chromeHideTask?.cancel()
-        chromeHideTask = nil
-
         if didEnterSystemFullscreenForPlayback,
            let window,
            window.styleMask.contains(.fullScreen) {
@@ -140,11 +132,6 @@ final class PlaybackFullscreenManager: ObservableObject {
         guard state != .windowed || fullscreenWindow != nil else {
             return
         }
-
-        chromeHideTask?.cancel()
-        chromeHideTask = nil
-        endInitialPointerSuppression()
-        PlaybackCursorVisibility.show(for: .playbackFullscreen)
 
         isVideoOnlyPresentationVisible = false
         fullscreenWindow = nil
@@ -176,9 +163,6 @@ final class PlaybackFullscreenManager: ObservableObject {
         guard state == .activeFullscreen || state == .exitingSystemFullscreen else { return }
 
         state = .exitingSystemFullscreen
-        chromeHideTask?.cancel()
-        chromeHideTask = nil
-        PlaybackCursorVisibility.show(for: .playbackFullscreen)
         synchronizeFullscreenRenderLayout()
     }
 
@@ -236,116 +220,10 @@ final class PlaybackFullscreenManager: ObservableObject {
 
     private func activatePlaybackPresentation() {
         isVideoOnlyPresentationVisible = true
-        beginInitialPointerSuppression()
-        hidePlayerUI(hideCursor: true)
     }
 
     private func synchronizeFullscreenRenderLayout() {
         fullscreenPlayer?.synchronizeRenderLayoutForFullscreenTransition()
     }
 
-    func registerPointerMove(
-        location: CGPoint,
-        isInPlayerArea: Bool,
-        isInPlayerUI: Bool,
-        displayCheckZone: PlaybackDisplayCheckZone
-    ) {
-        guard isFullscreen else {
-            return
-        }
-
-        guard isActualPointerMove(location) else {
-            return
-        }
-
-        PlaybackCursorVisibility.show(for: .playbackFullscreen)
-
-        guard isInPlayerArea else {
-            hidePlayerUI(hideCursor: false)
-            return
-        }
-
-        showPlayerUI()
-        chromeHideTask?.cancel()
-        guard !isInPlayerUI else {
-            return
-        }
-
-        schedulePlayerUIHide(location: location, zone: displayCheckZone)
-    }
-
-    func registerPointerExit() {
-        guard isFullscreen else {
-            return
-        }
-
-        chromeHideTask?.cancel()
-        chromeHideTask = nil
-        hidePlayerUI(hideCursor: false)
-    }
-
-    private func showPlayerUI() {
-        isChromeVisible = true
-        PlaybackCursorVisibility.show(for: .playbackFullscreen)
-    }
-
-    private func hidePlayerUI(hideCursor: Bool) {
-        chromeHideTask?.cancel()
-        chromeHideTask = nil
-        isChromeVisible = false
-        if hideCursor {
-            PlaybackCursorVisibility.hide(for: .playbackFullscreen)
-        } else {
-            PlaybackCursorVisibility.show(for: .playbackFullscreen)
-        }
-    }
-
-    private func schedulePlayerUIHide(location: CGPoint, zone: PlaybackDisplayCheckZone) {
-        guard zone.contains(location) else {
-            return
-        }
-        chromeHideTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard zone.contains(location) else {
-                    return
-                }
-                self?.hidePlayerUI(hideCursor: true)
-            }
-        }
-    }
-
-    private func beginInitialPointerSuppression() {
-        isSuppressingInitialPointerMove = true
-        initialPointerLocation = nil
-    }
-
-    private func endInitialPointerSuppression() {
-        isSuppressingInitialPointerMove = false
-        initialPointerLocation = nil
-    }
-
-    private func isActualPointerMove(_ location: CGPoint) -> Bool {
-        guard isSuppressingInitialPointerMove else {
-            return true
-        }
-
-        guard let initialPointerLocation else {
-            self.initialPointerLocation = location
-            return false
-        }
-
-        let deltaX = location.x - initialPointerLocation.x
-        let deltaY = location.y - initialPointerLocation.y
-        if sqrt(deltaX * deltaX + deltaY * deltaY) < initialPointerMovementThreshold {
-            return false
-        }
-
-        endInitialPointerSuppression()
-        return true
-    }
 }
