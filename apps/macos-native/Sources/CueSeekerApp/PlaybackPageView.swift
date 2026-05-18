@@ -89,8 +89,20 @@ private struct PlaybackVideoStage: View {
                     .position(x: frame.midX, y: frame.midY)
 
                 if isPlayerUIVisible {
-                    PlaybackCloseButton(action: onClose)
-                        .offset(x: frame.minX + 18, y: frame.minY + 18)
+                    LiquidGlassVideoTopBar(
+                        title: appState.currentPlaybackDisplayTitle,
+                        onClose: onClose,
+                        onMinimize: { appState.minimizePlaybackWindowFromUser() },
+                        onZoom: { appState.togglePlaybackFullscreenFromUser() }
+                    )
+                    .frame(
+                        width: stageSize.width,
+                        height: PlaybackChromeMetrics.videoTopBarHeight
+                    )
+                    .position(
+                        x: stageSize.width / 2,
+                        y: PlaybackChromeMetrics.videoTopBarHeight / 2
+                    )
                 }
 
                 if case .failed(let message) = appState.playbackStatus {
@@ -239,7 +251,7 @@ private struct PlaybackVideoStage: View {
 
     private func isPointInPlayerUI(_ point: CGPoint, stageSize: CGSize, videoFrame: CGRect) -> Bool {
         bottomPlayerFrame(stageSize: stageSize).contains(point)
-            || closeButtonFrame(videoFrame: videoFrame).contains(point)
+            || videoTopBarFrame(stageSize: stageSize).contains(point)
     }
 
     private func captureDisplayCheckZone(stageSize: CGSize, videoFrame: CGRect) -> PlaybackDisplayCheckZone {
@@ -247,7 +259,7 @@ private struct PlaybackVideoStage: View {
             playerArea: CGRect(origin: .zero, size: stageSize),
             excludedAreas: [
                 bottomPlayerFrame(stageSize: stageSize),
-                closeButtonFrame(videoFrame: videoFrame)
+                videoTopBarFrame(stageSize: stageSize)
             ]
         )
     }
@@ -264,12 +276,12 @@ private struct PlaybackVideoStage: View {
         )
     }
 
-    private func closeButtonFrame(videoFrame: CGRect) -> CGRect {
+    private func videoTopBarFrame(stageSize: CGSize) -> CGRect {
         CGRect(
-            x: videoFrame.minX + 18,
-            y: videoFrame.minY + 18,
-            width: PlaybackChromeMetrics.closeButtonWidth,
-            height: PlaybackChromeMetrics.closeButtonHeight
+            x: 0,
+            y: 0,
+            width: stageSize.width,
+            height: PlaybackChromeMetrics.videoTopBarHeight
         )
     }
 }
@@ -283,60 +295,136 @@ struct PlaybackDisplayCheckZone {
     }
 }
 
-struct PlaybackCloseButton: View {
+// Custom video-page top bar: left traffic-light cluster + centered video
+// title. Player UI. Maps prototype v6 `.video-topbar` / `.video-traffic`.
+struct LiquidGlassVideoTopBar: View {
+    let title: String
+    let onClose: () -> Void
+    let onMinimize: () -> Void
+    let onZoom: () -> Void
+
+    @State private var isClusterActive = false
+
+    var body: some View {
+        ZStack {
+            HStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    LiquidGlassWindowControlButton(
+                        kind: .close,
+                        glyphVisible: isClusterActive,
+                        action: onClose
+                    )
+                    LiquidGlassWindowControlButton(
+                        kind: .minimize,
+                        glyphVisible: isClusterActive,
+                        action: onMinimize
+                    )
+                    LiquidGlassWindowControlButton(
+                        kind: .zoom,
+                        glyphVisible: isClusterActive,
+                        action: onZoom
+                    )
+                }
+                .onHover { isClusterActive = $0 }
+
+                Spacer(minLength: 0)
+            }
+
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .tracking(0.13)
+                .foregroundStyle(Color.white.opacity(0.92))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+                .frame(maxWidth: 520)
+                .allowsHitTesting(false)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 18 / 255, green: 18 / 255, blue: 24 / 255).opacity(0.66),
+                    Color(red: 18 / 255, green: 18 / 255, blue: 24 / 255).opacity(0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+}
+
+struct LiquidGlassWindowControlButton: View {
+    enum Kind {
+        case close
+        case minimize
+        case zoom
+
+        var fill: Color {
+            switch self {
+            case .close:
+                return Color(red: 1.0, green: 95 / 255, blue: 87 / 255)
+            case .minimize:
+                return Color(red: 254 / 255, green: 188 / 255, blue: 46 / 255)
+            case .zoom:
+                return Color(red: 40 / 255, green: 200 / 255, blue: 64 / 255)
+            }
+        }
+
+        var accessibilityLabel: String {
+            switch self {
+            case .close:
+                return "Close video and return to results"
+            case .minimize:
+                return "Minimize playback"
+            case .zoom:
+                return "Fullscreen"
+            }
+        }
+    }
+
+    let kind: Kind
+    let glyphVisible: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 18, weight: .bold))
-
-                Text("Close")
-                    .font(.system(size: 14, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .frame(height: 42)
-            .padding(.leading, 13)
-            .padding(.trailing, 16)
-            .contentShape(Capsule())
+            Circle()
+                .fill(kind.fill)
+                .frame(width: 13, height: 13)
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.black.opacity(0.18), lineWidth: 0.5)
+                )
+                .overlay(
+                    glyph
+                        .opacity(glyphVisible ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.12), value: glyphVisible)
+                )
+                .contentShape(Circle())
         }
-        .buttonStyle(PlaybackCloseButtonStyle())
-        .accessibilityLabel("Close video")
-    }
-}
-
-private struct PlaybackCloseButtonStyle: ButtonStyle {
-    @State private var isHovered = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                Capsule()
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
-                    .background(.ultraThinMaterial, in: Capsule())
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(
-                        Color.white.opacity(isHovered ? 0.24 : 0.16),
-                        lineWidth: 0.5
-                    )
-            )
-            .shadow(color: .black.opacity(0.42), radius: 20, y: 12)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-            .onHover { isHovered = $0 }
+        .buttonStyle(.plain)
+        .accessibilityLabel(kind.accessibilityLabel)
     }
 
-    private func backgroundColor(isPressed: Bool) -> Color {
-        if isPressed {
-            return Color(red: 0.14, green: 0.14, blue: 0.17).opacity(0.78)
+    @ViewBuilder
+    private var glyph: some View {
+        let color = Color.black.opacity(0.55)
+        switch kind {
+        case .close:
+            Image(systemName: "xmark")
+                .font(.system(size: 7, weight: .bold))
+                .foregroundStyle(color)
+        case .minimize:
+            Image(systemName: "minus")
+                .font(.system(size: 7, weight: .bold))
+                .foregroundStyle(color)
+        case .zoom:
+            RoundedRectangle(cornerRadius: 0.5)
+                .fill(color)
+                .frame(width: 5, height: 5)
         }
-        if isHovered {
-            return Color(red: 0.16, green: 0.16, blue: 0.19).opacity(0.72)
-        }
-        return Color(red: 0.11, green: 0.11, blue: 0.13).opacity(0.58)
     }
 }
 
@@ -1216,8 +1304,7 @@ enum PlaybackChromeMetrics {
     static let bottomInset: CGFloat = 20
     static let height: CGFloat = 106
     static let timeLabelWidth: CGFloat = 70
-    static let closeButtonWidth: CGFloat = 118
-    static let closeButtonHeight: CGFloat = 42
+    static let videoTopBarHeight: CGFloat = 46
     static let speedMenuWidth: CGFloat = 172
     static let speedMenuHeight: CGFloat = 234
     static let speedMenuGap: CGFloat = 8

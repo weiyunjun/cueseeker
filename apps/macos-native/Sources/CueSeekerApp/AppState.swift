@@ -956,6 +956,38 @@ final class AppState: ObservableObject {
         }
     }
 
+    func minimizePlaybackWindowFromUser() {
+        guard let window = player?.renderView.window
+            ?? NSApplication.shared.keyWindow
+            ?? NSApplication.shared.mainWindow
+        else {
+            return
+        }
+
+        // macOS cannot miniaturize a window that is in a fullscreen Space, so
+        // exit playback fullscreen first and miniaturize on completion.
+        guard playbackFullscreenManager.isFullscreen else {
+            window.miniaturize(nil)
+            return
+        }
+
+        guard beginVideoSizeTransition() else {
+            return
+        }
+
+        let started = playbackFullscreenManager.exitFullscreen(
+            animated: true,
+            onTransitionCompleted: { [weak self] in
+                self?.endVideoSizeTransition()
+                window.miniaturize(nil)
+            }
+        )
+        if !started {
+            endVideoSizeTransition()
+            window.miniaturize(nil)
+        }
+    }
+
     private func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {
         beginVideoSizeTransition(duration: TimeInterval(durationNanoseconds) / 1_000_000_000)
     }
