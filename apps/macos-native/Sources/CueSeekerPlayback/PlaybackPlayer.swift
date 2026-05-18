@@ -179,6 +179,15 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         container.setSubtitlesVisible(subtitlesVisible)
     }
 
+    @MainActor public func synchronizeRenderLayoutForFullscreenTransition() {
+        renderView.superview?.needsLayout = true
+        renderView.superview?.layoutSubtreeIfNeeded()
+        if let container = renderView as? PlaybackRenderContainerView {
+            container.synchronizeFullscreenTransitionLayout()
+        }
+        nativePlayer.synchronizeRenderLayout()
+    }
+
     @MainActor private func currentNativeVideoSize() -> CGSize? {
         let width = nativePlayer.videoWidth
         let height = nativePlayer.videoHeight
@@ -319,21 +328,13 @@ public final class PlaybackRenderContainerView: NSView {
     public override func layout() {
         super.layout()
 
-        PlaybackPerformanceProbe.measure("PlaybackRenderContainerView.layout", thresholdMilliseconds: 8) {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            if let attachedView {
-                attachedView.frame = bounds
-                attachedView.needsLayout = true
-                attachedView.layoutSubtreeIfNeeded()
-            }
-            if let sourceFaithfulASSOverlayView {
-                sourceFaithfulASSOverlayView.frame = bounds
-                sourceFaithfulASSOverlayView.needsLayout = true
-                sourceFaithfulASSOverlayView.layoutSubtreeIfNeeded()
-            }
-            CATransaction.commit()
-        }
+        synchronizeAttachedRenderFrames(logName: "PlaybackRenderContainerView.layout")
+    }
+
+    public func synchronizeFullscreenTransitionLayout() {
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+        synchronizeAttachedRenderFrames(logName: "PlaybackRenderContainerView.fullscreenTransitionLayout")
     }
 
     func setSourceFaithfulASSSubtitleSource(_ source: PlaybackSubtitleSource) {
@@ -408,6 +409,24 @@ public final class PlaybackRenderContainerView: NSView {
 
         if let sourceFaithfulASSOverlayView, sourceFaithfulASSOverlayView.superview === self {
             addSubview(sourceFaithfulASSOverlayView, positioned: .above, relativeTo: attachedView)
+        }
+    }
+
+    private func synchronizeAttachedRenderFrames(logName: String) {
+        PlaybackPerformanceProbe.measure(logName, thresholdMilliseconds: 8) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            if let attachedView {
+                attachedView.frame = bounds
+                attachedView.needsLayout = true
+                attachedView.layoutSubtreeIfNeeded()
+            }
+            if let sourceFaithfulASSOverlayView {
+                sourceFaithfulASSOverlayView.frame = bounds
+                sourceFaithfulASSOverlayView.needsLayout = true
+                sourceFaithfulASSOverlayView.layoutSubtreeIfNeeded()
+            }
+            CATransaction.commit()
         }
     }
 }

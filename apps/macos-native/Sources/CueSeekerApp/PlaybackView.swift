@@ -31,12 +31,16 @@ struct PlaybackVideoView: View {
 
     var body: some View {
         ZStack {
-            PlaybackRenderViewWrapper(player: player)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    onSurfaceTap()
-                }
+            PlaybackRenderViewWrapper(
+                player: player,
+                fullscreenState: fullscreenManager.state,
+                isVideoOnlyPresentationVisible: fullscreenManager.isVideoOnlyPresentationVisible
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onSurfaceTap()
+            }
 
             PlaybackSubtitleOverlay(
                 text: viewModel.activeSubtitleText,
@@ -83,12 +87,38 @@ struct PlaybackSubtitleOverlay: View {
 
 struct PlaybackRenderViewWrapper: NSViewRepresentable {
     let player: PlaybackPlayer
+    let fullscreenState: PlaybackFullscreenState
+    let isVideoOnlyPresentationVisible: Bool
 
     func makeNSView(context: Context) -> NSView {
         PlaybackRenderHostView(player: player)
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        let token = PlaybackFullscreenLayoutToken(
+            state: fullscreenState,
+            isVideoOnlyPresentationVisible: isVideoOnlyPresentationVisible
+        )
+        guard context.coordinator.lastFullscreenLayoutToken != token else {
+            return
+        }
+
+        context.coordinator.lastFullscreenLayoutToken = token
+        (nsView as? PlaybackRenderHostView)?.synchronizeFullscreenTransitionLayout()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    final class Coordinator {
+        fileprivate var lastFullscreenLayoutToken: PlaybackFullscreenLayoutToken?
+    }
+}
+
+private struct PlaybackFullscreenLayoutToken: Equatable {
+    let state: PlaybackFullscreenState
+    let isVideoOnlyPresentationVisible: Bool
 }
 
 private final class PlaybackRenderHostView: NSView {
@@ -118,18 +148,17 @@ private final class PlaybackRenderHostView: NSView {
     override func layout() {
         super.layout()
 
-        AppPerformanceProbe.measure("PlaybackRenderHostView.layout", thresholdMilliseconds: 8) {
-            guard renderView.superview === self else {
-                return
-            }
+        synchronizeRenderViewFrame(logName: "PlaybackRenderHostView.layout")
+    }
 
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            renderView.frame = bounds
-            renderView.needsLayout = true
-            renderView.layoutSubtreeIfNeeded()
-            CATransaction.commit()
+    func synchronizeFullscreenTransitionLayout() {
+        if window != nil, renderView.superview == nil {
+            attachRenderView()
         }
+
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+        synchronizeRenderViewFrame(logName: "PlaybackRenderHostView.fullscreenTransitionLayout")
     }
 
     private func attachRenderView() {
@@ -142,5 +171,20 @@ private final class PlaybackRenderHostView: NSView {
         renderView.frame = bounds
         renderView.needsLayout = true
         renderView.layoutSubtreeIfNeeded()
+    }
+
+    private func synchronizeRenderViewFrame(logName: String) {
+        AppPerformanceProbe.measure(logName, thresholdMilliseconds: 8) {
+            guard renderView.superview === self else {
+                return
+            }
+
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            renderView.frame = bounds
+            renderView.needsLayout = true
+            renderView.layoutSubtreeIfNeeded()
+            CATransaction.commit()
+        }
     }
 }

@@ -26,6 +26,7 @@ final class PlaybackFullscreenManager: ObservableObject {
     @Published private(set) var isChromeVisible = false
 
     private weak var fullscreenWindow: NSWindow?
+    private weak var fullscreenPlayer: PlaybackPlayer?
     private var chromeHideTask: Task<Void, Never>?
     private var transitionCompletion: (() -> Void)?
     private var didEnterSystemFullscreenForPlayback = false
@@ -79,6 +80,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         }
 
         fullscreenWindow = window
+        fullscreenPlayer = player
         transitionCompletion = onTransitionCompleted
         didEnterSystemFullscreenForPlayback = !window.styleMask.contains(.fullScreen)
         state = didEnterSystemFullscreenForPlayback
@@ -90,10 +92,12 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         guard didEnterSystemFullscreenForPlayback else {
             activatePlaybackPresentation()
+            synchronizeFullscreenRenderLayout()
             completeFullscreenTransition()
             return true
         }
 
+        synchronizeFullscreenRenderLayout()
         window.toggleFullScreen(nil)
         return true
     }
@@ -121,6 +125,7 @@ final class PlaybackFullscreenManager: ObservableObject {
            window.styleMask.contains(.fullScreen) {
             state = .exitingSystemFullscreen
             transitionCompletion = onTransitionCompleted
+            synchronizeFullscreenRenderLayout()
             window.toggleFullScreen(nil)
             return true
         }
@@ -143,6 +148,7 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         isVideoOnlyPresentationVisible = false
         fullscreenWindow = nil
+        fullscreenPlayer = nil
         didEnterSystemFullscreenForPlayback = false
         state = .windowed
     }
@@ -152,6 +158,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         guard state == .enteringSystemFullscreen else { return }
 
         activatePlaybackPresentation()
+        synchronizeFullscreenRenderLayout()
     }
 
     func windowDidEnterFullScreen(_ notification: Notification) {
@@ -159,6 +166,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         guard state == .enteringSystemFullscreen else { return }
 
         state = .activeFullscreen
+        synchronizeFullscreenRenderLayout()
         completeFullscreenTransition()
     }
 
@@ -171,12 +179,14 @@ final class PlaybackFullscreenManager: ObservableObject {
         chromeHideTask?.cancel()
         chromeHideTask = nil
         PlaybackCursorVisibility.show(for: .playbackFullscreen)
+        synchronizeFullscreenRenderLayout()
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
         guard notification.object as? NSWindow === fullscreenWindow else { return }
         guard didEnterSystemFullscreenForPlayback || state == .exitingSystemFullscreen else { return }
 
+        synchronizeFullscreenRenderLayout()
         finishExitFullscreen()
         completeFullscreenTransition()
     }
@@ -189,6 +199,7 @@ final class PlaybackFullscreenManager: ObservableObject {
             return
         }
 
+        synchronizeFullscreenRenderLayout()
         finishExitFullscreen()
         completeFullscreenTransition()
     }
@@ -202,6 +213,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         }
 
         state = .activeFullscreen
+        synchronizeFullscreenRenderLayout()
         completeFullscreenTransition()
     }
 
@@ -226,6 +238,10 @@ final class PlaybackFullscreenManager: ObservableObject {
         isVideoOnlyPresentationVisible = true
         beginInitialPointerSuppression()
         hidePlayerUI(hideCursor: true)
+    }
+
+    private func synchronizeFullscreenRenderLayout() {
+        fullscreenPlayer?.synchronizeRenderLayoutForFullscreenTransition()
     }
 
     func registerPointerMove(
