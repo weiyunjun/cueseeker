@@ -107,8 +107,9 @@ Acceptance criteria:
   playback page.
 - The bottom chrome never appears as a full-width intermediate state.
 - Close ends playback and returns to the normal page.
-- Close follows the same pointer-activity visibility timing as the playback
-  chrome while remaining a separate video-frame anchored command.
+- Player UI means bottom chrome plus the `Close` capsule. They share the same
+  visible/not-visible state while `Close` remains a separate video-frame
+  anchored command.
 - Right sidebar visibility is independent from fullscreen state.
 - Opening playback or navigating Search results does not force the right
   playback sidebar visible.
@@ -130,11 +131,13 @@ Scope:
   feedback. This includes play/pause, relative seek, Search result navigation,
   subtitle visibility, speed, volume, Shiori, copy subtitle, and fullscreen
   text-only feedback.
-- Chrome auto-hide/show behavior for the playback page.
+- Player UI visible/not-visible behavior for the playback page.
 
 Acceptance criteria:
 
-- Chrome hides after inactivity and reappears on pointer movement or hover.
+- Player UI hides after three seconds without mouse movement in the frozen
+  display-check area and reappears only from mouse movement inside the player
+  area.
 - Hiding chrome does not resize the video or sidebar.
 - Icons, button size, spacing, selected states, hover states, and pressed states
   match the accepted HTML prototype.

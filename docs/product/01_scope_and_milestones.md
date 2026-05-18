@@ -132,7 +132,7 @@ Expected areas:
 - Playback interaction model.
   Refine playback controls, progress and seek interaction, action buttons, and visual feedback such as operation HUD or animation. Playback controls and keyboard shortcuts should share the same underlying playback command model.
   Current implementation includes an app-drawn upward playback speed menu, hover-based speed preset selection, subtitle visibility toggle, video-surface-only play/pause tapping, playback operation-zone click isolation, playback fullscreen, keyboard shortcuts, and transient feedback overlays.
-  Recent playback refinements align keyboard speed limits with playback controls, add the `1.75x` speed preset, use `5%` keyboard volume steps, keep timeline and volume hover states vertically stable, keep playback shortcuts active while read-only metadata text is selected, and suppress initial fullscreen hover events so controls and the cursor remain hidden immediately after entering fullscreen.
+  Recent playback refinements align keyboard speed limits with playback controls, add the `1.75x` speed preset, use `5%` keyboard volume steps, keep timeline and volume hover states vertically stable, keep playback shortcuts active while read-only metadata text is selected, and define player UI visibility as a mouse-movement state machine for the bottom player, `Close`, and cursor.
   Accepted interaction refinements also cover main-window video-only playback
   fullscreen presentation, Search field focus clearing for app-owned
   interactions, Search field focus preservation for system-level window or app

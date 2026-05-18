@@ -163,12 +163,12 @@ Stable design snapshot:
   The bottom player is a floating chrome overlay and does not participate in
   video-frame layout.
 - In expanded playback, player UI means the bottom player plus the video-frame
-  `Close` capsule. They follow the same playback-chrome visibility behavior:
-  entering the black base shows player UI; hovering the bottom player or
-  `Close` keeps it visible; three seconds with the pointer inside the black
-  base but outside player UI hides both player UI and cursor. The show and hide
-  animation slides the bottom player vertically while fading opacity. This
-  chrome animation must not animate the bottom player's horizontal geometry.
+  `Close` capsule. They share one visible/not-visible state. Entering the
+  playback page initializes player UI as visible. Mouse movement is the primary
+  visibility input: movement inside the player area reveals player UI, movement
+  out of the player area hides it, and three seconds of no movement inside the
+  frozen display-check area hides player UI and the cursor. Player UI show and
+  hide state changes do not animate.
 - Bottom-player buttons use two primary button forms: circular icon buttons and
   capsule buttons. Circular buttons are used for single-action icon controls.
   Capsule buttons are used for text, values, titles, and controls that require

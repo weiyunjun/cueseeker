@@ -67,8 +67,8 @@ Accepted M2 playback-close behavior:
 
 - The video surface owns a top-left `Close` capsule command.
 - For visibility and cursor behavior, player UI means the bottom player plus
-  the video-surface `Close` capsule. Hovering either element keeps player UI
-  visible and prevents idle hiding.
+  the video-surface `Close` capsule. Player UI has only visible and
+  not-visible states, and player UI show/hide state changes must not animate.
 - Close stops the current native playback session and clears the active
   playback source.
 - Close exits playback fullscreen first, or as part of the same command, so no
@@ -309,9 +309,13 @@ Required behavior:
 - Entering and exiting fullscreen should use AppKit's native fullscreen
   lifecycle rather than a manually simulated borderless overlay transition or a
   separate playback fullscreen window.
-- Entering fullscreen should immediately hide the playback operation controls and mouse cursor.
-- The fullscreen playback controls and mouse cursor should hide after 3 seconds without user activity.
-- Mouse or click activity in fullscreen should reveal the controls and cursor and restart the inactivity timer.
+- Entering fullscreen should immediately hide player UI and the mouse cursor.
+- Mouse movement shows the mouse cursor. Mouse movement inside the player area
+  reveals player UI when it is not visible.
+- Mouse clicks and keyboard shortcuts must not reveal player UI.
+- While player UI is visible, three seconds without mouse movement inside the
+  frozen display-check area hides player UI and, when the pointer is in the
+  player area, the mouse cursor.
 - Keyboard shortcuts in fullscreen should run playback commands without revealing the playback operation controls.
 - App switching during playback fullscreen should rely on normal macOS Space
   behavior and must not reveal a separate CueSeeker workbench window that has
@@ -430,8 +434,11 @@ Current implementation notes and accepted fullscreen correction:
 - Keyboard speed changes adjust the current speed by `0.25x` and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - Muting volume remembers the previous nonzero volume. Unmuting restores that
   previous listening level instead of resetting to `100%`.
-- Fullscreen chrome state suppresses the initial hover event emitted when the fullscreen presentation appears, then reveals controls and cursor only after real user activity.
-- Fullscreen entry hides the playback operation controls and cursor immediately for both keyboard and button entry paths.
+- Fullscreen chrome state suppresses the initial hover event emitted when the
+  fullscreen presentation appears, then reveals player UI and cursor only after
+  mouse movement inside the player area.
+- Fullscreen entry hides player UI and cursor immediately for both keyboard and
+  button entry paths.
 - Fullscreen playback shortcuts do not reveal the playback operation controls.
 - The speed preset menu opens from the bottom player's speed button on click and has no separate show or hide animation.
 - The playback fullscreen implementation uses AppKit fullscreen lifecycle

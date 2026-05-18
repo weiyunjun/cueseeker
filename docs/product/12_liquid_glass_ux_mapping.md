@@ -433,14 +433,12 @@ Rules:
 - The `Close` capsule is positioned from the active video frame's top-left
   corner, not from the black base's top-left corner. It must not resize the
   video frame or bottom player.
-- The `Close` capsule is visible only while pointer activity inside the black
-  video base reveals playback chrome. It appears from the video-frame top edge
-  with a short downward motion and hides upward after pointer leave or the
-  three-second inactivity timeout. It remains an independent close command, not
-  a bottom-player control.
+- The `Close` capsule is visible only when player UI is visible. It appears and
+  disappears without a player-UI visibility animation. It remains an
+  independent close command, not a bottom-player control.
 - The `Close` capsule is part of player UI for visibility and cursor rules.
-  Hovering it must keep player UI visible and must not start the idle-hide
-  timer.
+  Mouse movement over it keeps player UI visible and must not start the
+  idle-hide timer.
 
 ### 10.2 Video Frame Sizing
 
@@ -485,7 +483,8 @@ Rules:
 - The bottom player's horizontal position and width update immediately during
   resize, side-panel show/hide, and window geometry changes.
 - Horizontal position and width changes must not animate.
-- Show and hide animations may slide vertically and fade opacity.
+- Player UI visibility changes must not animate. The bottom-player chrome
+  appears and disappears as a discrete visible/not-visible state.
 - The bottom-player chrome overlays the video base and does not reserve layout
   space.
 
@@ -495,25 +494,37 @@ Rules:
 
 - Player UI means the floating bottom player plus the video-frame `Close`
   capsule. Visibility rules apply to both together.
-- Entering the black video base shows player UI.
-- Leaving the black video base hides player UI.
-- While the pointer remains inside the black video base but outside player UI,
-  mouse movement or click activity shows player UI and starts or resets a
-  3-second idle timer.
-- Hovering the floating bottom player or the `Close` capsule keeps player UI
-  visible and pauses the idle-hide timer.
-- After 3 seconds with the pointer inside the black video base and outside
-  player UI, player UI hides and the pointer cursor hides.
-- Moving the pointer outside the black video base, including into the right
-  side panel, hides player UI but restores the pointer cursor.
-- Entering playback fullscreen force-hides player UI and the pointer cursor.
-  Exiting playback fullscreen force-shows player UI and restores the pointer
-  cursor. This state switch must not change side-panel visibility.
-- Keyboard playback shortcuts should not reveal the chrome.
+- Player area means the App area excluding the top bar and right side panel
+  during non-fullscreen playback, and excluding the right side panel during
+  playback fullscreen.
+- Player UI area means the occupied bounds of the bottom player and `Close`
+  capsule when they exist.
+- Display-check area means player area minus player UI area.
+- Player UI has only two states: visible and not visible. There is no
+  player-UI show or hide animation.
+- Mouse movement shows the pointer cursor.
+- Switching from visible to not visible hides player UI. If the pointer is in
+  the player area at that switch, it also hides the pointer cursor.
+- Switching from not visible to visible shows player UI and the pointer cursor.
+- Entering the playback page means there was no playback page and a playback
+  page now exists. This initializes player UI in the visible state.
+- While player UI is visible, moving the pointer from the player area to another
+  area switches player UI to not visible.
+- While player UI is visible, if the pointer is in the display-check area and
+  does not move for 3 seconds, player UI switches to not visible. The
+  display-check area is frozen from the first measurement when the pointer
+  stopped moving; later layout, fullscreen, or side-panel changes do not
+  recalculate that frozen area.
+- While player UI is not visible, pointer movement inside the player area
+  switches player UI to visible.
+- Entering playback fullscreen force-switches player UI to not visible and
+  force-hides the pointer cursor.
+- Mouse clicks, keyboard shortcuts, side-panel toggles, layout changes, and
+  fullscreen exit do not reveal player UI by themselves.
 - Hiding the chrome does not pause playback, change selection, or close menus
   except where a menu cannot remain visible without its anchor.
-- The show/hide animation slides the chrome vertically while fading opacity.
-- The chrome visibility animation must not animate horizontal geometry.
+- Horizontal geometry changes must remain immediate and independent from player
+  UI visibility.
 
 ### 10.5 Playback Close UX
 
@@ -629,11 +640,12 @@ Rules:
   active video stage. The HTML target size is 42 px high with 18 px horizontal
   padding, full capsule radius, 13 px bold label text, no icon slot, and no
   reserved icon gap.
-- Entering fullscreen immediately hides the chrome and cursor once.
-- Mouse movement or click activity reveals the chrome and cursor.
+- Entering fullscreen immediately hides player UI and cursor once.
+- Mouse movement inside the player area reveals player UI and cursor.
 - Keyboard playback shortcuts do not reveal the chrome or cursor.
-- After 3 seconds without mouse or click activity, fullscreen chrome and cursor
-  hide again.
+- Mouse clicks do not reveal player UI.
+- After 3 seconds without mouse movement in the frozen display-check area,
+  fullscreen player UI and cursor hide again.
 - Clicking the video surface toggles play/pause unless the click targets a
   chrome control.
 - The fullscreen exit control exits playback fullscreen through the existing
@@ -669,15 +681,15 @@ Rules:
 
 | Input | Command | Prototype anchor | SwiftUI owner | Behavior owner | Feedback HUD | Chrome visibility effect |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Space` | Toggle play/pause | `#playBtn`, `ui-feedback-hud` | Bottom-player transport button, `LiquidGlassFeedbackOverlay` | `PlaybackViewModel.togglePlayback` | `Play` or `Pause` | Keyboard: none. Mouse/button: normal pointer activity rules. |
-| Left click on visible video surface | Toggle play/pause | `.video-stage`, `.video-frame`, `ui-feedback-hud` | Video stage input layer | Playback command model | `Play` or `Pause` | Shows chrome and resets the idle timer. |
-| `C` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard: none. Button: normal pointer activity rules. |
-| `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen chrome | Existing fullscreen manager | Text-only `Enter Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal chrome; fullscreen entry follows fullscreen rules. |
-| `Esc` | Exit playback fullscreen when active | Prototype fullscreen class, `ui-feedback-hud` | Fullscreen lifecycle handler | Existing fullscreen manager | Text-only `Exit Fullscreen` | Keyboard does not reveal chrome. No-op outside fullscreen. |
-| `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` on the leading side, or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
-| `D` | Next Search result | `#nextResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport next-result button | Search navigation snapshot | `Next Result` on the trailing side, or `No Result` | Keyboard: none. Button: normal pointer activity rules. |
-| `Q` | Copy current subtitle | Copy button, `ui-feedback-hud` | Copy subtitle button | Clipboard command | `Subtitle Copied` or `No Subtitle` | Keyboard: none. Button: normal pointer activity rules. |
-| `S` | Save or remove Shiori | `#shioriButton`, `ui-feedback-hud` | Shiori toggle button | Shiori command model | `Shiori Saved` or `Shiori Removed` after final state | Keyboard: none. Button: normal pointer activity rules. |
+| `Space` | Toggle play/pause | `#playBtn`, `ui-feedback-hud` | Bottom-player transport button, `LiquidGlassFeedbackOverlay` | `PlaybackViewModel.togglePlayback` | `Play` or `Pause` | Keyboard/click: none. Mouse movement follows player UI rules. |
+| Left click on visible video surface | Toggle play/pause | `.video-stage`, `.video-frame`, `ui-feedback-hud` | Video stage input layer | Playback command model | `Play` or `Pause` | Does not reveal player UI. |
+| `C` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard/click: none. Mouse movement follows player UI rules. |
+| `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen player UI | Existing fullscreen manager | Text-only `Enter Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal player UI; fullscreen entry follows fullscreen rules. |
+| `Esc` | Exit playback fullscreen when active | Prototype fullscreen class, `ui-feedback-hud` | Fullscreen lifecycle handler | Existing fullscreen manager | Text-only `Exit Fullscreen` | Keyboard does not reveal player UI. No-op outside fullscreen. |
+| `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` on the leading side, or `No Result` | Keyboard/click: none. Mouse movement follows player UI rules. |
+| `D` | Next Search result | `#nextResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport next-result button | Search navigation snapshot | `Next Result` on the trailing side, or `No Result` | Keyboard/click: none. Mouse movement follows player UI rules. |
+| `Q` | Copy current subtitle | Copy button, `ui-feedback-hud` | Copy subtitle button | Clipboard command | `Subtitle Copied` or `No Subtitle` | Keyboard/click: none. Mouse movement follows player UI rules. |
+| `S` | Save or remove Shiori | `#shioriButton`, `ui-feedback-hud` | Shiori toggle button | Shiori command model | `Shiori Saved` or `Shiori Removed` after final state | Keyboard/click: none. Mouse movement follows player UI rules. |
 | `Left Arrow` | Seek backward 5 seconds | Progress slider, `ui-feedback-hud` | Progress slider and feedback overlay | Playback seek command | Accumulated rewind total, such as `- 15s` | Keyboard: none. |
 | `Right Arrow` | Seek forward 5 seconds | Progress slider, `ui-feedback-hud` | Progress slider and feedback overlay | Playback seek command | Accumulated forward total, such as `+ 15s` | Keyboard: none. |
 | `Up Arrow` | Increase volume by 5 | Volume control, `ui-feedback-hud` | Volume button/slider and feedback overlay | Playback volume state | `Volume NN%` | Keyboard: none. |
@@ -695,8 +707,8 @@ Rules:
   other interactive control.
 - Clicking controls must run only that control's command, not the video
   play/pause command.
-- Mouse movement or click activity inside the black video base follows the
-  chrome visibility rules in sections 10.4 and 12.
+- Mouse movement inside the black video base follows the player UI visibility
+  rules in sections 10.4 and 12. Mouse clicks do not reveal player UI.
 - Mouse activity outside the black video base must not toggle playback.
 - Secondary click behavior is not defined by the Liquid Glass rewrite and must
   preserve existing platform behavior until separately specified.

@@ -236,7 +236,9 @@ Required M2 playback interaction checks:
 - The `Q` shortcut copies the current subtitle without interfering with editable
   text input.
 - The copy-current-subtitle button copies the same text as the `Q` shortcut.
-- Mouse or click activity reveals fullscreen controls and cursor and restarts the inactivity timer.
+- Mouse movement inside the player area reveals fullscreen player UI and cursor
+  and restarts the idle timer. Mouse clicks and keyboard shortcuts do not reveal
+  player UI.
 - Selecting a search result, clicking app-owned feature buttons, selecting
   another main-window sidebar section when such sections exist, or clicking the
   Playback Area clears Search field focus.
@@ -414,10 +416,11 @@ Required M2 playback interaction checks:
   side-panel animation side effects.
 - Playback chrome checks should verify that time labels fit `10:00:00` without
   wrapping while keeping the scrubber gap compact, speed menus close on outside
-  clicks, player UI means bottom player plus `Close`, hovering bottom player or
-  `Close` prevents idle hiding, fullscreen entry force-hides player UI and the
-  cursor, fullscreen exit force-shows them, and repeated command feedback
-  updates in place without a flashing full-entry animation.
+  clicks, player UI means bottom player plus `Close`, player UI has only
+  visible and not-visible states, mouse movement is the only reveal input,
+  idle hiding uses the frozen display-check area, fullscreen entry force-hides
+  player UI and cursor, and repeated command feedback updates in place without
+  a flashing full-entry animation.
 - Playback side-panel checks should verify that opening playback and navigating
   previous or next Search results preserve the current side-panel visibility.
 - ASS timing-source changes are out of scope for the first workbench

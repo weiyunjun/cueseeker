@@ -452,9 +452,13 @@ M2 playback interaction model:
   fullscreen transition, with the system managing Dock, menu bar, desktop,
   wallpaper, Space, app switching, and system overlay behavior.
 - Entering or exiting playback fullscreen must not create a second playback render container or duplicate backend render state.
-- Entering playback fullscreen should immediately hide the playback operation controls and mouse cursor once, regardless of whether the controls were visible before fullscreen.
-- In playback fullscreen, the playback operation controls and mouse cursor should hide after 3 seconds without mouse or click activity.
-- In playback fullscreen, only mouse or click activity should reveal the playback operation controls and cursor; keyboard playback shortcuts should not reveal them.
+- Entering playback fullscreen should immediately hide player UI and the mouse
+  cursor once, regardless of whether player UI was visible before fullscreen.
+- Player UI visibility is driven by mouse movement, not mouse clicks or
+  keyboard shortcuts.
+- While player UI is visible, three seconds without mouse movement inside the
+  frozen display-check area hides player UI and, when the pointer is in the
+  player area, the mouse cursor.
 - App switching while playback fullscreen is active should follow standard
   macOS Space behavior and should not reveal a separate CueSeeker workbench
   window that has lost its video surface.
@@ -481,8 +485,9 @@ Current M2 implementation and accepted fullscreen correction:
   window hierarchy and does not move it across windows.
 - The normal workbench shell should be hidden during playback fullscreen without
   losing panel, selection, scroll, or focus state.
-- Fullscreen playback hides the controls and cursor immediately on entry and again after 3 seconds of inactivity.
-- Fullscreen playback reveals controls and cursor from mouse or click activity, not from keyboard shortcuts.
+- Fullscreen playback hides player UI and cursor immediately on entry.
+- Playback reveals player UI and cursor from mouse movement inside the player
+  area, not from mouse clicks or keyboard shortcuts.
 - AppKit fullscreen lifecycle replaces manual Theater Mode suspension and
   separate-window playback fullscreen handling for app switching and
   deactivation behavior.
@@ -490,9 +495,10 @@ Current M2 implementation and accepted fullscreen correction:
 - The bottom player is visible only while the video playback page is visible.
   Search, Library, and Shiori workbench pages must not show the bottom player.
 - In playback visibility rules, player UI means the bottom player plus the
-  video-frame `Close` capsule. Hovering either element keeps player UI visible;
-  the three-second idle hide timer only runs while the pointer is in the video
-  base and outside those player UI elements.
+  video-frame `Close` capsule. Player UI has only visible and not-visible
+  states. The three-second idle hide timer freezes the display-check area when
+  the pointer stops moving, and later layout or side-panel changes do not
+  recalculate that frozen area.
 - The bottom-player left source/title collapse control is no longer part of the
   target UX. The volume button is the leftmost bottom-player control; the other
   controls keep their relative order.

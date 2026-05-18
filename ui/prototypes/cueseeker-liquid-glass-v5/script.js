@@ -245,8 +245,6 @@ const win = document.getElementById("window");
       fullscreenIcon?.setAttribute("href", enteringFullscreen ? "#fullscreen-exit" : "#viewfinder");
       if (enteringFullscreen) {
         hidePlayerChrome({ hideCursor: true });
-      } else {
-        showPlayerChrome({ protectsFromAutoHide: true });
       }
       showPlaybackFeedback({
         label: enteringFullscreen ? "Enter Fullscreen" : "Exit Fullscreen"
@@ -305,17 +303,37 @@ const win = document.getElementById("window");
       return pointInElement(playerDock, point) || pointInElement(closePlaybackButton, point);
     }
 
-    function pointInPlaybackIdleZone(point) {
-      return pointInVideoStage(point) && !pointInPlayerUi(point);
-    }
-
     function clearPlayerChromeHideTimer() {
       clearTimeout(playerChromeHideTimer);
       playerChromeHideTimer = 0;
     }
 
     function setPlayerCursorHidden(hidden) {
-      document.body.classList.toggle("player-cursor-hidden", hidden);
+      document.body.classList.toggle("player-cursor-hidden", Boolean(hidden));
+    }
+
+    function captureDisplayCheckZone() {
+      if (!videoStage) return null;
+
+      return {
+        playerRect: videoStage.getBoundingClientRect(),
+        excludedRects: [playerDock, closePlaybackButton]
+          .filter(Boolean)
+          .map((element) => element.getBoundingClientRect())
+      };
+    }
+
+    function pointInRect(point, rect) {
+      if (!point || !rect) return false;
+      return point.x >= rect.left
+        && point.x <= rect.right
+        && point.y >= rect.top
+        && point.y <= rect.bottom;
+    }
+
+    function pointInCapturedDisplayCheckZone(point, zone) {
+      if (!zone || !pointInRect(point, zone.playerRect)) return false;
+      return !zone.excludedRects.some((rect) => pointInRect(point, rect));
     }
 
     function setPlayerChromeVisible(visible) {
@@ -329,21 +347,24 @@ const win = document.getElementById("window");
       if (isVideoExpanded()) {
         setPlayerChromeVisible(false);
       }
-      setPlayerCursorHidden(Boolean(hideCursor && pointInPlaybackIdleZone(lastPointerPosition)));
+      setPlayerCursorHidden(hideCursor);
     }
 
     function schedulePlayerChromeHide() {
       clearPlayerChromeHideTimer();
-      if (!isVideoExpanded() || !pointInPlaybackIdleZone(lastPointerPosition)) return;
+      if (!isVideoExpanded()) return;
+
+      const zone = captureDisplayCheckZone();
+      if (!pointInCapturedDisplayCheckZone(lastPointerPosition, zone)) return;
 
       playerChromeHideTimer = window.setTimeout(() => {
-        if (isVideoExpanded() && pointInPlaybackIdleZone(lastPointerPosition)) {
+        if (isVideoExpanded() && pointInCapturedDisplayCheckZone(lastPointerPosition, zone)) {
           hidePlayerChrome({ hideCursor: true });
         }
       }, playerChromeIdleDelay);
     }
 
-    function showPlayerChrome({ protectsFromAutoHide = false } = {}) {
+    function showPlayerChrome() {
       setPlayerCursorHidden(false);
       if (!isVideoExpanded()) {
         clearPlayerChromeHideTimer();
@@ -352,39 +373,19 @@ const win = document.getElementById("window");
       }
 
       setPlayerChromeVisible(true);
-      if (protectsFromAutoHide || pointInPlayerUi(lastPointerPosition)) {
-        clearPlayerChromeHideTimer();
-      } else {
-        schedulePlayerChromeHide();
-      }
-    }
-
-    function syncPlayerChromeBoundary() {
-      if (!isVideoExpanded()) {
-        clearPlayerChromeHideTimer();
-        setPlayerChromeVisible(true);
-        setPlayerCursorHidden(false);
-        return;
-      }
-
-      if (!pointInVideoStage(lastPointerPosition) && !pointInPlayerUi(lastPointerPosition)) {
-        hidePlayerChrome();
-      } else if (pointInPlayerUi(lastPointerPosition)) {
-        showPlayerChrome({ protectsFromAutoHide: true });
-      } else {
-        schedulePlayerChromeHide();
-      }
+      schedulePlayerChromeHide();
     }
 
     function registerPlayerChromeActivity(point) {
       lastPointerPosition = point;
+      setPlayerCursorHidden(false);
       if (pointInPlayerUi(point)) {
-        showPlayerChrome({ protectsFromAutoHide: true });
+        setPlayerChromeVisible(true);
+        clearPlayerChromeHideTimer();
       } else if (pointInVideoStage(point)) {
         showPlayerChrome();
       } else {
-        hidePlayerChrome();
-        setPlayerCursorHidden(false);
+        hidePlayerChrome({ hideCursor: false });
       }
     }
 
@@ -419,7 +420,6 @@ const win = document.getElementById("window");
         el.style.setProperty("--video-frame-x", `${frameX}px`);
         el.style.setProperty("--video-frame-y", `${frameY}px`);
       });
-      syncPlayerChromeBoundary();
     }
 
     function scheduleVideoFrameLayout() {
@@ -510,7 +510,6 @@ const win = document.getElementById("window");
       }
       updateClearSearchVisibility();
       updateCollapseAllState();
-      syncPlayerChromeBoundary();
       scheduleVideoFrameLayout();
     }
 
@@ -649,13 +648,19 @@ const win = document.getElementById("window");
     }
 
     function openVideo() {
+      const enteringPlaybackPage = !isVideoExpanded();
       win.classList.remove("playback-closed");
       win.classList.add("video-expanded");
       scheduleVideoFrameLayout();
+      if (!enteringPlaybackPage) {
+        return;
+      }
       if (pointInVideoStage(lastPointerPosition)) {
         showPlayerChrome();
       } else {
-        hidePlayerChrome();
+        setPlayerCursorHidden(false);
+        clearPlayerChromeHideTimer();
+        setPlayerChromeVisible(true);
       }
     }
 
@@ -746,7 +751,6 @@ const win = document.getElementById("window");
       const selected = toggleIconButton(sidePanelToggle);
       win.classList.toggle("sidebar-hidden", !selected);
       scheduleVideoFrameLayout();
-      syncPlayerChromeBoundary();
     });
 
     document.querySelectorAll(".group-header").forEach((header) => {
@@ -774,11 +778,8 @@ const win = document.getElementById("window");
     document.addEventListener("pointermove", (event) => {
       registerPlayerChromeActivity({ x: event.clientX, y: event.clientY });
     });
-    document.addEventListener("pointerdown", (event) => {
-      registerPlayerChromeActivity({ x: event.clientX, y: event.clientY });
-    });
-    document.addEventListener("pointerleave", hidePlayerChrome);
-    window.addEventListener("blur", hidePlayerChrome);
+    document.addEventListener("pointerleave", () => hidePlayerChrome({ hideCursor: false }));
+    window.addEventListener("blur", () => hidePlayerChrome({ hideCursor: false }));
 
     ["input", "change", "keyup", "search", "cut", "paste", "compositionend", "focus", "blur"].forEach((eventName) => {
       searchInput.addEventListener(eventName, scheduleSearchDraftSync);
@@ -873,7 +874,6 @@ const win = document.getElementById("window");
       const interactiveTarget = event.target.closest("button, input, textarea, select, [contenteditable='true'], [role='button'], [role='slider'], [role='menu']");
       if (interactiveTarget) return;
       togglePlaybackFromUser();
-      showPlayerChrome();
     });
 
     document.addEventListener("keydown", (event) => {
