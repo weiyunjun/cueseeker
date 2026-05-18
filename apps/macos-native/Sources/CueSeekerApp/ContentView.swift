@@ -28,6 +28,7 @@ private struct ContentRootView: View {
             UIInvalidationProbe.count("UI.ContentView.body")
 
             let isPlaybackFullscreen = fullscreenManager.isFullscreen
+            let hidesInfoPageTopBar = isPlaybackFullscreen || appState.isPlaybackPageVisible
 
             return ZStack(alignment: .topLeading) {
                 windowBackground
@@ -36,10 +37,10 @@ private struct ContentRootView: View {
                 HStack(spacing: 0) {
                     mainWorkspace
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.top, isPlaybackFullscreen ? 0 : AppShellLayout.topBarHeight)
+                        .padding(.top, hidesInfoPageTopBar ? 0 : AppShellLayout.topBarHeight)
                 }
 
-                if !isPlaybackFullscreen {
+                if !hidesInfoPageTopBar {
                     AppTopBar(backgroundColor: contentBackground)
                         .frame(height: AppShellLayout.topBarHeight)
                         .zIndex(3)

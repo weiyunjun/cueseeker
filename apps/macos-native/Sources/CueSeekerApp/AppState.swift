@@ -675,6 +675,7 @@ final class AppState: ObservableObject {
     private var activeSearchPerformanceRun: SearchPerformanceRun?
     private var pendingSearchVisibleEntryIDs: Set<Int64> = []
     private var activePlaybackSource: ActivePlaybackSource = .none
+    private var playbackOriginatingPanelMode: WorkbenchPanelMode?
     private var loadedGlobalSearchResultCount = 0
     private var lastSearchCountProgressUpdate: UInt64 = 0
     private var nextGlobalSearchCursor: SubtitleSearchCursor?
@@ -2106,11 +2107,21 @@ final class AppState: ObservableObject {
         pendingSearchVisibleEntryIDs = []
     }
 
+    // Capture the return target only on the transition into the video page so a
+    // mid-session source switch keeps the original originating mode.
+    private func rememberPlaybackOriginatingPanelModeIfEntering() {
+        guard !isPlaybackSurfaceExpanded else {
+            return
+        }
+        playbackOriginatingPanelMode = workbenchLayout.panelMode
+    }
+
     func openSearchResult(_ result: SubtitleSearchResult) {
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
         )
+        rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
@@ -2130,6 +2141,7 @@ final class AppState: ObservableObject {
             "ACTION UI.LibraryVideo.opened",
             details: "duration=\(video.duration.map { String(format: "%.2f", $0) } ?? "unknown")"
         )
+        rememberPlaybackOriginatingPanelModeIfEntering()
         if case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
@@ -2148,6 +2160,7 @@ final class AppState: ObservableObject {
             "ACTION UI.Shiori.opened",
             details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
         )
+        rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
@@ -2588,6 +2601,10 @@ final class AppState: ObservableObject {
             selectedLibraryVideo = nil
             selectedShiori = nil
             isPlaybackSurfaceExpanded = false
+            if let originatingMode = playbackOriginatingPanelMode {
+                workbenchLayout.selectPanelMode(originatingMode)
+                playbackOriginatingPanelMode = nil
+            }
             playbackDrawerRequest = nil
             playbackStatus = .idle
         } catch {
