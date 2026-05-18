@@ -633,7 +633,9 @@ final class AppState: ObservableObject {
     }
 
     var isPlaybackFullscreenToggleDisabled: Bool {
-        currentPlaybackVideoPath == nil || workbenchLayout.isVideoSizeTransitionInProgress
+        currentPlaybackVideoPath == nil
+            || workbenchLayout.isVideoSizeTransitionInProgress
+            || playbackFullscreenManager.isTransitioning
     }
 
     var isDatabaseCompactionRecommended: Bool {

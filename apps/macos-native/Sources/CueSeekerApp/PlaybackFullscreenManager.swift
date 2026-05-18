@@ -3,8 +3,29 @@ import SwiftUI
 import CueSeekerPlayback
 
 @MainActor
+enum PlaybackFullscreenState: Equatable {
+    case windowed
+    case enteringSystemFullscreen
+    case activeFullscreen
+    case exitingSystemFullscreen
+
+    var isFullscreenPresented: Bool {
+        self != .windowed
+    }
+
+    var isTransitioning: Bool {
+        switch self {
+        case .enteringSystemFullscreen, .exitingSystemFullscreen:
+            return true
+        case .windowed, .activeFullscreen:
+            return false
+        }
+    }
+}
+
+@MainActor
 final class PlaybackFullscreenManager: ObservableObject {
-    @Published private(set) var isFullscreen = false
+    @Published private(set) var state: PlaybackFullscreenState = .windowed
     @Published private(set) var isChromeVisible = false
 
     private weak var fullscreenWindow: NSWindow?
@@ -14,23 +35,33 @@ final class PlaybackFullscreenManager: ObservableObject {
     private var isSuppressingInitialPointerMove = false
     private var initialPointerLocation: CGPoint?
     private let initialPointerMovementThreshold: CGFloat = 0.5
-    private var isFullscreenTransitioning = false
+
+    var isFullscreen: Bool {
+        state.isFullscreenPresented
+    }
+
+    var isTransitioning: Bool {
+        state.isTransitioning
+    }
 
     @discardableResult
     func toggleFullscreen(
         player: PlaybackPlayer,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
-        if isFullscreen {
-            return exitFullscreen(
-                animated: true,
-                onTransitionCompleted: onTransitionCompleted
-            )
-        } else {
+        switch state {
+        case .windowed:
             return enterFullscreen(
                 player: player,
                 onTransitionCompleted: onTransitionCompleted
             )
+        case .activeFullscreen:
+            return exitFullscreen(
+                animated: true,
+                onTransitionCompleted: onTransitionCompleted
+            )
+        case .enteringSystemFullscreen, .exitingSystemFullscreen:
+            return false
         }
     }
 
@@ -39,7 +70,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         player: PlaybackPlayer,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
-        guard !isFullscreen, fullscreenWindow == nil, !isFullscreenTransitioning else {
+        guard state == .windowed, fullscreenWindow == nil else {
             return false
         }
 
@@ -52,9 +83,10 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         fullscreenWindow = window
         transitionCompletion = onTransitionCompleted
-        isFullscreen = true
         didEnterSystemFullscreenForPlayback = !window.styleMask.contains(.fullScreen)
-        isFullscreenTransitioning = didEnterSystemFullscreenForPlayback
+        state = didEnterSystemFullscreenForPlayback
+            ? .enteringSystemFullscreen
+            : .activeFullscreen
         beginInitialPointerSuppression()
         hidePlayerUI(hideCursor: true)
 
@@ -75,11 +107,11 @@ final class PlaybackFullscreenManager: ObservableObject {
         animated: Bool = false,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
-        guard isFullscreen || fullscreenWindow != nil else {
+        guard state != .windowed || fullscreenWindow != nil else {
             return false
         }
 
-        guard !isFullscreenTransitioning || !animated else {
+        guard !state.isTransitioning || !animated else {
             return false
         }
 
@@ -91,7 +123,7 @@ final class PlaybackFullscreenManager: ObservableObject {
         if didEnterSystemFullscreenForPlayback,
            let window,
            window.styleMask.contains(.fullScreen) {
-            isFullscreenTransitioning = true
+            state = .exitingSystemFullscreen
             transitionCompletion = onTransitionCompleted
             window.toggleFullScreen(nil)
             return true
@@ -104,7 +136,7 @@ final class PlaybackFullscreenManager: ObservableObject {
     }
 
     private func finishExitFullscreen() {
-        guard isFullscreen || fullscreenWindow != nil || isFullscreenTransitioning else {
+        guard state != .windowed || fullscreenWindow != nil else {
             return
         }
 
@@ -115,8 +147,7 @@ final class PlaybackFullscreenManager: ObservableObject {
 
         fullscreenWindow = nil
         didEnterSystemFullscreenForPlayback = false
-        isFullscreenTransitioning = false
-        isFullscreen = false
+        state = .windowed
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
@@ -125,15 +156,18 @@ final class PlaybackFullscreenManager: ObservableObject {
 
     func windowDidEnterFullScreen(_ notification: Notification) {
         guard notification.object as? NSWindow === fullscreenWindow else { return }
+        guard state == .enteringSystemFullscreen else { return }
 
-        isFullscreenTransitioning = false
+        state = .activeFullscreen
         completeFullscreenTransition()
     }
 
     func windowWillExitFullScreen(_ notification: Notification) {
         guard notification.object as? NSWindow === fullscreenWindow else { return }
+        guard didEnterSystemFullscreenForPlayback || state == .exitingSystemFullscreen else { return }
+        guard state == .activeFullscreen || state == .exitingSystemFullscreen else { return }
 
-        isFullscreenTransitioning = true
+        state = .exitingSystemFullscreen
         chromeHideTask?.cancel()
         chromeHideTask = nil
         PlaybackCursorVisibility.show(for: .playbackFullscreen)
@@ -141,6 +175,7 @@ final class PlaybackFullscreenManager: ObservableObject {
 
     func windowDidExitFullScreen(_ notification: Notification) {
         guard notification.object as? NSWindow === fullscreenWindow else { return }
+        guard didEnterSystemFullscreenForPlayback || state == .exitingSystemFullscreen else { return }
 
         finishExitFullscreen()
         completeFullscreenTransition()
@@ -148,6 +183,9 @@ final class PlaybackFullscreenManager: ObservableObject {
 
     func windowDidFailToEnterFullScreen(_ window: NSWindow) {
         guard window === fullscreenWindow else {
+            return
+        }
+        guard state == .enteringSystemFullscreen else {
             return
         }
 
@@ -159,8 +197,11 @@ final class PlaybackFullscreenManager: ObservableObject {
         guard window === fullscreenWindow else {
             return
         }
+        guard state == .exitingSystemFullscreen else {
+            return
+        }
 
-        isFullscreenTransitioning = false
+        state = .activeFullscreen
         completeFullscreenTransition()
     }
 
