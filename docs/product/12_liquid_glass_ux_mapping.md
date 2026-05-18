@@ -518,7 +518,9 @@ prior display-check-area model. It is user-provided and may be tuned later.
 
 Definitions:
 
-- Player UI means the bottom player plus the video-page top bar.
+- Player UI means the bottom player plus the video-page top bar. In fullscreen
+  the custom top bar is not shown (§12), so player UI there is the bottom player
+  only; the same v1 machine still governs its show/hide.
 - Player area means the video page; the black video base fills the window, so
   resting the pointer on the bottom bar or top bar is still inside the player
   area. There is no frozen display-check area and no dock/top-bar exemption.
