@@ -879,11 +879,6 @@ final class AppState: ObservableObject {
         let enteringFullscreen = !playbackFullscreenManager.isFullscreen
         let started = playbackFullscreenManager.toggleFullscreen(
             player: player,
-            viewModel: playbackViewModel,
-            appState: self,
-            onExitRequest: { [weak self] in
-                self?.exitPlaybackFullscreenFromUser()
-            },
             onTransitionCompleted: { [weak self] in
                 self?.endVideoSizeTransition()
             }

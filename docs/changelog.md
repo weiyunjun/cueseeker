@@ -6,6 +6,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed the obsolete dedicated playback fullscreen window code path now that
+  playback fullscreen is routed through the main workbench window.
 - Hid the custom topbar during playback fullscreen and let the playback page
   occupy the fullscreen window from the top edge.
 - Routed playback fullscreen through the existing workbench window so the

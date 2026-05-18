@@ -1,16 +1,14 @@
 import AppKit
-import QuartzCore
 import SwiftUI
 import CueSeekerPlayback
 
 @MainActor
-final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDelegate {
+final class PlaybackFullscreenManager: ObservableObject {
     @Published private(set) var isFullscreen = false
     @Published private(set) var isChromeVisible = false
 
     private weak var fullscreenWindow: NSWindow?
     private var chromeHideTask: Task<Void, Never>?
-    private var onExitRequest: (() -> Void)?
     private var transitionCompletion: (() -> Void)?
     private var didEnterSystemFullscreenForPlayback = false
     private var isSuppressingInitialPointerMove = false
@@ -21,9 +19,6 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     @discardableResult
     func toggleFullscreen(
         player: PlaybackPlayer,
-        viewModel: PlaybackViewModel,
-        appState: AppState,
-        onExitRequest: (() -> Void)? = nil,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
         if isFullscreen {
@@ -34,9 +29,6 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         } else {
             return enterFullscreen(
                 player: player,
-                viewModel: viewModel,
-                appState: appState,
-                onExitRequest: onExitRequest,
                 onTransitionCompleted: onTransitionCompleted
             )
         }
@@ -45,9 +37,6 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     @discardableResult
     func enterFullscreen(
         player: PlaybackPlayer,
-        viewModel: PlaybackViewModel,
-        appState: AppState,
-        onExitRequest: (() -> Void)? = nil,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
         guard !isFullscreen, fullscreenWindow == nil, !isFullscreenTransitioning else {
@@ -62,7 +51,6 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         }
 
         fullscreenWindow = window
-        self.onExitRequest = onExitRequest
         transitionCompletion = onTransitionCompleted
         isFullscreen = true
         didEnterSystemFullscreenForPlayback = !window.styleMask.contains(.fullScreen)
@@ -109,13 +97,13 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
             return true
         }
 
-        finishExitFullscreen(window: window)
+        finishExitFullscreen()
         completeFullscreenTransition()
         onTransitionCompleted?()
         return true
     }
 
-    private func finishExitFullscreen(window: NSWindow?) {
+    private func finishExitFullscreen() {
         guard isFullscreen || fullscreenWindow != nil || isFullscreenTransitioning else {
             return
         }
@@ -126,18 +114,9 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
         PlaybackCursorVisibility.show(for: .playbackFullscreen)
 
         fullscreenWindow = nil
-        onExitRequest = nil
         didEnterSystemFullscreenForPlayback = false
         isFullscreenTransitioning = false
         isFullscreen = false
-    }
-
-    private func requestExitFullscreen() {
-        if let onExitRequest {
-            onExitRequest()
-        } else {
-            exitFullscreen(animated: true)
-        }
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
@@ -161,11 +140,9 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow, window === fullscreenWindow else {
-            return
-        }
+        guard notification.object as? NSWindow === fullscreenWindow else { return }
 
-        finishExitFullscreen(window: fullscreenWindow)
+        finishExitFullscreen()
         completeFullscreenTransition()
     }
 
@@ -174,7 +151,7 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
             return
         }
 
-        finishExitFullscreen(window: fullscreenWindow)
+        finishExitFullscreen()
         completeFullscreenTransition()
     }
 
@@ -188,65 +165,14 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
     }
 
     func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow, window === fullscreenWindow else {
-            return
-        }
+        guard notification.object as? NSWindow === fullscreenWindow else { return }
 
-        finishExitFullscreen(window: window)
+        finishExitFullscreen()
         completeFullscreenTransition()
     }
 
     func windowDidResize(_ notification: Notification) {
         guard notification.object as? NSWindow === fullscreenWindow else { return }
-    }
-
-    private func renderFrameInScreen(for player: PlaybackPlayer) -> NSRect? {
-        let renderView = player.renderView
-        guard let window = renderView.window else {
-            return nil
-        }
-
-        let frame = window.convertToScreen(renderView.convert(renderView.bounds, to: nil))
-        guard isUsableWindowFrame(frame) else {
-            return nil
-        }
-
-        return frame
-    }
-
-    private func fallbackWindowFrame(on screen: NSScreen) -> NSRect {
-        let visibleFrame = screen.visibleFrame
-        let width = min(960, visibleFrame.width)
-        let height = min(540, visibleFrame.height)
-        return NSRect(
-            x: visibleFrame.midX - width / 2,
-            y: visibleFrame.midY - height / 2,
-            width: width,
-            height: height
-        )
-    }
-
-    private func validWindowFrame(_ frame: NSRect?, fallback: NSRect) -> NSRect {
-        guard let frame, isUsableWindowFrame(frame) else {
-            return fallback
-        }
-
-        return frame
-    }
-
-    private func isUsableWindowFrame(_ frame: NSRect) -> Bool {
-        frame.width > 1 && frame.height > 1
-    }
-
-    private func hideStandardWindowButtons(for window: NSWindow) {
-        let buttonTypes: [NSWindow.ButtonType] = [
-            .closeButton,
-            .miniaturizeButton,
-            .zoomButton
-        ]
-        for buttonType in buttonTypes {
-            window.standardWindowButton(buttonType)?.isHidden = true
-        }
     }
 
     private func completeFullscreenTransition() {
@@ -358,267 +284,5 @@ final class PlaybackFullscreenManager: NSObject, ObservableObject, NSWindowDeleg
 
         endInitialPointerSuppression()
         return true
-    }
-}
-
-private final class PlaybackFullscreenWindow: NSWindow {
-    var onEscape: (() -> Void)?
-
-    override var canBecomeKey: Bool {
-        true
-    }
-
-    override var canBecomeMain: Bool {
-        true
-    }
-
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
-            onEscape?()
-            return
-        }
-
-        super.keyDown(with: event)
-    }
-}
-
-private final class PlaybackFullscreenRootView: NSView {
-    private let renderView: NSView
-    private var overlayView: NSView?
-    private var isSidebarVisible: Bool
-
-    init(renderView: NSView, isSidebarVisible: Bool) {
-        self.renderView = renderView
-        self.isSidebarVisible = isSidebarVisible
-        super.init(frame: .zero)
-
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.black.cgColor
-
-        renderView.removeFromSuperview()
-        addSubview(renderView)
-    }
-
-    func attachOverlayView(_ overlayView: NSView) {
-        self.overlayView = overlayView
-        addSubview(overlayView)
-        needsLayout = true
-    }
-
-    func setSidebarVisible(_ isVisible: Bool) {
-        guard isSidebarVisible != isVisible else {
-            return
-        }
-
-        isSidebarVisible = isVisible
-        needsLayout = true
-        layoutSubtreeIfNeeded()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    override func layout() {
-        super.layout()
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        let sidebarWidth = PlaybackSidebarMetrics.width(
-            totalWidth: bounds.width,
-            isVisible: isSidebarVisible
-        )
-        renderView.frame = CGRect(
-            x: bounds.minX,
-            y: bounds.minY,
-            width: max(0, bounds.width - sidebarWidth),
-            height: bounds.height
-        )
-        overlayView?.frame = bounds
-        renderView.needsLayout = true
-        renderView.layoutSubtreeIfNeeded()
-        overlayView?.needsLayout = true
-        overlayView?.layoutSubtreeIfNeeded()
-        CATransaction.commit()
-    }
-
-    func detachRenderView() {
-        if renderView.superview === self {
-            renderView.removeFromSuperview()
-        }
-    }
-}
-
-private struct PlaybackFullscreenOverlayView: View {
-    @ObservedObject var fullscreenManager: PlaybackFullscreenManager
-    @ObservedObject var viewModel: PlaybackViewModel
-    @ObservedObject var appState: AppState
-    let onSidebarVisibilityChanged: (Bool) -> Void
-    let onExit: () -> Void
-    @State private var activePanel: PlaybackDrawerKind = .results
-
-    var body: some View {
-        GeometryReader { geometry in
-            let sidebarWidth = PlaybackSidebarMetrics.width(
-                totalWidth: geometry.size.width,
-                isVisible: appState.isPlaybackSidePanelVisible
-            )
-            let stageWidth = max(0, geometry.size.width - sidebarWidth)
-            let videoFrame = aspectFitFrame(
-                containerSize: CGSize(width: stageWidth, height: geometry.size.height),
-                aspectRatio: videoAspectRatio
-            )
-            let bottomFrame = bottomPlayerFrame(stageWidth: stageWidth, height: geometry.size.height)
-            let closeFrame = closeButtonFrame(videoFrame: videoFrame)
-            let playerArea = CGRect(x: 0, y: 0, width: stageWidth, height: geometry.size.height)
-            let displayCheckZone = PlaybackDisplayCheckZone(
-                playerArea: playerArea,
-                excludedAreas: [bottomFrame, closeFrame]
-            )
-
-            ZStack(alignment: .leading) {
-                Color.clear
-                    .frame(width: stageWidth, height: geometry.size.height)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        viewModel.togglePlayPause()
-                    }
-
-                if fullscreenManager.isChromeVisible {
-                    PlaybackCloseButton {
-                        appState.stopPlayback()
-                    }
-                    .offset(x: closeFrame.minX, y: closeFrame.minY)
-                }
-
-                if fullscreenManager.isChromeVisible {
-                    PlaybackChromeView(
-                        viewModel: viewModel,
-                        controls: .appState(appState, fullscreenAction: onExit)
-                    )
-                    .frame(
-                        width: max(0, stageWidth - PlaybackChromeMetrics.horizontalInset * 2),
-                        height: PlaybackChromeMetrics.interactiveHeight,
-                        alignment: .bottom
-                    )
-                    .position(
-                        x: stageWidth / 2,
-                        y: max(
-                            PlaybackChromeMetrics.interactiveHeight / 2,
-                            geometry.size.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.interactiveHeight / 2
-                        )
-                    )
-                }
-                PlaybackSubtitleOverlay(
-                    text: viewModel.activeSubtitleText,
-                    bottomPadding: fullscreenManager.isChromeVisible ? 128 : 56
-                )
-                .frame(width: stageWidth, height: geometry.size.height)
-                .allowsHitTesting(false)
-
-                PlaybackFeedbackOverlay(feedback: viewModel.feedback)
-                    .frame(width: stageWidth, height: geometry.size.height)
-                    .allowsHitTesting(false)
-
-                if sidebarWidth > 0 {
-                    PlaybackSidebarShell(
-                        appState: appState,
-                        activePanel: $activePanel
-                    )
-                    .frame(width: sidebarWidth, height: geometry.size.height)
-                    .offset(x: stageWidth)
-                    .transition(.opacity)
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
-            .onContinuousHover { phase in
-                switch phase {
-                case .active(let location):
-                    fullscreenManager.registerPointerMove(
-                        location: location,
-                        isInPlayerArea: playerArea.contains(location),
-                        isInPlayerUI: bottomFrame.contains(location) || closeFrame.contains(location),
-                        displayCheckZone: displayCheckZone
-                    )
-                case .ended:
-                    fullscreenManager.registerPointerExit()
-                }
-            }
-        }
-        .background(Color.clear)
-        .onAppear {
-            refreshSidebarData()
-            if let request = appState.playbackDrawerRequest {
-                activePanel = request.drawer
-            }
-            onSidebarVisibilityChanged(appState.isPlaybackSidePanelVisible)
-        }
-        .onChange(of: appState.isPlaybackSidePanelVisible) { isVisible in
-            onSidebarVisibilityChanged(isVisible)
-        }
-        .onChange(of: appState.playbackDrawerRequest?.id) { _ in
-            guard let request = appState.playbackDrawerRequest else {
-                return
-            }
-
-            activePanel = request.drawer
-            refreshSidebarData()
-        }
-        .onChange(of: appState.currentPlaybackSubtitlePath) { _ in
-            refreshSidebarData()
-        }
-        .animation(.easeInOut(duration: 0.18), value: appState.isPlaybackSidePanelVisible)
-    }
-
-    private func refreshSidebarData() {
-        appState.refreshSearchNavigationSnapshot()
-        appState.refreshCurrentSubtitleEntries()
-    }
-
-    private var videoAspectRatio: CGFloat {
-        let ratio = CGFloat(viewModel.videoAspectRatio)
-        return ratio.isFinite && ratio > 0 ? ratio : 16 / 9
-    }
-
-    private func aspectFitFrame(containerSize: CGSize, aspectRatio: CGFloat) -> CGRect {
-        guard containerSize.width > 0, containerSize.height > 0 else {
-            return .zero
-        }
-
-        let containerRatio = containerSize.width / containerSize.height
-        let frameSize: CGSize
-        if containerRatio > aspectRatio {
-            let height = containerSize.height
-            frameSize = CGSize(width: height * aspectRatio, height: height)
-        } else {
-            let width = containerSize.width
-            frameSize = CGSize(width: width, height: width / aspectRatio)
-        }
-
-        return CGRect(
-            x: (containerSize.width - frameSize.width) / 2,
-            y: (containerSize.height - frameSize.height) / 2,
-            width: frameSize.width,
-            height: frameSize.height
-        )
-    }
-
-    private func bottomPlayerFrame(stageWidth: CGFloat, height: CGFloat) -> CGRect {
-        CGRect(
-            x: PlaybackChromeMetrics.horizontalInset,
-            y: max(0, height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height),
-            width: max(0, stageWidth - PlaybackChromeMetrics.horizontalInset * 2),
-            height: PlaybackChromeMetrics.height
-        )
-    }
-
-    private func closeButtonFrame(videoFrame: CGRect) -> CGRect {
-        CGRect(
-            x: videoFrame.minX + 18,
-            y: videoFrame.minY + 18,
-            width: PlaybackChromeMetrics.closeButtonWidth,
-            height: PlaybackChromeMetrics.closeButtonHeight
-        )
     }
 }
