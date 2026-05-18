@@ -102,7 +102,9 @@ The video page is composed of:
 - Video stage as root content, fixed size, never resized by the panel.
 - Custom top bar: a centered video title and a left custom-drawn traffic-light
   cluster. Close returns to the info page (a deliberate accepted tradeoff,
-  analogous to Windows apps where close minimizes to tray); minimize collapses;
+  analogous to Windows apps where close minimizes to tray); minimize
+  miniaturizes the window to the Dock (native NSWindow miniaturize; while
+  playback fullscreen is active it exits fullscreen first, then miniaturizes);
   maximize enters fullscreen. The real NSWindow traffic lights are
   hidden/suppressed on the video page so they do not conflict with
   `AppDelegate.WindowButtonsProxyView` / `adjustTrafficLights()`. This is a
@@ -242,7 +244,8 @@ views; each step is its own commit and reports before/after short hashes.
   returns to the correct mode; info-page state preserved.
 - **S2 — Custom video-page top bar.** New `VideoTopBar` (centered title +
   custom-drawn traffic-light cluster: red = return to info page, yellow =
-  collapse, green = fullscreen); remove the old video-frame Close capsule;
+  minimize (native NSWindow miniaturize to the Dock), green = fullscreen);
+  remove the old video-frame Close capsule;
   suppress the native NSWindow traffic lights on the video page (coordinate with
   `AppDelegate.WindowButtonsProxyView` / `adjustTrafficLights()`); the top bar
   is Player UI. Risk: medium-high. Verify visually against prototype v6.

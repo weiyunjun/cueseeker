@@ -145,7 +145,7 @@ info-page / video-page refactor. They are Player UI and share the
 | `.video-traffic` | Window-control cluster | `LiquidGlassVideoTopBar` cluster group | Groups the three custom window-control buttons. |
 | `.vt-dot` | Window-control button base | `LiquidGlassWindowControlButton` | Shared base for the custom traffic-light controls; glyph reveals on cluster hover/focus. |
 | `.vt-close` | Close control (red) | `LiquidGlassWindowControlButton.Kind.close` | Closes the video page and returns to the originating info page. It is NOT a quit/window-close. |
-| `.vt-min` | Minimize control (yellow) | `LiquidGlassWindowControlButton.Kind.minimize` | Collapses playback. |
+| `.vt-min` | Minimize control (yellow) | `LiquidGlassWindowControlButton.Kind.minimize` | Minimizes the app window to the Dock (native `NSWindow.miniaturize`); a native-mechanics control handled outside the HTML prototype. |
 | `.vt-zoom` | Zoom control (green) | `LiquidGlassWindowControlButton.Kind.zoom` | Enters fullscreen. |
 | `.video-title` | Centered video title | `LiquidGlassVideoTopBar` title | Centered alias of the playing source; truncates with ellipsis. |
 | `.video-topbar-spacer` | Layout balance spacer | Layout-only | Keeps the title optically centered opposite the control cluster; no Swift component required. |

@@ -446,9 +446,10 @@ Rules:
 - The custom top bar spans the top of the video page: a left traffic-light
   cluster and a centered video title. It is player UI.
 - The traffic-light controls are custom-drawn with app semantics: close returns
-  to the originating info page (not quit), minimize collapses playback, zoom
-  enters fullscreen. The real native NSWindow traffic lights are suppressed on
-  the video page.
+  to the originating info page (not quit), minimize miniaturizes the app window
+  to the Dock (native `NSWindow.miniaturize`, a native-mechanics control outside
+  the HTML prototype), zoom enters fullscreen. The real native NSWindow traffic
+  lights are suppressed on the video page.
 - The centered overlay panel floats above the video and does NOT squeeze or
   resize the video base. Showing or hiding it must not change video available
   size.
@@ -690,9 +691,11 @@ Rules:
   fullscreen is active: it exits playback fullscreen, ends playback, and
   returns to the originating info page rather than only returning to embedded
   playback.
-- Minimizing (the yellow top-bar control) while fullscreen is active exits
-  fullscreen in the same action so the normal info page and its toolbar become
-  visible again.
+- Minimizing (the yellow top-bar control) miniaturizes the app window to the
+  Dock (native `NSWindow.miniaturize`). While playback fullscreen is active it
+  first exits fullscreen in the same action — so the normal info page and its
+  toolbar are restored — and then miniaturizes the window, because macOS cannot
+  miniaturize a window that is in a fullscreen Space.
 - Fullscreen subtitle overlay bottom padding adapts to chrome visibility so
   subtitles do not collide with visible controls.
 
@@ -819,8 +822,11 @@ Allowed differences:
 
 - Native traffic lights and titlebar mechanics on the info page. On the video
   page the real NSWindow traffic lights are suppressed and the custom video-page
-  top-bar controls (close = return to info page, minimize, zoom = fullscreen)
-  own those interactions.
+  top-bar controls (close = return to info page, minimize = native NSWindow
+  miniaturize to the Dock, zoom = fullscreen) own those interactions. The
+  minimize control is realized by native `NSWindow.miniaturize`, a
+  native-mechanics behavior intentionally outside the HTML prototype; the
+  prototype's `.vt-min` shows only a local "Minimize" stub.
 - Native AppKit fullscreen transitions and Space behavior.
 - Native material and vibrancy implementations that preserve the accepted
   visual hierarchy.

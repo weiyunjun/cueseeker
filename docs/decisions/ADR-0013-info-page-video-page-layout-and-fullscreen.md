@@ -30,8 +30,9 @@ The video page has:
 
 - A custom top bar with a centered video title and a left custom-drawn
   traffic-light cluster. Close returns to the info page (not quit); minimize
-  collapses; maximize enters fullscreen. The real NSWindow traffic lights are
-  suppressed on the video page.
+  miniaturizes the window to the Dock (native NSWindow miniaturize; if playback
+  fullscreen is active it exits fullscreen first); maximize enters fullscreen.
+  The real NSWindow traffic lights are suppressed on the video page.
 - An overlay middle panel that replaces the right sidebar and floats over the
   video without squeezing it.
 
