@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Resumed implementation of the main-window playback fullscreen ADR: fullscreen
+  repair now targets one AppKit fullscreen workbench window, no dedicated
+  playback fullscreen window, and no cross-window playback render-view movement
+  before detailed player-chrome visibility work continues.
 - Required App interface implementation to follow a fixed synchronization
   order: update the HTML prototype first, then the Liquid Glass component and
   UX mapping documents, and only then modify native App code after explicit

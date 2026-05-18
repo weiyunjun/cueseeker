@@ -4,9 +4,26 @@ Status: Accepted
 
 Supersedes: ADR-0010 dedicated playback fullscreen window
 
-Implementation status: Deferred. This ADR defines the accepted future direction,
-but the fullscreen implementation should not be changed until the user explicitly
-requests that implementation work.
+Implementation status: Active. Implementation resumed on 2026-05-18 after user
+approval. The first implementation step is to confirm the target fullscreen
+contract before changing native App code.
+
+Confirmed implementation contract:
+
+- Playback fullscreen uses the main CueSeeker workbench window's AppKit native
+  fullscreen lifecycle.
+- Playback fullscreen must not create a second playback fullscreen `NSWindow`.
+- The singleton playback render container remains in the main window hierarchy
+  during fullscreen entry, active fullscreen, and fullscreen exit.
+- The playback fullscreen presentation is video-first: the user should not see
+  the normal workbench shell as the fullscreen experience.
+- App switching while playback fullscreen is active should return the user to
+  the fullscreen video presentation, not to a separate workbench window whose
+  playback surface has been detached.
+- Entering and exiting playback fullscreen should not freeze visible playback
+  because of cross-window render-view movement.
+- The first repair pass should focus on fullscreen windowing and presentation
+  ownership before revisiting detailed player-UI chrome visibility rules.
 
 ## Background
 
