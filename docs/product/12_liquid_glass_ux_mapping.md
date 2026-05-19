@@ -211,10 +211,16 @@ Rules:
   for that subtitle file.
 - UI card layout changes must not make first-screen rendering wait for all
   groups, all counts, thumbnails, or playback metadata.
-- Search thumbnails remain controlled by the existing experimental setting.
-  If the accepted Liquid Glass card design does not include thumbnails, the
-  App must not reserve thumbnail slots or start thumbnail work from the card
-  surface.
+- Search thumbnails are not retained. The accepted card design (v6 and the
+  state demo) has no thumbnails; the experimental
+  `searchResultThumbnailsEnabled` setting, its Settings toggle, and any
+  thumbnail slots or thumbnail work are removed together with the legacy
+  row-path retirement (an App step gated by App-implementation approval, not
+  P5.0). This reverses the prior "thumbnails remain controlled by the existing
+  experimental setting" rule. Removing the defunct toggle spans AppState and
+  SettingsView; it is permitted cleanup, not a Settings redesign (see proposal
+  "P5.0 Confirmed Audit" finding B). First-screen rendering must never wait for
+  thumbnails.
 
 ### 6.3 Search Group Headers
 
