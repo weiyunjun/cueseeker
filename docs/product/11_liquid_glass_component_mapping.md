@@ -172,11 +172,24 @@ Retired active-target components:
 | Search page | `.search-state`, result groups, `ui-selectable-card` | Search page view plus `LiquidGlassSelectableCard` | Existing Search query, grouping, lazy loading, load-more, exact counts. |
 | Library page | `.library-state`, episode cards | Library page view plus disclosure and episode card components | Existing Library folder grouping, collapse state, open video behavior. |
 | Shiori page | `.shiori-state`, grouped cards | Shiori page view plus `LiquidGlassSelectableCard` | Existing Shiori persistence and open behavior. |
+| Info-page empty / loading / failed / no-results states | State demo `.state-view`, `.state-spinner`, `.load-more` (separate `ui/state-demos/info-page-card-states/` prototype, outside `ui/prototypes/`) | Shared info-page state views (`SearchStatus`-driven Search states; Library `selectedFolders`/`libraryStatus`; Shiori empty) | `AppState` Search/Library/Shiori status; see doc 12 §6.1/§7.1/§8. Provisional state authority only (condition→state + whether it animates), not final visual. |
 | Bottom player | `.player-dock`, `.player-hud` | `BottomPlaybackBar`, `LiquidGlassBottomPlayer` | Active playback session visibility, playback view model, seek, volume, speed, navigation, Shiori, copy, subtitles. |
 | Video page | `.video-state`, `.video-stage`, `.video-frame`, `ui-feedback-overlay` | `PlaybackExpandedLayout`, video stage surface, `LiquidGlassFeedbackOverlay` | Dedicated full-window presentation layered above a live info page; real video aspect ratio; playback render view lifecycle; playback close lifecycle (returns to the originating info page); playback input feedback. The feedback overlay renders above the centered overlay panel. |
 | Video page top bar | `.video-topbar`, `.video-traffic`, `.vt-dot`, `.vt-close`, `.vt-min`, `.vt-zoom`, `.video-title` | `LiquidGlassVideoTopBar`, `LiquidGlassWindowControlButton` | Player UI; shares `player-chrome-visible` show/hide with the bottom player. Close returns to the originating info page; zoom enters fullscreen. Native NSWindow traffic lights are suppressed on the video page. |
 | Video page overlay panel | `.sidebar`, `ui-segmented-control`, `ui-selectable-row` | Overlay-panel views plus segmented and row components | Search navigation snapshot, current subtitle entries, row activation. Centered floating overlay over the video; does NOT squeeze the video stage; visibility is independent of `player-chrome-visible` and is driven only by the bottom-bar panel toggle; never auto-hides. |
 | Fullscreen playback chrome | Prototype bottom-player and video-page top bar visual language plus `ui-feedback-overlay` | Fullscreen overlay using the same bottom-player, top-bar, and feedback component families | AppKit fullscreen lifecycle, render-view ownership, cursor and chrome visibility timing, playback input feedback. |
+
+Info-page state views note: the empty / loading / failed / no-results states
+are specified by a separate focused interactive prototype,
+`ui/state-demos/info-page-card-states/`, kept outside `ui/prototypes/` by owner
+decision (see `docs/proposals/2026-05-info-page-card-visual-rebuild.md`, "P5.0
+C2"). Its `.demo-*` control bar is prototype-only and is not an App component
+(treat like `ui-prototype-control`). `.state-view` maps to a shared
+`SearchStatus`/Library/Shiori state view; `.state-spinner` and `.load-more` are
+the loading and incremental-load-more indicators. Known difference (deferred):
+the demo's state-view treatment leans native and diverges from the accepted
+Liquid Glass card visual; pixel-level visual reconciliation is out of the
+current Phase 5 layout/operation scope and is deferred to a later visual pass.
 
 ## 7. Control State Mapping
 
@@ -213,6 +226,14 @@ Icon asset rule:
   changes repeatedly. Repeated commands may update text and run a small update
   pulse, but must not remount the HUD or replay the full entry animation.
 
+Main-page selected-visual correction: the `ui-is-selected` rows above already
+forbid retained playback-selection visuals on main Search / Library / Shiori
+cards. The current App violates this (it fills the selected card with
+`Color.accentColor`); see the proposal's "P5.0 Confirmed Audit" finding F. The
+`isSelected` / `selected*` plumbing into the main cards and `CardGroupHeader`
+must be excised in P5.2 (Search) / P5.4 (Shiori); this is a documented known
+App difference pending those steps.
+
 ## 8. Token Mapping
 
 The App should translate CSS custom properties into Swift tokens by semantic
@@ -226,6 +247,7 @@ role, not by copying CSS names mechanically.
 | `--hairline`, `--hairline-soft` | `LiquidGlassTokens.hairline` | Borders and separators. |
 | `--text`, `--text-2`, `--text-3`, `--text-4` | `LiquidGlassTokens.text` | Primary through quaternary text roles. |
 | `--accent`, `--accent-soft` | `LiquidGlassTokens.accent` | App accent emphasis and soft selected treatment. |
+| `--card-*`, `--card-selected-*`, `--row-*` | `LiquidGlassTokens.selectableCardSurface` | Selectable-card / list-row surface, hover, and selected skins. The authoritative skin is the later v6 token-override layer (theme-driven, `styles.css` L1758); the hardcoded-light base values (L563) are not the authority and must not be replicated. |
 | `--highlight`, `--highlight-text` | `LiquidGlassTokens.searchHighlight` | Search match highlighting. |
 | `--search-page-*` | Page-specific semantic tokens | May be folded into general tokens if App surfaces share the same values. |
 | `--mono`, `--sf` | Typography tokens | App uses native SF fonts and monospaced digits where needed. |
