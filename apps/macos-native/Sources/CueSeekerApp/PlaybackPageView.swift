@@ -1281,15 +1281,19 @@ struct PlaybackSidebarShell: View {
 
     @ViewBuilder
     private var content: some View {
-        switch activePanel {
-        case .results:
-            searchResultsList
-        case .subtitles:
-            if let viewModel = appState.playbackViewModel {
-                PlaybackSubtitlesList(appState: appState, viewModel: viewModel)
-            } else {
-                Spacer(minLength: 0)
+        if appState.isPlaybackSidePanelVisible {
+            switch activePanel {
+            case .results:
+                searchResultsList
+            case .subtitles:
+                if let viewModel = appState.playbackViewModel {
+                    PlaybackSubtitlesList(appState: appState, viewModel: viewModel)
+                } else {
+                    Spacer(minLength: 0)
+                }
             }
+        } else {
+            Spacer(minLength: 0)
         }
     }
 
@@ -1516,23 +1520,48 @@ private struct PlaybackSubtitlesList: View {
     @ObservedObject var viewModel: PlaybackViewModel
 
     private var orderedEntries: [SubtitleDatabaseEntry] {
-        appState.currentSubtitleEntries.sorted { $0.startMilliseconds < $1.startMilliseconds }
+        appState.currentSubtitleEntries
     }
 
     /// The cue active at the current displayed time: the entry that contains
     /// it, otherwise the last entry that has already started (handles gaps).
+    /// Uses an O(log N) binary search lookup.
     private var activeEntryID: Int64? {
+        let entries = orderedEntries
+        guard !entries.isEmpty else { return nil }
         let ms = Int((viewModel.displayedCurrentTime * 1_000).rounded(.down))
-        var candidate: Int64?
-        for entry in orderedEntries {
+        
+        var low = 0
+        var high = entries.count - 1
+        var candidateIndex = -1
+        
+        while low <= high {
+            let mid = low + (high - low) / 2
+            if entries[mid].startMilliseconds <= ms {
+                candidateIndex = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        
+        guard candidateIndex != -1 else { return nil }
+        
+        // Scan backwards a small window to see if any earlier subtitle is currently active (covers ms)
+        var i = candidateIndex
+        while i >= 0 {
+            let entry = entries[i]
             if ms >= entry.startMilliseconds && ms < entry.endMilliseconds {
                 return entry.id
             }
-            if entry.startMilliseconds <= ms {
-                candidate = entry.id
+            if ms - entry.startMilliseconds > 15_000 {
+                break
             }
+            i -= 1
         }
-        return candidate
+        
+        // If no active subtitle is found, return the last one that has already started (original behavior)
+        return entries[candidateIndex].id
     }
 
     var body: some View {
