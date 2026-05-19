@@ -293,6 +293,76 @@ pass. C3 records this divergence and deferral in the mapping docs per the
 git-workflow "known differences" rule; no App visual optimization of the state
 views is done now.
 
+## P5.2-B Confirmed Pixel Spec (2026-05-19)
+
+Owner-reviewed and confirmed. Two areas implemented in one step: the Search
+results page and the topbar. Values are from the v6 prototype CSS; light /
+dark are both explicit (scheme-driven, no hardcoded light values; CSS
+`backdrop-filter` realized with native scheme-adaptive color/shadow per doc 11
+§10 / doc 12 §15 — NOT a frosted `Material`). Native-difference boundary: the
+NSWindow traffic lights, window shell, and desktop are native and not aligned.
+
+App-authoritative exception (owner decision): the subtitle `.line` font weight
+and opacity are better in the App; the v6 prototype was updated to match the
+App (`.line` → weight 600, opacity 0.88; commit `7c2ea1f`). Everything else
+aligns App → v6.
+
+Search result card:
+
+- Radius 10; padding 13 horizontal / 11 vertical; inner gap 6 (meta→lines and
+  between lines).
+- Fill (explicit scheme color, not Material): light white @0.62 over the page;
+  dark white @0.10. Hover: light white @0.82; dark white @0.15. Pressed:
+  scale 0.995.
+- Border 0.5px: light `rgba(0,0,0,0.08)`; dark `rgba(255,255,255,0.10)` (hover
+  dark `0.14`).
+- Shadow rest: light `0 1px 2px rgba(15,18,30,0.06)` + inset highlight
+  `rgba(255,255,255,0.92)` / lowlight `rgba(255,255,255,0.22)`; dark
+  `0 1px 2px rgba(0,0,0,0.22)`. Hover: light `0 4px 12px -4px
+  rgba(15,18,30,0.14)`; dark `0 5px 14px -5px rgba(0,0,0,0.44)`.
+- Meta row: 11px monospaced, tabular figures, color text-3 (light `#7a7c84` /
+  dark `#aaa6b6`), letter-spacing −0.01em; rank/time space-between; rank gap 5.
+- Line: 13.5px, **weight 600 / opacity 0.88 (App-authoritative)**, color
+  text (light `#1a1a1f` / dark `#f3f1f6`), line-height 1.4.
+- Highlight `<mark>`: bg light `rgba(255,204,0,0.42)` / dark
+  `rgba(255,214,92,0.32)`; text light `#4a3300` / dark `#fff0b5`; padding
+  1px 3px; radius 3.
+
+Group header / group / results-header:
+
+- Group: padding 14 top / 6 bottom; bottom hairline 0.5px light
+  `rgba(0,0,0,0.05)` / dark `rgba(255,255,255,0.07)`; margin-bottom 6.
+- Group-header: flex gap 8; padding 5 8 5 4; radius 7; subtle hover bg;
+  active scale 0.995. Chevron 16pt, color text-3, 0°/90° over 160ms.
+- Group-title: 13px weight 600, **full text color** (not dimmed), letter-
+  spacing −0.005em. Group-count: text-3, 11.5px, tabular.
+- Results-header: padding 14 24 6; summary 12.5px color text-2 (light
+  `#4d4e55` / dark `#c9c6d2`); count `strong` full text color, weight 600,
+  tabular. Content horizontal padding 24.
+- Collapse All: pill min-width 92, height 26, radius 999, 0.5px pill border,
+  pill fill + pill shadow, 11.5px; hover pill-hover; active scale 0.94.
+
+Topbar (traffic lights NOT changed — native):
+
+- Toolbar bg: top-light gradient (light `rgba(255,255,255,0.35)` →
+  `rgba(255,255,255,0.10)`; dark the corresponding low-white); bottom border
+  0.5px light `rgba(0,0,0,0.06)` / dark equivalent.
+- Tool buttons (folder / bookmark = `LiquidGlassIconButton.Kind.topbar`):
+  30×26, radius 7, transparent; hover fill white @0.55 + inset highlight
+  white @0.8 + ring 0.5px `rgba(0,0,0,0.06)`; active scale 0.94; selected
+  white @0.7.
+- Search field (`LiquidGlassSearchField`, `ui-input-capsule`): height 30,
+  radius 999 (capsule), fill white @0.55, shadow inset highlight white @0.9 +
+  inset lowlight white @0.25 + ring 0.5px `rgba(0,0,0,0.07)` + drop
+  `0 1px 2px rgba(0,0,0,0.04)`; padding 0 10 0 12; gap 8; magnifier color
+  `rgba(0,0,0,0.45)`; input 13.5px.
+- Search field focus: fill white @0.85; ring 0.5px accent @0.55 + glow
+  `0 0 0 3.5px` accent @0.18 (accent light `#0a84ff` / dark `#6ea6ff`).
+- All topbar values scheme-adaptive for dark.
+
+Page background: light `#f4f4f6` / dark `#1f2027` (replaces the current pure
+`.textBackgroundColor`) so the near-white cards read as elevated.
+
 ## Acceptance
 
 - Main Search / Library / Shiori cards and their hover/pressed/selected/
