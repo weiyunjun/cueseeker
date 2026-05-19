@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerCore
 import SwiftUI
 
 struct PlaybackPageView: View {
@@ -1241,6 +1242,7 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
 struct PlaybackSidebarShell: View {
     @ObservedObject var appState: AppState
     @Binding var activePanel: PlaybackDrawerKind
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1252,7 +1254,7 @@ struct PlaybackSidebarShell: View {
                 .padding(2)
                 .background(
                     RoundedRectangle(cornerRadius: 9)
-                        .fill(Color.black.opacity(0.06))
+                        .fill(segmentedContainerColor)
                 )
 
                 Text(summaryText)
@@ -1266,11 +1268,11 @@ struct PlaybackSidebarShell: View {
             .padding(.bottom, 10)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color.black.opacity(0.08))
+                    .fill(headerHairlineColor)
                     .frame(height: 0.5)
             }
 
-            Spacer(minLength: 0)
+            content
         }
         // The opaque rounded surface, border, and shadow are owned by the
         // floating container in PlaybackPageView. The shell only renders
@@ -1278,8 +1280,73 @@ struct PlaybackSidebarShell: View {
         // left divider.
     }
 
+    @ViewBuilder
+    private var content: some View {
+        switch activePanel {
+        case .results:
+            searchResultsList
+        case .subtitles:
+            // S4.3 restores the Subtitles list; intentionally empty for now so
+            // the panel still fills its height.
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var searchResultsList: some View {
+        let rows = flattenedResultRows
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(rows, id: \.result.entryID) { row in
+                        PlaybackSidebarResultRow(
+                            rank: row.rank,
+                            result: row.result,
+                            query: appState.searchQuery,
+                            isSelected: row.result.entryID
+                                == appState.selectedSearchResult?.entryID,
+                            onOpen: { appState.openSearchResult(row.result) }
+                        )
+                        .id(row.result.entryID)
+                    }
+                }
+                .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
+            }
+            .onAppear { scrollSelectedIntoView(proxy) }
+            .onChange(of: appState.selectedSearchResult?.entryID) { _ in
+                scrollSelectedIntoView(proxy)
+            }
+        }
+    }
+
+    private func scrollSelectedIntoView(_ proxy: ScrollViewProxy) {
+        guard let id = appState.selectedSearchResult?.entryID else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            proxy.scrollTo(id, anchor: .center)
+        }
+    }
+
+    /// The complete active Search result order, flattened across file groups
+    /// with a global one-based rank to mirror the prototype `.sidebar-list`.
+    /// Reads only the published navigation groups, so result-to-result jumps
+    /// never clear the list while the current Search result list is valid.
+    private var flattenedResultRows: [(rank: Int, result: SubtitleSearchResult)] {
+        var rows: [(rank: Int, result: SubtitleSearchResult)] = []
+        var rank = 1
+        for group in appState.searchNavigationResultGroups {
+            for result in group.results {
+                rows.append((rank: rank, result: result))
+                rank += 1
+            }
+        }
+        return rows
+    }
+
     private func sidebarTab(_ panel: PlaybackDrawerKind, title: String) -> some View {
-        Button {
+        let isActive = activePanel == panel
+        return Button {
             activePanel = panel
             switch panel {
             case .results:
@@ -1289,14 +1356,18 @@ struct PlaybackSidebarShell: View {
             }
         } label: {
             Text(title)
-                .font(.system(size: 12, weight: activePanel == panel ? .semibold : .medium))
-                .foregroundStyle(activePanel == panel ? Color.primary.opacity(0.9) : Color.primary.opacity(0.48))
+                .font(.system(size: 12, weight: isActive ? .semibold : .medium))
+                .foregroundStyle(isActive ? Color.primary.opacity(0.9) : Color.primary.opacity(0.5))
                 .frame(maxWidth: .infinity)
                 .frame(height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 7)
-                        .fill(activePanel == panel ? Color.white.opacity(0.85) : Color.clear)
-                        .shadow(color: .black.opacity(activePanel == panel ? 0.08 : 0), radius: 2, y: 1)
+                        .fill(isActive ? segmentedActiveColor : Color.clear)
+                        .shadow(
+                            color: isActive ? segmentedActiveShadow : .clear,
+                            radius: 2,
+                            y: 1
+                        )
                 )
         }
         .buttonStyle(.plain)
@@ -1316,6 +1387,123 @@ struct PlaybackSidebarShell: View {
             let count = appState.currentSubtitleEntries.count
             return "\(count) \(count == 1 ? "subtitle" : "subtitles")"
         }
+    }
+
+    // Scheme-aware tokens mirroring the v6 prototype segmented control and
+    // header hairline (doc 12 §11, doc 11 §5). Fixes the dark-mode misalignment
+    // where the previous hardcoded light values left an opaque white pill and
+    // invisible black hairlines.
+    private var segmentedContainerColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
+    }
+
+    private var segmentedActiveColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.85)
+    }
+
+    private var segmentedActiveShadow: Color {
+        colorScheme == .dark ? Color.black.opacity(0.30) : Color.black.opacity(0.08)
+    }
+
+    private var headerHairlineColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08)
+    }
+}
+
+/// One Search Results row in the overlay panel, mirroring the prototype
+/// `.sidebar-row`: a meta line (global rank + timestamp) above the cue lines,
+/// with query-match highlighting reused from the info-page Search renderer.
+private struct PlaybackSidebarResultRow: View {
+    let rank: Int
+    let result: SubtitleSearchResult
+    let query: String
+    let isSelected: Bool
+    let onOpen: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text("#\(rank)")
+                    Text(formatTimestamp(result.startMilliseconds))
+                }
+                .font(.system(size: 11.5, weight: isSelected ? .semibold : .regular))
+                .monospacedDigit()
+                .foregroundStyle(metaColor)
+
+                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                    Text(highlightedContent(
+                        line,
+                        query: query,
+                        textColor: lineColor,
+                        state: highlightState
+                    ))
+                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(lineColor)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(rowBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(isSelected ? selectedRingColor : Color.clear, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var displayLines: [String] {
+        subtitleDisplayLines(content: result.content, cueLines: result.cueLines)
+    }
+
+    private var highlightState: SearchHighlightState {
+        isSelected ? .selected : (isHovered ? .hover : .default)
+    }
+
+    private var lineColor: Color {
+        if isSelected {
+            return colorScheme == .dark
+                ? Color(red: 248 / 255, green: 246 / 255, blue: 251 / 255)
+                : Color(red: 10 / 255, green: 20 / 255, blue: 38 / 255)
+        }
+        return Color.primary.opacity(0.86)
+    }
+
+    private var metaColor: Color {
+        isSelected ? accentColor : Color.primary.opacity(0.45)
+    }
+
+    private var accentColor: Color {
+        colorScheme == .dark
+            ? Color(red: 110 / 255, green: 166 / 255, blue: 255 / 255)
+            : Color(red: 10 / 255, green: 132 / 255, blue: 255 / 255)
+    }
+
+    private var selectedRingColor: Color {
+        accentColor.opacity(colorScheme == .dark ? 0.52 : 0.55)
+    }
+
+    private var rowBackground: Color {
+        if isSelected {
+            return colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.85)
+        }
+        if isHovered {
+            return colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.55)
+        }
+        return Color.clear
     }
 }
 

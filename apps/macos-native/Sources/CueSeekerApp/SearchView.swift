@@ -1537,7 +1537,7 @@ private func displayTitleWithSoftWrapOpportunities(_ displayTitle: String) -> St
     return wrapped
 }
 
-private func highlightedContent(
+func highlightedContent(
     _ content: String,
     query: String,
     textColor: Color,
@@ -1593,7 +1593,7 @@ private func highlightTerms(from query: String) -> [String] {
     )
 }
 
-private func formatTimestamp(_ milliseconds: Int) -> String {
+func formatTimestamp(_ milliseconds: Int) -> String {
     let totalSeconds = milliseconds / 1_000
     let hours = totalSeconds / 3_600
     let minutes = (totalSeconds % 3_600) / 60
@@ -1606,7 +1606,7 @@ private func formatTimestamp(_ milliseconds: Int) -> String {
     return String(format: "%02d:%02d", minutes, seconds)
 }
 
-private func subtitleDisplayLines(content: String, cueLines: [String]) -> [String] {
+func subtitleDisplayLines(content: String, cueLines: [String]) -> [String] {
     let lines = (cueLines.isEmpty ? content.components(separatedBy: .newlines) : cueLines)
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
