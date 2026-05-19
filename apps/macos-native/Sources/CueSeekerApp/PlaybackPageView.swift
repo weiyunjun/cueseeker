@@ -24,6 +24,16 @@ struct PlaybackPageView: View {
                 .frame(width: geometry.size.width, height: geometry.size.height)
 
                 overlayPanel(in: geometry.size)
+
+                // The feedback HUD renders above the overlay panel and is
+                // centered within the full-window black video base
+                // (doc 12 §11/§13.4). It is the SwiftUI feedback layer only;
+                // the native render/seek path is untouched.
+                if let viewModel = appState.playbackViewModel {
+                    PlaybackFeedbackLayer(viewModel: viewModel)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .allowsHitTesting(false)
+                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
@@ -1654,6 +1664,18 @@ private struct PlaybackSidebarSubtitleRow: View {
             return colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.55)
         }
         return Color.clear
+    }
+}
+
+/// Hosts the playback feedback HUD above the centered overlay panel so command
+/// feedback is never occluded by it (doc 12 §11/§13.4, doc 11 §6). This is the
+/// SwiftUI feedback presentation layer only; it observes the view model for
+/// `feedback` updates and never touches the native render/seek path.
+private struct PlaybackFeedbackLayer: View {
+    @ObservedObject var viewModel: PlaybackViewModel
+
+    var body: some View {
+        PlaybackFeedbackOverlay(feedback: viewModel.feedback)
     }
 }
 

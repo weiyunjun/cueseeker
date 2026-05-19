@@ -46,8 +46,9 @@ struct PlaybackVideoView: View {
                 text: viewModel.activeSubtitleText,
                 bottomPadding: 28
             )
-
-            PlaybackFeedbackOverlay(feedback: viewModel.feedback)
+            // The feedback HUD is hosted by PlaybackPageView above the centered
+            // overlay panel (doc 12 §11/§13.4, doc 11 §6); it is intentionally
+            // not in this render-surface ZStack so the panel cannot occlude it.
         }
     }
 }
