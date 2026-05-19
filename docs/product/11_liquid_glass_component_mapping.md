@@ -229,13 +229,16 @@ Icon asset rule:
 Main-page selected-visual correction: the `ui-is-selected` rows above forbid
 retained playback-selection visuals on main Search / Library / Shiori cards
 (proposal "P5.0 Confirmed Audit" finding F). The Search card and the shared
-`CardGroupHeader` selected visuals were excised in P5.2-2. The live
-`ShioriCard` still fills the selected card with `Color.accentColor` and
-`selectedShiori` is still plumbed into `ShioriCardGroupView`; that excision is
-scheduled for P5.4-2, ahead of the Shiori dead-legacy-cluster retirement
-(P5.4-3) and the orphaned `SearchLayout` removal (P5.4-4). Library has no
-separable dead path; its old code is replaced in place within the P5.3
-rebuild. See proposal "P5.3 / P5.4 Old-Code Audit & Deletion Plan".
+`CardGroupHeader` selected visuals were excised in P5.2-2. The `ShioriCard`
+was rebuilt onto the shared `LiquidGlassSelectableCard` in P5.4-1 and the
+`selectedShiori` / `isSelected` plumbing was excised in P5.4-2, so no main
+card retains a playback-selection visual; the dead Shiori legacy cluster was
+retired in P5.4-3 and the orphaned `SearchLayout` removed in P5.4-4. Library
+has no separable dead path; its old code was replaced in place within the P5.3
+rebuild, and the Library episode card's Library-launched *playing* indicator
+is the doc 12 §7.2 mandated state, not a forbidden selection visual (carve-out
+in the `ui-is-selected` row above). See proposal "P5.3 / P5.4 Old-Code Audit &
+Deletion Plan".
 
 ## 8. Token Mapping
 
