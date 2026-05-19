@@ -513,48 +513,50 @@ Rules:
 
 ### 10.4 Floating Chrome Visibility
 
-This is the Player-UI / cursor visibility state machine (v1). It supersedes the
-prior display-check-area model. It is user-provided and may be tuned later.
+This is the Player-UI / cursor visibility state machine (v2). v2 supersedes
+v1: v1's per-transition "keep the cursor" policy is removed — Shown means
+Player UI and the cursor are both shown, Hidden means both are not shown, and
+cursor management is gated by App focus.
 
 Definitions:
 
-- Player UI means the bottom player plus the video-page top bar. In fullscreen
-  the custom top bar is not shown (§12), so player UI there is the bottom player
-  only; the same v1 machine still governs its show/hide.
-- Player area means the video page; the black video base fills the window, so
-  resting the pointer on the bottom bar or top bar is still inside the player
-  area. There is no frozen display-check area and no dock/top-bar exemption.
-- Shown means player UI and cursor are visible. Hidden means player UI is not
-  visible; the cursor follows the policy below.
-- The centered overlay panel is not player UI. Its visibility is independent of
-  this state machine and it never auto-hides.
+- Player UI: the bottom player plus the video-page top bar. In fullscreen the
+  custom top bar is not shown (§12), so Player UI there is the bottom player
+  only; the same v2 machine still governs its show/hide.
+- Player area: while a video is playing, the player window region — i.e. the
+  App window at that time. There is no frozen display-check area and no
+  dock/top-bar exemption.
+- Shown: the video page exists and Player UI and the cursor are shown.
+- Hidden: the video page exists and Player UI and the cursor are not shown.
+- The centered overlay panel is not Player UI. Its visibility is independent
+  of this state machine and it never auto-hides.
 
 Rules:
 
-- Two states only, mouse-movement-driven, with no transition animation. Mouse
-  clicks and keystrokes do not count as activity: they neither reset the idle
-  timer nor restore the Shown state.
+- When focus is on the App, moving the mouse shows the cursor.
+- The cursor-hiding rule applies if and only if focus is on the App. While the
+  App is unfocused the cursor is not held hidden (the OS owns it).
 - Entering the video page initializes the Shown state.
-- Shown switches to Hidden when any of these occurs: (1) the pointer moves out
-  of the player area; (2) the pointer is in the player area and does not move
-  for 3 seconds; (3) the App loses focus. Cursor policy on the transition: if
-  the pointer is in the player area and the App is focused, hide player UI and
-  the cursor; otherwise hide player UI only and keep the cursor. So case (1)
-  hides UI only, case (2) hides UI and cursor, case (3) hides UI only.
-- Hidden switches to Shown only when the App is focused, the pointer is in the
-  player area, and the pointer moves; this shows player UI and the cursor.
-- Mouse movement always shows the cursor.
-- Entering playback fullscreen force-switches to Hidden with both player UI and
-  cursor hidden. This applies at the entry moment only; afterward the normal
-  rules apply inside fullscreen.
-- Regaining App focus alone must not show player UI; a real pointer movement is
-  required.
-- Mouse clicks, keyboard shortcuts, panel toggles, layout changes, and
-  fullscreen exit do not reveal player UI by themselves.
+- From Shown, any of these switches to Hidden: (1) the mouse moves from the
+  player area to another area; (2) the mouse is in the player area and does
+  not move for 3 seconds; (3) the App loses focus.
+- From Hidden, this switches to Shown: focus is on the App, the mouse is in
+  the player area, and the mouse moves.
+- Entering playback fullscreen forces a switch to Hidden (Player UI and, since
+  focus is on the App at entry, the cursor). It stays Hidden until a real
+  in-area mouse movement (the Hidden→Shown rule).
+- State switching is driven by mouse movement; mouse clicks and key presses do
+  not count (they neither reset the 3-second idle timer nor restore Shown).
+  The "movement" signal must be real physical pointer movement; synthetic
+  hover events from layout/fullscreen/focus changes are not movement.
+- Regaining App focus while Hidden keeps Hidden and, because focus is on the
+  App, keeps the cursor hidden; only a real in-area movement reveals it.
+- Exiting fullscreen does not by itself change the state.
+- State switching needs no animation.
 - Hiding the chrome does not pause playback, change selection, or close menus
   except where a menu cannot remain visible without its anchor.
-- Horizontal geometry changes must remain immediate and independent from player
-  UI visibility.
+- Horizontal geometry changes must remain immediate and independent from
+  Player UI visibility.
 
 ### 10.5 Playback Close UX
 
@@ -682,10 +684,11 @@ Rules:
   padding, full capsule radius, 13 px bold label text, no icon slot, and no
   reserved icon gap.
 - Player UI and cursor visibility in fullscreen follow the §10.4 Player-UI /
-  cursor visibility state machine (v1). Entering fullscreen force-hides player
-  UI and cursor once; only real pointer movement in the player area reveals
-  them; keyboard and clicks do not; after 3 seconds without movement they hide
-  again. There is no frozen display-check area.
+  cursor visibility state machine (v2). Entering fullscreen forces Hidden
+  (Player UI and cursor); only a real physical in-area mouse movement reveals
+  them; keyboard and clicks do not, and exiting fullscreen does not by itself
+  change the state; after 3 seconds without movement they hide again. There is
+  no frozen display-check area.
 - Clicking the video surface toggles play/pause unless the click targets a
   chrome control.
 - The fullscreen exit control exits playback fullscreen through the existing
