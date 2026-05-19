@@ -1110,19 +1110,6 @@ private enum SearchTypography {
     static let detailSize: CGFloat = 12
 }
 
-private enum SearchLayout {
-    static let resultOuterHorizontalPadding: CGFloat = 12
-    static let groupDisclosureWidth: CGFloat = 16
-    static let groupRailChevronSize: CGFloat = 10
-    static let groupRailChevronTopPadding: CGFloat = 9
-    static let groupRailLineTopSpacing: CGFloat = 8
-    static let groupRailLineWidth: CGFloat = 1.5
-    static let resultContentLeadingOffset: CGFloat = 5
-    static let resultSelectionLeadingPadding: CGFloat = resultOuterHorizontalPadding + groupDisclosureWidth + resultContentLeadingOffset
-    static let resultTextHorizontalPadding: CGFloat = 10
-    static let resultTextLeadingPadding: CGFloat = resultTextHorizontalPadding
-}
-
 private func displayTitleWithSoftWrapOpportunities(_ displayTitle: String) -> String {
     let zeroWidthSpace = "\u{200B}"
     let softBreakCharacters: Set<Character> = ["]", ".", "_", "-"]
