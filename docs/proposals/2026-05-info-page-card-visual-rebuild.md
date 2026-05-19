@@ -84,8 +84,12 @@ v6 cannot express the accepted card design.
 
 ## Non-Negotiables (every step)
 
-- `swift test` stays green; each step is its own commit reporting before/after
-  short hashes; work lands on `native-macos-rewrite`.
+- `swift test` stays green (94/94, Core/Playback logic) **and `swift build`
+  succeeds** for every App-touching step. `swift test` does not compile
+  `CueSeekerApp` (no test target depends on it), so the App build is the gate
+  that catches UI compile breaks (gate strengthened 2026-05-19). Each step is
+  its own commit reporting before/after short hashes; work lands on
+  `native-macos-rewrite`.
 - Presentation-only: swap card visuals without touching the data pipelines;
   product semantics stay in `AppState`/product-domain, not views (arch
   §2.2/§7).
@@ -122,12 +126,24 @@ v6 cannot express the accepted card design.
   render change; architecture §7 invalidation domains preserved;
   `swift test` green. Surface adoption of the shared card is P5.2–P5.4.
   Risk: low–medium.
-- **P5.2 — Search result cards / groups.** Rebuild `SearchResultCard` and the
-  Search group header to the accepted prototype using the shared component;
-  preserve lazy loading, first-screen, exact counts, group ordering/collapse,
-  and `EqualHeightCardGridLayout` equal-height behavior; reuse query
-  highlighting; no retained playback selection visuals. Risk: medium-high
-  (highest — easiest to regress Search first-screen/laziness/invalidation).
+- **P5.2 — Search result cards / groups (scope confirmed 2026-05-19, owner
+  option A).** Swap the `SearchResultCard` surface to the shared
+  `LiquidGlassSelectableCard` (colorScheme/token driven) and rebuild the
+  Search group header to v6 (chevron 0°/90° over 160ms, muted count, one
+  click target); **excise the retained accent selected visual** (audit
+  finding F) so main pages keep no playback selection visual. Card content,
+  query `<mark>` highlight, `EqualHeightCardGridLayout` equal-height, lazy
+  loading, first-screen, exact counts, and group ordering/collapse are
+  unchanged — not a pixel-level redesign beyond v6. Then, as separate commits
+  within P5.2: retire the dead Search legacy row path (`resultsList`,
+  `SearchResultGroupView` / `SearchResultGroupHeader` /
+  `SearchResultGroupRail` / `SearchResultRow`); and remove the now-defunct
+  thumbnail plumbing (`searchResultThumbnailsEnabled` AppState property +
+  UserDefaults key + SettingsView toggle — permitted cleanup, not a Settings
+  redesign; doc 12 §6.2 already reversed). Sub-commits: P5.2-1 card surface +
+  selected-visual excision, P5.2-2 group header, P5.2-3 dead-row retirement,
+  P5.2-4 thumbnail plumbing removal. Risk: medium-high (highest — easiest to
+  regress Search first-screen/laziness/invalidation).
 - **P5.3 — Library cards / groups / episode grid.** Rebuild folder group rows
   and the adaptive episode grid to the prototype; preserve grouping, natural
   sort, resume history, and the Library-launched playing indicator. Risk:
