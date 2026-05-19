@@ -621,9 +621,9 @@
     .line {
       color: var(--text);
       font-size: 13.5px;
-      font-weight: 450;
+      font-weight: 600;
       line-height: 1.4;
-      opacity: 0.86;
+      opacity: 0.88;
       text-wrap: pretty;
     }
     .selected .line {
