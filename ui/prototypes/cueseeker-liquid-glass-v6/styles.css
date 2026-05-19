@@ -2094,8 +2094,16 @@
 
     /* ============================ DARK VIDEO GLASS TUNING ============================ */
     body[data-theme="dark"] .sidebar {
-      backdrop-filter: blur(36px) saturate(220%);
-      -webkit-backdrop-filter: blur(36px) saturate(220%);
+      /* Opaque dark panel: dark-mode counterpart of the light #f6f6f7 panel.
+         Equals v5's effective dark sidebar colour made fully opaque, so it
+         stays isolated from the black video behind it (mirrors the light
+         .sidebar rule). The old backdrop-filter only mattered for v5's
+         translucent panel and did nothing on this opaque surface. */
+      background: #24222b;
+      border-color: rgba(255, 255, 255, 0.10);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.10),
+        0 24px 60px -18px rgba(0,0,0,0.70);
     }
 
     /* Prototype-only Disable All only toggles real disabled states for review. */
