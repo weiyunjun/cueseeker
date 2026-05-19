@@ -327,7 +327,6 @@ struct SearchView: View {
                         SearchResultCardGroupView(
                             group: group,
                             query: appState.searchQuery,
-                            selectedResult: appState.selectedSearchResult,
                             onToggle: {
                                 appState.clearSearchFocus()
                                 appState.toggleSearchResultGroup(group.subtitlePath)
@@ -786,7 +785,6 @@ private struct EqualHeightCardGridLayout: Layout {
 private struct SearchResultCardGroupView: View {
     let group: SearchResultFileGroup
     let query: String
-    let selectedResult: SubtitleSearchResult?
     let onToggle: () -> Void
     let onOpenResult: (SubtitleSearchResult) -> Void
     let onResultAppear: (SubtitleSearchResult) -> Void
@@ -797,7 +795,6 @@ private struct SearchResultCardGroupView: View {
                 title: group.subtitleDisplayTitle,
                 countText: resultCountText,
                 isCollapsed: group.isCollapsed,
-                isSelected: selectedResult?.subtitlePath == group.subtitlePath,
                 onToggle: onToggle
             )
 
@@ -842,7 +839,6 @@ private struct ShioriCardGroupView: View {
                 title: group.subtitleDisplayTitle,
                 countText: "\(group.totalCount) \(group.totalCount == 1 ? "shiori" : "shioris")",
                 isCollapsed: group.isCollapsed,
-                isSelected: selectedShiori?.subtitlePath == group.subtitlePath,
                 onToggle: onToggle
             )
 
@@ -874,7 +870,6 @@ private struct CardGroupHeader: View {
     let title: String
     let countText: String
     let isCollapsed: Bool
-    let isSelected: Bool
     let onToggle: () -> Void
 
     var body: some View {
@@ -889,7 +884,7 @@ private struct CardGroupHeader: View {
                 Text(displayTitleWithSoftWrapOpportunities(title))
                     .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
                     .textCase(.uppercase)
-                    .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.68))
+                    .foregroundStyle(Color.primary.opacity(0.68))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
