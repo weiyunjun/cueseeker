@@ -250,6 +250,18 @@ verbatim from `SearchView.swift`):
 The App-condition → state mapping is owned by the mapping docs (doc 12 §6.1 and
 surface sections) and is updated in C3, after the owner reviews the demo.
 
+Owner scope ruling (2026-05-19, after reviewing the demo): C2 is accepted as
+the **provisional** plan. The demo is authoritative only for **which state
+appears under which App condition and whether it animates** — not for the
+final pixel-level visual of the state views. Known difference (deferred): the
+demo's state-view treatment leans native and diverges from the accepted Liquid
+Glass card visual language; pixel-level visual reconciliation of these state
+views is **out of the current Phase 5 scope** (current scope is layout
+restructuring and operation optimization) and is deferred to a later visual
+pass. C3 records this divergence and deferral in the mapping docs per the
+git-workflow "known differences" rule; no App visual optimization of the state
+views is done now.
+
 ## Acceptance
 
 - Main Search / Library / Shiori cards and their hover/pressed/selected/
