@@ -270,6 +270,13 @@ Rules:
   active playback context belongs to that Search result.
 - If the same video is already open, selecting another result in that video
   should seek instead of reopening when practical.
+- Search card, group header, and results-header pixel visuals, the topbar
+  (search-field capsule, tool buttons, and toolbar background; NSWindow
+  traffic lights stay native and are not aligned), and the info-page
+  background (light `#f4f4f6` / dark `#1f2027`) align to the v6 prototype per
+  the proposal "P5.2-B Confirmed Pixel Spec" (single source, P5.2 option B).
+  The subtitle line font weight/opacity is App-authoritative — the v6
+  prototype was updated to match the App, not the reverse (doc 11 §8).
 
 ## 7. Library UX
 
