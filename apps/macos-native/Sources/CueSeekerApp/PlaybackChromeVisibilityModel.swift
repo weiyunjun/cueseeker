@@ -1,148 +1,124 @@
 import AppKit
 import SwiftUI
 
-/// Single explicit Player-UI / cursor visibility state machine (v4).
+/// Single explicit Player-UI / cursor visibility state machine (v3).
 ///
 /// Authoritative spec: `docs/product/12_liquid_glass_ux_mapping.md` §10.4 and
-/// the proposal's "Player-UI / Cursor Visibility State Machine (v4)". This is
+/// the proposal's "Player-UI / Cursor Visibility State Machine (v3)". This is
 /// the only owner of Player-UI visibility and the playback cursor.
 ///
-/// v4 separates Player UI state from cursor state. The current player decides
-/// cursor visibility only while the cursor is governed by that player: the
-/// player area exists, the live cursor position is inside it, and player focus
-/// still belongs to the playback page.
+/// v3: "focus" means the video (playback) window is the key window. The cursor
+/// is governed solely by Definition 4 — hidden iff the state is Hidden AND the
+/// video window is key AND the live cursor position is inside the player area;
+/// otherwise shown. Player-area enter/leave and in-area movement are delivered
+/// by a single authoritative `NSTrackingArea` overlay
+/// (`PlaybackChromeTrackingView`) through `pointerMovedInPlayerArea()` /
+/// `pointerExitedPlayerArea()`.
 @MainActor
 final class PlaybackChromeVisibilityModel: ObservableObject {
     @Published private(set) var isPlayerUIVisible = true
 
-    private enum VisibilityState {
-        case visible
+    private enum State {
+        case shown
         case hidden
     }
 
     private static let idleNanoseconds: UInt64 = 3_000_000_000
 
-    private var playerUIState: VisibilityState = .visible
-    private var cursorState: VisibilityState = .visible
+    private var state: State = .shown
     private var idleTask: Task<Void, Never>?
-    private var cursorHiddenByPlayer = false
+    private var cursorHidden = false
     private var focusObservers: [NSObjectProtocol] = []
-    private weak var playerAreaView: NSView?
-    private weak var playerWindow: NSWindow?
 
     // MARK: - Lifecycle
 
     func enterVideoPage() {
         startObservingFocus()
-        setPlayerUIState(.visible)
-        cursorState = .visible
-        applyCursorOwnership()
-        restartIdleTimer()
+        showShown()
     }
 
     func leaveVideoPage() {
         idleTask?.cancel()
         idleTask = nil
         stopObservingFocus()
-        releaseCursorOwnership()
-        playerAreaView = nil
-        playerWindow = nil
+        showCursor()
     }
 
-    /// Rule 9: entering playback fullscreen forces Player UI and cursor hidden.
+    /// Entering playback fullscreen forces the not-shown state. It stays
+    /// not-shown until a real in-area mouse movement (rule 8).
     func enteringFullscreen() {
         idleTask?.cancel()
         idleTask = nil
-        setPlayerUIState(.hidden)
-        cursorState = .hidden
-        applyCursorOwnership()
+        state = .hidden
+        isPlayerUIVisible = false
+        syncCursor()
     }
 
     // MARK: - Pointer (driven by the NSTrackingArea overlay)
 
-    func updatePlayerAreaView(_ view: NSView) {
-        playerAreaView = view
-        guard let window = view.window else {
+    /// The pointer entered or moved within the player area. Rule 8 / rule 5:
+    /// switching to / staying Shown requires the player area (video window) to
+    /// have focus.
+    func pointerMovedInPlayerArea() {
+        guard isPlayerWindowKey else {
+            syncCursor()
             return
         }
-        playerWindow = window
-        handleFocusOrGovernanceChanged()
-    }
-
-    /// The pointer entered the player area. This updates governance only; it is
-    /// not treated as real movement because layout/fullscreen changes can emit
-    /// enter events without physical pointer motion.
-    func pointerEnteredPlayerArea(view: NSView) {
-        updatePlayerAreaView(view)
-    }
-
-    /// Rules 7, 11, and 13: only governed real mouse movement reveals Player UI
-    /// and/or the cursor.
-    func pointerMovedInPlayerArea(view: NSView) {
-        updatePlayerAreaView(view)
-        guard isCursorGovernedByCurrentPlayer else {
-            applyCursorOwnership()
-            return
-        }
-
-        cursorState = .visible
-        if playerUIState == .hidden {
-            setPlayerUIState(.visible)
-        }
-        applyCursorOwnership()
+        state = .shown
+        isPlayerUIVisible = true
+        syncCursor()
         restartIdleTimer()
     }
 
-    /// Rules 10.1 and 14: leaving the player area hides Player UI when visible
-    /// and stops the current player from deciding cursor visibility.
-    func pointerExitedPlayerArea(view: NSView) {
-        updatePlayerAreaView(view)
-        if playerUIState == .visible {
-            transitionPlayerUIToHidden()
+    /// Rule 7.1: the pointer left the player area (the video window).
+    func pointerExitedPlayerArea() {
+        if state == .shown {
+            transitionToHidden()
+        } else {
+            syncCursor()
         }
-        applyCursorOwnership()
     }
 
-    // MARK: - Focus and cursor governance
+    // MARK: - Focus (the video window is key)
 
-    private var playerHasFocus: Bool {
-        guard NSApp.isActive else {
-            return false
-        }
-        guard let window = playerWindow ?? playerAreaView?.window else {
-            return false
-        }
-        return window.isKeyWindow
-    }
-
-    private var isCursorGovernedByCurrentPlayer: Bool {
-        playerHasFocus && isCursorInPlayerArea()
+    private var isPlayerWindowKey: Bool {
+        NSApp?.mainWindow?.isKeyWindow == true
     }
 
     private func focusChanged() {
-        handleFocusOrGovernanceChanged()
-    }
-
-    private func handleFocusOrGovernanceChanged() {
-        if !playerHasFocus, playerUIState == .visible {
-            // Rule 10.3: losing player focus hides Player UI. Cursor state is
-            // intentionally left to the cursor rules.
-            transitionPlayerUIToHidden()
+        if isPlayerWindowKey {
+            // Regaining focus must not show Player UI (rule 8 needs a move);
+            // just re-assert the cursor for the current state.
+            syncCursor()
+        } else if state == .shown {
+            // Rule 7.3: the player area lost focus.
+            transitionToHidden()
+        } else {
+            syncCursor()
         }
-        applyCursorOwnership()
     }
 
     // MARK: - State helpers
 
-    private func transitionPlayerUIToHidden() {
+    private func showShown() {
+        idleTask?.cancel()
+        state = .shown
+        isPlayerUIVisible = true
+        syncCursor()
+        restartIdleTimer()
+    }
+
+    private func transitionToHidden() {
         idleTask?.cancel()
         idleTask = nil
-        setPlayerUIState(.hidden)
+        state = .hidden
+        isPlayerUIVisible = false
+        syncCursor()
     }
 
     private func restartIdleTimer() {
         idleTask?.cancel()
-        guard playerUIState == .visible else {
+        guard state == .shown else {
             idleTask = nil
             return
         }
@@ -156,53 +132,46 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     private func idleElapsed() {
-        // Rules 10.2 and 12.2: governed 3s inactivity hides both states.
-        guard playerUIState == .visible, isCursorGovernedByCurrentPlayer else {
+        // Rule 7.2: the mouse is in the player area and did not move for 3s.
+        guard state == .shown, isPlayerWindowKey, isCursorInPlayerArea() else {
             return
         }
-        transitionPlayerUIToHidden()
-        cursorState = .hidden
-        applyCursorOwnership()
+        transitionToHidden()
     }
 
-    private func setPlayerUIState(_ state: VisibilityState) {
-        playerUIState = state
-        isPlayerUIVisible = state == .visible
-    }
-
-    // MARK: - Cursor ownership
+    // MARK: - Cursor (Definition 4, single balanced owner)
 
     private func isCursorInPlayerArea() -> Bool {
-        guard let view = playerAreaView,
-              let window = playerWindow ?? view.window else {
+        guard let window = NSApp?.mainWindow else {
             return false
         }
-        let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
-        let viewPoint = view.convert(windowPoint, from: nil)
-        return view.bounds.contains(viewPoint)
+        return window.frame.contains(NSEvent.mouseLocation)
     }
 
-    private func applyCursorOwnership() {
-        if cursorState == .hidden, isCursorGovernedByCurrentPlayer {
+    /// Definition 4: the cursor is hidden iff the state is Hidden AND the video
+    /// window is key AND the live cursor position is inside the player area;
+    /// otherwise it is shown.
+    private func syncCursor() {
+        if state == .hidden, isPlayerWindowKey, isCursorInPlayerArea() {
             hideCursor()
         } else {
-            releaseCursorOwnership()
+            showCursor()
         }
     }
 
-    private func releaseCursorOwnership() {
-        guard cursorHiddenByPlayer else {
+    private func showCursor() {
+        guard cursorHidden else {
             return
         }
-        cursorHiddenByPlayer = false
+        cursorHidden = false
         NSCursor.unhide()
     }
 
     private func hideCursor() {
-        guard !cursorHiddenByPlayer else {
+        guard !cursorHidden else {
             return
         }
-        cursorHiddenByPlayer = true
+        cursorHidden = true
         NSCursor.hide()
     }
 
@@ -213,9 +182,11 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             return
         }
         let center = NotificationCenter.default
-        // Settings and other non-player windows become key windows without the
-        // App resigning active, so player focus must listen to both window and
-        // application focus changes.
+        // The video window losing/gaining key drives focus. App
+        // activate/deactivate also resigns/restores the main window's key
+        // state, so window-key notifications cover cmd-tab too. Per rule 12,
+        // the video page's own popovers/menus are in-window SwiftUI overlays
+        // (no separate key window), so they do not flip the key window.
         for name in [
             NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification,
