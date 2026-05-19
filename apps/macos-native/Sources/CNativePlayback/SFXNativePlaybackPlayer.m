@@ -340,7 +340,6 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @interface SFXNativePlaybackView : NSView
 @property (nonatomic, strong, readonly) AVSampleBufferDisplayLayer *displayLayer;
-- (void)synchronizeDisplayLayerFrameForFullscreenTransition;
 @end
 
 @implementation SFXNativePlaybackView {
@@ -372,12 +371,6 @@ static int SFXOutputChannelCount(int inputChannels) {
     [super layout];
 
     [self updateDisplayLayerFrameWithLogName:@"SFXNativePlaybackView.layout"];
-}
-
-- (void)synchronizeDisplayLayerFrameForFullscreenTransition {
-    self.needsLayout = YES;
-    [self layoutSubtreeIfNeeded];
-    [self updateDisplayLayerFrameWithLogName:@"SFXNativePlaybackView.fullscreenTransitionLayout"];
 }
 
 - (void)updateDisplayLayerFrameWithLogName:(NSString *)logName {
@@ -2323,10 +2316,6 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     [_session setPaused:paused];
     return YES;
-}
-
-- (void)synchronizeRenderLayout {
-    [_nativeView synchronizeDisplayLayerFrameForFullscreenTransition];
 }
 
 - (void)stop {
