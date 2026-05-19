@@ -132,6 +132,13 @@ private struct PlaybackVideoStage: View {
                         )
                     )
                 }
+
+                PlaybackChromeTrackingView(
+                    onMoved: { chrome.pointerMovedInPlayerArea() },
+                    onExited: { chrome.pointerExitedPlayerArea() }
+                )
+                .frame(width: stageSize.width, height: stageSize.height)
+                .allowsHitTesting(false)
             }
             .frame(width: stageSize.width, height: stageSize.height)
             .clipped()
@@ -177,6 +184,63 @@ private struct PlaybackVideoStage: View {
         )
     }
 
+}
+
+/// Hit-test-transparent full-bleed overlay whose single `NSTrackingArea` is
+/// the authoritative source of player-area enter/leave and in-area movement —
+/// reliable regardless of embedded AppKit subviews, focus, or the
+/// menu-bar/Dock/desktop/other display the pointer moves onto.
+struct PlaybackChromeTrackingView: NSViewRepresentable {
+    let onMoved: () -> Void
+    let onExited: () -> Void
+
+    func makeNSView(context: Context) -> PlaybackChromeTrackingNSView {
+        let view = PlaybackChromeTrackingNSView()
+        view.onMoved = onMoved
+        view.onExited = onExited
+        return view
+    }
+
+    func updateNSView(_ nsView: PlaybackChromeTrackingNSView, context: Context) {
+        nsView.onMoved = onMoved
+        nsView.onExited = onExited
+    }
+}
+
+final class PlaybackChromeTrackingNSView: NSView {
+    var onMoved: () -> Void = {}
+    var onExited: () -> Void = {}
+
+    // Never intercept clicks/drag: events pass through to the controls and
+    // video below. Tracking-area enter/exit/moved are still delivered.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+        )
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        onMoved()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        onMoved()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        onExited()
+    }
 }
 
 // Custom video-page top bar: left traffic-light cluster + centered video

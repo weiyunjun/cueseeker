@@ -10,9 +10,10 @@ import SwiftUI
 /// v3: "focus" means the video (playback) window is the key window. The cursor
 /// is governed solely by Definition 4 — hidden iff the state is Hidden AND the
 /// video window is key AND the live cursor position is inside the player area;
-/// otherwise shown. The movement signal is real physical `NSEvent` mouse
-/// movement; a global mouse-move means the pointer is outside the video window
-/// and is itself the "moved to another area" signal.
+/// otherwise shown. Player-area enter/leave and in-area movement are delivered
+/// by a single authoritative `NSTrackingArea` overlay
+/// (`PlaybackChromeTrackingView`) through `pointerMovedInPlayerArea()` /
+/// `pointerExitedPlayerArea()`.
 @MainActor
 final class PlaybackChromeVisibilityModel: ObservableObject {
     @Published private(set) var isPlayerUIVisible = true
@@ -23,32 +24,22 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     private static let idleNanoseconds: UInt64 = 3_000_000_000
-    private static let moveEventMask: NSEvent.EventTypeMask = [
-        .mouseMoved,
-        .leftMouseDragged,
-        .rightMouseDragged,
-        .otherMouseDragged
-    ]
 
     private var state: State = .shown
     private var idleTask: Task<Void, Never>?
     private var cursorHidden = false
     private var focusObservers: [NSObjectProtocol] = []
-    private var localMoveMonitor: Any?
-    private var globalMoveMonitor: Any?
 
     // MARK: - Lifecycle
 
     func enterVideoPage() {
         startObservingFocus()
-        startObservingMouseMovement()
         showShown()
     }
 
     func leaveVideoPage() {
         idleTask?.cancel()
         idleTask = nil
-        stopObservingMouseMovement()
         stopObservingFocus()
         showCursor()
     }
@@ -63,12 +54,12 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         syncCursor()
     }
 
-    // MARK: - Movement (physical pointer only)
+    // MARK: - Pointer (driven by the NSTrackingArea overlay)
 
-    /// A real physical move while the pointer is over the video window.
-    private func handleLocalMove() {
-        // Rule 8 / rule 5: switching to / staying Shown requires the player
-        // area (video window) to have focus.
+    /// The pointer entered or moved within the player area. Rule 8 / rule 5:
+    /// switching to / staying Shown requires the player area (video window) to
+    /// have focus.
+    func pointerMovedInPlayerArea() {
         guard isPlayerWindowKey else {
             syncCursor()
             return
@@ -79,9 +70,8 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         restartIdleTimer()
     }
 
-    /// A physical move whose event is delivered outside our window — the
-    /// pointer has moved to another area (rule 7.1).
-    private func handleGlobalMove() {
+    /// Rule 7.1: the pointer left the player area (the video window).
+    func pointerExitedPlayerArea() {
         if state == .shown {
             transitionToHidden()
         } else {
@@ -185,7 +175,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         NSCursor.hide()
     }
 
-    // MARK: - Observers
+    // MARK: - Focus observers
 
     private func startObservingFocus() {
         guard focusObservers.isEmpty else {
@@ -218,47 +208,5 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     private func stopObservingFocus() {
         focusObservers.forEach { NotificationCenter.default.removeObserver($0) }
         focusObservers.removeAll()
-    }
-
-    private func startObservingMouseMovement() {
-        if localMoveMonitor == nil {
-            localMoveMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: Self.moveEventMask
-            ) { [weak self] event in
-                // Local in-window move: delta-filter so layout/fullscreen
-                // synthetic events do not count as movement.
-                if Self.isPhysicalMove(event) {
-                    MainActor.assumeIsolated { self?.handleLocalMove() }
-                }
-                return event
-            }
-        }
-        if globalMoveMonitor == nil {
-            globalMoveMonitor = NSEvent.addGlobalMonitorForEvents(
-                matching: Self.moveEventMask
-            ) { [weak self] _ in
-                // A global mouse-move means the pointer is outside our window;
-                // that itself is the "moved to another area" signal, so no
-                // delta filter here (global events carry no usable delta).
-                MainActor.assumeIsolated { self?.handleGlobalMove() }
-            }
-        }
-    }
-
-    private func stopObservingMouseMovement() {
-        if let localMoveMonitor {
-            NSEvent.removeMonitor(localMoveMonitor)
-            self.localMoveMonitor = nil
-        }
-        if let globalMoveMonitor {
-            NSEvent.removeMonitor(globalMoveMonitor)
-            self.globalMoveMonitor = nil
-        }
-    }
-
-    private static func isPhysicalMove(_ event: NSEvent) -> Bool {
-        // Synthetic events from layout / fullscreen / focus changes carry no
-        // movement delta; only real pointer movement does.
-        event.deltaX != 0 || event.deltaY != 0
     }
 }
