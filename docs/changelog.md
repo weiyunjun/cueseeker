@@ -33,6 +33,27 @@ This changelog does not replace Git history. Git records concrete file changes. 
   decision and is not part of this milestone. The only remaining net-new UI
   stage is the Phase 5 info-page card-visual rebuild, planned as its own new
   independent proposal.
+- Phase 5 info-page card-visual rebuild — implementation complete, owner
+  acceptance pending. Search, Library, and Shiori main cards, group headers,
+  the results header, the topbar, and the info-page background were rebuilt
+  onto the shared v6 Liquid Glass token skin and the single
+  `LiquidGlassSelectableCard`; all retained playback-selection visuals were
+  removed from main cards (finding F). The Library episode grid became a
+  content-driven `EPnn` wrapping flow whose only retained state is the doc 12
+  §7.2 Library-launched playing indicator (a mandated playing state, not a
+  selection visual). The dead Shiori legacy row cluster and the orphaned
+  `SearchLayout` were retired (~196 dead lines removed from `SearchView`).
+  Done doc-first throughout: v6 prototype → doc 11/12 mapping → confirmed
+  pixel spec → owner-confirmed P5.3/P5.4 decisions (Search/Library content
+  padding unified, episode width content-driven, no Library group hairline,
+  `EP01` label). Verified by `swift test` (94/94) and `swift build` green at
+  every sub-step plus a code-level cross-surface audit (no retained selection
+  visuals, empty/loading/failed/no-results routing intact, colorScheme-driven
+  dark mode with no hardcoded light values, architecture §7 invalidation and
+  lazy-group boundaries preserved, seek / native-render path untouched). The
+  project-owner real-machine end-to-end regression and the prototype visual
+  acceptance for P5.3 / P5.4 are still pending and are the remaining gate
+  before Phase 5 is accepted and closed.
 - Implemented the v4 Player-UI / cursor visibility model in the macOS playback
   page so fullscreen entry forces hidden states, fullscreen exit does not
   reveal chrome by itself, and non-player focus such as Settings no longer
