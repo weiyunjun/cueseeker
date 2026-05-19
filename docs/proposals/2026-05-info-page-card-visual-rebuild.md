@@ -1,11 +1,12 @@
 # Info-Page Card Visual Rebuild (Rewrite-Plan Phase 5)
 
-Status: Draft
+Status: Accepted
 
-Accepted-pending: the step structure (P5.0–P5.5), the audit-first / reuse-v6
-prototype strategy, and this document's location were approved by the project
-owner on 2026-05-19. This document formalizes them and, once accepted, is the
-authoritative App step plan for Phase 5.
+Accepted (2026-05-19): the step structure (P5.0–P5.5), the audit-first /
+reuse-v6 prototype strategy, and this document's location were approved by the
+project owner on 2026-05-19, and P5.0 was authorized to begin. This document is
+the authoritative App step plan for Phase 5. The confirmed P5.0 audit is
+recorded in "P5.0 Confirmed Audit (2026-05-19)" below.
 
 ## Relationship To Existing Plans
 
@@ -139,6 +140,74 @@ commits. P5.5 last. Legacy row-path retirement happens within whichever
 surface step supersedes it, or as an explicit P5.5 cleanup, never mixed with
 unrelated visual changes.
 
+## P5.0 Confirmed Audit (2026-05-19)
+
+Confirmed by read-only inspection of the v6 prototype, doc 11/12, and
+`SearchView.swift` on `native-macos-rewrite` (HEAD 9b79ad2).
+
+- **A. Card path live, legacy row path dead.** The info page renders the card
+  path only: `cardResultsList`→`SearchResultCardGroupView`,
+  `shioriCardList`→`ShioriCardGroupView`,
+  `libraryList`→`LibraryFolderGroupView`. The legacy row path (`resultsList`,
+  `shioriList`, and structs `SearchResultGroupView`/`SearchResultGroupHeader`/
+  `SearchResultGroupRail`/`SearchResultRow`, `ShioriGroupView`/
+  `ShioriGroupHeader`/`ShioriRowView`) has no call site in the primary
+  checkout. Retirement = delete those unreferenced structs within the
+  superseding surface step (P5.2/P5.4) or as explicit P5.5 cleanup, never mixed
+  with unrelated visual changes.
+- **B. Thumbnails not retained (owner decision 2026-05-19).** The dead row path
+  was the only thumbnail consumer (`SearchView.swift:397`), but
+  `searchResultThumbnailsEnabled` is an `AppState` persisted setting
+  (`AppState.swift`) exposed as a user toggle (`SettingsView.swift:320`).
+  Removal spans AppState + SettingsView + the dead SearchView path. doc 12 §6.2
+  ("thumbnails remain controlled by the existing experimental setting") is
+  reversed and must be updated doc-first. The App removal is a gated App step
+  (with the row-path retirement), not P5.0; it is permitted cleanup, not a
+  Settings redesign, and is called out so it is not treated as scope creep.
+- **C. v6 lacks non-steady-state mockups.** v6 `index.html` has no empty /
+  loading / failed / no-results mockups for Search / Library / Shiori; the App
+  uses a generic `EmptyStateView`. doc 12 §6.1 and this proposal's acceptance
+  require these states to match the prototype. Genuine embryonic gap: add the
+  state mockups to v6 first, regenerate `standalone.html`, then update doc 12
+  §6.1 / doc 11, then App (owner-approved order: prototype → docs → Swift).
+- **D. Two `.result-card` blocks = base + token-override of the same card,
+  not surface-vs-surface.** The video-page overlay/middle panel does not use
+  `.result-card`; it uses `.sidebar-row` / `ui-selectable-row`. styles.css
+  L563 is the structural + hardcoded-light base; L1758 is a later token layer
+  (`var(--card-bg/--card-shadow/--card-hover-*/--card-selected-bg)`) that wins
+  and is the authoritative theme-driven skin. Native must be
+  colorScheme/token-driven and must not replicate L563's literal
+  `rgba(255,255,255,*)` values (P5.1 hazard).
+- **E. doc 11 §8 token-mapping gap.** §8 maps `--glass-*`/`--text*`/`--accent*`/
+  `--highlight*`/`--search-page-*` but has no `--card-*` / `--row-*` /
+  `--card-selected-*` row, so the authoritative card skin (finding D) is
+  unmapped. Add a semantic selectable-card surface token-mapping row doc-first.
+- **F. Current App violates the no-retained-selection invariant.**
+  `selectedResult`/`selectedShiori` are NOT dead params: `SearchResultCard`
+  fills `Color.accentColor` with white text when `isSelected`
+  (`SearchView.swift:1017-1025`, `955-958`), `ShioriCard` likewise, and
+  `CardGroupHeader` emphasizes the title for the selected group
+  (`SearchView.swift:931`). This is a retained playback-selection visual on
+  main pages, violating doc 12 §6.4 / doc 11 §5·§7 and the Non-Negotiables, and
+  confirms the owner's point that the Search page must have no selected effect.
+  The `isSelected`/`selected*` plumbing into the main cards and
+  `CardGroupHeader` must be excised in P5.2 (Search) / P5.4 (Shiori).
+- **G. Architecture §7 reconcile.** §7 / §7.1 invalidation-domain,
+  flattened-lazy-row, and no-dense-`NSButton` rules already cover Phase 5; the
+  card path already uses `LazyVStack` + `EqualHeightCardGridLayout`. No §7 /
+  §7.1 edit is required; the row-path retirement and selected-visual excision
+  must preserve these rules.
+- **H. doc 12 §16 open question (EP01).** Library episode label format (`EP01`
+  vs numeric rank) is still an open review question; v6 and doc 12 §7.2 use
+  `EP01`. Recommended resolution: accept `EP01` to match v6. Owner to confirm
+  at P5.3; recorded here, not unilaterally resolved.
+
+Doc-first follow-ups before any App code: regenerate v6 state mockups +
+`standalone.html` (finding C); update doc 12 §6.1 and §6.2 (findings B, C); add
+the doc 11 §8 card-token row and a doc 11 §5/§7 note that the current App must
+drop the retained selected visual (findings E, F). Then request explicit
+App-implementation approval (the P5.0 gate) before P5.1.
+
 ## Acceptance
 
 - Main Search / Library / Shiori cards and their hover/pressed/selected/
@@ -159,6 +228,8 @@ relevant mapping/ADR documents) before changing App code.
 
 ## Decision
 
-Proposed. Pending project-owner acceptance of this formalized document; the
-underlying step structure and prototype strategy were already approved
-2026-05-19. On acceptance, implementation proceeds from P5.0.
+Accepted (2026-05-19). The step structure and prototype strategy were approved
+2026-05-19 and P5.0 was authorized to begin; the confirmed P5.0 audit is
+recorded above. Implementation proceeds with the P5.0 doc-first follow-ups
+(v6 state mockups + `standalone.html`, doc 12 §6.1/§6.2, doc 11 §8/§5/§7),
+then the P5.0 App-implementation-approval gate, then P5.1.
