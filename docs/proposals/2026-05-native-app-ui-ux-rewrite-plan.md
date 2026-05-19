@@ -238,9 +238,34 @@ Settings exclusion remain in force. The following are changed by the successor:
   panel that does not squeeze the video.
 - A new video-page top bar (traffic-light buttons + centered title) is added.
 - The Phase 3 chrome auto-hide rule is replaced by the Player-UI / cursor
-  visibility state machine (v1) in the successor.
+  visibility state machine (v4) in the successor.
 
 Refer to the successor for the current playback-page visual design.
+
+## Implementation Status And Remaining Roadmap
+
+Status as of 2026-05-19:
+
+- Phases 1–4 are absorbed and implemented by the successor proposal
+  (`2026-05-ui-info-page-video-page-refactor.md`, ADR-0013) via steps S1–S5.
+  Phase 4 (right playback sidebar) is realized as the **centered overlay
+  middle panel** and is initially complete (S4.1–S4.5). The Phase 1 delete
+  gate's residual memory cleanup is deferred (see below).
+- Phase 6 (full UX regression) is the successor's **S7**, the closeout of the
+  video-page stage (end-to-end functional regression + `docs/changelog.md`).
+- **Phase 5 (rebuild main Search / Library / Shiori card surfaces) is the only
+  remaining net-new UI stage.** It will be started as its **own new
+  independent proposal** with a full doc-first / prototype-first cycle (HTML
+  prototype → component mapping → UX mapping → proposal/ADR as needed → App
+  steps), mirroring how the video-page stage was run. Its detailed steps are
+  intentionally not pre-written here while its design is still embryonic.
+- Parked until after the full UI rebuild (not part of the remaining UI
+  stages): per-step and end memory/CPU diagnosis (project-owner deferral), the
+  window aspect-ratio-lock ADR (deferred by the owner), and the paused
+  shared-core migration.
+
+Remaining UI work, in order: (1) successor S7 closeout; (2) the new Phase 5
+info-page card-visual rebuild proposal and its implementation.
 
 ## Decision
 

@@ -441,6 +441,22 @@ The App Implementation Steps (S1–S7) section is the authoritative step plan fo
 App code. If a decision, step, sequence, or acceptance criterion changes, update
 these documents before changing App code.
 
+## Status And Remaining Roadmap
+
+This proposal is the **video-page (Phase 1 structural) stage** of the UI
+rewrite. S1–S5 are complete (2026-05-19); the stage closes at **S7**
+(end-to-end functional regression + `docs/changelog.md`; the end-memory
+diagnosis is deferred by project-owner decision and is not part of S7 now).
+
+The info-page card-visual rebuild (rewrite-plan Phase 5: Search / Library /
+Shiori card surfaces) is **not in this proposal's scope**. It is the only
+remaining net-new UI stage and will be started as its own **new independent
+proposal** with its own doc-first / prototype-first cycle when that stage
+begins. Per-step / end memory diagnosis and the window aspect-ratio-lock ADR
+are parked until after the full UI rebuild and are not part of the remaining
+UI stages. See `docs/proposals/2026-05-native-app-ui-ux-rewrite-plan.md`
+"Implementation Status And Remaining Roadmap".
+
 ## Decision
 
 Accepted. The app is refactored into an info page and a dedicated video page;
