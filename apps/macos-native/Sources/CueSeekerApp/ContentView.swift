@@ -217,12 +217,14 @@ private struct TopbarSearchInputHost: View {
 private struct TopbarSearchField: View {
     @ObservedObject var inputState: TopbarSearchInputState
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let tokens = LiquidGlassTokens(colorScheme: colorScheme)
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundStyle(AppShellLayout.topbarSearchIconColor)
+                .font(.system(size: 15, weight: .regular))
+                .foregroundStyle(tokens.fieldIcon)
 
             SearchTextView(
                 text: $inputState.draft,
@@ -246,17 +248,17 @@ private struct TopbarSearchField: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 12)
         .frame(height: AppShellLayout.topbarSearchFieldHeight)
         .background(
-            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius)
-                .fill(Color(nsColor: .textBackgroundColor))
+            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius, style: .continuous)
+                .fill(inputState.isFocused ? tokens.topbarFieldFocusFill : tokens.topbarFieldFill)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius)
+            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius, style: .continuous)
                 .strokeBorder(
-                    topbarSearchBorderColor,
-                    lineWidth: inputState.isFocused ? 3 : 1.5
+                    inputState.isFocused ? Color.accentColor.opacity(0.55) : tokens.topbarFieldHairline,
+                    lineWidth: inputState.isFocused ? 2 : 0.5
                 )
         )
         .contentShape(Rectangle())
@@ -266,15 +268,6 @@ private struct TopbarSearchField: View {
         }
     }
 
-    private var topbarSearchBorderColor: Color {
-        if inputState.isFocused {
-            return AppShellLayout.topbarSearchBorderColor
-        }
-        if isHovered {
-            return AppShellLayout.topbarSearchHoverBorderColor
-        }
-        return AppShellLayout.topbarSearchBorderColor
-    }
 }
 
 enum AppShellLayout {
@@ -285,9 +278,9 @@ enum AppShellLayout {
     static let titleFontSize: CGFloat = 16
     static let titleFontWeight: Font.Weight = .semibold
     static let topbarSearchFieldWidth: CGFloat = 320
-    static let topbarSearchFieldHeight: CGFloat = 36
-    static let topbarSearchFieldCornerRadius: CGFloat = 12
-    static let topbarModeCornerRadius: CGFloat = 9
+    static let topbarSearchFieldHeight: CGFloat = 30
+    static let topbarSearchFieldCornerRadius: CGFloat = 15
+    static let topbarModeCornerRadius: CGFloat = 7
 
     static let topbarModeColor = Color(
         red: 119.0 / 255.0,
