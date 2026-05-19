@@ -93,6 +93,13 @@ and removes the need for per-boundary render-layout synchronization.
   measured first; removal is least-deep-layer first; the native layer is removed
   only if layers 1–3 prove it redundant and only with explicit per-step user
   authorization; regression defaults to revert + documented result.
+- S5 convergence completed 2026-05-19: all four band-aid layers were removed
+  (S5.2 `c1a950a`, S5.3 `7ef3dbf`, S5.4 `9501254`), each functionally verified
+  on the user's real machine with no obvious fullscreen regression; the
+  `69861f2` normal-layout refactor was retained as the ordinary layout path.
+  ADR-0011's repair line is closed; fullscreen correctness is now structural.
+  Per-step memory measurement was deferred by project-owner decision (see the
+  proposal's Memory Regression section).
 
 ## Consequences
 - **Positive:** Near-native fullscreen behavior, simpler playback presentation,

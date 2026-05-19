@@ -400,10 +400,18 @@ only with explicit per-step user authorization for the deeper layers.
 - **S5.4 — Remove layer 4 (native `.m`).** Only if S5.2–S5.3 prove layers 1–3
   redundant AND with explicit per-step user authorization. Any doubt or
   regression → native code stays, documented as intentionally retained with the
-  measured reason.
+  measured reason. **Done (`9501254`, 2026-05-19):** authorized; the native
+  hook was orphaned by S5.3 so removal was pure dead-code deletion; the
+  `69861f2` normal-layout refactor was deliberately retained.
 - **S5.5 — Final acceptance + doc finalize.** `swift test` green at every step
   (necessary, not sufficient — it does not cover the fullscreen GUI). Finalize
-  ADR-0011 / ADR-0013 / doc 12 §12. Changelog is S7, not S5.
+  ADR-0011 / ADR-0013 / doc 12 §12. Changelog is S7, not S5. **Done
+  (2026-05-19): S5 complete.** All four band-aid layers removed (S5.2
+  `c1a950a`, S5.3 `7ef3dbf`, S5.4 `9501254`); the user's real-machine
+  functional checks after each step found no obvious fullscreen regression
+  (functional acceptance, not an instrumented benchmark; memory deferred);
+  ADR-0011 / ADR-0013 / doc 12 §12 finalized. Fullscreen correctness is now
+  structural with no render-sync band-aid.
 
 Acceptance benchmark for every S5 removal step: no video freeze and no
 workbench relayout flash on fullscreen enter/exit; `D`/`X` next/previous-result

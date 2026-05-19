@@ -12,9 +12,11 @@ panel that never resizes the video, info page no longer co-resident-squeezing)
 removes the root cause ADR-0011 was band-aiding. The repair is being converged
 in S5; see "S5 Convergence Of The 69861f2 Render-Sync Band-Aid" below.
 
-Implementation status: Converging (S5). The fullscreen contract is implemented;
-S5 verifies ADR-0011 acceptance now passes by structure and removes the
-redundant render-sync band-aid under a measured, layered, reversible protocol.
+Implementation status: Converged (S5 complete, 2026-05-19). The fullscreen
+contract is implemented; the `69861f2` render-sync band-aid has been fully
+removed (all four layers) and fullscreen layout correctness now rests on the
+S1–S4 structural video page. Memory diagnosis remains deferred to post-UI
+-refactor (S7 / info-page Phase 5) by project-owner decision.
 
 ## S5 Convergence Of The 69861f2 Render-Sync Band-Aid
 
@@ -51,6 +53,35 @@ S5 convergence rules:
 - The measured fullscreen result is reported as an explicit observation; a
   green `swift test` is necessary but not sufficient because it does not cover
   the fullscreen GUI path.
+
+### S5 Convergence Outcome (2026-05-19, complete)
+
+All four `69861f2` band-aid layers were removed, least-deep first, each a
+reversible commit kept green by `swift test` (94/94 throughout):
+
+- S5.2 (`c1a950a`) — layers 1+2: `PlaybackFullscreenManager`
+  `synchronizeFullscreenRenderLayout` + 9 call sites; `PlaybackView`
+  wrapper token resync / host hook.
+- S5.3 (`7ef3dbf`) — layer 3: `PlaybackPlayer` /
+  `PlaybackRenderContainerView` fullscreen-transition sync.
+- S5.4 (`9501254`) — layer 4 (native): `SFXNativePlaybackPlayer`
+  `-synchronizeRenderLayout` / `-synchronizeDisplayLayerForFullscreenTransition`.
+
+The `69861f2` normal-layout refactor (`-updateDisplayLayerFrameWithLogName:`,
+and `-[SFXNativePlaybackView layout]` routed through it) was deliberately
+**retained**: it is now the ordinary layout path, not the band-aid, and
+reverting it would be scope creep with normal-render-regression risk
+(minimal-change / benchmark honesty).
+
+Verification: the project owner ran real-machine functional checks after
+S5.2, S5.3, and S5.4 and reported no obvious fullscreen problems (no video
+freeze, no workbench relayout flash; `D`/`X` and seek smooth; Cmd-Tab,
+repeated `F`/`Esc`/titlebar-double-click, panel toggle, and v4 state
+behaved). This is a functional acceptance, not an exhaustive instrumented
+benchmark; per the project-owner decision, per-step memory measurement was
+deliberately deferred to after the full UI refactor and is not part of this
+outcome. ADR-0011's repair line is therefore closed: fullscreen correctness
+is now structural (ADR-0013), with no compensating render-sync machinery.
 
 Confirmed implementation contract:
 
