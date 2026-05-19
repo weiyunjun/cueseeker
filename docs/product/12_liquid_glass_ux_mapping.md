@@ -660,6 +660,10 @@ Rules:
 - Subtitles rows do not apply keyword highlighting.
 - The current playback subtitle row uses selected state for context and should
   scroll into view when practical.
+- Clicking a Subtitles row seeks playback to that subtitle entry's start time.
+  The seek dispatches through the existing shared playback command model; the
+  overlay-panel view must not implement seek itself or touch the native render
+  path.
 - Clicking a row during playback seeks to or opens that result; this is the
   intended baseline interaction.
 - Selecting another Search result from the overlay panel preserves the panel
@@ -673,6 +677,14 @@ Rules:
   valid.
 - Hiding or restoring the overlay panel must not pause playback, clear
   selection, resize the video, or resize the bottom-player controls.
+- Showing or hiding the overlay panel animates a brief transition that mirrors
+  the v6 prototype: on hide, an opacity fade to zero plus a small downward
+  translate and slight scale-down; on show, the reverse. Target timing is
+  approximately 180 ms. The overlay panel is not Player UI, so this is a
+  deliberate exception to the §10.3 / §10.4 rule that Player-UI and cursor
+  transitions do not animate; the panel's own show/hide does animate. The
+  transition must not move or resize the video stage or the bottom-player
+  controls, and the panel still never auto-hides.
 - The overlay panel floats above the video, never auto-hides, and is not part
   of player UI for the §10.4 visibility state machine.
 - The feedback overlay renders above the overlay panel so command feedback is
