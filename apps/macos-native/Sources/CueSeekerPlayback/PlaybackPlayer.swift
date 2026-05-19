@@ -179,15 +179,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         container.setSubtitlesVisible(subtitlesVisible)
     }
 
-    @MainActor public func synchronizeRenderLayoutForFullscreenTransition() {
-        renderView.superview?.needsLayout = true
-        renderView.superview?.layoutSubtreeIfNeeded()
-        if let container = renderView as? PlaybackRenderContainerView {
-            container.synchronizeFullscreenTransitionLayout()
-        }
-        nativePlayer.synchronizeRenderLayout()
-    }
-
     @MainActor private func currentNativeVideoSize() -> CGSize? {
         let width = nativePlayer.videoWidth
         let height = nativePlayer.videoHeight
@@ -329,12 +320,6 @@ public final class PlaybackRenderContainerView: NSView {
         super.layout()
 
         synchronizeAttachedRenderFrames(logName: "PlaybackRenderContainerView.layout")
-    }
-
-    public func synchronizeFullscreenTransitionLayout() {
-        needsLayout = true
-        layoutSubtreeIfNeeded()
-        synchronizeAttachedRenderFrames(logName: "PlaybackRenderContainerView.fullscreenTransitionLayout")
     }
 
     func setSourceFaithfulASSSubtitleSource(_ source: PlaybackSubtitleSource) {
