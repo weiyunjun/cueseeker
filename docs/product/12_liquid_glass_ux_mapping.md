@@ -848,6 +848,13 @@ Allowed differences:
   intercepted (`windowShouldClose`) to run the app close semantic instead of
   quitting. This native fullscreen titlebar behavior is intentionally outside
   the HTML prototype.
+- The windowed video-page top bar behaves as a standard window titlebar for
+  native window management: dragging an empty area of the bar moves the window
+  (`NSWindow.performDrag`), and double-clicking an empty area performs the
+  user's "double-click a window's title bar to" System Settings action
+  (`AppleActionOnDoubleClick`: Zoom via the serialized titlebar-zoom path, or
+  Minimize). These titlebar mechanics are native and intentionally outside the
+  HTML prototype.
 - Native AppKit fullscreen transitions and Space behavior.
 - Native material and vibrancy implementations that preserve the accepted
   visual hierarchy.

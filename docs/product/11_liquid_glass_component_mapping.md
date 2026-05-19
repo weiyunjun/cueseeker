@@ -141,7 +141,7 @@ info-page / video-page refactor. They are Player UI and share the
 
 | HTML class anchor | Product component concept | SwiftUI owner | App usage |
 | --- | --- | --- | --- |
-| `.video-topbar` | Video-page top bar surface | `LiquidGlassVideoTopBar` | Full-width bar at the top of the video page; centered title with a left control cluster. Windowed-only; hidden in fullscreen, where the macOS native fullscreen titlebar takes over (see doc 12 §12). |
+| `.video-topbar` | Video-page top bar surface | `LiquidGlassVideoTopBar` | Full-width bar at the top of the video page; centered title with a left control cluster. Windowed-only; hidden in fullscreen, where the macOS native fullscreen titlebar takes over (see doc 12 §12). Acts as a standard window titlebar for native window management: empty-area drag moves the window and double-click performs the system `AppleActionOnDoubleClick` (zoom/minimize) — native mechanics outside the HTML prototype (see doc 12 §15). |
 | `.video-traffic` | Window-control cluster | `LiquidGlassVideoTopBar` cluster group | Groups the three custom window-control buttons. |
 | `.vt-dot` | Window-control button base | `LiquidGlassWindowControlButton` | Shared base for the custom traffic-light controls; glyph reveals on cluster hover/focus. |
 | `.vt-close` | Close control (red) | `LiquidGlassWindowControlButton.Kind.close` | Closes the video page and returns to the originating info page. It is NOT a quit/window-close. |
