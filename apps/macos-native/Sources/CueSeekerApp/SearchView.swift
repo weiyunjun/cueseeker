@@ -128,7 +128,10 @@ struct SearchView: View {
         return GeometryReader { geo in
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 0) {
+                    // Content padding unified with Search (cardResultsList);
+                    // groups carry their own vertical rhythm so LazyVStack
+                    // spacing is 0 (P5.3 Confirmed Pixel Spec, owner decision 1).
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(appState.libraryFolderGroups) { group in
                             let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
                             LibraryFolderGroupView(
@@ -146,9 +149,10 @@ struct SearchView: View {
                             )
                         }
                     }
-                    .frame(width: max(0, geo.size.width - 16), alignment: .leading)
-                    .padding(.top, 4)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, SearchCardLayout.contentHorizontalPadding)
+                    .padding(.top, SearchCardLayout.contentTopPadding)
+                    .padding(.bottom, SearchCardLayout.contentBottomPadding)
+                    .frame(width: max(0, geo.size.width), alignment: .topLeading)
                 }
             }
         }
@@ -453,6 +457,9 @@ private struct LibraryFolderGroupView: View {
     let onOpenVideo: (LibraryVideo) -> Void
 
     var body: some View {
+        // v6 `.library-group`: top/bottom padding + a bottom margin, and
+        // intentionally NO bottom hairline (owner decision 3, a deliberate
+        // surface difference vs the Search `.group`).
         VStack(spacing: 0) {
             LibraryFolderHeader(
                 folderTitle: group.folderTitle,
@@ -470,6 +477,9 @@ private struct LibraryFolderGroupView: View {
                 )
             }
         }
+        .padding(.top, LibraryLayout.groupTopPadding)
+        .padding(.bottom, LibraryLayout.groupBottomPadding + LibraryLayout.groupBottomMargin)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var playingRank: Int? {
@@ -489,42 +499,57 @@ private struct LibraryFolderHeader: View {
     let isCollapsed: Bool
     let onToggle: () -> Void
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 14, height: 14, alignment: .center)
-                .rotationEffect(.degrees(isCollapsed ? 0 : 90))
-                .animation(.easeInOut(duration: 0.16), value: isCollapsed)
+        // v6 `.library-group-header`: align-items flex-start, gap 10, padding
+        // 8 8 8 4, max width 720, radius 7 + subtle hover; shared chevron in a
+        // 16pt box (text-3, 0°/90° over 160ms) with a 2pt top inset.
+        let tokens = LiquidGlassTokens(colorScheme: colorScheme)
+        Button(action: onToggle) {
+            HStack(alignment: .top, spacing: LibraryLayout.folderHeaderGap) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: LibraryLayout.chevronGlyph, weight: .semibold))
+                    .foregroundStyle(tokens.text3)
+                    .frame(
+                        width: LibraryLayout.chevronBox,
+                        height: LibraryLayout.chevronBox,
+                        alignment: .center
+                    )
+                    .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                    .animation(.easeInOut(duration: 0.16), value: isCollapsed)
+                    .padding(.top, LibraryLayout.chevronTopInset)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(folderTitle)
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: LibraryLayout.headingLineGap) {
+                    Text(folderTitle)
+                        .font(.system(size: LibraryLayout.titleSize, weight: .bold))
+                        .foregroundStyle(tokens.text)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text(subtitleText)
-                    .font(.system(size: SearchTypography.detailSize))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    Text(subtitleText)
+                        .font(.system(size: LibraryLayout.countSize))
+                        .foregroundStyle(tokens.text3)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, LibraryLayout.folderRowInnerHorizontalPadding)
-        .padding(.vertical, LibraryLayout.folderRowVerticalPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .background(
-            RoundedRectangle(cornerRadius: 8)
+            .padding(LibraryLayout.folderHeaderInsets)
+            .frame(maxWidth: LibraryLayout.folderHeaderMaxWidth, alignment: .leading)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: LibraryLayout.folderHeaderCornerRadius,
+                    style: .continuous
+                )
                 .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
-        )
-        .padding(.leading, LibraryLayout.folderRowOuterLeadingPadding)
-        .padding(.trailing, LibraryLayout.folderRowOuterTrailingPadding)
-        .onHover { isHovered = $0 }
-        .listRowAction(onToggle)
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
         .focusable(false)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.1)) { isHovered = hovering }
+        }
     }
 
     private var subtitleText: String {
@@ -541,87 +566,195 @@ private struct LibraryEpisodeGrid: View {
     let selectedLibraryVideoPath: String?
     let onOpenVideo: (LibraryVideo) -> Void
 
-    private let columns: [GridItem] = [
-        GridItem(
-            .adaptive(minimum: LibraryLayout.episodeButtonMinimumWidth),
-            spacing: LibraryLayout.episodeGridHorizontalSpacing,
-            alignment: .top
-        )
-    ]
-
     var body: some View {
-        LazyVGrid(
-            columns: columns,
-            alignment: .center,
-            spacing: LibraryLayout.episodeGridVerticalSpacing
+        // v6 `.library-episode-grid`: a wrapping flow (not a fixed-column
+        // grid) with gap 10, left-indented 30 to express folder→episode
+        // hierarchy. A flow honors the content-driven episode width so a long
+        // rank (`EP120`) widens its own card instead of forcing a uniform
+        // column (owner decision 2).
+        WrapFlowLayout(
+            horizontalSpacing: LibraryLayout.gridGap,
+            verticalSpacing: LibraryLayout.gridGap
         ) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 LibraryEpisodeButton(
                     rank: index + 1,
-                    isSelected: row.video.videoPath == selectedLibraryVideoPath,
+                    isPlaying: row.video.videoPath == selectedLibraryVideoPath,
                     action: { onOpenVideo(row.video) }
                 )
                 .id(row.video.videoPath)
             }
         }
-        .padding(.leading, LibraryLayout.episodeGridLeadingPadding)
-        .padding(.trailing, LibraryLayout.episodeGridTrailingPadding)
-        .padding(.top, LibraryLayout.episodeGridTopPadding)
-        .padding(.bottom, LibraryLayout.episodeGridBottomPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, LibraryLayout.gridLeadingIndent)
+        .padding(.top, LibraryLayout.gridTopPadding)
+        .padding(.bottom, LibraryLayout.gridBottomPadding)
     }
 }
 
 private struct LibraryEpisodeButton: View {
     let rank: Int
-    let isSelected: Bool
+    let isPlaying: Bool
     let action: () -> Void
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Text("\(rank)")
-            .font(.system(size: SearchTypography.bodySize, weight: .medium))
-            .monospacedDigit()
-            .foregroundStyle(textColor)
-            .frame(width: LibraryLayout.episodeButtonMinimumWidth, height: LibraryLayout.episodeButtonHeight)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(backgroundColor)
+        Button(action: action) {
+            Text(episodeLabel)
+                .font(.system(size: LibraryLayout.episodeLabelSize, weight: .bold))
+                .monospacedDigit()
+        }
+        .buttonStyle(
+            LibraryEpisodeButtonStyle(
+                isPlaying: isPlaying,
+                isHovered: isHovered,
+                tokens: LiquidGlassTokens(colorScheme: colorScheme)
             )
-            .contentShape(Rectangle())
-            .onHover { isHovered = $0 }
-            .listRowAction(action)
-            .focusable(false)
-            .accessibilityLabel("Episode \(rank)")
+        )
+        .onHover { isHovered = $0 }
+        .focusable(false)
+        .accessibilityLabel("Episode \(rank)")
     }
 
-    private var textColor: Color {
-        isSelected ? .white : .primary
+    // EP01-style compact rank label (finding H / doc 12 §7.2). `%02d` keeps
+    // `EP01` at the 66pt minimum width while `EP120` widens its own card.
+    private var episodeLabel: String {
+        String(format: "EP%02d", rank)
+    }
+}
+
+/// Library episode tile: the shared `LiquidGlassTokens` card skin drawn
+/// directly (doc 11 §5). The Library-launched "playing" state is the doc 12
+/// §7.2 mandated indicator (white-elevated fill + 2pt accent outline, no
+/// shadow), NOT the shared selectable-card selected treatment.
+private struct LibraryEpisodeButtonStyle: ButtonStyle {
+    let isPlaying: Bool
+    let isHovered: Bool
+    let tokens: LiquidGlassTokens
+
+    func makeBody(configuration: Configuration) -> some View {
+        let lifted = isHovered && !isPlaying
+        let shape = RoundedRectangle(
+            cornerRadius: LibraryLayout.episodeCornerRadius,
+            style: .continuous
+        )
+
+        return configuration.label
+            .foregroundStyle(isPlaying ? tokens.textOnSelectedCard : tokens.text)
+            .padding(.horizontal, LibraryLayout.episodeHorizontalPadding)
+            .frame(minWidth: LibraryLayout.episodeMinWidth)
+            .frame(height: LibraryLayout.episodeHeight)
+            .background {
+                shape
+                    .fill(
+                        isPlaying
+                            ? tokens.playingIndicatorFill
+                            : (lifted ? tokens.cardHoverFill : tokens.cardFill)
+                    )
+                    .overlay {
+                        shape.strokeBorder(
+                            isPlaying
+                                ? tokens.selectedRing
+                                : (lifted ? tokens.cardHoverHairline : tokens.cardHairline),
+                            lineWidth: isPlaying ? 2 : 0.5
+                        )
+                    }
+                    .shadow(
+                        color: isPlaying
+                            ? .clear
+                            : (lifted ? tokens.cardHoverShadow : tokens.cardShadow),
+                        radius: isPlaying ? 0 : (lifted ? 7 : 1.5),
+                        x: 0,
+                        y: isPlaying ? 0 : (lifted ? 4 : 1)
+                    )
+            }
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .contentShape(shape)
+            .animation(.easeOut(duration: 0.14), value: isHovered)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// Wrapping flow layout for the Library episode grid — places content-width
+/// children left to right, wrapping to the next line at the container width.
+private struct WrapFlowLayout: Layout {
+    var horizontalSpacing: CGFloat
+    var verticalSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var widestRow: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if rowWidth > 0, rowWidth + horizontalSpacing + size.width > maxWidth {
+                totalHeight += rowHeight + verticalSpacing
+                widestRow = max(widestRow, rowWidth)
+                rowWidth = size.width
+                rowHeight = size.height
+            } else {
+                rowWidth += (rowWidth > 0 ? horizontalSpacing : 0) + size.width
+                rowHeight = max(rowHeight, size.height)
+            }
+        }
+        totalHeight += rowHeight
+        widestRow = max(widestRow, rowWidth)
+        return CGSize(
+            width: maxWidth.isFinite ? maxWidth : widestRow,
+            height: totalHeight
+        )
     }
 
-    private var backgroundColor: Color {
-        if isSelected {
-            return Color.accentColor
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+            subview.place(
+                at: CGPoint(x: x, y: y),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(size)
+            )
+            x += size.width + horizontalSpacing
+            rowHeight = max(rowHeight, size.height)
         }
-        if isHovered {
-            return Color.primary.opacity(0.08)
-        }
-        return Color.primary.opacity(0.04)
     }
 }
 
 private enum LibraryLayout {
-    static let folderRowInnerHorizontalPadding: CGFloat = 12
-    static let folderRowVerticalPadding: CGFloat = 8
-    static let folderRowOuterLeadingPadding: CGFloat = 12
-    static let folderRowOuterTrailingPadding: CGFloat = 12
-    static let episodeButtonMinimumWidth: CGFloat = 44
-    static let episodeButtonHeight: CGFloat = 36
-    static let episodeGridHorizontalSpacing: CGFloat = 8
-    static let episodeGridVerticalSpacing: CGFloat = 8
-    static let episodeGridLeadingPadding: CGFloat = 32
-    static let episodeGridTrailingPadding: CGFloat = 32
-    static let episodeGridTopPadding: CGFloat = 6
-    static let episodeGridBottomPadding: CGFloat = 10
+    static let groupTopPadding: CGFloat = 12
+    static let groupBottomPadding: CGFloat = 10
+    static let groupBottomMargin: CGFloat = 6
+    static let folderHeaderMaxWidth: CGFloat = 720
+    static let folderHeaderInsets = EdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 8)
+    static let folderHeaderCornerRadius: CGFloat = 7
+    static let folderHeaderGap: CGFloat = 10
+    static let chevronBox: CGFloat = 16
+    static let chevronGlyph: CGFloat = 10
+    static let chevronTopInset: CGFloat = 2
+    static let headingLineGap: CGFloat = 2
+    static let titleSize: CGFloat = 13.5
+    static let countSize: CGFloat = 12
+    static let episodeMinWidth: CGFloat = 66
+    static let episodeHeight: CGFloat = 42
+    static let episodeHorizontalPadding: CGFloat = 14
+    static let episodeCornerRadius: CGFloat = 8
+    static let episodeLabelSize: CGFloat = 12.5
+    static let gridGap: CGFloat = 10
+    static let gridLeadingIndent: CGFloat = 30
+    static let gridTopPadding: CGFloat = 8
+    static let gridBottomPadding: CGFloat = 12
 }
 
 private enum SearchCardLayout {

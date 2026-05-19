@@ -42,6 +42,18 @@ struct LiquidGlassTokens {
     var cardHoverFill: Color { Color.white.opacity(isDark ? 0.15 : 0.82) }
     var cardSelectedFill: Color { Color.accentColor.opacity(isDark ? 0.22 : 0.16) }
 
+    // Library-launched "playing" indicator fill — v6 `--card-selected-bg`
+    // (white @0.92 / white @0.18). Distinct from `cardSelectedFill` (the
+    // sidebar-reuse accent tint); this is the doc 12 §7.2 playing state used
+    // only by the Library episode card (P5.3 Confirmed Pixel Spec).
+    var playingIndicatorFill: Color { Color.white.opacity(isDark ? 0.18 : 0.92) }
+
+    // v6 `--text-on-selected-card` (#0a1426 / #f8f6fb).
+    var textOnSelectedCard: Color {
+        isDark ? Color(red: 0.973, green: 0.965, blue: 0.984)
+               : Color(red: 0.039, green: 0.078, blue: 0.149)
+    }
+
     // v6 `0 0 0 0.5px` edge ring.
     var cardHairline: Color {
         isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.08)
