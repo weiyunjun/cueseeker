@@ -160,11 +160,16 @@ Implementation notes:
   inside the player area; otherwise the cursor is shown. "In the player area"
   is evaluated from the actual current cursor location at the moment of the
   decision, not from a cached movement value.
-- The "movement" signal comes from real physical `NSEvent` mouse-move events.
-  The in-area (local) monitor is delta-filtered; a global mouse-move means the
-  pointer is outside the video window, which is itself the "moved to another
-  area" signal (no delta filter on that path). Layout/fullscreen/focus changes
-  must not count as movement. Exiting fullscreen does not change state.
+- Entering / leaving the player area and in-area movement come from a single
+  authoritative `NSTrackingArea` on a full-bleed overlay view that is
+  transparent to hit-testing (it never intercepts clicks/drag). Its
+  `mouseEntered` / `mouseMoved` (real movement) drive the in-area path and the
+  `mouseExited` drives "moved to another area" (rule 7.1). This is the only
+  AppKit mechanism that is reliable regardless of embedded subviews, focus, or
+  the menu-bar/Dock/desktop/other-display the pointer moves onto; `NSEvent`
+  global/local mouse-move monitors and SwiftUI hover are not reliable here.
+  Layout/fullscreen/focus changes do not produce tracking-area movement, so
+  they never count as movement. Exiting fullscreen does not change state.
 
 ## Memory Regression
 
@@ -272,11 +277,14 @@ views; each step is its own commit and reports before/after short hashes.
 - **S3 — Player-UI / cursor visibility state machine (v3).** Implement the v3
   state machine per doc 12 §10.4. A single explicit model owns Player UI and
   the cursor; the dead/competing chrome+cursor code in
-  `PlaybackFullscreenManager` is removed. The "movement" signal comes from
-  real physical `NSEvent` mouse-moved events (not SwiftUI hover), so
-  layout/fullscreen/focus changes never count as movement. Focus means the
-  video window is key; cursor visibility follows Definition 4 (hidden iff
-  Hidden + video window key + live cursor in the player area). Risk: medium.
+  `PlaybackFullscreenManager` is removed. Player-area enter/leave and in-area
+  movement come from a single authoritative `NSTrackingArea` on a
+  hit-test-transparent full-bleed overlay (not `NSEvent` monitors and not
+  SwiftUI hover, which are unreliable across embedded subviews / menu-bar /
+  Dock / desktop), so layout/fullscreen/focus changes never count as movement.
+  Focus means the video window is key; cursor visibility follows Definition 4
+  (hidden iff Hidden + video window key + live cursor in the player area).
+  Risk: medium.
   Verify: (1) cmd-tab away/back must not reveal the cursor while Hidden;
   (2) entering fullscreen must not show Player UI or cursor; (3) exiting
   fullscreen must not change state; (4) moving out of the player area hides

@@ -553,11 +553,15 @@ Mapping notes (App implementation):
   the bottom player only; the same v3 machine governs its show/hide. The
   player area is the video window; there is no frozen display-check area and
   no dock/top-bar exemption.
-- The "movement" signal is real physical `NSEvent` mouse movement. The in-area
-  (local) monitor is delta-filtered; any global mouse-move means the pointer
-  is outside the video window and is itself the "moved to another area"
-  signal. Layout/fullscreen/focus changes are not movement; exiting fullscreen
-  does not change state.
+- Player-area enter/leave and in-area movement come from a single
+  authoritative `NSTrackingArea` on a hit-test-transparent full-bleed overlay
+  view (it never intercepts clicks/drag). `mouseEntered`/`mouseMoved` (real
+  movement) drive the in-area path; `mouseExited` is the "moved to another
+  area" signal (rule 7.1). This is the only mechanism reliable regardless of
+  embedded AppKit subviews, focus, or the menu-bar/Dock/desktop/other-display
+  the pointer moves onto; `NSEvent` global/local mouse-move monitors and
+  SwiftUI hover are not reliable here. Layout/fullscreen/focus changes are not
+  movement; exiting fullscreen does not change state.
 - The centered overlay panel is not Player UI; its visibility is independent
   of this machine and it never auto-hides. Hiding the chrome does not pause
   playback, change selection, or close menus except where a menu cannot remain
