@@ -6,6 +6,33 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Completed the info-page / video-page refactor (video-page Phase 1
+  structural stage, steps S1–S7). The app is now an info page (Library /
+  Search / Shiori) plus a dedicated full-window video page layered above the
+  still-alive info page; closing returns to the originating info-page mode
+  with state intact. A custom video-page top bar provides app-semantic
+  traffic-light controls (close = return to info page, minimize to Dock,
+  green = fullscreen) with the native traffic lights suppressed; in
+  fullscreen the native titlebar takes over and its close runs the app-close
+  semantic without quitting.
+- Replaced the squeeze sidebar with a centered overlay panel that never
+  resizes the video stage, hosting Search Results and Subtitles with
+  click-to-seek; its show/hide is driven only by the bottom-bar toggle, never
+  auto-hides, animates ~180 ms, and is outside the serialized resize gate. The
+  feedback HUD renders above the panel; dark-mode panel and segmented styling
+  were corrected.
+- Structurally resolved the playback fullscreen jank and converged ADR-0011:
+  the dedicated video page removes the relayout that fought the fullscreen
+  Space animation, so the `69861f2` render-sync band-aid was removed in full
+  across all four layers (S5). ADR-0011 is marked Superseded by ADR-0013.
+- Verified by `swift test` (94/94) and a full end-to-end functional
+  regression on the project owner's real machine (navigation/return, top bar,
+  fullscreen, v4 Player-UI/cursor, overlay panel, seek and shortcut
+  invariants, preserved non-UI behavior). Memory/CPU diagnosis was
+  deliberately deferred to after the full UI rebuild by project-owner
+  decision and is not part of this milestone. The only remaining net-new UI
+  stage is the Phase 5 info-page card-visual rebuild, planned as its own new
+  independent proposal.
 - Implemented the v4 Player-UI / cursor visibility model in the macOS playback
   page so fullscreen entry forces hidden states, fullscreen exit does not
   reveal chrome by itself, and non-player focus such as Settings no longer
