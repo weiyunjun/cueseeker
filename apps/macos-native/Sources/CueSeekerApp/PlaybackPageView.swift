@@ -1286,9 +1286,11 @@ struct PlaybackSidebarShell: View {
         case .results:
             searchResultsList
         case .subtitles:
-            // S4.3 restores the Subtitles list; intentionally empty for now so
-            // the panel still fills its height.
-            Spacer(minLength: 0)
+            if let viewModel = appState.playbackViewModel {
+                PlaybackSubtitlesList(appState: appState, viewModel: viewModel)
+            } else {
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -1471,6 +1473,154 @@ private struct PlaybackSidebarResultRow: View {
 
     private var highlightState: SearchHighlightState {
         isSelected ? .selected : (isHovered ? .hover : .default)
+    }
+
+    private var lineColor: Color {
+        if isSelected {
+            return colorScheme == .dark
+                ? Color(red: 248 / 255, green: 246 / 255, blue: 251 / 255)
+                : Color(red: 10 / 255, green: 20 / 255, blue: 38 / 255)
+        }
+        return Color.primary.opacity(0.86)
+    }
+
+    private var metaColor: Color {
+        isSelected ? accentColor : Color.primary.opacity(0.45)
+    }
+
+    private var accentColor: Color {
+        colorScheme == .dark
+            ? Color(red: 110 / 255, green: 166 / 255, blue: 255 / 255)
+            : Color(red: 10 / 255, green: 132 / 255, blue: 255 / 255)
+    }
+
+    private var selectedRingColor: Color {
+        accentColor.opacity(colorScheme == .dark ? 0.52 : 0.55)
+    }
+
+    private var rowBackground: Color {
+        if isSelected {
+            return colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.85)
+        }
+        if isHovered {
+            return colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.55)
+        }
+        return Color.clear
+    }
+}
+
+/// The overlay-panel Subtitles tab: the current subtitle file in timestamp
+/// order. Observes the view model so the active-cue selection follows the
+/// rate-limited displayed time (not the frame-cadence clock).
+private struct PlaybackSubtitlesList: View {
+    @ObservedObject var appState: AppState
+    @ObservedObject var viewModel: PlaybackViewModel
+
+    private var orderedEntries: [SubtitleDatabaseEntry] {
+        appState.currentSubtitleEntries.sorted { $0.startMilliseconds < $1.startMilliseconds }
+    }
+
+    /// The cue active at the current displayed time: the entry that contains
+    /// it, otherwise the last entry that has already started (handles gaps).
+    private var activeEntryID: Int64? {
+        let ms = Int((viewModel.displayedCurrentTime * 1_000).rounded(.down))
+        var candidate: Int64?
+        for entry in orderedEntries {
+            if ms >= entry.startMilliseconds && ms < entry.endMilliseconds {
+                return entry.id
+            }
+            if entry.startMilliseconds <= ms {
+                candidate = entry.id
+            }
+        }
+        return candidate
+    }
+
+    var body: some View {
+        let entries = orderedEntries
+        let activeID = activeEntryID
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(entries, id: \.id) { entry in
+                        PlaybackSidebarSubtitleRow(
+                            entry: entry,
+                            isSelected: entry.id == activeID,
+                            onSeek: {
+                                appState.seekCurrentPlayback(
+                                    toMilliseconds: entry.startMilliseconds
+                                )
+                            }
+                        )
+                        .id(entry.id)
+                    }
+                }
+                .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
+            }
+            .onAppear { scrollActiveIntoView(proxy, id: activeID) }
+            .onChange(of: activeID) { newValue in
+                scrollActiveIntoView(proxy, id: newValue)
+            }
+        }
+    }
+
+    private func scrollActiveIntoView(_ proxy: ScrollViewProxy, id: Int64?) {
+        guard let id else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            proxy.scrollTo(id, anchor: .center)
+        }
+    }
+}
+
+/// One Subtitles row, mirroring the prototype `.sidebar-row`: a timestamp meta
+/// line above the cue lines. No rank and no keyword highlight (doc 12 §11).
+private struct PlaybackSidebarSubtitleRow: View {
+    let entry: SubtitleDatabaseEntry
+    let isSelected: Bool
+    let onSeek: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSeek) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(formatTimestamp(entry.startMilliseconds))
+                    .font(.system(size: 11.5, weight: isSelected ? .semibold : .regular))
+                    .monospacedDigit()
+                    .foregroundStyle(metaColor)
+
+                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(lineColor)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(rowBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(isSelected ? selectedRingColor : Color.clear, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var displayLines: [String] {
+        subtitleDisplayLines(content: entry.content, cueLines: [])
     }
 
     private var lineColor: Color {

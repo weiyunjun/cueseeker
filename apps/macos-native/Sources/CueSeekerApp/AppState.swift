@@ -2146,6 +2146,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Seeks the current playback to an absolute timestamp through the shared
+    /// playback command model. Used by the overlay-panel Subtitles rows. It
+    /// must not touch the native render/seek core; `PlaybackViewModel.seek`
+    /// already owns that dispatch.
+    func seekCurrentPlayback(toMilliseconds milliseconds: Int) {
+        guard let playbackViewModel else {
+            return
+        }
+
+        playbackViewModel.seek(to: Double(max(0, milliseconds)) / 1_000)
+    }
+
     func openLibraryVideo(_ video: LibraryVideo) {
         UIInvalidationProbe.mark(
             "ACTION UI.LibraryVideo.opened",
