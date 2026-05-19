@@ -268,7 +268,6 @@ struct SearchView: View {
                     ForEach(appState.shioriFileGroups) { group in
                         ShioriCardGroupView(
                             group: group,
-                            selectedShiori: appState.selectedShiori,
                             onToggle: {
                                 appState.clearSearchFocus()
                                 appState.toggleShioriGroup(group.subtitlePath)
@@ -917,7 +916,6 @@ private struct SearchResultCardGroupView: View {
 
 private struct ShioriCardGroupView: View {
     let group: ShioriFileGroup
-    let selectedShiori: Shiori?
     let onToggle: () -> Void
     let onOpenShiori: (Shiori) -> Void
 
@@ -940,7 +938,6 @@ private struct ShioriCardGroupView: View {
                         ShioriCard(
                             shiori: shiori,
                             rank: index + 1,
-                            isSelected: selectedShiori?.id == shiori.id,
                             onOpen: { onOpenShiori(shiori) }
                         )
                         .focusable(false)
@@ -1064,7 +1061,6 @@ private struct SearchResultCard: View {
 private struct ShioriCard: View {
     let shiori: Shiori
     let rank: Int
-    let isSelected: Bool
     let onOpen: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
