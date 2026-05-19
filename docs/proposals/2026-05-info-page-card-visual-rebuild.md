@@ -154,10 +154,15 @@ v6 cannot express the accepted card design.
   regress Search first-screen/laziness/invalidation).
 - **P5.3 — Library cards / groups / episode grid.** Rebuild folder group rows
   and the adaptive episode grid to the prototype; preserve grouping, natural
-  sort, resume history, and the Library-launched playing indicator. Risk:
-  medium.
+  sort, resume history, and the Library-launched playing indicator. `EP01`
+  episode label format accepted (finding H resolved 2026-05-20). Library has
+  no separable dead path; old code is replaced in place — see "P5.3 / P5.4
+  Old-Code Audit & Deletion Plan". Risk: medium.
 - **P5.4 — Shiori cards / groups.** Rebuild Shiori cards and group headers;
-  preserve Shiori persistence, dedup, and open behavior. Risk: medium.
+  preserve Shiori persistence, dedup, and open behavior. The dead Shiori
+  legacy cluster and the orphaned `SearchLayout` enum are removed in dedicated
+  cleanup commits before the visual rebuild (P5.4-1..4 then P5.4-B), per "P5.3
+  / P5.4 Old-Code Audit & Deletion Plan". Risk: medium.
 - **P5.5 — Main-page states + cross-surface polish + regression + changelog.**
   Verify empty/loading/failed/no-results across all three surfaces, no
   retained playback selection visuals, dark mode, and §7 invalidation
@@ -233,7 +238,9 @@ Confirmed by read-only inspection of the v6 prototype, doc 11/12, and
 - **H. doc 12 §16 open question (EP01).** Library episode label format (`EP01`
   vs numeric rank) is still an open review question; v6 and doc 12 §7.2 use
   `EP01`. Recommended resolution: accept `EP01` to match v6. Owner to confirm
-  at P5.3; recorded here, not unilaterally resolved.
+  at P5.3; recorded here, not unilaterally resolved. **Resolved (owner,
+  2026-05-20): accept `EP01`** to match v6 and doc 12 §7.2; this closes the
+  doc 12 §16 EP01 open question for P5.3.
 
 Doc-first follow-ups before any App code: build the interactive state-demo
 prototype (finding C, see below); update doc 12 §6.1 and §6.2 with the
@@ -362,6 +369,67 @@ Topbar (traffic lights NOT changed — native):
 
 Page background: light `#f4f4f6` / dark `#1f2027` (replaces the current pure
 `.textBackgroundColor`) so the near-white cards read as elevated.
+
+## P5.3 / P5.4 Old-Code Audit & Deletion Plan (2026-05-20)
+
+Read-only audit of `SearchView.swift` on `native-macos-rewrite` (HEAD
+`ae2a424`). Establishes which old code each surface step removes and when, so
+deletion is never mixed with visual change (git workflow §3) and the proven
+P5.2 sub-commit sequence is reused.
+
+- **Library has no separable dead path.** `libraryList` →
+  `LibraryFolderGroupView` / `LibraryFolderHeader` / `LibraryEpisodeGrid` /
+  `LibraryEpisodeButton` is the only path and is live. P5.3 is an in-place
+  visual rebuild; old-code removal is intrinsic to the rebuild commit. There
+  is no pre-deletion step for Library.
+- **Shiori has a dead legacy cluster — structurally the Search legacy that
+  P5.2-3 retired.** Live path: `shioriPanel` → `shioriCardList` →
+  `ShioriCardGroupView`. Dead (no call site; `shioriList` is defined but never
+  rendered because `shioriPanel` uses `shioriCardList`):
+  - `shioriList` (the unrendered legacy list var)
+  - `ShioriGroupHeader`, `ShioriGroupView`, `ShioriRowView`
+  - `SearchResultGroupRail` — misleadingly named; its only caller is the dead
+    `ShioriGroupView`, so it is dead Shiori code, not Search code
+  - the entire `SearchLayout` enum — every constant is referenced only by the
+    dead cluster above, so it is fully orphaned once the cluster is removed
+
+  ≈200 lines (≈15% of `SearchView.swift`). Zero-risk: no call site, and every
+  `AppState` member the dead `shioriList` touches is also used by the live
+  `shioriCardList`, so removal orphans nothing in `AppState` / `SettingsView`
+  (cleaner than the Search thumbnail plumbing removed in P5.2-4).
+- **Shared symbols that must NOT be removed with the Shiori cluster.**
+  `displayTitleWithSoftWrapOpportunities` is shared (the live `CardGroupHeader`
+  and the dead `ShioriGroupHeader` both call it); `SearchTypography` is used
+  throughout the live Library / Search code. Both are kept.
+- **Finding F for Shiori is not dead-code removal.** The live `ShioriCard`
+  still fills the selected card with `Color.accentColor` and `selectedShiori`
+  is still plumbed into the live `ShioriCardGroupView` (P5.0 audit finding F,
+  doc 11 §7). Excising this is a behavior/visual change inside the P5.4 visual
+  rebuild (mirrors P5.2-2), not the pre-delete cleanup.
+
+Deletion timing (decision):
+
+- **P5.3 (Library):** no pre-deletion; the current live implementation is
+  replaced in place within the visual rebuild commit(s).
+- **P5.4 (Shiori):** delete the dead cluster + orphaned `SearchLayout` as
+  dedicated cleanup commits BEFORE the visual rebuild, mirroring P5.2-3 /
+  P5.2-4 and satisfying git workflow §3. Sub-commit shape per surface, reusing
+  the owner-accepted P5.2 sequence:
+  - P5.4-1 — swap `ShioriCard` surface to the shared
+    `LiquidGlassSelectableCard`
+  - P5.4-2 — excise the retained accent selected visual and `selectedShiori`
+    plumbing on the live Shiori card / shared `CardGroupHeader` (finding F)
+  - P5.4-3 — retire the dead Shiori legacy cluster (`shioriList`,
+    `ShioriGroupView` / `ShioriGroupHeader` / `ShioriRowView`,
+    `SearchResultGroupRail`)
+  - P5.4-4 — remove the orphaned `SearchLayout` enum
+  - P5.4-B — precise visual alignment to the v6 Shiori card / group spec
+  P5.3 reuses the same shape minus the dead-path / orphan steps (no P5.3-3 /
+  P5.3-4).
+- The concrete P5.3 / P5.4-B pixel values are not invented here. Like P5.2-B
+  they require a v6-prototype-derived, owner-confirmed "Confirmed Pixel Spec"
+  sub-section added before the P5.3-B / P5.4-B App code (Step Document Rule),
+  with the doc 11 / doc 12 mapping updates done first per git workflow §10.
 
 ## Acceptance
 
