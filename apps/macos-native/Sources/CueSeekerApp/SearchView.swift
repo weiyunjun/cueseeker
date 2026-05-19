@@ -811,11 +811,8 @@ private struct SearchResultCardGroupView: View {
                         SearchResultCard(
                             result: result,
                             query: query,
-                            isSelected: selectedResult?.entryID == result.entryID
+                            onOpen: { onOpenResult(result) }
                         )
-                        .listRowAction {
-                            onOpenResult(result)
-                        }
                         .id(result.entryID)
                         .focusable(false)
                         .onAppear {
@@ -912,90 +909,70 @@ private struct CardGroupHeader: View {
 private struct SearchResultCard: View {
     let result: SubtitleSearchResult
     let query: String
-    let isSelected: Bool
+    let onOpen: () -> Void
     @State private var isHovered = false
 
     var body: some View {
-        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
-        let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
-        let highlightState: SearchHighlightState = isSelected
-            ? .selected
-            : (isHovered ? .hover : .default)
+        // Main-page cards retain no playback selection visual (doc 12 §6.4,
+        // doc 11 §5/§7; audit finding F). Surface is the shared token-driven
+        // LiquidGlassSelectableCard; content / highlight / equal-height are
+        // unchanged from before P5.2.
+        let textColor = Color.primary.opacity(0.88)
+        let secondaryTextColor = Color.primary.opacity(0.48)
+        let highlightState: SearchHighlightState = isHovered ? .hover : .default
 
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Text("#\(result.searchRank + 1)")
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(secondaryTextColor)
-                    .monospacedDigit()
+        LiquidGlassSelectableCard(
+            cornerRadius: SearchCardLayout.cardCornerRadius,
+            action: onOpen
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Text("#\(result.searchRank + 1)")
+                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .foregroundStyle(secondaryTextColor)
+                        .monospacedDigit()
 
-                Spacer(minLength: 8)
+                    Spacer(minLength: 8)
 
-                Text(formatTimestamp(result.startMilliseconds))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(secondaryTextColor)
-                    .lineLimit(1)
-                    .monospacedDigit()
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                    Text(highlightedContent(
-                        line,
-                        query: query,
-                        textColor: textColor,
-                        state: highlightState
-                    ))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(textColor)
-                    .lineLimit(nil)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(formatTimestamp(result.startMilliseconds))
+                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .foregroundStyle(secondaryTextColor)
+                        .lineLimit(1)
+                        .monospacedDigit()
                 }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                        Text(highlightedContent(
+                            line,
+                            query: query,
+                            textColor: textColor,
+                            state: highlightState
+                        ))
+                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .foregroundStyle(textColor)
+                        .lineLimit(nil)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: SearchCardLayout.cardMinHeight,
+                maxHeight: .infinity,
+                alignment: .topLeading
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .frame(
-            maxWidth: .infinity,
-            minHeight: SearchCardLayout.cardMinHeight,
-            maxHeight: .infinity,
-            alignment: .topLeading
-        )
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(cardBorder, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .accessibilityLabel("\(result.videoName), \(formatTimestamp(result.startMilliseconds))")
     }
 
     private var displayLines: [String] {
         subtitleDisplayLines(content: result.content, cueLines: result.cueLines)
-    }
-
-    private var cardBackground: Color {
-        if isSelected {
-            return Color.accentColor
-        }
-        if isHovered {
-            return Color.primary.opacity(0.075)
-        }
-        return Color.primary.opacity(0.045)
-    }
-
-    private var cardBorder: Color {
-        if isSelected {
-            return Color.clear
-        }
-        if isHovered {
-            return Color.primary.opacity(0.07)
-        }
-        return Color.clear
     }
 }
 
