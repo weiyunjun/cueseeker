@@ -1,0 +1,334 @@
+/*
+  CueSeeker — Info-page card STATE demo (P5.0 C2).
+  Interactive demo of Search / Library / Shiori non-steady states.
+  Reuses the accepted v6 Liquid Glass token system and card/header visual
+  language. The `.demo-*` control bar is demo-only (prototype-only, like v6
+  `ui-prototype-control`) and must NOT be synced into the App.
+*/
+
+:root {
+  color-scheme: light;
+  --hairline: rgba(0, 0, 0, 0.08);
+  --hairline-soft: rgba(0, 0, 0, 0.05);
+  --text: #1a1a1f;
+  --text-2: #4d4e55;
+  --text-3: #7a7c84;
+  --text-4: #adafb6;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.16);
+  --highlight: rgba(255, 204, 0, 0.42);
+  --highlight-text: #4a3300;
+
+  --page-bg: #f4f4f6;
+  --pill-bg: rgba(255, 255, 255, 0.62);
+  --pill-border: rgba(0, 0, 0, 0.08);
+  --pill-hover-bg: rgba(255, 255, 255, 0.86);
+  --pill-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 1), 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.10);
+
+  --card-bg: rgba(255, 255, 255, 0.62);
+  --card-hover-bg: rgba(255, 255, 255, 0.82);
+  --card-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.92), inset 0 -0.5px 0 rgba(255, 255, 255, 0.22), 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(15, 18, 30, 0.06);
+  --card-hover-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 1), 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 4px 12px -4px rgba(15, 18, 30, 0.14);
+  --row-hover-bg: rgba(255, 255, 255, 0.62);
+
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sf: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
+}
+
+body[data-theme="dark"] {
+  color-scheme: dark;
+  --hairline: rgba(255, 255, 255, 0.10);
+  --hairline-soft: rgba(255, 255, 255, 0.07);
+  --text: #f3f1f6;
+  --text-2: #c9c6d2;
+  --text-3: #aaa6b6;
+  --text-4: #817d8d;
+  --accent: #6ea6ff;
+  --accent-soft: rgba(110, 166, 255, 0.18);
+  --highlight: rgba(255, 214, 92, 0.32);
+  --highlight-text: #fff0b5;
+
+  --page-bg: #1f2027;
+  --pill-bg: rgba(255, 255, 255, 0.10);
+  --pill-border: rgba(255, 255, 255, 0.20);
+  --pill-hover-bg: rgba(255, 255, 255, 0.18);
+  --pill-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.24), 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.30);
+
+  --card-bg: rgba(255, 255, 255, 0.10);
+  --card-hover-bg: rgba(255, 255, 255, 0.15);
+  --card-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.18), inset 0 -0.5px 0 rgba(255, 255, 255, 0.05), 0 0 0 0.5px rgba(255, 255, 255, 0.10), 0 1px 2px rgba(0, 0, 0, 0.22);
+  --card-hover-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.24), 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 5px 14px -5px rgba(0, 0, 0, 0.44);
+  --row-hover-bg: rgba(255, 255, 255, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: var(--sf);
+  background: var(--page-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===================== Demo-only control bar ===================== */
+/* prototype-only — not part of the App component taxonomy. */
+.demo-controls {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: var(--page-bg);
+  border-bottom: 0.5px solid var(--hairline);
+}
+.demo-group { display: flex; align-items: center; gap: 6px; }
+.demo-group > .demo-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  margin-right: 2px;
+}
+.demo-btn {
+  appearance: none;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 0.5px solid var(--pill-border);
+  background: var(--pill-bg);
+  box-shadow: var(--pill-shadow);
+  color: var(--text);
+  font: 600 11.5px var(--sf);
+  cursor: pointer;
+  transition: background 120ms ease, transform 140ms ease;
+}
+.demo-btn:hover { background: var(--pill-hover-bg); }
+.demo-btn:active { transform: scale(0.95); }
+.demo-btn.is-active {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+.demo-note {
+  width: 100%;
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+.demo-note code { font: 11px var(--mono); color: var(--text-2); }
+
+/* ===================== Surface panel ===================== */
+.panel {
+  position: relative;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 0 60px;
+  min-height: 70vh;
+}
+
+/* Results / Shiori header (v6 .results-header) */
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px 6px;
+}
+.results-header .summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.results-header strong {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.small-button {
+  appearance: none;
+  min-width: 92px;
+  height: 26px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 0.5px solid var(--pill-border);
+  background: var(--pill-bg);
+  box-shadow: var(--pill-shadow);
+  color: var(--text);
+  font-size: 11.5px;
+}
+
+.scroll { padding: 4px 24px 0; }
+
+/* Groups + cards (v6) */
+.group {
+  padding: 14px 0 6px;
+  border-bottom: 0.5px solid var(--hairline-soft);
+  margin-bottom: 6px;
+}
+.group:last-child { border-bottom: 0; }
+.group-header {
+  appearance: none;
+  border: 0;
+  width: 100%;
+  padding: 5px 4px;
+  border-radius: 7px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  color: var(--text);
+}
+.group-header .chevron {
+  width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-3);
+  transform: rotate(90deg);
+}
+.group-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.group-count {
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+.result-card {
+  appearance: none;
+  text-align: left;
+  border: 0;
+  border-radius: 10px;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.result-card:hover { background: var(--card-hover-bg); box-shadow: var(--card-hover-shadow); }
+.result-card:active { transform: scale(0.995); }
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-3);
+  font: 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.rank { display: inline-flex; align-items: center; gap: 5px; }
+.line { color: var(--text); font-size: 13.5px; font-weight: 450; line-height: 1.4; opacity: 0.86; }
+mark {
+  background: var(--highlight);
+  color: var(--highlight-text);
+  padding: 1px 3px;
+  border-radius: 3px;
+  font: inherit;
+}
+
+/* Library (v6) */
+.library-group { padding: 12px 0 10px; margin-bottom: 6px; }
+.library-group-header {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 4px;
+  width: min(100%, 720px);
+}
+.library-group-header .chevron { margin-top: 2px; transform: rotate(90deg); }
+.library-heading { display: flex; flex-direction: column; gap: 2px; }
+.library-title { color: var(--text); font-size: 13.5px; font-weight: 700; line-height: 1.2; }
+.library-count { color: var(--text-3); font-size: 12px; line-height: 1.2; }
+.library-episode-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 12px 30px; }
+.library-episode-card {
+  appearance: none;
+  width: 66px;
+  height: 42px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+  font: 700 12.5px var(--sf);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.library-episode-card:hover { background: var(--card-hover-bg); box-shadow: var(--card-hover-shadow); }
+.library-episode-card:active { transform: scale(0.96); }
+
+/* ===================== State views (NEW for Phase 5) ===================== */
+/* Centered explicit state: icon + title + message. Maps to the App's
+   EmptyStateView usages in SearchView.swift. */
+.state-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+  padding: 80px 24px;
+  min-height: 52vh;
+  color: var(--text-2);
+}
+.state-icon {
+  width: 46px;
+  height: 46px;
+  color: var(--text-4);
+}
+.state-icon.is-warning { color: #e0a13c; }
+.state-title { font-size: 17px; font-weight: 700; color: var(--text); }
+.state-message { font-size: 13px; color: var(--text-3); max-width: 360px; line-height: 1.5; }
+
+/* Loading spinner (Searching / Loading Library). Mirrors the App's
+   ProgressView shown under the state title. */
+.state-spinner {
+  width: 22px;
+  height: 22px;
+  margin-top: 8px;
+  border-radius: 50%;
+  border: 2.5px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  animation: state-spin 0.8s linear infinite;
+}
+@keyframes state-spin { to { transform: rotate(360deg); } }
+
+/* Inline bottom "loading more" (App: incremental ProgressView during
+   .searching while results are already present). */
+.load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 0 8px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.load-more .state-spinner {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border-width: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state-spinner { animation-duration: 1.6s; }
+}
+
+[hidden] { display: none !important; }
