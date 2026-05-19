@@ -6,6 +6,7 @@ import CueSeekerCore
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
     var body: some View {
@@ -99,7 +100,7 @@ struct SearchView: View {
             }
             .frame(maxHeight: .infinity, alignment: .topLeading)
             .padding(.top, AppShellLayout.contentTopPadding)
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
             .background(LayoutPerformanceProbe(name: "SearchView.libraryPanel.layout"))
         }
     }
@@ -201,7 +202,7 @@ struct SearchView: View {
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
                 .contentShape(Rectangle())
             }
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
             .background(LayoutPerformanceProbe(name: "SearchView.shioriPanel.layout"))
         }
     }
@@ -430,7 +431,7 @@ struct SearchView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
     }
 
 }
@@ -624,14 +625,14 @@ private enum LibraryLayout {
 }
 
 private enum SearchCardLayout {
-    static let contentHorizontalPadding: CGFloat = 32
+    static let contentHorizontalPadding: CGFloat = 24
     static let contentTopPadding: CGFloat = 4
     static let contentBottomPadding: CGFloat = 28
     static let groupSpacing: CGFloat = 26
     static let cardMinimumWidth: CGFloat = 280
-    static let cardHorizontalSpacing: CGFloat = 12
-    static let cardVerticalSpacing: CGFloat = 12
-    static let cardCornerRadius: CGFloat = 8
+    static let cardHorizontalSpacing: CGFloat = 10
+    static let cardVerticalSpacing: CGFloat = 10
+    static let cardCornerRadius: CGFloat = 10
     static let cardMinHeight: CGFloat = 92
 }
 
@@ -825,26 +826,28 @@ private struct CardGroupHeader: View {
     let countText: String
     let isCollapsed: Bool
     let onToggle: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let tokens = LiquidGlassTokens(colorScheme: colorScheme)
         Button(action: onToggle) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(tokens.text3)
                     .rotationEffect(.degrees(isCollapsed ? 0 : 90))
                     .animation(.easeInOut(duration: 0.16), value: isCollapsed)
 
                 Text(displayTitleWithSoftWrapOpportunities(title))
                     .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
                     .textCase(.uppercase)
-                    .foregroundStyle(Color.primary.opacity(0.68))
+                    .foregroundStyle(tokens.text)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(countText)
                     .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(tokens.text3)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -860,31 +863,33 @@ private struct SearchResultCard: View {
     let query: String
     let onOpen: () -> Void
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         // Main-page cards retain no playback selection visual (doc 12 §6.4,
         // doc 11 §5/§7; audit finding F). Surface is the shared token-driven
         // LiquidGlassSelectableCard; content / highlight / equal-height are
         // unchanged from before P5.2.
-        let textColor = Color.primary.opacity(0.88)
-        let secondaryTextColor = Color.primary.opacity(0.48)
+        let tokens = LiquidGlassTokens(colorScheme: colorScheme)
+        let textColor = tokens.text.opacity(0.88)
+        let secondaryTextColor = tokens.text3
         let highlightState: SearchHighlightState = isHovered ? .hover : .default
 
         LiquidGlassSelectableCard(
             cornerRadius: SearchCardLayout.cardCornerRadius,
             action: onOpen
         ) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) {
                     Text("#\(result.searchRank + 1)")
-                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .font(.system(size: 11, weight: .regular, design: .monospaced))
                         .foregroundStyle(secondaryTextColor)
                         .monospacedDigit()
 
                     Spacer(minLength: 8)
 
                     Text(formatTimestamp(result.startMilliseconds))
-                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .font(.system(size: 11, weight: .regular, design: .monospaced))
                         .foregroundStyle(secondaryTextColor)
                         .lineLimit(1)
                         .monospacedDigit()
@@ -898,7 +903,7 @@ private struct SearchResultCard: View {
                             textColor: textColor,
                             state: highlightState
                         ))
-                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
+                        .font(.system(size: 13.5, weight: .semibold))
                         .foregroundStyle(textColor)
                         .lineLimit(nil)
                         .lineSpacing(4)
@@ -907,8 +912,8 @@ private struct SearchResultCard: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 13)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 11)
             .frame(
                 maxWidth: .infinity,
                 minHeight: SearchCardLayout.cardMinHeight,
