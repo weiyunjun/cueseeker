@@ -76,36 +76,20 @@ struct SearchView: View {
                 libraryHeader
 
                 if appState.selectedFolders.isEmpty {
-                    EmptyStateView(
-                        title: "No Library",
-                        systemImage: "folder",
-                        message: "Add subtitle folders in CueSeeker > Settings..., then reindex."
-                    )
+                    InfoPageStateView(state: .libraryNoLibrary)
                     .font(.system(size: SearchTypography.bodySize))
                 } else if case .loading = appState.libraryStatus, appState.libraryVideos.isEmpty {
-                    EmptyStateView(
-                        title: "Loading Library",
-                        systemImage: "folder",
-                        message: "Reading indexed videos."
-                    )
+                    InfoPageStateView(state: .libraryLoading)
                     .font(.system(size: SearchTypography.bodySize))
                     .overlay {
                         ProgressView()
                             .offset(y: 72)
                     }
                 } else if case .failed(let message) = appState.libraryStatus {
-                    EmptyStateView(
-                        title: "Library Failed",
-                        systemImage: "exclamationmark.triangle",
-                        message: message
-                    )
+                    InfoPageStateView(state: .libraryFailed(message))
                     .font(.system(size: SearchTypography.bodySize))
                 } else if appState.libraryVideos.isEmpty {
-                    EmptyStateView(
-                        title: "No Videos",
-                        systemImage: "play.rectangle",
-                        message: "Reindex subtitle folders to populate Library videos."
-                    )
+                    InfoPageStateView(state: .libraryNoVideos)
                     .font(.system(size: SearchTypography.bodySize))
                 } else {
                     libraryList
@@ -204,11 +188,7 @@ struct SearchView: View {
                     shioriHeader
 
                     if appState.shioris.isEmpty {
-                        EmptyStateView(
-                            title: "No Shiori",
-                            systemImage: "bookmark",
-                            message: "Save subtitles from playback to collect Shiori."
-                        )
+                        InfoPageStateView(state: .shioriEmpty)
                         .font(.system(size: SearchTypography.bodySize))
                     } else {
                         shioriCardList
@@ -473,19 +453,11 @@ struct SearchView: View {
             .padding(.top, AppShellLayout.contentTopPadding)
 
             if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                EmptyStateView(
-                    title: "No Search Query",
-                    systemImage: "text.magnifyingglass",
-                    message: "Type a query in the topbar Search field and press Return."
-                )
+                InfoPageStateView(state: .searchNoQuery)
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {
-                EmptyStateView(
-                    title: "Searching",
-                    systemImage: "magnifyingglass",
-                    message: "Looking through indexed subtitle text."
-                )
+                InfoPageStateView(state: .searching)
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay {
@@ -493,19 +465,11 @@ struct SearchView: View {
                         .offset(y: 72)
                 }
             } else if case .failed(let message) = appState.searchStatus, appState.searchResults.isEmpty {
-                EmptyStateView(
-                    title: "Search Failed",
-                    systemImage: "exclamationmark.triangle",
-                    message: message
-                )
+                InfoPageStateView(state: .searchFailed(message))
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if appState.searchResults.isEmpty {
-                EmptyStateView(
-                    title: "No Results",
-                    systemImage: "tray",
-                    message: "No indexed subtitle entries matched this query."
-                )
+                InfoPageStateView(state: .searchNoResults)
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
