@@ -109,11 +109,18 @@ v6 cannot express the accepted card design.
   path; refine v6 + mapping docs only if gaps are found (regenerate
   `standalone.html`); reconcile architecture §7; obtain explicit App-
   implementation approval before any App code. Risk: low.
-- **P5.1 — Shared card component + control states.** A native Liquid Glass
-  card (doc 11 `LiquidGlassSelectableCard` / `ui-selectable-card`) with
-  hover / pressed / selected / disabled and shared empty / loading /
-  no-results state views, all colorScheme-token driven (fix any hardcoded
-  light values, as the overlay panel required). No data/behavior change.
+- **P5.1 — Shared card component + control states (scope clarified
+  2026-05-19, owner option (a)).** A native Liquid Glass card (doc 11
+  `LiquidGlassSelectableCard` / `ui-selectable-card`) with hover / pressed /
+  selected / disabled, colorScheme-token driven (fix any hardcoded light
+  values, as the overlay panel required). The shared empty / loading /
+  no-results state views are **converged into one shared owner** (single
+  source for the App-condition→state mapping) **without visual redesign**:
+  the current `EmptyStateView` visual is preserved; the demo-aligned,
+  native-leaning state-view visual is deferred to a later visual pass per the
+  "P5.0 C2" owner scope ruling. No data/behavior change; no seek / native
+  render change; architecture §7 invalidation domains preserved;
+  `swift test` green. Surface adoption of the shared card is P5.2–P5.4.
   Risk: low–medium.
 - **P5.2 — Search result cards / groups.** Rebuild `SearchResultCard` and the
   Search group header to the accepted prototype using the shared component;
