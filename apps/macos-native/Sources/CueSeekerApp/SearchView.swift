@@ -102,6 +102,9 @@ struct SearchView: View {
             .padding(.top, AppShellLayout.contentTopPadding)
             .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
             .background(LayoutPerformanceProbe(name: "SearchView.libraryPanel.layout"))
+            .task {
+                appState.hydrateLibraryAsync()
+            }
         }
     }
 
@@ -208,6 +211,9 @@ struct SearchView: View {
             }
             .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
             .background(LayoutPerformanceProbe(name: "SearchView.shioriPanel.layout"))
+            .task {
+                appState.hydrateShiorisAsync()
+            }
         }
     }
 

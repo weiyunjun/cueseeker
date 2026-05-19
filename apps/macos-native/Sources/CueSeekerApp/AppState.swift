@@ -648,6 +648,7 @@ final class AppState: ObservableObject {
     private let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
     private var indexingTask: Task<Void, Never>?
     private var libraryTask: Task<Void, Never>?
+    private var shiorisTask: Task<Void, Never>?
     private var libraryPlaybackHistoryTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
     private var searchExactCompletionTask: Task<Void, Never>?
@@ -729,35 +730,25 @@ final class AppState: ObservableObject {
             return
         }
 
-        do {
-            try database.reconcileIndexedContent(activeFolders: selectedFolders)
-            try hydrateLibrarySynchronously(from: database)
-            try hydrateShiorisSynchronously(from: database)
-            databaseStorageStats = try database.storageStats()
-            let player = PlaybackPlayer()
-            player.decodeMode = playbackDecodeMode
-            self.player = player
-            playbackViewModel = PlaybackViewModel(
-                player: player,
-                initialVolume: Self.loadPlaybackVolume(from: userDefaults),
-                initialLastNonzeroVolume: Self.loadPlaybackLastNonzeroVolume(from: userDefaults),
-                initialPlaybackSpeed: Self.loadPlaybackSpeed(from: userDefaults),
-                initialSubtitlesVisible: userDefaults.bool(forKey: Self.playbackSubtitlesVisibleKey),
-                onVolumeChanged: { volume in
-                    userDefaults.set(volume, forKey: Self.playbackVolumeKey)
-                },
-                onLastNonzeroVolumeChanged: { volume in
-                    userDefaults.set(volume, forKey: Self.playbackLastNonzeroVolumeKey)
-                },
-                onPlaybackSpeedChanged: { speed in
-                    userDefaults.set(speed, forKey: Self.playbackSpeedKey)
-                },
-                onSubtitlesVisibleChanged: { isVisible in
-                    userDefaults.set(isVisible, forKey: Self.playbackSubtitlesVisibleKey)
+        let folders = selectedFolders
+        // Run database reconciliation and statistics in a background task
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await Task.detached(priority: .background) {
+                    try database.reconcileIndexedContent(activeFolders: folders)
+                }.value
+
+                let stats = try await Task.detached(priority: .background) {
+                    try database.storageStats()
+                }.value
+
+                await MainActor.run {
+                    self.databaseStorageStats = stats
                 }
-            )
-        } catch {
-            startupError = Self.errorMessage(for: error)
+            } catch {
+                print("Failed background reconciliation/stats query: \(error)")
+            }
         }
     }
 
@@ -1419,7 +1410,10 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func hydrateLibrarySynchronously(from database: SubtitleDatabase) throws {
+    func hydrateLibraryAsync() {
+        guard let database = subtitleDatabase, libraryStatus != .loading else {
+            return
+        }
         let folders = selectedFolders
         guard !folders.isEmpty else {
             applyLibraryPresentation([])
@@ -1427,13 +1421,73 @@ final class AppState: ObservableObject {
             return
         }
 
-        let snapshot = try database.libraryPresentation(under: folders)
-        applyLibraryPresentation(snapshot)
-        libraryStatus = .completed
+        libraryStatus = .loading
+        libraryTask?.cancel()
+        libraryTask = Task { [weak self] in
+            do {
+                let snapshot = try await Task.detached(priority: .userInitiated) {
+                    try database.libraryPresentation(under: folders)
+                }.value
+
+                guard !Task.isCancelled else { return }
+
+                self?.applyLibraryPresentation(snapshot)
+                self?.libraryStatus = .completed
+            } catch {
+                guard !Task.isCancelled else { return }
+                print("Failed to hydrate library asynchronously: \(error)")
+                self?.applyLibraryPresentation([])
+                self?.libraryStatus = .idle
+            }
+        }
     }
 
-    private func hydrateShiorisSynchronously(from database: SubtitleDatabase) throws {
-        applyShioris(try database.shioris())
+    func hydrateShiorisAsync() {
+        guard let database = subtitleDatabase else {
+            return
+        }
+
+        shiorisTask?.cancel()
+        shiorisTask = Task { [weak self] in
+            do {
+                let loadedShioris = try await Task.detached(priority: .userInitiated) {
+                    try database.shioris()
+                }.value
+
+                guard !Task.isCancelled else { return }
+
+                self?.applyShioris(loadedShioris)
+            } catch {
+                guard !Task.isCancelled else { return }
+                print("Failed to load shioris asynchronously: \(error)")
+            }
+        }
+    }
+
+    private func ensurePlayerInitialized() {
+        guard player == nil else { return }
+        let player = PlaybackPlayer()
+        player.decodeMode = playbackDecodeMode
+        self.player = player
+        playbackViewModel = PlaybackViewModel(
+            player: player,
+            initialVolume: Self.loadPlaybackVolume(from: userDefaults),
+            initialLastNonzeroVolume: Self.loadPlaybackLastNonzeroVolume(from: userDefaults),
+            initialPlaybackSpeed: Self.loadPlaybackSpeed(from: userDefaults),
+            initialSubtitlesVisible: userDefaults.bool(forKey: Self.playbackSubtitlesVisibleKey),
+            onVolumeChanged: { [weak self] volume in
+                self?.userDefaults.set(volume, forKey: Self.playbackVolumeKey)
+            },
+            onLastNonzeroVolumeChanged: { [weak self] volume in
+                self?.userDefaults.set(volume, forKey: Self.playbackLastNonzeroVolumeKey)
+            },
+            onPlaybackSpeedChanged: { [weak self] speed in
+                self?.userDefaults.set(speed, forKey: Self.playbackSpeedKey)
+            },
+            onSubtitlesVisibleChanged: { [weak self] isVisible in
+                self?.userDefaults.set(isVisible, forKey: Self.playbackSubtitlesVisibleKey)
+            }
+        )
     }
 
     private func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
@@ -2180,6 +2234,7 @@ final class AppState: ObservableObject {
     }
 
     func play(_ result: SubtitleSearchResult) {
+        ensurePlayerInitialized()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
@@ -2218,6 +2273,7 @@ final class AppState: ObservableObject {
     }
 
     func play(_ video: LibraryVideo) {
+        ensurePlayerInitialized()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none
         playbackStatus = .opening
@@ -2265,6 +2321,7 @@ final class AppState: ObservableObject {
     }
 
     func play(_ shiori: Shiori) {
+        ensurePlayerInitialized()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
