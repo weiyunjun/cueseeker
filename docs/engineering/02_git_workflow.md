@@ -22,21 +22,35 @@ Known baseline:
 Rules:
 
 - The archived Flutter implementation must remain available under `archive/flutter/`.
-- Active native macOS work should happen on `native-macos-rewrite` unless a later workflow changes this.
+- Active native macOS work happens on `native-macos-rewrite`, which is the
+  single de facto main branch. This is the later workflow change that the
+  earlier "unless a later workflow changes this" clause anticipated:
+  development is no longer split across branches or worktrees (see §3).
 - Do not rewrite the baseline or archive history.
 
 ## 3. Branching Rules
 
-The current active development branch is:
+The single de facto main branch and the only development branch is:
 
 ```text
 native-macos-rewrite
 ```
 
+This is a solo project with strictly sequential work. There are no parallel
+tasks and no concurrent use of multiple AI assistants — for example, Claude and
+Codex are never run at the same time. The multi-branch, feature-branch, and
+merge-back model used by larger teams is intentionally not adopted; it adds
+overhead with no benefit for a single sequential developer.
+
 Rules:
 
-- Use small reviewable changes on the active branch during early solo development.
-- Create topic branches only when a change becomes large enough to benefit from isolation.
+- All native macOS work — code, docs, ADRs, and prototypes — is committed
+  directly on `native-macos-rewrite` in the primary checkout at the repository
+  root. Do not develop on a side branch and merge back.
+- Do not create `git worktree`s or per-session `claude/*` branches for ongoing
+  development. Any worktrees or `claude/*` branches left by earlier tooling are
+  legacy, are not part of the workflow, and may be removed.
+- Use small reviewable changes committed directly on `native-macos-rewrite`.
 - Do not mix unrelated documentation, architecture, database, UI, and playback changes in one large commit.
 - Keep experimental work behind proposals or ADRs before it becomes stable implementation.
 
