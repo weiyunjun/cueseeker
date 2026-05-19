@@ -1,15 +1,18 @@
 import AppKit
 import SwiftUI
 
-/// Single explicit Player-UI / cursor visibility state machine (v2).
+/// Single explicit Player-UI / cursor visibility state machine (v3).
 ///
 /// Authoritative spec: `docs/product/12_liquid_glass_ux_mapping.md` §10.4 and
-/// the proposal's "Player-UI / Cursor Visibility State Machine (v2)". This is
+/// the proposal's "Player-UI / Cursor Visibility State Machine (v3)". This is
 /// the only owner of Player-UI visibility and the playback cursor.
 ///
-/// The movement signal comes from real physical `NSEvent` mouse-moved events,
-/// not SwiftUI hover: layout / fullscreen / focus changes emit synthetic hover
-/// events that must not count as movement.
+/// v3: "focus" means the video (playback) window is the key window. The cursor
+/// is governed solely by Definition 4 — hidden iff the state is Hidden AND the
+/// video window is key AND the live cursor position is inside the player area;
+/// otherwise shown. The movement signal is real physical `NSEvent` mouse
+/// movement; a global mouse-move means the pointer is outside the video window
+/// and is itself the "moved to another area" signal.
 @MainActor
 final class PlaybackChromeVisibilityModel: ObservableObject {
     @Published private(set) var isPlayerUIVisible = true
@@ -28,8 +31,6 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     ]
 
     private var state: State = .shown
-    private var isAppActive = NSApp?.isActive ?? true
-    private var pointerInPlayerArea = true
     private var idleTask: Task<Void, Never>?
     private var cursorHidden = false
     private var focusObservers: [NSObjectProtocol] = []
@@ -41,8 +42,6 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     func enterVideoPage() {
         startObservingFocus()
         startObservingMouseMovement()
-        isAppActive = NSApp?.isActive ?? true
-        pointerInPlayerArea = true
         showShown()
     }
 
@@ -54,63 +53,58 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         showCursor()
     }
 
-    /// Entering playback fullscreen forces Hidden. It stays Hidden until a real
-    /// in-area mouse movement (the Hidden -> Shown rule).
+    /// Entering playback fullscreen forces the not-shown state. It stays
+    /// not-shown until a real in-area mouse movement (rule 8).
     func enteringFullscreen() {
         idleTask?.cancel()
         idleTask = nil
         state = .hidden
         isPlayerUIVisible = false
-        if isAppActive {
-            hideCursor()
-        }
+        syncCursor()
     }
 
     // MARK: - Movement (physical pointer only)
 
-    private func handlePhysicalMove(inPlayerArea inArea: Bool) {
-        // The cursor-hiding rule and the movement rules only apply while the
-        // App is focused.
-        guard isAppActive else {
+    /// A real physical move while the pointer is over the video window.
+    private func handleLocalMove() {
+        // Rule 8 / rule 5: switching to / staying Shown requires the player
+        // area (video window) to have focus.
+        guard isPlayerWindowKey else {
+            syncCursor()
             return
         }
-
-        pointerInPlayerArea = inArea
-
-        guard inArea else {
-            // The mouse moved from the player area to another area.
-            transitionToHidden()
-            return
-        }
-
-        // Focused + in the player area + moved: Shown (and stay Shown).
         state = .shown
         isPlayerUIVisible = true
-        showCursor()
+        syncCursor()
         restartIdleTimer()
     }
 
-    // MARK: - Focus
-
-    private func appActiveChanged(_ active: Bool) {
-        isAppActive = active
-        if active {
-            // Regaining focus must not show Player UI. Re-assert the cursor for
-            // the current state: Hidden keeps the cursor hidden.
-            switch state {
-            case .shown:
-                showCursor()
-            case .hidden:
-                hideCursor()
-            }
+    /// A physical move whose event is delivered outside our window — the
+    /// pointer has moved to another area (rule 7.1).
+    private func handleGlobalMove() {
+        if state == .shown {
+            transitionToHidden()
         } else {
-            // The App lost focus: Hidden. The cursor-hiding rule does not apply
-            // while unfocused, so release the cursor to the system.
-            idleTask?.cancel()
-            idleTask = nil
-            state = .hidden
-            isPlayerUIVisible = false
-            showCursor()
+            syncCursor()
+        }
+    }
+
+    // MARK: - Focus (the video window is key)
+
+    private var isPlayerWindowKey: Bool {
+        NSApp?.mainWindow?.isKeyWindow == true
+    }
+
+    private func focusChanged() {
+        if isPlayerWindowKey {
+            // Regaining focus must not show Player UI (rule 8 needs a move);
+            // just re-assert the cursor for the current state.
+            syncCursor()
+        } else if state == .shown {
+            // Rule 7.3: the player area lost focus.
+            transitionToHidden()
+        } else {
+            syncCursor()
         }
     }
 
@@ -120,9 +114,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         idleTask?.cancel()
         state = .shown
         isPlayerUIVisible = true
-        if isAppActive {
-            showCursor()
-        }
+        syncCursor()
         restartIdleTimer()
     }
 
@@ -131,11 +123,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         idleTask = nil
         state = .hidden
         isPlayerUIVisible = false
-        if isAppActive {
-            hideCursor()
-        } else {
-            showCursor()
-        }
+        syncCursor()
     }
 
     private func restartIdleTimer() {
@@ -154,14 +142,32 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     private func idleElapsed() {
-        // The mouse is in the player area and did not move for 3 seconds.
-        guard state == .shown, isAppActive, pointerInPlayerArea else {
+        // Rule 7.2: the mouse is in the player area and did not move for 3s.
+        guard state == .shown, isPlayerWindowKey, isCursorInPlayerArea() else {
             return
         }
         transitionToHidden()
     }
 
-    // MARK: - Cursor (single balanced owner)
+    // MARK: - Cursor (Definition 4, single balanced owner)
+
+    private func isCursorInPlayerArea() -> Bool {
+        guard let window = NSApp?.mainWindow else {
+            return false
+        }
+        return window.frame.contains(NSEvent.mouseLocation)
+    }
+
+    /// Definition 4: the cursor is hidden iff the state is Hidden AND the video
+    /// window is key AND the live cursor position is inside the player area;
+    /// otherwise it is shown.
+    private func syncCursor() {
+        if state == .hidden, isPlayerWindowKey, isCursorInPlayerArea() {
+            hideCursor()
+        } else {
+            showCursor()
+        }
+    }
 
     private func showCursor() {
         guard cursorHidden else {
@@ -186,24 +192,27 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             return
         }
         let center = NotificationCenter.default
-        focusObservers.append(
-            center.addObserver(
-                forName: NSApplication.didResignActiveNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.appActiveChanged(false) }
-            }
-        )
-        focusObservers.append(
-            center.addObserver(
-                forName: NSApplication.didBecomeActiveNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.appActiveChanged(true) }
-            }
-        )
+        // The video window losing/gaining key drives focus. App
+        // activate/deactivate also resigns/restores the main window's key
+        // state, so window-key notifications cover cmd-tab too. Per rule 12,
+        // the video page's own popovers/menus are in-window SwiftUI overlays
+        // (no separate key window), so they do not flip the key window.
+        for name in [
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didResignKeyNotification,
+            NSApplication.didBecomeActiveNotification,
+            NSApplication.didResignActiveNotification
+        ] {
+            focusObservers.append(
+                center.addObserver(
+                    forName: name,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.focusChanged() }
+                }
+            )
+        }
     }
 
     private func stopObservingFocus() {
@@ -216,10 +225,10 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             localMoveMonitor = NSEvent.addLocalMonitorForEvents(
                 matching: Self.moveEventMask
             ) { [weak self] event in
+                // Local in-window move: delta-filter so layout/fullscreen
+                // synthetic events do not count as movement.
                 if Self.isPhysicalMove(event) {
-                    MainActor.assumeIsolated {
-                        self?.handlePhysicalMove(inPlayerArea: true)
-                    }
+                    MainActor.assumeIsolated { self?.handleLocalMove() }
                 }
                 return event
             }
@@ -227,12 +236,11 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         if globalMoveMonitor == nil {
             globalMoveMonitor = NSEvent.addGlobalMonitorForEvents(
                 matching: Self.moveEventMask
-            ) { [weak self] event in
-                if Self.isPhysicalMove(event) {
-                    MainActor.assumeIsolated {
-                        self?.handlePhysicalMove(inPlayerArea: false)
-                    }
-                }
+            ) { [weak self] _ in
+                // A global mouse-move means the pointer is outside our window;
+                // that itself is the "moved to another area" signal, so no
+                // delta filter here (global events carry no usable delta).
+                MainActor.assumeIsolated { self?.handleGlobalMove() }
             }
         }
     }
