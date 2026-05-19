@@ -530,6 +530,12 @@ approval (Step Document Rule).
 - The seek / native render path is untouched; `swift test` passes; the
   project owner's real-machine regression passes.
 
+Closeout (2026-05-20): all acceptance criteria met. P5.0–P5.5 complete;
+`swift test` 94/94 and `swift build` green at every step; the project-owner
+real-machine end-to-end regression and the P5.3 / P5.4 prototype visual
+acceptance passed. Phase 5 is accepted and closed (recorded in
+`docs/changelog.md`).
+
 ## Step Document Rule
 
 This document is the authoritative App step plan for Phase 5. If a decision,
