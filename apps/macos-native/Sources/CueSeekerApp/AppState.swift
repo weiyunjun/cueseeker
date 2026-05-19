@@ -146,11 +146,6 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
-struct PlaybackDrawerRequest: Equatable, Identifiable {
-    let id = UUID()
-    let drawer: PlaybackDrawerKind
-}
-
 struct SearchResultFileGroup: Identifiable, Equatable {
     let subtitlePath: String
     let subtitleDisplayTitle: String
@@ -311,7 +306,6 @@ final class AppState: ObservableObject {
     private static let searchPrefetchThreshold = 10
     private static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
     private static let searchNavigationPanelRadius = 10_000
-    private static let sidePanelLayoutTransitionNanoseconds: UInt64 = 180_000_000
     private static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
     private static let databaseCompactionMinimumFreelistRatio = 0.25
 
@@ -351,7 +345,6 @@ final class AppState: ObservableObject {
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = true
-    @Published var playbackDrawerRequest: PlaybackDrawerRequest?
     @Published var startupError: String?
     @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
@@ -899,24 +892,6 @@ final class AppState: ObservableObject {
 
     func openNextLibraryVideo() {
         openAdjacentLibraryVideo(offset: 1)
-    }
-
-    func requestPlaybackDrawer(_ drawer: PlaybackDrawerKind) {
-        guard hasPlaybackSelection else {
-            return
-        }
-
-        if !isPlaybackSurfaceExpanded || !isPlaybackSidePanelVisible {
-            guard beginVideoSizeTransition(durationNanoseconds: Self.sidePanelLayoutTransitionNanoseconds) else {
-                return
-            }
-
-            withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-                isPlaybackSurfaceExpanded = true
-                isPlaybackSidePanelVisible = true
-            }
-        }
-        playbackDrawerRequest = PlaybackDrawerRequest(drawer: drawer)
     }
 
     func togglePlaybackSidePanelFromUser() {
@@ -2627,7 +2602,6 @@ final class AppState: ObservableObject {
                 workbenchLayout.selectPanelMode(originatingMode)
                 playbackOriginatingPanelMode = nil
             }
-            playbackDrawerRequest = nil
             playbackStatus = .idle
         } catch {
             playbackStatus = .failed(Self.errorMessage(for: error))

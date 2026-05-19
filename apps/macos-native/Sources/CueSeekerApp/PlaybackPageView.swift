@@ -40,17 +40,6 @@ struct PlaybackPageView: View {
         .background(Color.black)
         .onAppear {
             refreshSidebarData()
-            if let request = appState.playbackDrawerRequest {
-                activePanel = request.drawer
-            }
-        }
-        .onChange(of: appState.playbackDrawerRequest?.id) { _ in
-            guard let request = appState.playbackDrawerRequest else {
-                return
-            }
-
-            activePanel = request.drawer
-            refreshSidebarData()
         }
         .onChange(of: appState.currentPlaybackSubtitlePath) { _ in
             refreshSidebarData()

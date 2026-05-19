@@ -282,7 +282,6 @@ enum AppShellLayout {
     static let minimumWindowWidth: CGFloat = 1_000
     static let minimumWindowHeight: CGFloat = 560
     static let topBarHeight: CGFloat = 45
-    static let sidePanelAnimationDuration: Double = 0.18
     static let titleFontSize: CGFloat = 16
     static let titleFontWeight: Font.Weight = .semibold
     static let topbarSearchFieldWidth: CGFloat = 320
