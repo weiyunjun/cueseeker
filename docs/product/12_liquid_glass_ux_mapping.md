@@ -325,6 +325,9 @@ Rules:
 Rules:
 
 - Expanded folders show compact episode-rank buttons.
+- Episode buttons size to their rank label: a fixed minimum width and fixed
+  height keep short ranks (`EP01`) compact and uniform, while long ranks
+  (`EP120`) widen the button rather than truncate (owner 2026-05-20).
 - The HTML prototype uses `EP01` style labels. Resolved (owner, 2026-05-20):
   the native App adopts the `EP01` compact episode-rank label to match v6; it
   must still derive the rank from Finder-like natural sorting. (Closes the

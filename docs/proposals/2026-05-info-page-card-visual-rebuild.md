@@ -431,18 +431,17 @@ Deletion timing (decision):
   sub-section added before the P5.3-B / P5.4-B App code (Step Document Rule),
   with the doc 11 / doc 12 mapping updates done first per git workflow §10.
 
-## P5.3 / P5.4 Confirmed Pixel Spec (DRAFT — pending owner confirmation, 2026-05-20)
+## P5.3 / P5.4 Confirmed Pixel Spec (2026-05-20)
 
-DRAFT. Values extracted from the v6 prototype CSS; awaiting owner per-item
-sign-off. On confirmation this title and wording flip to "confirmed" like
-P5.2-B; until then it is not the single source and no P5.3-B / P5.4-B App code
-proceeds. Same native-difference boundary as P5.2-B: light / dark both
-explicit, scheme-driven, no hardcoded light values; CSS `backdrop-filter`
-realized with native scheme-adaptive color/shadow (NOT a frosted `Material`);
-NSWindow traffic lights and window shell stay native. Empty / loading /
-failed / no-videos / no-shiori **state views are out of this spec** — deferred
-to a later visual pass per doc 12 §6.1/§7.1/§8 and "P5.0 C2"; this spec covers
-cards / groups / grid only, exactly the P5.2-B scope.
+Owner-reviewed and confirmed. Values are from the v6 prototype CSS (extracted,
+then the prototype was updated to match the three owner decisions below). Same
+native-difference boundary as P5.2-B: light / dark both explicit, scheme-
+driven, no hardcoded light values; CSS `backdrop-filter` realized with native
+scheme-adaptive color/shadow (NOT a frosted `Material`); NSWindow traffic
+lights and window shell stay native. Empty / loading / failed / no-videos /
+no-shiori **state views are out of this spec** — deferred to a later visual
+pass per doc 12 §6.1/§7.1/§8 and "P5.0 C2"; this spec covers cards / groups /
+grid only, exactly the P5.2-B scope.
 
 Shared, unchanged from P5.2-B (Library and Shiori inherit, no new values):
 
@@ -474,7 +473,8 @@ P5.4-B — Shiori (no new pixel values):
 
 P5.3-B — Library (distinct values):
 
-- Scroll padding 18 top / 28 horizontal / 120 bottom (vs Search 4 / 24 / 120).
+- Scroll padding 4 top / 24 horizontal / 120 bottom — unified with the Search
+  content padding (owner decision 1; v6 prototype updated, commit `71b13f2`).
 - `.library-group`: padding 12 top / 10 bottom; **no bottom hairline** (unlike
   Search `.group`); margin-bottom 6.
 - `.library-group-header` (extends shared `.group-header`): align-items
@@ -488,9 +488,12 @@ P5.3-B — Library (distinct values):
 - `.library-episode-grid`: flex-wrap, gap 10, margin 8 top / 0 right / 12
   bottom / **30 left** (the 30px left indent expresses folder→episode
   hierarchy).
-- `.library-episode-card` (`ui-selectable-card`): 66×42, radius 8; fill /
-  hover / shadows = the shared card token skin above; label color text, 12.5px
-  **weight 700**, tabular, centered. Active: scale 0.96.
+- `.library-episode-card` (`ui-selectable-card`): height 42, **min-width 66
+  with 0 / 14 horizontal padding** so short ranks (`EP01`) stay compact while
+  long ranks (`EP120`) widen instead of truncating (owner decision 2; v6
+  prototype updated, commit `71b13f2`); radius 8; fill / hover / shadows = the
+  shared card token skin above; label color text, 12.5px **weight 700**,
+  tabular, centered. Active: scale 0.96.
 - `.library-episode-card.selected` is the **Library-launched "Playing"
   indicator**, not finding F: selected-fill + `outline 2px solid` accent
   (light `#0a84ff` / dark `#6ea6ff`), `outline-offset -2px`, `box-shadow:
@@ -499,14 +502,21 @@ P5.3-B — Library (distinct values):
   Library-launched playback only) and must NOT be excised — finding F forbids
   retained *selection* visuals on Search/Shiori cards, a different concept.
 
-Open confirmation points for the owner (answer inline):
+Owner decisions (2026-05-20):
 
-1. Library scroll/content padding (18/28 vs Search 4/24) — accept as-is, or
-   unify with the Search content padding?
-2. Library episode card fixed 66×42 — accept, or make width content-driven for
-   long ranks (`EP120`)?
-3. `.library-group` having no bottom hairline while Search groups do — accept
-   the intentional difference, or add a hairline for consistency?
+1. Library scroll/content padding **unified with Search** (4 top / 24
+   horizontal / 120 bottom); the v6 prototype was updated to match.
+2. Library episode card width is **content-driven** — fixed height 42, min-
+   width 66, 14px horizontal padding so long ranks (`EP120`) widen rather than
+   truncate; the v6 prototype was updated to match and doc 12 §7.2 records the
+   UX rule.
+3. `.library-group` keeping **no bottom hairline** while Search groups have one
+   is **accepted** as an intentional surface difference; no prototype change.
+
+These resolve all P5.3 / P5.4 pixel open points. With the v6 prototype and the
+doc 11 / doc 12 mapping updated, this is the confirmed single source for the
+P5.3-B / P5.4-B visuals; App implementation remains gated on explicit owner
+approval (Step Document Rule).
 
 ## Acceptance
 
