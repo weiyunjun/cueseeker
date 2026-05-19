@@ -443,7 +443,7 @@
       position: absolute;
       inset: 0;
       overflow: auto;
-      padding: 18px 28px 120px;
+      padding: 4px 24px 120px; /* unified with .results-scroll (owner 2026-05-20) */
     }
 
     .group {
@@ -534,8 +534,9 @@
     }
     .library-episode-card {
       appearance: none;
-      width: 66px;
+      min-width: 66px;        /* content-driven width for long ranks e.g. EP120 (owner 2026-05-20) */
       height: 42px;
+      padding: 0 14px;
       border: 0;
       border-radius: 8px;
       background: var(--card-bg);
