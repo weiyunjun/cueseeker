@@ -141,17 +141,6 @@ private struct PlaybackVideoStage: View {
             .onDisappear {
                 chrome.leaveVideoPage()
             }
-            .onContinuousHover { phase in
-                switch phase {
-                case .active(let location):
-                    chrome.pointerMoved(
-                        to: location,
-                        isInPlayerArea: isPointInPlayerArea(location, stageSize: stageSize)
-                    )
-                case .ended:
-                    chrome.pointerExited()
-                }
-            }
             .onChange(of: fullscreenManager.state) { newState in
                 if newState == .enteringSystemFullscreen || newState == .activeFullscreen {
                     chrome.enteringFullscreen()
@@ -188,9 +177,6 @@ private struct PlaybackVideoStage: View {
         )
     }
 
-    private func isPointInPlayerArea(_ point: CGPoint, stageSize: CGSize) -> Bool {
-        CGRect(origin: .zero, size: stageSize).contains(point)
-    }
 }
 
 // Custom video-page top bar: left traffic-light cluster + centered video
