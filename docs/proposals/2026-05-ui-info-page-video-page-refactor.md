@@ -353,6 +353,50 @@ views; each step is its own commit and reports before/after short hashes.
 Dependencies: S1 first; S2 and S3 may follow S1 in parallel; S4 after S1; S5
 depends on S1 + S4; S6 runs alongside S1–S5 as measurement; S7 last.
 
+### S5 Detailed Plan And Measurement Protocol
+
+S5 converges the `69861f2` render-sync band-aid (four layers, deepest last:
+`PlaybackFullscreenManager` → `PlaybackView`/`PlaybackRenderViewWrapper` →
+`PlaybackPlayer` → `SFXNativePlaybackPlayer.m`). This crosses the standing
+"do not touch the seek / native render path" non-negotiable, so it is allowed
+only within this `69861f2` convergence scope, only under this protocol, and
+only with explicit per-step user authorization for the deeper layers.
+
+- **S5.0 — Doc-first + authorization gate (no App code).** Reconcile ADR-0011
+  (status → superseded by ADR-0013), ADR-0013, and doc 12 §12; record the
+  acceptance benchmark and this protocol. Obtain explicit user authorization
+  to touch the named render/native files within the convergence scope, and
+  agree the real-machine measurement steps (this environment has no GUI and
+  cannot measure fullscreen).
+- **S5.1 — Pre-removal baseline (no App code; user real-machine).** With the
+  band-aid still in, the user verifies fullscreen enter/exit acceptance already
+  passes by structure. If it fails even with the band-aid, the structural
+  premise is disproven: stop and report; do not remove the band-aid.
+- **S5.2 — Remove layer 1+2 (SwiftUI/manager triggers).** Remove the
+  `PlaybackView`/`PlaybackRenderViewWrapper` token resync and the
+  `PlaybackFullscreenManager` `synchronizeFullscreenRenderLayout()` calls.
+  Isolated reversible commit; user re-measures; regression → default revert +
+  documented result.
+- **S5.3 — Remove layer 3 (PlaybackPlayer container sync).** Only if S5.2
+  measured clean. Isolated reversible commit; user re-measures; regression →
+  default revert + documented result.
+- **S5.4 — Remove layer 4 (native `.m`).** Only if S5.2–S5.3 prove layers 1–3
+  redundant AND with explicit per-step user authorization. Any doubt or
+  regression → native code stays, documented as intentionally retained with the
+  measured reason.
+- **S5.5 — Final acceptance + doc finalize.** `swift test` green at every step
+  (necessary, not sufficient — it does not cover the fullscreen GUI). Finalize
+  ADR-0011 / ADR-0013 / doc 12 §12. Changelog is S7, not S5.
+
+Acceptance benchmark for every S5 removal step: no video freeze and no
+workbench relayout flash on fullscreen enter/exit; `D`/`X` next/previous-result
+and seek shortcuts unchanged and smooth; cursor hide/unhide stays balanced;
+overlay-panel and v4 player-UI/cursor state unaffected by fullscreen enter or
+exit. The measured result is reported as an explicit observation; per
+`docs/engineering/02_git_workflow.md` §10 a regression defaults to reverting
+that change and documenting the result, and keeping a still-needed layer
+requires an explicit documented reason separate from the failed goal.
+
 ## Acceptance
 
 - Fullscreen enter/exit shows no video freeze and no workbench relayout flash.

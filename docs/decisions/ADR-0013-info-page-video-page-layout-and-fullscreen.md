@@ -86,6 +86,13 @@ and removes the need for per-boundary render-layout synchronization.
   `69861f2`) ceases to be an independent repair line. This refactor is the
   resolution; ADR-0011's acceptance criteria are expected to be met trivially by
   the new structure.
+- ADR-0011 is now marked `Superseded by ADR-0013`. S5 converges the `69861f2`
+  band-aid under the layered, measured, reversible, benchmark-honest protocol
+  recorded in ADR-0011's "S5 Convergence Of The 69861f2 Render-Sync Band-Aid"
+  section and the proposal's S5 measurement protocol: a pre-removal baseline is
+  measured first; removal is least-deep-layer first; the native layer is removed
+  only if layers 1–3 prove it redundant and only with explicit per-step user
+  authorization; regression defaults to revert + documented result.
 
 ## Consequences
 - **Positive:** Near-native fullscreen behavior, simpler playback presentation,

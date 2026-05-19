@@ -1,12 +1,52 @@
 # ADR-0011: Playback Fullscreen Uses Main Window Presentation
 
-Status: Accepted
+Status: Superseded by ADR-0013
 
 Supersedes: ADR-0010 dedicated playback fullscreen window
 
-Implementation status: Active. Implementation resumed on 2026-05-18 after user
-approval. The first implementation step is to confirm the target fullscreen
-contract before changing native App code.
+Superseded by: ADR-0013 info-page / video-page layout and fullscreen strategy.
+ADR-0011's main-window video-only fullscreen contract still holds, but its
+`69861f2` render-layout synchronization repair line is no longer an independent
+repair: the S1–S4 structural refactor (dedicated full-window video page, overlay
+panel that never resizes the video, info page no longer co-resident-squeezing)
+removes the root cause ADR-0011 was band-aiding. The repair is being converged
+in S5; see "S5 Convergence Of The 69861f2 Render-Sync Band-Aid" below.
+
+Implementation status: Converging (S5). The fullscreen contract is implemented;
+S5 verifies ADR-0011 acceptance now passes by structure and removes the
+redundant render-sync band-aid under a measured, layered, reversible protocol.
+
+## S5 Convergence Of The 69861f2 Render-Sync Band-Aid
+
+The `69861f2` band-aid spans four layers, deepest last:
+
+1. `PlaybackFullscreenManager` — `synchronizeFullscreenRenderLayout()` invoked at
+   ~8 fullscreen lifecycle boundaries.
+2. `PlaybackView` — `PlaybackRenderViewWrapper` token-driven `updateNSView`
+   resync.
+3. `PlaybackPlayer` — container frame-sync entry points.
+4. `SFXNativePlaybackPlayer.m` (+ header) — native-side layout sync hook.
+
+S5 convergence rules:
+
+- ADR-0011 acceptance (this document's "Acceptance Focus" plus the proposal's
+  Acceptance: no video freeze, no workbench relayout flash on enter/exit,
+  `D`/`X` and seek shortcuts unchanged and smooth, cursor balance preserved) is
+  the agreed benchmark.
+- A pre-removal baseline must be measured first with the band-aid still in: if
+  acceptance fails even then, the structural premise is disproven — stop and
+  report; do not remove the band-aid.
+- Removal proceeds layer by layer, least-deep first (1 → 2 → 3 → 4), each its
+  own reversible commit with a real-machine before/after measurement.
+- The native layer (4) is removed only if layers 1–3 measurably prove the
+  band-aid redundant and only with explicit per-step user authorization, since
+  it crosses the standing "do not touch the native render path" non-negotiable.
+- Benchmark honesty: any regression defaults to reverting that layer and
+  documenting the measured result. Keeping a still-needed layer requires an
+  explicit documented reason, not silent reinterpretation.
+- The measured fullscreen result is reported as an explicit observation; a
+  green `swift test` is necessary but not sufficient because it does not cover
+  the fullscreen GUI path.
 
 Confirmed implementation contract:
 

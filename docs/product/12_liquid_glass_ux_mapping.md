@@ -697,6 +697,17 @@ bottom-player visual language.
 
 Rules:
 
+- The dedicated full-window video page (S1–S4, ADR-0013) is the structural
+  resolution of the playback fullscreen jank: with no co-resident workbench or
+  squeezing sidebar, entering fullscreen is "hide the top-bar overlay, let the
+  video fill". S5 verifies ADR-0011 acceptance now passes by structure (no
+  video freeze, no workbench relayout flash on enter/exit; `D`/`X` and seek
+  shortcuts unchanged and smooth; overlay-panel and v4 player-UI/cursor state
+  independent of fullscreen enter/exit) and then converges the `69861f2`
+  render-sync band-aid layer by layer. The measured fullscreen result is
+  reported as an explicit observation; any regression defaults to reverting
+  that layer and documenting the result, never silent reinterpretation. See
+  ADR-0011 "S5 Convergence" and the proposal's S5 measurement protocol.
 - Fullscreen playback continues to use AppKit native fullscreen behavior and
   the existing playback fullscreen manager.
 - The HTML prototype represents App fullscreen with a local prototype state,
