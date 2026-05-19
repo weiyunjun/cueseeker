@@ -513,44 +513,78 @@ Rules:
 
 ### 10.4 Floating Chrome Visibility
 
-This is the Player-UI / cursor visibility state machine (v3). v3 supersedes
-v2: the cursor-hide condition is folded into the Hidden-state definition, and
-"focus" means the video window throughout. Authoritative user-provided rules,
-kept verbatim (Chinese):
+This is the Player-UI / cursor visibility state machine (v4). v4 supersedes
+v3 by separating Player UI state from cursor state, defining player focus
+separately from App focus, and defining when the current player is allowed to
+decide cursor visibility.
 
-名词解释
+Definitions:
 
-1. 播放器UI：底栏（控制视频的栏位） + 顶栏（红绿灯按钮和居中的视频别名）
-2. 播放器区域：播放视频时，视频窗口的区域。
-3. 显示状态：视频播放页存在时，播放器UI和鼠标箭头显示的状态。
-4. 不显示状态：视频播放页存在，播放器UI和鼠标箭头是否显示的状态。若焦点位于播放器区域且鼠标箭头位于播放器区域时，播放器UI和鼠标箭头不显示;其它情况播放器UI不显示，鼠标箭头显示。
+1. Player UI: the bottom player plus the video-page top bar.
+2. Player area: the video window area while the playback page exists.
+3. Player has focus: the current effective interaction target still belongs to
+   the player. Settings, independent windows, system dialogs, and future
+   non-player interfaces that receive interaction are player-focus loss even
+   when CueSeeker remains the foreground App. Playback-page-owned menus and
+   popovers do not count as player-focus loss.
+4. Player UI state:
+   1. Player UI visible: the player area exists and Player UI is shown.
+   2. Player UI hidden: the player area exists and Player UI is not shown.
+5. Cursor state:
+   1. Cursor visible: the player area exists and the cursor is shown.
+   2. Cursor hidden: the player area exists and the cursor is not shown.
+6. Cursor governed by the current player: the player area exists, the physical
+   cursor position is inside the player area, and the player has focus.
 
-核心规则
+Core rules:
 
-5. 焦点位于播放器区域时，鼠标移动，会显示鼠标箭头。
-6. 初始化：进入播放器页面，处于显示状态。
-7. 当处于显示状态时，以下条件将会使其切换到不显示状态：1. 鼠标从播放器区域移动到其它区域。2. 鼠标位于播放器区域且未移动达到3秒。3. 播放器区域失去焦点。
-8. 当处于不显示状态时，以下条件将会使其切换到显示状态：焦点位于播放器区域，鼠标位于播放器区域且移动。
-9. 进入全屏时，强制切换为不显示状态。
+7. When the cursor is governed by the current player, mouse movement puts the
+   cursor in the visible state.
+8. Initialization: entering the playback page puts Player UI and cursor in the
+   visible state.
+9. Fullscreen special case: entering fullscreen forces Player UI and cursor to
+   the hidden state.
+10. When Player UI is visible:
+    1. If the cursor is governed by the current player and then moves out of
+       the player area, Player UI switches to hidden.
+    2. If the cursor is governed by the current player and has not moved for
+       three seconds, Player UI switches to hidden.
+    3. If the player loses focus, Player UI switches to hidden.
+11. When Player UI is hidden, Player UI and cursor switch to visible only when
+    the player has focus, the cursor is inside the player area, and the cursor
+    moves.
+12. When the cursor is visible:
+    1. If the cursor is governed by the current player and then moves out of
+       the player area, final cursor visibility is decided by other rules.
+    2. If the cursor is governed by the current player and has not moved for
+       three seconds, the cursor switches to hidden.
+    3. If the player loses focus, this state machine performs no additional
+       cursor action; final cursor visibility is decided by other rules.
+13. When the cursor is hidden, if the cursor is governed by the current player
+    and moves, the cursor switches to visible.
+14. When the cursor is not governed by the current player, the current player
+    no longer decides cursor visibility. Final cursor visibility is decided by
+    whichever other rule owns it.
 
-补充说明
+Supplementary rules:
 
-10. 显示状态的切换，以鼠标的移动为主要判断依据（鼠标点击和键盘按键不算在内）
-11. 显示和不显示状态的切换，无需动画。
-12. 播放页自身的弹出菜单/浮层，不算播放器区域失去焦点。
+15. Visibility transitions are primarily driven by mouse movement. Mouse clicks
+    and keyboard input do not count as movement.
+16. Player UI and cursor state transitions do not animate.
 
 Mapping notes (App implementation):
 
-- "焦点位于播放器区域" / "失去焦点" = the video (playback) window is the key
-  window. Per rule 12, the video page's own SwiftUI popovers/menus are
-  in-window overlays (no separate key window) and do not count as losing
-  focus.
-- Cursor visibility is governed solely by Definition 4: hidden iff state is
-  Hidden AND the video window is key AND the live cursor position is inside
-  the player area; otherwise shown. "In the player area" is evaluated from the
-  actual current cursor location at decision time, not a cached value.
+- Player focus is an explicit player interaction-focus state, not simply
+  `NSApplication` active state or `NSWindow.isKeyWindow`. Settings windows,
+  independent windows, system dialogs, and future non-player interfaces cause
+  player-focus loss when they receive interaction. Playback-page-owned menus
+  and popovers do not.
+- Cursor governance is evaluated from the live cursor location and the current
+  player-focus state at each decision point, not from cached movement state.
+  The playback page must not assume that cursor visibility becomes visible
+  merely because the current player stopped governing it.
 - In fullscreen the custom top bar is not shown (§12), so Player UI there is
-  the bottom player only; the same v3 machine governs its show/hide. The
+  the bottom player only; the same v4 machine governs its show/hide. The
   player area is the video window; there is no frozen display-check area and
   no dock/top-bar exemption.
 - Player-area enter/leave and in-area movement come from a single
@@ -694,11 +728,13 @@ Rules:
   padding, full capsule radius, 13 px bold label text, no icon slot, and no
   reserved icon gap.
 - Player UI and cursor visibility in fullscreen follow the §10.4 Player-UI /
-  cursor visibility state machine (v3). Entering fullscreen forces the
-  not-shown state; only a real physical in-area mouse movement reveals Player
-  UI/cursor; keyboard and clicks do not, and exiting fullscreen does not by
-  itself change the state; after 3 seconds without movement they hide again.
-  There is no frozen display-check area.
+  cursor visibility state machine (v4). Entering fullscreen forces Player UI
+  and cursor into the hidden state; only real physical mouse movement while
+  the cursor is governed by the current player reveals Player UI and cursor.
+  Keyboard input and clicks do not reveal them, and exiting fullscreen does
+  not by itself change either state. After three seconds without movement
+  while the cursor is governed by the current player, Player UI and cursor
+  hide again. There is no frozen display-check area.
 - Clicking the video surface toggles play/pause unless the click targets a
   chrome control.
 - The fullscreen exit control exits playback fullscreen through the existing

@@ -472,15 +472,15 @@ M2 playback interaction model:
   fullscreen transition, with the system managing Dock, menu bar, desktop,
   wallpaper, Space, app switching, and system overlay behavior.
 - Entering or exiting playback fullscreen must not create a second playback render container or duplicate backend render state.
-- Entering playback fullscreen should immediately hide player UI and the mouse
-  cursor once, regardless of whether player UI was visible before fullscreen.
-- Player UI visibility is driven by mouse movement, not mouse clicks or
-  keyboard shortcuts.
-- While player UI is visible, three seconds without mouse movement anywhere in
-  the player area (including over the bottom bar or top bar) hides player UI
-  and, when the pointer is in the player area and the App is focused, the mouse
-  cursor. There is no frozen display-check area. The full chrome-visibility
-  contract is the Player-UI / cursor visibility state machine (v1) in
+- Entering playback fullscreen should immediately put Player UI and the cursor
+  into their hidden states, regardless of whether Player UI was visible before
+  fullscreen.
+- Player UI and cursor visibility are driven by mouse movement while the cursor
+  is governed by the current player, not by mouse clicks or keyboard shortcuts.
+- While Player UI is visible, three seconds without mouse movement while the
+  cursor is governed by the current player hides Player UI and the cursor.
+  There is no frozen display-check area. The full chrome-visibility contract
+  is the Player-UI / cursor visibility state machine (v4) in
   `docs/product/12_liquid_glass_ux_mapping.md` §10.4.
 - App switching while playback fullscreen is active should follow standard
   macOS Space behavior and should not reveal a separate CueSeeker workbench
@@ -517,12 +517,12 @@ Current M2 implementation and accepted fullscreen correction:
 - Playback controls and keyboard shortcuts share the same playback command state through the playback view model.
 - The bottom player is visible only while the video playback page is visible.
   Search, Library, and Shiori workbench pages must not show the bottom player.
-- In playback visibility rules, player UI means the bottom player plus the
-  video-page top bar. Player UI has only visible and not-visible states and
-  follows the Player-UI / cursor visibility state machine (v1) in
+- In playback visibility rules, Player UI means the bottom player plus the
+  video-page top bar. Player UI and cursor visibility follow the Player-UI /
+  cursor visibility state machine (v4) in
   `docs/product/12_liquid_glass_ux_mapping.md` §10.4. There is no frozen
   display-check area and no dock/top-bar exemption; regaining App focus alone
-  does not reveal player UI.
+  does not reveal Player UI.
 - The bottom-player left source/title collapse control is no longer part of the
   target UX. The volume button is the leftmost bottom-player control; the other
   controls keep their relative order.

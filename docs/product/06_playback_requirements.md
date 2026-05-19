@@ -309,13 +309,14 @@ Required behavior:
 - Entering and exiting fullscreen should use AppKit's native fullscreen
   lifecycle rather than a manually simulated borderless overlay transition or a
   separate playback fullscreen window.
-- Entering fullscreen should immediately hide player UI and the mouse cursor.
-- Mouse movement shows the mouse cursor. Mouse movement inside the player area
-  reveals player UI when it is not visible.
+- Entering fullscreen should immediately put Player UI and the cursor into
+  their hidden states.
+- Mouse movement shows the cursor while the cursor is governed by the current
+  player. Mouse movement inside the player area reveals Player UI when it is
+  not visible only when the player has focus.
 - Mouse clicks and keyboard shortcuts must not reveal player UI.
-- While player UI is visible, three seconds without mouse movement inside the
-  frozen display-check area hides player UI and, when the pointer is in the
-  player area, the mouse cursor.
+- While Player UI is visible, three seconds without mouse movement while the
+  cursor is governed by the current player hides Player UI and the cursor.
 - Keyboard shortcuts in fullscreen should run playback commands without revealing the playback operation controls.
 - App switching during playback fullscreen should rely on normal macOS Space
   behavior and must not reveal a separate CueSeeker workbench window that has

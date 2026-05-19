@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Formalized the v4 Player-UI / cursor visibility rules: Player focus is now
+  separate from App focus, Player UI state and cursor state are documented
+  independently, and cursor visibility is decided by the current player only
+  while the cursor is governed by that player.
 - Documented the next playback fullscreen repair plan: make fullscreen an
   explicit player state machine, bind video-only presentation to AppKit
   lifecycle callbacks, add native render-view transition hooks, and treat
