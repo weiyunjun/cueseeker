@@ -442,7 +442,6 @@ struct SearchView: View {
         PlaybackView(
             player: appState.playbackPlayer,
             viewModel: appState.playbackViewModel,
-            fullscreenManager: appState.playbackFullscreenManager,
             onSurfaceTap: {
                 appState.clearSearchFocus()
                 appState.togglePlaybackFromUser()

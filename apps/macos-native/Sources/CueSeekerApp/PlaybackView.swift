@@ -6,7 +6,6 @@ import CueSeekerPlayback
 struct PlaybackView: View {
     let player: PlaybackPlayer?
     let viewModel: PlaybackViewModel?
-    @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
 
     var body: some View {
@@ -14,7 +13,6 @@ struct PlaybackView: View {
             PlaybackVideoView(
                 player: player,
                 viewModel: viewModel,
-                fullscreenManager: fullscreenManager,
                 onSurfaceTap: onSurfaceTap
             )
         } else {
@@ -26,16 +24,15 @@ struct PlaybackView: View {
 struct PlaybackVideoView: View {
     let player: PlaybackPlayer
     @ObservedObject var viewModel: PlaybackViewModel
-    @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onSurfaceTap: () -> Void
 
     var body: some View {
         ZStack {
-            PlaybackRenderViewWrapper(
-                player: player,
-                fullscreenState: fullscreenManager.state,
-                isVideoOnlyPresentationVisible: fullscreenManager.isVideoOnlyPresentationVisible
-            )
+            // S5.2: the dedicated full-window video page (ADR-0013) makes the
+            // 69861f2 fullscreen render-sync band-aid unnecessary; the render
+            // host is laid out by normal AppKit layout passes. No fullscreen
+            // state is threaded into the render wrapper.
+            PlaybackRenderViewWrapper(player: player)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -88,38 +85,15 @@ struct PlaybackSubtitleOverlay: View {
 
 struct PlaybackRenderViewWrapper: NSViewRepresentable {
     let player: PlaybackPlayer
-    let fullscreenState: PlaybackFullscreenState
-    let isVideoOnlyPresentationVisible: Bool
 
     func makeNSView(context: Context) -> NSView {
         PlaybackRenderHostView(player: player)
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        let token = PlaybackFullscreenLayoutToken(
-            state: fullscreenState,
-            isVideoOnlyPresentationVisible: isVideoOnlyPresentationVisible
-        )
-        guard context.coordinator.lastFullscreenLayoutToken != token else {
-            return
-        }
-
-        context.coordinator.lastFullscreenLayoutToken = token
-        (nsView as? PlaybackRenderHostView)?.synchronizeFullscreenTransitionLayout()
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    final class Coordinator {
-        fileprivate var lastFullscreenLayoutToken: PlaybackFullscreenLayoutToken?
-    }
-}
-
-private struct PlaybackFullscreenLayoutToken: Equatable {
-    let state: PlaybackFullscreenState
-    let isVideoOnlyPresentationVisible: Bool
+    // S5.2: no fullscreen-transition resync. The singleton render host stays
+    // in the one window hierarchy and is laid out by normal AppKit layout
+    // passes (ADR-0013 structural resolution); the 69861f2 band-aid is removed.
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
 private final class PlaybackRenderHostView: NSView {
@@ -150,16 +124,6 @@ private final class PlaybackRenderHostView: NSView {
         super.layout()
 
         synchronizeRenderViewFrame(logName: "PlaybackRenderHostView.layout")
-    }
-
-    func synchronizeFullscreenTransitionLayout() {
-        if window != nil, renderView.superview == nil {
-            attachRenderView()
-        }
-
-        needsLayout = true
-        layoutSubtreeIfNeeded()
-        synchronizeRenderViewFrame(logName: "PlaybackRenderHostView.fullscreenTransitionLayout")
     }
 
     private func attachRenderView() {
