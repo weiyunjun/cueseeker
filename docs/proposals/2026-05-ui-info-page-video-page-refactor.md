@@ -160,9 +160,8 @@ Core rules:
     2. If the cursor is governed by the current player and has not moved for
        three seconds, Player UI switches to hidden.
     3. If the player loses focus, Player UI switches to hidden.
-11. When Player UI is hidden, Player UI and cursor switch to visible only when
-    the player has focus, the cursor is inside the player area, and the cursor
-    moves.
+11. When Player UI is hidden, Player UI switches to visible only when the
+    cursor is governed by the current player and the cursor moves.
 12. When the cursor is visible:
     1. If the cursor is governed by the current player and then moves out of
        the player area, final cursor visibility is decided by other rules.
