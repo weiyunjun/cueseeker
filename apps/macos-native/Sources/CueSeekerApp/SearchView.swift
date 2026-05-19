@@ -940,11 +940,9 @@ private struct ShioriCardGroupView: View {
                         ShioriCard(
                             shiori: shiori,
                             rank: index + 1,
-                            isSelected: selectedShiori?.id == shiori.id
+                            isSelected: selectedShiori?.id == shiori.id,
+                            onOpen: { onOpenShiori(shiori) }
                         )
-                        .listRowAction {
-                            onOpenShiori(shiori)
-                        }
                         .focusable(false)
                     }
                 }
@@ -1067,81 +1065,65 @@ private struct ShioriCard: View {
     let shiori: Shiori
     let rank: Int
     let isSelected: Bool
-    @State private var isHovered = false
+    let onOpen: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.88)
-        let secondaryTextColor: Color = isSelected ? .white.opacity(0.82) : Color.primary.opacity(0.48)
+        // Shiori has no `.shiori-card` overrides in v6: this is the P5.2-B
+        // `.result-card` spec verbatim (the shared LiquidGlassSelectableCard),
+        // so P5.4-B introduces no new pixel values. Main-page cards retain no
+        // playback selection visual (doc 12 §6.4, doc 11 §5/§7; finding F);
+        // the vestigial `isSelected` plumbing is excised in P5.4-2.
+        let tokens = LiquidGlassTokens(colorScheme: colorScheme)
+        let textColor = tokens.text.opacity(0.88)
+        let secondaryTextColor = tokens.text3
 
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Text("#\(rank)")
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(secondaryTextColor)
-                    .monospacedDigit()
-
-                Spacer(minLength: 8)
-
-                Text(formatTimestamp(shiori.startMilliseconds))
-                    .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                    .foregroundStyle(secondaryTextColor)
-                    .lineLimit(1)
-                    .monospacedDigit()
-            }
-
+        LiquidGlassSelectableCard(
+            cornerRadius: SearchCardLayout.cardCornerRadius,
+            action: onOpen
+        ) {
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
-                    Text(line)
-                        .font(.system(size: SearchTypography.bodySize, weight: .semibold))
-                        .foregroundStyle(textColor)
-                        .lineLimit(nil)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Text("#\(rank)")
+                        .font(.system(size: 11, weight: .regular, design: .monospaced))
+                        .foregroundStyle(secondaryTextColor)
+                        .monospacedDigit()
+
+                    Spacer(minLength: 8)
+
+                    Text(formatTimestamp(shiori.startMilliseconds))
+                        .font(.system(size: 11, weight: .regular, design: .monospaced))
+                        .foregroundStyle(secondaryTextColor)
+                        .lineLimit(1)
+                        .monospacedDigit()
                 }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundStyle(textColor)
+                            .lineLimit(nil)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 11)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: SearchCardLayout.cardMinHeight,
+                maxHeight: .infinity,
+                alignment: .topLeading
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .frame(
-            maxWidth: .infinity,
-            minHeight: SearchCardLayout.cardMinHeight,
-            maxHeight: .infinity,
-            alignment: .topLeading
-        )
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius)
-                .strokeBorder(cardBorder, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
         .accessibilityLabel("\(shiori.videoName), \(formatTimestamp(shiori.startMilliseconds))")
     }
 
     private var displayLines: [String] {
         subtitleDisplayLines(content: shiori.content, cueLines: shiori.cueLines)
-    }
-
-    private var cardBackground: Color {
-        if isSelected {
-            return Color.accentColor
-        }
-        if isHovered {
-            return Color.primary.opacity(0.075)
-        }
-        return Color.primary.opacity(0.045)
-    }
-
-    private var cardBorder: Color {
-        if isSelected {
-            return Color.clear
-        }
-        if isHovered {
-            return Color.primary.opacity(0.07)
-        }
-        return Color.clear
     }
 }
 
