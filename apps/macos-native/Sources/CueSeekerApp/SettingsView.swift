@@ -306,22 +306,6 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Search Result Thumbnails")
-                        .font(.headline)
-                    Text("Show generated image previews in search results.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Toggle("", isOn: $appState.searchResultThumbnailsEnabled)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-            }
-
             Spacer()
         }
         .padding(24)

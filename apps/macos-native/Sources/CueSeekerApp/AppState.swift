@@ -298,7 +298,6 @@ final class AppState: ObservableObject {
     private static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
     private static let playbackSpeedKey = "playbackSpeed"
     private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
-    private static let searchResultThumbnailsEnabledKey = "searchResultThumbnailsEnabled"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let assSubtitlePreparationCueLimit = 8
@@ -358,11 +357,6 @@ final class AppState: ObservableObject {
         didSet {
             userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
             player?.decodeMode = playbackDecodeMode
-        }
-    }
-    @Published var searchResultThumbnailsEnabled = false {
-        didSet {
-            userDefaults.set(searchResultThumbnailsEnabled, forKey: Self.searchResultThumbnailsEnabledKey)
         }
     }
     @Published var searchE2ELoggingEnabled = true {
@@ -695,7 +689,6 @@ final class AppState: ObservableObject {
             Self.playbackLastNonzeroVolumeKey: 100.0,
             Self.playbackSpeedKey: 1.0,
             Self.playbackSubtitlesVisibleKey: true,
-            Self.searchResultThumbnailsEnabledKey: false,
             Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true
         ])
@@ -706,7 +699,6 @@ final class AppState: ObservableObject {
         appAppearanceMode = loadedAppAppearanceMode
         Self.applyAppAppearanceMode(loadedAppAppearanceMode)
         playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
-        searchResultThumbnailsEnabled = userDefaults.bool(forKey: Self.searchResultThumbnailsEnabledKey)
         searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
         searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
