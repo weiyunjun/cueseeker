@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented the v4 Player-UI / cursor visibility model in the macOS playback
+  page so fullscreen entry forces hidden states, fullscreen exit does not
+  reveal chrome by itself, and non-player focus such as Settings no longer
+  counts as player focus.
 - Formalized the v4 Player-UI / cursor visibility rules: Player focus is now
   separate from App focus, Player UI state and cursor state are documented
   independently, and cursor visibility is decided by the current player only

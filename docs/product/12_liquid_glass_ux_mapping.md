@@ -588,9 +588,11 @@ Mapping notes (App implementation):
   no dock/top-bar exemption.
 - Player-area enter/leave and in-area movement come from a single
   authoritative `NSTrackingArea` on a hit-test-transparent full-bleed overlay
-  view (it never intercepts clicks/drag). `mouseEntered`/`mouseMoved` (real
-  movement) drive the in-area path; `mouseExited` is the "moved to another
-  area" signal (rule 7.1). This is the only mechanism reliable regardless of
+  view (it never intercepts clicks/drag). `mouseEntered` updates player-area
+  governance but is not treated as real movement because layout/fullscreen
+  changes can emit enter events without physical pointer motion. `mouseMoved`
+  is the governed movement signal; `mouseExited` is the "moved to another
+  area" signal (rule 10.1). This is the only mechanism reliable regardless of
   embedded AppKit subviews, focus, or the menu-bar/Dock/desktop/other-display
   the pointer moves onto; `NSEvent` global/local mouse-move monitors and
   SwiftUI hover are not reliable here. Layout/fullscreen/focus changes are not
