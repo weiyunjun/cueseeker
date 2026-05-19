@@ -118,7 +118,7 @@ live in that owner, not in individual call sites.
 | `ui-input-capsule` | Search field capsule | `LiquidGlassSearchField` | Topbar Search input. |
 | `ui-segmented-control` | Segmented control container | `LiquidGlassSegmentedControl` | Playback side-panel tabs. |
 | `ui-segmented-control__option` | Segmented control option | `LiquidGlassSegmentedControl.Option` | Search Results and Subtitles tab buttons. |
-| `ui-selectable-card` | Selectable card | `LiquidGlassSelectableCard` | Search result cards, Shiori cards, Library episode cards where the card treatment is accepted. |
+| `ui-selectable-card` | Selectable card | `LiquidGlassSelectableCard` | All three info-page cards share this one owner. v6 markup: `result-card ui-selectable-card` (Search), `result-card shiori-card ui-selectable-card` (Shiori), `library-episode-card ui-selectable-card` (Library); `shiori-card` / `library-episode-card` are surface modifiers, not separate owners. Adopted by Search in P5.2-1, Library in P5.3, Shiori in P5.4-1. |
 | `ui-selectable-row` | Selectable sidebar row | `LiquidGlassSelectableRow` | Playback side-panel result and subtitle rows. |
 | `ui-popup-menu` | Rounded-rectangle popup menu | `LiquidGlassPopupMenu` | Playback speed menu. |
 | `ui-popup-menu__item` | Popup menu item | `LiquidGlassPopupMenu.Item` | Playback speed options. |
@@ -229,9 +229,13 @@ Icon asset rule:
 Main-page selected-visual correction: the `ui-is-selected` rows above forbid
 retained playback-selection visuals on main Search / Library / Shiori cards
 (proposal "P5.0 Confirmed Audit" finding F). The Search card and the shared
-`CardGroupHeader` selected visuals were excised in P5.2-2. The `ShioriCard`
-body still fills the selected card with `Color.accentColor`; that excision is
-pending P5.4.
+`CardGroupHeader` selected visuals were excised in P5.2-2. The live
+`ShioriCard` still fills the selected card with `Color.accentColor` and
+`selectedShiori` is still plumbed into `ShioriCardGroupView`; that excision is
+scheduled for P5.4-2, ahead of the Shiori dead-legacy-cluster retirement
+(P5.4-3) and the orphaned `SearchLayout` removal (P5.4-4). Library has no
+separable dead path; its old code is replaced in place within the P5.3
+rebuild. See proposal "P5.3 / P5.4 Old-Code Audit & Deletion Plan".
 
 ## 8. Token Mapping
 
@@ -315,8 +319,10 @@ The following must not be synchronized from HTML classes into Swift:
 
 Open questions before this document becomes accepted:
 
-- Should `ui-selectable-card` cover both Search/Shiori result cards and Library
-  episode cards, or should Library episodes get a separate class anchor?
+- Resolved (v6, 2026-05-20): `ui-selectable-card` covers all three —
+  Search/Shiori result cards and Library episode cards — under one
+  `LiquidGlassSelectableCard` owner, with `shiori-card` / `library-episode-card`
+  as surface modifiers (see §5). Library episodes do not get a separate anchor.
 - Should topbar Library and Shiori buttons be modeled as `topbar` plus
   `toggle`, or as a distinct topbar-toggle variant?
 - Should fullscreen playback chrome use the exact bottom-player component with

@@ -312,15 +312,23 @@ Rules:
   failed → "Library Failed" (shows the message); videos empty → "No Videos";
   videos present → folder/episode list. The state demo is the provisional state
   authority (see §6.1); pixel-level visual reconciliation is deferred.
+- Library folder group, header, and episode-grid pixel visuals align to the v6
+  prototype (`.library-group`, `.library-group-header`, `.library-episode-grid`,
+  `library-episode-card ui-selectable-card`). P5.3 is an in-place visual
+  rebuild with no separable dead path to pre-delete; concrete values come from
+  a future owner-confirmed "P5.3 Confirmed Pixel Spec" sub-section (single
+  source, like P5.2-B). See proposal "P5.3 / P5.4 Old-Code Audit & Deletion
+  Plan".
 
 ### 7.2 Library Episode Grid
 
 Rules:
 
 - Expanded folders show compact episode-rank buttons.
-- The HTML prototype uses `EP01` style labels. Native implementation should use
-  the same compact episode-rank label if this draft is accepted; it must still
-  derive the rank from Finder-like natural sorting.
+- The HTML prototype uses `EP01` style labels. Resolved (owner, 2026-05-20):
+  the native App adopts the `EP01` compact episode-rank label to match v6; it
+  must still derive the rank from Finder-like natural sorting. (Closes the
+  doc 12 §16 EP01 question; proposal finding H resolved.)
 - Episode buttons must not show raw file names, durations, or language tags.
 - The grid column count adapts to the current available width.
 - The grid is slightly indented relative to the folder row to express
@@ -360,6 +368,14 @@ Rules:
   has no Shiori loading or failed state and the demo must not invent one. The
   state demo is the provisional state authority (see §6.1); pixel-level visual
   reconciliation is deferred.
+- Shiori card, group header, and results-header pixel visuals align to the v6
+  prototype (`result-card shiori-card ui-selectable-card`, `.group-header`,
+  `.results-header`). Order: P5.4-1 adopt the shared `LiquidGlassSelectableCard`;
+  P5.4-2 excise the retained `Color.accentColor` selected visual and
+  `selectedShiori` plumbing (finding F); P5.4-3/-4 retire the dead Shiori
+  legacy cluster and the orphaned `SearchLayout`; P5.4-B precise alignment from
+  a future owner-confirmed "P5.4 Confirmed Pixel Spec". See proposal "P5.3 /
+  P5.4 Old-Code Audit & Deletion Plan".
 
 ## 9. Bottom Player UX
 
@@ -991,9 +1007,9 @@ Not allowed:
 
 Open questions before this mapping becomes accepted:
 
-- Should Library episode labels use the HTML `EP01` format, or should the
-  native App keep number-only rank labels while preserving the same grid
-  geometry?
+- Resolved (owner, 2026-05-20): Library episode labels use the HTML `EP01`
+  format (rank still derived from Finder-like natural sorting); the native App
+  does not keep number-only labels. See §7.2 and proposal finding H.
 - Should fullscreen chrome need any future now-playing identity label after the
   bottom-left source/title capsule removal, or should it remain transport and
   operation controls only?
