@@ -513,50 +513,56 @@ Rules:
 
 ### 10.4 Floating Chrome Visibility
 
-This is the Player-UI / cursor visibility state machine (v2). v2 supersedes
-v1: v1's per-transition "keep the cursor" policy is removed — Shown means
-Player UI and the cursor are both shown, Hidden means both are not shown, and
-cursor management is gated by App focus.
+This is the Player-UI / cursor visibility state machine (v3). v3 supersedes
+v2: the cursor-hide condition is folded into the Hidden-state definition, and
+"focus" means the video window throughout. Authoritative user-provided rules,
+kept verbatim (Chinese):
 
-Definitions:
+名词解释
 
-- Player UI: the bottom player plus the video-page top bar. In fullscreen the
-  custom top bar is not shown (§12), so Player UI there is the bottom player
-  only; the same v2 machine still governs its show/hide.
-- Player area: while a video is playing, the player window region — i.e. the
-  App window at that time. There is no frozen display-check area and no
-  dock/top-bar exemption.
-- Shown: the video page exists and Player UI and the cursor are shown.
-- Hidden: the video page exists and Player UI and the cursor are not shown.
-- The centered overlay panel is not Player UI. Its visibility is independent
-  of this state machine and it never auto-hides.
+1. 播放器UI：底栏（控制视频的栏位） + 顶栏（红绿灯按钮和居中的视频别名）
+2. 播放器区域：播放视频时，视频窗口的区域。
+3. 显示状态：视频播放页存在时，播放器UI和鼠标箭头显示的状态。
+4. 不显示状态：视频播放页存在，播放器UI和鼠标箭头是否显示的状态。若焦点位于播放器区域且鼠标箭头位于播放器区域时，播放器UI和鼠标箭头不显示;其它情况播放器UI不显示，鼠标箭头显示。
 
-Rules:
+核心规则
 
-- When focus is on the App, moving the mouse shows the cursor.
-- The cursor-hiding rule applies if and only if focus is on the App. While the
-  App is unfocused the cursor is not held hidden (the OS owns it).
-- Entering the video page initializes the Shown state.
-- From Shown, any of these switches to Hidden: (1) the mouse moves from the
-  player area to another area; (2) the mouse is in the player area and does
-  not move for 3 seconds; (3) the App loses focus.
-- From Hidden, this switches to Shown: focus is on the App, the mouse is in
-  the player area, and the mouse moves.
-- Entering playback fullscreen forces a switch to Hidden (Player UI and, since
-  focus is on the App at entry, the cursor). It stays Hidden until a real
-  in-area mouse movement (the Hidden→Shown rule).
-- State switching is driven by mouse movement; mouse clicks and key presses do
-  not count (they neither reset the 3-second idle timer nor restore Shown).
-  The "movement" signal must be real physical pointer movement; synthetic
-  hover events from layout/fullscreen/focus changes are not movement.
-- Regaining App focus while Hidden keeps Hidden and, because focus is on the
-  App, keeps the cursor hidden; only a real in-area movement reveals it.
-- Exiting fullscreen does not by itself change the state.
-- State switching needs no animation.
-- Hiding the chrome does not pause playback, change selection, or close menus
-  except where a menu cannot remain visible without its anchor.
-- Horizontal geometry changes must remain immediate and independent from
-  Player UI visibility.
+5. 焦点位于播放器区域时，鼠标移动，会显示鼠标箭头。
+6. 初始化：进入播放器页面，处于显示状态。
+7. 当处于显示状态时，以下条件将会使其切换到不显示状态：1. 鼠标从播放器区域移动到其它区域。2. 鼠标位于播放器区域且未移动达到3秒。3. 播放器区域失去焦点。
+8. 当处于不显示状态时，以下条件将会使其切换到显示状态：焦点位于播放器区域，鼠标位于播放器区域且移动。
+9. 进入全屏时，强制切换为不显示状态。
+
+补充说明
+
+10. 显示状态的切换，以鼠标的移动为主要判断依据（鼠标点击和键盘按键不算在内）
+11. 显示和不显示状态的切换，无需动画。
+12. 播放页自身的弹出菜单/浮层，不算播放器区域失去焦点。
+
+Mapping notes (App implementation):
+
+- "焦点位于播放器区域" / "失去焦点" = the video (playback) window is the key
+  window. Per rule 12, the video page's own SwiftUI popovers/menus are
+  in-window overlays (no separate key window) and do not count as losing
+  focus.
+- Cursor visibility is governed solely by Definition 4: hidden iff state is
+  Hidden AND the video window is key AND the live cursor position is inside
+  the player area; otherwise shown. "In the player area" is evaluated from the
+  actual current cursor location at decision time, not a cached value.
+- In fullscreen the custom top bar is not shown (§12), so Player UI there is
+  the bottom player only; the same v3 machine governs its show/hide. The
+  player area is the video window; there is no frozen display-check area and
+  no dock/top-bar exemption.
+- The "movement" signal is real physical `NSEvent` mouse movement. The in-area
+  (local) monitor is delta-filtered; any global mouse-move means the pointer
+  is outside the video window and is itself the "moved to another area"
+  signal. Layout/fullscreen/focus changes are not movement; exiting fullscreen
+  does not change state.
+- The centered overlay panel is not Player UI; its visibility is independent
+  of this machine and it never auto-hides. Hiding the chrome does not pause
+  playback, change selection, or close menus except where a menu cannot remain
+  visible without its anchor. Horizontal geometry changes remain immediate and
+  independent from Player UI visibility.
 
 ### 10.5 Playback Close UX
 
@@ -684,11 +690,11 @@ Rules:
   padding, full capsule radius, 13 px bold label text, no icon slot, and no
   reserved icon gap.
 - Player UI and cursor visibility in fullscreen follow the §10.4 Player-UI /
-  cursor visibility state machine (v2). Entering fullscreen forces Hidden
-  (Player UI and cursor); only a real physical in-area mouse movement reveals
-  them; keyboard and clicks do not, and exiting fullscreen does not by itself
-  change the state; after 3 seconds without movement they hide again. There is
-  no frozen display-check area.
+  cursor visibility state machine (v3). Entering fullscreen forces the
+  not-shown state; only a real physical in-area mouse movement reveals Player
+  UI/cursor; keyboard and clicks do not, and exiting fullscreen does not by
+  itself change the state; after 3 seconds without movement they hide again.
+  There is no frozen display-check area.
 - Clicking the video surface toggles play/pause unless the click targets a
   chrome control.
 - The fullscreen exit control exits playback fullscreen through the existing

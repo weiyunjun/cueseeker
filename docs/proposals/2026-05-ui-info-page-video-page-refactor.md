@@ -57,7 +57,7 @@ Supersedes (design changes):
 - Net-new: a **video-page top bar** (three traffic-light buttons plus a centered
   video title), absent from the rewrite plan and the mapping documents.
 - Rewrite-plan Phase 3 chrome auto-hide acceptance and doc 12 §10.4 — superseded
-  and extended by the Player-UI / cursor visibility state machine (v2) below.
+  and extended by the Player-UI / cursor visibility state machine (v3) below.
 
 Does not supersede: backend/Search/Library/Shiori logic decisions, the playback
 engine and ASS ADRs, and the non-affected sections of the Liquid Glass mapping
@@ -122,50 +122,49 @@ The video page is composed of:
   playback seeks to it. The panel is **not** part of "Player UI" and its
   visibility is independent of the state machine below.
 
-## Player-UI / Cursor Visibility State Machine (v2)
+## Player-UI / Cursor Visibility State Machine (v3)
 
-This is the user-provided rule set. v2 supersedes v1: v1's per-transition
-"keep the cursor" policy is removed. Now Shown = Player UI and cursor both
-shown; Hidden = Player UI and cursor both not shown; cursor management is
-gated by App focus (see rules 5–6).
+v3 supersedes v2. The cursor-hide condition is folded into the Hidden-state
+definition itself, and "focus" means the video window throughout. The
+authoritative user-provided rules, kept verbatim (Chinese):
 
-Definitions:
+### 名词解释
 
-1. Player UI: the bottom bar (video controls) plus the top bar (traffic-light
-   buttons and the centered video alias).
-2. Player area: while a video is playing, the player window region — i.e. the
-   App window at that time.
-3. Shown state: the video page exists and Player UI and the mouse cursor are
-   shown.
-4. Hidden state: the video page exists and Player UI and the mouse cursor are
-   not shown.
+1. 播放器UI：底栏（控制视频的栏位） + 顶栏（红绿灯按钮和居中的视频别名）
+2. 播放器区域：播放视频时，视频窗口的区域。
+3. 显示状态：视频播放页存在时，播放器UI和鼠标箭头显示的状态。
+4. 不显示状态：视频播放页存在，播放器UI和鼠标箭头是否显示的状态。若焦点位于播放器区域且鼠标箭头位于播放器区域时，播放器UI和鼠标箭头不显示;其它情况播放器UI不显示，鼠标箭头显示。
 
-Core rules:
+### 核心规则
 
-5. When focus is on the App, moving the mouse shows the cursor.
-6. The cursor-hiding rule applies if and only if focus is on the App.
-7. Init: entering the player page → Shown state.
-8. From Shown, any of these switches to Hidden: (1) the mouse moves from the
-   player area to another area; (2) the mouse is in the player area and does
-   not move for 3 seconds; (3) the App loses focus.
-9. From Hidden, this switches to Shown: focus is on the App, the mouse is in
-   the player area, and the mouse moves.
-10. Entering fullscreen forces a switch to Hidden.
-11. State switching is driven primarily by mouse movement (mouse clicks and
-    key presses do not count).
-12. State switching needs no animation.
+5. 焦点位于播放器区域时，鼠标移动，会显示鼠标箭头。
+6. 初始化：进入播放器页面，处于显示状态。
+7. 当处于显示状态时，以下条件将会使其切换到不显示状态：1. 鼠标从播放器区域移动到其它区域。2. 鼠标位于播放器区域且未移动达到3秒。3. 播放器区域失去焦点。
+8. 当处于不显示状态时，以下条件将会使其切换到显示状态：焦点位于播放器区域，鼠标位于播放器区域且移动。
+9. 进入全屏时，强制切换为不显示状态。
 
-Consequences (clarifying the rules above): regaining App focus while Hidden
-keeps Hidden and, because focus is on the App, keeps the cursor hidden — it is
-not revealed until rule 9 (a real in-area mouse movement). Exiting fullscreen
-does not itself change state. While the App is unfocused the cursor-hiding
-rule does not apply, so the cursor is not held hidden.
+### 补充说明
 
-Implementation note: a single explicit state machine owns both Player UI and
-the cursor. The "movement" signal must come from real physical mouse-move
-events (e.g. an `NSEvent` mouse-moved monitor, delta-filtered), not from
-SwiftUI hover, because layout/fullscreen/focus changes emit synthetic hover
-events that must not count as movement.
+10. 显示状态的切换，以鼠标的移动为主要判断依据（鼠标点击和键盘按键不算在内）
+11. 显示和不显示状态的切换，无需动画。
+12. 播放页自身的弹出菜单/浮层，不算播放器区域失去焦点。
+
+Implementation notes:
+
+- "焦点位于播放器区域" / "失去焦点" means the video (playback) window is the
+  key window. Per rule 12, the video page's own SwiftUI popovers/menus are
+  in-window overlays (no separate key window) and do not count as losing
+  focus.
+- Cursor visibility follows Definition 4 only: the cursor is hidden iff the
+  state is Hidden AND the video window is key AND the live cursor position is
+  inside the player area; otherwise the cursor is shown. "In the player area"
+  is evaluated from the actual current cursor location at the moment of the
+  decision, not from a cached movement value.
+- The "movement" signal comes from real physical `NSEvent` mouse-move events.
+  The in-area (local) monitor is delta-filtered; a global mouse-move means the
+  pointer is outside the video window, which is itself the "moved to another
+  area" signal (no delta filter on that path). Layout/fullscreen/focus changes
+  must not count as movement. Exiting fullscreen does not change state.
 
 ## Memory Regression
 
@@ -200,7 +199,7 @@ later stage whose memory contribution is unknown. Therefore:
    title.
 4. Other necessary changes implied by the new top bar and removed Close (for
    example fullscreen control adjustments).
-5. Top/bottom bar show/hide behavior follows the state machine (v2) above.
+5. Top/bottom bar show/hide behavior follows the state machine (v3) above.
 
 ## Implementation Order
 
@@ -270,15 +269,19 @@ views; each step is its own commit and reports before/after short hashes.
   suppress the native NSWindow traffic lights on the video page (coordinate with
   `AppDelegate.WindowButtonsProxyView` / `adjustTrafficLights()`); the top bar
   is Player UI. Risk: medium-high. Verify visually against prototype v6.
-- **S3 — Player-UI / cursor visibility state machine (v2).** Implement the v2
+- **S3 — Player-UI / cursor visibility state machine (v3).** Implement the v3
   state machine per doc 12 §10.4. A single explicit model owns Player UI and
   the cursor; the dead/competing chrome+cursor code in
   `PlaybackFullscreenManager` is removed. The "movement" signal comes from
   real physical `NSEvent` mouse-moved events (not SwiftUI hover), so
-  layout/fullscreen/focus changes never count as movement. Risk: medium.
-  Verify the three reported bugs stay fixed: (1) cmd-tab away/back must not
-  reveal the cursor while Hidden; (2) entering fullscreen must not show
-  Player UI or cursor; (3) exiting fullscreen must not change state.
+  layout/fullscreen/focus changes never count as movement. Focus means the
+  video window is key; cursor visibility follows Definition 4 (hidden iff
+  Hidden + video window key + live cursor in the player area). Risk: medium.
+  Verify: (1) cmd-tab away/back must not reveal the cursor while Hidden;
+  (2) entering fullscreen must not show Player UI or cursor; (3) exiting
+  fullscreen must not change state; (4) moving out of the player area hides
+  Player UI immediately and keeps the cursor; (5) the cursor is never hidden
+  while it is outside the player area.
 - **S4 — Overlay middle panel (core layout change).** `PlaybackPageView`:
   `HStack(video + sidebar)` → video stage fills the window + centered floating
   overlay; remove `PlaybackSidebarMetrics` squeeze math; restore the Search
