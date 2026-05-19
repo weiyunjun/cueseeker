@@ -126,23 +126,31 @@ v6 cannot express the accepted card design.
   render change; architecture §7 invalidation domains preserved;
   `swift test` green. Surface adoption of the shared card is P5.2–P5.4.
   Risk: low–medium.
-- **P5.2 — Search result cards / groups (scope confirmed 2026-05-19, owner
-  option A).** Swap the `SearchResultCard` surface to the shared
-  `LiquidGlassSelectableCard` (colorScheme/token driven) and rebuild the
-  Search group header to v6 (chevron 0°/90° over 160ms, muted count, one
-  click target); **excise the retained accent selected visual** (audit
-  finding F) so main pages keep no playback selection visual. Card content,
-  query `<mark>` highlight, `EqualHeightCardGridLayout` equal-height, lazy
-  loading, first-screen, exact counts, and group ordering/collapse are
-  unchanged — not a pixel-level redesign beyond v6. Then, as separate commits
-  within P5.2: retire the dead Search legacy row path (`resultsList`,
-  `SearchResultGroupView` / `SearchResultGroupHeader` /
-  `SearchResultGroupRail` / `SearchResultRow`); and remove the now-defunct
-  thumbnail plumbing (`searchResultThumbnailsEnabled` AppState property +
-  UserDefaults key + SettingsView toggle — permitted cleanup, not a Settings
-  redesign; doc 12 §6.2 already reversed). Sub-commits: P5.2-1 card surface +
-  selected-visual excision, P5.2-2 group header, P5.2-3 dead-row retirement,
-  P5.2-4 thumbnail plumbing removal. Risk: medium-high (highest — easiest to
+- **P5.2 — Search result cards / groups (scope corrected 2026-05-19 from
+  option A to option B: precise visual alignment to v6).** Correction record:
+  option A was wrongly recommended by over-extending the C2 state-view visual
+  deferral (which was state-views-only) to the Search cards, and by reading
+  audit finding D ("steady-state not embryonic" = prototype/doc coverage is
+  sufficient) as if it meant the App already matched v6 pixel-for-pixel. A UI
+  rebuild's purpose is visual alignment, so the owner selected option B.
+  Completed structural sub-commits stand: P5.2-1 swap `SearchResultCard`
+  surface to the shared `LiquidGlassSelectableCard`; P5.2-2 excise the
+  retained accent selected visual on card and shared `CardGroupHeader` (audit
+  finding F); P5.2-3 retire the dead Search legacy row path (`resultsList`,
+  `SearchResultGroupView`/`SearchResultGroupHeader`/`SearchResultRow`); P5.2-4
+  remove the defunct thumbnail plumbing. **Added scope P5.2-B — precise
+  visual alignment to the v6 prototype**: the `LiquidGlassSelectableCard`
+  surface tokens (radius, fill, hairline, shadow, hover, pressed), the
+  `SearchResultCard` content typography/spacing (`.meta` / `.line` / `mark`),
+  the `CardGroupHeader`, and the results-header are aligned to the v6
+  `.result-card` / `.group-header` / `.results-header` spec. Native material
+  / scheme-adaptive color may stand in for CSS `backdrop-filter` per doc 11
+  §10 and doc 12 §15 while preserving the accepted visual hierarchy; no
+  hardcoded light values; colorScheme-driven. Non-visual invariants unchanged:
+  query `<mark>` highlight semantics, `EqualHeightCardGridLayout` equal-height,
+  lazy loading, first-screen, exact counts, group ordering/collapse,
+  architecture §7 invalidation, seek / native render. `swift test` 94/94 and
+  `swift build` green every step. Risk: medium-high (highest — easiest to
   regress Search first-screen/laziness/invalidation).
 - **P5.3 — Library cards / groups / episode grid.** Rebuild folder group rows
   and the adaptive episode grid to the prototype; preserve grouping, natural
