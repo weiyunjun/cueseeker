@@ -6,34 +6,25 @@ struct PlaybackPageView: View {
     @ObservedObject var appState: AppState
     let onClose: () -> Void
     @State private var activePanel: PlaybackDrawerKind = .results
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         GeometryReader { geometry in
-            let sidebarWidth = playbackSidebarWidth(
-                totalWidth: geometry.size.width,
-                isVisible: appState.isPlaybackSidePanelVisible
-            )
-            let stageWidth = max(0, geometry.size.width - sidebarWidth)
-
-            HStack(spacing: 0) {
+            // The video stage fills the whole window. The overlay panel floats
+            // above it (centered, prototype geometry) and never squeezes it, so
+            // toggling the panel cannot resize the video stage or disturb seek.
+            ZStack(alignment: .top) {
                 PlaybackVideoStage(
                     playbackSurface: playbackSurface,
                     appState: appState,
                     fullscreenManager: appState.playbackFullscreenManager,
                     onClose: onClose
                 )
-                .frame(width: stageWidth, height: geometry.size.height)
+                .frame(width: geometry.size.width, height: geometry.size.height)
 
-                if sidebarWidth > 0 {
-                    PlaybackSidebarShell(
-                        appState: appState,
-                        activePanel: $activePanel
-                    )
-                    .frame(width: sidebarWidth, height: geometry.size.height)
-                    .transition(.opacity)
-                }
+                overlayPanel(in: geometry.size)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .background(Color.black)
         .onAppear {
@@ -55,13 +46,61 @@ struct PlaybackPageView: View {
         }
     }
 
+    @ViewBuilder
+    private func overlayPanel(in size: CGSize) -> some View {
+        let visible = appState.isPlaybackSidePanelVisible
+        let panelWidth = min(
+            PlaybackOverlayPanelMetrics.maxWidth,
+            max(0, size.width - PlaybackOverlayPanelMetrics.horizontalMargin * 2)
+        )
+        let panelHeight = max(
+            0,
+            size.height
+                - PlaybackOverlayPanelMetrics.topInset
+                - PlaybackOverlayPanelMetrics.bottomInset
+        )
+
+        PlaybackSidebarShell(appState: appState, activePanel: $activePanel)
+            .frame(width: panelWidth, height: panelHeight)
+            .background(overlayPanelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(overlayPanelBorder, lineWidth: 0.5)
+            )
+            .shadow(color: overlayPanelShadow, radius: 28, x: 0, y: 16)
+            .opacity(visible ? 1 : 0)
+            .scaleEffect(visible ? 1 : 0.98)
+            .position(
+                x: size.width / 2,
+                y: PlaybackOverlayPanelMetrics.topInset + panelHeight / 2
+            )
+            .offset(y: visible ? 0 : 10)
+            .allowsHitTesting(visible)
+            .animation(.easeInOut(duration: 0.18), value: visible)
+    }
+
+    private var overlayPanelBackground: Color {
+        colorScheme == .dark
+            ? Color(red: 36 / 255, green: 34 / 255, blue: 43 / 255)
+            : Color(red: 246 / 255, green: 246 / 255, blue: 247 / 255)
+    }
+
+    private var overlayPanelBorder: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.10)
+            : Color.black.opacity(0.10)
+    }
+
+    private var overlayPanelShadow: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.65)
+            : Color.black.opacity(0.45)
+    }
+
     private func refreshSidebarData() {
         appState.refreshSearchNavigationSnapshot()
         appState.refreshCurrentSubtitleEntries()
-    }
-
-    private func playbackSidebarWidth(totalWidth: CGFloat, isVisible: Bool) -> CGFloat {
-        PlaybackSidebarMetrics.width(totalWidth: totalWidth, isVisible: isVisible)
     }
 }
 
@@ -1233,15 +1272,10 @@ struct PlaybackSidebarShell: View {
 
             Spacer(minLength: 0)
         }
-        .background(
-            Color(red: 0.972, green: 0.972, blue: 0.98).opacity(0.55)
-                .background(.ultraThinMaterial)
-        )
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(Color.black.opacity(0.08))
-                .frame(width: 0.5)
-        }
+        // The opaque rounded surface, border, and shadow are owned by the
+        // floating container in PlaybackPageView. The shell only renders
+        // content; it no longer draws the old squeeze-era background or the
+        // left divider.
     }
 
     private func sidebarTab(_ panel: PlaybackDrawerKind, title: String) -> some View {
@@ -1298,21 +1332,12 @@ enum PlaybackChromeMetrics {
     static let hiddenOffset: CGFloat = interactiveHeight + 28
 }
 
-enum PlaybackSidebarMetrics {
-    static func width(totalWidth: CGFloat, isVisible: Bool) -> CGFloat {
-        guard isVisible else {
-            return 0
-        }
-
-        let maximumPanelWidth: CGFloat = 380
-        let minimumPanelWidth: CGFloat = 320
-        let minimumStageWidth: CGFloat = 520
-        let availablePanelWidth = totalWidth - minimumStageWidth
-
-        guard availablePanelWidth >= minimumPanelWidth else {
-            return 0
-        }
-
-        return min(maximumPanelWidth, availablePanelWidth)
-    }
+/// v6 prototype `.sidebar` geometry: a centered floating overlay that never
+/// squeezes the video — `top: 64px; bottom: 104px; left: 50%;
+/// width: min(420px, calc(100% - 48px))`.
+enum PlaybackOverlayPanelMetrics {
+    static let topInset: CGFloat = 64
+    static let bottomInset: CGFloat = 104
+    static let horizontalMargin: CGFloat = 24
+    static let maxWidth: CGFloat = 420
 }
