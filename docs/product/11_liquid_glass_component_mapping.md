@@ -226,13 +226,12 @@ Icon asset rule:
   changes repeatedly. Repeated commands may update text and run a small update
   pulse, but must not remount the HUD or replay the full entry animation.
 
-Main-page selected-visual correction: the `ui-is-selected` rows above already
-forbid retained playback-selection visuals on main Search / Library / Shiori
-cards. The current App violates this (it fills the selected card with
-`Color.accentColor`); see the proposal's "P5.0 Confirmed Audit" finding F. The
-`isSelected` / `selected*` plumbing into the main cards and `CardGroupHeader`
-must be excised in P5.2 (Search) / P5.4 (Shiori); this is a documented known
-App difference pending those steps.
+Main-page selected-visual correction: the `ui-is-selected` rows above forbid
+retained playback-selection visuals on main Search / Library / Shiori cards
+(proposal "P5.0 Confirmed Audit" finding F). The Search card and the shared
+`CardGroupHeader` selected visuals were excised in P5.2-2. The `ShioriCard`
+body still fills the selected card with `Color.accentColor`; that excision is
+pending P5.4.
 
 ## 8. Token Mapping
 
@@ -249,7 +248,8 @@ role, not by copying CSS names mechanically.
 | `--accent`, `--accent-soft` | `LiquidGlassTokens.accent` | App accent emphasis and soft selected treatment. |
 | `--card-*`, `--card-selected-*`, `--row-*` | `LiquidGlassTokens.selectableCardSurface` | Selectable-card / list-row surface, hover, and selected skins. The authoritative skin is the later v6 token-override layer (theme-driven, `styles.css` L1758); the hardcoded-light base values (L563) are not the authority and must not be replicated. |
 | `--highlight`, `--highlight-text` | `LiquidGlassTokens.searchHighlight` | Search match highlighting. |
-| `--search-page-*` | Page-specific semantic tokens | May be folded into general tokens if App surfaces share the same values. |
+| `--search-page-*` | Page-specific semantic tokens | Info-page (Search / Library / Shiori) surface; page background light `#f4f4f6` / dark `#1f2027`. Concrete confirmed values: proposal "P5.2-B Confirmed Pixel Spec". |
+| `--search-page-pill-*`, `--field-*` (topbar) | `LiquidGlassTokens.topbarControlSurface` | Topbar search-field capsule (`LiquidGlassSearchField`) and topbar tool buttons (`LiquidGlassIconButton.Kind.topbar`); concrete values in proposal "P5.2-B Confirmed Pixel Spec". NSWindow traffic lights stay native and are not aligned. |
 | `--mono`, `--sf` | Typography tokens | App uses native SF fonts and monospaced digits where needed. |
 
 Rules:
@@ -260,6 +260,12 @@ Rules:
   styles.
 - App implementation may use native materials and color-scheme behavior when
   they preserve the accepted visual intent.
+- The Search card subtitle `.line` font weight and opacity are
+  App-authoritative (owner decision 2026-05-19): the v6 prototype was updated
+  to match the App (weight 600, opacity 0.88; commit `7c2ea1f`), not the
+  reverse. Concrete P5.2-B card / topbar / page pixel values are
+  single-sourced in the proposal "P5.2-B Confirmed Pixel Spec"; this document
+  maps semantic roles only.
 
 ## 9. Synchronization Workflow
 
