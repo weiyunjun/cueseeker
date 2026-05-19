@@ -33,9 +33,13 @@ S5 convergence rules:
   Acceptance: no video freeze, no workbench relayout flash on enter/exit,
   `D`/`X` and seek shortcuts unchanged and smooth, cursor balance preserved) is
   the agreed benchmark.
-- A pre-removal baseline must be measured first with the band-aid still in: if
-  acceptance fails even then, the structural premise is disproven — stop and
-  report; do not remove the band-aid.
+- A pre-removal baseline must be checked first with the band-aid still in. Per
+  the project-owner decision (2026-05-19), this baseline is **functional only**
+  (no per-step memory measurement; memory diagnosis is deferred until the full
+  UI refactor is complete — see the proposal's Memory Regression section). If
+  functional acceptance fails even with the band-aid, the structural premise is
+  disproven — stop and report; do not remove the band-aid. Resolved 2026-05-19:
+  a rough functional run found no fullscreen problems.
 - Removal proceeds layer by layer, least-deep first (1 → 2 → 3 → 4), each its
   own reversible commit with a real-machine before/after measurement.
 - The native layer (4) is removed only if layers 1–3 measurably prove the

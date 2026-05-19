@@ -215,14 +215,27 @@ S1–S5 rebuild (so much of the bloat should be reclaimed as a side effect), and
 because the info-page card-visual rebuild (rewrite-plan Phase 5) is a separate
 later stage whose memory contribution is unknown. Therefore:
 
-- Record the ~30 MB baseline and the current 60–70 MB up front (measurement
-  only; satisfies the git-workflow §10 benchmark-report rule).
-- Re-measure RSS after each structural step (S1–S5).
-- Do the actual diagnosis and residual cleanup at the end of the video-page
-  implementation (S7), and report the measured RSS as an explicit number; no
-  unapproved mitigation may be silently layered on.
-- App-wide memory acceptance is deferred until the separate info-page Phase 5
-  rebuild is also done and measured.
+- Record the ~30 MB baseline (idle / not-playing is the normal state for that
+  figure) and the current 60–70 MB band; the S5.1 functional-baseline point
+  read ≈73.6 MB phys_footprint. Measurement metric: `phys_footprint` (Activity
+  Monitor "Memory" column / `footprint`) as primary, with RSS and Shared as
+  context; `ps -o rss=` is the inflated RSS and is not the primary number.
+- Per explicit project-owner decision (2026-05-19): per-step S1–S5 RSS
+  re-measurement is **deferred** until the full UI refactor is complete.
+  Rationale documented per git-workflow §10 (explicit owner approval plus a
+  reason separate from any performance goal): mid-refactor numbers are
+  confounded by many unrelated factors, and optimizing memory/CPU before the UI
+  is fully rebuilt is premature and likely wasted effort. This is a sequencing
+  deferral, not acceptance of any regression.
+- S5.1 is therefore reduced to a **functional acceptance gate only** (fullscreen
+  enter/exit, shortcuts, panel/v4 independence); memory is not a gate at this
+  step. A rough functional run on 2026-05-19 found no functional fullscreen
+  problems, so the structural premise is supported and S5 proceeds.
+- Do the actual memory diagnosis and residual cleanup once the UI refactor is
+  complete (at S7 and again after the separate info-page Phase 5 rebuild),
+  reporting the measured phys_footprint as an explicit number; no unapproved
+  mitigation may be silently layered on. App-wide memory acceptance remains
+  deferred until info-page Phase 5 is also done and measured.
 
 ## HTML Prototype Change List (v6)
 
@@ -368,10 +381,14 @@ only with explicit per-step user authorization for the deeper layers.
   to touch the named render/native files within the convergence scope, and
   agree the real-machine measurement steps (this environment has no GUI and
   cannot measure fullscreen).
-- **S5.1 — Pre-removal baseline (no App code; user real-machine).** With the
-  band-aid still in, the user verifies fullscreen enter/exit acceptance already
-  passes by structure. If it fails even with the band-aid, the structural
-  premise is disproven: stop and report; do not remove the band-aid.
+- **S5.1 — Pre-removal functional baseline (no App code; user real-machine).**
+  With the band-aid still in, the user verifies fullscreen enter/exit
+  acceptance passes by structure. Per the project-owner memory-deferral
+  decision (see Memory Regression), this baseline is **functional only**; no
+  per-step memory measurement is taken now. If it fails functionally even with
+  the band-aid, the structural premise is disproven: stop and report; do not
+  remove the band-aid. Resolved 2026-05-19: a rough functional run found no
+  fullscreen problems, so S5 proceeds to S5.2.
 - **S5.2 — Remove layer 1+2 (SwiftUI/manager triggers).** Remove the
   `PlaybackView`/`PlaybackRenderViewWrapper` token resync and the
   `PlaybackFullscreenManager` `synchronizeFullscreenRenderLayout()` calls.
