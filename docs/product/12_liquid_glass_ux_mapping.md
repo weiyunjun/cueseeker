@@ -161,7 +161,7 @@ Rules:
 | --- | --- | --- | --- |
 | Search submits only on Return. | `#searchInput` | `LiquidGlassSearchField` | `TopbarSearchInputState.submit` |
 | Submitted results appear in the main content area. | `.search-state` | Search page view | `AppState.submitTopbarSearch` |
-| Empty, loading, failed, and no-results states remain explicit. | `.search-state` | Search page state views | `SearchStatus` |
+| Empty, loading, failed, and no-results states remain explicit. | State demo `.state-view` / `.state-spinner` / `.load-more` (`ui/state-demos/info-page-card-states/`) | Search page state views | `SearchStatus`, submitted query |
 | Search page shows a compact summary row above results. | `.results-header` | Search summary view | Search result counts |
 | `Collapse All` uses a fixed label and does not become Expand All. | `ui-capsule--command` | `LiquidGlassCapsuleButton.Kind.command` | Search group collapse state |
 
@@ -178,6 +178,19 @@ Rules:
   cards or rows to zero.
 - Collapse actions must not re-run Search, fetch another page, change the lazy
   loading cursor, or mutate result counts.
+- Search page state, in this order (condition → state; title/message verbatim
+  from `SearchView.swift`): submitted query empty → "No Search Query";
+  `SearchStatus.searching` with no results → "Searching" (animated spinner);
+  `SearchStatus.failed(message)` with no results → "Search Failed" (shows the
+  error message); completed with zero results → "No Results"; results present
+  → grouped card list; `SearchStatus.searching` with results already present →
+  grouped card list with a bottom incremental "loading more" spinner.
+- The state demo `ui/state-demos/info-page-card-states/` is the provisional
+  authority for which state appears and whether it animates; it is not the
+  final pixel-level visual authority. The demo's state-view treatment leans
+  native and diverges from the accepted Liquid Glass card visual; that
+  pixel-level reconciliation is out of the current Phase 5 layout/operation
+  scope and deferred to a later visual pass (see proposal "P5.0 C2").
 
 ### 6.2 Search Result Lazy Loading
 
@@ -263,6 +276,7 @@ Rules:
 | Folder groups are collapsed on app startup or Library data refresh. | `.library-group.collapsed` | Library group view | Library presentation revision |
 | Folder row is a full click target for disclosure. | `.library-group-header` | Disclosure row component | Local collapse state |
 | Episode buttons flow in an adaptive grid. | `.library-episode-grid` | Library episode grid | Library video rows |
+| Empty / loading / failed / no-videos states remain explicit. | State demo `.state-view` / `.state-spinner` (`ui/state-demos/info-page-card-states/`) | Library page state views | `selectedFolders`, `libraryStatus` |
 
 Rules:
 
@@ -279,6 +293,12 @@ Rules:
   natural-sort sibling rank.
 - Playback opened from Search, Shiori, or any non-Library source must not
   toggle Library playing indicators.
+- Library page state, in this order (condition → state; title/message verbatim
+  from `SearchView.swift`): no selected folders → "No Library"; `libraryStatus`
+  loading with no videos → "Loading Library" (animated spinner); `libraryStatus`
+  failed → "Library Failed" (shows the message); videos empty → "No Videos";
+  videos present → folder/episode list. The state demo is the provisional state
+  authority (see §6.1); pixel-level visual reconciliation is deferred.
 
 ### 7.2 Library Episode Grid
 
@@ -309,6 +329,7 @@ Rules:
 | Shiori summary shows total shiori and file counts. | `.results-header` | Shiori summary view | Shiori counts |
 | `Collapse All` keeps a fixed label. | `ui-capsule--command` | `LiquidGlassCapsuleButton.Kind.command` | Shiori group collapse state |
 | Selecting a Shiori opens or seeks playback. | `ui-selectable-card` | Shiori card view | `openShiori` |
+| Empty state is explicit; there is no Shiori loading or failed state. | State demo `.state-view` (`ui/state-demos/info-page-card-states/`) | Shiori page state view | `shioris` empty |
 
 Rules:
 
@@ -321,6 +342,11 @@ Rules:
   or Library rows.
 - Shiori playback control feedback uses the same transient playback feedback
   system as other playback commands.
+- Shiori page state (condition → state; verbatim from `SearchView.swift`):
+  `shioris` empty → "No Shiori"; shioris present → grouped card list. The App
+  has no Shiori loading or failed state and the demo must not invent one. The
+  state demo is the provisional state authority (see §6.1); pixel-level visual
+  reconciliation is deferred.
 
 ## 9. Bottom Player UX
 
