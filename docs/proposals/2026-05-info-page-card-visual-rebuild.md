@@ -431,6 +431,83 @@ Deletion timing (decision):
   sub-section added before the P5.3-B / P5.4-B App code (Step Document Rule),
   with the doc 11 / doc 12 mapping updates done first per git workflow §10.
 
+## P5.3 / P5.4 Confirmed Pixel Spec (DRAFT — pending owner confirmation, 2026-05-20)
+
+DRAFT. Values extracted from the v6 prototype CSS; awaiting owner per-item
+sign-off. On confirmation this title and wording flip to "confirmed" like
+P5.2-B; until then it is not the single source and no P5.3-B / P5.4-B App code
+proceeds. Same native-difference boundary as P5.2-B: light / dark both
+explicit, scheme-driven, no hardcoded light values; CSS `backdrop-filter`
+realized with native scheme-adaptive color/shadow (NOT a frosted `Material`);
+NSWindow traffic lights and window shell stay native. Empty / loading /
+failed / no-videos / no-shiori **state views are out of this spec** — deferred
+to a later visual pass per doc 12 §6.1/§7.1/§8 and "P5.0 C2"; this spec covers
+cards / groups / grid only, exactly the P5.2-B scope.
+
+Shared, unchanged from P5.2-B (Library and Shiori inherit, no new values):
+
+- Page background light `#f4f4f6` / dark `#1f2027`.
+- Authoritative card token skin: fill light white @0.62 / dark white @0.10;
+  hover light white @0.82 / dark white @0.15; selected-fill light white @0.92
+  / dark white @0.18. Rest shadow light `inset 0 .5px 0 rgba(255,255,255,.92)`
+  + `inset 0 -.5px 0 rgba(255,255,255,.22)` + ring `rgba(0,0,0,.08)` + `0 1px
+  2px rgba(15,18,30,.06)`; dark `inset 0 .5px 0 rgba(255,255,255,.18)` + `inset
+  0 -.5px 0 rgba(255,255,255,.05)` + ring `rgba(255,255,255,.10)` + `0 1px 2px
+  rgba(0,0,0,.22)`. Hover shadow light `…ring rgba(0,0,0,.08), 0 4px 12px -4px
+  rgba(15,18,30,.14)`; dark `…ring rgba(255,255,255,.14), 0 5px 14px -5px
+  rgba(0,0,0,.44)`.
+
+P5.4-B — Shiori (no new pixel values):
+
+- The v6 markup `result-card shiori-card ui-selectable-card` has **no
+  `.shiori-card` rule**: the Shiori card is the P5.2-B "Search result card"
+  spec verbatim (radius 10; padding 13h / 11v; gap 6; `.meta` 11px monospaced
+  tabular text-3 letter-spacing −0.01em; `.line` 13.5px weight 600 opacity
+  0.88 App-authoritative; `<mark>` highlight per P5.2-B).
+- Group header / group / results-header / Collapse All: the P5.2-B "Group
+  header / group / results-header" spec verbatim (shared `.group` /
+  `.group-header` / `.group-title` / `.group-count` / `.results-header` /
+  `.small-button`); content horizontal padding 24.
+- The only Shiori delta vs Search: **no retained selected visual** — the
+  `.result-card.selected` accent-ring is not applied (finding F; excised in
+  P5.4-2). Hover + pressed (scale 0.995) only.
+
+P5.3-B — Library (distinct values):
+
+- Scroll padding 18 top / 28 horizontal / 120 bottom (vs Search 4 / 24 / 120).
+- `.library-group`: padding 12 top / 10 bottom; **no bottom hairline** (unlike
+  Search `.group`); margin-bottom 6.
+- `.library-group-header` (extends shared `.group-header`): align-items
+  flex-start; gap 10; padding 8 8 8 4; max width `min(100%, 720px)`; radius 7;
+  transparent, subtle hover bg, transition 100ms. Chevron shared 16pt text-3,
+  0° collapsed / 90° expanded over 160ms; header chevron margin-top 2.
+- Folder two-line block `.library-heading`: column, gap 2, min-width 0.
+  `.library-title` text color, 13.5px, **weight 700**, line-height 1.2.
+  `.library-count` text-3, 12px, line-height 1.2 (the doc 12 §7.1 `Playing M`
+  suffix lives on this count line).
+- `.library-episode-grid`: flex-wrap, gap 10, margin 8 top / 0 right / 12
+  bottom / **30 left** (the 30px left indent expresses folder→episode
+  hierarchy).
+- `.library-episode-card` (`ui-selectable-card`): 66×42, radius 8; fill /
+  hover / shadows = the shared card token skin above; label color text, 12.5px
+  **weight 700**, tabular, centered. Active: scale 0.96.
+- `.library-episode-card.selected` is the **Library-launched "Playing"
+  indicator**, not finding F: selected-fill + `outline 2px solid` accent
+  (light `#0a84ff` / dark `#6ea6ff`), `outline-offset -2px`, `box-shadow:
+  none`, label color `text-on-selected-card` (light `#0a1426` / dark
+  `#f8f6fb`). This retained visual is mandated by doc 12 §7.2 (playing state,
+  Library-launched playback only) and must NOT be excised — finding F forbids
+  retained *selection* visuals on Search/Shiori cards, a different concept.
+
+Open confirmation points for the owner (answer inline):
+
+1. Library scroll/content padding (18/28 vs Search 4/24) — accept as-is, or
+   unify with the Search content padding?
+2. Library episode card fixed 66×42 — accept, or make width content-driven for
+   long ranks (`EP120`)?
+3. `.library-group` having no bottom hairline while Search groups do — accept
+   the intentional difference, or add a hairline for consistency?
+
 ## Acceptance
 
 - Main Search / Library / Shiori cards and their hover/pressed/selected/
