@@ -167,9 +167,11 @@ Confirmed by read-only inspection of the v6 prototype, doc 11/12, and
 - **C. v6 lacks non-steady-state mockups.** v6 `index.html` has no empty /
   loading / failed / no-results mockups for Search / Library / Shiori; the App
   uses a generic `EmptyStateView`. doc 12 §6.1 and this proposal's acceptance
-  require these states to match the prototype. Genuine embryonic gap: add the
-  state mockups to v6 first, regenerate `standalone.html`, then update doc 12
-  §6.1 / doc 11, then App (owner-approved order: prototype → docs → Swift).
+  require these states to match the prototype. A static prototype cannot
+  exercise the searching/loading or failed states for review. Owner decision
+  2026-05-19: instead of static mockups in v6, build a separate interactive
+  state-demo prototype (buttons trigger each state/animation) so the owner
+  reviews by clicking; see "P5.0 C2 — Interactive State-Demo Prototype" below.
 - **D. Two `.result-card` blocks = base + token-override of the same card,
   not surface-vs-surface.** The video-page overlay/middle panel does not use
   `.result-card`; it uses `.sidebar-row` / `ui-selectable-row`. styles.css
@@ -202,11 +204,51 @@ Confirmed by read-only inspection of the v6 prototype, doc 11/12, and
   `EP01`. Recommended resolution: accept `EP01` to match v6. Owner to confirm
   at P5.3; recorded here, not unilaterally resolved.
 
-Doc-first follow-ups before any App code: regenerate v6 state mockups +
-`standalone.html` (finding C); update doc 12 §6.1 and §6.2 (findings B, C); add
-the doc 11 §8 card-token row and a doc 11 §5/§7 note that the current App must
-drop the retained selected visual (findings E, F). Then request explicit
-App-implementation approval (the P5.0 gate) before P5.1.
+Doc-first follow-ups before any App code: build the interactive state-demo
+prototype (finding C, see below); update doc 12 §6.1 and §6.2 with the
+App-condition→state mapping (findings B, C); add the doc 11 §8 card-token row
+and a doc 11 §5/§7 note that the current App must drop the retained selected
+visual (findings E, F). Then request explicit App-implementation approval (the
+P5.0 gate) before P5.1.
+
+## P5.0 C2 — Interactive State-Demo Prototype (owner decision 2026-05-19)
+
+Rationale: a static prototype cannot exercise the searching/loading or failed
+states, so the owner cannot review them by reading markup. C2 produces a
+separate interactive demo whose buttons switch each surface between its states
+(including animated loading), reviewed by opening the self-contained
+`standalone.html` and clicking.
+
+Location and structure: a separate folder outside `ui/prototypes/`, by owner
+direction — `ui/state-demos/info-page-card-states/`, structured like the v6
+prototype: `index.html` + `styles.css` + `script.js` + `standalone.html`
+(self-contained share artifact). It reuses the v6 token system and card/header
+visual language so states match the accepted card design. This is a focused
+split prototype permitted by `docs/engineering/02_git_workflow.md` §10
+(documented complex-prototype reason / split focused prototypes); the only
+deviation is the location outside `ui/prototypes/`, recorded here as the
+documented reason. Follow-up flag: doc 02 §10 currently says prototypes live
+under `ui/prototypes/`; a one-line amendment allowing owner-directed
+interactive demos in a sibling `ui/` folder is proposed but not made
+unilaterally.
+
+States the demo must reproduce (mirrors the real App; condition → state, copy
+verbatim from `SearchView.swift`):
+
+- Search: query empty → "No Search Query"; `.searching` & no results →
+  "Searching" (animated spinner); `.failed(msg)` & no results → "Search
+  Failed" (shows error); completed & 0 matches → "No Results"; results
+  present → card list; `.searching` & results present → card list with a
+  bottom "loading more" spinner.
+- Library: no selected folders → "No Library"; `libraryStatus .loading` & no
+  videos → "Loading Library" (animated spinner); `libraryStatus .failed(msg)`
+  → "Library Failed"; videos empty → "No Videos"; videos present →
+  folder/episode list.
+- Shiori: `shioris` empty → "No Shiori"; shioris present → card list. (The App
+  has no Shiori loading/failed state; the demo must not invent one.)
+
+The App-condition → state mapping is owned by the mapping docs (doc 12 §6.1 and
+surface sections) and is updated in C3, after the owner reviews the demo.
 
 ## Acceptance
 
@@ -231,5 +273,5 @@ relevant mapping/ADR documents) before changing App code.
 Accepted (2026-05-19). The step structure and prototype strategy were approved
 2026-05-19 and P5.0 was authorized to begin; the confirmed P5.0 audit is
 recorded above. Implementation proceeds with the P5.0 doc-first follow-ups
-(v6 state mockups + `standalone.html`, doc 12 §6.1/§6.2, doc 11 §8/§5/§7),
+(the interactive state-demo prototype, doc 12 §6.1/§6.2, doc 11 §8/§5/§7),
 then the P5.0 App-implementation-approval gate, then P5.1.
