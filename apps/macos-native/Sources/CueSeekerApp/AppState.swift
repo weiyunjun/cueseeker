@@ -1479,8 +1479,7 @@ final class AppState: ObservableObject {
             } catch {
                 guard !Task.isCancelled else { return }
                 print("Failed to hydrate library asynchronously: \(error)")
-                self?.applyLibraryPresentation([])
-                self?.libraryStatus = .idle
+                self?.libraryStatus = .failed(Self.errorMessage(for: error))
             }
         }
     }
