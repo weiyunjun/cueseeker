@@ -647,6 +647,7 @@ final class AppState: ObservableObject {
     private let userDefaults: UserDefaults
     private var player: PlaybackPlayer?
     private let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
+    private var startupDatabaseTask: Task<Void, Never>?
     private var indexingTask: Task<Void, Never>?
     private var libraryTask: Task<Void, Never>?
     private var shiorisTask: Task<Void, Never>?
@@ -732,24 +733,63 @@ final class AppState: ObservableObject {
         }
 
         let folders = selectedFolders
-        // Run database reconciliation and statistics in a background task
-        Task { [weak self] in
-            guard let self else { return }
+        startupDatabaseTask = Task { [weak self] in
             do {
-                try await Task.detached(priority: .background) {
+                try await Self.runCancellableDetached(priority: .background) {
                     try database.reconcileIndexedContent(activeFolders: folders)
-                }.value
+                }
 
-                let stats = try await Task.detached(priority: .background) {
+                guard !Task.isCancelled else {
+                    await MainActor.run {
+                        self?.startupDatabaseTask = nil
+                    }
+                    return
+                }
+
+                let stats = try await Self.runCancellableDetached(priority: .background) {
                     try database.storageStats()
-                }.value
+                }
+
+                guard !Task.isCancelled else {
+                    await MainActor.run {
+                        self?.startupDatabaseTask = nil
+                    }
+                    return
+                }
 
                 await MainActor.run {
-                    self.databaseStorageStats = stats
+                    self?.databaseStorageStats = stats
+                    self?.startupDatabaseTask = nil
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self?.startupDatabaseTask = nil
                 }
             } catch {
+                guard !Task.isCancelled else {
+                    await MainActor.run {
+                        self?.startupDatabaseTask = nil
+                    }
+                    return
+                }
+
                 print("Failed background reconciliation/stats query: \(error)")
+                await MainActor.run {
+                    self?.startupDatabaseTask = nil
+                }
             }
+        }
+    }
+
+    nonisolated private static func runCancellableDetached<T: Sendable>(
+        priority: TaskPriority,
+        operation: @Sendable @escaping () throws -> T
+    ) async throws -> T {
+        let task = Task.detached(priority: priority, operation: operation)
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
         }
     }
 
@@ -784,6 +824,7 @@ final class AppState: ObservableObject {
             startupError = "Database is not initialized"
             return
         }
+        cancelStartupDatabaseTask()
         do {
             try database.removeIndexedFolder(folder)
         } catch {
@@ -1368,6 +1409,7 @@ final class AppState: ObservableObject {
 
         let statsBefore: DatabaseStorageStats
         do {
+            cancelStartupDatabaseTask()
             statsBefore = try database.storageStats()
         } catch {
             databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
@@ -3304,7 +3346,13 @@ final class AppState: ObservableObject {
         searchResultGroupTasks = [:]
     }
 
+    private func cancelStartupDatabaseTask() {
+        startupDatabaseTask?.cancel()
+        startupDatabaseTask = nil
+    }
+
     private func cancelDatabaseReadTasksBeforeIndexing() {
+        cancelStartupDatabaseTask()
         libraryTask?.cancel()
         libraryTask = nil
         searchTask?.cancel()
