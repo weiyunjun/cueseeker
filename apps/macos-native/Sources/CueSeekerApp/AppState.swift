@@ -333,6 +333,7 @@ final class AppState: ObservableObject {
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published private(set) var searchNavigationResultGroups: [SearchResultFileGroup] = []
     @Published private(set) var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
+    @Published private(set) var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
     @Published private(set) var databaseStorageStats: DatabaseStorageStats?
     @Published private(set) var databaseMaintenanceStatus: DatabaseMaintenanceStatus = .idle
     @Published private(set) var searchFTSVocabularyDiagnostics: SubtitleFTSVocabularyDiagnostics?
@@ -2422,7 +2423,7 @@ final class AppState: ObservableObject {
         guard let currentPlaybackSubtitlePath,
               let database = subtitleDatabase
         else {
-            currentSubtitleEntries = []
+            applyCurrentSubtitleEntries([])
             return
         }
 
@@ -2437,14 +2438,14 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                self?.currentSubtitleEntries = entries
+                self?.applyCurrentSubtitleEntries(entries)
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
                 print("Failed to load current subtitle entries: \(error)")
-                self?.currentSubtitleEntries = []
+                self?.applyCurrentSubtitleEntries([])
             }
         }
     }
@@ -3291,6 +3292,11 @@ final class AppState: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([
             URL(fileURLWithPath: path)
         ])
+    }
+
+    private func applyCurrentSubtitleEntries(_ entries: [SubtitleDatabaseEntry]) {
+        currentSubtitleEntries = entries
+        currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entries: entries)
     }
 
     private func cancelSearchResultGroupTasks() {

@@ -2335,6 +2335,57 @@ func cueTextSelectionReturnsLinesInSearchResultDisplayOrder() throws {
     #expect(selection.text == "top\nbottom")
 }
 
+@Test
+func activeSubtitleEntryLookupKeepsLongRunningCueActivePastShortLaterCues() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Signs.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Signs.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:00,000",
+                endTimecode: "00:02:00,000",
+                startMilliseconds: 0,
+                endMilliseconds: 120_000,
+                text: "long running sign"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:30,000",
+                endTimecode: "00:00:35,000",
+                startMilliseconds: 30_000,
+                endMilliseconds: 35_000,
+                text: "short dialogue"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:01:00,000",
+                endTimecode: "00:01:05,000",
+                startMilliseconds: 60_000,
+                endMilliseconds: 65_000,
+                text: "later short dialogue"
+            )
+        ]
+    )
+
+    let entries = try database.entries(forSubtitleFile: subtitleFile)
+    let lookup = SubtitleActiveEntryLookup(entries: entries)
+
+    #expect(lookup.activeEntryID(atMilliseconds: 90_000) == entries[0].id)
+    #expect(lookup.activeEntryID(atMilliseconds: 150_000) == entries[2].id)
+    #expect(lookup.activeEntryID(atMilliseconds: -1) == nil)
+}
+
 private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerDatabaseTests-\(UUID().uuidString)")

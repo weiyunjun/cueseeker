@@ -1525,43 +1525,9 @@ private struct PlaybackSubtitlesList: View {
 
     /// The cue active at the current displayed time: the entry that contains
     /// it, otherwise the last entry that has already started (handles gaps).
-    /// Uses an O(log N) binary search lookup.
     private var activeEntryID: Int64? {
-        let entries = orderedEntries
-        guard !entries.isEmpty else { return nil }
         let ms = Int((viewModel.displayedCurrentTime * 1_000).rounded(.down))
-        
-        var low = 0
-        var high = entries.count - 1
-        var candidateIndex = -1
-        
-        while low <= high {
-            let mid = low + (high - low) / 2
-            if entries[mid].startMilliseconds <= ms {
-                candidateIndex = mid
-                low = mid + 1
-            } else {
-                high = mid - 1
-            }
-        }
-        
-        guard candidateIndex != -1 else { return nil }
-        
-        // Scan backwards a small window to see if any earlier subtitle is currently active (covers ms)
-        var i = candidateIndex
-        while i >= 0 {
-            let entry = entries[i]
-            if ms >= entry.startMilliseconds && ms < entry.endMilliseconds {
-                return entry.id
-            }
-            if ms - entry.startMilliseconds > 15_000 {
-                break
-            }
-            i -= 1
-        }
-        
-        // If no active subtitle is found, return the last one that has already started (original behavior)
-        return entries[candidateIndex].id
+        return appState.currentSubtitleEntryLookup.activeEntryID(atMilliseconds: ms)
     }
 
     var body: some View {
