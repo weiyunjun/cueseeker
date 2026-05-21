@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import SwiftUI
 import CueSeekerCore
@@ -292,14 +293,10 @@ private struct SearchPageLoad: Sendable {
 @MainActor
 final class AppState: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
-    private static let appAppearanceModeKey = "appAppearanceMode"
-    private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let playbackVolumeKey = "playbackVolume"
     private static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
     private static let playbackSpeedKey = "playbackSpeed"
     private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
-    private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
-    private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let assSubtitlePreparationCueLimit = 8
     private static let searchPageSize = 100
     private static let searchPrefetchThreshold = 10
@@ -348,36 +345,8 @@ final class AppState: ObservableObject {
     @Published var startupError: String?
     @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
-    @Published var appAppearanceMode: AppAppearanceMode = .auto {
-        didSet {
-            userDefaults.set(appAppearanceMode.rawValue, forKey: Self.appAppearanceModeKey)
-            Self.applyAppAppearanceMode(appAppearanceMode)
-        }
-    }
-    @Published var playbackDecodeMode: PlaybackDecodeMode = .auto {
-        didSet {
-            userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
-            player?.decodeMode = playbackDecodeMode
-        }
-    }
-    @Published var searchE2ELoggingEnabled = true {
-        didSet {
-            userDefaults.set(searchE2ELoggingEnabled, forKey: Self.searchE2ELoggingEnabledKey)
-        }
-    }
-    @Published var searchFTSVocabularyDiagnosticsEnabled = true {
-        didSet {
-            userDefaults.set(
-                searchFTSVocabularyDiagnosticsEnabled,
-                forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
-            )
-            if !searchFTSVocabularyDiagnosticsEnabled {
-                searchFTSVocabularyDiagnosticsTask?.cancel()
-                searchFTSVocabularyDiagnosticsTask = nil
-                searchFTSVocabularyDiagnosticsStatus = .idle
-            }
-        }
-    }
+    let settings: SettingsStore
+    private var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
     private var subtitleDatabase: SubtitleDatabase?
@@ -686,26 +655,15 @@ final class AppState: ObservableObject {
 
         userDefaults.register(defaults: [
             "workbenchPanelMode": WorkbenchPanelMode.search.rawValue,
-            Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
-            Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.playbackVolumeKey: 100.0,
             Self.playbackLastNonzeroVolumeKey: 100.0,
             Self.playbackSpeedKey: 1.0,
-            Self.playbackSubtitlesVisibleKey: true,
-            Self.searchE2ELoggingEnabledKey: true,
-            Self.searchFTSVocabularyDiagnosticsEnabledKey: true
+            Self.playbackSubtitlesVisibleKey: true
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
+        settings = SettingsStore(userDefaults: userDefaults)
 
         selectedFolders = Self.loadSelectedFolders(from: userDefaults)
-        let loadedAppAppearanceMode = Self.loadAppAppearanceMode(from: userDefaults)
-        appAppearanceMode = loadedAppAppearanceMode
-        Self.applyAppAppearanceMode(loadedAppAppearanceMode)
-        playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
-        searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
-        searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
-            forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
-        )
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -779,6 +737,29 @@ final class AppState: ObservableObject {
                 }
             }
         }
+
+        setupSettingsObservers()
+    }
+
+    private func setupSettingsObservers() {
+        settings.$playbackDecodeMode
+            .dropFirst()
+            .sink { [weak self] mode in
+                self?.player?.decodeMode = mode
+            }
+            .store(in: &settingsCancellables)
+
+        settings.$searchFTSVocabularyDiagnosticsEnabled
+            .dropFirst()
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                if !enabled {
+                    self.searchFTSVocabularyDiagnosticsTask?.cancel()
+                    self.searchFTSVocabularyDiagnosticsTask = nil
+                    self.searchFTSVocabularyDiagnosticsStatus = .idle
+                }
+            }
+            .store(in: &settingsCancellables)
     }
 
     nonisolated private static func runCancellableDetached<T: Sendable>(
@@ -1338,7 +1319,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshSearchFTSVocabularyDiagnostics() {
-        guard searchFTSVocabularyDiagnosticsEnabled else {
+        guard settings.searchFTSVocabularyDiagnosticsEnabled else {
             searchFTSVocabularyDiagnosticsTask?.cancel()
             searchFTSVocabularyDiagnosticsTask = nil
             searchFTSVocabularyDiagnosticsStatus = .idle
@@ -1509,7 +1490,7 @@ final class AppState: ObservableObject {
     private func ensurePlayerInitialized() {
         guard player == nil else { return }
         let player = PlaybackPlayer()
-        player.decodeMode = playbackDecodeMode
+        player.decodeMode = settings.playbackDecodeMode
         self.player = player
         playbackViewModel = PlaybackViewModel(
             player: player,
@@ -1610,7 +1591,7 @@ final class AppState: ObservableObject {
             appending: appending,
             debounce: debounce,
             folderPaths: folders.map(\.path),
-            e2eLoggingEnabled: searchE2ELoggingEnabled
+            e2eLoggingEnabled: settings.searchE2ELoggingEnabled
         )
         activeSearchPerformanceRun = searchPerformanceRun
         pendingSearchVisibleEntryIDs = []
@@ -3134,7 +3115,7 @@ final class AppState: ObservableObject {
             appending: true,
             debounce: false,
             folderPaths: folders.map(\.path),
-            e2eLoggingEnabled: searchE2ELoggingEnabled
+            e2eLoggingEnabled: settings.searchE2ELoggingEnabled
         )
         searchResultGroupTasks[subtitlePath] = Task { [weak self] in
             do {
@@ -3579,30 +3560,6 @@ final class AppState: ObservableObject {
         userDefaults
             .stringArray(forKey: selectedFolderPathsKey)?
             .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? []
-    }
-
-    private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {
-        NSApp.appearance = mode.nsAppearance
-    }
-
-    private static func loadAppAppearanceMode(from userDefaults: UserDefaults) -> AppAppearanceMode {
-        guard let rawValue = userDefaults.string(forKey: appAppearanceModeKey),
-              let mode = AppAppearanceMode(rawValue: rawValue)
-        else {
-            return .auto
-        }
-
-        return mode
-    }
-
-    private static func loadPlaybackDecodeMode(from userDefaults: UserDefaults) -> PlaybackDecodeMode {
-        guard let rawValue = userDefaults.string(forKey: playbackDecodeModeKey),
-              let mode = PlaybackDecodeMode(rawValue: rawValue)
-        else {
-            return .auto
-        }
-
-        return mode
     }
 
     private static func loadPlaybackVolume(from userDefaults: UserDefaults) -> Double {

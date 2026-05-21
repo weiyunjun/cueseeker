@@ -50,6 +50,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var settingsStore: SettingsStore
     @State private var selectedCategory: SettingsCategory = .library
     @State private var folderPendingRemoval: URL?
     @State private var isChoosingFolder = false
@@ -77,7 +78,7 @@ struct SettingsView: View {
         }
         .frame(minWidth: 680, minHeight: 420)
         .background(contentBackground)
-        .preferredColorScheme(appState.appAppearanceMode.colorScheme)
+        .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
         .alert(
             "Remove Folder?",
             isPresented: removalConfirmationBinding,
@@ -224,7 +225,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                AppearanceModeSegmentedControl(selection: $appState.appAppearanceMode)
+                AppearanceModeSegmentedControl(selection: $settingsStore.appAppearanceMode)
             }
 
             Spacer()
@@ -285,7 +286,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                DecodeModeSegmentedControl(selection: $appState.playbackDecodeMode)
+                DecodeModeSegmentedControl(selection: $settingsStore.playbackDecodeMode)
             }
 
             Spacer()
@@ -408,7 +409,7 @@ struct SettingsView: View {
 
                     Spacer()
 
-                    Toggle("", isOn: $appState.searchE2ELoggingEnabled)
+                    Toggle("", isOn: $settingsStore.searchE2ELoggingEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
                 }
@@ -424,7 +425,7 @@ struct SettingsView: View {
 
                     Spacer()
 
-                    Toggle("", isOn: $appState.searchFTSVocabularyDiagnosticsEnabled)
+                    Toggle("", isOn: $settingsStore.searchFTSVocabularyDiagnosticsEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
                 }
@@ -437,7 +438,7 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(contentBackground)
         .onAppear {
-            if appState.searchFTSVocabularyDiagnosticsEnabled {
+            if settingsStore.searchFTSVocabularyDiagnosticsEnabled {
                 appState.refreshSearchFTSVocabularyDiagnostics()
             }
         }
@@ -457,7 +458,7 @@ struct SettingsView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .disabled(
-                    !appState.searchFTSVocabularyDiagnosticsEnabled
+                    !settingsStore.searchFTSVocabularyDiagnosticsEnabled
                         || appState.searchFTSVocabularyDiagnosticsStatus.isLoading
                 )
             }
@@ -465,7 +466,7 @@ struct SettingsView: View {
             ftsVocabularyDiagnosticsStatusView
 
             if let diagnostics = appState.searchFTSVocabularyDiagnostics,
-               appState.searchFTSVocabularyDiagnosticsEnabled {
+               settingsStore.searchFTSVocabularyDiagnosticsEnabled {
                 HStack(spacing: 18) {
                     ftsVocabularyMetricView(
                         title: "Terms",
@@ -503,7 +504,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var ftsVocabularyDiagnosticsStatusView: some View {
-        if !appState.searchFTSVocabularyDiagnosticsEnabled {
+        if !settingsStore.searchFTSVocabularyDiagnosticsEnabled {
             Text("Disabled")
                 .font(.caption)
                 .foregroundStyle(.secondary)

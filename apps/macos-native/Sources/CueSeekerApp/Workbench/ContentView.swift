@@ -15,6 +15,7 @@ struct ContentView: View {
 private struct ContentRootView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     private let windowBackground = Color(
         red: 0.955,
@@ -51,7 +52,7 @@ private struct ContentRootView: View {
             }
             .ignoresSafeArea(.container, edges: .top)
             .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
-            .preferredColorScheme(appState.appAppearanceMode.colorScheme)
+            .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
             .background(LayoutPerformanceProbe(name: "ContentView.layout"))
         }
     }
