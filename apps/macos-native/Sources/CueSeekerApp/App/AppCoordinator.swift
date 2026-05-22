@@ -5,6 +5,12 @@ import SwiftUI
 import CueSeekerCore
 import CueSeekerPlayback
 
+/// Backwards-compatible alias: every view and AppDelegate site that says
+/// `AppState` continues to work after the rename to AppCoordinator. New code
+/// should prefer `AppCoordinator`; existing call sites can be cleaned up
+/// incrementally.
+typealias AppState = AppCoordinator
+
 enum IndexingStatus: Equatable {
     case idle
     case indexing(URL)
@@ -302,8 +308,14 @@ private struct SearchPageLoad: Sendable {
     let databaseSearchMilliseconds: Double
 }
 
+/// Workflow coordinator. Holds references to the per-domain stores (settings,
+/// indexing, workbenchLayout, shiori, library, search, playback) and owns the
+/// orchestration methods that span multiple domains. Per-domain @Published
+/// state and derived display properties live on the respective stores;
+/// AppCoordinator's own @Published surface is intentionally minimal
+/// (`startupError` only) so views observing the stores get scoped invalidation.
 @MainActor
-final class AppState: ObservableObject {
+final class AppCoordinator: ObservableObject {
     private static let playbackVolumeKey = "playbackVolume"
     private static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
     private static let playbackSpeedKey = "playbackSpeed"
