@@ -51,6 +51,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var indexing: IndexingStore
     @State private var selectedCategory: SettingsCategory = .library
     @State private var folderPendingRemoval: URL?
     @State private var isChoosingFolder = false
@@ -174,20 +175,20 @@ struct SettingsView: View {
                     } label: {
                         Label("Add Folder", systemImage: "folder.badge.plus")
                     }
-                    .disabled(appState.indexingStatus.isIndexing || isChoosingFolder)
+                    .disabled(indexing.indexingStatus.isIndexing || isChoosingFolder)
 
                     Button {
                         appState.indexAllFolders()
                     } label: {
                         Label("Index Now", systemImage: "arrow.clockwise")
                     }
-                    .disabled(appState.selectedFolders.isEmpty || appState.indexingStatus.isIndexing)
+                    .disabled(indexing.selectedFolders.isEmpty || indexing.indexingStatus.isIndexing)
                 }
             }
 
             statusView
 
-            if appState.selectedFolders.isEmpty {
+            if indexing.selectedFolders.isEmpty {
                 EmptyStateView(
                     title: "No Subtitle Folders",
                     systemImage: "folder",
@@ -237,7 +238,7 @@ struct SettingsView: View {
 
     private var folderList: some View {
         List {
-            ForEach(appState.selectedFolders, id: \.self) { folder in
+            ForEach(indexing.selectedFolders, id: \.self) { folder in
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(folder.lastPathComponent)
@@ -256,7 +257,7 @@ struct SettingsView: View {
                     } label: {
                         Label("Remove", systemImage: "minus.circle")
                     }
-                    .disabled(appState.indexingStatus.isIndexing)
+                    .disabled(indexing.indexingStatus.isIndexing)
                 }
                 .padding(.vertical, 4)
             }
@@ -328,7 +329,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 maintenanceStatusView
 
-                if let stats = appState.databaseStorageStats {
+                if let stats = indexing.databaseStorageStats {
                     VStack(alignment: .leading, spacing: 8) {
                         storageRow("Database Size", bytes: stats.databaseFileBytes)
                         storageRow("Used Estimate", bytes: stats.usedBytesEstimate)
@@ -360,7 +361,7 @@ struct SettingsView: View {
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .disabled(appState.databaseMaintenanceStatus.isCompacting)
+                .disabled(indexing.databaseMaintenanceStatus.isCompacting)
 
                 Button {
                     isShowingCompactConfirmation = true
@@ -459,13 +460,13 @@ struct SettingsView: View {
                 }
                 .disabled(
                     !settingsStore.searchFTSVocabularyDiagnosticsEnabled
-                        || appState.searchFTSVocabularyDiagnosticsStatus.isLoading
+                        || indexing.searchFTSVocabularyDiagnosticsStatus.isLoading
                 )
             }
 
             ftsVocabularyDiagnosticsStatusView
 
-            if let diagnostics = appState.searchFTSVocabularyDiagnostics,
+            if let diagnostics = indexing.searchFTSVocabularyDiagnostics,
                settingsStore.searchFTSVocabularyDiagnosticsEnabled {
                 HStack(spacing: 18) {
                     ftsVocabularyMetricView(
@@ -509,7 +510,7 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {
-            switch appState.searchFTSVocabularyDiagnosticsStatus {
+            switch indexing.searchFTSVocabularyDiagnosticsStatus {
             case .idle:
                 Text("No data loaded.")
                     .font(.caption)
@@ -598,7 +599,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var maintenanceStatusView: some View {
-        switch appState.databaseMaintenanceStatus {
+        switch indexing.databaseMaintenanceStatus {
         case .idle:
             EmptyView()
         case .loadingStats:
@@ -702,7 +703,7 @@ struct SettingsView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
 
-            switch appState.indexingStatus {
+            switch indexing.indexingStatus {
             case .idle:
                 EmptyView()
             case .indexing(let folder):

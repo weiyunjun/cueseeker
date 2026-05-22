@@ -6,6 +6,7 @@ import CueSeekerCore
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @EnvironmentObject private var indexing: IndexingStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
@@ -76,7 +77,7 @@ struct SearchView: View {
             return VStack(alignment: .leading, spacing: 6) {
                 libraryHeader
 
-                if appState.selectedFolders.isEmpty {
+                if indexing.selectedFolders.isEmpty {
                     InfoPageStateView(state: .libraryNoLibrary)
                     .font(.system(size: SearchTypography.bodySize))
                 } else if case .loading = appState.libraryStatus, appState.libraryVideos.isEmpty {

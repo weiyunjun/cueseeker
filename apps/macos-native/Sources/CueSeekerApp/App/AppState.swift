@@ -292,7 +292,6 @@ private struct SearchPageLoad: Sendable {
 
 @MainActor
 final class AppState: ObservableObject {
-    private static let selectedFolderPathsKey = "selectedFolderPaths"
     private static let playbackVolumeKey = "playbackVolume"
     private static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
     private static let playbackSpeedKey = "playbackSpeed"
@@ -305,8 +304,6 @@ final class AppState: ObservableObject {
     private static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
     private static let databaseCompactionMinimumFreelistRatio = 0.25
 
-    @Published var selectedFolders: [URL] = []
-    @Published var indexingStatus: IndexingStatus = .idle
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
@@ -331,10 +328,6 @@ final class AppState: ObservableObject {
     @Published private(set) var searchNavigationResultGroups: [SearchResultFileGroup] = []
     @Published private(set) var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
     @Published private(set) var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
-    @Published private(set) var databaseStorageStats: DatabaseStorageStats?
-    @Published private(set) var databaseMaintenanceStatus: DatabaseMaintenanceStatus = .idle
-    @Published private(set) var searchFTSVocabularyDiagnostics: SubtitleFTSVocabularyDiagnostics?
-    @Published private(set) var searchFTSVocabularyDiagnosticsStatus: SearchFTSVocabularyDiagnosticsStatus = .idle
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var selectedShiori: Shiori?
@@ -346,6 +339,7 @@ final class AppState: ObservableObject {
     @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
     let settings: SettingsStore
+    let indexing: IndexingStore
     private var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
@@ -596,7 +590,7 @@ final class AppState: ObservableObject {
     }
 
     var isDatabaseCompactionRecommended: Bool {
-        guard let stats = databaseStorageStats else {
+        guard let stats = indexing.databaseStorageStats else {
             return false
         }
 
@@ -606,10 +600,10 @@ final class AppState: ObservableObject {
 
     var canCompactDatabase: Bool {
         subtitleDatabase != nil
-            && !indexingStatus.isIndexing
-            && !databaseMaintenanceStatus.isCompacting
+            && !indexing.indexingStatus.isIndexing
+            && !indexing.databaseMaintenanceStatus.isCompacting
             && !isSearching
-            && searchFTSVocabularyDiagnosticsTask == nil
+            && indexing.searchFTSVocabularyDiagnosticsTask == nil
             && libraryStatus != .loading
     }
 
@@ -626,7 +620,6 @@ final class AppState: ObservableObject {
     private var searchNavigationTask: Task<Void, Never>?
     private var currentSubtitleEntriesTask: Task<Void, Never>?
     private var databaseStorageStatsTask: Task<Void, Never>?
-    private var searchFTSVocabularyDiagnosticsTask: Task<Void, Never>?
     private var databaseCompactionTask: Task<Void, Never>?
     private var videoSizeTransitionTask: Task<Void, Never>?
     private var windowFrameBeforeUserZoom: NSRect?
@@ -662,8 +655,7 @@ final class AppState: ObservableObject {
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
         settings = SettingsStore(userDefaults: userDefaults)
-
-        selectedFolders = Self.loadSelectedFolders(from: userDefaults)
+        indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -690,7 +682,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        let folders = selectedFolders
+        let folders = indexing.selectedFolders
         startupDatabaseTask = Task { [weak self] in
             do {
                 try await Self.runCancellableDetached(priority: .background) {
@@ -716,7 +708,7 @@ final class AppState: ObservableObject {
                 }
 
                 await MainActor.run {
-                    self?.databaseStorageStats = stats
+                    self?.indexing.databaseStorageStats = stats
                     self?.startupDatabaseTask = nil
                 }
             } catch is CancellationError {
@@ -749,17 +741,6 @@ final class AppState: ObservableObject {
             }
             .store(in: &settingsCancellables)
 
-        settings.$searchFTSVocabularyDiagnosticsEnabled
-            .dropFirst()
-            .sink { [weak self] enabled in
-                guard let self else { return }
-                if !enabled {
-                    self.searchFTSVocabularyDiagnosticsTask?.cancel()
-                    self.searchFTSVocabularyDiagnosticsTask = nil
-                    self.searchFTSVocabularyDiagnosticsStatus = .idle
-                }
-            }
-            .store(in: &settingsCancellables)
     }
 
     nonisolated private static func runCancellableDetached<T: Sendable>(
@@ -777,25 +758,24 @@ final class AppState: ObservableObject {
     func addFolder(_ folder: URL) {
         let folder = folder.standardizedFileURL
 
-        guard !selectedFolders.contains(folder) else {
+        guard !indexing.selectedFolders.contains(folder) else {
             indexFolder(folder)
             return
         }
 
-        selectedFolders.append(folder)
-        persistSelectedFolders()
+        indexing.appendFolder(folder)
         indexFolder(folder)
     }
 
     func removeFolders(at offsets: IndexSet) {
-        let folders = offsets.map { selectedFolders[$0] }
+        let folders = offsets.map { indexing.selectedFolders[$0] }
         for folder in folders {
             removeFolder(folder)
         }
     }
 
     func removeFolder(_ folder: URL) {
-        guard !databaseMaintenanceStatus.isCompacting else {
+        guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = "Database compaction is running"
             return
         }
@@ -813,8 +793,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        selectedFolders.removeAll { $0 == folder }
-        persistSelectedFolders()
+        indexing.removeFolder(folder)
         clearSearchAndPlaybackState(under: folder)
         refreshLibrary()
         refreshCurrentSearch(clearExistingResults: true)
@@ -1001,7 +980,7 @@ final class AppState: ObservableObject {
     }
 
     func indexFolder(_ folder: URL) {
-        guard !databaseMaintenanceStatus.isCompacting else {
+        guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = "Database compaction is running"
             return
         }
@@ -1009,10 +988,10 @@ final class AppState: ObservableObject {
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
         clearSearchAndPlaybackState(under: folder)
-        indexingStatus = .indexing(folder)
+        indexing.indexingStatus = .indexing(folder)
 
         guard let database = subtitleDatabase else {
-            indexingStatus = .failed(folder, "Database is not initialized")
+            indexing.indexingStatus = .failed(folder, "Database is not initialized")
             return
         }
         indexingTask = Task {
@@ -1029,7 +1008,7 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                indexingStatus = .completed(folder, result)
+                indexing.indexingStatus = .completed(folder, result)
                 refreshLibrary()
                 refreshCurrentSearch()
                 refreshDatabaseStorageStats()
@@ -1038,18 +1017,18 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                indexingStatus = .failed(folder, Self.errorMessage(for: error))
+                indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
             }
         }
     }
 
     func indexAllFolders() {
-        guard !databaseMaintenanceStatus.isCompacting else {
+        guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = "Database compaction is running"
             return
         }
 
-        let folders = selectedFolders
+        let folders = indexing.selectedFolders
         guard let firstFolder = folders.first else {
             return
         }
@@ -1059,14 +1038,14 @@ final class AppState: ObservableObject {
         for folder in folders {
             clearSearchAndPlaybackState(under: folder)
         }
-        indexingStatus = .indexingAll(
+        indexing.indexingStatus = .indexingAll(
             currentFolder: firstFolder,
             completedFolders: 0,
             totalFolders: folders.count
         )
 
         guard let database = subtitleDatabase else {
-            indexingStatus = .failed(firstFolder, "Database is not initialized")
+            indexing.indexingStatus = .failed(firstFolder, "Database is not initialized")
             return
         }
         indexingTask = Task {
@@ -1077,7 +1056,7 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                indexingStatus = .indexingAll(
+                indexing.indexingStatus = .indexingAll(
                     currentFolder: folder,
                     completedFolders: index,
                     totalFolders: folders.count
@@ -1102,7 +1081,7 @@ final class AppState: ObservableObject {
                         return
                     }
 
-                    indexingStatus = .failed(folder, Self.errorMessage(for: error))
+                    indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
                     return
                 }
             }
@@ -1124,11 +1103,11 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                indexingStatus = .failed(firstFolder, Self.errorMessage(for: error))
+                indexing.indexingStatus = .failed(firstFolder, Self.errorMessage(for: error))
                 return
             }
 
-            indexingStatus = .completedAll(
+            indexing.indexingStatus = .completedAll(
                 folderCount: folders.count,
                 aggregateResult
             )
@@ -1248,7 +1227,7 @@ final class AppState: ObservableObject {
     func refreshLibrary() {
         libraryTask?.cancel()
 
-        let folders = selectedFolders
+        let folders = indexing.selectedFolders
         guard !folders.isEmpty else {
             applyLibraryPresentation([])
             libraryStatus = .idle
@@ -1285,17 +1264,17 @@ final class AppState: ObservableObject {
     }
 
     func refreshDatabaseStorageStats() {
-        guard !databaseMaintenanceStatus.isCompacting else {
+        guard !indexing.databaseMaintenanceStatus.isCompacting else {
             return
         }
 
         databaseStorageStatsTask?.cancel()
         guard let database = subtitleDatabase else {
-            databaseMaintenanceStatus = .failed("Database is not initialized")
+            indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
             return
         }
 
-        databaseMaintenanceStatus = .loadingStats
+        indexing.databaseMaintenanceStatus = .loadingStats
         databaseStorageStatsTask = Task {
             do {
                 let stats = try await Task.detached(priority: .utility) {
@@ -1306,35 +1285,35 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                databaseStorageStats = stats
-                databaseMaintenanceStatus = .idle
+                indexing.databaseStorageStats = stats
+                indexing.databaseMaintenanceStatus = .idle
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
-                databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
+                indexing.databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
             }
         }
     }
 
     func refreshSearchFTSVocabularyDiagnostics() {
         guard settings.searchFTSVocabularyDiagnosticsEnabled else {
-            searchFTSVocabularyDiagnosticsTask?.cancel()
-            searchFTSVocabularyDiagnosticsTask = nil
-            searchFTSVocabularyDiagnosticsStatus = .idle
+            indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
+            indexing.searchFTSVocabularyDiagnosticsTask = nil
+            indexing.searchFTSVocabularyDiagnosticsStatus = .idle
             return
         }
 
-        searchFTSVocabularyDiagnosticsTask?.cancel()
+        indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
         guard let database = subtitleDatabase else {
-            searchFTSVocabularyDiagnosticsStatus = .failed("Database is not initialized")
+            indexing.searchFTSVocabularyDiagnosticsStatus = .failed("Database is not initialized")
             return
         }
 
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        searchFTSVocabularyDiagnosticsStatus = .loading
-        searchFTSVocabularyDiagnosticsTask = Task {
+        indexing.searchFTSVocabularyDiagnosticsStatus = .loading
+        indexing.searchFTSVocabularyDiagnosticsTask = Task {
             do {
                 let diagnostics = try await Task.detached(priority: .utility) {
                     try database.ftsVocabularyDiagnostics(for: query)
@@ -1344,47 +1323,47 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                searchFTSVocabularyDiagnostics = diagnostics
-                searchFTSVocabularyDiagnosticsStatus = .completed(Date())
-                searchFTSVocabularyDiagnosticsTask = nil
+                indexing.searchFTSVocabularyDiagnostics = diagnostics
+                indexing.searchFTSVocabularyDiagnosticsStatus = .completed(Date())
+                indexing.searchFTSVocabularyDiagnosticsTask = nil
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
-                searchFTSVocabularyDiagnosticsStatus = .failed(Self.errorMessage(for: error))
-                searchFTSVocabularyDiagnosticsTask = nil
+                indexing.searchFTSVocabularyDiagnosticsStatus = .failed(Self.errorMessage(for: error))
+                indexing.searchFTSVocabularyDiagnosticsTask = nil
             }
         }
     }
 
     func compactDatabaseStorage() {
-        guard !databaseMaintenanceStatus.isCompacting else {
+        guard !indexing.databaseMaintenanceStatus.isCompacting else {
             return
         }
 
-        guard !indexingStatus.isIndexing else {
-            databaseMaintenanceStatus = .failed("Indexing is running")
+        guard !indexing.indexingStatus.isIndexing else {
+            indexing.databaseMaintenanceStatus = .failed("Indexing is running")
             return
         }
 
         guard !isSearching else {
-            databaseMaintenanceStatus = .failed("Search is running")
+            indexing.databaseMaintenanceStatus = .failed("Search is running")
             return
         }
 
-        guard searchFTSVocabularyDiagnosticsTask == nil else {
-            databaseMaintenanceStatus = .failed("Search diagnostics are loading")
+        guard indexing.searchFTSVocabularyDiagnosticsTask == nil else {
+            indexing.databaseMaintenanceStatus = .failed("Search diagnostics are loading")
             return
         }
 
         guard libraryStatus != .loading else {
-            databaseMaintenanceStatus = .failed("Library is loading")
+            indexing.databaseMaintenanceStatus = .failed("Library is loading")
             return
         }
 
         guard let database = subtitleDatabase else {
-            databaseMaintenanceStatus = .failed("Database is not initialized")
+            indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
             return
         }
 
@@ -1393,20 +1372,20 @@ final class AppState: ObservableObject {
             cancelStartupDatabaseTask()
             statsBefore = try database.storageStats()
         } catch {
-            databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
+            indexing.databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
             return
         }
 
         if let availableBytes = Self.availableDiskSpaceBytes(for: databaseURL),
            availableBytes < max(statsBefore.databaseFileBytes, 100 * 1024 * 1024) {
-            databaseMaintenanceStatus = .failed("Not enough free disk space")
+            indexing.databaseMaintenanceStatus = .failed("Not enough free disk space")
             return
         }
 
         databaseStorageStatsTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
-        databaseStorageStats = statsBefore
-        databaseMaintenanceStatus = .compacting
+        indexing.databaseStorageStats = statsBefore
+        indexing.databaseMaintenanceStatus = .compacting
 
         databaseCompactionTask = Task {
             do {
@@ -1419,17 +1398,17 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                databaseStorageStats = statsAfter
+                indexing.databaseStorageStats = statsAfter
                 let bytesBefore = statsBefore.databaseFileBytes + statsBefore.walFileBytes
                 let bytesAfter = statsAfter.databaseFileBytes + statsAfter.walFileBytes
                 let reclaimedBytes = max(0, bytesBefore - bytesAfter)
-                databaseMaintenanceStatus = .completed("Reclaimed \(Self.formattedBytes(reclaimedBytes))")
+                indexing.databaseMaintenanceStatus = .completed("Reclaimed \(Self.formattedBytes(reclaimedBytes))")
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
-                databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
+                indexing.databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
             }
         }
     }
@@ -1438,7 +1417,7 @@ final class AppState: ObservableObject {
         guard let database = subtitleDatabase, libraryStatus != .loading else {
             return
         }
-        let folders = selectedFolders
+        let folders = indexing.selectedFolders
         guard !folders.isEmpty else {
             applyLibraryPresentation([])
             libraryStatus = .idle
@@ -1570,7 +1549,7 @@ final class AppState: ObservableObject {
         }
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let folders = selectedFolders
+        let folders = indexing.selectedFolders
         let pageSize = Self.searchPageSize
         let offset = cursor.offset
         if let activeSearchPerformanceRun {
@@ -1639,7 +1618,7 @@ final class AppState: ObservableObject {
         searchStatus = .searching
         SearchPerformanceLogger.mark(searchPerformanceRun, "search_status_searching", status: "searching")
 
-        guard !databaseMaintenanceStatus.isCompacting else {
+        guard !indexing.databaseMaintenanceStatus.isCompacting else {
             searchStatus = .failed("Database compaction is running")
             SearchPerformanceLogger.mark(
                 searchPerformanceRun,
@@ -1896,7 +1875,7 @@ final class AppState: ObservableObject {
     ) {
         guard progress.countState == .exactProgress,
               searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
-              selectedFolders.map(\.path) == folderPaths,
+              indexing.selectedFolders.map(\.path) == folderPaths,
               searchCountState != .exact,
               progress.knownResultCount >= searchKnownResultCount,
               progress.knownFileCount >= searchKnownFileCount
@@ -2002,7 +1981,7 @@ final class AppState: ObservableObject {
                 }
 
                 guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
-                      selectedFolders.map(\.path) == folderPaths
+                      indexing.selectedFolders.map(\.path) == folderPaths
                 else {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_stale")
                     SearchPerformanceLogger.writeE2ESearchPage(
@@ -2080,7 +2059,7 @@ final class AppState: ObservableObject {
                 }
 
                 guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
-                      selectedFolders.map(\.path) == folderPaths
+                      indexing.selectedFolders.map(\.path) == folderPaths
                 else {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_error_stale")
                     return
@@ -2795,7 +2774,7 @@ final class AppState: ObservableObject {
 
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty,
-              !selectedFolders.isEmpty,
+              !indexing.selectedFolders.isEmpty,
               let database = subtitleDatabase
         else {
             searchNavigationSnapshot = nil
@@ -2806,7 +2785,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        let folders = selectedFolders
+        let folders = indexing.selectedFolders
         let anchor = currentSearchNavigationAnchor()
         let panelRadius = Self.searchNavigationPanelRadius
         searchNavigationTask = Task { [weak self] in
@@ -3091,11 +3070,11 @@ final class AppState: ObservableObject {
         let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
         let rowsBefore = currentRows.count
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty, !selectedFolders.isEmpty else {
+        guard !trimmedQuery.isEmpty, !indexing.selectedFolders.isEmpty else {
             return
         }
 
-        let folders = selectedFolders
+        let folders = indexing.selectedFolders
         guard let database = subtitleDatabase else {
             return
         }
@@ -3343,8 +3322,8 @@ final class AppState: ObservableObject {
         searchNavigationTask = nil
         currentSubtitleEntriesTask?.cancel()
         currentSubtitleEntriesTask = nil
-        searchFTSVocabularyDiagnosticsTask?.cancel()
-        searchFTSVocabularyDiagnosticsTask = nil
+        indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
+        indexing.searchFTSVocabularyDiagnosticsTask = nil
         cancelSearchResultGroupTasks()
 
         if case .loading = libraryStatus {
@@ -3547,19 +3526,6 @@ final class AppState: ObservableObject {
             print("Failed to load ASS subtitle preparation window: \(error)")
             return fallback
         }
-    }
-
-    private func persistSelectedFolders() {
-        userDefaults.set(
-            selectedFolders.map(\.path),
-            forKey: Self.selectedFolderPathsKey
-        )
-    }
-
-    private static func loadSelectedFolders(from userDefaults: UserDefaults) -> [URL] {
-        userDefaults
-            .stringArray(forKey: selectedFolderPathsKey)?
-            .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? []
     }
 
     private static func loadPlaybackVolume(from userDefaults: UserDefaults) -> Double {
