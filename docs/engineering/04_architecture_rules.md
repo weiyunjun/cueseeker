@@ -215,10 +215,25 @@ Rules:
   Content Panel, central Playback Area, and Right Learning Panel. A state change
   in one domain must not require expensive derived state in another domain to be
   recomputed.
-- A single broad observable object may coordinate workflows, but large SwiftUI
-  views must not subscribe to unrelated high-frequency or high-cardinality state
-  when a smaller store, value model, or binding can express the same UI
-  responsibility.
+- The workbench observable graph is split into an `AppCoordinator`
+  (`apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator.swift`) plus seven
+  per-domain stores under their respective feature folders: `SettingsStore`,
+  `IndexingStore`, `WorkbenchLayoutState`, `ShioriStore`, `LibraryStore`,
+  `SearchStore`, `PlaybackStore`. Per-domain `@Published` state lives on the
+  store for that domain; AppCoordinator holds orchestration methods that span
+  multiple domains and a minimal app-level `@Published` surface (currently only
+  `startupError`).
+- Views must observe every store whose state they read, including stores read
+  indirectly through AppCoordinator computed properties. Because `AppCoordinator`
+  holds the stores as plain `let` references and does not republish child store
+  changes, reading e.g. `appCoordinator.isPlaybackPageVisible` from a view that
+  observes only AppCoordinator leaves that view's body stale until something
+  else triggers a re-render. New views that consume a cross-store computed
+  property must add the underlying stores to their `@EnvironmentObject` /
+  `@ObservedObject` declarations alongside AppCoordinator.
+- Large SwiftUI views must not subscribe to unrelated high-frequency or
+  high-cardinality state when a smaller store, value model, or binding can
+  express the same UI responsibility.
 - Editable input draft state must be separated from submitted application
   state when background work can update the submitted state. For example, the
   topbar Search field owns its own draft and focus state, while `searchQuery`

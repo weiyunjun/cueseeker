@@ -4,7 +4,7 @@ import SwiftUI
 import CueSeekerCore
 
 struct SearchView: View {
-    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var shiori: ShioriStore

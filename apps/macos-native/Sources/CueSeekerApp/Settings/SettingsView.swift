@@ -49,7 +49,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
-    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var search: SearchStore

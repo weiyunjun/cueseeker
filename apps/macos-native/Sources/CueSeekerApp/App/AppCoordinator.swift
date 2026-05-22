@@ -5,12 +5,6 @@ import SwiftUI
 import CueSeekerCore
 import CueSeekerPlayback
 
-/// Backwards-compatible alias: every view and AppDelegate site that says
-/// `AppState` continues to work after the rename to AppCoordinator. New code
-/// should prefer `AppCoordinator`; existing call sites can be cleaned up
-/// incrementally.
-typealias AppState = AppCoordinator
-
 enum IndexingStatus: Equatable {
     case idle
     case indexing(URL)
@@ -760,7 +754,7 @@ final class AppCoordinator: ObservableObject {
     }
 
     func performUserInitiatedAppCommand(_ action: () -> Void) {
-        AppPerformanceProbe.action("AppState.performUserInitiatedAppCommand", thresholdMilliseconds: 4) {
+        AppPerformanceProbe.action("AppCoordinator.performUserInitiatedAppCommand", thresholdMilliseconds: 4) {
             workbenchLayout.clearSearchFocus()
             action()
         }
@@ -783,7 +777,7 @@ final class AppCoordinator: ObservableObject {
     }
 
     func activateWorkbenchPanelMode(_ mode: WorkbenchPanelMode) {
-        AppPerformanceProbe.action("AppState.activateWorkbenchPanelMode", thresholdMilliseconds: 4) {
+        AppPerformanceProbe.action("AppCoordinator.activateWorkbenchPanelMode", thresholdMilliseconds: 4) {
             if workbenchLayout.panelMode == mode {
                 return
             }

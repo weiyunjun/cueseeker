@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var appState: AppCoordinator
 
     var body: some View {
         ContentRootView(
@@ -13,7 +13,7 @@ struct ContentView: View {
 }
 
 private struct ContentRootView: View {
-    @ObservedObject var appState: AppState
+    @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var playback: PlaybackStore
@@ -111,7 +111,7 @@ private struct AppTopBar: View {
 }
 
 private struct TopbarCommandBridge: View {
-    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
 
     var body: some View {
@@ -144,7 +144,7 @@ private struct TopbarCommandBridge: View {
 }
 
 private struct TopbarModeButton: View {
-    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
 
     let mode: WorkbenchPanelMode

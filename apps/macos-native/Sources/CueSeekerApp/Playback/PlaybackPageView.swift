@@ -4,7 +4,7 @@ import SwiftUI
 
 struct PlaybackPageView: View {
     let playbackSurface: AnyView
-    @ObservedObject var appState: AppState
+    @ObservedObject var appState: AppCoordinator
     let onClose: () -> Void
     @State private var activePanel: PlaybackDrawerKind = .results
     @EnvironmentObject private var playback: PlaybackStore
@@ -110,7 +110,7 @@ struct PlaybackPageView: View {
 
 private struct PlaybackVideoStage: View {
     let playbackSurface: AnyView
-    @ObservedObject var appState: AppState
+    @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
@@ -486,7 +486,7 @@ struct PlaybackChromeControls {
 @MainActor
 extension PlaybackChromeControls {
     static func appState(
-        _ appState: AppState,
+        _ appState: AppCoordinator,
         fullscreenAction: (() -> Void)? = nil
     ) -> PlaybackChromeControls {
         PlaybackChromeControls(
@@ -1248,7 +1248,7 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
 }
 
 struct PlaybackSidebarShell: View {
-    @ObservedObject var appState: AppState
+    @ObservedObject var appState: AppCoordinator
     @Binding var activePanel: PlaybackDrawerKind
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var playback: PlaybackStore
@@ -1527,7 +1527,7 @@ private struct PlaybackSidebarResultRow: View {
 /// order. Observes the view model so the active-cue selection follows the
 /// rate-limited displayed time (not the frame-cadence clock).
 private struct PlaybackSubtitlesList: View {
-    @ObservedObject var appState: AppState
+    @ObservedObject var appState: AppCoordinator
     @ObservedObject var viewModel: PlaybackViewModel
     @EnvironmentObject private var playback: PlaybackStore
 

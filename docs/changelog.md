@@ -6,6 +6,23 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Completed the UI invalidation-domain restructure (Phase 1 of the
+  `ui/restructure` branch). The 3.7k-line `AppState` god object was split
+  into a thin `AppCoordinator` plus seven per-domain stores —
+  `SettingsStore`, `IndexingStore`, `WorkbenchLayoutState`, `ShioriStore`,
+  `LibraryStore`, `SearchStore`, `PlaybackStore` — each owning the
+  `@Published` state for one domain. `AppCoordinator` retains only
+  cross-domain orchestration methods and a single app-level
+  `startupError`; per-domain mutation now scopes SwiftUI invalidation to
+  the relevant store's subscribers instead of fanning out across the
+  workbench. Views that read AppCoordinator computed properties which
+  compose multiple store states must observe each underlying store
+  explicitly, since AppCoordinator does not republish child changes.
+  `docs/engineering/04_architecture_rules.md` §7 was updated to record
+  the new shape and the observation requirement. Phase 1 file
+  reorganization (`Sources/CueSeekerApp/{App,Workbench,Library,Search,
+  Playback,Shiori,Settings,Media,Shared,Diagnostics}/`) was completed in
+  the same branch. Build clean, `swift test` 95/95.
 - Completed the info-page / video-page refactor (video-page Phase 1
   structural stage, steps S1–S7). The app is now an info page (Library /
   Search / Shiori) plus a dedicated full-window video page layered above the

@@ -10,7 +10,7 @@ extension Notification.Name {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var settingsWindow: NSWindow?
-    private let appState = AppState()
+    private let appState = AppCoordinator()
     private var windowButtonsProxy: WindowButtonsProxyView?
     private var keyDownMonitor: Any?
 
