@@ -1667,14 +1667,6 @@ private struct PlaybackSidebarSubtitleRow: View {
 /// feedback is never occluded by it (doc 12 §11/§13.4, doc 11 §6). This is the
 /// SwiftUI feedback presentation layer only; it observes the view model for
 /// `feedback` updates and never touches the native render/seek path.
-private struct PlaybackFeedbackLayer: View {
-    @ObservedObject var viewModel: PlaybackViewModel
-
-    var body: some View {
-        PlaybackFeedbackOverlay(feedback: viewModel.feedback)
-    }
-}
-
 enum PlaybackChromeMetrics {
     static let horizontalInset: CGFloat = 20
     static let bottomInset: CGFloat = 20
