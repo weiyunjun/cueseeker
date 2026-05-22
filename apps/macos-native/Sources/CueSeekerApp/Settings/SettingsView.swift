@@ -53,6 +53,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var search: SearchStore
+    @EnvironmentObject private var library: LibraryStore
     @State private var selectedCategory: SettingsCategory = .library
     @State private var folderPendingRemoval: URL?
     @State private var isChoosingFolder = false
