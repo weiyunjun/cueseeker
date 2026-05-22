@@ -325,11 +325,7 @@ final class AppState: ObservableObject {
     @Published private(set) var searchKnownResultCount = 0
     @Published private(set) var searchKnownFileCount = 0
     @Published var hasMoreSearchResults = false
-    @Published var libraryStatus: LibraryStatus = .idle
-    @Published var libraryVideos: [LibraryVideo] = []
     @Published var collapsedSearchResultGroupPaths: Set<String> = []
-    @Published private(set) var libraryFolderGroups: [LibraryFolderGroup] = []
-    @Published private(set) var libraryPresentationRevision = 0
     @Published private(set) var searchResultPresentationState: SearchResultPresentationState = .initial
     @Published private(set) var searchResultGroups: [SearchResultFileGroup] = []
     @Published private(set) var renderedSearchResultCount = 0
@@ -339,7 +335,6 @@ final class AppState: ObservableObject {
     @Published private(set) var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
     @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
-    @Published var selectedLibraryVideo: LibraryVideo?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = true
@@ -348,6 +343,7 @@ final class AppState: ObservableObject {
     let settings: SettingsStore
     let indexing: IndexingStore
     let shiori: ShioriStore
+    let library: LibraryStore
     private var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
@@ -475,7 +471,7 @@ final class AppState: ObservableObject {
     }
 
     var hasLibraryFolderGroups: Bool {
-        !libraryFolderGroups.isEmpty
+        !library.libraryFolderGroups.isEmpty
     }
 
     var hasPlaybackSelection: Bool {
@@ -487,27 +483,27 @@ final class AppState: ObservableObject {
     }
 
     var currentPlaybackVideoPath: String? {
-        selectedLibraryVideo?.videoPath ?? selectedSearchResult?.videoPath ?? shiori.selectedShiori?.videoPath
+        library.selectedLibraryVideo?.videoPath ?? selectedSearchResult?.videoPath ?? shiori.selectedShiori?.videoPath
     }
 
     var currentPlaybackSubtitlePath: String? {
-        selectedLibraryVideo?.subtitlePath ?? selectedSearchResult?.subtitlePath ?? shiori.selectedShiori?.subtitlePath
+        library.selectedLibraryVideo?.subtitlePath ?? selectedSearchResult?.subtitlePath ?? shiori.selectedShiori?.subtitlePath
     }
 
     var currentPlaybackSubtitleFormat: SubtitleFormat? {
-        selectedLibraryVideo?.subtitleFormat ?? selectedSearchResult?.subtitleFormat ?? shiori.selectedShiori?.subtitleFormat
+        library.selectedLibraryVideo?.subtitleFormat ?? selectedSearchResult?.subtitleFormat ?? shiori.selectedShiori?.subtitleFormat
     }
 
     var currentPlaybackTitle: String {
-        selectedLibraryVideo?.videoName
+        library.selectedLibraryVideo?.videoName
             ?? selectedSearchResult?.videoName
             ?? shiori.selectedShiori?.videoName
             ?? "No video selected"
     }
 
     var currentPlaybackDisplayTitle: String {
-        if let selectedLibraryVideo {
-            return libraryFolderGroups
+        if let selectedLibraryVideo = library.selectedLibraryVideo {
+            return library.libraryFolderGroups
                 .lazy
                 .flatMap(\.videos)
                 .first { $0.video.videoPath == selectedLibraryVideo.videoPath }?
@@ -600,7 +596,7 @@ final class AppState: ObservableObject {
             && !indexing.databaseMaintenanceStatus.isCompacting
             && !isSearching
             && indexing.searchFTSVocabularyDiagnosticsTask == nil
-            && libraryStatus != .loading
+            && library.libraryStatus != .loading
     }
 
     private let userDefaults: UserDefaults
@@ -653,6 +649,7 @@ final class AppState: ObservableObject {
         settings = SettingsStore(userDefaults: userDefaults)
         indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
         shiori = ShioriStore()
+        library = LibraryStore()
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -1216,14 +1213,14 @@ final class AppState: ObservableObject {
         let folders = indexing.selectedFolders
         guard !folders.isEmpty else {
             applyLibraryPresentation([])
-            libraryStatus = .idle
+            library.libraryStatus = .idle
             return
         }
 
-        libraryStatus = .loading
+        library.libraryStatus = .loading
         guard let database = subtitleDatabase else {
             applyLibraryPresentation([])
-            libraryStatus = .failed("Database is not initialized")
+            library.libraryStatus = .failed("Database is not initialized")
             return
         }
         libraryTask = Task {
@@ -1237,14 +1234,14 @@ final class AppState: ObservableObject {
                 }
 
                 applyLibraryPresentation(snapshot)
-                libraryStatus = .completed
+                library.libraryStatus = .completed
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
                 applyLibraryPresentation([])
-                libraryStatus = .failed(Self.errorMessage(for: error))
+                library.libraryStatus = .failed(Self.errorMessage(for: error))
             }
         }
     }
@@ -1343,7 +1340,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        guard libraryStatus != .loading else {
+        guard library.libraryStatus != .loading else {
             indexing.databaseMaintenanceStatus = .failed("Library is loading")
             return
         }
@@ -1400,17 +1397,17 @@ final class AppState: ObservableObject {
     }
 
     func hydrateLibraryAsync() {
-        guard let database = subtitleDatabase, libraryStatus != .loading else {
+        guard let database = subtitleDatabase, library.libraryStatus != .loading else {
             return
         }
         let folders = indexing.selectedFolders
         guard !folders.isEmpty else {
             applyLibraryPresentation([])
-            libraryStatus = .idle
+            library.libraryStatus = .idle
             return
         }
 
-        libraryStatus = .loading
+        library.libraryStatus = .loading
         libraryTask?.cancel()
         libraryTask = Task { [weak self] in
             do {
@@ -1421,11 +1418,11 @@ final class AppState: ObservableObject {
                 guard !Task.isCancelled else { return }
 
                 self?.applyLibraryPresentation(snapshot)
-                self?.libraryStatus = .completed
+                self?.library.libraryStatus = .completed
             } catch {
                 guard !Task.isCancelled else { return }
                 print("Failed to hydrate library asynchronously: \(error)")
-                self?.libraryStatus = .failed(Self.errorMessage(for: error))
+                self?.library.libraryStatus = .failed(Self.errorMessage(for: error))
             }
         }
     }
@@ -1480,29 +1477,29 @@ final class AppState: ObservableObject {
 
     private func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
         let groups = Self.makeLibraryFolderGroups(from: snapshot)
-        libraryFolderGroups = groups
-        libraryVideos = groups.flatMap { group in
+        library.libraryFolderGroups = groups
+        library.libraryVideos = groups.flatMap { group in
             group.videos.map(\.video)
         }
-        libraryPresentationRevision += 1
+        library.libraryPresentationRevision += 1
         UIInvalidationProbe.count(
             "UI.LibraryPresentationSnapshot.rebuilt",
-            details: "groups=\(groups.count) rows=\(libraryVideos.count)"
+            details: "groups=\(groups.count) rows=\(library.libraryVideos.count)"
         )
     }
 
     private func removeLibraryPresentation(under folder: URL) {
-        let groups = libraryFolderGroups.filter { group in
+        let groups = library.libraryFolderGroups.filter { group in
             !group.videos.contains { Self.path($0.video.videoPath, isUnder: folder) }
         }
-        libraryFolderGroups = groups
-        libraryVideos = groups.flatMap { group in
+        library.libraryFolderGroups = groups
+        library.libraryVideos = groups.flatMap { group in
             group.videos.map(\.video)
         }
-        libraryPresentationRevision += 1
+        library.libraryPresentationRevision += 1
         UIInvalidationProbe.count(
             "UI.LibraryPresentationSnapshot.rebuilt",
-            details: "groups=\(groups.count) rows=\(libraryVideos.count) reason=remove"
+            details: "groups=\(groups.count) rows=\(library.libraryVideos.count) reason=remove"
         )
     }
 
@@ -2147,7 +2144,7 @@ final class AppState: ObservableObject {
         workbenchLayout.selectPanelMode(.search)
         selectedSearchResult = result
         shiori.selectedShiori = nil
-        selectedLibraryVideo = nil
+        library.selectedLibraryVideo = nil
         isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
@@ -2176,7 +2173,7 @@ final class AppState: ObservableObject {
         if case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
-        selectedLibraryVideo = video
+        library.selectedLibraryVideo = video
         selectedSearchResult = nil
         shiori.selectedShiori = nil
         isPlaybackSurfaceExpanded = true
@@ -2197,7 +2194,7 @@ final class AppState: ObservableObject {
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
         selectedSearchResult = nil
-        selectedLibraryVideo = nil
+        library.selectedLibraryVideo = nil
         isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
@@ -2380,7 +2377,7 @@ final class AppState: ObservableObject {
         case .idle:
             if let selectedSearchResult {
                 play(selectedSearchResult)
-            } else if let selectedLibraryVideo {
+            } else if let selectedLibraryVideo = library.selectedLibraryVideo {
                 play(selectedLibraryVideo)
             } else if let selectedShiori = shiori.selectedShiori {
                 play(selectedShiori)
@@ -2485,7 +2482,7 @@ final class AppState: ObservableObject {
 
         let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
         let videoFile = URL(fileURLWithPath: currentPlaybackVideoPath)
-        let videoName = selectedLibraryVideo?.videoName
+        let videoName = library.selectedLibraryVideo?.videoName
             ?? selectedSearchResult?.videoName
             ?? shiori.selectedShiori?.videoName
             ?? videoFile.lastPathComponent
@@ -2632,7 +2629,7 @@ final class AppState: ObservableObject {
             playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
             selectedSearchResult = nil
-            selectedLibraryVideo = nil
+            library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
             isPlaybackSurfaceExpanded = false
             if let originatingMode = playbackOriginatingPanelMode {
@@ -2872,18 +2869,18 @@ final class AppState: ObservableObject {
 
     private func libraryAdjacentVideo(offset: Int) -> LibraryVideo? {
         guard isLibraryPlaybackActive,
-              let selectedLibraryVideo,
-              let currentIndex = libraryVideos.firstIndex(where: { $0.videoPath == selectedLibraryVideo.videoPath })
+              let selectedLibraryVideo = library.selectedLibraryVideo,
+              let currentIndex = library.libraryVideos.firstIndex(where: { $0.videoPath == selectedLibraryVideo.videoPath })
         else {
             return nil
         }
 
         let targetIndex = currentIndex + offset
-        guard libraryVideos.indices.contains(targetIndex) else {
+        guard library.libraryVideos.indices.contains(targetIndex) else {
             return nil
         }
 
-        return libraryVideos[targetIndex]
+        return library.libraryVideos[targetIndex]
     }
 
     private func startLibraryPlaybackHistoryTracking(videoPath: String) {
@@ -2931,7 +2928,7 @@ final class AppState: ObservableObject {
         let selectedSearchResultIsUnderFolder = selectedSearchResult.map {
             Self.path($0.subtitlePath, isUnder: folder)
         } ?? false
-        let selectedLibraryVideoIsUnderFolder = selectedLibraryVideo.map {
+        let selectedLibraryVideoIsUnderFolder = library.selectedLibraryVideo.map {
             Self.path($0.videoPath, isUnder: folder)
         } ?? false
         let selectedShioriIsUnderFolder = shiori.selectedShiori.map {
@@ -2940,7 +2937,7 @@ final class AppState: ObservableObject {
 
         if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder || selectedShioriIsUnderFolder {
             selectedSearchResult = nil
-            selectedLibraryVideo = nil
+            library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
             stopPlayback()
         }
@@ -3312,8 +3309,8 @@ final class AppState: ObservableObject {
         indexing.searchFTSVocabularyDiagnosticsTask = nil
         cancelSearchResultGroupTasks()
 
-        if case .loading = libraryStatus {
-            libraryStatus = libraryVideos.isEmpty ? .idle : .completed
+        if case .loading = library.libraryStatus {
+            library.libraryStatus = library.libraryVideos.isEmpty ? .idle : .completed
         }
         if case .searching = searchStatus {
             searchStatus = .completed

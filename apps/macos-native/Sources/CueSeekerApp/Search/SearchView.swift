@@ -8,6 +8,7 @@ struct SearchView: View {
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var shiori: ShioriStore
+    @EnvironmentObject private var library: LibraryStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
@@ -44,7 +45,7 @@ struct SearchView: View {
             .onAppear {
                 resetCollapsedLibraryFolders()
             }
-            .onChange(of: appState.libraryPresentationRevision) { _ in
+            .onChange(of: library.libraryPresentationRevision) { _ in
                 resetCollapsedLibraryFolders()
             }
         }
@@ -81,17 +82,17 @@ struct SearchView: View {
                 if indexing.selectedFolders.isEmpty {
                     InfoPageStateView(state: .libraryNoLibrary)
                     .font(.system(size: SearchTypography.bodySize))
-                } else if case .loading = appState.libraryStatus, appState.libraryVideos.isEmpty {
+                } else if case .loading = library.libraryStatus, library.libraryVideos.isEmpty {
                     InfoPageStateView(state: .libraryLoading)
                     .font(.system(size: SearchTypography.bodySize))
                     .overlay {
                         ProgressView()
                             .offset(y: 72)
                     }
-                } else if case .failed(let message) = appState.libraryStatus {
+                } else if case .failed(let message) = library.libraryStatus {
                     InfoPageStateView(state: .libraryFailed(message))
                     .font(.system(size: SearchTypography.bodySize))
-                } else if appState.libraryVideos.isEmpty {
+                } else if library.libraryVideos.isEmpty {
                     InfoPageStateView(state: .libraryNoVideos)
                     .font(.system(size: SearchTypography.bodySize))
                 } else {
@@ -124,10 +125,10 @@ struct SearchView: View {
     }
 
     private var libraryList: some View {
-        let rowCount = appState.libraryFolderGroups.reduce(0) { $0 + $1.videos.count }
+        let rowCount = library.libraryFolderGroups.reduce(0) { $0 + $1.videos.count }
         UIInvalidationProbe.count(
             "UI.LibraryRows.rendered",
-            details: "groups=\(appState.libraryFolderGroups.count) rows=\(rowCount)"
+            details: "groups=\(library.libraryFolderGroups.count) rows=\(rowCount)"
         )
 
         return GeometryReader { geo in
@@ -137,12 +138,12 @@ struct SearchView: View {
                     // groups carry their own vertical rhythm so LazyVStack
                     // spacing is 0 (P5.3 Confirmed Pixel Spec, owner decision 1).
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(appState.libraryFolderGroups) { group in
+                        ForEach(library.libraryFolderGroups) { group in
                             let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
                             LibraryFolderGroupView(
                                 group: group,
                                 isCollapsed: isCollapsed,
-                                selectedLibraryVideoPath: appState.selectedLibraryVideo?.videoPath,
+                                selectedLibraryVideoPath: library.selectedLibraryVideo?.videoPath,
                                 onToggle: {
                                     layoutState.clearSearchFocus()
                                     toggleLibraryFolderGroup(group.folderPath, proxy: proxy)
@@ -164,7 +165,7 @@ struct SearchView: View {
     }
 
     private func resetCollapsedLibraryFolders() {
-        collapsedLibraryFolderPaths = Set(appState.libraryFolderGroups.map(\.id))
+        collapsedLibraryFolderPaths = Set(library.libraryFolderGroups.map(\.id))
     }
 
     private func toggleLibraryFolderGroup(_ folderPath: String, proxy: ScrollViewProxy) {
@@ -175,8 +176,8 @@ struct SearchView: View {
         )
         if wasCollapsed {
             collapsedLibraryFolderPaths.remove(folderPath)
-            if let selectedVideoPath = appState.selectedLibraryVideo?.videoPath,
-               let group = appState.libraryFolderGroups.first(where: { $0.folderPath == folderPath }),
+            if let selectedVideoPath = library.selectedLibraryVideo?.videoPath,
+               let group = library.libraryFolderGroups.first(where: { $0.folderPath == folderPath }),
                group.videos.contains(where: { $0.video.videoPath == selectedVideoPath }) {
                 DispatchQueue.main.async {
                     withAnimation(.easeInOut(duration: 0.2)) {
