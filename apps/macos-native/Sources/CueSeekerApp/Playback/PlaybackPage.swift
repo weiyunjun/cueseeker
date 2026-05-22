@@ -107,7 +107,3 @@ struct PlaybackPageView: View {
         appState.refreshCurrentSubtitleEntries()
     }
 }
-
-
-
-
