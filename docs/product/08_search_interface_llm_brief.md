@@ -889,12 +889,12 @@ When proposing new UI directions, keep these constraints:
 
 Primary implementation files:
 
-- `apps/macos-native/Sources/CueSeekerApp/SearchView.swift`
-- `apps/macos-native/Sources/CueSeekerApp/SearchTextView.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Search/SearchView.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Search/SearchTextView.swift`
 - `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator.swift`
-- `apps/macos-native/Sources/CueSeekerApp/PlaybackView.swift`
-- `apps/macos-native/Sources/CueSeekerApp/PlaybackControlsView.swift`
-- `apps/macos-native/Sources/CueSeekerApp/ContentView.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Playback/PlaybackView.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Playback/PlaybackPageView.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Workbench/ContentView.swift`
 
 Product design references:
 
