@@ -1,7 +1,4 @@
-import AppKit
 import SwiftUI
-import CueSeekerCore
-import CueSeekerPlayback
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case library
@@ -49,11 +46,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
-    @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var settingsStore: SettingsStore
-    @EnvironmentObject private var indexing: IndexingStore
-    @EnvironmentObject private var search: SearchStore
-    @EnvironmentObject private var library: LibraryStore
     @State private var selectedCategory: SettingsCategory = .library
     private let categoryColumnWidth: CGFloat = 184
     private let sidebarBackground = Color(
@@ -131,4 +124,3 @@ struct SettingsView: View {
     }
 
 }
-
