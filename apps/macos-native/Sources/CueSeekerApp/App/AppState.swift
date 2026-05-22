@@ -316,18 +316,13 @@ final class AppState: ObservableObject {
     private static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
     private static let databaseCompactionMinimumFreelistRatio = 0.25
 
-    @Published private(set) var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
-    @Published private(set) var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
-    @Published var playbackStatus: PlaybackStatus = .idle
-    @Published var isPlaybackSurfaceExpanded = false
-    @Published var isPlaybackSidePanelVisible = true
     @Published var startupError: String?
-    @Published var playbackViewModel: PlaybackViewModel?
     let settings: SettingsStore
     let indexing: IndexingStore
     let shiori: ShioriStore
     let library: LibraryStore
     let search: SearchStore
+    let playback: PlaybackStore
     private var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
@@ -442,7 +437,7 @@ final class AppState: ObservableObject {
     }
 
     var isPlaybackPageVisible: Bool {
-        hasPlaybackSelection && isPlaybackSurfaceExpanded
+        hasPlaybackSelection && playback.isPlaybackSurfaceExpanded
     }
 
     var currentPlaybackVideoPath: String? {
@@ -607,6 +602,7 @@ final class AppState: ObservableObject {
         shiori = ShioriStore()
         library = LibraryStore()
         search = SearchStore()
+        playback = PlaybackStore()
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -789,7 +785,7 @@ final class AppState: ObservableObject {
     }
 
     func togglePlaybackFullscreenFromUser() {
-        guard let player, let playbackViewModel else {
+        guard let player, let playbackViewModel = playback.playbackViewModel else {
             return
         }
 
@@ -829,9 +825,9 @@ final class AppState: ObservableObject {
         // through the serialized resize gate (it must never be swallowed by
         // the rapid-repeat guard or serialized with fullscreen/zoom) and must
         // not animate as a video-size transition or mutate
-        // isPlaybackSurfaceExpanded (architecture §7.1, doc 12 §11). The
+        // playback.isPlaybackSurfaceExpanded (architecture §7.1, doc 12 §11). The
         // panel's own ~180 ms show/hide animation is owned by PlaybackPageView.
-        isPlaybackSidePanelVisible.toggle()
+        playback.isPlaybackSidePanelVisible.toggle()
     }
 
     func exitPlaybackFullscreenFromUser() {
@@ -852,7 +848,7 @@ final class AppState: ObservableObject {
         if !started {
             endVideoSizeTransition()
         } else {
-            playbackViewModel?.showFullscreenFeedback(enteringFullscreen: false)
+            playback.playbackViewModel?.showFullscreenFeedback(enteringFullscreen: false)
         }
     }
 
@@ -1072,7 +1068,7 @@ final class AppState: ObservableObject {
             "ACTION UI.TopbarSearch.submitted",
             details: "length=\(trimmedQuery.count)"
         )
-        if playbackViewModel?.isPlaying == true {
+        if playback.playbackViewModel?.isPlaying == true {
             pausePlayback()
         }
         workbenchLayout.selectPanelMode(.search)
@@ -1411,7 +1407,7 @@ final class AppState: ObservableObject {
         let player = PlaybackPlayer()
         player.decodeMode = settings.playbackDecodeMode
         self.player = player
-        playbackViewModel = PlaybackViewModel(
+        playback.playbackViewModel = PlaybackViewModel(
             player: player,
             initialVolume: Self.loadPlaybackVolume(from: userDefaults),
             initialLastNonzeroVolume: Self.loadPlaybackLastNonzeroVolume(from: userDefaults),
@@ -2083,7 +2079,7 @@ final class AppState: ObservableObject {
     // Capture the return target only on the transition into the video page so a
     // mid-session source switch keeps the original originating mode.
     private func rememberPlaybackOriginatingPanelModeIfEntering() {
-        guard !isPlaybackSurfaceExpanded else {
+        guard !playback.isPlaybackSurfaceExpanded else {
             return
         }
         playbackOriginatingPanelMode = workbenchLayout.panelMode
@@ -2102,7 +2098,7 @@ final class AppState: ObservableObject {
         search.selectedSearchResult = result
         shiori.selectedShiori = nil
         library.selectedLibraryVideo = nil
-        isPlaybackSurfaceExpanded = true
+        playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
             play(result)
@@ -2114,7 +2110,7 @@ final class AppState: ObservableObject {
     /// must not touch the native render/seek core; `PlaybackViewModel.seek`
     /// already owns that dispatch.
     func seekCurrentPlayback(toMilliseconds milliseconds: Int) {
-        guard let playbackViewModel else {
+        guard let playbackViewModel = playback.playbackViewModel else {
             return
         }
 
@@ -2133,7 +2129,7 @@ final class AppState: ObservableObject {
         library.selectedLibraryVideo = video
         search.selectedSearchResult = nil
         shiori.selectedShiori = nil
-        isPlaybackSurfaceExpanded = true
+        playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
             play(video)
@@ -2152,7 +2148,7 @@ final class AppState: ObservableObject {
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil
         library.selectedLibraryVideo = nil
-        isPlaybackSurfaceExpanded = true
+        playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
             play(shiori)
@@ -2180,9 +2176,9 @@ final class AppState: ObservableObject {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
-        playbackStatus = .opening
+        playback.playbackStatus = .opening
         let subtitleCues = playbackSubtitleCues(for: result)
-        playbackViewModel?.setSubtitleCues(
+        playback.playbackViewModel?.setSubtitleCues(
             subtitleCues,
             currentTimeMilliseconds: result.startMilliseconds
         )
@@ -2206,11 +2202,11 @@ final class AppState: ObservableObject {
             }
 
             try player.setPaused(false)
-            playbackStatus = .playing
+            playback.playbackStatus = .playing
             refreshSearchNavigationSnapshot()
         } catch {
-            playbackViewModel?.clearSubtitleCues()
-            playbackStatus = .failed(Self.errorMessage(for: error))
+            playback.playbackViewModel?.clearSubtitleCues()
+            playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }
     }
 
@@ -2218,7 +2214,7 @@ final class AppState: ObservableObject {
         ensurePlayerInitialized()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none
-        playbackStatus = .opening
+        playback.playbackStatus = .opening
         let startMilliseconds = libraryResumePositionMilliseconds(for: video)
         let subtitleCues = playbackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: video.subtitlePath),
@@ -2227,7 +2223,7 @@ final class AppState: ObservableObject {
             fallbackEndMilliseconds: startMilliseconds,
             fallbackContent: ""
         )
-        playbackViewModel?.setSubtitleCues(
+        playback.playbackViewModel?.setSubtitleCues(
             subtitleCues,
             currentTimeMilliseconds: startMilliseconds
         )
@@ -2254,11 +2250,11 @@ final class AppState: ObservableObject {
             }
 
             try player.setPaused(false)
-            playbackStatus = .playing
+            playback.playbackStatus = .playing
             startLibraryPlaybackHistoryTracking(videoPath: video.videoPath)
         } catch {
-            playbackViewModel?.clearSubtitleCues()
-            playbackStatus = .failed(Self.errorMessage(for: error))
+            playback.playbackViewModel?.clearSubtitleCues()
+            playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }
     }
 
@@ -2267,9 +2263,9 @@ final class AppState: ObservableObject {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
-        playbackStatus = .opening
+        playback.playbackStatus = .opening
         let subtitleCues = playbackSubtitleCues(for: shiori)
-        playbackViewModel?.setSubtitleCues(
+        playback.playbackViewModel?.setSubtitleCues(
             subtitleCues,
             currentTimeMilliseconds: shiori.startMilliseconds
         )
@@ -2293,10 +2289,10 @@ final class AppState: ObservableObject {
             }
 
             try player.setPaused(false)
-            playbackStatus = .playing
+            playback.playbackStatus = .playing
         } catch {
-            playbackViewModel?.clearSubtitleCues()
-            playbackStatus = .failed(Self.errorMessage(for: error))
+            playback.playbackViewModel?.clearSubtitleCues()
+            playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }
     }
 
@@ -2304,11 +2300,11 @@ final class AppState: ObservableObject {
         do {
             try player?.setPaused(true)
             if hasPlaybackSelection {
-                playbackStatus = .paused
+                playback.playbackStatus = .paused
             }
             saveCurrentLibraryPlaybackHistory()
         } catch {
-            playbackStatus = .failed(Self.errorMessage(for: error))
+            playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }
     }
 
@@ -2316,17 +2312,17 @@ final class AppState: ObservableObject {
         do {
             try player?.setPaused(false)
             if hasPlaybackSelection {
-                playbackStatus = .playing
+                playback.playbackStatus = .playing
             }
         } catch {
-            playbackStatus = .failed(Self.errorMessage(for: error))
+            playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }
     }
 
     func togglePlayback() {
-        switch playbackStatus {
+        switch playback.playbackStatus {
         case .playing, .paused:
-            if playbackViewModel?.isPlaying == true {
+            if playback.playbackViewModel?.isPlaying == true {
                 pausePlayback()
             } else {
                 resumePlayback()
@@ -2345,9 +2341,9 @@ final class AppState: ObservableObject {
     }
 
     func togglePlaybackFromUser() {
-        let willPlay = !(playbackViewModel?.isPlaying ?? false)
+        let willPlay = !(playback.playbackViewModel?.isPlaying ?? false)
         togglePlayback()
-        playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
+        playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
     }
 
     func refreshSearchNavigationSnapshot() {
@@ -2393,8 +2389,8 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func copyCurrentSubtitleToClipboard() -> Bool {
-        guard let currentPlaybackSubtitlePath, let playbackViewModel else {
-            playbackViewModel?.showSubtitleCopyFeedback(copied: false)
+        guard let currentPlaybackSubtitlePath, let playbackViewModel = playback.playbackViewModel else {
+            playback.playbackViewModel?.showSubtitleCopyFeedback(copied: false)
             return false
         }
 
@@ -2431,9 +2427,9 @@ final class AppState: ObservableObject {
         guard let currentPlaybackSubtitlePath,
               let currentPlaybackSubtitleFormat,
               let currentPlaybackVideoPath,
-              let playbackViewModel
+              let playbackViewModel = playback.playbackViewModel
         else {
-            playbackViewModel?.showShioriFeedback(.unavailable)
+            playback.playbackViewModel?.showShioriFeedback(.unavailable)
             return false
         }
 
@@ -2515,7 +2511,7 @@ final class AppState: ObservableObject {
             return false
         }
 
-        guard currentPlaybackVideoPath != nil, let viewModel = playbackViewModel else {
+        guard currentPlaybackVideoPath != nil, let viewModel = playback.playbackViewModel else {
             return false
         }
 
@@ -2583,19 +2579,19 @@ final class AppState: ObservableObject {
             stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()
             try player?.stop()
-            playbackViewModel?.clearSubtitleCues()
+            playback.playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
             search.selectedSearchResult = nil
             library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
-            isPlaybackSurfaceExpanded = false
+            playback.isPlaybackSurfaceExpanded = false
             if let originatingMode = playbackOriginatingPanelMode {
                 workbenchLayout.selectPanelMode(originatingMode)
                 playbackOriginatingPanelMode = nil
             }
-            playbackStatus = .idle
+            playback.playbackStatus = .idle
         } catch {
-            playbackStatus = .failed(Self.errorMessage(for: error))
+            playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }
     }
 
@@ -2641,7 +2637,7 @@ final class AppState: ObservableObject {
 
     private func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) {
         guard case .library(let videoPath) = activePlaybackSource,
-              let playbackViewModel
+              let playbackViewModel = playback.playbackViewModel
         else {
             return
         }
@@ -2720,7 +2716,7 @@ final class AppState: ObservableObject {
             search.searchNavigationSnapshot = nil
             search.searchNavigationResultGroups = []
             if let direction {
-                playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
+                playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
             return
         }
@@ -2758,10 +2754,10 @@ final class AppState: ObservableObject {
                 }
 
                 if let target, let direction {
-                    self.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: true)
+                    self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: true)
                     self.openSearchResult(target)
                 } else if let direction {
-                    self.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
+                    self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
                 }
             } catch {
                 guard !Task.isCancelled else {
@@ -2778,7 +2774,7 @@ final class AppState: ObservableObject {
     private func currentSearchNavigationAnchor() -> SearchNavigationAnchor {
         let milliseconds = max(
             0,
-            Int(((playbackViewModel?.currentTime ?? 0) * 1_000).rounded(.down))
+            Int(((playback.playbackViewModel?.currentTime ?? 0) * 1_000).rounded(.down))
         )
 
         return SearchNavigationAnchor(
@@ -3236,8 +3232,8 @@ final class AppState: ObservableObject {
     }
 
     private func applyCurrentSubtitleEntries(_ entries: [SubtitleDatabaseEntry]) {
-        currentSubtitleEntries = entries
-        currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entries: entries)
+        playback.currentSubtitleEntries = entries
+        playback.currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entries: entries)
     }
 
     private func cancelSearchResultGroupTasks() {

@@ -7,6 +7,7 @@ struct PlaybackPageView: View {
     @ObservedObject var appState: AppState
     let onClose: () -> Void
     @State private var activePanel: PlaybackDrawerKind = .results
+    @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -29,7 +30,7 @@ struct PlaybackPageView: View {
                 // centered within the full-window black video base
                 // (doc 12 §11/§13.4). It is the SwiftUI feedback layer only;
                 // the native render/seek path is untouched.
-                if let viewModel = appState.playbackViewModel {
+                if let viewModel = playback.playbackViewModel {
                     PlaybackFeedbackLayer(viewModel: viewModel)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .allowsHitTesting(false)
@@ -48,7 +49,7 @@ struct PlaybackPageView: View {
 
     @ViewBuilder
     private func overlayPanel(in size: CGSize) -> some View {
-        let visible = appState.isPlaybackSidePanelVisible
+        let visible = playback.isPlaybackSidePanelVisible
         let panelWidth = min(
             PlaybackOverlayPanelMetrics.maxWidth,
             max(0, size.width - PlaybackOverlayPanelMetrics.horizontalMargin * 2)
@@ -109,6 +110,7 @@ private struct PlaybackVideoStage: View {
     @ObservedObject var appState: AppState
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onClose: () -> Void
+    @EnvironmentObject private var playback: PlaybackStore
     @StateObject private var chrome = PlaybackChromeVisibilityModel()
 
     var body: some View {
@@ -144,7 +146,7 @@ private struct PlaybackVideoStage: View {
                     )
                 }
 
-                if case .failed(let message) = appState.playbackStatus {
+                if case .failed(let message) = playback.playbackStatus {
                     Label(message, systemImage: "exclamationmark.triangle")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.red)
@@ -153,7 +155,7 @@ private struct PlaybackVideoStage: View {
                         .offset(x: frame.minX + 18, y: frame.minY + 72)
                 }
 
-                if chrome.isPlayerUIVisible, let viewModel = appState.playbackViewModel {
+                if chrome.isPlayerUIVisible, let viewModel = playback.playbackViewModel {
                     PlaybackChromeView(
                         viewModel: viewModel,
                         controls: .appState(appState)
@@ -198,7 +200,7 @@ private struct PlaybackVideoStage: View {
     }
 
     private var videoAspectRatio: CGFloat {
-        let ratio = CGFloat(appState.playbackViewModel?.videoAspectRatio ?? 16 / 9)
+        let ratio = CGFloat(playback.playbackViewModel?.videoAspectRatio ?? 16 / 9)
         return ratio.isFinite && ratio > 0 ? ratio : 16 / 9
     }
 
@@ -500,7 +502,7 @@ extension PlaybackChromeControls {
             copySubtitle: {
                 _ = appState.copyCurrentSubtitleToClipboard()
             },
-            isSidePanelVisible: appState.isPlaybackSidePanelVisible,
+            isSidePanelVisible: appState.playback.isPlaybackSidePanelVisible,
             canToggleSidePanel: appState.hasPlaybackSelection,
             toggleSidePanel: appState.togglePlaybackSidePanelFromUser,
             isFullscreen: appState.playbackFullscreenManager.isFullscreen,
@@ -1242,6 +1244,7 @@ struct PlaybackSidebarShell: View {
     @ObservedObject var appState: AppState
     @Binding var activePanel: PlaybackDrawerKind
     @EnvironmentObject private var search: SearchStore
+    @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -1282,12 +1285,12 @@ struct PlaybackSidebarShell: View {
 
     @ViewBuilder
     private var content: some View {
-        if appState.isPlaybackSidePanelVisible {
+        if playback.isPlaybackSidePanelVisible {
             switch activePanel {
             case .results:
                 searchResultsList
             case .subtitles:
-                if let viewModel = appState.playbackViewModel {
+                if let viewModel = playback.playbackViewModel {
                     PlaybackSubtitlesList(appState: appState, viewModel: viewModel)
                 } else {
                     Spacer(minLength: 0)
@@ -1390,7 +1393,7 @@ struct PlaybackSidebarShell: View {
                 ?? (groupedCount > 0 ? groupedCount : fallbackCount)
             return "\(count) \(count == 1 ? "result" : "results")"
         case .subtitles:
-            let count = appState.currentSubtitleEntries.count
+            let count = playback.currentSubtitleEntries.count
             return "\(count) \(count == 1 ? "subtitle" : "subtitles")"
         }
     }
@@ -1519,16 +1522,17 @@ private struct PlaybackSidebarResultRow: View {
 private struct PlaybackSubtitlesList: View {
     @ObservedObject var appState: AppState
     @ObservedObject var viewModel: PlaybackViewModel
+    @EnvironmentObject private var playback: PlaybackStore
 
     private var orderedEntries: [SubtitleDatabaseEntry] {
-        appState.currentSubtitleEntries
+        playback.currentSubtitleEntries
     }
 
     /// The cue active at the current displayed time: the entry that contains
     /// it, otherwise the last entry that has already started (handles gaps).
     private var activeEntryID: Int64? {
         let ms = Int((viewModel.displayedCurrentTime * 1_000).rounded(.down))
-        return appState.currentSubtitleEntryLookup.activeEntryID(atMilliseconds: ms)
+        return playback.currentSubtitleEntryLookup.activeEntryID(atMilliseconds: ms)
     }
 
     var body: some View {

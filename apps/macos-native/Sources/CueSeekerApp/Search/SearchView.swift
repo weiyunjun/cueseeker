@@ -10,6 +10,7 @@ struct SearchView: View {
     @EnvironmentObject private var shiori: ShioriStore
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var search: SearchStore
+    @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
@@ -357,7 +358,7 @@ struct SearchView: View {
     private var playbackSurface: some View {
         PlaybackView(
             player: appState.playbackPlayer,
-            viewModel: appState.playbackViewModel,
+            viewModel: playback.playbackViewModel,
             onSurfaceTap: {
                 layoutState.clearSearchFocus()
                 appState.togglePlaybackFromUser()
