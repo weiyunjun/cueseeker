@@ -127,7 +127,7 @@ private struct TopbarCommandBridge: View {
                     return
                 }
 
-                appState.isSearchFocused = isFocused
+                layoutState.isSearchFocused = isFocused
                 if isFocused, layoutState.panelMode != .search {
                     appState.activateWorkbenchPanelMode(.search)
                 }

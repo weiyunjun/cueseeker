@@ -252,6 +252,7 @@ final class WorkbenchLayoutState: ObservableObject {
     @Published var panelMode: WorkbenchPanelMode
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
+    @Published var isSearchFocused = false
 
     private let userDefaults: UserDefaults
 
@@ -282,6 +283,17 @@ final class WorkbenchLayoutState: ObservableObject {
 
     func endVideoSizeTransition() {
         isVideoSizeTransitionInProgress = false
+    }
+
+    func clearSearchFocus() {
+        guard isSearchFocused else {
+            return
+        }
+
+        AppPerformanceProbe.measure("WorkbenchLayoutState.clearSearchFocus", thresholdMilliseconds: 4) {
+            isSearchFocused = false
+            NotificationCenter.default.post(name: .topbarSearchFocusClearRequested, object: nil)
+        }
     }
 }
 
@@ -336,7 +348,6 @@ final class AppState: ObservableObject {
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = true
     @Published var startupError: String?
-    @Published var isSearchFocused = false
     @Published var playbackViewModel: PlaybackViewModel?
     let settings: SettingsStore
     let indexing: IndexingStore
@@ -800,20 +811,9 @@ final class AppState: ObservableObject {
         refreshDatabaseStorageStats()
     }
 
-    func clearSearchFocus() {
-        guard isSearchFocused else {
-            return
-        }
-
-        AppPerformanceProbe.measure("AppState.clearSearchFocus", thresholdMilliseconds: 4) {
-            isSearchFocused = false
-            NotificationCenter.default.post(name: .topbarSearchFocusClearRequested, object: nil)
-        }
-    }
-
     func performUserInitiatedAppCommand(_ action: () -> Void) {
         AppPerformanceProbe.action("AppState.performUserInitiatedAppCommand", thresholdMilliseconds: 4) {
-            clearSearchFocus()
+            workbenchLayout.clearSearchFocus()
             action()
         }
     }

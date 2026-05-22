@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func showSettings(_ sender: Any?) {
-        appState.clearSearchFocus()
+        appState.workbenchLayout.clearSearchFocus()
 
         if let settingsWindow {
             settingsWindow.makeKeyAndOrderFront(sender)
@@ -147,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard sender === window, appState.isPlaybackPageVisible else {
             return true
         }
-        appState.clearSearchFocus()
+        appState.workbenchLayout.clearSearchFocus()
         appState.stopPlayback()
         return false
     }

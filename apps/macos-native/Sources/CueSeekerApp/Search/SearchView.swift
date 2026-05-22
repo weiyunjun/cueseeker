@@ -28,7 +28,7 @@ struct SearchView: View {
                             playbackSurface: AnyView(playbackSurface),
                             appState: appState,
                             onClose: {
-                                appState.clearSearchFocus()
+                                layoutState.clearSearchFocus()
                                 appState.stopPlayback()
                             }
                         )
@@ -143,11 +143,11 @@ struct SearchView: View {
                                 isCollapsed: isCollapsed,
                                 selectedLibraryVideoPath: appState.selectedLibraryVideo?.videoPath,
                                 onToggle: {
-                                    appState.clearSearchFocus()
+                                    layoutState.clearSearchFocus()
                                     toggleLibraryFolderGroup(group.folderPath, proxy: proxy)
                                 },
                                 onOpenVideo: { video in
-                                    appState.clearSearchFocus()
+                                    layoutState.clearSearchFocus()
                                     appState.openLibraryVideo(video)
                                 }
                             )
@@ -228,7 +228,7 @@ struct SearchView: View {
 
             if appState.hasShioriFileGroups {
                 Button {
-                    appState.clearSearchFocus()
+                    layoutState.clearSearchFocus()
                     appState.collapseAllShioriGroups()
                 } label: {
                     Text("Collapse All")
@@ -276,11 +276,11 @@ struct SearchView: View {
                         ShioriCardGroupView(
                             group: group,
                             onToggle: {
-                                appState.clearSearchFocus()
+                                layoutState.clearSearchFocus()
                                 appState.toggleShioriGroup(group.subtitlePath)
                             },
                             onOpenShiori: { shiori in
-                                appState.clearSearchFocus()
+                                layoutState.clearSearchFocus()
                                 appState.openShiori(shiori)
                             }
                         )
@@ -308,11 +308,11 @@ struct SearchView: View {
                             group: group,
                             query: appState.searchQuery,
                             onToggle: {
-                                appState.clearSearchFocus()
+                                layoutState.clearSearchFocus()
                                 appState.toggleSearchResultGroup(group.subtitlePath)
                             },
                             onOpenResult: { result in
-                                appState.clearSearchFocus()
+                                layoutState.clearSearchFocus()
                                 appState.openSearchResult(result)
                             },
                             onResultAppear: { result in
@@ -356,7 +356,7 @@ struct SearchView: View {
             player: appState.playbackPlayer,
             viewModel: appState.playbackViewModel,
             onSurfaceTap: {
-                appState.clearSearchFocus()
+                layoutState.clearSearchFocus()
                 appState.togglePlaybackFromUser()
             }
         )
@@ -373,7 +373,7 @@ struct SearchView: View {
 
                 if appState.hasSearchResultGroups {
                     Button {
-                        appState.clearSearchFocus()
+                        layoutState.clearSearchFocus()
                         appState.collapseAllSearchResultGroups()
                     } label: {
                         Text("Collapse All")
