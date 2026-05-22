@@ -963,7 +963,10 @@ Rules:
 
 ## 15. Native Differences Allowed
 
-The App may differ from HTML when platform behavior requires it.
+The App may differ from HTML when platform behavior, accepted Swift
+implementation, product behavior, or performance constraints require it. During
+the active native UI restructure, SwiftUI/AppKit behavior is authoritative and
+HTML prototypes are reference artifacts.
 
 Allowed differences:
 
@@ -995,12 +998,16 @@ Allowed differences:
   behavior, and persisted state.
 - SwiftUI virtualization and layout implementation details that preserve the
   visible UX rules above.
+- Swift-first refinements accepted in the native App before the matching HTML
+  reference artifact has been synchronized.
 
 Not allowed:
 
 - Changing Search lazy loading or first-screen rendering to match static HTML.
 - Treating prototype mock data as product data.
 - Implementing prototype-only test controls in the production App.
+- Regressing accepted Swift behavior solely to match static HTML prototype
+  shortcuts or stale reference artifacts.
 - Letting floating bottom-player layout affect video aspect-fit sizing.
 - Letting horizontal bottom-player geometry animate during resize.
 - Losing Search, Library, Shiori, playback, or fullscreen state as a side

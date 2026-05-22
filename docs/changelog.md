@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Updated the UI collaboration workflow to Swift-first during the active native
+  UI restructure. Native SwiftUI/AppKit implementation is now authoritative;
+  HTML prototypes are reference artifacts and no longer block approved App UI
+  implementation, while stable component and UX mapping documents are
+  synchronized when accepted Swift behavior becomes stable direction.
 - Added the four general AI assistant execution principles to the Git workflow
   rules: think before coding, simplicity first, surgical changes, and
   goal-driven execution.

@@ -276,22 +276,25 @@ Rules:
 
 ## 9. Synchronization Workflow
 
-HTML and Swift do not synchronize automatically. The sync contract is a
-documented engineering workflow.
+HTML and Swift do not synchronize automatically. During the active native UI
+restructure, SwiftUI/AppKit implementation is authoritative and HTML prototypes
+are reference artifacts.
 
-Required workflow for future UI class changes:
+Required workflow for future stable UI class changes:
 
-1. Update the HTML prototype source first.
-2. If the change adds, removes, or redefines a `ui-*` class, update this
-   mapping document in the same documentation change.
-3. During App implementation, update the corresponding Swift component owner,
-   not every individual call site.
+1. Implement the approved UI direction in the corresponding Swift component
+   owner, not every individual call site.
+2. If the accepted Swift result adds, removes, or redefines component concepts,
+   token ownership, or `ui-*` reference classes, update this mapping document
+   before the UI phase is declared complete.
+3. Update HTML prototypes when they are useful reference artifacts or when the
+   user explicitly asks for prototype-first visual alignment.
 4. If a class is prototype-only, mark it as such and keep it out of production
    SwiftUI.
 5. If a class is surface layout only, document whether Swift should mirror it
    with a named view or implement the layout directly in the owning surface.
-6. Visual verification should compare the prototype surface and App surface by
-   component concept, state, and layout role.
+6. Visual verification should judge the native App surface first and compare
+   any HTML reference by component concept, state, and layout role.
 
 Optional future automation:
 
@@ -300,8 +303,8 @@ Optional future automation:
 - Generate a Swift enum skeleton from that manifest.
 - Add a drift check that reports unmapped `ui-*` classes in the prototype.
 
-This automation is optional. The first App rewrite can proceed with this
-document as the source of truth.
+This automation is optional. The active App rewrite can proceed Swift-first and
+then synchronize this document once the native UI direction is accepted.
 
 ## 10. Non-Synchronized Boundaries
 

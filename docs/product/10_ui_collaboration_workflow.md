@@ -7,8 +7,10 @@ Status: Draft
 This document defines the stable collaboration workflow for CueSeeker interface
 design and App implementation.
 
-The local HTML prototype is the visual alignment source for UI work. App code
-should follow only after the relevant HTML has been visually accepted.
+During the active native UI restructure, the native SwiftUI/AppKit
+implementation is the authoritative UI surface. Local HTML prototypes are
+reference and review artifacts that can help explore or communicate a design,
+but they no longer gate Swift implementation.
 
 ## 2. Directory Ownership
 
@@ -26,56 +28,55 @@ belong in `docs/product/`.
 
 ## 3. Collaboration Flow
 
-The default UI collaboration flow is:
+The default UI collaboration flow is Swift-first:
 
 ```text
-User provides an original HTML draft
-Assistant recreates or updates the local HTML prototype
-User reviews visual differences and requests alignment fixes
-Assistant updates the HTML prototype until accepted
-Assistant updates component and UX mapping documents for accepted class,
-token, layout, state, interaction, timing, and native-difference rules
-Assistant updates stable UI/UX and backend lifecycle documents when the change
-affects product behavior or App state ownership
-Assistant documents any remaining stable rules and known HTML/App differences
-Assistant implements the accepted design in App code only after explicit approval
+User defines or approves the App UI goal
+Assistant implements the approved UI direction in native SwiftUI/AppKit
+Assistant verifies build, tests, and any agreed manual/E2E acceptance checks
+User reviews the native App result and requests alignment fixes
+Assistant updates stable product, component, UX, or proposal documents when the
+accepted Swift behavior becomes stable direction
+Assistant updates or creates HTML prototypes only when they are useful as
+reference artifacts, review handoff material, or explicit prototype-first work
 ```
 
 Rules:
 
-- Every App interface modification must start with a local HTML prototype under
-  `ui/prototypes/`.
-- App code must not be changed for a UI request until the relevant HTML
-  prototype has been visually aligned and the user has explicitly approved App
-  implementation.
-- App interface implementation must follow this order: HTML prototype first,
-  Liquid Glass component mapping second, Liquid Glass UX mapping third, native
-  App code last.
-- `docs/product/11_liquid_glass_component_mapping.md` must be updated before
-  App code when accepted prototype changes add, remove, rename, or redefine
-  component classes, token ownership, SwiftUI component ownership, or
-  production/prototype-only boundaries.
-- `docs/product/12_liquid_glass_ux_mapping.md` must be updated before App code
-  when accepted prototype changes affect layout, sizing, state lifetime,
+- App code may be changed for an App UI request once the user explicitly
+  approves implementation. A local HTML prototype is not required first unless
+  the user explicitly asks for prototype-first work.
+- Native Swift implementation and accepted product behavior are authoritative.
+  HTML prototypes must not override working Swift behavior, native App
+  constraints, Search/Library/Shiori semantics, playback execution, or
+  performance boundaries.
+- `docs/product/11_liquid_glass_component_mapping.md` should be synchronized
+  when accepted Swift implementation stabilizes component classes, token
+  ownership, SwiftUI component ownership, or production/prototype-only
+  boundaries.
+- `docs/product/12_liquid_glass_ux_mapping.md` should be synchronized when
+  accepted Swift implementation stabilizes layout, sizing, state lifetime,
   interaction flow, timing, animation, visibility, keyboard behavior, focus
   behavior, or native implementation boundaries.
-- Stable UI/UX documents and backend-related documents must also be updated
-  before App code when a prototype change changes playback lifecycle, state
-  ownership, persistence boundaries, or backend teardown semantics.
+- Stable UI/UX documents and backend-related documents must be updated when the
+  accepted Swift implementation changes playback lifecycle, state ownership,
+  persistence boundaries, or backend teardown semantics.
 - For large native App UI rewrites, an accepted step document under
   `docs/proposals/` must define the implementation phases and acceptance gates.
   If the phase order or acceptance criteria change, update that step document
   before modifying App code.
-- The mapping documents are not optional implementation notes. They are the
-  synchronization contract between the accepted HTML prototype and the native
-  App rewrite.
-- When the user returns a revised HTML file from another AI workflow, treat that
-  file as the new original draft and repeat the alignment flow.
+- The mapping documents are not optional implementation notes. They record the
+  stable semantic contract after Swift behavior is accepted, so future UI work
+  can distinguish durable product direction from temporary implementation
+  details.
+- When the user returns a revised HTML file from another AI workflow, confirm
+  whether the user wants prototype-first visual alignment or Swift-first native
+  implementation. The default remains Swift-first.
 - Large-scale HTML prototype changes must fork a new versioned prototype source
   directory instead of overwriting the currently accepted or reviewable
   prototype, so the user can compare the before and after designs side by side.
-- If a required interaction is unclear, confirm it before finalizing the HTML
-  prototype.
+- If a required interaction is unclear, confirm it before finalizing either the
+  Swift implementation or an HTML reference artifact.
 
 ## 3.1 Component Vocabulary
 
@@ -102,8 +103,8 @@ Rules:
 
 ## 4. Prototype Requirements
 
-Local HTML prototypes must be easy to review, diff, and edit with web-focused
-AI tools.
+When local HTML prototypes are used, they must be easy to review, diff, and
+edit with web-focused AI tools.
 
 Rules:
 
@@ -130,9 +131,9 @@ Rules:
   separate prototype may isolate detailed control-menu interactions.
 - When a prototype change affects a broad visual system, such as theme support,
   component taxonomy, page-wide layout, or the shared bottom player style, the
-  assistant must create a new versioned source directory under `ui/prototypes/`
-  before editing the prototype and leave the prior prototype available for
-  visual comparison.
+  assistant should create a new versioned source directory under
+  `ui/prototypes/` before editing the prototype and leave the prior prototype
+  available for visual comparison.
 - New prototype directories should use the stable prototype name plus a version
   number, such as `cueseeker-liquid-glass-v4/`. Do not encode the change
   semantics in the directory name; Git history and the changelog record what
@@ -142,8 +143,8 @@ Rules:
 
 ## 5. HTML And App Differences
 
-HTML prototypes and the native macOS App may differ when platform behavior
-requires it.
+HTML prototypes and the native macOS App may differ when platform behavior,
+Swift implementation, product behavior, or performance constraints require it.
 
 Known acceptable difference categories:
 
@@ -161,12 +162,12 @@ Known acceptable difference categories:
 
 Rules:
 
-- Differences that affect visible layout, state, interaction, wording, or
-  timing must be documented before or with App implementation.
+- Differences that affect stable visible layout, state, interaction, wording,
+  or timing should be documented when the Swift behavior is accepted as stable.
 - HTML limitations must not silently become App product behavior.
-- App implementation should preserve the accepted visual hierarchy and
-  interaction intent even when native controls require implementation-specific
-  details.
+- App implementation should preserve accepted visual hierarchy and interaction
+  intent, but the accepted Swift result is the source of truth during active
+  native UI restructuring.
 
 ## 6. Design Style
 
@@ -185,7 +186,7 @@ Style rules:
 
 ## 7. Prototype Registry
 
-Active App surface mapping:
+Active App surface reference mapping:
 
 Current proposed review fork:
 
@@ -199,7 +200,7 @@ expanded playback video geometry, fullscreen feedback, playback-close UX, and
 split-source prototype editing. It does not replace the accepted baseline in
 the table below until the user accepts it.
 
-| App surface | Required HTML prototype | Coverage status | Known native App differences |
+| App surface | HTML reference prototype | Coverage status | Known native App differences |
 | --- | --- | --- | --- |
 | Main workbench shell | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current Liquid Glass visual baseline for the search-state shell and active-playback bottom player | Native titlebar, traffic lights, full-screen transition behavior, system materials, font rendering, and accessibility focus behavior remain App-native |
 | Search results | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for grouped Search results, result cards, disclosure behavior, and fixed `Collapse All` behavior | App data, lazy loading, virtualization, exact counts, and result ordering must come from the native Search pipeline |

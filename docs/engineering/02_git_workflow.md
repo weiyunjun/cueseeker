@@ -212,22 +212,23 @@ Rules:
   `docs/chronicle/` when the user requests that record. The chronicle should
   emphasize why the idea emerged from the question path, not repeat the concrete
   code changes that belong in Git history and `docs/changelog.md`.
-- For every App interface modification, the AI must first create or update the
-  relevant local HTML prototype under `ui/prototypes/`. App code may be changed
-  only after the HTML prototype has been visually aligned and the user has
-  explicitly approved App implementation.
-- For every App interface modification, the required implementation order is:
-  update or create the relevant HTML prototype first; then update the Liquid
-  Glass component mapping document when component classes, tokens, or SwiftUI
-  ownership change; then update the Liquid Glass UX mapping document when
-  layout, state, interaction, timing, or behavior rules change; and only then
-  modify native App code after the user explicitly approves App implementation.
-- The AI must not skip the component mapping or UX mapping step by treating
-  prototype-visible class, layout, timing, or interaction rules as implicit App
-  implementation details.
-- If the user provides an original HTML draft, that draft is the visual
-  alignment input. The AI should replicate it locally first, iterate on visual
-  differences in HTML, and only then move accepted details into App code.
+- During the active native UI restructure, App interface implementation is
+  Swift-first: after the user explicitly approves App implementation, the AI
+  may update native SwiftUI/AppKit code before updating HTML prototypes.
+- HTML prototypes under `ui/prototypes/` are reference and review artifacts,
+  not the source of truth for active native UI implementation. The accepted
+  Swift implementation and stable product documents are authoritative.
+- Liquid Glass component and UX mapping documents should be synchronized when
+  component classes, tokens, SwiftUI ownership, layout, state, interaction,
+  timing, behavior, or native-difference rules become stable. They do not block
+  exploratory or in-progress Swift UI implementation, but they must be updated
+  before a UI phase is declared complete or accepted as stable direction.
+- The AI must not regress native App behavior just to match static HTML
+  prototype data, layout shortcuts, or browser-only implementation details.
+- If the user provides an original HTML draft, the AI must confirm whether the
+  user wants prototype-first visual alignment or Swift-first implementation.
+  The default workflow remains Swift-first unless the user explicitly asks for
+  prototype-first work.
 - HTML prototypes should be self-contained files with bundled CSS and
   JavaScript unless a documented complex-prototype reason justifies splitting
   assets.
