@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the four general AI assistant execution principles to the Git workflow
+  rules: think before coding, simplicity first, surgical changes, and
+  goal-driven execution.
 - Completed the UI view-file split (Phase 2 of the `ui/restructure`
   branch). The three remaining large SwiftUI view files were broken up:
   `PlaybackPageView.swift` (1699 lines) became a 113-line `PlaybackPage.swift`
