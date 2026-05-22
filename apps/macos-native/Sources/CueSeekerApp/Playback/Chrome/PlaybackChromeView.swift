@@ -75,6 +75,30 @@ struct PlaybackChromeView: View {
     @State private var isSpeedMenuVisible = false
     @State private var speedMenuEventMonitor: Any?
 
+    private var canGoPrevious: Bool {
+        controls.canOpenPreviousResult || controls.canOpenPreviousEpisode
+    }
+
+    private func goPrevious() {
+        if controls.canOpenPreviousResult {
+            controls.openPreviousResult()
+        } else if controls.canOpenPreviousEpisode {
+            controls.openPreviousEpisode()
+        }
+    }
+
+    private var canGoNext: Bool {
+        controls.canOpenNextResult || controls.canOpenNextEpisode
+    }
+
+    private func goNext() {
+        if controls.canOpenNextResult {
+            controls.openNextResult()
+        } else if controls.canOpenNextEpisode {
+            controls.openNextEpisode()
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Color.clear
@@ -102,32 +126,33 @@ struct PlaybackChromeView: View {
     private var chromeSurface: some View {
         VStack(spacing: 0) {
             scrubberRow
+                .padding(.top, 16)
 
-            ZStack {
-                HStack(spacing: 0) {
-                    PlaybackVolumeControl(viewModel: viewModel)
+            HStack(spacing: 0) {
+                leftGroup
 
-                    Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-                    operationsCluster
-                }
-                .padding(.horizontal, 28)
-
-                transportCluster
+                rightGroup
             }
-            .frame(height: 58)
+            .padding(.horizontal, 24)
+            .frame(height: 52)
+            .padding(.bottom, 12)
         }
         .background(
-            RoundedRectangle(cornerRadius: 22)
-                .fill(Color(red: 0.11, green: 0.11, blue: 0.13).opacity(0.48))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.black.opacity(0.88),
+                    Color.black.opacity(0.78),
+                    Color.black.opacity(0.48),
+                    Color.black.opacity(0.12),
+                    Color.clear
+                ]),
+                startPoint: .bottom,
+                endPoint: .top
+            )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.36), radius: 26, y: 14)
-        .contentShape(RoundedRectangle(cornerRadius: 22))
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder
@@ -161,44 +186,12 @@ struct PlaybackChromeView: View {
     }
 
     private var scrubberRow: some View {
-        HStack(spacing: 12) {
-            Text(formatPlaybackTime(viewModel.displayedCurrentTime))
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(width: PlaybackChromeMetrics.timeLabelWidth, alignment: .trailing)
-
-            PlaybackProgressScrubber(viewModel: viewModel)
-
-            Text(formatPlaybackTime(viewModel.duration))
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(width: PlaybackChromeMetrics.timeLabelWidth, alignment: .leading)
-        }
-        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-        .foregroundStyle(.white.opacity(0.82))
-        .monospacedDigit()
-        .padding(.horizontal, 28)
-        .frame(height: 34)
+        PlaybackProgressScrubber(viewModel: viewModel)
+            .padding(.horizontal, 24)
     }
 
-    private var transportCluster: some View {
+    private var leftGroup: some View {
         HStack(spacing: 8) {
-            PlaybackChromeIconButton(
-                systemName: "backward.end.fill",
-                kind: .transport,
-                isDisabled: !controls.canOpenPreviousEpisode,
-                accessibilityLabel: "Previous episode",
-                action: controls.openPreviousEpisode
-            )
-
-            PlaybackChromeIconButton(
-                systemName: "chevron.left",
-                kind: .transport,
-                isDisabled: !controls.canOpenPreviousResult,
-                accessibilityLabel: "Previous result",
-                action: controls.openPreviousResult
-            )
-
             PlaybackChromeIconButton(
                 systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
                 kind: .primaryTransport,
@@ -207,24 +200,39 @@ struct PlaybackChromeView: View {
             )
 
             PlaybackChromeIconButton(
-                systemName: "chevron.right",
+                systemName: "backward.end.fill",
                 kind: .transport,
-                isDisabled: !controls.canOpenNextResult,
-                accessibilityLabel: "Next result",
-                action: controls.openNextResult
+                isDisabled: !canGoPrevious,
+                accessibilityLabel: "Previous video",
+                action: goPrevious
             )
 
             PlaybackChromeIconButton(
                 systemName: "forward.end.fill",
                 kind: .transport,
-                isDisabled: !controls.canOpenNextEpisode,
-                accessibilityLabel: "Next episode",
-                action: controls.openNextEpisode
+                isDisabled: !canGoNext,
+                accessibilityLabel: "Next video",
+                action: goNext
             )
+
+            PlaybackVolumeControl(viewModel: viewModel)
+                .padding(.leading, 4)
+
+            HStack(spacing: 4) {
+                Text(formatPlaybackTime(viewModel.displayedCurrentTime))
+                    .foregroundStyle(PlaybackTheme.textPrimary)
+                Text("/")
+                    .foregroundStyle(PlaybackTheme.textTertiary)
+                Text(formatPlaybackTime(viewModel.duration))
+                    .foregroundStyle(PlaybackTheme.textSecondary)
+            }
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .monospacedDigit()
+            .padding(.leading, 8)
         }
     }
 
-    private var operationsCluster: some View {
+    private var rightGroup: some View {
         HStack(spacing: 6) {
             PlaybackChromeIconButton(
                 systemName: "bookmark",
@@ -347,9 +355,9 @@ private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
 }
 
 enum PlaybackChromeMetrics {
-    static let horizontalInset: CGFloat = 20
-    static let bottomInset: CGFloat = 20
-    static let height: CGFloat = 106
+    static let horizontalInset: CGFloat = 0
+    static let bottomInset: CGFloat = 0
+    static let height: CGFloat = 98
     static let timeLabelWidth: CGFloat = 70
     static let videoTopBarHeight: CGFloat = 46
     static let speedMenuWidth: CGFloat = 172
