@@ -9,6 +9,7 @@ struct SearchView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var shiori: ShioriStore
     @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var search: SearchStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
@@ -248,20 +249,20 @@ struct SearchView: View {
     }
 
     private var searchResultSummaryText: String? {
-        guard !appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
 
-        switch appState.searchStatus {
+        switch search.searchStatus {
         case .idle:
             return nil
-        case .searching where appState.searchResults.isEmpty:
+        case .searching where search.searchResults.isEmpty:
             return nil
-        case .failed where appState.searchResults.isEmpty:
+        case .failed where search.searchResults.isEmpty:
             return nil
         case .searching, .completed, .failed:
-            let fileText = appState.searchResultFileCount == 1 ? "file" : "files"
-            return "Found \(appState.searchResultTotalCount) results in \(appState.searchResultFileCount) \(fileText)"
+            let fileText = search.searchResultFileCount == 1 ? "file" : "files"
+            return "Found \(search.searchResultTotalCount) results in \(search.searchResultFileCount) \(fileText)"
         }
     }
 
@@ -299,16 +300,16 @@ struct SearchView: View {
     private var cardResultsList: some View {
         UIInvalidationProbe.count(
             "UI.SearchCards.rendered",
-            details: "groups=\(appState.searchResultGroups.count) rows=\(appState.renderedSearchResultCount)"
+            details: "groups=\(search.searchResultGroups.count) rows=\(search.renderedSearchResultCount)"
         )
 
         return GeometryReader { geo in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: SearchCardLayout.groupSpacing) {
-                    ForEach(appState.searchResultGroups) { group in
+                    ForEach(search.searchResultGroups) { group in
                         SearchResultCardGroupView(
                             group: group,
-                            query: appState.searchQuery,
+                            query: search.searchQuery,
                             onToggle: {
                                 layoutState.clearSearchFocus()
                                 appState.toggleSearchResultGroup(group.subtitlePath)
@@ -326,7 +327,7 @@ struct SearchView: View {
 
                     searchGlobalLoadMoreTrigger
 
-                    if case .searching = appState.searchStatus, !appState.searchResults.isEmpty {
+                    if case .searching = search.searchStatus, !search.searchResults.isEmpty {
                         ProgressView()
                             .controlSize(.small)
                             .frame(maxWidth: .infinity)
@@ -343,7 +344,7 @@ struct SearchView: View {
 
     @ViewBuilder
     private var searchGlobalLoadMoreTrigger: some View {
-        if appState.shouldShowSearchGlobalLoadMoreTrigger {
+        if search.shouldShowSearchGlobalLoadMoreTrigger {
             Color.clear
                 .frame(height: 1)
                 .id(appState.searchGlobalLoadMoreTriggerID)
@@ -373,7 +374,7 @@ struct SearchView: View {
 
                 Spacer()
 
-                if appState.hasSearchResultGroups {
+                if search.hasSearchResultGroups {
                     Button {
                         layoutState.clearSearchFocus()
                         appState.collapseAllSearchResultGroups()
@@ -381,17 +382,17 @@ struct SearchView: View {
                         Text("Collapse All")
                             .foregroundStyle(.secondary)
                     }
-                    .disabled(!appState.canCollapseAllSearchResultGroups)
+                    .disabled(!search.canCollapseAllSearchResultGroups)
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, AppShellLayout.contentTopPadding)
 
-            if appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 InfoPageStateView(state: .searchNoQuery)
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if case .searching = appState.searchStatus, appState.searchResults.isEmpty {
+            } else if case .searching = search.searchStatus, search.searchResults.isEmpty {
                 InfoPageStateView(state: .searching)
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -399,11 +400,11 @@ struct SearchView: View {
                     ProgressView()
                         .offset(y: 72)
                 }
-            } else if case .failed(let message) = appState.searchStatus, appState.searchResults.isEmpty {
+            } else if case .failed(let message) = search.searchStatus, search.searchResults.isEmpty {
                 InfoPageStateView(state: .searchFailed(message))
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if appState.searchResults.isEmpty {
+            } else if search.searchResults.isEmpty {
                 InfoPageStateView(state: .searchNoResults)
                 .font(.system(size: SearchTypography.bodySize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

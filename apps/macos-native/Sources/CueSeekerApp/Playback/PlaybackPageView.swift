@@ -1241,6 +1241,7 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
 struct PlaybackSidebarShell: View {
     @ObservedObject var appState: AppState
     @Binding var activePanel: PlaybackDrawerKind
+    @EnvironmentObject private var search: SearchStore
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -1306,9 +1307,9 @@ struct PlaybackSidebarShell: View {
                         PlaybackSidebarResultRow(
                             rank: row.rank,
                             result: row.result,
-                            query: appState.searchQuery,
+                            query: search.searchQuery,
                             isSelected: row.result.entryID
-                                == appState.selectedSearchResult?.entryID,
+                                == search.selectedSearchResult?.entryID,
                             onOpen: { appState.openSearchResult(row.result) }
                         )
                         .id(row.result.entryID)
@@ -1317,14 +1318,14 @@ struct PlaybackSidebarShell: View {
                 .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
             }
             .onAppear { scrollSelectedIntoView(proxy) }
-            .onChange(of: appState.selectedSearchResult?.entryID) { _ in
+            .onChange(of: search.selectedSearchResult?.entryID) { _ in
                 scrollSelectedIntoView(proxy)
             }
         }
     }
 
     private func scrollSelectedIntoView(_ proxy: ScrollViewProxy) {
-        guard let id = appState.selectedSearchResult?.entryID else {
+        guard let id = search.selectedSearchResult?.entryID else {
             return
         }
 
@@ -1340,7 +1341,7 @@ struct PlaybackSidebarShell: View {
     private var flattenedResultRows: [(rank: Int, result: SubtitleSearchResult)] {
         var rows: [(rank: Int, result: SubtitleSearchResult)] = []
         var rank = 1
-        for group in appState.searchNavigationResultGroups {
+        for group in search.searchNavigationResultGroups {
             for result in group.results {
                 rows.append((rank: rank, result: result))
                 rank += 1
@@ -1381,11 +1382,11 @@ struct PlaybackSidebarShell: View {
     private var summaryText: String {
         switch activePanel {
         case .results:
-            let groupedCount = appState.searchNavigationResultGroups.reduce(0) { $0 + $1.results.count }
-            let fallbackCount = appState.searchResultTotalCount > 0
-                ? appState.searchResultTotalCount
-                : appState.searchResults.count
-            let count = appState.searchNavigationSnapshot?.totalCount
+            let groupedCount = search.searchNavigationResultGroups.reduce(0) { $0 + $1.results.count }
+            let fallbackCount = search.searchResultTotalCount > 0
+                ? search.searchResultTotalCount
+                : search.searchResults.count
+            let count = search.searchNavigationSnapshot?.totalCount
                 ?? (groupedCount > 0 ? groupedCount : fallbackCount)
             return "\(count) \(count == 1 ? "result" : "results")"
         case .subtitles:

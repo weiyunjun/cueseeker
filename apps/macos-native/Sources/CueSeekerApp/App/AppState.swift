@@ -316,25 +316,8 @@ final class AppState: ObservableObject {
     private static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
     private static let databaseCompactionMinimumFreelistRatio = 0.25
 
-    @Published var searchQuery = ""
-    @Published var searchStatus: SearchStatus = .idle
-    @Published var searchResults: [SubtitleSearchResult] = []
-    @Published var searchResultTotalCount = 0
-    @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
-    @Published private(set) var searchCountState: SubtitleSearchCountState = .exact
-    @Published private(set) var searchKnownResultCount = 0
-    @Published private(set) var searchKnownFileCount = 0
-    @Published var hasMoreSearchResults = false
-    @Published var collapsedSearchResultGroupPaths: Set<String> = []
-    @Published private(set) var searchResultPresentationState: SearchResultPresentationState = .initial
-    @Published private(set) var searchResultGroups: [SearchResultFileGroup] = []
-    @Published private(set) var renderedSearchResultCount = 0
-    @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
-    @Published private(set) var searchNavigationResultGroups: [SearchResultFileGroup] = []
     @Published private(set) var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
     @Published private(set) var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
-    @Published private var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
-    @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = true
@@ -344,6 +327,7 @@ final class AppState: ObservableObject {
     let indexing: IndexingStore
     let shiori: ShioriStore
     let library: LibraryStore
+    let search: SearchStore
     private var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
@@ -354,29 +338,8 @@ final class AppState: ObservableObject {
         player
     }
 
-    var hasSearchResultGroups: Bool {
-        !searchResultGroups.isEmpty
-    }
-
-    var canCollapseAllSearchResultGroups: Bool {
-        hasSearchResultGroups
-            && !isSearching
-            && searchStatus == .completed
-            && searchCountState == .exact
-            && searchResultPresentationState != .collapsed
-            && !searchFileSummaries.isEmpty
-    }
-
-    var shouldShowSearchGlobalLoadMoreTrigger: Bool {
-        searchResultPresentationState != .collapsed && hasMoreSearchResults
-    }
-
     var searchGlobalLoadMoreTriggerID: String {
-        "\(nextGlobalSearchCursor?.offset ?? loadedGlobalSearchResultCount)-\(isSearching)"
-    }
-
-    var searchResultFileCount: Int {
-        searchFileSummaries.count
+        "\(nextGlobalSearchCursor?.offset ?? loadedGlobalSearchResultCount)-\(search.isSearching)"
     }
 
     private static func makeLibraryFolderGroups(
@@ -483,20 +446,20 @@ final class AppState: ObservableObject {
     }
 
     var currentPlaybackVideoPath: String? {
-        library.selectedLibraryVideo?.videoPath ?? selectedSearchResult?.videoPath ?? shiori.selectedShiori?.videoPath
+        library.selectedLibraryVideo?.videoPath ?? search.selectedSearchResult?.videoPath ?? shiori.selectedShiori?.videoPath
     }
 
     var currentPlaybackSubtitlePath: String? {
-        library.selectedLibraryVideo?.subtitlePath ?? selectedSearchResult?.subtitlePath ?? shiori.selectedShiori?.subtitlePath
+        library.selectedLibraryVideo?.subtitlePath ?? search.selectedSearchResult?.subtitlePath ?? shiori.selectedShiori?.subtitlePath
     }
 
     var currentPlaybackSubtitleFormat: SubtitleFormat? {
-        library.selectedLibraryVideo?.subtitleFormat ?? selectedSearchResult?.subtitleFormat ?? shiori.selectedShiori?.subtitleFormat
+        library.selectedLibraryVideo?.subtitleFormat ?? search.selectedSearchResult?.subtitleFormat ?? shiori.selectedShiori?.subtitleFormat
     }
 
     var currentPlaybackTitle: String {
         library.selectedLibraryVideo?.videoName
-            ?? selectedSearchResult?.videoName
+            ?? search.selectedSearchResult?.videoName
             ?? shiori.selectedShiori?.videoName
             ?? "No video selected"
     }
@@ -511,11 +474,11 @@ final class AppState: ObservableObject {
                 ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedLibraryVideo.subtitlePath)
         }
 
-        if let selectedSearchResult {
-            return searchResultGroups
+        if let selectedSearchResult = search.selectedSearchResult {
+            return search.searchResultGroups
                 .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
                 .subtitleDisplayTitle
-                ?? searchFileSummaries
+                ?? search.searchFileSummaries
                     .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
                     .subtitleDisplayTitle
                 ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedSearchResult.subtitlePath)
@@ -552,27 +515,27 @@ final class AppState: ObservableObject {
     }
 
     var canOpenPreviousSearchResult: Bool {
-        guard isSearchPlaybackActive, selectedSearchResult != nil else {
+        guard isSearchPlaybackActive, search.selectedSearchResult != nil else {
             return false
         }
 
-        if let searchNavigationSnapshot {
+        if let searchNavigationSnapshot = search.searchNavigationSnapshot {
             return searchNavigationSnapshot.previous != nil
         }
 
-        return searchResultTotalCount > 1
+        return search.searchResultTotalCount > 1
     }
 
     var canOpenNextSearchResult: Bool {
-        guard isSearchPlaybackActive, selectedSearchResult != nil else {
+        guard isSearchPlaybackActive, search.selectedSearchResult != nil else {
             return false
         }
 
-        if let searchNavigationSnapshot {
+        if let searchNavigationSnapshot = search.searchNavigationSnapshot {
             return searchNavigationSnapshot.next != nil
         }
 
-        return searchResultTotalCount > 1
+        return search.searchResultTotalCount > 1
     }
 
     var isPlaybackFullscreenToggleDisabled: Bool {
@@ -594,7 +557,7 @@ final class AppState: ObservableObject {
         subtitleDatabase != nil
             && !indexing.indexingStatus.isIndexing
             && !indexing.databaseMaintenanceStatus.isCompacting
-            && !isSearching
+            && !search.isSearching
             && indexing.searchFTSVocabularyDiagnosticsTask == nil
             && library.libraryStatus != .loading
     }
@@ -623,13 +586,6 @@ final class AppState: ObservableObject {
     private var loadedGlobalSearchResultCount = 0
     private var lastSearchCountProgressUpdate: UInt64 = 0
     private var nextGlobalSearchCursor: SubtitleSearchCursor?
-    private var isSearching: Bool {
-        if case .searching = searchStatus {
-            return true
-        }
-
-        return false
-    }
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -650,6 +606,7 @@ final class AppState: ObservableObject {
         indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
         shiori = ShioriStore()
         library = LibraryStore()
+        search = SearchStore()
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
@@ -1105,7 +1062,7 @@ final class AppState: ObservableObject {
             "ACTION UI.SearchQuery.changed",
             details: "length=\(query.count)"
         )
-        searchQuery = query
+        search.searchQuery = query
         startSearch(query: query, cursor: .start, appending: false, debounce: true)
     }
 
@@ -1119,24 +1076,24 @@ final class AppState: ObservableObject {
             pausePlayback()
         }
         workbenchLayout.selectPanelMode(.search)
-        searchQuery = trimmedQuery
-        searchNavigationSnapshot = nil
-        searchNavigationResultGroups = []
+        search.searchQuery = trimmedQuery
+        search.searchNavigationSnapshot = nil
+        search.searchNavigationResultGroups = []
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
     }
 
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
-        if searchResultPresentationState == .collapsed {
+        if search.searchResultPresentationState == .collapsed {
             loadMoreSearchResultGroupRowsIfNeeded(currentResult: result)
             return
         }
 
-        guard hasMoreSearchResults, !isSearching else {
+        guard search.hasMoreSearchResults, !search.isSearching else {
             return
         }
 
-        guard let index = searchResults.firstIndex(where: { $0.entryID == result.entryID }),
-              index >= searchResults.count - Self.searchPrefetchThreshold
+        guard let index = search.searchResults.firstIndex(where: { $0.entryID == result.entryID }),
+              index >= search.searchResults.count - Self.searchPrefetchThreshold
         else {
             return
         }
@@ -1145,11 +1102,11 @@ final class AppState: ObservableObject {
     }
 
     func loadMoreSearchResultsIfNeeded() {
-        guard searchResultPresentationState != .collapsed else {
+        guard search.searchResultPresentationState != .collapsed else {
             return
         }
 
-        guard hasMoreSearchResults, !isSearching else {
+        guard search.hasMoreSearchResults, !search.isSearching else {
             return
         }
 
@@ -1158,7 +1115,7 @@ final class AppState: ObservableObject {
         }
 
         startSearch(
-            query: searchQuery,
+            query: search.searchQuery,
             cursor: cursor,
             appending: true,
             debounce: false
@@ -1169,16 +1126,16 @@ final class AppState: ObservableObject {
         let hasLoadedRows = searchResultGroupHasLoadedRows(subtitlePath)
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResultGroup.toggled",
-            details: "collapsedBefore=\(collapsedSearchResultGroupPaths.contains(subtitlePath)) loadedRows=\(hasLoadedRows)"
+            details: "collapsedBefore=\(search.collapsedSearchResultGroupPaths.contains(subtitlePath)) loadedRows=\(hasLoadedRows)"
         )
-        if collapsedSearchResultGroupPaths.contains(subtitlePath) {
-            collapsedSearchResultGroupPaths.remove(subtitlePath)
+        if search.collapsedSearchResultGroupPaths.contains(subtitlePath) {
+            search.collapsedSearchResultGroupPaths.remove(subtitlePath)
             rebuildSearchResultGroups()
-            if searchResultPresentationState == .collapsed {
+            if search.searchResultPresentationState == .collapsed {
                 revealInitialSearchResultGroupPage(for: subtitlePath)
             }
         } else if hasLoadedRows {
-            collapsedSearchResultGroupPaths.insert(subtitlePath)
+            search.collapsedSearchResultGroupPaths.insert(subtitlePath)
             rebuildSearchResultGroups()
         } else if searchResultGroupTasks[subtitlePath] == nil {
             revealInitialSearchResultGroupPage(for: subtitlePath)
@@ -1188,11 +1145,11 @@ final class AppState: ObservableObject {
     }
 
     func collapseAllSearchResultGroups() {
-        guard canCollapseAllSearchResultGroups else {
+        guard search.canCollapseAllSearchResultGroups else {
             return
         }
 
-        let groupPaths = Set(searchFileSummaries.map(\.subtitlePath))
+        let groupPaths = Set(search.searchFileSummaries.map(\.subtitlePath))
         guard !groupPaths.isEmpty else {
             return
         }
@@ -1201,9 +1158,9 @@ final class AppState: ObservableObject {
             "ACTION UI.SearchResults.collapseAll",
             details: "groups=\(groupPaths.count)"
         )
-        searchResultPresentationState = .collapsed
-        expandedSearchResultGroupRowsByPath = [:]
-        collapsedSearchResultGroupPaths = groupPaths
+        search.searchResultPresentationState = .collapsed
+        search.expandedSearchResultGroupRowsByPath = [:]
+        search.collapsedSearchResultGroupPaths = groupPaths
         rebuildSearchResultGroups()
     }
 
@@ -1294,7 +1251,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         indexing.searchFTSVocabularyDiagnosticsStatus = .loading
         indexing.searchFTSVocabularyDiagnosticsTask = Task {
             do {
@@ -1330,7 +1287,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        guard !isSearching else {
+        guard !search.isSearching else {
             indexing.databaseMaintenanceStatus = .failed("Search is running")
             return
         }
@@ -1565,14 +1522,14 @@ final class AppState: ObservableObject {
                 searchPerformanceRun,
                 "search_state_reset",
                 phaseStart: resetStart,
-                groupCount: searchResultGroups.count,
-                renderedRowCount: renderedSearchResultCount,
+                groupCount: search.searchResultGroups.count,
+                renderedRowCount: search.renderedSearchResultCount,
                 status: "reset"
             )
         }
 
         guard !trimmedQuery.isEmpty else {
-            searchStatus = .idle
+            search.searchStatus = .idle
             SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_empty_query", status: "idle")
             SearchPerformanceLogger.writeE2ESearchPage(
                 searchPerformanceRun,
@@ -1585,8 +1542,8 @@ final class AppState: ObservableObject {
         }
 
         guard !folders.isEmpty else {
-            searchStatus = .completed
-            selectedSearchResult = nil
+            search.searchStatus = .completed
+            search.selectedSearchResult = nil
             SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_no_folders", status: "completed")
             SearchPerformanceLogger.writeE2ESearchPage(
                 searchPerformanceRun,
@@ -1598,11 +1555,11 @@ final class AppState: ObservableObject {
             return
         }
 
-        searchStatus = .searching
+        search.searchStatus = .searching
         SearchPerformanceLogger.mark(searchPerformanceRun, "search_status_searching", status: "searching")
 
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
-            searchStatus = .failed("Database compaction is running")
+            search.searchStatus = .failed("Database compaction is running")
             SearchPerformanceLogger.mark(
                 searchPerformanceRun,
                 "search_failed_database_compacting",
@@ -1621,7 +1578,7 @@ final class AppState: ObservableObject {
         }
 
         guard let database = subtitleDatabase else {
-            searchStatus = .failed("Database is not initialized")
+            search.searchStatus = .failed("Database is not initialized")
             SearchPerformanceLogger.mark(
                 searchPerformanceRun,
                 "search_failed_no_database",
@@ -1706,30 +1663,30 @@ final class AppState: ObservableObject {
                         offset + page.results.count
                     )
                 } else {
-                    searchResults = page.results
+                    search.searchResults = page.results
                     loadedGlobalSearchResultCount = page.results.count
                 }
-                let shouldPreserveExactMetadata = appending && searchCountState == .exact
+                let shouldPreserveExactMetadata = appending && search.searchCountState == .exact
                 if shouldPreserveExactMetadata && page.countState != .exact {
-                    searchKnownResultCount = max(searchKnownResultCount, page.knownResultCount)
-                    searchKnownFileCount = max(searchKnownFileCount, page.knownFileCount)
+                    search.searchKnownResultCount = max(search.searchKnownResultCount, page.knownResultCount)
+                    search.searchKnownFileCount = max(search.searchKnownFileCount, page.knownFileCount)
                 } else {
-                    searchResultTotalCount = page.totalCount
-                    searchFileSummaries = page.fileSummaries
-                    searchCountState = page.countState
-                    searchKnownResultCount = page.knownResultCount
-                    searchKnownFileCount = page.knownFileCount
+                    search.searchResultTotalCount = page.totalCount
+                    search.searchFileSummaries = page.fileSummaries
+                    search.searchCountState = page.countState
+                    search.searchKnownResultCount = page.knownResultCount
+                    search.searchKnownFileCount = page.knownFileCount
                 }
-                hasMoreSearchResults = page.hasMore
+                search.hasMoreSearchResults = page.hasMore
                 nextGlobalSearchCursor = page.nextCursor
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_state_assigned",
                     phaseStart: stateAssignStart,
-                    resultCount: searchResults.count,
-                    totalCount: searchResultTotalCount,
-                    fileSummaryCount: searchFileSummaries.count
+                    resultCount: search.searchResults.count,
+                    totalCount: search.searchResultTotalCount,
+                    fileSummaryCount: search.searchFileSummaries.count
                 )
 
                 let rebuildStart = SearchPerformanceLogger.now()
@@ -1739,11 +1696,11 @@ final class AppState: ObservableObject {
                     searchPerformanceRun,
                     "search_groups_rebuilt",
                     phaseStart: rebuildStart,
-                    resultCount: searchResults.count,
-                    totalCount: searchResultTotalCount,
-                    fileSummaryCount: searchFileSummaries.count,
-                    groupCount: searchResultGroups.count,
-                    renderedRowCount: renderedSearchResultCount
+                    resultCount: search.searchResults.count,
+                    totalCount: search.searchResultTotalCount,
+                    fileSummaryCount: search.searchFileSummaries.count,
+                    groupCount: search.searchResultGroups.count,
+                    renderedRowCount: search.renderedSearchResultCount
                 )
                 prepareSearchPerformanceVisibility(
                     for: searchPerformanceRun,
@@ -1753,9 +1710,9 @@ final class AppState: ObservableObject {
                 let completionStart = SearchPerformanceLogger.now()
                 let pageCompletesSearch = page.countState == .exact || shouldPreserveExactMetadata
                 if pageCompletesSearch {
-                    searchStatus = .completed
+                    search.searchStatus = .completed
                 } else {
-                    searchStatus = .searching
+                    search.searchStatus = .searching
                 }
                 let statusCompletionMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
                 let logPageHasExactCounts = page.countState == .exact
@@ -1765,11 +1722,11 @@ final class AppState: ObservableObject {
                     searchPerformanceRun,
                     eventName,
                     phaseStart: completionStart,
-                    resultCount: searchResults.count,
-                    totalCount: searchResultTotalCount,
-                    fileSummaryCount: searchFileSummaries.count,
-                    groupCount: searchResultGroups.count,
-                    renderedRowCount: renderedSearchResultCount,
+                    resultCount: search.searchResults.count,
+                    totalCount: search.searchResultTotalCount,
+                    fileSummaryCount: search.searchFileSummaries.count,
+                    groupCount: search.searchResultGroups.count,
+                    renderedRowCount: search.renderedSearchResultCount,
                     status: statusText
                 )
                 SearchPerformanceLogger.writeE2ESearchPage(
@@ -1780,8 +1737,8 @@ final class AppState: ObservableObject {
                     stateAssignMilliseconds: stateAssignMilliseconds,
                     groupRebuildMilliseconds: groupRebuildMilliseconds,
                     statusCompletionMilliseconds: statusCompletionMilliseconds,
-                    groupCount: searchResultGroups.count,
-                    renderedRowCount: renderedSearchResultCount,
+                    groupCount: search.searchResultGroups.count,
+                    renderedRowCount: search.renderedSearchResultCount,
                     status: statusText
                 )
                 if !appending && !pageCompletesSearch {
@@ -1823,13 +1780,13 @@ final class AppState: ObservableObject {
                         searchPerformanceRun,
                         "search_state_reset_after_error",
                         phaseStart: resetStart,
-                        groupCount: searchResultGroups.count,
-                        renderedRowCount: renderedSearchResultCount
+                        groupCount: search.searchResultGroups.count,
+                        renderedRowCount: search.renderedSearchResultCount
                     )
                 }
-                hasMoreSearchResults = false
+                search.hasMoreSearchResults = false
                 let message = Self.errorMessage(for: error)
-                searchStatus = .failed(message)
+                search.searchStatus = .failed(message)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_failed",
@@ -1840,8 +1797,8 @@ final class AppState: ObservableObject {
                     searchPerformanceRun,
                     event: "search_failed",
                     page: nil,
-                    groupCount: searchResultGroups.count,
-                    renderedRowCount: renderedSearchResultCount,
+                    groupCount: search.searchResultGroups.count,
+                    renderedRowCount: search.renderedSearchResultCount,
                     status: "failed",
                     error: message
                 )
@@ -1857,11 +1814,11 @@ final class AppState: ObservableObject {
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
         guard progress.countState == .exactProgress,
-              searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+              search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
               indexing.selectedFolders.map(\.path) == folderPaths,
-              searchCountState != .exact,
-              progress.knownResultCount >= searchKnownResultCount,
-              progress.knownFileCount >= searchKnownFileCount
+              search.searchCountState != .exact,
+              progress.knownResultCount >= search.searchKnownResultCount,
+              progress.knownFileCount >= search.searchKnownFileCount
         else {
             return
         }
@@ -1873,13 +1830,13 @@ final class AppState: ObservableObject {
         }
         lastSearchCountProgressUpdate = now
 
-        searchResultTotalCount = progress.knownResultCount
-        searchFileSummaries = progress.fileSummaries
-        searchCountState = progress.countState
-        searchKnownResultCount = progress.knownResultCount
-        searchKnownFileCount = progress.knownFileCount
-        if loadedGlobalSearchResultCount < searchResultTotalCount {
-            hasMoreSearchResults = true
+        search.searchResultTotalCount = progress.knownResultCount
+        search.searchFileSummaries = progress.fileSummaries
+        search.searchCountState = progress.countState
+        search.searchKnownResultCount = progress.knownResultCount
+        search.searchKnownFileCount = progress.knownFileCount
+        if loadedGlobalSearchResultCount < search.searchResultTotalCount {
+            search.hasMoreSearchResults = true
             nextGlobalSearchCursor = nextGlobalSearchCursor
                 ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount)
         }
@@ -1888,19 +1845,19 @@ final class AppState: ObservableObject {
         SearchPerformanceLogger.mark(
             searchPerformanceRun,
             "search_count_progress",
-            resultCount: searchResults.count,
-            totalCount: searchResultTotalCount,
-            fileSummaryCount: searchFileSummaries.count,
-            groupCount: searchResultGroups.count,
-            renderedRowCount: renderedSearchResultCount,
+            resultCount: search.searchResults.count,
+            totalCount: search.searchResultTotalCount,
+            fileSummaryCount: search.searchFileSummaries.count,
+            groupCount: search.searchResultGroups.count,
+            renderedRowCount: search.renderedSearchResultCount,
             status: "searching"
         )
         SearchPerformanceLogger.writeE2ECountProgress(
             searchPerformanceRun,
             progress: progress,
-            resultCount: searchResults.count,
-            groupCount: searchResultGroups.count,
-            renderedRowCount: renderedSearchResultCount
+            resultCount: search.searchResults.count,
+            groupCount: search.searchResultGroups.count,
+            renderedRowCount: search.renderedSearchResultCount
         )
     }
 
@@ -1963,7 +1920,7 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       indexing.selectedFolders.map(\.path) == folderPaths
                 else {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_stale")
@@ -1978,13 +1935,13 @@ final class AppState: ObservableObject {
                 }
 
                 let stateAssignStart = SearchPerformanceLogger.now()
-                searchResultTotalCount = page.totalCount
-                searchFileSummaries = page.fileSummaries
-                searchCountState = page.countState
-                searchKnownResultCount = page.knownResultCount
-                searchKnownFileCount = page.knownFileCount
-                hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
-                nextGlobalSearchCursor = hasMoreSearchResults
+                search.searchResultTotalCount = page.totalCount
+                search.searchFileSummaries = page.fileSummaries
+                search.searchCountState = page.countState
+                search.searchKnownResultCount = page.knownResultCount
+                search.searchKnownFileCount = page.knownFileCount
+                search.hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
+                nextGlobalSearchCursor = search.hasMoreSearchResults
                     ? (nextGlobalSearchCursor ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount))
                     : nil
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
@@ -1994,18 +1951,18 @@ final class AppState: ObservableObject {
                 let groupRebuildMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: rebuildStart)
 
                 let completionStart = SearchPerformanceLogger.now()
-                searchStatus = .completed
+                search.searchStatus = .completed
                 searchExactCompletionTask = nil
                 let statusCompletionMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_status_completed",
                     phaseStart: completionStart,
-                    resultCount: searchResults.count,
-                    totalCount: searchResultTotalCount,
-                    fileSummaryCount: searchFileSummaries.count,
-                    groupCount: searchResultGroups.count,
-                    renderedRowCount: renderedSearchResultCount,
+                    resultCount: search.searchResults.count,
+                    totalCount: search.searchResultTotalCount,
+                    fileSummaryCount: search.searchFileSummaries.count,
+                    groupCount: search.searchResultGroups.count,
+                    renderedRowCount: search.renderedSearchResultCount,
                     status: "completed"
                 )
                 SearchPerformanceLogger.writeE2ESearchPage(
@@ -2016,8 +1973,8 @@ final class AppState: ObservableObject {
                     stateAssignMilliseconds: stateAssignMilliseconds,
                     groupRebuildMilliseconds: groupRebuildMilliseconds,
                     statusCompletionMilliseconds: statusCompletionMilliseconds,
-                    groupCount: searchResultGroups.count,
-                    renderedRowCount: renderedSearchResultCount,
+                    groupCount: search.searchResultGroups.count,
+                    renderedRowCount: search.renderedSearchResultCount,
                     status: "completed"
                 )
             } catch is CancellationError {
@@ -2041,7 +1998,7 @@ final class AppState: ObservableObject {
                     return
                 }
 
-                guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       indexing.selectedFolders.map(\.path) == folderPaths
                 else {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_error_stale")
@@ -2049,7 +2006,7 @@ final class AppState: ObservableObject {
                 }
 
                 let message = Self.errorMessage(for: error)
-                searchStatus = .failed(message)
+                search.searchStatus = .failed(message)
                 searchExactCompletionTask = nil
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
@@ -2061,8 +2018,8 @@ final class AppState: ObservableObject {
                     searchPerformanceRun,
                     event: "search_exact_completion_failed",
                     page: nil,
-                    groupCount: searchResultGroups.count,
-                    renderedRowCount: renderedSearchResultCount,
+                    groupCount: search.searchResultGroups.count,
+                    renderedRowCount: search.renderedSearchResultCount,
                     status: "failed",
                     error: message
                 )
@@ -2081,24 +2038,24 @@ final class AppState: ObservableObject {
         SearchPerformanceLogger.mark(
             activeSearchPerformanceRun,
             "first_result_row_appeared",
-            resultCount: searchResults.count,
-            totalCount: searchResultTotalCount,
-            fileSummaryCount: searchFileSummaries.count,
-            groupCount: searchResultGroups.count,
-            renderedRowCount: renderedSearchResultCount,
+            resultCount: search.searchResults.count,
+            totalCount: search.searchResultTotalCount,
+            fileSummaryCount: search.searchFileSummaries.count,
+            groupCount: search.searchResultGroups.count,
+            renderedRowCount: search.renderedSearchResultCount,
             entryID: result.entryID
         )
         SearchPerformanceLogger.writeE2EFirstVisible(
             activeSearchPerformanceRun,
             result: result,
-            resultCount: searchResults.count,
-            countState: searchCountState,
-            knownResultCount: searchKnownResultCount,
-            knownFileCount: searchKnownFileCount,
-            totalCount: searchResultTotalCount,
-            fileSummaryCount: searchFileSummaries.count,
-            groupCount: searchResultGroups.count,
-            renderedRowCount: renderedSearchResultCount
+            resultCount: search.searchResults.count,
+            countState: search.searchCountState,
+            knownResultCount: search.searchKnownResultCount,
+            knownFileCount: search.searchKnownFileCount,
+            totalCount: search.searchResultTotalCount,
+            fileSummaryCount: search.searchFileSummaries.count,
+            groupCount: search.searchResultGroups.count,
+            renderedRowCount: search.renderedSearchResultCount
         )
         clearSearchPerformanceRunIfActive(activeSearchPerformanceRun)
     }
@@ -2142,7 +2099,7 @@ final class AppState: ObservableObject {
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
         workbenchLayout.selectPanelMode(.search)
-        selectedSearchResult = result
+        search.selectedSearchResult = result
         shiori.selectedShiori = nil
         library.selectedLibraryVideo = nil
         isPlaybackSurfaceExpanded = true
@@ -2174,7 +2131,7 @@ final class AppState: ObservableObject {
             saveCurrentLibraryPlaybackHistory()
         }
         library.selectedLibraryVideo = video
-        selectedSearchResult = nil
+        search.selectedSearchResult = nil
         shiori.selectedShiori = nil
         isPlaybackSurfaceExpanded = true
         Task { @MainActor in
@@ -2193,7 +2150,7 @@ final class AppState: ObservableObject {
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
-        selectedSearchResult = nil
+        search.selectedSearchResult = nil
         library.selectedLibraryVideo = nil
         isPlaybackSurfaceExpanded = true
         Task { @MainActor in
@@ -2375,7 +2332,7 @@ final class AppState: ObservableObject {
                 resumePlayback()
             }
         case .idle:
-            if let selectedSearchResult {
+            if let selectedSearchResult = search.selectedSearchResult {
                 play(selectedSearchResult)
             } else if let selectedLibraryVideo = library.selectedLibraryVideo {
                 play(selectedLibraryVideo)
@@ -2483,7 +2440,7 @@ final class AppState: ObservableObject {
         let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
         let videoFile = URL(fileURLWithPath: currentPlaybackVideoPath)
         let videoName = library.selectedLibraryVideo?.videoName
-            ?? selectedSearchResult?.videoName
+            ?? search.selectedSearchResult?.videoName
             ?? shiori.selectedShiori?.videoName
             ?? videoFile.lastPathComponent
         let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
@@ -2628,7 +2585,7 @@ final class AppState: ObservableObject {
             try player?.stop()
             playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
-            selectedSearchResult = nil
+            search.selectedSearchResult = nil
             library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
             isPlaybackSurfaceExpanded = false
@@ -2730,38 +2687,38 @@ final class AppState: ObservableObject {
     }
 
     private func refreshCurrentSearch(clearExistingResults: Bool = false) {
-        guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
 
         if clearExistingResults {
-            searchResults = []
-            searchResultTotalCount = 0
-            searchFileSummaries = []
-            expandedSearchResultGroupRowsByPath = [:]
-            searchCountState = .exact
-            searchKnownResultCount = 0
-            searchKnownFileCount = 0
-            hasMoreSearchResults = false
+            search.searchResults = []
+            search.searchResultTotalCount = 0
+            search.searchFileSummaries = []
+            search.expandedSearchResultGroupRowsByPath = [:]
+            search.searchCountState = .exact
+            search.searchKnownResultCount = 0
+            search.searchKnownFileCount = 0
+            search.hasMoreSearchResults = false
             loadedGlobalSearchResultCount = 0
             lastSearchCountProgressUpdate = 0
             nextGlobalSearchCursor = nil
             rebuildSearchResultGroups()
         }
 
-        updateSearchQuery(searchQuery)
+        updateSearchQuery(search.searchQuery)
     }
 
     private func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {
         searchNavigationTask?.cancel()
 
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty,
               !indexing.selectedFolders.isEmpty,
               let database = subtitleDatabase
         else {
-            searchNavigationSnapshot = nil
-            searchNavigationResultGroups = []
+            search.searchNavigationSnapshot = nil
+            search.searchNavigationResultGroups = []
             if let direction {
                 playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
@@ -2812,8 +2769,8 @@ final class AppState: ObservableObject {
                 }
 
                 print("Failed to load Search navigation snapshot: \(error)")
-                self?.searchNavigationSnapshot = nil
-                self?.searchNavigationResultGroups = []
+                self?.search.searchNavigationSnapshot = nil
+                self?.search.searchNavigationResultGroups = []
             }
         }
     }
@@ -2825,7 +2782,7 @@ final class AppState: ObservableObject {
         )
 
         return SearchNavigationAnchor(
-            selectedEntryID: selectedSearchResult?.entryID,
+            selectedEntryID: search.selectedSearchResult?.entryID,
             videoPath: currentPlaybackVideoPath,
             subtitlePath: currentPlaybackSubtitlePath,
             currentMilliseconds: milliseconds
@@ -2833,10 +2790,10 @@ final class AppState: ObservableObject {
     }
 
     private func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
-        searchNavigationSnapshot = snapshot
+        search.searchNavigationSnapshot = snapshot
         let paths = Set(snapshot.neighborhood.map(\.subtitlePath))
-        let summaries = searchFileSummaries.filter { paths.contains($0.subtitlePath) }
-        searchNavigationResultGroups = Self.makeSearchResultGroups(
+        let summaries = search.searchFileSummaries.filter { paths.contains($0.subtitlePath) }
+        search.searchNavigationResultGroups = Self.makeSearchResultGroups(
             results: snapshot.neighborhood,
             fileSummaries: summaries,
             expandedRowsByPath: [:],
@@ -2904,18 +2861,18 @@ final class AppState: ObservableObject {
     }
 
     private func clearSearchAndPlaybackState(under folder: URL) {
-        searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
-        searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
-        searchResultTotalCount = searchFileSummaries.reduce(0) { $0 + $1.matchCount }
-        searchCountState = .exact
-        searchKnownResultCount = searchResultTotalCount
-        searchKnownFileCount = searchFileSummaries.count
-        loadedGlobalSearchResultCount = searchResults.count
+        search.searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
+        search.searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
+        search.searchResultTotalCount = search.searchFileSummaries.reduce(0) { $0 + $1.matchCount }
+        search.searchCountState = .exact
+        search.searchKnownResultCount = search.searchResultTotalCount
+        search.searchKnownFileCount = search.searchFileSummaries.count
+        loadedGlobalSearchResultCount = search.searchResults.count
         nextGlobalSearchCursor = nil
-        hasMoreSearchResults = false
-        collapsedSearchResultGroupPaths = collapsedSearchResultGroupPaths.filter { !Self.path($0, isUnder: folder) }
+        search.hasMoreSearchResults = false
+        search.collapsedSearchResultGroupPaths = search.collapsedSearchResultGroupPaths.filter { !Self.path($0, isUnder: folder) }
         removeLibraryPresentation(under: folder)
-        expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath.filter { path, _ in
+        search.expandedSearchResultGroupRowsByPath = search.expandedSearchResultGroupRowsByPath.filter { path, _ in
             !Self.path(path, isUnder: folder)
         }
         rebuildSearchResultGroups()
@@ -2925,7 +2882,7 @@ final class AppState: ObservableObject {
             searchResultGroupTasks.removeValue(forKey: path)
         }
 
-        let selectedSearchResultIsUnderFolder = selectedSearchResult.map {
+        let selectedSearchResultIsUnderFolder = search.selectedSearchResult.map {
             Self.path($0.subtitlePath, isUnder: folder)
         } ?? false
         let selectedLibraryVideoIsUnderFolder = library.selectedLibraryVideo.map {
@@ -2936,7 +2893,7 @@ final class AppState: ObservableObject {
         } ?? false
 
         if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder || selectedShioriIsUnderFolder {
-            selectedSearchResult = nil
+            search.selectedSearchResult = nil
             library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
             stopPlayback()
@@ -3016,7 +2973,7 @@ final class AppState: ObservableObject {
     private func revealInitialSearchResultGroupPage(for subtitlePath: String) {
         let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
         if !currentRows.isEmpty {
-            expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
+            search.expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
             rebuildSearchResultGroups()
         }
 
@@ -3036,7 +2993,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        guard let totalCount = searchFileSummaries.first(where: { $0.subtitlePath == subtitlePath })?.matchCount,
+        guard let totalCount = search.searchFileSummaries.first(where: { $0.subtitlePath == subtitlePath })?.matchCount,
               currentRows.count < totalCount
         else {
             return
@@ -3052,7 +3009,7 @@ final class AppState: ObservableObject {
 
         let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
         let rowsBefore = currentRows.count
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty, !indexing.selectedFolders.isEmpty else {
             return
         }
@@ -3062,11 +3019,11 @@ final class AppState: ObservableObject {
             return
         }
         let pageSize = Self.searchPageSize
-        let subtitleDisplayTitle = searchFileSummaries
+        let subtitleDisplayTitle = search.searchFileSummaries
             .first(where: { $0.subtitlePath == subtitlePath })?
             .subtitleDisplayTitle
             ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: subtitlePath)
-        let totalCount = searchFileSummaries
+        let totalCount = search.searchFileSummaries
             .first(where: { $0.subtitlePath == subtitlePath })?
             .matchCount
         let loadMoreRun = SearchPerformanceLogger.startRun(
@@ -3114,8 +3071,8 @@ final class AppState: ObservableObject {
                 }
 
                 guard let self,
-                      self.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
-                      self.searchFileSummaries.contains(where: { $0.subtitlePath == subtitlePath })
+                      self.search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                      self.search.searchFileSummaries.contains(where: { $0.subtitlePath == subtitlePath })
                 else {
                     SearchPerformanceLogger.writeE2EFileLoadMore(
                         loadMoreRun,
@@ -3139,7 +3096,7 @@ final class AppState: ObservableObject {
                     mergedResults = (currentRows + results.filter { !existingEntryIDs.contains($0.entryID) })
                         .sorted(by: Self.searchResultSort)
                 }
-                self.expandedSearchResultGroupRowsByPath[subtitlePath] = mergedResults
+                self.search.expandedSearchResultGroupRowsByPath[subtitlePath] = mergedResults
                 self.searchResultGroupTasks.removeValue(forKey: subtitlePath)
                 self.rebuildSearchResultGroups()
                 SearchPerformanceLogger.writeE2EFileLoadMore(
@@ -3151,8 +3108,8 @@ final class AppState: ObservableObject {
                     returned: results.count,
                     totalCount: totalCount,
                     databaseSearchMilliseconds: databaseSearchMilliseconds,
-                    groupCount: self.searchResultGroups.count,
-                    renderedRowCount: self.renderedSearchResultCount,
+                    groupCount: self.search.searchResultGroups.count,
+                    renderedRowCount: self.search.renderedSearchResultCount,
                     status: "completed"
                 )
             } catch is CancellationError {
@@ -3183,7 +3140,7 @@ final class AppState: ObservableObject {
                 }
 
                 self?.searchResultGroupTasks.removeValue(forKey: subtitlePath)
-                self?.searchStatus = .failed(Self.errorMessage(for: error))
+                self?.search.searchStatus = .failed(Self.errorMessage(for: error))
                 SearchPerformanceLogger.writeE2EFileLoadMore(
                     loadMoreRun,
                     subtitlePath: subtitlePath,
@@ -3200,36 +3157,36 @@ final class AppState: ObservableObject {
     }
 
     private func loadedRowsForSearchResultGroup(_ subtitlePath: String) -> [SubtitleSearchResult] {
-        let rows = expandedSearchResultGroupRowsByPath[subtitlePath]
-            ?? searchResults.filter { $0.subtitlePath == subtitlePath }
+        let rows = search.expandedSearchResultGroupRowsByPath[subtitlePath]
+            ?? search.searchResults.filter { $0.subtitlePath == subtitlePath }
         return rows.sorted(by: Self.searchResultSort)
     }
 
     private func searchResultGroupHasLoadedRows(_ subtitlePath: String) -> Bool {
-        if expandedSearchResultGroupRowsByPath[subtitlePath]?.isEmpty == false {
+        if search.expandedSearchResultGroupRowsByPath[subtitlePath]?.isEmpty == false {
             return true
         }
 
-        return searchResults.contains { $0.subtitlePath == subtitlePath }
+        return search.searchResults.contains { $0.subtitlePath == subtitlePath }
     }
 
     private func revealInitialGlobalSearchResultPage() {
         cancelSearchResultGroupTasks()
-        expandedSearchResultGroupRowsByPath = [:]
-        searchResults = Array(searchResults.prefix(Self.searchPageSize))
-        loadedGlobalSearchResultCount = searchResults.count
-        searchKnownResultCount = searchResultTotalCount
-        searchKnownFileCount = searchFileSummaries.count
-        hasMoreSearchResults = loadedGlobalSearchResultCount < searchResultTotalCount
-        nextGlobalSearchCursor = hasMoreSearchResults
+        search.expandedSearchResultGroupRowsByPath = [:]
+        search.searchResults = Array(search.searchResults.prefix(Self.searchPageSize))
+        loadedGlobalSearchResultCount = search.searchResults.count
+        search.searchKnownResultCount = search.searchResultTotalCount
+        search.searchKnownFileCount = search.searchFileSummaries.count
+        search.hasMoreSearchResults = loadedGlobalSearchResultCount < search.searchResultTotalCount
+        nextGlobalSearchCursor = search.hasMoreSearchResults
             ? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount)
             : nil
         rebuildSearchResultGroups()
     }
 
     private func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
-        let existingEntryIDs = Set(searchResults.map(\.entryID))
-        searchResults.append(contentsOf: results.filter { !existingEntryIDs.contains($0.entryID) })
+        let existingEntryIDs = Set(search.searchResults.map(\.entryID))
+        search.searchResults.append(contentsOf: results.filter { !existingEntryIDs.contains($0.entryID) })
     }
 
     private func resetSearchResultLoadingState() {
@@ -3237,38 +3194,38 @@ final class AppState: ObservableObject {
         searchExactCompletionTask?.cancel()
         searchExactCompletionTask = nil
         searchNavigationTask?.cancel()
-        searchResults = []
-        searchResultTotalCount = 0
-        searchFileSummaries = []
-        searchCountState = .exact
-        searchKnownResultCount = 0
-        searchKnownFileCount = 0
-        hasMoreSearchResults = false
+        search.searchResults = []
+        search.searchResultTotalCount = 0
+        search.searchFileSummaries = []
+        search.searchCountState = .exact
+        search.searchKnownResultCount = 0
+        search.searchKnownFileCount = 0
+        search.hasMoreSearchResults = false
         lastSearchCountProgressUpdate = 0
-        searchResultPresentationState = .initial
-        collapsedSearchResultGroupPaths = []
-        expandedSearchResultGroupRowsByPath = [:]
+        search.searchResultPresentationState = .initial
+        search.collapsedSearchResultGroupPaths = []
+        search.expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
         nextGlobalSearchCursor = nil
-        searchNavigationSnapshot = nil
-        searchNavigationResultGroups = []
+        search.searchNavigationSnapshot = nil
+        search.searchNavigationResultGroups = []
         rebuildSearchResultGroups()
     }
 
     private func rebuildSearchResultGroups() {
-        searchResultGroups = Self.makeSearchResultGroups(
-            results: searchResults,
-            fileSummaries: searchFileSummaries,
-            expandedRowsByPath: expandedSearchResultGroupRowsByPath,
-            collapsedGroupPaths: collapsedSearchResultGroupPaths,
-            includesSummaryOnlyGroups: searchResultPresentationState == .collapsed
+        search.searchResultGroups = Self.makeSearchResultGroups(
+            results: search.searchResults,
+            fileSummaries: search.searchFileSummaries,
+            expandedRowsByPath: search.expandedSearchResultGroupRowsByPath,
+            collapsedGroupPaths: search.collapsedSearchResultGroupPaths,
+            includesSummaryOnlyGroups: search.searchResultPresentationState == .collapsed
         )
-        renderedSearchResultCount = searchResultGroups.reduce(0) { count, group in
+        search.renderedSearchResultCount = search.searchResultGroups.reduce(0) { count, group in
             group.isCollapsed ? count : count + group.results.count
         }
         UIInvalidationProbe.count(
             "UI.SearchPresentation.rebuilt",
-            details: "groups=\(searchResultGroups.count) rows=\(renderedSearchResultCount)"
+            details: "groups=\(search.searchResultGroups.count) rows=\(search.renderedSearchResultCount)"
         )
     }
 
@@ -3312,8 +3269,8 @@ final class AppState: ObservableObject {
         if case .loading = library.libraryStatus {
             library.libraryStatus = library.libraryVideos.isEmpty ? .idle : .completed
         }
-        if case .searching = searchStatus {
-            searchStatus = .completed
+        if case .searching = search.searchStatus {
+            search.searchStatus = .completed
         }
     }
 

@@ -52,6 +52,7 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var indexing: IndexingStore
+    @EnvironmentObject private var search: SearchStore
     @State private var selectedCategory: SettingsCategory = .library
     @State private var folderPendingRemoval: URL?
     @State private var isChoosingFolder = false
@@ -536,7 +537,7 @@ struct SettingsView: View {
     }
 
     private var currentQueryTermsTitle: String {
-        let query = appState.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         return query.isEmpty ? "Query Terms" : "Query Terms: \(query)"
     }
 
