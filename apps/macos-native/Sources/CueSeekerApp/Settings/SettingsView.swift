@@ -153,7 +153,7 @@ struct SettingsView: View {
         case .developer:
             developerSettingsContent
         case .experimentalFeatures:
-            experimentalFeaturesSettingsContent
+            SettingsExperimentalCategory()
         }
     }
 
@@ -290,24 +290,6 @@ struct SettingsView: View {
                 Spacer()
 
                 DecodeModeSegmentedControl(selection: $settingsStore.playbackDecodeMode)
-            }
-
-            Spacer()
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(contentBackground)
-    }
-
-    private var experimentalFeaturesSettingsContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Experimental Features")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                Text("Try unstable features that may change or be removed.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
 
             Spacer()
