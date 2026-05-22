@@ -7,6 +7,7 @@ struct SearchView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var indexing: IndexingStore
+    @EnvironmentObject private var shiori: ShioriStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
@@ -196,7 +197,7 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     shioriHeader
 
-                    if appState.shioris.isEmpty {
+                    if shiori.shioris.isEmpty {
                         InfoPageStateView(state: .shioriEmpty)
                         .font(.system(size: SearchTypography.bodySize))
                     } else {
@@ -226,7 +227,7 @@ struct SearchView: View {
 
             Spacer()
 
-            if appState.hasShioriFileGroups {
+            if shiori.hasShioriFileGroups {
                 Button {
                     layoutState.clearSearchFocus()
                     appState.collapseAllShioriGroups()
@@ -242,7 +243,7 @@ struct SearchView: View {
     }
 
     private var shioriSummaryText: String {
-        "\(appState.shioriCount) shioris in \(appState.shioriFileCount) files"
+        "\(shiori.shioriCount) shioris in \(shiori.shioriFileCount) files"
     }
 
     private var searchResultSummaryText: String? {
@@ -266,13 +267,13 @@ struct SearchView: View {
     private var shioriCardList: some View {
         UIInvalidationProbe.count(
             "UI.ShioriCards.rendered",
-            details: "groups=\(appState.shioriFileGroups.count) rows=\(appState.shioriCount)"
+            details: "groups=\(shiori.shioriFileGroups.count) rows=\(shiori.shioriCount)"
         )
 
         return GeometryReader { geo in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: SearchCardLayout.groupSpacing) {
-                    ForEach(appState.shioriFileGroups) { group in
+                    ForEach(shiori.shioriFileGroups) { group in
                         ShioriCardGroupView(
                             group: group,
                             onToggle: {

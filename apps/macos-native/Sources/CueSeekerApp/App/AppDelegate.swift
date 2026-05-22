@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.workbenchLayout)
             .environmentObject(appState.settings)
             .environmentObject(appState.indexing)
+            .environmentObject(appState.shiori)
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: AppShellLayout.minimumWindowWidth, height: 720),
@@ -117,6 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.workbenchLayout)
             .environmentObject(appState.settings)
             .environmentObject(appState.indexing)
+            .environmentObject(appState.shiori)
         let settingsWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 520),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
