@@ -91,12 +91,12 @@ Rules:
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
-| The App opens into one persistent workbench surface. | `.window`, `.main` | `ContentView`, `LiquidGlassSurface` | `AppDelegate`, `AppState` |
+| The App opens into one persistent workbench surface. | `.window`, `.main` | `ContentView`, `LiquidGlassSurface` | `AppDelegate`, `AppCoordinator` |
 | The topbar contains Library and Shiori icon controls immediately left of the Search field. | `.toolbar`, `ui-icon-button--topbar` | `AppTopBar`, `LiquidGlassIconButton.Kind.topbar` | `WorkbenchLayoutState` |
 | The Library/Shiori icon cluster and Search field are visually centered as a group. | `.toolbar-center` | `AppTopBar` layout | Native window sizing |
 | The topbar has no heavy divider and uses the Liquid Glass surface treatment. | `.toolbar` | `LiquidGlassSurface.toolbar` | None |
 | The Search field is the only Search entry point in the current workbench. | `ui-input-capsule` | `LiquidGlassSearchField` | `TopbarSearchInputState` |
-| A duplicate Search field must not be rendered inside the Search results page. | `.search-state` | Search page view | `AppState.searchQuery` |
+| A duplicate Search field must not be rendered inside the Search results page. | `.search-state` | Search page view | `SearchStore.searchQuery` |
 | Settings is not a topbar or main-window panel in this rewrite. | None | Existing `SettingsView` unchanged | Existing app menu action |
 
 ### 4.2 Required Behavior
@@ -160,7 +160,7 @@ Rules:
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
 | Search submits only on Return. | `#searchInput` | `LiquidGlassSearchField` | `TopbarSearchInputState.submit` |
-| Submitted results appear in the main content area. | `.search-state` | Search page view | `AppState.submitTopbarSearch` |
+| Submitted results appear in the main content area. | `.search-state` | Search page view | `AppCoordinator.submitTopbarSearch` |
 | Empty, loading, failed, and no-results states remain explicit. | State demo `.state-view` / `.state-spinner` / `.load-more` (`ui/state-demos/info-page-card-states/`) | Search page state views | `SearchStatus`, submitted query |
 | Search page shows a compact summary row above results. | `.results-header` | Search summary view | Search result counts |
 | `Collapse All` uses a fixed label and does not become Expand All. | `ui-capsule--command` | `LiquidGlassCapsuleButton.Kind.command` | Search group collapse state |
@@ -217,7 +217,7 @@ Rules:
   thumbnail slots or thumbnail work are removed together with the legacy
   row-path retirement (an App step gated by App-implementation approval, not
   P5.0). This reverses the prior "thumbnails remain controlled by the existing
-  experimental setting" rule. Removing the defunct toggle spans AppState and
+  experimental setting" rule. Removing the defunct toggle spans AppCoordinator and
   SettingsView; it is permitted cleanup, not a Settings redesign (see proposal
   "P5.0 Confirmed Audit" finding B). First-screen rendering must never wait for
   thumbnails.
@@ -666,7 +666,7 @@ Mapping notes (App implementation):
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
 | Close is the red traffic-light control in the video-page top bar. | `.vt-close` in `.video-topbar` | `LiquidGlassWindowControlButton.Kind.close`, `LiquidGlassVideoTopBar` | Playback session lifecycle |
-| Close ends the active playback session and returns to the originating info page. | `.playback-closed` / no active session marker | `PlaybackExpandedLayout`, `BottomPlaybackBar` | `AppState.stopPlayback` or successor close command |
+| Close ends the active playback session and returns to the originating info page. | `.playback-closed` / no active session marker | `PlaybackExpandedLayout`, `BottomPlaybackBar` | `AppCoordinator.stopPlayback` or successor close command |
 | Close hides the bottom player after playback ends. | `.player-dock` hidden when no active playback | `BottomPlaybackBar` | Derived active playback session state |
 | Close clears playback-derived selection highlights. | `ui-is-selected` removed from overlay-panel rows | Overlay-panel views | Current playback source and selection state |
 

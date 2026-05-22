@@ -272,7 +272,7 @@ Rules:
 - Future cleanup should continue splitting the workbench into smaller
   invalidation domains. Library, Playback, Search, Queue, Timeline, Shiori,
   and Learning Session views should subscribe only to the state they render,
-  rather than inheriting every `AppState` publication from the root workbench.
+  rather than inheriting every `AppCoordinator` publication from the root workbench.
 - Library presentation rows are persisted indexed-resource presentation state.
   They should be materialized by indexing or an explicit Library data refresh,
   then loaded as a ready snapshot. App startup and ordinary Library disclosure

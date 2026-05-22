@@ -891,7 +891,7 @@ Primary implementation files:
 
 - `apps/macos-native/Sources/CueSeekerApp/SearchView.swift`
 - `apps/macos-native/Sources/CueSeekerApp/SearchTextView.swift`
-- `apps/macos-native/Sources/CueSeekerApp/AppState.swift`
+- `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator.swift`
 - `apps/macos-native/Sources/CueSeekerApp/PlaybackView.swift`
 - `apps/macos-native/Sources/CueSeekerApp/PlaybackControlsView.swift`
 - `apps/macos-native/Sources/CueSeekerApp/ContentView.swift`
