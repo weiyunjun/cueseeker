@@ -6,6 +6,29 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Completed the UI view-file split (Phase 2 of the `ui/restructure`
+  branch). The three remaining large SwiftUI view files were broken up:
+  `PlaybackPageView.swift` (1699 lines) became a 113-line `PlaybackPage.swift`
+  shell plus 13 focused files under `Playback/{Chrome,TopBar,Sidebar,Feedback}/`;
+  `SearchView.swift` (1214 lines) became a 662-line top-level mode dispatch
+  plus 7 files under `Search/{Library,Results,Shiori}/`; `SettingsView.swift`
+  (850 lines) became a 126-line shell + category switcher plus 6
+  `SettingsXxxCategory` files. 2.a and 2.b were pure file-level moves with
+  `private` widened to `internal` only where a moved type now lives in a
+  different file from its callers. 2.c required actual restructuring
+  because the categories were inline `xxxSettingsContent` computed
+  properties on `SettingsView`, not standalone structs; each category
+  became its own struct that declares its own `@EnvironmentObject`s,
+  owns its own `@State` (folder-removal + folder-picker state moved to
+  Library; compact-confirmation state moved to Maintenance), hosts its own
+  `.alert`, and carries its private helpers. The shell file
+  `SettingsView.swift` lost the now-unused `appState` / `indexing` /
+  `search` / `library` env objects and the `AppKit` / `CueSeekerCore` /
+  `CueSeekerPlayback` imports. 29 atomic commits across 2.a + 2.b + 2.c,
+  each with `swift build` + `swift test` 95/95 + `git diff --check` clean
+  + owner E2E regression + Codex per-block code review. The branch
+  `ui/restructure` stays open for follow-up UI alignment work; no merge
+  back to `main` at this time per owner decision.
 - Completed the UI invalidation-domain restructure (Phase 1 of the
   `ui/restructure` branch). The 3.7k-line `AppState` god object was split
   into a thin `AppCoordinator` plus seven per-domain stores —

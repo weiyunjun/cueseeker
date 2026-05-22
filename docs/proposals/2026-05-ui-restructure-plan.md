@@ -1,6 +1,7 @@
 # UI Restructure Plan
 
-Status: Accepted; Phases 0, 3, 1 implemented; Phase 2 pending.
+Status: Accepted; Phases 0, 3, 1, 2 all implemented. `ui/restructure` branch
+not merged to main — UI detail alignment continues on the same branch.
 
 ## Background
 
@@ -144,13 +145,23 @@ Per-commit verification at Phase 1: `swift build` green, `swift test` 95/95,
 plus a manual end-to-end pass by the project owner with Codex code review
 on each commit.
 
-### Phase 2 — View file split (Pending)
+### Phase 2 — View file split (Implemented)
 
 The three remaining large view files are split into one focused file per
-SwiftUI struct. No logic changes, only the file each struct is declared in.
-Private struct visibility is widened to internal where the move requires it.
+SwiftUI struct. 2.a and 2.b are pure file-level moves with `private`
+visibility widened to `internal` where a moved type now lives in a different
+file from its callers. 2.c required actual restructuring (inline computed
+properties became separate `Category` structs that own their own `@State` /
+`@EnvironmentObject` / `.alert`), because the categories were not standalone
+structs in the original `SettingsView.swift`.
 
-#### 2.a `Playback/PlaybackPageView.swift` (~1687 lines → ~250 + 13 files)
+Per-commit verification at Phase 2: `swift build` green, `swift test` 95/95,
+`git diff --check` clean, plus the project owner's end-to-end real-machine
+regression after every sub-step (2.a, 2.b, 2.c) with Codex code review on
+each block. Actual commit count: 29 (vs. estimated 15) — 2.a went more
+granular than planned to keep each commit auditable.
+
+#### 2.a `Playback/PlaybackPageView.swift` (~1687 lines → 113-line shell + 13 files; commits `8a6764e` → `24433b2`)
 
 Split layout:
 
@@ -179,9 +190,18 @@ Playback/
 Each move is its own commit. The supporting types `PlaybackChromeControls`
 (struct + factory extension) and `PlaybackChromeMetrics` (layout
 constants) stay in `PlaybackChromeView.swift` so the chrome region is
-self-contained.
+self-contained. Eight types not named in the original plan were co-located
+with their primary caller: `PlaybackSpeedButtonAnchorKey` and
+`PlaybackChromeCapsuleButtonStyle` joined `PlaybackChromeView.swift`;
+`PlaybackChromeMenuButtonStyle` joined `PlaybackChromeSpeedMenu.swift`;
+`PlaybackChromeButtonKind`, `PlaybackChromeIcon`, `PlaybackChromeIconButtonStyle`,
+and `PlaybackCopyGlyph` (already cross-file `internal`, used by
+`PlaybackFeedbackOverlay`) joined `PlaybackChromeIconButton.swift`;
+`PlaybackOverlayPanelMetrics` joined `PlaybackSidebarShell.swift`. A final
+small commit (`24433b2`) stripped trailing blank lines at the EOF of the
+renamed `PlaybackPage.swift`.
 
-#### 2.b `Search/SearchView.swift` (~1209 lines)
+#### 2.b `Search/SearchView.swift` (~1209 lines → 662-line shell + 7 files; commits `a7af162` → `7c2c5e4`)
 
 Subviews to peel out, exact list confirmed by re-grepping at Phase 2 start:
 
@@ -203,9 +223,18 @@ Search/
 The Library/ subfolder under Search/ is intentional during Phase 2: Library
 views currently are tightly coupled to Search's panel mode dispatch. A
 later step can promote them to a sibling `Library/` feature folder once the
-dispatch responsibility is split out.
+dispatch responsibility is split out. As-implemented also co-located several
+helpers with their primary caller: `WrapFlowLayout` + `LibraryLayout` joined
+`LibraryEpisodeGrid.swift`; `LibraryEpisodeButtonStyle` joined
+`LibraryEpisodeButton.swift`; `SearchResultCard` joined
+`SearchResultCardGroupView.swift`; `ShioriCard` joined `ShioriCardGroupView.swift`.
+The shared types `SearchCardLayout`, `EqualHeightCardGridLayout`,
+`SearchHighlightState`/`Tokens`/`Typography`, and helper
+`displayTitleWithSoftWrapOpportunities` stayed in `SearchView.swift` and were
+widened from `private` to `internal` because at least one extracted file
+references them.
 
-#### 2.c `Settings/SettingsView.swift` (~846 lines)
+#### 2.c `Settings/SettingsView.swift` (~846 lines → 126-line shell + 6 category files; commits `f6e1090` → `023070b`)
 
 ```text
 Settings/
@@ -218,16 +247,32 @@ Settings/
   SettingsExperimentalCategory.swift
 ```
 
-Plus the `AppearanceModeSegmentedControl` and `DecodeModeSegmentedControl`
-helpers move to a `Settings/Controls/` subfolder if they grow beyond one
-file each; otherwise they stay inline with the category they belong to.
+The `AppearanceModeSegmentedControl` and `DecodeModeSegmentedControl`
+helpers stayed `private` inside their corresponding category file (no
+`Settings/Controls/` subfolder needed). Unlike 2.a / 2.b, 2.c required
+actual restructuring: each category was originally a `private var
+xxxSettingsContent: some View` computed property on `SettingsView`, not a
+standalone struct. The refactor moved each into its own `SettingsXxxCategory`
+struct that declares its own `@EnvironmentObject`s (SwiftUI's environment
+propagates down the view tree), owns its own `@State` (`folderPendingRemoval`
++ `isChoosingFolder` → Library, `isShowingCompactConfirmation` → Maintenance),
+and hosts its own `.alert` (the Remove Folder alert moved to Library, the
+Compact Database alert moved to Maintenance). Private helpers (`folderList`,
+`statusView`, `chooseFolder`, `indexingSummary`, `maintenanceStatusView`,
+`storageRow`/`metricRow`/`formattedBytes`, `ftsVocabulary*`,
+`currentQueryTermsTitle`, `formattedCount`) were relocated whole onto the
+relevant category struct. A final cleanup commit (`023070b`) dropped now-unused
+imports (`AppKit`, `CueSeekerCore`, `CueSeekerPlayback`) and env objects
+(`appState`, `indexing`, `search`, `library`) from the shell, plus trailing
+EOF blank lines.
 
 #### Phase 2 verification
 
-`swift build` + `swift test` after every commit. End-to-end smoke is the
-project owner's responsibility because there is no automated UI test
-coverage on `CueSeekerApp`. Estimated 15 commits total across 2.a + 2.b +
-2.c.
+`swift build` + `swift test` 95/95 + `git diff --check` clean at every
+commit. End-to-end smoke was the project owner's responsibility (there is
+no automated UI test coverage on `CueSeekerApp`), and the owner ran an E2E
+real-machine regression after every sub-step (2.a, 2.b, 2.c) with Codex
+code review on each block.
 
 ## Risks and mitigations
 
@@ -258,11 +303,16 @@ coverage on `CueSeekerApp`. Estimated 15 commits total across 2.a + 2.b +
 ## Acceptance and rollback
 
 Each phase is its own group of small commits. Rollback unit is one commit.
-The branch `ui/restructure` is the working branch; merge back to `main`
-only after Phase 2 completes and the project owner accepts the full
-restructure end-to-end.
+The branch `ui/restructure` is the working branch. The original plan called
+for merging back to `main` after Phase 2 + owner acceptance, but the
+project owner has decided to keep the branch open for subsequent UI detail
+alignment work (handed off to other AIs) instead of merging immediately.
+Merge timing is owner-controlled.
 
 ## Decision
 
-Phases 0, 3, 1 accepted and implemented. Phase 2 plan accepted; awaiting
-implementation start signal.
+All four phases (0, 3, 1, 2) are implemented and owner-accepted via
+per-sub-step E2E regression. `ui/restructure` stays open as the active
+branch for follow-up UI alignment work. Subsequent structural work (e.g.
+splitting `AppCoordinator.swift` further) is out of this proposal's scope
+and, if pursued, will land as its own proposal.
