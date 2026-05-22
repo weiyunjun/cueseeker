@@ -8,6 +8,7 @@ struct PlaybackVolumeControl: View {
         ZStack(alignment: .leading) {
             PlaybackChromeIconButton(
                 systemName: volumeIcon,
+                kind: .transport,
                 accessibilityLabel: "Mute",
                 action: viewModel.toggleMute
             )
@@ -38,12 +39,12 @@ struct PlaybackVolumeControl: View {
             )
             .shadow(color: .black.opacity(0.28), radius: 14, y: 5)
             .opacity(isHovered ? 1 : 0)
-            .offset(x: isHovered ? 36 : 32)
+            .offset(x: isHovered ? 44 : 40)
             .allowsHitTesting(isHovered)
             .animation(.easeOut(duration: 0.16), value: isHovered)
             .zIndex(10)
         }
-        .frame(width: 176, height: 32, alignment: .leading)
+        .frame(width: 176, height: 40, alignment: .leading)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.16)) {
                 isHovered = hovering

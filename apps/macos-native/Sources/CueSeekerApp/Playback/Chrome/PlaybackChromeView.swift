@@ -3,15 +3,11 @@ import SwiftUI
 
 @MainActor
 struct PlaybackChromeControls {
-    let canOpenPreviousEpisode: Bool
-    let openPreviousEpisode: () -> Void
-    let canOpenPreviousResult: Bool
-    let openPreviousResult: () -> Void
+    let canGoPrevious: Bool
+    let goPrevious: () -> Void
     let togglePlayPause: () -> Void
-    let canOpenNextResult: Bool
-    let openNextResult: () -> Void
-    let canOpenNextEpisode: Bool
-    let openNextEpisode: () -> Void
+    let canGoNext: Bool
+    let goNext: () -> Void
     let toggleShiori: () -> Void
     let copySubtitle: () -> Void
     let isSidePanelVisible: Bool
@@ -29,19 +25,11 @@ extension PlaybackChromeControls {
         fullscreenAction: (() -> Void)? = nil
     ) -> PlaybackChromeControls {
         PlaybackChromeControls(
-            canOpenPreviousEpisode: appState.canOpenPreviousLibraryVideo,
-            openPreviousEpisode: appState.openPreviousLibraryVideo,
-            canOpenPreviousResult: appState.canOpenPreviousSearchResult,
-            openPreviousResult: {
-                appState.openAdjacentSearchResult(.previous)
-            },
+            canGoPrevious: appState.canGoPrevious,
+            goPrevious: { appState.goPrevious() },
             togglePlayPause: appState.togglePlaybackFromUser,
-            canOpenNextResult: appState.canOpenNextSearchResult,
-            openNextResult: {
-                appState.openAdjacentSearchResult(.next)
-            },
-            canOpenNextEpisode: appState.canOpenNextLibraryVideo,
-            openNextEpisode: appState.openNextLibraryVideo,
+            canGoNext: appState.canGoNext,
+            goNext: { appState.goNext() },
             toggleShiori: {
                 _ = appState.toggleCurrentShiori()
             },
@@ -74,30 +62,7 @@ struct PlaybackChromeView: View {
     let controls: PlaybackChromeControls
     @State private var isSpeedMenuVisible = false
     @State private var speedMenuEventMonitor: Any?
-
-    private var canGoPrevious: Bool {
-        controls.canOpenPreviousResult || controls.canOpenPreviousEpisode
-    }
-
-    private func goPrevious() {
-        if controls.canOpenPreviousResult {
-            controls.openPreviousResult()
-        } else if controls.canOpenPreviousEpisode {
-            controls.openPreviousEpisode()
-        }
-    }
-
-    private var canGoNext: Bool {
-        controls.canOpenNextResult || controls.canOpenNextEpisode
-    }
-
-    private func goNext() {
-        if controls.canOpenNextResult {
-            controls.openNextResult()
-        } else if controls.canOpenNextEpisode {
-            controls.openNextEpisode()
-        }
-    }
+    @State private var speedButtonFrame: CGRect = .zero
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -155,6 +120,7 @@ struct PlaybackChromeView: View {
         .contentShape(Rectangle())
     }
 
+    @MainActor
     @ViewBuilder
     private func speedMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
         if isSpeedMenuVisible, let anchor {
@@ -194,26 +160,32 @@ struct PlaybackChromeView: View {
         HStack(spacing: 8) {
             PlaybackChromeIconButton(
                 systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
-                kind: .primaryTransport,
+                kind: .transport,
                 accessibilityLabel: viewModel.isPlaying ? "Pause" : "Play",
                 action: controls.togglePlayPause
             )
 
-            PlaybackChromeIconButton(
-                systemName: "backward.end.fill",
-                kind: .transport,
-                isDisabled: !canGoPrevious,
-                accessibilityLabel: "Previous video",
-                action: goPrevious
-            )
+            HStack(spacing: 0) {
+                PlaybackChromeIconButton(
+                    systemName: "backward.end.fill",
+                    kind: .transport,
+                    isDisabled: !controls.canGoPrevious,
+                    hasPersistentBase: false,
+                    accessibilityLabel: "Previous video",
+                    action: controls.goPrevious
+                )
 
-            PlaybackChromeIconButton(
-                systemName: "forward.end.fill",
-                kind: .transport,
-                isDisabled: !canGoNext,
-                accessibilityLabel: "Next video",
-                action: goNext
-            )
+                PlaybackChromeIconButton(
+                    systemName: "forward.end.fill",
+                    kind: .transport,
+                    isDisabled: !controls.canGoNext,
+                    hasPersistentBase: false,
+                    accessibilityLabel: "Next video",
+                    action: controls.goNext
+                )
+            }
+            .frame(height: 40)
+            .background(Capsule().fill(Color.white.opacity(0.10)))
 
             PlaybackVolumeControl(viewModel: viewModel)
                 .padding(.leading, 4)
@@ -234,32 +206,44 @@ struct PlaybackChromeView: View {
 
     private var rightGroup: some View {
         HStack(spacing: 6) {
-            PlaybackChromeIconButton(
-                systemName: "bookmark",
-                accessibilityLabel: "Shiori",
-                action: controls.toggleShiori
-            )
+            HStack(spacing: 0) {
+                PlaybackChromeIconButton(
+                    systemName: "bookmark",
+                    kind: .transport,
+                    hasPersistentBase: false,
+                    accessibilityLabel: "Shiori",
+                    action: controls.toggleShiori
+                )
 
-            PlaybackChromeIconButton(
-                icon: .copy,
-                accessibilityLabel: "Copy current subtitle",
-                action: controls.copySubtitle
-            )
+                PlaybackChromeIconButton(
+                    icon: .copy,
+                    kind: .transport,
+                    hasPersistentBase: false,
+                    accessibilityLabel: "Copy current subtitle",
+                    action: controls.copySubtitle
+                )
 
-            PlaybackChromeIconButton(
-                systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
-                isSelected: viewModel.areSubtitlesVisible,
-                accessibilityLabel: "Subtitles",
-                action: viewModel.toggleSubtitles
-            )
+                PlaybackChromeIconButton(
+                    systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
+                    kind: .transport,
+                    isSelected: viewModel.areSubtitlesVisible,
+                    hasPersistentBase: false,
+                    accessibilityLabel: "Subtitles",
+                    action: viewModel.toggleSubtitles
+                )
 
-            PlaybackChromeIconButton(
-                systemName: "list.bullet",
-                isSelected: controls.isSidePanelVisible,
-                isDisabled: !controls.canToggleSidePanel,
-                accessibilityLabel: "Results panel",
-                action: controls.toggleSidePanel
-            )
+                PlaybackChromeIconButton(
+                    systemName: "list.bullet",
+                    kind: .transport,
+                    isSelected: controls.isSidePanelVisible,
+                    isDisabled: !controls.canToggleSidePanel,
+                    hasPersistentBase: false,
+                    accessibilityLabel: "Results panel",
+                    action: controls.toggleSidePanel
+                )
+            }
+            .frame(height: 40)
+            .background(Capsule().fill(Color.white.opacity(0.10)))
 
             speedControl
 
@@ -267,6 +251,7 @@ struct PlaybackChromeView: View {
                 systemName: controls.isFullscreen
                     ? "arrow.down.right.and.arrow.up.left"
                     : "viewfinder",
+                kind: .transport,
                 isDisabled: controls.isFullscreenToggleDisabled,
                 accessibilityLabel: "Fullscreen",
                 action: controls.toggleFullscreen
@@ -281,13 +266,24 @@ struct PlaybackChromeView: View {
             Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
                 .font(.system(size: 12, weight: .semibold))
                 .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.94))
-                .frame(width: 54, height: 28)
+                .foregroundStyle(.white.opacity(0.96))
+                .frame(width: 54, height: 40)
                 .contentShape(Capsule())
         }
-        .buttonStyle(PlaybackChromeCapsuleButtonStyle(isActive: isSpeedMenuVisible))
+        .buttonStyle(PlaybackChromeCapsuleButtonStyle())
         .accessibilityLabel("Playback speed")
-        .frame(width: 54, height: 32, alignment: .center)
+        .frame(width: 54, height: 40, alignment: .center)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                        speedButtonFrame = geo.frame(in: .global)
+                    }
+                    .onChange(of: geo.frame(in: .global)) { newFrame in
+                        speedButtonFrame = newFrame
+                    }
+            }
+        )
         .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
     }
 
@@ -295,6 +291,17 @@ struct PlaybackChromeView: View {
         removeSpeedMenuDismissMonitor()
         speedMenuEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
             if isSpeedMenuVisible {
+                if let window = event.window {
+                    let windowHeight = window.contentView?.bounds.height ?? 0
+                    let clickPoint = CGPoint(
+                        x: event.locationInWindow.x,
+                        y: windowHeight - event.locationInWindow.y
+                    )
+                    if speedButtonFrame.contains(clickPoint) {
+                        // Let the button action handle toggling isSpeedMenuVisible to false
+                        return event
+                    }
+                }
                 DispatchQueue.main.async {
                     isSpeedMenuVisible = false
                 }
@@ -325,35 +332,6 @@ struct PlaybackChromeView: View {
     }
 }
 
-private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
-    let isActive: Bool
-    @State private var isHovered = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                Capsule()
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
-                    .background(.ultraThinMaterial, in: Capsule())
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.24), radius: 8, y: 3)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-            .onHover { isHovered = $0 }
-    }
-
-    private func backgroundColor(isPressed: Bool) -> Color {
-        if isPressed || isActive || isHovered {
-            return Color.white.opacity(0.20)
-        }
-        return Color.white.opacity(0.12)
-    }
-}
-
 enum PlaybackChromeMetrics {
     static let horizontalInset: CGFloat = 0
     static let bottomInset: CGFloat = 0
@@ -365,4 +343,30 @@ enum PlaybackChromeMetrics {
     static let speedMenuGap: CGFloat = 8
     static let interactiveHeight: CGFloat = height + speedMenuHeight + speedMenuGap + 24
     static let hiddenOffset: CGFloat = interactiveHeight + 28
+}
+
+private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Capsule()
+                    .fill(backgroundColor(isPressed: configuration.isPressed))
+            )
+            .scaleEffect(configuration.isPressed && isEnabled ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .onHover { isHovered = $0 }
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        guard isEnabled else {
+            return Color.white.opacity(0.04)
+        }
+        if isPressed || isHovered {
+            return Color.white.opacity(0.18)
+        }
+        return Color.white.opacity(0.10)
+    }
 }

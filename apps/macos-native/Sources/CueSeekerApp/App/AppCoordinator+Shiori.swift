@@ -202,11 +202,53 @@ extension AppCoordinator {
             return
         }
 
-        UIInvalidationProbe.mark(
-            "ACTION UI.Shiori.collapseAll",
-            details: "groups=\(groupPaths.count)"
-        )
         shiori.collapsedShioriGroupPaths = collapsedPaths
         rebuildShioriFileGroups()
+    }
+
+    var canOpenPreviousShiori: Bool {
+        guard activePlaybackSource == .shiori, let selectedShiori = shiori.selectedShiori else {
+            return false
+        }
+        if let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }), index > 0 {
+            return true
+        }
+        return false
+    }
+
+    var canOpenNextShiori: Bool {
+        guard activePlaybackSource == .shiori, let selectedShiori = shiori.selectedShiori else {
+            return false
+        }
+        if let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }), index < shiori.shioris.count - 1 {
+            return true
+        }
+        return false
+    }
+
+    func openPreviousShiori() {
+        let hasResult = canOpenPreviousShiori
+        playback.playbackViewModel?.showShioriNavigationFeedback(direction: .previous, hasResult: hasResult)
+        if hasResult {
+            guard let selectedShiori = shiori.selectedShiori,
+                  let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }),
+                  index > 0 else {
+                return
+            }
+            openShiori(shiori.shioris[index - 1])
+        }
+    }
+
+    func openNextShiori() {
+        let hasResult = canOpenNextShiori
+        playback.playbackViewModel?.showShioriNavigationFeedback(direction: .next, hasResult: hasResult)
+        if hasResult {
+            guard let selectedShiori = shiori.selectedShiori,
+                  let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }),
+                  index < shiori.shioris.count - 1 else {
+                return
+            }
+            openShiori(shiori.shioris[index + 1])
+        }
     }
 }

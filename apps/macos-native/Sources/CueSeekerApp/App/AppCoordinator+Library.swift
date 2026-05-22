@@ -51,11 +51,19 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
 @MainActor
 extension AppCoordinator {
     func openPreviousLibraryVideo() {
-        openAdjacentLibraryVideo(offset: -1)
+        let hasResult = canOpenPreviousLibraryVideo
+        playback.playbackViewModel?.showLibraryNavigationFeedback(direction: .previous, hasResult: hasResult)
+        if hasResult {
+            openAdjacentLibraryVideo(offset: -1)
+        }
     }
 
     func openNextLibraryVideo() {
-        openAdjacentLibraryVideo(offset: 1)
+        let hasResult = canOpenNextLibraryVideo
+        playback.playbackViewModel?.showLibraryNavigationFeedback(direction: .next, hasResult: hasResult)
+        if hasResult {
+            openAdjacentLibraryVideo(offset: 1)
+        }
     }
 
     func refreshLibrary() {

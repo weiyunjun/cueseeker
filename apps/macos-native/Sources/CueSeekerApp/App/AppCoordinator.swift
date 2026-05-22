@@ -242,6 +242,60 @@ final class AppCoordinator: ObservableObject {
         return search.searchResultTotalCount > 1
     }
 
+    // MARK: - Unified Navigation
+
+    var canGoPrevious: Bool {
+        switch activePlaybackSource {
+        case .search:
+            return canOpenPreviousSearchResult
+        case .library:
+            return canOpenPreviousLibraryVideo
+        case .shiori:
+            return canOpenPreviousShiori
+        case .none:
+            return false
+        }
+    }
+
+    func goPrevious() {
+        switch activePlaybackSource {
+        case .search:
+            openAdjacentSearchResult(.previous)
+        case .library:
+            openPreviousLibraryVideo()
+        case .shiori:
+            openPreviousShiori()
+        case .none:
+            break
+        }
+    }
+
+    var canGoNext: Bool {
+        switch activePlaybackSource {
+        case .search:
+            return canOpenNextSearchResult
+        case .library:
+            return canOpenNextLibraryVideo
+        case .shiori:
+            return canOpenNextShiori
+        case .none:
+            return false
+        }
+    }
+
+    func goNext() {
+        switch activePlaybackSource {
+        case .search:
+            openAdjacentSearchResult(.next)
+        case .library:
+            openNextLibraryVideo()
+        case .shiori:
+            openNextShiori()
+        case .none:
+            break
+        }
+    }
+
     var isPlaybackFullscreenToggleDisabled: Bool {
         currentPlaybackVideoPath == nil
             || workbenchLayout.isVideoSizeTransitionInProgress

@@ -33,12 +33,11 @@ struct PlaybackChromeSpeedMenu: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color(red: 0.11, green: 0.11, blue: 0.13).opacity(0.86))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .fill(PlaybackTheme.cinematicBacking)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.42), radius: 24, y: 12)
     }

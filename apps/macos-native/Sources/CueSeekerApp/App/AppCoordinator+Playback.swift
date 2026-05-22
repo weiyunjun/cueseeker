@@ -396,10 +396,10 @@ extension AppCoordinator {
 
         switch keyCode {
         case 0:
-            openAdjacentSearchResult(.previous)
+            goPrevious()
             return true
         case 2:
-            openAdjacentSearchResult(.next)
+            goNext()
             return true
         case 12:
             copyCurrentSubtitleToClipboard()

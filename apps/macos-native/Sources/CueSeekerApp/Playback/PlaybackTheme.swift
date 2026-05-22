@@ -8,7 +8,7 @@ public enum PlaybackTheme {
 
     /// Premium cinematic semi-translucent pure black surface backing.
     public static var cinematicBacking: Color {
-        Color.black.opacity(0.82)
+        Color.black.opacity(0.50)
     }
 
     /// Dark translucent capsule fill for buttons and time display labels.

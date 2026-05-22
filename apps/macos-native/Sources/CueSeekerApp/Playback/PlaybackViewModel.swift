@@ -309,6 +309,38 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    func showLibraryNavigationFeedback(
+        direction: SearchResultNavigationDirection,
+        hasResult: Bool
+    ) {
+        showFeedback(
+            PlaybackFeedback(
+                position: direction == .previous ? .leading : .trailing,
+                systemImage: direction == .previous ? "chevron.left" : "chevron.right",
+                text: hasResult
+                    ? (direction == .previous ? "Previous Library Video" : "Next Library Video")
+                    : "No Library Video"
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
+    func showShioriNavigationFeedback(
+        direction: SearchResultNavigationDirection,
+        hasResult: Bool
+    ) {
+        showFeedback(
+            PlaybackFeedback(
+                position: direction == .previous ? .leading : .trailing,
+                systemImage: direction == .previous ? "chevron.left" : "chevron.right",
+                text: hasResult
+                    ? (direction == .previous ? "Previous Bookmark" : "Next Bookmark")
+                    : "No Bookmark"
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func showFullscreenFeedback(enteringFullscreen: Bool) {
         showFeedback(
             PlaybackFeedback(

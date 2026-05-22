@@ -38,6 +38,7 @@ struct PlaybackChromeIconButton: View {
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
     var isDisabled = false
+    var hasPersistentBase = true
     let accessibilityLabel: String
     let action: () -> Void
 
@@ -46,6 +47,7 @@ struct PlaybackChromeIconButton: View {
         kind: PlaybackChromeButtonKind = .circle,
         isSelected: Bool = false,
         isDisabled: Bool = false,
+        hasPersistentBase: Bool = true,
         accessibilityLabel: String,
         action: @escaping () -> Void
     ) {
@@ -53,6 +55,7 @@ struct PlaybackChromeIconButton: View {
         self.kind = kind
         self.isSelected = isSelected
         self.isDisabled = isDisabled
+        self.hasPersistentBase = hasPersistentBase
         self.accessibilityLabel = accessibilityLabel
         self.action = action
     }
@@ -62,6 +65,7 @@ struct PlaybackChromeIconButton: View {
         kind: PlaybackChromeButtonKind = .circle,
         isSelected: Bool = false,
         isDisabled: Bool = false,
+        hasPersistentBase: Bool = true,
         accessibilityLabel: String,
         action: @escaping () -> Void
     ) {
@@ -69,6 +73,7 @@ struct PlaybackChromeIconButton: View {
         self.kind = kind
         self.isSelected = isSelected
         self.isDisabled = isDisabled
+        self.hasPersistentBase = hasPersistentBase
         self.accessibilityLabel = accessibilityLabel
         self.action = action
     }
@@ -79,7 +84,13 @@ struct PlaybackChromeIconButton: View {
                 .frame(width: kind.size, height: kind.size)
                 .contentShape(Circle())
         }
-        .buttonStyle(PlaybackChromeIconButtonStyle(kind: kind, isSelected: isSelected))
+        .buttonStyle(
+            PlaybackChromeIconButtonStyle(
+                kind: kind,
+                isSelected: isSelected,
+                hasPersistentBase: hasPersistentBase
+            )
+        )
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.34 : 1)
         .accessibilityLabel(accessibilityLabel)
@@ -141,6 +152,7 @@ struct PlaybackCopyGlyph: Shape {
 private struct PlaybackChromeIconButtonStyle: ButtonStyle {
     let kind: PlaybackChromeButtonKind
     let isSelected: Bool
+    let hasPersistentBase: Bool
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
@@ -148,68 +160,35 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(foregroundColor)
             .background(
-                Circle()
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
-                    .background(materialBackground(isPressed: configuration.isPressed))
+                ZStack {
+                    // Outer persistent base
+                    if hasPersistentBase {
+                        Circle()
+                            .fill(isSelected ? Color.white : Color.white.opacity(0.10))
+                    } else if isSelected {
+                        // Grouped buttons inside capsule: draw active white circle base
+                        Circle()
+                            .fill(Color.white)
+                    }
+
+                    // Concentric inner hover circle
+                    if isEnabled && !isSelected && (isHovered || configuration.isPressed) {
+                        Circle()
+                            .fill(Color.white.opacity(0.18))
+                            .scaleEffect(0.85)
+                    }
+                }
             )
-            .overlay(
-                Circle()
-                    .strokeBorder(borderColor, lineWidth: 0.5)
-            )
-            .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
             .scaleEffect(configuration.isPressed && isEnabled ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-            .animation(.easeOut(duration: 0.12), value: isHovered)
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
             .onHover { isHovered = $0 }
     }
 
     private var foregroundColor: Color {
         guard isEnabled else {
-            return .white.opacity(0.46)
+            return .white.opacity(0.34)
         }
         return isSelected ? Color(red: 0.10, green: 0.10, blue: 0.12) : .white.opacity(0.96)
-    }
-
-    private func backgroundColor(isPressed: Bool) -> Color {
-        guard isEnabled else {
-            return .clear
-        }
-        if isSelected {
-            return Color.white.opacity(isPressed ? 0.82 : 0.92)
-        }
-        if isHovered || isPressed {
-            return Color.white.opacity(isPressed ? 0.14 : 0.18)
-        }
-        return .clear
-    }
-
-    @ViewBuilder
-    private func materialBackground(isPressed: Bool) -> some View {
-        if isEnabled && (isHovered || isSelected || isPressed) {
-            Circle()
-                .fill(.ultraThinMaterial)
-        }
-    }
-
-    private var borderColor: Color {
-        guard isEnabled else {
-            return .clear
-        }
-        if isSelected {
-            return Color.white.opacity(0.7)
-        }
-        return isHovered ? Color.white.opacity(0.10) : .clear
-    }
-
-    private var shadowColor: Color {
-        isSelected ? Color.black.opacity(0.22) : Color.black.opacity(0)
-    }
-
-    private var shadowRadius: CGFloat {
-        isSelected ? 4 : 0
-    }
-
-    private var shadowY: CGFloat {
-        isSelected ? 1 : 0
     }
 }
