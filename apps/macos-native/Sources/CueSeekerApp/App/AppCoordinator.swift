@@ -6,15 +6,15 @@ import CueSeekerCore
 import CueSeekerPlayback
 
 
-private struct LibraryPlaybackHistorySnapshot: Sendable {
+struct LibraryPlaybackHistorySnapshot: Sendable {
     let videoPath: String
     let positionMilliseconds: Int
     let duration: Double?
 }
 
-private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
-    private let database: SubtitleDatabase?
-    private let queue = DispatchQueue(
+final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
+    let database: SubtitleDatabase?
+    let queue = DispatchQueue(
         label: "app.cueseeker.library-playback-history",
         qos: .utility
     )
@@ -35,7 +35,7 @@ private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
         }
     }
 
-    private func write(_ snapshot: LibraryPlaybackHistorySnapshot) {
+    func write(_ snapshot: LibraryPlaybackHistorySnapshot) {
         guard let database else {
             return
         }
@@ -53,7 +53,7 @@ private final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
 }
 
 
-private struct SearchPageLoad: Sendable {
+struct SearchPageLoad: Sendable {
     let page: SubtitleSearchPage
     let databaseSearchMilliseconds: Double
 }
@@ -66,17 +66,17 @@ private struct SearchPageLoad: Sendable {
 /// (`startupError` only) so views observing the stores get scoped invalidation.
 @MainActor
 final class AppCoordinator: ObservableObject {
-    private static let playbackVolumeKey = "playbackVolume"
-    private static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
-    private static let playbackSpeedKey = "playbackSpeed"
-    private static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
-    private static let assSubtitlePreparationCueLimit = 8
-    private static let searchPageSize = 100
-    private static let searchPrefetchThreshold = 10
-    private static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
-    private static let searchNavigationPanelRadius = 10_000
-    private static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
-    private static let databaseCompactionMinimumFreelistRatio = 0.25
+    static let playbackVolumeKey = "playbackVolume"
+    static let playbackLastNonzeroVolumeKey = "playbackLastNonzeroVolume"
+    static let playbackSpeedKey = "playbackSpeed"
+    static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
+    static let assSubtitlePreparationCueLimit = 8
+    static let searchPageSize = 100
+    static let searchPrefetchThreshold = 10
+    static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
+    static let searchNavigationPanelRadius = 10_000
+    static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
+    static let databaseCompactionMinimumFreelistRatio = 0.25
 
     @Published var startupError: String?
     let settings: SettingsStore
@@ -85,10 +85,10 @@ final class AppCoordinator: ObservableObject {
     let library: LibraryStore
     let search: SearchStore
     let playback: PlaybackStore
-    private var settingsCancellables: Set<AnyCancellable> = []
+    var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
-    private var subtitleDatabase: SubtitleDatabase?
+    var subtitleDatabase: SubtitleDatabase?
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
@@ -99,7 +99,7 @@ final class AppCoordinator: ObservableObject {
         "\(nextGlobalSearchCursor?.offset ?? loadedGlobalSearchResultCount)-\(search.isSearching)"
     }
 
-    private static func makeLibraryFolderGroups(
+    static func makeLibraryFolderGroups(
         from snapshot: [LibraryFolderPresentation]
     ) -> [LibraryFolderGroup] {
         snapshot.map { folder in
@@ -118,7 +118,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private static func makeSearchResultGroups(
+    static func makeSearchResultGroups(
         results searchResults: [SubtitleSearchResult],
         fileSummaries searchFileSummaries: [SubtitleSearchFileSummary],
         expandedRowsByPath: [String: [SubtitleSearchResult]],
@@ -156,7 +156,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private static func makeShioriFileGroups(
+    static func makeShioriFileGroups(
         from shioris: [Shiori],
         collapsedGroupPaths: Set<String>
     ) -> [ShioriFileGroup] {
@@ -319,30 +319,30 @@ final class AppCoordinator: ObservableObject {
             && library.libraryStatus != .loading
     }
 
-    private let userDefaults: UserDefaults
-    private var player: PlaybackPlayer?
-    private let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
-    private var startupDatabaseTask: Task<Void, Never>?
-    private var indexingTask: Task<Void, Never>?
-    private var libraryTask: Task<Void, Never>?
-    private var shiorisTask: Task<Void, Never>?
-    private var libraryPlaybackHistoryTask: Task<Void, Never>?
-    private var searchTask: Task<Void, Never>?
-    private var searchExactCompletionTask: Task<Void, Never>?
-    private var searchNavigationTask: Task<Void, Never>?
-    private var currentSubtitleEntriesTask: Task<Void, Never>?
-    private var databaseStorageStatsTask: Task<Void, Never>?
-    private var databaseCompactionTask: Task<Void, Never>?
-    private var videoSizeTransitionTask: Task<Void, Never>?
-    private var windowFrameBeforeUserZoom: NSRect?
-    private var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
-    private var activeSearchPerformanceRun: SearchPerformanceRun?
-    private var pendingSearchVisibleEntryIDs: Set<Int64> = []
-    private var activePlaybackSource: ActivePlaybackSource = .none
-    private var playbackOriginatingPanelMode: WorkbenchPanelMode?
-    private var loadedGlobalSearchResultCount = 0
-    private var lastSearchCountProgressUpdate: UInt64 = 0
-    private var nextGlobalSearchCursor: SubtitleSearchCursor?
+    let userDefaults: UserDefaults
+    var player: PlaybackPlayer?
+    let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
+    var startupDatabaseTask: Task<Void, Never>?
+    var indexingTask: Task<Void, Never>?
+    var libraryTask: Task<Void, Never>?
+    var shiorisTask: Task<Void, Never>?
+    var libraryPlaybackHistoryTask: Task<Void, Never>?
+    var searchTask: Task<Void, Never>?
+    var searchExactCompletionTask: Task<Void, Never>?
+    var searchNavigationTask: Task<Void, Never>?
+    var currentSubtitleEntriesTask: Task<Void, Never>?
+    var databaseStorageStatsTask: Task<Void, Never>?
+    var databaseCompactionTask: Task<Void, Never>?
+    var videoSizeTransitionTask: Task<Void, Never>?
+    var windowFrameBeforeUserZoom: NSRect?
+    var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
+    var activeSearchPerformanceRun: SearchPerformanceRun?
+    var pendingSearchVisibleEntryIDs: Set<Int64> = []
+    var activePlaybackSource: ActivePlaybackSource = .none
+    var playbackOriginatingPanelMode: WorkbenchPanelMode?
+    var loadedGlobalSearchResultCount = 0
+    var lastSearchCountProgressUpdate: UInt64 = 0
+    var nextGlobalSearchCursor: SubtitleSearchCursor?
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -442,7 +442,7 @@ final class AppCoordinator: ObservableObject {
         setupSettingsObservers()
     }
 
-    private func setupSettingsObservers() {
+    func setupSettingsObservers() {
         settings.$playbackDecodeMode
             .dropFirst()
             .sink { [weak self] mode in
@@ -624,11 +624,11 @@ final class AppCoordinator: ObservableObject {
         window?.miniaturize(nil)
     }
 
-    private func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {
+    func beginVideoSizeTransition(durationNanoseconds: UInt64) -> Bool {
         beginVideoSizeTransition(duration: TimeInterval(durationNanoseconds) / 1_000_000_000)
     }
 
-    private func beginVideoSizeTransition(duration: TimeInterval) -> Bool {
+    func beginVideoSizeTransition(duration: TimeInterval) -> Bool {
         guard beginVideoSizeTransition() else {
             return false
         }
@@ -637,7 +637,7 @@ final class AppCoordinator: ObservableObject {
         return true
     }
 
-    private func beginVideoSizeTransition() -> Bool {
+    func beginVideoSizeTransition() -> Bool {
         guard workbenchLayout.beginVideoSizeTransition() else {
             return false
         }
@@ -646,7 +646,7 @@ final class AppCoordinator: ObservableObject {
         return true
     }
 
-    private func completeVideoSizeTransition(after duration: TimeInterval?) {
+    func completeVideoSizeTransition(after duration: TimeInterval?) {
         let duration = max(0, duration ?? 0)
         guard duration > 0 else {
             endVideoSizeTransition()
@@ -665,12 +665,12 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func endVideoSizeTransition() {
+    func endVideoSizeTransition() {
         workbenchLayout.endVideoSizeTransition()
         videoSizeTransitionTask = nil
     }
 
-    private static func animationResizeDuration(
+    static func animationResizeDuration(
         for window: NSWindow,
         targetFrame: NSRect
     ) -> TimeInterval {
@@ -1164,7 +1164,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func ensurePlayerInitialized() {
+    func ensurePlayerInitialized() {
         guard player == nil else { return }
         let player = PlaybackPlayer()
         player.decodeMode = settings.playbackDecodeMode
@@ -1190,7 +1190,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
+    func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
         let groups = Self.makeLibraryFolderGroups(from: snapshot)
         library.libraryFolderGroups = groups
         library.libraryVideos = groups.flatMap { group in
@@ -1203,7 +1203,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func removeLibraryPresentation(under folder: URL) {
+    func removeLibraryPresentation(under folder: URL) {
         let groups = library.libraryFolderGroups.filter { group in
             !group.videos.contains { Self.path($0.video.videoPath, isUnder: folder) }
         }
@@ -1218,12 +1218,12 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func applyShioris(_ nextShioris: [Shiori]) {
+    func applyShioris(_ nextShioris: [Shiori]) {
         shiori.shioris = nextShioris.sorted(by: Self.shioriSort)
         rebuildShioriFileGroups()
     }
 
-    private func rebuildShioriFileGroups() {
+    func rebuildShioriFileGroups() {
         shiori.shioriFileGroups = Self.makeShioriFileGroups(
             from: shiori.shioris,
             collapsedGroupPaths: shiori.collapsedShioriGroupPaths
@@ -1234,7 +1234,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func startSearch(
+    func startSearch(
         query: String,
         cursor: SubtitleSearchCursor,
         appending: Bool,
@@ -1565,7 +1565,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func applySearchCountProgress(
+    func applySearchCountProgress(
         _ progress: SubtitleSearchProgressSnapshot,
         query trimmedQuery: String,
         folderPaths: [String],
@@ -1619,7 +1619,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func startSearchExactCompletion(
+    func startSearchExactCompletion(
         query trimmedQuery: String,
         folders: [URL],
         run searchPerformanceRun: SearchPerformanceRun?
@@ -1818,7 +1818,7 @@ final class AppCoordinator: ObservableObject {
         clearSearchPerformanceRunIfActive(activeSearchPerformanceRun)
     }
 
-    private func prepareSearchPerformanceVisibility(
+    func prepareSearchPerformanceVisibility(
         for run: SearchPerformanceRun?,
         resultsAwaitingFirstAppearance results: [SubtitleSearchResult]
     ) {
@@ -1829,7 +1829,7 @@ final class AppCoordinator: ObservableObject {
         pendingSearchVisibleEntryIDs = Set(results.map(\.entryID))
     }
 
-    private func clearSearchPerformanceRunIfActive(_ run: SearchPerformanceRun?) {
+    func clearSearchPerformanceRunIfActive(_ run: SearchPerformanceRun?) {
         guard let run, activeSearchPerformanceRun?.id == run.id else {
             return
         }
@@ -1840,7 +1840,7 @@ final class AppCoordinator: ObservableObject {
 
     // Capture the return target only on the transition into the video page so a
     // mid-session source switch keeps the original originating mode.
-    private func rememberPlaybackOriginatingPanelModeIfEntering() {
+    func rememberPlaybackOriginatingPanelModeIfEntering() {
         guard !playback.isPlaybackSurfaceExpanded else {
             return
         }
@@ -2253,7 +2253,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func confirmShioriRemoval() -> Bool {
+    func confirmShioriRemoval() -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Remove Shiori?"
@@ -2397,7 +2397,7 @@ final class AppCoordinator: ObservableObject {
         rebuildShioriFileGroups()
     }
 
-    private func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) {
+    func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) {
         guard case .library(let videoPath) = activePlaybackSource,
               let playbackViewModel = playback.playbackViewModel
         else {
@@ -2424,7 +2424,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private static func isEditableTextInputFocused() -> Bool {
+    static func isEditableTextInputFocused() -> Bool {
         guard let firstResponder = NSApplication.shared.keyWindow?.firstResponder else {
             return false
         }
@@ -2444,7 +2444,7 @@ final class AppCoordinator: ObservableObject {
         return false
     }
 
-    private func refreshCurrentSearch(clearExistingResults: Bool = false) {
+    func refreshCurrentSearch(clearExistingResults: Bool = false) {
         guard !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
@@ -2467,7 +2467,7 @@ final class AppCoordinator: ObservableObject {
         updateSearchQuery(search.searchQuery)
     }
 
-    private func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {
+    func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {
         searchNavigationTask?.cancel()
 
         let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2533,7 +2533,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func currentSearchNavigationAnchor() -> SearchNavigationAnchor {
+    func currentSearchNavigationAnchor() -> SearchNavigationAnchor {
         let milliseconds = max(
             0,
             Int(((playback.playbackViewModel?.currentTime ?? 0) * 1_000).rounded(.down))
@@ -2547,7 +2547,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
+    func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
         search.searchNavigationSnapshot = snapshot
         let paths = Set(snapshot.neighborhood.map(\.subtitlePath))
         let summaries = search.searchFileSummaries.filter { paths.contains($0.subtitlePath) }
@@ -2560,7 +2560,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
+    func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
         guard let database = subtitleDatabase else {
             return 0
         }
@@ -2574,7 +2574,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func openAdjacentLibraryVideo(offset: Int) {
+    func openAdjacentLibraryVideo(offset: Int) {
         guard let target = libraryAdjacentVideo(offset: offset) else {
             return
         }
@@ -2582,7 +2582,7 @@ final class AppCoordinator: ObservableObject {
         openLibraryVideo(target)
     }
 
-    private func libraryAdjacentVideo(offset: Int) -> LibraryVideo? {
+    func libraryAdjacentVideo(offset: Int) -> LibraryVideo? {
         guard isLibraryPlaybackActive,
               let selectedLibraryVideo = library.selectedLibraryVideo,
               let currentIndex = library.libraryVideos.firstIndex(where: { $0.videoPath == selectedLibraryVideo.videoPath })
@@ -2598,7 +2598,7 @@ final class AppCoordinator: ObservableObject {
         return library.libraryVideos[targetIndex]
     }
 
-    private func startLibraryPlaybackHistoryTracking(videoPath: String) {
+    func startLibraryPlaybackHistoryTracking(videoPath: String) {
         activePlaybackSource = .library(videoPath: videoPath)
         libraryPlaybackHistoryTask?.cancel()
         libraryPlaybackHistoryTask = Task { [weak self] in
@@ -2613,12 +2613,12 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func stopLibraryPlaybackHistoryTracking() {
+    func stopLibraryPlaybackHistoryTracking() {
         libraryPlaybackHistoryTask?.cancel()
         libraryPlaybackHistoryTask = nil
     }
 
-    private func clearSearchAndPlaybackState(under folder: URL) {
+    func clearSearchAndPlaybackState(under folder: URL) {
         search.searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         search.searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         search.searchResultTotalCount = search.searchFileSummaries.reduce(0) { $0 + $1.matchCount }
@@ -2658,14 +2658,14 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private static func path(_ path: String, isUnder folder: URL) -> Bool {
+    static func path(_ path: String, isUnder folder: URL) -> Bool {
         let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
         return folderPathPrefixes(for: folder).contains { prefix in
             standardizedPath.hasPrefix(prefix)
         }
     }
 
-    private static func folderPathPrefixes(for folder: URL) -> [String] {
+    static func folderPathPrefixes(for folder: URL) -> [String] {
         var path = normalizedFolderPath(folder.standardizedFileURL.path)
         if !path.hasSuffix("/") {
             path.append("/")
@@ -2681,7 +2681,7 @@ final class AppCoordinator: ObservableObject {
         return prefixes.sorted()
     }
 
-    private static func normalizedFolderPath(_ path: String) -> String {
+    static func normalizedFolderPath(_ path: String) -> String {
         var path = path
         while path.count > 1 && path.hasSuffix("/") {
             path.removeLast()
@@ -2689,7 +2689,7 @@ final class AppCoordinator: ObservableObject {
         return path
     }
 
-    private static func searchResultGroupPathSort(_ lhs: String, _ rhs: String) -> Bool {
+    static func searchResultGroupPathSort(_ lhs: String, _ rhs: String) -> Bool {
         let lhsDisplayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: lhs)
         let rhsDisplayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: rhs)
         let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
@@ -2700,7 +2700,7 @@ final class AppCoordinator: ObservableObject {
         return lhs.localizedStandardCompare(rhs) == .orderedAscending
     }
 
-    private static func searchResultSort(_ lhs: SubtitleSearchResult, _ rhs: SubtitleSearchResult) -> Bool {
+    static func searchResultSort(_ lhs: SubtitleSearchResult, _ rhs: SubtitleSearchResult) -> Bool {
         if lhs.startMilliseconds != rhs.startMilliseconds {
             return lhs.startMilliseconds < rhs.startMilliseconds
         }
@@ -2712,7 +2712,7 @@ final class AppCoordinator: ObservableObject {
         return lhs.entryID < rhs.entryID
     }
 
-    private static func shioriSort(_ lhs: Shiori, _ rhs: Shiori) -> Bool {
+    static func shioriSort(_ lhs: Shiori, _ rhs: Shiori) -> Bool {
         if lhs.subtitlePath != rhs.subtitlePath {
             return searchResultGroupPathSort(lhs.subtitlePath, rhs.subtitlePath)
         }
@@ -2728,7 +2728,7 @@ final class AppCoordinator: ObservableObject {
         return lhs.id < rhs.id
     }
 
-    private func revealInitialSearchResultGroupPage(for subtitlePath: String) {
+    func revealInitialSearchResultGroupPage(for subtitlePath: String) {
         let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
         if !currentRows.isEmpty {
             search.expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
@@ -2738,7 +2738,7 @@ final class AppCoordinator: ObservableObject {
         loadSearchResultGroupPage(for: subtitlePath, offset: 0)
     }
 
-    private func loadMoreSearchResultGroupRowsIfNeeded(currentResult result: SubtitleSearchResult) {
+    func loadMoreSearchResultGroupRowsIfNeeded(currentResult result: SubtitleSearchResult) {
         let subtitlePath = result.subtitlePath
         guard searchResultGroupTasks[subtitlePath] == nil else {
             return
@@ -2760,7 +2760,7 @@ final class AppCoordinator: ObservableObject {
         loadSearchResultGroupPage(for: subtitlePath, offset: currentRows.count)
     }
 
-    private func loadSearchResultGroupPage(for subtitlePath: String, offset: Int) {
+    func loadSearchResultGroupPage(for subtitlePath: String, offset: Int) {
         guard searchResultGroupTasks[subtitlePath] == nil else {
             return
         }
@@ -2914,13 +2914,13 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func loadedRowsForSearchResultGroup(_ subtitlePath: String) -> [SubtitleSearchResult] {
+    func loadedRowsForSearchResultGroup(_ subtitlePath: String) -> [SubtitleSearchResult] {
         let rows = search.expandedSearchResultGroupRowsByPath[subtitlePath]
             ?? search.searchResults.filter { $0.subtitlePath == subtitlePath }
         return rows.sorted(by: Self.searchResultSort)
     }
 
-    private func searchResultGroupHasLoadedRows(_ subtitlePath: String) -> Bool {
+    func searchResultGroupHasLoadedRows(_ subtitlePath: String) -> Bool {
         if search.expandedSearchResultGroupRowsByPath[subtitlePath]?.isEmpty == false {
             return true
         }
@@ -2928,7 +2928,7 @@ final class AppCoordinator: ObservableObject {
         return search.searchResults.contains { $0.subtitlePath == subtitlePath }
     }
 
-    private func revealInitialGlobalSearchResultPage() {
+    func revealInitialGlobalSearchResultPage() {
         cancelSearchResultGroupTasks()
         search.expandedSearchResultGroupRowsByPath = [:]
         search.searchResults = Array(search.searchResults.prefix(Self.searchPageSize))
@@ -2942,12 +2942,12 @@ final class AppCoordinator: ObservableObject {
         rebuildSearchResultGroups()
     }
 
-    private func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
+    func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
         let existingEntryIDs = Set(search.searchResults.map(\.entryID))
         search.searchResults.append(contentsOf: results.filter { !existingEntryIDs.contains($0.entryID) })
     }
 
-    private func resetSearchResultLoadingState() {
+    func resetSearchResultLoadingState() {
         cancelSearchResultGroupTasks()
         searchExactCompletionTask?.cancel()
         searchExactCompletionTask = nil
@@ -2970,7 +2970,7 @@ final class AppCoordinator: ObservableObject {
         rebuildSearchResultGroups()
     }
 
-    private func rebuildSearchResultGroups() {
+    func rebuildSearchResultGroups() {
         search.searchResultGroups = Self.makeSearchResultGroups(
             results: search.searchResults,
             fileSummaries: search.searchFileSummaries,
@@ -2987,28 +2987,28 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func revealFile(atPath path: String) {
+    func revealFile(atPath path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([
             URL(fileURLWithPath: path)
         ])
     }
 
-    private func applyCurrentSubtitleEntries(_ entries: [SubtitleDatabaseEntry]) {
+    func applyCurrentSubtitleEntries(_ entries: [SubtitleDatabaseEntry]) {
         playback.currentSubtitleEntries = entries
         playback.currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entries: entries)
     }
 
-    private func cancelSearchResultGroupTasks() {
+    func cancelSearchResultGroupTasks() {
         searchResultGroupTasks.values.forEach { $0.cancel() }
         searchResultGroupTasks = [:]
     }
 
-    private func cancelStartupDatabaseTask() {
+    func cancelStartupDatabaseTask() {
         startupDatabaseTask?.cancel()
         startupDatabaseTask = nil
     }
 
-    private func cancelDatabaseReadTasksBeforeIndexing() {
+    func cancelDatabaseReadTasksBeforeIndexing() {
         cancelStartupDatabaseTask()
         libraryTask?.cancel()
         libraryTask = nil
@@ -3032,7 +3032,7 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func aggregate(
+    func aggregate(
         _ result: SubtitleIndexingResult,
         into aggregateResult: inout SubtitleIndexingResult
     ) {
@@ -3045,7 +3045,7 @@ final class AppCoordinator: ObservableObject {
         aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
     }
 
-    private func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
+    func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
         playbackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
             format: result.subtitleFormat,
@@ -3055,7 +3055,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func playbackSubtitleCues(for shiori: Shiori) -> [PlaybackSubtitleCue] {
+    func playbackSubtitleCues(for shiori: Shiori) -> [PlaybackSubtitleCue] {
         playbackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
             format: shiori.subtitleFormat,
@@ -3065,7 +3065,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func playbackSubtitleCues(
+    func playbackSubtitleCues(
         forSubtitleFile subtitleFile: URL,
         format: SubtitleFormat,
         fallbackStartMilliseconds: Int,
@@ -3112,7 +3112,7 @@ final class AppCoordinator: ObservableObject {
         ]
     }
 
-    private func playbackSubtitleSource(for result: SubtitleSearchResult) -> PlaybackSubtitleSource? {
+    func playbackSubtitleSource(for result: SubtitleSearchResult) -> PlaybackSubtitleSource? {
         guard result.subtitleFormat == .ass else {
             return nil
         }
@@ -3129,7 +3129,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func playbackSubtitleSource(for shiori: Shiori) -> PlaybackSubtitleSource? {
+    func playbackSubtitleSource(for shiori: Shiori) -> PlaybackSubtitleSource? {
         guard shiori.subtitleFormat == .ass else {
             return nil
         }
@@ -3150,7 +3150,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func playbackSubtitleSource(
+    func playbackSubtitleSource(
         for video: LibraryVideo,
         startingAtMilliseconds startMilliseconds: Int
     ) -> PlaybackSubtitleSource? {
@@ -3174,7 +3174,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {
+    func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {
         playbackSubtitleTimeWindow(
             forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
             startingAtMilliseconds: result.startMilliseconds,
@@ -3182,7 +3182,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private func playbackSubtitleTimeWindow(
+    func playbackSubtitleTimeWindow(
         forSubtitleFile subtitleFile: URL,
         startingAtMilliseconds startMilliseconds: Int,
         fallbackEndMilliseconds: Int
@@ -3226,14 +3226,14 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private static func loadPlaybackVolume(from userDefaults: UserDefaults) -> Double {
+    static func loadPlaybackVolume(from userDefaults: UserDefaults) -> Double {
         clampedPlaybackVolume(
             userDefaults.double(forKey: playbackVolumeKey),
             fallback: 100
         )
     }
 
-    private static func loadPlaybackLastNonzeroVolume(from userDefaults: UserDefaults) -> Double {
+    static func loadPlaybackLastNonzeroVolume(from userDefaults: UserDefaults) -> Double {
         let volume = clampedPlaybackVolume(
             userDefaults.double(forKey: playbackLastNonzeroVolumeKey),
             fallback: 100
@@ -3242,7 +3242,7 @@ final class AppCoordinator: ObservableObject {
         return volume > 0 ? volume : 100
     }
 
-    private static func loadPlaybackSpeed(from userDefaults: UserDefaults) -> Double {
+    static func loadPlaybackSpeed(from userDefaults: UserDefaults) -> Double {
         let speed = userDefaults.double(forKey: playbackSpeedKey)
         guard speed.isFinite else {
             return 1.0
@@ -3254,7 +3254,7 @@ final class AppCoordinator: ObservableObject {
         )
     }
 
-    private static func clampedPlaybackVolume(_ volume: Double, fallback: Double) -> Double {
+    static func clampedPlaybackVolume(_ volume: Double, fallback: Double) -> Double {
         guard volume.isFinite else {
             return fallback
         }
@@ -3262,7 +3262,7 @@ final class AppCoordinator: ObservableObject {
         return min(max(volume, 0), 100)
     }
 
-    private static func defaultDatabaseURL() -> URL {
+    static func defaultDatabaseURL() -> URL {
         let baseDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -3273,27 +3273,27 @@ final class AppCoordinator: ObservableObject {
             .appendingPathComponent("CueSeeker.sqlite")
     }
 
-    private static func prepareDatabaseDirectory(for databaseURL: URL) throws {
+    static func prepareDatabaseDirectory(for databaseURL: URL) throws {
         try FileManager.default.createDirectory(
             at: databaseURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
     }
 
-    private static func availableDiskSpaceBytes(for databaseURL: URL) -> Int64? {
+    static func availableDiskSpaceBytes(for databaseURL: URL) -> Int64? {
         let directory = databaseURL.deletingLastPathComponent()
         let attributes = try? FileManager.default.attributesOfFileSystem(forPath: directory.path)
         return (attributes?[.systemFreeSize] as? NSNumber)?.int64Value
     }
 
-    private static func formattedBytes(_ bytes: Int64) -> String {
+    static func formattedBytes(_ bytes: Int64) -> String {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
     }
 
-    private static func errorMessage(for error: Error) -> String {
+    static func errorMessage(for error: Error) -> String {
         String(describing: error)
     }
 }
