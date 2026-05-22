@@ -16,6 +16,7 @@ private struct ContentRootView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var playback: PlaybackStore
 
     private let windowBackground = Color(
         red: 0.955,
