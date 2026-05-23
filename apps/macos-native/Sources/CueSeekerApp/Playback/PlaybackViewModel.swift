@@ -17,6 +17,7 @@ enum ShioriFeedbackState {
 enum PlaybackFeedbackIcon: Equatable {
     case system(String)
     case copy
+    case sidebar(isOpen: Bool)
 }
 
 struct PlaybackFeedback: Identifiable, Equatable {
@@ -500,7 +501,7 @@ public final class PlaybackViewModel: ObservableObject {
         showFeedback(
             PlaybackFeedback(
                 position: .center,
-                systemImage: isVisible ? "list.bullet.rectangle.fill" : "list.bullet.rectangle",
+                icon: .sidebar(isOpen: isVisible),
                 text: isVisible ? "Sidebar On" : "Sidebar Off"
             ),
             durationMilliseconds: 1_000
@@ -531,7 +532,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: systemImage,
-                text: volume > 0 ? "Volume \(Int(volume.rounded()))%" : "Muted"
+                text: volume > 0 ? "\(Int(volume.rounded()))%" : "Muted"
             )
         )
     }

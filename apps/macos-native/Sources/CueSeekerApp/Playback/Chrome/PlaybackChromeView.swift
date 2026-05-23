@@ -264,7 +264,7 @@ struct PlaybackChromeView: View {
                 )
 
                 PlaybackChromeIconButton(
-                    systemName: controls.isSidePanelVisible ? "list.bullet.rectangle.fill" : "list.bullet.rectangle",
+                    icon: .sidebar(isOpen: controls.isSidePanelVisible),
                     kind: .transport,
                     isSelected: false,
                     isDisabled: !controls.canToggleSidePanel,

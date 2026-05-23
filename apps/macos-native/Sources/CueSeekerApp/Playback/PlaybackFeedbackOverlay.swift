@@ -23,8 +23,8 @@ struct PlaybackFeedbackOverlay: View {
 
     private func centerFeedback(_ feedback: PlaybackFeedback) -> some View {
         feedbackContent(feedback, isSideFeedback: false, isTrailing: false)
-            .frame(height: 80)
-            .background(feedbackBackground(cornerRadius: 40))
+            .frame(height: 60)
+            .background(feedbackBackground(cornerRadius: 30))
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
     }
 
@@ -38,8 +38,8 @@ struct PlaybackFeedbackOverlay: View {
             }
 
             feedbackContent(feedback, isSideFeedback: true, isTrailing: isTrailing)
-            .frame(height: 80)
-            .background(feedbackBackground(cornerRadius: 40))
+            .frame(height: 60)
+            .background(feedbackBackground(cornerRadius: 30))
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
             if !isTrailing {
@@ -77,9 +77,12 @@ struct PlaybackFeedbackOverlay: View {
                     .foregroundColor(.white)
                     .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
             case .copy:
-                PlaybackCopyGlyph()
-                    .stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-                    .frame(width: size * 0.57, height: size * 0.57)
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: size, weight: .semibold))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
+            case .sidebar(let isOpen):
+                PlaybackSidebarIconView(isOpen: isOpen, size: size)
                     .foregroundColor(.white)
                     .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
             }
@@ -99,12 +102,12 @@ struct PlaybackFeedbackOverlay: View {
 
     private func feedbackBackground(cornerRadius: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius)
-            .fill(Color(red: 0.11, green: 0.11, blue: 0.13).opacity(0.56))
+            .fill(PlaybackTheme.cinematicBacking)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+                    .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
             )
-            .shadow(color: .black.opacity(0.46), radius: 24, y: 14)
+            .shadow(color: .black.opacity(0.42), radius: 24, y: 12)
     }
 }

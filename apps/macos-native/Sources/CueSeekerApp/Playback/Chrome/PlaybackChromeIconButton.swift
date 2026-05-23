@@ -31,6 +31,7 @@ enum PlaybackChromeButtonKind {
 enum PlaybackChromeIcon {
     case system(String)
     case copy
+    case sidebar(isOpen: Bool)
 }
 
 struct PlaybackChromeIconButton: View {
@@ -118,10 +119,45 @@ private struct PlaybackChromeIconView: View {
             Image(systemName: systemName)
                 .font(.system(size: size, weight: .semibold))
         case .copy:
-            PlaybackCopyGlyph()
-                .stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-                .frame(width: 17, height: 17)
+            Image(systemName: "doc.on.doc")
+                .font(.system(size: size, weight: .semibold))
+        case .sidebar(let isOpen):
+            PlaybackSidebarIconView(isOpen: isOpen, size: size)
         }
+    }
+}
+
+struct PlaybackSidebarIconView: View {
+    let isOpen: Bool
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            if isOpen {
+                RoundedRectangle(cornerRadius: 3.2)
+                    .mask(
+                        GeometryReader { geo in
+                            Rectangle()
+                                .frame(width: geo.size.width * 0.68, height: geo.size.height)
+                        }
+                    )
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 3.2)
+                        .stroke(lineWidth: 1.6)
+                    
+                    GeometryReader { geo in
+                        Path { path in
+                            let x = geo.size.width * 0.68
+                            path.move(to: CGPoint(x: x, y: 1.6))
+                            path.addLine(to: CGPoint(x: x, y: geo.size.height - 1.6))
+                        }
+                        .stroke(lineWidth: 1.6)
+                    }
+                }
+            }
+        }
+        .frame(width: size, height: size)
     }
 }
 
