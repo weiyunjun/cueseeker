@@ -11,7 +11,9 @@ Specifically, we want to:
 1. **Unify HUD size & visual style**: Transform all feedback overlays into self-sizing, **60px height capsule-shaped overlays** with horizontal layouts (icon on left, text on right).
 2. **Apply consistent icons for toggleable states**: Represent ON/OFF states **solely through icon changes** (filled `.fill` / solid vs outline variants) for subtitles and side panel buttons on the bottom bar, and match them exactly in the feedback animations. Remove the heavy high-contrast white circular background in selected state.
    - For subtitles, use `"captions.bubble.fill"` (ON) and `"captions.bubble"` (OFF).
-   - For side panel, use a beautiful custom-designed **`PlaybackSidebarIconView`** with outline state (OFF) and left-chamber-filled-solid state (ON).
+   - For side panel, use a beautiful custom-designed **`PlaybackSidebarIconView`**:
+     - Closed state (OFF): Outlined rounded rectangle (`lineWidth: 2.0`) with a vertical divider line (`lineWidth: 2.0`) spanning from top-to-bottom (`y: 0` to `y: height`) at exactly `68%` of the width.
+     - Open state (ON): Keep the outlined rounded rectangle and divider, and **fill the right-side chamber (the sidebar portion, trailing 32%) solid white**.
 3. **Align overlay background style**: Set the feedback HUD background fill, stroke border, and shadow to match the speed menu popover's standard overlay backing exactly:
    - Fill: **`PlaybackTheme.cinematicBacking`** (`Color.black.opacity(0.55)`).
    - Stroke: **`PlaybackTheme.textTertiary.opacity(0.3)`** (width `0.5`).
@@ -23,7 +25,8 @@ Specifically, we want to:
    - Volume Icon: HUD uses `"speaker.wave.3.fill"` for volume increase and `"speaker.wave.1.fill"` for volume decrease. The default bottom-bar volume button icon is simplified to `"speaker.wave.2.fill"`, only switching to `"speaker.slash.fill"` when muted.
    - Speed: HUD uses `"speedometer"` to represent speed changes clearly.
 6. **Refine copy button**: Replace the custom `PlaybackCopyGlyph` with the standard SF Symbol **`"doc.on.doc"`** for both bottom controls and feedback HUD to ensure perfect proportions and weight alignment.
-7. **Preserve existing interaction rules**: Absolutely preserve continuous fast forward/rewind numerical accumulation, debouncing, and fade timing logic.
+7. **Shiori Removal flow simplification**: Enable direct Shiori bookmark removal **without any NSAlert secondary confirmation dialog**, applying the deletion instantly in the database and rendering the `"Shiori Removed"` HUD feedback animation.
+8. **Preserve existing interaction rules**: Absolutely preserve continuous fast forward/rewind numerical accumulation, debouncing, and fade timing logic.
 
 ---
 
@@ -65,7 +68,11 @@ Specifically, we want to:
 - Update `PlaybackChromeIcon` enum to add `.sidebar(isOpen: Bool)`.
 - Map `.copy` to system image `"doc.on.doc"`.
 - Map `.sidebar(let isOpen)` to render `PlaybackSidebarIconView(isOpen: isOpen, size: size)`.
-- Define `PlaybackSidebarIconView` helper component.
+- Define `PlaybackSidebarIconView` helper component with `lineWidth: 2.0` and trailing 32% fill when `isOpen == true`.
+
+#### [MODIFY] [AppCoordinator+Shiori.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator+Shiori.swift)
+- Remove `confirmShioriRemoval()` modal confirm check inside `toggleCurrentShiori()`, executing removal instantly and triggering the `"Shiori Removed"` HUD feedback.
+- Remove `confirmShioriRemoval()` helper method.
 
 #### [MODIFY] [AppCoordinator+Playback.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator+Playback.swift)
 - Call `playbackViewModel.showSidebarFeedback(isVisible: ...)` inside `togglePlaybackSidePanelFromUser()`.
