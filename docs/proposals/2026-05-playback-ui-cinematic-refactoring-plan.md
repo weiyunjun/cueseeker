@@ -15,66 +15,67 @@ This document serves as the authoritative, unified roadmap for the entire playba
 
 ### 🟩 Phase 1: Player Bottom Controls Bar (YouTube-Style)
 
-#### Phase 1.1: Shared Theme System (Completed & Verified)
+#### Phase 1.1: Shared Theme System & Adaptive Contrast (Iterated & Refined)
 - **Goals**: Establish a dedicated cinema-like high-contrast dark environment, discarding system light/dark variations.
-- **Key Deliverables**:
-  - `PlaybackTheme.cinematicBacking`: Premium semi-translucent pure black surface backing (`Color.black.opacity(0.50)`).
-  - `PlaybackTheme.capsuleFill` & `capsuleHoverFill`: Standardised translucent white fills (`0.08` and `0.16` opacity).
-  - `PlaybackCinematicBacking`: Unified concentric double-layer backing component supporting circles and capsules with a persistent base (`Color.white.opacity(0.10)`) and proportional inner highlight scale dynamics (`Color.white.opacity(0.18)` scaled to `0.85`-`0.96` horizontally) to globally unify hover/pressed visual states.
-  - High-contrast typography colors (`textPrimary` at `0.94`, `textSecondary` at `0.62`, `textTertiary` at `0.34`).
-  - Progress bar colors (`progressRed` as signature YouTube red, `scrubberTrackBackground` at `0.16`).
+- **Adaptive Contrast Principle (Translucent Black Fills)**:
+  - Transition all base background containers (capsules and circles) from translucent *white* to translucent *black*.
+  - **On White Backgrounds**: Black translucent capsules mix to render sleek, distinct grey boundaries (e.g. `opacity(0.30)` results in `#B2B2B2` grey), protecting visibility.
+  - **On Black Backgrounds**: Translucent black bases blend completely into the dark video background (`#000000`), letting high-contrast white text and icons float framelessly.
+- **Key Deliverables (10 Consolidated Design Tokens)**:
+  - `PlaybackTheme.cinematicBacking`: Premium semi-translucent pure black surface backing (`Color.black.opacity(0.55)`) for settings card popovers.
+  - `PlaybackTheme.capsuleFill`: Standard base background fill (`Color.black.opacity(0.30)`) for standalone buttons, grouped capsules, time display capsule, and speed button.
+  - `PlaybackTheme.capsuleHoverFill`: Inner concentric hover highlight overlay (`Color.white.opacity(0.16)`).
+  - `PlaybackTheme.scrubberTrackBackground`: Background track of the timeline scrubber (`Color.black.opacity(0.60)`). Darker than other bases to ensure visibility for the thin `3px`/`6px` line.
+  - `PlaybackTheme.scrubberHoverTrack`: Hover highlight track portion (`Color.white.opacity(0.35)`).
+  - `PlaybackTheme.menuItemHighlight`: Unified background highlight (`Color.white.opacity(0.12)`) for selected, hovered, and pressed speed menu items.
+  - `PlaybackTheme.progressRed`: YouTube signature red for active progress track and scrubber thumb (`Color.red`).
+  - `PlaybackTheme.textPrimary`: High-contrast primary texts, white icons (`Color.white.opacity(0.94)`).
+  - `PlaybackTheme.textSecondary`: Medium-contrast secondary text, volume percentages (`Color.white.opacity(0.62)`).
+  - `PlaybackTheme.textTertiary`: Low-contrast disabled states, separators, and popover boundaries (`Color.white.opacity(0.34)`).
+- **PlaybackCinematicBacking**: Concentric double-layer backing component supporting circles and capsules with a persistent translucent black base (`PlaybackTheme.capsuleFill`) and a concentric inner highlight overlay (`PlaybackTheme.capsuleHoverFill` scaled to `0.85`–`0.96` horizontally) to globally unify hover/pressed visual states.
 
-#### Phase 1.2: Bottom Controls Refinement & Unified Navigation (Completed & Verified - Commit 772a9c5)
+#### Phase 1.2: Bottom Controls Refinement & Unified Navigation (Iterated & Refined - Commit 772a9c5)
 - **Goals**: Achieve absolute horizontal symmetry, unify button sizes to `40x40`, refine hover feedback, bind unified navigation shortcuts, and resolve popover event dismiss collisions.
 - **Visual Specifications**:
   - **Transport Button Dimensions**: Establish `40x40` (symbol size `18`) as the standard size for all controls (Play/Pause, Fullscreen, Mute, Shiori, Copy, CC, Sidebar).
-  - **Capsule Backing Layouts**: Left Group (Previous/Next) and Right Group (Shiori/Copy/CC/Sidebar) share height `40` capsule panels backed by `Color.white.opacity(0.10)`. Individual bases are disabled, rendering a custom concentric hover circle on active button focus.
+  - **Capsule Backing Layouts**: Left Group (Previous/Next) and Right Group (Shiori/Copy/CC/Sidebar) share height `40` capsule panels backed by `PlaybackTheme.capsuleFill`. Individual bases are disabled, rendering a custom concentric hover circle on active button focus.
   - **Unified Height Axis**: Align all bottom bar elements centered perfectly on a unified height of `40`.
-  - **Concentric Hover Circle**: Standalone transport buttons render a persistent base of `Color.white.opacity(0.10)` in normal state, overlaying a concentric inner `0.85` scale `Color.white.opacity(0.18)` highlight ring on hover.
-  - **Speed Control Capsule Button**: Retain its original **54x40 capsule shape** and **12pt semibold font** with monospaced digits. Strip its ad-hoc glassmorphism (remove backdrop blur, outer borders, and shadow). Render a persistent `Color.white.opacity(0.10)` background, and overlay-add an inner `Color.white.opacity(0.18)` capsule scaled to `x: 0.88, y: 0.85` under hover/press states. It manages dynamic foreground colors based on `isEnabled` availability (`0.96` when enabled, `0.34` when disabled) and does not implement white background inversion.
-  - **Speed Popup Menu**: Rebuilt with `PlaybackTheme.cinematicBacking` and a subtle `0.5` stroke border of `Color.white.opacity(0.10)`.
-- **Navigation & Shortcuts Refinement**:
-  - All adjacent navigation requests (via buttons or `A`/`D` keys) dynamically route based on the active playback context:
-    - **Search Mode (`.search`)**: Navigates search result rows via `openAdjacentSearchResult(_:)`.
-    - **Library Mode (`.library`)**: Navigates library items via `openPreviousLibraryVideo()` / `openNextLibraryVideo()`.
-    - **Shiori Mode (`.shiori`)**: Resolves adjacent bookmarks relative to selection.
-  - **Adjacent Navigation HUD**: Smooth transition chevron HUD overlay animations ("Previous Library Video", "Next Bookmark", etc.) matching Search feedback.
-- **Popover Click Collision Safety**:
-  - Embed `GeometryReader` on `speedControl`'s background to capture its `.global` (window-relative) frame in `speedButtonFrame`.
-  - Refactor `installSpeedMenuDismissMonitor` to capture and convert `event.locationInWindow` to SwiftUI coordinate system (flipping Y-axis using window height), and check if the click point falls inside `speedButtonFrame`.
-  - If inside, the Event Monitor ignores it so that the button's native action block toggles the menu (from `true` to `false`) smoothly; if outside, the Event Monitor normalizes it to `false` without triggering button actions. This completely eliminates the race condition where the menu instantly closes and re-opens on double click/re-click.
+  - **Concentric Hover Circle**: Standalone transport buttons render a persistent base of `PlaybackTheme.capsuleFill` in normal state, overlaying a concentric inner `0.85` scale `PlaybackTheme.capsuleHoverFill` highlight ring on hover.
+  - **Speed Control Capsule Button**: Retain its original **54x40 capsule shape** and **12pt semibold font** with monospaced digits. Render a persistent `PlaybackTheme.capsuleFill` background, and overlay-add an inner `PlaybackTheme.capsuleHoverFill` capsule scaled to `x: 0.88, y: 0.85` under hover/press states. It manages dynamic foreground colors based on `isEnabled` availability and does not implement white background inversion.
+  - **Speed Popup Menu**: Rebuilt with `PlaybackTheme.cinematicBacking` and a subtle `0.5` stroke border of `PlaybackTheme.textTertiary.opacity(0.3)`.
 
-#### Phase 1.3: Volume Slider Inline Hover Expansion & Time Capsule Refinement (Planned)
+#### Phase 1.3: Volume Slider Inline Hover Expansion & Time Capsule Refinement (Iterated & Refined - Planned)
 - **Goals**: Implement a fluid inline horizontal volume slider that dynamically expands into a single cohesive capsule, and format the playback time display as a matching control capsule.
 - **Specifications**:
-  - **Time Capsule Design**: Format the playback time display (current / duration) in a cohesive, height-40 capsule backed by `Color.white.opacity(0.10)` (`PlaybackTheme.capsuleFill`). Both the current time and duration are styled in high-contrast `PlaybackTheme.textPrimary` (`Color.white.opacity(0.94)`) to ensure excellent readability under all theater conditions. On mouse hover, apply a smooth highlight background transition to `Color.white.opacity(0.16)` (`PlaybackTheme.capsuleHoverFill`), matching standard control capsules.
+  - **Time Capsule Design**: Format the playback time display (current / duration) in a cohesive, height-40 capsule backed by `PlaybackTheme.capsuleFill`. Both current time and duration are styled in high-contrast `PlaybackTheme.textPrimary` to ensure excellent readability. On mouse hover, apply a smooth highlight background transition to `PlaybackTheme.capsuleHoverFill`, matching standard control capsules.
   - **Dynamic Volume Capsule**: Integrate the volume button, the slider, and the percentage text into a single continuous container. On hovering anywhere within the volume control area:
     - The container background smoothly expands its width from `40` (a standalone circle) to `160` (a unified capsule) via a `RoundedRectangle(cornerRadius: 20)` width animation.
-    - To match YouTube-style visual dynamics, hovering anywhere on the capsule highlights the entire background to `Color.white.opacity(0.16)` (`PlaybackTheme.capsuleHoverFill`), rather than keeping it at `0.10`.
+    - To match YouTube-style visual dynamics, hovering anywhere on the capsule highlights the entire background to `PlaybackTheme.capsuleHoverFill`, rather than keeping it at `capsuleFill`.
     - This horizontal expansion dynamically pushes the adjacent Time Capsule to the right in the layout flow.
-    - Within this expanded capsule, the standalone circular button base is disabled, rendering the icon, the slider, and the volume percentage text seamlessly together on the continuous highlighted gray backing.
+    - Within this expanded capsule, the standalone circular button base is disabled, rendering the icon, the slider, and the volume percentage text seamlessly together on the highlighted translucent black backing.
   - **Slider & Text Styling**:
-    - The volume track uses `PlaybackTheme.scrubberTrackBackground` (`Color.white.opacity(0.16)`), with the active progress track filled in high-contrast solid white (`Color.white`).
+    - The volume track uses translucent white (`Color.white.opacity(0.16)`), with the active progress track filled in high-contrast solid white (`Color.white`).
     - The slider thumb renders a high-fidelity solid white circle.
     - The volume percentage displays inline next to the slider as a monospaced digit label `Text` with `PlaybackTheme.textPrimary` color for optimal legibility.
     - Drag gestures map smoothly to `viewModel.volume` mutations.
 
-#### Phase 1.4: Progress Scrubber Hover Tooltip & Tracks (Planned)
+#### Phase 1.4: Progress Scrubber Hover Tooltip & Tracks (Iterated & Refined - Planned)
 - **Goals**: Refine timeline scrubbing with visual previews and dynamic location metrics, and purify the player bottom bar.
 - **Specifications**:
   - **Transparent Bottom Bar Layout**: The black background gradient from the player's bottom controls bar is completely removed, rendering all premium button circles/capsules floating natively transparent over the video stage to maximize widescreen legibility.
-  - **Red Active Progress & Thumb**: The current playback progress track and the scrubbing thumb are styled using YouTube signature red (`PlaybackTheme.progressRed`/`Color.red`), providing a high-contrast focal indicator.
-  - **Proportional Base Track Backing**: The scrubber base background track uses `Color.white.opacity(0.10)` (`PlaybackTheme.capsuleFill`) to remain perfectly visual-consistent with bottom controls.
+  - **Red Active Progress & Thumb**: The current playback progress track and the scrubbing thumb are styled using YouTube signature red (`PlaybackTheme.progressRed`), providing a high-contrast focal indicator.
+  - **Proportional Base Track Backing**: The scrubber base background track uses `PlaybackTheme.scrubberTrackBackground` (`Color.black.opacity(0.60)`) to remain perfectly visible over white scenes.
   - **Three-Segment Scrubber Visuals**: Layer the scrubber tracks in a ZStack:
-    - Base track (full width) is `Color.white.opacity(0.10)`.
-    - Hover track (0 to cursor position) is `PlaybackTheme.scrubberHoverTrack` (`Color.white.opacity(0.26)`), appearing only when hovered.
-    - Active progress track (0 to current playhead) is `PlaybackTheme.progressRed` (`Color.red`), naturally overlaying the hover track to create a bright white/gray highlight segment only between the current playhead and the cursor.
+    - Base track (full width) is `PlaybackTheme.scrubberTrackBackground`.
+    - Hover track (0 to cursor position) uses `PlaybackTheme.scrubberHoverTrack` (`Color.white.opacity(0.35)`), appearing only when hovered. It overlays the dark base track to create a bright white/grey highlight segment only between the current playhead and the cursor.
+    - Active progress track (0 to current playhead) is `PlaybackTheme.progressRed` (`Color.red`), naturally overlaying the hover track.
   - **Scrubber Thickness Expansion**: The scrubber track dynamically expands from a vertical height of `3` to `6` on mouse hover to provide satisfying tactile feedback.
   - **Dynamic Self-Sizing Tooltip Capsule**: When hovering the progress scrubber, a floating timestamp tooltip appears directly above the cursor position. To prevent truncation of hours or minutes, the tooltip's width dynamically self-sizes based on the string length (using a horizontal padding of `8`). Its backing is a height `22` capsule powered by `PlaybackCinematicBacking` with `isHovered: false`.
   - **Snappy Zero-Lag Tracking**: The horizontal position of the tooltip tracks the cursor coordinates with zero lag and absolutely no easing or spring animation.
   - **Snappy Visibility Toggle**: The tooltip appears and disappears instantly upon entering/exiting the progress bar.
   - **Boundary Clamping**: Apply horizontal clamping based on the dynamic tooltip width (`tooltipWidth`) to prevent the tooltip from shifting outside the left/right viewport boundaries.
   - **Gesture Safety**: Set `.allowsHitTesting(false)` on the tooltip to guarantee it does not intercept hover or drag gestures.
+  - **Speed Menu Consistency**: Ensure selected, hovered, and pressed speed items in the speed settings popup share `PlaybackTheme.menuItemHighlight` (`Color.white.opacity(0.12)`) for absolute consistency.
 
 ---
 
