@@ -9,5 +9,6 @@ final class PlaybackStore: ObservableObject {
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = true
     @Published var isTimelineScrubbing = false
+    @Published var timelineScrubTime: Double?
     @Published var playbackViewModel: PlaybackViewModel?
 }

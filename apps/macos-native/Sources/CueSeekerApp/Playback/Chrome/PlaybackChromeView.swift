@@ -156,6 +156,10 @@ struct PlaybackChromeView: View {
     private var scrubberRow: some View {
         PlaybackProgressScrubber(
             viewModel: viewModel,
+            scrubTime: Binding(
+                get: { playback.timelineScrubTime },
+                set: { playback.timelineScrubTime = $0 }
+            ),
             onScrubbingChanged: { playback.isTimelineScrubbing = $0 }
         )
             .padding(.horizontal, 24)
@@ -201,7 +205,7 @@ struct PlaybackChromeView: View {
             )
 
             HStack(spacing: 4) {
-                Text(formatPlaybackTime(viewModel.displayedCurrentTime))
+                Text(formatPlaybackTime(playback.timelineScrubTime ?? viewModel.displayedCurrentTime))
                     .foregroundStyle(PlaybackTheme.textPrimary)
                 Text("/")
                     .foregroundStyle(PlaybackTheme.textTertiary)

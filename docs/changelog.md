@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented Phase 1.5.3 shared timeline scrub time display. The progress
+  scrubber now publishes its active drag target through playback state, the
+  bottom-player time label reads that shared scrub time while dragging, and the
+  scrubber hides the white hover-ahead segment during modal scrubbing because
+  the drag target is already the active progress position.
 - Implemented Phase 1.5.2 timeline-scrubbing interaction gating. Dragging the
   progress scrubber now raises shared modal scrubbing state, suppresses
   non-Timeline playback keyboard shortcuts, closes and blocks the speed menu,

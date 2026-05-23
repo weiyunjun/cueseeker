@@ -2,10 +2,10 @@ import SwiftUI
 
 struct PlaybackProgressScrubber: View {
     @ObservedObject var viewModel: PlaybackViewModel
+    @Binding var scrubTime: Double?
     var onScrubbingChanged: (Bool) -> Void = { _ in }
     @State private var isHovered = false
     @State private var isDragging = false
-    @State private var dragTime: Double?
     @State private var hoverX: CGFloat? = nil
     @State private var isHoveringScrubber = false
     @State private var tooltipWidth: CGFloat = 44
@@ -13,20 +13,24 @@ struct PlaybackProgressScrubber: View {
     var body: some View {
         GeometryReader { geometry in
             let duration = max(0, viewModel.duration)
-            let displayTime = dragTime ?? viewModel.displayedCurrentTime
+            let isScrubbing = scrubTime != nil
+            let displayTime = scrubTime ?? viewModel.displayedCurrentTime
             let progress = duration > 0
                 ? min(max(displayTime / duration, 0), 1)
                 : 0
             let width = max(0, geometry.size.width)
             let filledWidth = width * progress
-            let trackHeight: CGFloat = (isHovered || dragTime != nil) ? 6 : 3
+            let trackHeight: CGFloat = (isHovered || isScrubbing) ? 6 : 3
 
-            let targetX = hoverX ?? (dragTime != nil ? filledWidth : nil)
+            let targetX = isScrubbing ? filledWidth : hoverX
             let tooltipTime: Double = {
+                if let scrubTime {
+                    return scrubTime
+                }
                 if let hoverX = hoverX {
                     return seekTime(for: hoverX, width: width, duration: duration)
                 }
-                return dragTime ?? viewModel.displayedCurrentTime
+                return viewModel.displayedCurrentTime
             }()
 
             ZStack(alignment: .leading) {
@@ -36,7 +40,7 @@ struct PlaybackProgressScrubber: View {
                     .frame(height: trackHeight)
 
                 // 2. Hover highlight track (Only active between 0 and cursor position)
-                if isHoveringScrubber, let hoverX = hoverX {
+                if !isScrubbing, isHoveringScrubber, let hoverX = hoverX {
                     Capsule()
                         .fill(PlaybackTheme.scrubberHoverTrack)
                         .frame(width: max(0, hoverX), height: trackHeight)
@@ -52,7 +56,7 @@ struct PlaybackProgressScrubber: View {
                     .fill(PlaybackTheme.progressRed)
                     .frame(width: 12, height: 12)
                     .offset(x: filledWidth - 6)
-                    .opacity(isHovered || dragTime != nil ? 1 : 0)
+                    .opacity(isHovered || isScrubbing ? 1 : 0)
             }
             .frame(height: 18, alignment: .center)
             .contentShape(Rectangle())
@@ -74,23 +78,22 @@ struct PlaybackProgressScrubber: View {
                         guard duration > 0, width > 0 else {
                             return
                         }
-                        dragTime = seekTime(for: value.location.x, width: width, duration: duration)
+                        scrubTime = seekTime(for: value.location.x, width: width, duration: duration)
                     }
                     .onEnded { value in
                         guard duration > 0, width > 0 else {
-                            dragTime = nil
                             endScrubbingIfNeeded()
                             return
                         }
                         let finalTime = seekTime(for: value.location.x, width: width, duration: duration)
-                        dragTime = nil
-                        endScrubbingIfNeeded()
+                        scrubTime = finalTime
                         viewModel.seek(to: finalTime)
+                        endScrubbingIfNeeded()
                     }
             )
             .overlay(
                 Group {
-                    if let targetX = targetX, (isHoveringScrubber || dragTime != nil), duration > 0 {
+                    if let targetX = targetX, (isHoveringScrubber || isScrubbing), duration > 0 {
                         let clampedX = min(max(targetX - tooltipWidth / 2, 0), width - tooltipWidth)
 
                         Text(formatPlaybackTime(tooltipTime))
@@ -140,6 +143,7 @@ struct PlaybackProgressScrubber: View {
         }
 
         isDragging = false
+        scrubTime = nil
         onScrubbingChanged(false)
     }
 
