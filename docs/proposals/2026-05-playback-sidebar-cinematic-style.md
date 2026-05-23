@@ -29,14 +29,14 @@ This proposal details **Phase 3** of the native macOS playback UI modifications 
 - **Typography**: Force all texts (primary, secondary, metadata timestamps, and ranks) to use high-contrast and medium-contrast **white colors**:
   - Primary text / cues: `Color.white.opacity(0.94)`
   - Ranks / timestamps: `Color.white.opacity(0.55)` (or `Color.white` when selected)
-- **Selection Highlight**: Selected rows in the Search Results and Subtitles lists will discard the yellow accent border and solid background. They will use the **`PlaybackTheme.menuItemHighlight`** (`Color.white.opacity(0.12)`) as both their hover and selection background, matching the speed preset menu exactly.
+- **Selection Highlight (Rows)**: Selected rows in the Search Results and Subtitles lists will use the **`PlaybackTheme.menuItemHighlight`** (`Color.white.opacity(0.12)`) as both their hover and selection background, matching the speed preset menu exactly.
 
 ### 2.3 Options Tab (Segmented Controls) Background Specs
 
-To prevent the controls from blending into the dark semi-transparent sidebar background (`Color.black.opacity(0.55)`), we use **frosted-white opacity** for the container base. This ensures it stands out clearly, while using a **deeper (darker) charcoal** for the selected tab to create a premium, high-visibility contrast:
+To ensure a soft, integrated, and premium visual transition, we use a frosted-white capsule container paired with a **significantly softened and weakened dark active tab backing** to remove any harsh visual weight:
 
-- **Base Container Background**: A subtle, elegant frosted-white pill using **`Color.white.opacity(0.08)`**. Against the `0.55` dark backing, this yields a gorgeous, highly visible mid-gray base.
-- **Selected Tab Background**: A deep, rich charcoal black using **`Color.black.opacity(0.50)`** (or **`Color.black.opacity(0.60)`**). Over the frosted container, this active tab stands out with a stark, premium "cut-out/sunken" physical appearance.
+- **Base Container Background**: A subtle, elegant frosted-white pill using **`Color.white.opacity(0.08)`** (visible in screenshot as a clean medium-gray base).
+- **Selected Tab Background**: A highly weakened, semi-transparent black backing using **`Color.black.opacity(0.24)`** (softened from `0.50`) paired with a very soft shadow: **`Color.black.opacity(0.15)`** with radius 1, y: 0.5. This removes the harsh stark edge and blends the active tab with the container seamlessly.
 
 ### 2.4 Keyword Highlight Background (Temporary Neutralization)
 
@@ -63,12 +63,6 @@ To completely eradicate the vertical scroller track background lines and any ugl
    - Force the scrollbar style to modern overlay: `scrollView.scrollerStyle = .overlay`.
    - Force the scrollbar scroller to draw a clean **white/light gray knob** by setting `scrollView.appearance = NSAppearance(named: .darkAqua)`.
 
-### 2.6 Subtitles Row Selection Opacity
-
-The active subtitle row selection highlight background is adjusted to be **softer and more transparent** to improve visual balance in the subtitles list:
-
-- **Subtitle Row Selected Background**: **`Color.white.opacity(0.06)`** (instead of the previous `0.12` menuItemHighlight).
-
 ---
 
 ## 3. Proposed Code Modifications
@@ -83,18 +77,16 @@ The proposed implementation involves changes to the following components:
 ### 2. `PlaybackSidebar`
 #### [MODIFY] [PlaybackSidebarShell.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Playback/Sidebar/PlaybackSidebarShell.swift)
 - Change `PlaybackOverlayPanelMetrics.maxWidth` to **`300px`**.
+- Re-style the active segment button to use **`Color.black.opacity(0.24)`** and a softened shadow.
 - Define `PlaybackTransparentScroller` at the bottom of the file.
-- Update `ScrollViewIntrospector` vertical scroller assignment:
-  ```swift
-  scrollView.verticalScroller = PlaybackTransparentScroller()
-  ```
+- Update `ScrollViewIntrospector` vertical scroller assignment to use `PlaybackTransparentScroller()`.
 
 #### [MODIFY] [PlaybackSidebarResultRow.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Playback/Sidebar/PlaybackSidebarResultRow.swift)
 - Change the keyword highlighting background color parameter from `Color.blue.opacity(...)` to **`Color.clear`** to temporarily match normal text styling while keeping the logic fully in place.
 
 #### [MODIFY] [PlaybackSubtitlesList.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Playback/Sidebar/PlaybackSubtitlesList.swift)
 - Update `ScrollViewIntrospector` inside the subtitle list to use `PlaybackTransparentScroller()`.
-- Update `PlaybackSidebarSubtitleRow`'s `rowBackground` computed property: if selected, use **`Color.white.opacity(0.06)`** instead of `PlaybackTheme.menuItemHighlight`.
+- Keep the selection highlight color as the unified **`PlaybackTheme.menuItemHighlight`** (`Color.white.opacity(0.12)`).
 
 ---
 
@@ -102,6 +94,7 @@ The proposed implementation involves changes to the following components:
 
 ### Manual Verification
 1. **Width Check**: Verify the sidebar is visibly narrower (`300px` instead of `420px`) and sits exactly `20px` from the right edge.
-2. **Scrollbar Elegance**: Confirm the scrollbar knob displays a clean, elegant white pill shape, and that its vertical track background is **100% transparent** with absolutely no vertical white stripes or track borders.
-3. **Keyword Highlights**: Confirm query matching keywords are displayed exactly like normal text (no background blocks), but the highlight logic in code remains untouched.
-4. **Subtitles Highlight**: Confirm selected subtitle row background uses a soft, highly transparent white background (`Color.white.opacity(0.06)`).
+2. **Tab Contrast**: Verify the top active tab background is extremely soft, translucent, and blends beautifully without harsh black edges.
+3. **Scrollbar Elegance**: Confirm the scrollbar knob displays a clean, elegant white pill shape, and that its vertical track background is **100% transparent** with absolutely no vertical white stripes or track borders.
+4. **Keyword Highlights**: Confirm query matching keywords are displayed exactly like normal text (no background blocks), but the highlight logic in code remains untouched.
+5. **Subtitles Highlight**: Confirm selected subtitle row background uses a clean, unified semi-translucent highlight (`Color.white.opacity(0.12)`).
