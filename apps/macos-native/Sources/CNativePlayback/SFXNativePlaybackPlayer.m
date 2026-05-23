@@ -700,8 +700,9 @@ static int SFXOutputChannelCount(int inputChannels) {
                       owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
                 playbackRate:(float)playbackRate
-                 decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
+                   decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
       flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
+          pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
  allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                        error:(NSError **)error;
 - (void)start;
@@ -788,6 +789,8 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     BOOL _flushDisplayBeforeStart;
     BOOL _flushDisplayOnFirstFrame;
+    BOOL _pauseAfterFirstFrame;
+    BOOL _didPauseAfterFirstFrame;
     BOOL _displaySubmissionScheduled;
     BOOL _usingHardwareDecode;
     BOOL _allowAutomaticSoftwareRecycle;
@@ -810,8 +813,9 @@ static int SFXOutputChannelCount(int inputChannels) {
                       owner:(SFXNativePlaybackPlayer *)owner
                       volume:(float)volume
                 playbackRate:(float)playbackRate
-                 decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
+                  decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
       flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
+         pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
  allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                        error:(NSError **)error {
     self = [super init];
@@ -828,6 +832,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _decodeMode = decodeMode;
     _flushDisplayBeforeStart = flushDisplayBeforeStart;
     _flushDisplayOnFirstFrame = !flushDisplayBeforeStart;
+    _pauseAfterFirstFrame = pauseAfterFirstFrame;
     _allowAutomaticSoftwareRecycle = allowAutomaticSoftwareRecycle;
     _seekSeconds = MAX(0, (double)startMilliseconds / 1000.0);
     _currentTime = _seekSeconds;
@@ -876,6 +881,9 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (BOOL)isPlaying {
+    if (_pauseAfterFirstFrame && !_didPauseAfterFirstFrame) {
+        return NO;
+    }
     return atomic_load(&_playing);
 }
 
@@ -1229,6 +1237,10 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (void)setPaused:(BOOL)paused {
+    if (!paused) {
+        _pauseAfterFirstFrame = NO;
+        _didPauseAfterFirstFrame = YES;
+    }
     atomic_store(&_paused, paused);
     atomic_store(&_playing, !paused);
 
@@ -1578,7 +1590,9 @@ static int SFXOutputChannelCount(int inputChannels) {
 
         AVPacket *packet = queuedPacket->packet;
         if (packet->stream_index == _audioStreamIndex && _audioCodecContext != NULL) {
-            [self handleAudioPacket:packet];
+            if (!_pauseAfterFirstFrame || _didPauseAfterFirstFrame) {
+                [self handleAudioPacket:packet];
+            }
             SFXFreeQueuedPacket(queuedPacket);
             continue;
         }
@@ -2173,7 +2187,11 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         if (automaticRecycleMilliseconds >= 0) {
             SFXNativePlaybackPlayer *owner = _owner;
             [owner requestAutomaticSoftwareRecycleForSession:self
-                                               atMilliseconds:automaticRecycleMilliseconds];
+                                              atMilliseconds:automaticRecycleMilliseconds];
+        }
+        if (_pauseAfterFirstFrame && !_didPauseAfterFirstFrame) {
+            _didPauseAfterFirstFrame = YES;
+            [self setPaused:YES];
         }
     }
     SFXLogIfSlow(@"SFXNativePlaybackSession.drainPendingPixelBufferSubmission", start, 8);
@@ -2542,6 +2560,7 @@ startMilliseconds:(NSInteger)startMilliseconds
     return [self openPath:path
         startMilliseconds:startMilliseconds
        flushDisplayBeforeStart:NO
+      pauseAfterFirstFrame:NO
  allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
                     error:error];
 }
@@ -2549,6 +2568,7 @@ startMilliseconds:(NSInteger)startMilliseconds
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
 flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
+ pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
            error:(NSError **)error {
     [self cancelTimelineScrubPreviewRequests];
@@ -2564,6 +2584,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         playbackRate:_playbackRate
         decodeMode:_decodeMode
         flushDisplayBeforeStart:flushDisplayBeforeStart
+        pauseAfterFirstFrame:pauseAfterFirstFrame
         allowAutomaticSoftwareRecycle:allowAutomaticSoftwareRecycle
         error:error
     ];
@@ -2578,6 +2599,14 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 }
 
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error {
+    return [self seekToMilliseconds:milliseconds
+               pauseAfterFirstFrame:NO
+                              error:error];
+}
+
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error {
     if (_currentPath == nil) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(40, @"Native playback has no current file to seek.");
@@ -2588,6 +2617,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     return [self openPath:_currentPath
         startMilliseconds:milliseconds
        flushDisplayBeforeStart:NO
+        pauseAfterFirstFrame:pauseAfterFirstFrame
  allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
                     error:error];
 }
@@ -2708,10 +2738,11 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         NSString *path = [_currentPath copy];
         NSError *error = nil;
         BOOL opened = [self openPath:path
-                   startMilliseconds:MAX(0, milliseconds)
-              flushDisplayBeforeStart:NO
-        allowAutomaticSoftwareRecycle:NO
-                              error:&error];
+            startMilliseconds:MAX(0, milliseconds)
+           flushDisplayBeforeStart:NO
+          pauseAfterFirstFrame:NO
+     allowAutomaticSoftwareRecycle:NO
+                         error:&error];
         if (!opened) {
             NSString *message = error.localizedDescription ?: @"Automatic software playback recycle failed.";
             [self.delegate nativePlaybackPlayer:self didFailWithMessage:message];

@@ -483,9 +483,16 @@ Rules:
 - During timeline scrubbing, the red progress track, thumb, tooltip, and visible
   playback time follow the drag target immediately. The white hover-ahead track
   segment is hidden while the drag is active.
-- During timeline scrubbing, the video surface displays the nearest keyframe at
-  or before the current drag target. This keyframe-only frame belongs to the
-  video surface itself, not to a separate preview overlay.
+- During timeline scrubbing, the video surface remains on the frame that was
+  visible when scrubbing began. The drag path does not update keyframes,
+  generate thumbnails, perform realtime seeks, or otherwise change the video
+  image before mouse release.
+- Click seeks and the final seek after timeline dragging preserve the playback
+  state from before the seek interaction. If the resulting state is paused, the
+  destination frame is still rendered.
+- Thumbnail and full-size keyframe preview remain open research directions, but
+  they are deferred from the current UI restructure until their memory,
+  latency, and decoder-lifecycle tradeoffs justify the added complexity.
 
 ## 10. Expanded Playback UX
 

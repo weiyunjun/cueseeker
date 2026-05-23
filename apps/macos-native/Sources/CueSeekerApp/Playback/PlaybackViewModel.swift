@@ -52,7 +52,8 @@ public final class PlaybackViewModel: ObservableObject {
     static let maximumPlaybackSpeed = 2.0
     static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
     private static let displayedCurrentTimePublishInterval: TimeInterval = 0.5
-    private static let timelineScrubPreviewMinimumInterval: TimeInterval = 1.0 / 15.0
+    private static let seekTimeProtectionDuration: TimeInterval = 1.5
+    private static let seekTimeProtectionBaseTolerance = 0.75
     private static let defaultVolume = 100.0
     private static let defaultPlaybackSpeed = 1.0
 
@@ -76,9 +77,9 @@ public final class PlaybackViewModel: ObservableObject {
     private var subtitleTrack = PlaybackSubtitleTrack.empty
     private var lastDisplayedCurrentTimePublishTimestamp: TimeInterval = 0
     private var timelineScrubbingWasPlaying: Bool?
-    private var lastTimelineScrubPreviewRequestTimestamp: TimeInterval = 0
-    private var pendingTimelineScrubPreviewTime: Double?
-    private var pendingTimelineScrubPreviewTask: Task<Void, Never>?
+    private var protectedSeekTargetTime: Double?
+    private var protectedSeekStartedAt: TimeInterval = 0
+    private var protectedSeekUntil: TimeInterval = 0
     private let onVolumeChanged: (Double) -> Void
     private let onLastNonzeroVolumeChanged: (Double) -> Void
     private let onPlaybackSpeedChanged: (Double) -> Void
@@ -133,10 +134,7 @@ public final class PlaybackViewModel: ObservableObject {
         }
 
         timelineScrubbingWasPlaying = isPlaying
-        pendingTimelineScrubPreviewTask?.cancel()
-        pendingTimelineScrubPreviewTask = nil
-        pendingTimelineScrubPreviewTime = nil
-        lastTimelineScrubPreviewRequestTimestamp = 0
+        clearProtectedSeekTarget()
 
         do {
             try player.beginTimelineScrubbing()
@@ -157,28 +155,31 @@ public final class PlaybackViewModel: ObservableObject {
 
         let targetTime = clampedPlaybackTime(seconds)
         updatePlaybackTime(targetTime, publishesControlsImmediately: true)
-        scheduleTimelineScrubPreview(at: targetTime)
     }
 
     public func endTimelineScrubbing(to seconds: Double) {
         let shouldResumePlayback = timelineScrubbingWasPlaying ?? isPlaying
         timelineScrubbingWasPlaying = nil
-        pendingTimelineScrubPreviewTask?.cancel()
-        pendingTimelineScrubPreviewTask = nil
-        pendingTimelineScrubPreviewTime = nil
 
         let targetTime = clampedPlaybackTime(seconds)
         let previousTime = currentTime
         updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        protectSeekTarget(targetTime)
         accumulatedForwardSeconds = 0
         accumulatedRewindSeconds = 0
 
         do {
-            try player.seek(toMilliseconds: Int(targetTime * 1000))
-            try player.setPaused(!shouldResumePlayback)
+            try player.seek(
+                toMilliseconds: Int(targetTime * 1000),
+                pauseAfterFirstFrame: !shouldResumePlayback
+            )
+            if shouldResumePlayback {
+                try player.setPaused(false)
+            }
             isPlaying = shouldResumePlayback
         } catch {
             try? player.endTimelineScrubbing()
+            clearProtectedSeekTarget()
             updatePlaybackTime(previousTime, publishesControlsImmediately: true)
             print("Failed to end timeline scrubbing: \(error)")
         }
@@ -190,9 +191,7 @@ public final class PlaybackViewModel: ObservableObject {
         }
 
         timelineScrubbingWasPlaying = nil
-        pendingTimelineScrubPreviewTask?.cancel()
-        pendingTimelineScrubPreviewTask = nil
-        pendingTimelineScrubPreviewTime = nil
+        clearProtectedSeekTarget()
 
         do {
             try player.endTimelineScrubbing()
@@ -206,18 +205,58 @@ public final class PlaybackViewModel: ObservableObject {
     private func performSeek(to seconds: Double, resetsAccumulatedFeedback: Bool) {
         let targetTime = clampedPlaybackTime(seconds)
         let previousTime = currentTime
+        let shouldResumePlayback = isPlaying
         updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        protectSeekTarget(targetTime)
         if resetsAccumulatedFeedback {
             accumulatedForwardSeconds = 0
             accumulatedRewindSeconds = 0
         }
 
         do {
-            try player.seek(toMilliseconds: Int(targetTime * 1000))
+            try player.seek(
+                toMilliseconds: Int(targetTime * 1000),
+                pauseAfterFirstFrame: !shouldResumePlayback
+            )
+            if shouldResumePlayback {
+                try player.setPaused(false)
+            }
+            isPlaying = shouldResumePlayback
         } catch {
+            clearProtectedSeekTarget()
             updatePlaybackTime(previousTime, publishesControlsImmediately: true)
             print("Failed to seek: \(error)")
         }
+    }
+
+    private func protectSeekTarget(_ targetTime: Double) {
+        let now = Date.timeIntervalSinceReferenceDate
+        protectedSeekTargetTime = targetTime
+        protectedSeekStartedAt = now
+        protectedSeekUntil = now + Self.seekTimeProtectionDuration
+    }
+
+    private func clearProtectedSeekTarget() {
+        protectedSeekTargetTime = nil
+        protectedSeekStartedAt = 0
+        protectedSeekUntil = 0
+    }
+
+    private func shouldAcceptNativePlaybackTime(_ time: Double) -> Bool {
+        guard let protectedSeekTargetTime else {
+            return true
+        }
+
+        let now = Date.timeIntervalSinceReferenceDate
+        guard now < protectedSeekUntil else {
+            clearProtectedSeekTarget()
+            return true
+        }
+
+        let elapsed = max(0, now - protectedSeekStartedAt)
+        let tolerance = Self.seekTimeProtectionBaseTolerance
+            + elapsed * max(playbackSpeed, 1.0)
+        return abs(time - protectedSeekTargetTime) <= tolerance
     }
 
     private func clampedPlaybackTime(_ seconds: Double) -> Double {
@@ -225,42 +264,6 @@ public final class PlaybackViewModel: ObservableObject {
         return duration > 0 ? min(nonnegativeSeconds, duration) : nonnegativeSeconds
     }
 
-    private func scheduleTimelineScrubPreview(at seconds: Double) {
-        let now = Date.timeIntervalSinceReferenceDate
-        let elapsed = now - lastTimelineScrubPreviewRequestTimestamp
-        guard elapsed < Self.timelineScrubPreviewMinimumInterval else {
-            requestTimelineScrubPreview(at: seconds)
-            return
-        }
-
-        pendingTimelineScrubPreviewTime = seconds
-        pendingTimelineScrubPreviewTask?.cancel()
-
-        let delay = Self.timelineScrubPreviewMinimumInterval - elapsed
-        pendingTimelineScrubPreviewTask = Task { [weak self] in
-            let nanoseconds = UInt64(max(0, delay) * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: nanoseconds)
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard let self, let pendingTime = self.pendingTimelineScrubPreviewTime else {
-                    return
-                }
-
-                self.pendingTimelineScrubPreviewTask = nil
-                self.pendingTimelineScrubPreviewTime = nil
-                self.requestTimelineScrubPreview(at: pendingTime)
-            }
-        }
-    }
-
-    private func requestTimelineScrubPreview(at seconds: Double) {
-        lastTimelineScrubPreviewRequestTimestamp = Date.timeIntervalSinceReferenceDate
-        player.requestTimelineScrubPreview(toMilliseconds: Int(clampedPlaybackTime(seconds) * 1000))
-    }
-    
     public func seekRelative(by seconds: Double) {
         let targetTime: Double
 
@@ -649,6 +652,12 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
             switch name {
             case "time-pos":
                 if case .double(let d) = value {
+                    if self.timelineScrubbingWasPlaying != nil {
+                        return
+                    }
+                    guard self.shouldAcceptNativePlaybackTime(d) else {
+                        return
+                    }
                     self.updatePlaybackTime(d)
                 }
             case "duration":

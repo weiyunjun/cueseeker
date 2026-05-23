@@ -434,18 +434,21 @@ Required behavior:
 - While timeline scrubbing is active, the white hover-ahead track segment should
   be hidden because the current drag target is already the active scrub
   position.
-- During timeline scrubbing, the video surface itself should update to the
-  nearest video keyframe at or before the current drag target. This is
-  keyframe-only video-surface scrubbing, not a separate preview overlay and not
-  frame-perfect drag preview.
-- Timeline scrubbing video updates should be driven by mapped-keyframe changes,
-  not by a fixed refresh timer. If the drag target maps to the same previous
-  keyframe, the video surface should not redraw; if it maps to a new keyframe,
-  the newest keyframe request should win.
+- During timeline scrubbing, the video surface should remain on the frame that
+  was visible when scrubbing began. The drag path must not update keyframes,
+  generate thumbnails, perform realtime seeks, or otherwise change the video
+  image before mouse release.
+- Click seeks and the final seek after timeline dragging must preserve the
+  playback state from before the seek interaction. If playback was active, it
+  resumes after the seek. If playback was paused, it remains paused after the
+  seek, but the video surface still updates to the destination frame.
 - Timeline scrubbing must not advance or repopulate ordinary playback
-  read-ahead from the old playback position. Keyframe scrubbing render work is
-  isolated from the normal playback packet queue; the final release seek
-  determines whether ordinary read-ahead can be retained or must be rebuilt.
+  read-ahead from the old playback position. The final release seek determines
+  whether ordinary read-ahead can be retained or must be rebuilt.
+- Thumbnail and full-size keyframe preview remain open research directions, but
+  are not part of the current Phase 1.5 implementation because the project has
+  not accepted a memory, latency, and decoder-lifecycle tradeoff that is worth
+  blocking the UI restructure.
 - Playback commands should show transient feedback for Shiori save or removal,
   subtitle copy, subtitle visibility, play or pause, seek direction and amount,
   volume, and playback speed.

@@ -9,11 +9,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Fixed Player-UI and cursor idle handling so physical pointer movement while
   dragging with any mouse button keeps the playback chrome and cursor visible
   instead of letting the three-second idle timer fire mid-drag.
-- Implemented Phase 1.5.4 keyframe-only video-surface scrubbing. Timeline
-  dragging now asks the native playback layer to enter a paused scrubbing mode,
-  freezes ordinary read-ahead, submits latest-only keyframe preview frames to
-  the existing video surface through an isolated scrub-render queue, and commits
-  the final precise seek while restoring the prior play/pause state.
+- Revised Phase 1.5.4 timeline dragging to defer thumbnail and full-size
+  keyframe preview research. Timeline dragging now pauses playback, keeps the
+  video surface on its pre-drag frame, skips keyframe preview, thumbnail
+  generation, and realtime seek work during the drag, then commits the final
+  seek while restoring the prior play/pause state.
 - Implemented Phase 1.5.3 shared timeline scrub time display. The progress
   scrubber now publishes its active drag target through playback state, the
   bottom-player time label reads that shared scrub time while dragging, and the
@@ -29,10 +29,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
   pressing the Timeline Zone now defines a modal scrubbing interaction where
   playback is paused, non-Timeline shortcuts/buttons/menus are suppressed,
   progress and time labels follow the drag target immediately, the video
-  surface displays the previous keyframe for the drag target, ordinary
-  10-second / 64 MB read-ahead is isolated from scrub rendering, and mouse
-  release commits the final precise seek while restoring the prior playback
-  state when appropriate.
+  surface remains unchanged during the drag, ordinary read-ahead is not
+  advanced by scrub-preview work, and mouse release commits the final precise
+  seek while restoring the prior playback state when appropriate. Thumbnail and
+  full-size keyframe preview remain future research rather than current Phase
+  1.5 scope.
 - Completed the cinematic player bottom controls bar refinement (Phase 1 of the `ui/restructure`
   branch). Resolved the critical color visibility and contrast issues on transparent bottom bar
   layouts by transitioning base capsule backings and scrubber timelines from translucent white

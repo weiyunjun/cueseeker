@@ -38,6 +38,9 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 startMilliseconds:(NSInteger)startMilliseconds
            error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error;
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error;
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error;
 - (BOOL)setTimelineScrubbing:(BOOL)active error:(NSError **)error;
 - (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds;
