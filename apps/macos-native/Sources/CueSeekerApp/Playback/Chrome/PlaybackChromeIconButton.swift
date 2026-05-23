@@ -136,7 +136,7 @@ struct PlaybackSidebarIconView: View {
             // Outer rounded rectangle outline (always drawn) using strokeBorder for perfect boundary alignment
             RoundedRectangle(cornerRadius: 3.2)
                 .strokeBorder(lineWidth: 2.0)
-            
+
             // Vertical dividing line (always drawn)
             GeometryReader { geo in
                 Path { path in
@@ -146,7 +146,7 @@ struct PlaybackSidebarIconView: View {
                 }
                 .stroke(lineWidth: 2.0)
             }
-            
+
             // If open, fill the right chamber solid white
             if isOpen {
                 RoundedRectangle(cornerRadius: 3.2)
@@ -163,41 +163,6 @@ struct PlaybackSidebarIconView: View {
             }
         }
         .frame(width: size, height: size)
-    }
-}
-
-struct PlaybackCopyGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        let scaleX = rect.width / 17
-        let scaleY = rect.height / 17
-
-        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-            CGPoint(x: rect.minX + x * scaleX, y: rect.minY + y * scaleY)
-        }
-
-        func scaledRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> CGRect {
-            CGRect(
-                x: rect.minX + x * scaleX,
-                y: rect.minY + y * scaleY,
-                width: width * scaleX,
-                height: height * scaleY
-            )
-        }
-
-        var path = Path()
-        path.addRoundedRect(
-            in: scaledRect(x: 3.2, y: 5.2, width: 8.1, height: 9.2),
-            cornerSize: CGSize(width: 1.2 * scaleX, height: 1.2 * scaleY)
-        )
-        path.move(to: point(6, 2.6))
-        path.addLine(to: point(12.4, 2.6))
-        path.addCurve(
-            to: point(13.8, 4.0),
-            control1: point(12.4, 2.6),
-            control2: point(13.8, 2.6)
-        )
-        path.addLine(to: point(13.8, 11.2))
-        return path
     }
 }
 
