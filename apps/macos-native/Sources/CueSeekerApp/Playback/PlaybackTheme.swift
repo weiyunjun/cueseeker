@@ -55,3 +55,42 @@ public enum PlaybackTheme {
         Color.white.opacity(0.16)
     }
 }
+
+/// A unified concentric backing visual element for cinematic buttons and interactive controls.
+/// Supports both circular and capsule-like shapes with standardized micro-animation hover/press dynamics.
+public struct PlaybackCinematicBacking<S: Shape>: View {
+    public let shape: S
+    public let isHovered: Bool
+    public let isPressed: Bool
+    public let scaleX: CGFloat
+    public let scaleY: CGFloat
+
+    public init(
+        shape: S,
+        isHovered: Bool,
+        isPressed: Bool = false,
+        scaleX: CGFloat = 0.85,
+        scaleY: CGFloat = 0.85
+    ) {
+        self.shape = shape
+        self.isHovered = isHovered
+        self.isPressed = isPressed
+        self.scaleX = scaleX
+        self.scaleY = scaleY
+    }
+
+    public var body: some View {
+        ZStack {
+            // Persistent outer base
+            shape
+                .fill(Color.white.opacity(0.10))
+
+            // Concentric inner hover highlight
+            if isHovered || isPressed {
+                shape
+                    .fill(Color.white.opacity(0.18))
+                    .scaleEffect(x: scaleX, y: scaleY)
+            }
+        }
+    }
+}

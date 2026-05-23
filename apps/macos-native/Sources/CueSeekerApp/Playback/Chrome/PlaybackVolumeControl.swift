@@ -6,14 +6,15 @@ struct PlaybackVolumeControl: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            PlaybackChromeIconButton(
-                systemName: volumeIcon,
-                kind: .transport,
-                hasPersistentBase: false,
-                accessibilityLabel: "Mute",
-                action: viewModel.toggleMute
-            )
-            .frame(width: 40, height: 40)
+            Button(action: viewModel.toggleMute) {
+                Image(systemName: volumeIcon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.96))
+                    .frame(width: 40, height: 40)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Mute")
 
             if isHovered {
                 HStack(spacing: 8) {
@@ -35,8 +36,12 @@ struct PlaybackVolumeControl: View {
         }
         .frame(width: isHovered ? 164 : 40, height: 40, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(isHovered ? 0.16 : 0.10))
+            PlaybackCinematicBacking(
+                shape: RoundedRectangle(cornerRadius: 20),
+                isHovered: isHovered,
+                scaleX: isHovered ? 0.96 : 0.85,
+                scaleY: 0.85
+            )
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.22)) {

@@ -203,8 +203,12 @@ struct PlaybackChromeView: View {
             .padding(.horizontal, 16)
             .frame(height: 40)
             .background(
-                Capsule()
-                    .fill(isTimeHovered ? Color.white.opacity(0.16) : Color.white.opacity(0.10))
+                PlaybackCinematicBacking(
+                    shape: Capsule(),
+                    isHovered: isTimeHovered,
+                    scaleX: 0.92,
+                    scaleY: 0.85
+                )
             )
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -362,18 +366,13 @@ private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(foregroundColor)
             .background(
-                ZStack {
-                    // Outer persistent base capsule
-                    Capsule()
-                        .fill(Color.white.opacity(0.10))
-
-                    // Concentric inner hover capsule
-                    if isEnabled && (isHovered || configuration.isPressed) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.18))
-                            .scaleEffect(x: 0.88, y: 0.85)
-                    }
-                }
+                PlaybackCinematicBacking(
+                    shape: Capsule(),
+                    isHovered: isEnabled && isHovered,
+                    isPressed: isEnabled && configuration.isPressed,
+                    scaleX: 0.88,
+                    scaleY: 0.85
+                )
             )
             .scaleEffect(configuration.isPressed && isEnabled ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
