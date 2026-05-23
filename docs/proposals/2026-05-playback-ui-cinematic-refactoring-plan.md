@@ -76,7 +76,7 @@ This document serves as the authoritative, unified roadmap for the entire playba
   - **Boundary Clamping**: Apply horizontal clamping based on the dynamic tooltip width (`tooltipWidth`) to prevent the tooltip from shifting outside the left/right viewport boundaries.
   - **Gesture Safety**: Set `.allowsHitTesting(false)` on the tooltip to guarantee it does not intercept hover or drag gestures.
   - **Speed Menu Consistency**: Ensure selected, hovered, and pressed speed items in the speed settings popup share `PlaybackTheme.menuItemHighlight` (`Color.white.opacity(0.12)`) for absolute consistency.
-  - **Speed Menu Popover Vertical Clamping**: Position the speed menu card so that its bottom edge sits tightly above the progress bar with a clean `0pt` gap, preventing any visual overlap or click interference when hovering the scrubber. Clamp the center Y position to at most `proxy.size.height - PlaybackChromeMetrics.height + 24 - menuHeight / 2`.
+  - **Speed Menu Popover Vertical Clamping**: Position the speed menu card so that its bottom edge sits tightly above the progress bar with a clean `2pt` gap when hovered, preventing any visual overlap or click interference when hovering the scrubber. Clamp the center Y position to at most `proxy.size.height - PlaybackChromeMetrics.height + 20 - menuHeight / 2`.
 
 ---
 
