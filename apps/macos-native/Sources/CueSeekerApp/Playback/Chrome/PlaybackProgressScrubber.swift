@@ -2,7 +2,9 @@ import SwiftUI
 
 struct PlaybackProgressScrubber: View {
     @ObservedObject var viewModel: PlaybackViewModel
+    var onScrubbingChanged: (Bool) -> Void = { _ in }
     @State private var isHovered = false
+    @State private var isDragging = false
     @State private var dragTime: Double?
     @State private var hoverX: CGFloat? = nil
     @State private var isHoveringScrubber = false
@@ -68,6 +70,7 @@ struct PlaybackProgressScrubber: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        beginScrubbingIfNeeded()
                         guard duration > 0, width > 0 else {
                             return
                         }
@@ -76,10 +79,12 @@ struct PlaybackProgressScrubber: View {
                     .onEnded { value in
                         guard duration > 0, width > 0 else {
                             dragTime = nil
+                            endScrubbingIfNeeded()
                             return
                         }
                         let finalTime = seekTime(for: value.location.x, width: width, duration: duration)
                         dragTime = nil
+                        endScrubbingIfNeeded()
                         viewModel.seek(to: finalTime)
                     }
             )
@@ -115,6 +120,27 @@ struct PlaybackProgressScrubber: View {
             )
         }
         .frame(height: 18)
+        .onDisappear {
+            endScrubbingIfNeeded()
+        }
+    }
+
+    private func beginScrubbingIfNeeded() {
+        guard !isDragging else {
+            return
+        }
+
+        isDragging = true
+        onScrubbingChanged(true)
+    }
+
+    private func endScrubbingIfNeeded() {
+        guard isDragging else {
+            return
+        }
+
+        isDragging = false
+        onScrubbingChanged(false)
     }
 
     private func seekTime(for xPosition: CGFloat, width: CGFloat, duration: Double) -> Double {

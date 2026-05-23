@@ -2,12 +2,16 @@ import SwiftUI
 
 struct PlaybackChromeSpeedMenu: View {
     let selectedSpeed: Double
+    var suppressesInteraction = false
     let onSelect: (Double) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(PlaybackViewModel.speedPresets, id: \.self) { speed in
                 Button {
+                    guard !suppressesInteraction else {
+                        return
+                    }
                     onSelect(speed)
                 } label: {
                     HStack(spacing: 10) {
@@ -27,7 +31,12 @@ struct PlaybackChromeSpeedMenu: View {
                     .frame(width: 160, height: 30)
                     .contentShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .buttonStyle(PlaybackChromeMenuButtonStyle(isSelected: abs(selectedSpeed - speed) < 0.01))
+                .buttonStyle(
+                    PlaybackChromeMenuButtonStyle(
+                        isSelected: abs(selectedSpeed - speed) < 0.01,
+                        suppressesInteraction: suppressesInteraction
+                    )
+                )
             }
         }
         .padding(6)
@@ -45,6 +54,7 @@ struct PlaybackChromeSpeedMenu: View {
 
 private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
     let isSelected: Bool
+    let suppressesInteraction: Bool
     @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {
@@ -55,11 +65,16 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-            .onHover { isHovered = $0 }
+            .onHover { isHovered = suppressesInteraction ? false : $0 }
+            .onChange(of: suppressesInteraction) { isSuppressed in
+                if isSuppressed {
+                    isHovered = false
+                }
+            }
     }
 
     private func backgroundColor(isPressed: Bool) -> Color {
-        if isPressed || isHovered || isSelected {
+        if !suppressesInteraction && (isPressed || isHovered || isSelected) {
             return PlaybackTheme.menuItemHighlight
         }
         return .clear

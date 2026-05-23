@@ -394,6 +394,10 @@ extension AppCoordinator {
 
         let hasShift = modifierFlags.contains(.shift)
 
+        if playback.isTimelineScrubbing {
+            return Self.isPlaybackShortcutKey(keyCode: keyCode, hasShift: hasShift)
+        }
+
         switch keyCode {
         case 0:
             goPrevious()
@@ -434,6 +438,17 @@ extension AppCoordinator {
         case 47 where hasShift:
             viewModel.adjustSpeed(by: 0.25)
             return true
+        default:
+            return false
+        }
+    }
+
+    private static func isPlaybackShortcutKey(keyCode: UInt16, hasShift: Bool) -> Bool {
+        switch keyCode {
+        case 0, 1, 2, 3, 8, 12, 49, 123, 124, 125, 126:
+            return true
+        case 43, 47:
+            return hasShift
         default:
             return false
         }

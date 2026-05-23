@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented Phase 1.5.2 timeline-scrubbing interaction gating. Dragging the
+  progress scrubber now raises shared modal scrubbing state, suppresses
+  non-Timeline playback keyboard shortcuts, closes and blocks the speed menu,
+  and prevents bottom-player buttons, volume controls, speed controls, and time
+  chrome from showing hover/pressed behavior or firing actions until scrubbing
+  ends.
 - Accepted the Phase 1.5 timeline scrubbing contract for the cinematic player:
   pressing the Timeline Zone now defines a modal scrubbing interaction where
   playback is paused, non-Timeline shortcuts/buttons/menus are suppressed,

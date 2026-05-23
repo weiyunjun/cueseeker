@@ -38,6 +38,7 @@ struct PlaybackChromeIconButton: View {
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
     var isDisabled = false
+    var suppressesInteraction = false
     var hasPersistentBase = true
     let accessibilityLabel: String
     let action: () -> Void
@@ -47,6 +48,7 @@ struct PlaybackChromeIconButton: View {
         kind: PlaybackChromeButtonKind = .circle,
         isSelected: Bool = false,
         isDisabled: Bool = false,
+        suppressesInteraction: Bool = false,
         hasPersistentBase: Bool = true,
         accessibilityLabel: String,
         action: @escaping () -> Void
@@ -55,6 +57,7 @@ struct PlaybackChromeIconButton: View {
         self.kind = kind
         self.isSelected = isSelected
         self.isDisabled = isDisabled
+        self.suppressesInteraction = suppressesInteraction
         self.hasPersistentBase = hasPersistentBase
         self.accessibilityLabel = accessibilityLabel
         self.action = action
@@ -65,6 +68,7 @@ struct PlaybackChromeIconButton: View {
         kind: PlaybackChromeButtonKind = .circle,
         isSelected: Bool = false,
         isDisabled: Bool = false,
+        suppressesInteraction: Bool = false,
         hasPersistentBase: Bool = true,
         accessibilityLabel: String,
         action: @escaping () -> Void
@@ -73,13 +77,19 @@ struct PlaybackChromeIconButton: View {
         self.kind = kind
         self.isSelected = isSelected
         self.isDisabled = isDisabled
+        self.suppressesInteraction = suppressesInteraction
         self.hasPersistentBase = hasPersistentBase
         self.accessibilityLabel = accessibilityLabel
         self.action = action
     }
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            guard !isDisabled, !suppressesInteraction else {
+                return
+            }
+            action()
+        } label: {
             PlaybackChromeIconView(icon: icon, size: kind.symbolSize)
                 .frame(width: kind.size, height: kind.size)
                 .contentShape(Circle())
@@ -88,6 +98,7 @@ struct PlaybackChromeIconButton: View {
             PlaybackChromeIconButtonStyle(
                 kind: kind,
                 isSelected: isSelected,
+                suppressesInteraction: suppressesInteraction,
                 hasPersistentBase: hasPersistentBase
             )
         )
@@ -152,6 +163,7 @@ struct PlaybackCopyGlyph: Shape {
 private struct PlaybackChromeIconButtonStyle: ButtonStyle {
     let kind: PlaybackChromeButtonKind
     let isSelected: Bool
+    let suppressesInteraction: Bool
     let hasPersistentBase: Bool
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
@@ -172,17 +184,22 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
                     }
 
                     // Concentric inner hover circle
-                    if isEnabled && !isSelected && (isHovered || configuration.isPressed) {
+                    if isInteractive && !isSelected && (isHovered || configuration.isPressed) {
                         Circle()
                             .fill(PlaybackTheme.capsuleHoverFill)
                             .scaleEffect(0.85)
                     }
                 }
             )
-            .scaleEffect(configuration.isPressed && isEnabled ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed && isInteractive ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .animation(.easeInOut(duration: 0.15), value: isHovered)
-            .onHover { isHovered = $0 }
+            .onHover { isHovered = suppressesInteraction ? false : $0 }
+            .onChange(of: suppressesInteraction) { isSuppressed in
+                if isSuppressed {
+                    isHovered = false
+                }
+            }
     }
 
     private var foregroundColor: Color {
@@ -190,5 +207,9 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
             return .white.opacity(0.34)
         }
         return isSelected ? Color(red: 0.10, green: 0.10, blue: 0.12) : .white.opacity(0.96)
+    }
+
+    private var isInteractive: Bool {
+        isEnabled && !suppressesInteraction
     }
 }

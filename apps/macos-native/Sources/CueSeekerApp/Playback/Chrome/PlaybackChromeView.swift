@@ -60,6 +60,7 @@ private struct PlaybackSpeedButtonAnchorKey: PreferenceKey {
 struct PlaybackChromeView: View {
     @ObservedObject var viewModel: PlaybackViewModel
     let controls: PlaybackChromeControls
+    @EnvironmentObject private var playback: PlaybackStore
     @State private var isSpeedMenuVisible = false
     @State private var speedMenuEventMonitor: Any?
     @State private var speedButtonFrame: CGRect = .zero
@@ -82,6 +83,12 @@ struct PlaybackChromeView: View {
                 installSpeedMenuDismissMonitor()
             } else {
                 removeSpeedMenuDismissMonitor()
+            }
+        }
+        .onChange(of: playback.isTimelineScrubbing) { isScrubbing in
+            if isScrubbing {
+                isSpeedMenuVisible = false
+                isTimeHovered = false
             }
         }
         .onDisappear {
@@ -133,6 +140,7 @@ struct PlaybackChromeView: View {
 
                 PlaybackChromeSpeedMenu(
                     selectedSpeed: viewModel.playbackSpeed,
+                    suppressesInteraction: playback.isTimelineScrubbing,
                     onSelect: { speed in
                         viewModel.setSpeed(speed)
                         isSpeedMenuVisible = false
@@ -146,7 +154,10 @@ struct PlaybackChromeView: View {
     }
 
     private var scrubberRow: some View {
-        PlaybackProgressScrubber(viewModel: viewModel)
+        PlaybackProgressScrubber(
+            viewModel: viewModel,
+            onScrubbingChanged: { playback.isTimelineScrubbing = $0 }
+        )
             .padding(.horizontal, 24)
     }
 
@@ -155,6 +166,7 @@ struct PlaybackChromeView: View {
             PlaybackChromeIconButton(
                 systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
                 kind: .transport,
+                suppressesInteraction: playback.isTimelineScrubbing,
                 accessibilityLabel: viewModel.isPlaying ? "Pause" : "Play",
                 action: controls.togglePlayPause
             )
@@ -164,6 +176,7 @@ struct PlaybackChromeView: View {
                     systemName: "backward.end.fill",
                     kind: .transport,
                     isDisabled: !controls.canGoPrevious,
+                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Previous video",
                     action: controls.goPrevious
@@ -173,6 +186,7 @@ struct PlaybackChromeView: View {
                     systemName: "forward.end.fill",
                     kind: .transport,
                     isDisabled: !controls.canGoNext,
+                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Next video",
                     action: controls.goNext
@@ -181,7 +195,10 @@ struct PlaybackChromeView: View {
             .frame(height: 40)
             .background(Capsule().fill(PlaybackTheme.capsuleFill))
 
-            PlaybackVolumeControl(viewModel: viewModel)
+            PlaybackVolumeControl(
+                viewModel: viewModel,
+                suppressesInteraction: playback.isTimelineScrubbing
+            )
 
             HStack(spacing: 4) {
                 Text(formatPlaybackTime(viewModel.displayedCurrentTime))
@@ -205,7 +222,7 @@ struct PlaybackChromeView: View {
             )
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.15)) {
-                    isTimeHovered = hovering
+                    isTimeHovered = playback.isTimelineScrubbing ? false : hovering
                 }
             }
         }
@@ -217,6 +234,7 @@ struct PlaybackChromeView: View {
                 PlaybackChromeIconButton(
                     systemName: "bookmark",
                     kind: .transport,
+                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Shiori",
                     action: controls.toggleShiori
@@ -225,6 +243,7 @@ struct PlaybackChromeView: View {
                 PlaybackChromeIconButton(
                     icon: .copy,
                     kind: .transport,
+                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Copy current subtitle",
                     action: controls.copySubtitle
@@ -234,6 +253,7 @@ struct PlaybackChromeView: View {
                     systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
                     kind: .transport,
                     isSelected: viewModel.areSubtitlesVisible,
+                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Subtitles",
                     action: viewModel.toggleSubtitles
@@ -244,6 +264,7 @@ struct PlaybackChromeView: View {
                     kind: .transport,
                     isSelected: controls.isSidePanelVisible,
                     isDisabled: !controls.canToggleSidePanel,
+                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Results panel",
                     action: controls.toggleSidePanel
@@ -260,6 +281,7 @@ struct PlaybackChromeView: View {
                     : "viewfinder",
                 kind: .transport,
                 isDisabled: controls.isFullscreenToggleDisabled,
+                suppressesInteraction: playback.isTimelineScrubbing,
                 accessibilityLabel: "Fullscreen",
                 action: controls.toggleFullscreen
             )
@@ -268,6 +290,9 @@ struct PlaybackChromeView: View {
 
     private var speedControl: some View {
         Button {
+            guard !playback.isTimelineScrubbing else {
+                return
+            }
             isSpeedMenuVisible.toggle()
         } label: {
             Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
@@ -276,7 +301,11 @@ struct PlaybackChromeView: View {
                 .frame(width: 54, height: 40)
                 .contentShape(Capsule())
         }
-        .buttonStyle(PlaybackChromeCapsuleButtonStyle())
+        .buttonStyle(
+            PlaybackChromeCapsuleButtonStyle(
+                suppressesInteraction: playback.isTimelineScrubbing
+            )
+        )
         .accessibilityLabel("Playback speed")
         .frame(width: 54, height: 40, alignment: .center)
         .background(
@@ -352,6 +381,7 @@ enum PlaybackChromeMetrics {
 }
 
 private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
+    var suppressesInteraction = false
     @State private var isHovered = false
     @Environment(\.isEnabled) private var isEnabled
 
@@ -361,19 +391,28 @@ private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
             .background(
                 PlaybackCinematicBacking(
                     shape: Capsule(),
-                    isHovered: isEnabled && isHovered,
-                    isPressed: isEnabled && configuration.isPressed,
+                    isHovered: isInteractive && isHovered,
+                    isPressed: isInteractive && configuration.isPressed,
                     scaleX: 0.88,
                     scaleY: 0.85
                 )
             )
-            .scaleEffect(configuration.isPressed && isEnabled ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed && isInteractive ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .animation(.easeInOut(duration: 0.15), value: isHovered)
-            .onHover { isHovered = $0 }
+            .onHover { isHovered = suppressesInteraction ? false : $0 }
+            .onChange(of: suppressesInteraction) { isSuppressed in
+                if isSuppressed {
+                    isHovered = false
+                }
+            }
     }
 
     private var foregroundColor: Color {
         isEnabled ? Color.white.opacity(0.96) : Color.white.opacity(0.34)
+    }
+
+    private var isInteractive: Bool {
+        isEnabled && !suppressesInteraction
     }
 }

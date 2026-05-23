@@ -2,11 +2,17 @@ import SwiftUI
 
 struct PlaybackVolumeControl: View {
     @ObservedObject var viewModel: PlaybackViewModel
+    var suppressesInteraction = false
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 0) {
-            Button(action: viewModel.toggleMute) {
+            Button {
+                guard !suppressesInteraction else {
+                    return
+                }
+                viewModel.toggleMute()
+            } label: {
                 Image(systemName: volumeIcon)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.96))
@@ -38,14 +44,21 @@ struct PlaybackVolumeControl: View {
         .background(
             PlaybackCinematicBacking(
                 shape: RoundedRectangle(cornerRadius: 20),
-                isHovered: isHovered,
+                isHovered: !suppressesInteraction && isHovered,
                 scaleX: isHovered ? 0.96 : 0.85,
                 scaleY: 0.85
             )
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.22)) {
-                isHovered = hovering
+                isHovered = suppressesInteraction ? false : hovering
+            }
+        }
+        .onChange(of: suppressesInteraction) { isSuppressed in
+            if isSuppressed {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    isHovered = false
+                }
             }
         }
     }
