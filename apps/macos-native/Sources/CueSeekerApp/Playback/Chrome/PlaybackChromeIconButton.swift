@@ -133,9 +133,9 @@ struct PlaybackSidebarIconView: View {
 
     var body: some View {
         ZStack {
-            // Outer rounded rectangle outline (always drawn)
+            // Outer rounded rectangle outline (always drawn) using strokeBorder for perfect boundary alignment
             RoundedRectangle(cornerRadius: 3.2)
-                .stroke(lineWidth: 2.0)
+                .strokeBorder(lineWidth: 2.0)
             
             // Vertical dividing line (always drawn)
             GeometryReader { geo in
@@ -154,8 +154,9 @@ struct PlaybackSidebarIconView: View {
                         GeometryReader { geo in
                             HStack(spacing: 0) {
                                 Spacer(minLength: 0)
+                                // Add 1.0px to overlap the dividing line completely to prevent sub-pixel seams
                                 Rectangle()
-                                    .frame(width: geo.size.width * 0.32, height: geo.size.height)
+                                    .frame(width: geo.size.width * 0.32 + 1.0, height: geo.size.height)
                             }
                         }
                     )
