@@ -27,6 +27,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     private var idleTask: Task<Void, Never>?
     private var cursorHiddenByPlayer = false
     private var focusObservers: [NSObjectProtocol] = []
+    private var pointerDragEventMonitor: Any?
     private weak var playerAreaView: NSView?
     private weak var playerWindow: NSWindow?
 
@@ -34,6 +35,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
 
     func enterVideoPage() {
         startObservingFocus()
+        startObservingPointerDraggedEvents()
         setPlayerUIState(.visible)
         cursorState = .visible
         applyCursorOwnership()
@@ -44,6 +46,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         idleTask?.cancel()
         idleTask = nil
         stopObservingFocus()
+        stopObservingPointerDraggedEvents()
         releaseCursorOwnership()
         playerAreaView = nil
         playerWindow = nil
@@ -80,7 +83,20 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     /// and/or the cursor.
     func pointerMovedInPlayerArea(view: NSView) {
         updatePlayerAreaView(view)
+        handlePhysicalPointerMovement()
+    }
+
+    /// Drag events can be delivered to the original press target instead of the
+    /// tracking overlay. They still represent physical pointer movement.
+    private func pointerDragged() {
+        handlePhysicalPointerMovement()
+    }
+
+    private func handlePhysicalPointerMovement() {
         guard isCursorGovernedByCurrentPlayer else {
+            if playerHasFocus, !isCursorInPlayerArea(), playerUIState == .visible {
+                transitionPlayerUIToHidden()
+            }
             applyCursorOwnership()
             return
         }
@@ -237,5 +253,27 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     private func stopObservingFocus() {
         focusObservers.forEach { NotificationCenter.default.removeObserver($0) }
         focusObservers.removeAll()
+    }
+
+    private func startObservingPointerDraggedEvents() {
+        guard pointerDragEventMonitor == nil else {
+            return
+        }
+        pointerDragEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
+        ) { [weak self] event in
+            MainActor.assumeIsolated {
+                self?.pointerDragged()
+            }
+            return event
+        }
+    }
+
+    private func stopObservingPointerDraggedEvents() {
+        guard let pointerDragEventMonitor else {
+            return
+        }
+        NSEvent.removeMonitor(pointerDragEventMonitor)
+        self.pointerDragEventMonitor = nil
     }
 }

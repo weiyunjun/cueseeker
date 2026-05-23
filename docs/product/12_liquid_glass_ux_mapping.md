@@ -634,8 +634,11 @@ Core rules:
 
 Supplementary rules:
 
-15. Visibility transitions are primarily driven by mouse movement. Mouse clicks
-    and keyboard input do not count as movement.
+15. Visibility transitions are primarily driven by mouse movement. Mouse
+    movement means physical pointer position changes, including ordinary
+    movement and dragging while any mouse button is held. Mouse clicks, mouse
+    button down/up events without pointer-position changes, and keyboard input
+    do not count as movement.
 16. Player UI and cursor state transitions do not animate.
 
 Mapping notes (App implementation):
@@ -653,17 +656,20 @@ Mapping notes (App implementation):
   the bottom player only; the same v4 machine governs its show/hide. The
   player area is the video window; there is no frozen display-check area and
   no dock/top-bar exemption.
-- Player-area enter/leave and in-area movement come from a single
+- Player-area enter/leave and ordinary in-area movement come from a single
   authoritative `NSTrackingArea` on a hit-test-transparent full-bleed overlay
   view (it never intercepts clicks/drag). `mouseEntered` updates player-area
   governance but is not treated as real movement because layout/fullscreen
   changes can emit enter events without physical pointer motion. `mouseMoved`
-  is the governed movement signal; `mouseExited` is the "moved to another
-  area" signal (rule 10.1). This is the only mechanism reliable regardless of
-  embedded AppKit subviews, focus, or the menu-bar/Dock/desktop/other-display
-  the pointer moves onto; `NSEvent` global/local mouse-move monitors and
-  SwiftUI hover are not reliable here. Layout/fullscreen/focus changes are not
-  movement; exiting fullscreen does not change state.
+  is the ordinary governed movement signal; `mouseExited` is the "moved to
+  another area" signal (rule 10.1). Dragged movement (`leftMouseDragged`,
+  `rightMouseDragged`, and `otherMouseDragged`) is also governed movement when
+  the live cursor remains governed by the current player, because AppKit sends
+  drag events to the original press target rather than reliably through the
+  tracking overlay. `NSEvent` global/local mouse-move monitors and SwiftUI hover
+  are not reliable substitutes for enter/exit/ordinary movement tracking.
+  Layout/fullscreen/focus changes are not movement; exiting fullscreen does not
+  change state.
 - The centered overlay panel is not Player UI; its visibility is independent
   of this machine and it never auto-hides. Hiding the chrome does not pause
   playback, change selection, or close menus except where a menu cannot remain

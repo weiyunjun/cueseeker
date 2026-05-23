@@ -177,8 +177,11 @@ Core rules:
 
 Supplementary rules:
 
-15. Visibility transitions are primarily driven by mouse movement. Mouse clicks
-    and keyboard input do not count as movement.
+15. Visibility transitions are primarily driven by mouse movement. Mouse
+    movement means physical pointer position changes, including ordinary
+    movement and dragging while any mouse button is held. Mouse clicks, mouse
+    button down/up events without pointer-position changes, and keyboard input
+    do not count as movement.
 16. Player UI and cursor state transitions do not animate.
 
 Implementation notes:
@@ -189,18 +192,21 @@ Implementation notes:
   focus at each decision point. The playback page must not assume that cursor
   visibility becomes visible merely because the current player stopped
   governing it.
-- Entering / leaving the player area and in-area movement come from a single
-  authoritative `NSTrackingArea` on a full-bleed overlay view that is
+- Entering / leaving the player area and ordinary in-area movement come from a
+  single authoritative `NSTrackingArea` on a full-bleed overlay view that is
   transparent to hit-testing (it never intercepts clicks/drag). Its
   `mouseEntered` updates player-area governance but is not treated as real
   movement because layout/fullscreen changes can emit enter events without
-  physical pointer motion. `mouseMoved` is the governed movement signal and
-  `mouseExited` drives "moved to another area" (rule 10.1). This is the only
-  AppKit mechanism that is reliable regardless of embedded subviews, focus, or
-  the menu-bar/Dock/desktop/other-display the pointer moves onto; `NSEvent`
-  global/local mouse-move monitors and SwiftUI hover are not reliable here.
-  Layout/fullscreen/focus changes do not produce real pointer movement, so
-  they never count as movement. Exiting fullscreen does not change state.
+  physical pointer motion. `mouseMoved` is the ordinary governed movement signal
+  and `mouseExited` drives "moved to another area" (rule 10.1). Dragged movement
+  (`leftMouseDragged`, `rightMouseDragged`, and `otherMouseDragged`) is also
+  governed movement when the live cursor remains governed by the current player,
+  because AppKit sends drag events to the original press target rather than
+  reliably through the tracking overlay. `NSEvent` global/local mouse-move
+  monitors and SwiftUI hover are not reliable substitutes for enter/exit/ordinary
+  movement tracking. Layout/fullscreen/focus changes do not produce real pointer
+  movement, so they never count as movement. Exiting fullscreen does not change
+  state.
 
 ## Memory Regression
 

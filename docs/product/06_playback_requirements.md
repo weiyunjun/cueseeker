@@ -312,8 +312,9 @@ Required behavior:
 - Entering fullscreen should immediately put Player UI and the cursor into
   their hidden states.
 - Mouse movement shows the cursor while the cursor is governed by the current
-  player. Mouse movement inside the player area reveals Player UI when it is
-  not visible only when the player has focus.
+  player. Mouse movement includes ordinary pointer movement and dragging while
+  any mouse button is held. Mouse movement inside the player area reveals Player
+  UI when it is not visible only when the player has focus.
 - Mouse clicks and keyboard shortcuts must not reveal player UI.
 - While Player UI is visible, three seconds without mouse movement while the
   cursor is governed by the current player hides Player UI and the cursor.
@@ -423,6 +424,9 @@ Required behavior:
   and audio must not advance. Releasing the mouse performs the real seek to the
   final requested timestamp and resumes playback only if playback was active
   before scrubbing began.
+- Continuous timeline dragging counts as mouse movement for Player UI and cursor
+  visibility. Player UI and the cursor must not auto-hide while the pointer is
+  physically moving inside the governed player area.
 - While timeline scrubbing is active, all non-Timeline playback keyboard
   shortcuts are disabled. Non-Timeline playback buttons and menus must not
   respond to hover, pressed, click, or menu-open/menu-close interactions until

@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Fixed Player-UI and cursor idle handling so physical pointer movement while
+  dragging with any mouse button keeps the playback chrome and cursor visible
+  instead of letting the three-second idle timer fire mid-drag.
 - Implemented Phase 1.5.4 keyframe-only video-surface scrubbing. Timeline
   dragging now asks the native playback layer to enter a paused scrubbing mode,
   freezes ordinary read-ahead, submits latest-only keyframe preview frames to
