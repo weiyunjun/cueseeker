@@ -18,23 +18,18 @@ struct PlaybackSidebarShell: View {
                 .padding(2)
                 .background(
                     RoundedRectangle(cornerRadius: 9)
-                        .fill(segmentedContainerColor)
+                        .fill(Color.white.opacity(0.08))
                 )
 
                 Text(summaryText)
                     .font(.system(size: 11.5, weight: .regular))
-                    .foregroundStyle(Color.primary.opacity(0.42))
+                    .foregroundStyle(Color.white.opacity(0.55))
                     .monospacedDigit()
                     .padding(.horizontal, 2)
             }
             .padding(.horizontal, 14)
             .padding(.top, 14)
             .padding(.bottom, 10)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(headerHairlineColor)
-                    .frame(height: 0.5)
-            }
 
             content
         }
@@ -81,6 +76,12 @@ struct PlaybackSidebarShell: View {
                 }
                 .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
             }
+            .background(ScrollViewIntrospector { scrollView in
+                scrollView.drawsBackground = false
+                scrollView.borderType = .noBorder
+                scrollView.scrollerStyle = .overlay
+                scrollView.appearance = NSAppearance(named: .darkAqua)
+            })
             .onAppear { scrollSelectedIntoView(proxy) }
             .onChange(of: search.selectedSearchResult?.entryID) { _ in
                 scrollSelectedIntoView(proxy)
@@ -127,14 +128,14 @@ struct PlaybackSidebarShell: View {
         } label: {
             Text(title)
                 .font(.system(size: 12, weight: isActive ? .semibold : .medium))
-                .foregroundStyle(isActive ? Color.primary.opacity(0.9) : Color.primary.opacity(0.5))
+                .foregroundStyle(isActive ? Color.white : Color.white.opacity(0.60))
                 .frame(maxWidth: .infinity)
                 .frame(height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 7)
-                        .fill(isActive ? segmentedActiveColor : Color.clear)
+                        .fill(isActive ? Color.black.opacity(0.50) : Color.clear)
                         .shadow(
-                            color: isActive ? segmentedActiveShadow : .clear,
+                            color: isActive ? Color.black.opacity(0.35) : Color.clear,
                             radius: 2,
                             y: 1
                         )
@@ -158,26 +159,6 @@ struct PlaybackSidebarShell: View {
             return "\(count) \(count == 1 ? "subtitle" : "subtitles")"
         }
     }
-
-    // Scheme-aware tokens mirroring the v6 prototype segmented control and
-    // header hairline (doc 12 §11, doc 11 §5). Fixes the dark-mode misalignment
-    // where the previous hardcoded light values left an opaque white pill and
-    // invisible black hairlines.
-    private var segmentedContainerColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
-    }
-
-    private var segmentedActiveColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.85)
-    }
-
-    private var segmentedActiveShadow: Color {
-        colorScheme == .dark ? Color.black.opacity(0.30) : Color.black.opacity(0.08)
-    }
-
-    private var headerHairlineColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08)
-    }
 }
 
 /// Hosts the playback feedback HUD above the centered overlay panel so command
@@ -186,8 +167,41 @@ struct PlaybackSidebarShell: View {
 /// squeezes the video — `top: 64px; bottom: 104px; left: 50%;
 /// width: min(420px, calc(100% - 48px))`.
 enum PlaybackOverlayPanelMetrics {
-    static let topInset: CGFloat = 64
+    static let topInset: CGFloat = 46
     static let bottomInset: CGFloat = 104
     static let horizontalMargin: CGFloat = 24
     static let maxWidth: CGFloat = 420
+}
+
+struct ScrollViewIntrospector: NSViewRepresentable {
+    let customize: (NSScrollView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let scrollView = findScrollView(for: view) {
+                customize(scrollView)
+            }
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            if let scrollView = findScrollView(for: nsView) {
+                customize(scrollView)
+            }
+        }
+    }
+
+    private func findScrollView(for view: NSView) -> NSScrollView? {
+        var current: NSView? = view
+        while let next = current?.superview {
+            if let scrollView = next as? NSScrollView {
+                return scrollView
+            }
+            current = next
+        }
+        return nil
+    }
 }
