@@ -415,6 +415,33 @@ Required behavior:
 - Playback speed changes must stay within `0.5x` through `2.0x`.
 - The visible playback speed menu should offer `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - Timeline hover and drag states must not move the playback operation controls vertically.
+- Pressing or dragging the `Timeline Zone` enters a modal timeline-scrubbing
+  state immediately. The red progress track, scrubber thumb, tooltip, and
+  visible playback time label should follow the active drag target without
+  waiting for mouse release.
+- While timeline scrubbing is active, playback is paused and the playback clock
+  and audio must not advance. Releasing the mouse performs the real seek to the
+  final requested timestamp and resumes playback only if playback was active
+  before scrubbing began.
+- While timeline scrubbing is active, all non-Timeline playback keyboard
+  shortcuts are disabled. Non-Timeline playback buttons and menus must not
+  respond to hover, pressed, click, or menu-open/menu-close interactions until
+  scrubbing ends.
+- While timeline scrubbing is active, the white hover-ahead track segment should
+  be hidden because the current drag target is already the active scrub
+  position.
+- During timeline scrubbing, the video surface itself should update to the
+  nearest video keyframe at or before the current drag target. This is
+  keyframe-only video-surface scrubbing, not a separate preview overlay and not
+  frame-perfect drag preview.
+- Timeline scrubbing video updates should be driven by mapped-keyframe changes,
+  not by a fixed refresh timer. If the drag target maps to the same previous
+  keyframe, the video surface should not redraw; if it maps to a new keyframe,
+  the newest keyframe request should win.
+- Timeline scrubbing must not advance or repopulate ordinary playback
+  read-ahead from the old playback position. Keyframe scrubbing render work is
+  isolated from the normal playback packet queue; the final release seek
+  determines whether ordinary read-ahead can be retained or must be rebuilt.
 - Playback commands should show transient feedback for Shiori save or removal,
   subtitle copy, subtitle visibility, play or pause, seek direction and amount,
   volume, and playback speed.

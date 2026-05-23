@@ -490,6 +490,19 @@ M2 playback interaction model:
 - Together, the `Timeline Zone` and `Transport Controls Zone` form the `Playback Operation Zone`.
 - Mouse clicks in the `Playback Operation Zone` should control only the targeted playback control and must not fall through to video-surface play or pause toggling.
 - Hovering or dragging the `Timeline Zone` should not change the vertical position of the `Playback Operation Zone`.
+- Pressing or dragging the `Timeline Zone` should enter a modal
+  timeline-scrubbing interaction. During that interaction the scrubber, tooltip,
+  and visible playback time follow the drag target immediately; playback is
+  paused; and non-Timeline playback shortcuts, button hover states, button
+  clicks, and menu interactions are disabled.
+- During timeline scrubbing, the video surface should show the nearest keyframe
+  at or before the current drag target. The video is not playing while this
+  happens, and the keyframe frame is rendered into the video surface rather than
+  shown as a separate preview overlay.
+- Timeline scrubbing should hide the white hover-ahead track segment and update
+  the video surface only when the drag target maps to a different previous
+  keyframe. Mouse release commits a real seek to the final requested timestamp
+  and restores playback only if it was playing before the drag began.
 - Playback speed selection should use an app-drawn upward menu that opens from the speed control.
 - The speed menu should appear when the speed control is clicked, without requiring a separate arrow button.
 - The speed menu should not have a separate show or hide animation.

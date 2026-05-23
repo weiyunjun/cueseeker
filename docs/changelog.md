@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the Phase 1.5 timeline scrubbing contract for the cinematic player:
+  pressing the Timeline Zone now defines a modal scrubbing interaction where
+  playback is paused, non-Timeline shortcuts/buttons/menus are suppressed,
+  progress and time labels follow the drag target immediately, the video
+  surface displays the previous keyframe for the drag target, ordinary
+  10-second / 64 MB read-ahead is isolated from scrub rendering, and mouse
+  release commits the final precise seek while restoring the prior playback
+  state when appropriate.
 - Completed the cinematic player bottom controls bar refinement (Phase 1 of the `ui/restructure`
   branch). Resolved the critical color visibility and contrast issues on transparent bottom bar
   layouts by transitioning base capsule backings and scrubber timelines from translucent white

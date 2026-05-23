@@ -79,6 +79,70 @@ This document serves as the authoritative, unified roadmap for the entire playba
   - **Speed Menu Popover Vertical Clamping**: Position the speed menu card so that its bottom edge sits tightly above the progress bar with a clean `2pt` gap when hovered, preventing any visual overlap or click interference when hovering the scrubber. Clamp the center Y position to at most `proxy.size.height - PlaybackChromeMetrics.height + 20 - menuHeight / 2`.
   - **Active Dragging Tooltip Tracking**: When actively dragging the progress scrubber (`dragTime != nil`), prioritize the drag gesture's horizontal coordinate (`filledWidth`) and time value (`dragTime`) over continuous hover variables to prevent the tooltip from lagging at the pre-drag hover location.
 
+#### Phase 1.5: Timeline Scrubbing Playback Alignment (Planned)
+- **Goals**: Align Timeline drag behavior with YouTube/Movist-style
+  scrubbing while preserving the native playback backend's bounded read-ahead
+  model. Phase 1.5 fixes the behavior gap discovered after Phase 1.4: dragging
+  the scrubber must be a modal playback interaction, not a local-only slider
+  preview followed by one seek on release.
+- **User-facing contract**:
+  - Mouse down in the Timeline Zone enters a modal timeline-scrubbing state
+    immediately. The scrubber jumps to the pressed position without waiting for
+    mouse release.
+  - The red progress track, thumb, tooltip, and visible playback time label
+    follow every drag update. The white hover-ahead segment is hidden while
+    scrubbing because the current scrub position is already the active
+    position.
+  - Playback is paused while the mouse is held down. The playback clock and
+    audio do not advance during scrubbing.
+  - The video surface itself, not a separate preview overlay, updates to the
+    nearest video keyframe at or before the current drag target. This is
+    keyframe-only scrubbing; frame-perfect drag preview is not required.
+  - Video surface updates are driven by keyframe changes, not by a fixed timer.
+    If the drag target maps to the same previous keyframe, no new video frame
+    is rendered. If it maps to a new keyframe, the newest keyframe request wins
+    and older pending requests are cancelled or ignored.
+  - Dragging ends on mouse release. The app then performs a real seek to the
+    final requested timestamp, not to the keyframe timestamp, and resumes
+    playback only if playback was active before scrubbing started.
+- **Modal interaction rules**:
+  - While timeline scrubbing is active, all non-Timeline playback shortcuts are
+    disabled.
+  - While timeline scrubbing is active, non-Timeline bottom-player controls do
+    not enter hover, pressed, or active states; their click actions and menu
+    open/close actions are suppressed until scrubbing ends.
+  - Timeline scrubbing must not fall through to video-surface play/pause
+    toggling.
+- **Read-ahead and render rules**:
+  - Normal playback read-ahead is suspended or frozen while timeline scrubbing
+    is active. The 10-second / 64 MB session-scoped compressed-packet queue
+    must not keep advancing from the old playback position during a drag.
+  - Keyframe scrubbing render work is isolated from normal playback read-ahead.
+    It may decode or reuse individual keyframe frames for the render surface,
+    but it must not write those requests into the normal packet queue.
+  - When scrubbing ends, the final seek position decides whether an existing
+    playback session/read-ahead queue can be retained or must be discarded and
+    rebuilt. The current native seek implementation already behaves like the
+    rebuild case because it replaces the session.
+  - Cold keyframe requests should be latest-only and rate-limited enough to
+    avoid overwhelming decode or disk I/O. Hot in-memory keyframe hits may be
+    displayed immediately when the mapped keyframe changes.
+- **Implementation steps**:
+  1. **1.5.1 Documentation and acceptance rules**: land this Phase 1.5
+     contract in proposal, product, engineering, testing, and changelog docs.
+  2. **1.5.2 Modal interaction gate**: add shared `isTimelineScrubbing` state
+     and suppress playback shortcuts, non-Timeline hover/press/click, and menu
+     interactions while it is active.
+  3. **1.5.3 Shared scrub time display**: lift scrub time out of the local
+     scrubber view so the scrubber, tooltip, and playback time label follow the
+     drag target immediately.
+  4. **1.5.4 Keyframe-only video-surface scrubbing**: add the paused scrubbing
+     render path that displays the previous keyframe for the current drag
+     target without advancing playback or normal read-ahead.
+  5. **1.5.5 Verification**: verify shortcut/button suppression, immediate
+     timeline/time updates, keyframe-boundary video updates, final precise seek,
+     playback-state restoration, and read-ahead isolation.
+
 ---
 
 ### 🟦 Phase 2: Cinematic Feedback HUD & Animations (Planned)

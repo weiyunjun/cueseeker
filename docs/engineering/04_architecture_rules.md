@@ -671,6 +671,18 @@ Rules:
 - Native read-ahead should remain a simple fixed-watermark policy until field
   evidence justifies adaptive behavior. It must not automatically raise startup
   waterlines after repeated rebuffer events without a documented design update.
+- Timeline scrubbing is a modal playback state and must not reuse ordinary
+  pause semantics as its only mechanism. During active timeline scrubbing,
+  audio and the playback clock remain paused, but the video surface may still
+  be updated by an isolated keyframe-only scrub render path.
+- Active timeline scrubbing must suspend or freeze ordinary session read-ahead.
+  The normal 10-second / 64 MB compressed-packet queue must not continue
+  advancing from the old playback position while the user is dragging.
+- Keyframe-only scrub render work must remain isolated from ordinary playback
+  read-ahead. It may decode or reuse individual keyframe frames for display,
+  but it must not populate the normal packet queue. When scrubbing ends, the
+  final seek position decides whether the ordinary read-ahead queue can be
+  retained or must be discarded and rebuilt.
 - Hardware decode uses VideoToolbox.
 - Software decode uses FFmpeg software decoders and initially converts decoded
   frames to BGRA with `libswscale` before display.

@@ -477,6 +477,15 @@ Rules:
 - The progress scrubber supports hover, drag, and seek.
 - Scrubber hover and drag states may reveal a thumb or strengthen the track,
   but they must not change the bottom-player row height.
+- Timeline scrubbing is modal. While the user is dragging the progress
+  scrubber, non-Timeline playback controls suppress hover, pressed, click, and
+  menu states, and non-Timeline playback keyboard shortcuts are disabled.
+- During timeline scrubbing, the red progress track, thumb, tooltip, and visible
+  playback time follow the drag target immediately. The white hover-ahead track
+  segment is hidden while the drag is active.
+- During timeline scrubbing, the video surface displays the nearest keyframe at
+  or before the current drag target. This keyframe-only frame belongs to the
+  video surface itself, not to a separate preview overlay.
 
 ## 10. Expanded Playback UX
 

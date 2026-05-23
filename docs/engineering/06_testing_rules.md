@@ -468,6 +468,24 @@ Rules:
 - Playback read-ahead verification should record startup latency, queued packet
   cap behavior, seek/session replacement cleanup, and whether rebuffer events
   become fewer or shorter under network read pressure.
+- Timeline scrubbing verification should confirm that pressing the progress
+  scrubber enters a modal scrubbing state immediately, pauses playback and
+  audio, disables all non-Timeline playback shortcuts, and suppresses
+  non-Timeline playback button hover, pressed, click, and menu interactions.
+- Timeline scrubbing verification should confirm that the red progress track,
+  thumb, tooltip, and visible playback time follow drag updates immediately,
+  that the white hover-ahead track segment is hidden while dragging, and that
+  mouse release seeks to the final requested timestamp rather than to the
+  displayed keyframe timestamp.
+- Timeline scrubbing video-surface verification should confirm that dragging
+  updates the video surface only when the target maps to a different previous
+  keyframe, that repeated drag updates within the same keyframe interval do not
+  redraw the video surface, and that stale keyframe requests are cancelled or
+  ignored in favor of the newest target.
+- Timeline scrubbing read-ahead verification should confirm that active
+  scrubbing does not advance or repopulate the normal 10-second / 64 MB
+  playback read-ahead queue from the old playback position, and that normal
+  read-ahead is retained or rebuilt only after the final release seek.
 - ASS subtitle rendering memory work must be judged primarily through
   end-to-end playback acceptance, not isolated renderer probes alone. The core
   acceptance question is whether the user-visible memory drop is meaningful
