@@ -63,6 +63,7 @@ struct PlaybackChromeView: View {
     @State private var isSpeedMenuVisible = false
     @State private var speedMenuEventMonitor: Any?
     @State private var speedButtonFrame: CGRect = .zero
+    @State private var isTimeHovered = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -188,7 +189,6 @@ struct PlaybackChromeView: View {
             .background(Capsule().fill(Color.white.opacity(0.10)))
 
             PlaybackVolumeControl(viewModel: viewModel)
-                .padding(.leading, 4)
 
             HStack(spacing: 4) {
                 Text(formatPlaybackTime(viewModel.displayedCurrentTime))
@@ -200,7 +200,17 @@ struct PlaybackChromeView: View {
             }
             .font(.system(size: 12, weight: .semibold, design: .monospaced))
             .monospacedDigit()
-            .padding(.leading, 8)
+            .padding(.horizontal, 16)
+            .frame(height: 40)
+            .background(
+                Capsule()
+                    .fill(isTimeHovered ? Color.white.opacity(0.16) : Color.white.opacity(0.10))
+            )
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isTimeHovered = hovering
+                }
+            }
         }
     }
 

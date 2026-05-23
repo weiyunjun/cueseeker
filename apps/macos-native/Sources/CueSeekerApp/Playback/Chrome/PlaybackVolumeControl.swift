@@ -5,48 +5,31 @@ struct PlaybackVolumeControl: View {
     @State private var isHovered = false
 
     var body: some View {
-        ZStack(alignment: .leading) {
+        HStack(spacing: 0) {
             PlaybackChromeIconButton(
                 systemName: volumeIcon,
                 kind: .transport,
+                hasPersistentBase: false,
                 accessibilityLabel: "Mute",
                 action: viewModel.toggleMute
             )
+            .frame(width: 40, height: 40)
 
-            HStack(spacing: 8) {
-                PlaybackVolumeSlider(volume: Binding(
-                    get: { viewModel.volume },
-                    set: { viewModel.setVolume($0, showsFeedback: false) }
-                ))
-                .frame(width: 86, height: 18)
-
-                Text("\(Int(viewModel.volume.rounded()))%")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color.black.opacity(0.62))
-                    .monospacedDigit()
-                    .frame(width: 36, alignment: .trailing)
-            }
-            .padding(.horizontal, 8)
-            .frame(height: 28)
-            .background(
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(Color.white.opacity(0.86))
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 9))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 9)
-                    .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.28), radius: 14, y: 5)
+            PlaybackVolumeSlider(volume: Binding(
+                get: { viewModel.volume },
+                set: { viewModel.setVolume($0, showsFeedback: false) }
+            ))
+            .frame(width: isHovered ? 72 : 0)
             .opacity(isHovered ? 1 : 0)
-            .offset(x: isHovered ? 44 : 40)
-            .allowsHitTesting(isHovered)
-            .animation(.easeOut(duration: 0.16), value: isHovered)
-            .zIndex(10)
+            .clipped()
         }
-        .frame(width: 176, height: 40, alignment: .leading)
+        .frame(width: isHovered ? 128 : 40, height: 40, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.white.opacity(0.10))
+        )
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.16)) {
+            withAnimation(.easeInOut(duration: 0.22)) {
                 isHovered = hovering
             }
         }
@@ -73,17 +56,23 @@ private struct PlaybackVolumeSlider: View {
         GeometryReader { geometry in
             let width = max(0, geometry.size.width)
             let progress = min(max(volume / 100, 0), 1)
+            let thumbSize: CGFloat = 10
 
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.black.opacity(0.12))
-                    .frame(height: 5)
+                    .fill(Color.white.opacity(0.16))
+                    .frame(height: 3)
 
                 Capsule()
-                    .fill(Color.black.opacity(0.64))
-                    .frame(width: width * progress, height: 5)
+                    .fill(Color.white)
+                    .frame(width: width * progress, height: 3)
+
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: thumbSize, height: thumbSize)
+                    .offset(x: max(0, (width - thumbSize) * progress))
             }
-            .frame(height: 18, alignment: .center)
+            .frame(height: 40, alignment: .center)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
