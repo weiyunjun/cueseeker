@@ -11,9 +11,9 @@ Specifically, we want to:
 1. **Unify HUD size & visual style**: Transform all feedback overlays into self-sizing, **60px height capsule-shaped overlays** with horizontal layouts (icon on left, text on right).
 2. **Apply consistent icons for toggleable states**: Represent ON/OFF states **solely through icon changes** (filled `.fill` / solid vs outline variants) for subtitles and side panel buttons on the bottom bar, and match them exactly in the feedback animations. Remove the heavy high-contrast white circular background in selected state.
    - For subtitles, use `"captions.bubble.fill"` (ON) and `"captions.bubble"` (OFF).
-   - For side panel, use a beautiful custom-designed **`PlaybackSidebarIconView`**:
-     - Closed state (OFF): Outlined rounded rectangle (`lineWidth: 2.0`) with a vertical divider line (`lineWidth: 2.0`) spanning from top-to-bottom (`y: 0` to `y: height`) at exactly `68%` of the width.
-     - Open state (ON): Keep the outlined rounded rectangle and divider, and **fill the right-side chamber (the sidebar portion, trailing 32%) solid white**.
+   - For side panel, use a beautiful custom-designed **`PlaybackSidebarIconView`** conforming to standard SVG geometry:
+     - Closed state (OFF): Outlined rounded rectangle (`lineWidth: 2.0` inner stroke border) with a vertical divider line (`lineWidth: 2.0`) spanning completely from top-to-bottom (`y: 0` to `y: height`) at exactly `68%` of the width.
+     - Open state (ON): Keep the outlined rounded rectangle and divider, and **fill the right-side chamber (the sidebar portion, trailing 32%) solid white** so it merges perfectly and seamlessly (`strokeBorder` avoids double borders/gap seams).
 3. **Align overlay background style**: Set the feedback HUD background fill, stroke border, and shadow to match the speed menu popover's standard overlay backing exactly:
    - Fill: **`PlaybackTheme.cinematicBacking`** (`Color.black.opacity(0.55)`).
    - Stroke: **`PlaybackTheme.textTertiary.opacity(0.3)`** (width `0.5`).
@@ -30,9 +30,43 @@ Specifically, we want to:
 
 ---
 
-## 2. Proposed Changes
+## 2. Universal SVG Asset Source of Truth
 
-### 2.1 Component Changes
+To ensure easy portability to Windows in the future, the raw SVG specifications for our custom icons are frozen below:
+
+### 2.1 Copy Icon SVG
+```xml
+<svg viewBox="0 0 17 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="3.2" y="5.2" width="8.1" height="9.2" rx="1.2" />
+  <path d="M6 2.6h6.4c.8 0 1.4.6 1.4 1.4v7.2" />
+</svg>
+```
+
+### 2.2 Sidebar Icon SVGs
+- **Closed State (OFF Outline)**:
+  ```xml
+  <svg viewBox="0 0 17 17" fill="none" stroke="currentColor" stroke-width="2.0">
+    <rect x="1" y="1" width="15" height="15" rx="3.2" />
+    <line x1="11.5" y1="1" x2="11.5" y2="16" />
+  </svg>
+  ```
+- **Open State (ON Filled Right Chamber)**:
+  ```xml
+  <svg viewBox="0 0 17 17" fill="none" stroke="currentColor" stroke-width="2.0">
+    <rect x="1" y="1" width="15" height="15" rx="3.2" />
+    <line x1="11.5" y1="1" x2="11.5" y2="16" />
+    <clipPath id="right-chamber-clip">
+      <rect x="1" y="1" width="15" height="15" rx="3.2" />
+    </clipPath>
+    <rect x="11.5" y="1" width="4.5" height="15" fill="currentColor" clip-path="url(#right-chamber-clip)" />
+  </svg>
+  ```
+
+---
+
+## 3. Proposed Changes
+
+### 3.1 Component Changes
 
 #### [MODIFY] [PlaybackFeedbackOverlay.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Playback/PlaybackFeedbackOverlay.swift)
 - Restructure the body to use a unified `LiquidGlassFeedbackHUD` helper component for all feedback states.
@@ -68,7 +102,7 @@ Specifically, we want to:
 - Update `PlaybackChromeIcon` enum to add `.sidebar(isOpen: Bool)`.
 - Map `.copy` to system image `"doc.on.doc"`.
 - Map `.sidebar(let isOpen)` to render `PlaybackSidebarIconView(isOpen: isOpen, size: size)`.
-- Define `PlaybackSidebarIconView` helper component with `lineWidth: 2.0` and trailing 32% fill when `isOpen == true`.
+- Define `PlaybackSidebarIconView` helper component with `strokeBorder(lineWidth: 2.0)` and trailing 32% fill with +1.0px overlap when `isOpen == true`.
 
 #### [MODIFY] [AppCoordinator+Shiori.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator+Shiori.swift)
 - Remove `confirmShioriRemoval()` modal confirm check inside `toggleCurrentShiori()`, executing removal instantly and triggering the `"Shiori Removed"` HUD feedback.
@@ -84,7 +118,7 @@ Specifically, we want to:
 
 ---
 
-## 3. Verification Plan
+## 4. Verification Plan
 
 ### Automated Tests
 - Run `swift build` and `swift test` inside `apps/macos-native` directory to verify compiling correctness.
