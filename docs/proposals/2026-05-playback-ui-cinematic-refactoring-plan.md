@@ -44,7 +44,7 @@ This document serves as the authoritative, unified roadmap for the entire playba
   - **Speed Control Capsule Button**: Retain its original **54x40 capsule shape** and **12pt semibold font** with monospaced digits. Render a persistent `PlaybackTheme.capsuleFill` background, and overlay-add an inner `PlaybackTheme.capsuleHoverFill` capsule scaled to `x: 0.88, y: 0.85` under hover/press states. It manages dynamic foreground colors based on `isEnabled` availability and does not implement white background inversion.
   - **Speed Popup Menu**: Rebuilt with `PlaybackTheme.cinematicBacking` and a subtle `0.5` stroke border of `PlaybackTheme.textTertiary.opacity(0.3)`.
 
-#### Phase 1.3: Volume Slider Inline Hover Expansion & Time Capsule Refinement (Iterated & Refined - Planned)
+#### Phase 1.3: Volume Slider Inline Hover Expansion & Time Capsule Refinement (Completed & Verified)
 - **Goals**: Implement a fluid inline horizontal volume slider that dynamically expands into a single cohesive capsule, and format the playback time display as a matching control capsule.
 - **Specifications**:
   - **Time Capsule Design**: Format the playback time display (current / duration) in a cohesive, height-40 capsule backed by `PlaybackTheme.capsuleFill`. Both current time and duration are styled in high-contrast `PlaybackTheme.textPrimary` to ensure excellent readability. On mouse hover, apply a smooth highlight background transition to `PlaybackTheme.capsuleHoverFill`, matching standard control capsules.
@@ -59,7 +59,7 @@ This document serves as the authoritative, unified roadmap for the entire playba
     - The volume percentage displays inline next to the slider as a monospaced digit label `Text` with `PlaybackTheme.textPrimary` color for optimal legibility.
     - Drag gestures map smoothly to `viewModel.volume` mutations.
 
-#### Phase 1.4: Progress Scrubber Hover Tooltip & Tracks (Iterated & Refined - Planned)
+#### Phase 1.4: Progress Scrubber Hover Tooltip & Tracks (Completed & Verified)
 - **Goals**: Refine timeline scrubbing with visual previews and dynamic location metrics, and purify the player bottom bar.
 - **Specifications**:
   - **Transparent Bottom Bar Layout**: The black background gradient from the player's bottom controls bar is completely removed, rendering all premium button circles/capsules floating natively transparent over the video stage to maximize widescreen legibility.
@@ -77,6 +77,7 @@ This document serves as the authoritative, unified roadmap for the entire playba
   - **Gesture Safety**: Set `.allowsHitTesting(false)` on the tooltip to guarantee it does not intercept hover or drag gestures.
   - **Speed Menu Consistency**: Ensure selected, hovered, and pressed speed items in the speed settings popup share `PlaybackTheme.menuItemHighlight` (`Color.white.opacity(0.12)`) for absolute consistency.
   - **Speed Menu Popover Vertical Clamping**: Position the speed menu card so that its bottom edge sits tightly above the progress bar with a clean `2pt` gap when hovered, preventing any visual overlap or click interference when hovering the scrubber. Clamp the center Y position to at most `proxy.size.height - PlaybackChromeMetrics.height + 20 - menuHeight / 2`.
+  - **Active Dragging Tooltip Tracking**: When actively dragging the progress scrubber (`dragTime != nil`), prioritize the drag gesture's horizontal coordinate (`filledWidth`) and time value (`dragTime`) over continuous hover variables to prevent the tooltip from lagging at the pre-drag hover location.
 
 ---
 
