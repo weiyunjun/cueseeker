@@ -55,7 +55,7 @@ struct PlaybackPageView: View {
         let visible = playback.isPlaybackSidePanelVisible
         let panelWidth = min(
             PlaybackOverlayPanelMetrics.maxWidth,
-            max(0, size.width - PlaybackOverlayPanelMetrics.horizontalMargin * 2)
+            max(0, size.width - 40)
         )
         let panelHeight = max(
             0,
@@ -66,40 +66,22 @@ struct PlaybackPageView: View {
 
         PlaybackSidebarShell(appState: appState, activePanel: $activePanel)
             .frame(width: panelWidth, height: panelHeight)
-            .background(overlayPanelBackground)
+            .background(PlaybackTheme.cinematicBacking)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(overlayPanelBorder, lineWidth: 0.5)
+                    .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
             )
-            .shadow(color: overlayPanelShadow, radius: 28, x: 0, y: 16)
+            .shadow(color: Color.black.opacity(0.42), radius: 24, x: 0, y: 12)
             .opacity(visible ? 1 : 0)
             .scaleEffect(visible ? 1 : 0.98)
             .position(
-                x: size.width / 2,
+                x: size.width - 20 - panelWidth / 2,
                 y: PlaybackOverlayPanelMetrics.topInset + panelHeight / 2
             )
             .offset(y: visible ? 0 : 10)
             .allowsHitTesting(visible)
             .animation(.easeInOut(duration: 0.18), value: visible)
-    }
-
-    private var overlayPanelBackground: Color {
-        colorScheme == .dark
-            ? Color(red: 36 / 255, green: 34 / 255, blue: 43 / 255)
-            : Color(red: 246 / 255, green: 246 / 255, blue: 247 / 255)
-    }
-
-    private var overlayPanelBorder: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(0.10)
-            : Color.black.opacity(0.10)
-    }
-
-    private var overlayPanelShadow: Color {
-        colorScheme == .dark
-            ? Color.black.opacity(0.65)
-            : Color.black.opacity(0.45)
     }
 
     private func refreshSidebarData() {
