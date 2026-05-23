@@ -331,6 +331,298 @@ static CMTime SFXFramePresentationTime(const AVFrame *frame, AVStream *stream) {
     return CMTimeMake(value, stream->time_base.den);
 }
 
+static CMSampleBufferRef SFXSampleBufferForPixelBuffer(
+    CVPixelBufferRef pixelBuffer,
+    CMTime presentationTime
+) {
+    if (pixelBuffer == NULL) {
+        return NULL;
+    }
+
+    CMVideoFormatDescriptionRef formatDescription = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        &formatDescription
+    );
+    if (status != noErr || formatDescription == NULL) {
+        return NULL;
+    }
+
+    CMSampleTimingInfo timing = {
+        .duration = CMTimeMake(1, 60),
+        .presentationTimeStamp = presentationTime,
+        .decodeTimeStamp = kCMTimeInvalid
+    };
+    CMSampleBufferRef sampleBuffer = NULL;
+    status = CMSampleBufferCreateReadyWithImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        formatDescription,
+        &timing,
+        &sampleBuffer
+    );
+    CFRelease(formatDescription);
+
+    if (status != noErr || sampleBuffer == NULL) {
+        return NULL;
+    }
+
+    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, true);
+    if (attachments != NULL && CFArrayGetCount(attachments) > 0) {
+        CFMutableDictionaryRef attachment = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+        CFDictionarySetValue(attachment, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+    }
+
+    return sampleBuffer;
+}
+
+static CVPixelBufferRef SFXCopyBGRAKeyframePreviewPixelBuffer(
+    NSString *path,
+    NSInteger milliseconds,
+    CMTime *presentationTimeOut,
+    NSInteger *frameMillisecondsOut
+) {
+    AVFormatContext *formatContext = NULL;
+    AVCodecContext *codecContext = NULL;
+    AVPacket *packet = NULL;
+    AVFrame *frame = NULL;
+    struct SwsContext *scaler = NULL;
+    CVPixelBufferRef pixelBuffer = NULL;
+    NSError *seekError = nil;
+
+    int result = avformat_open_input(&formatContext, path.fileSystemRepresentation, NULL, NULL);
+    if (result < 0) {
+        goto cleanup;
+    }
+
+    result = avformat_find_stream_info(formatContext, NULL);
+    if (result < 0) {
+        goto cleanup;
+    }
+
+    int videoStreamIndex = av_find_best_stream(
+        formatContext,
+        AVMEDIA_TYPE_VIDEO,
+        -1,
+        -1,
+        NULL,
+        0
+    );
+    if (videoStreamIndex < 0) {
+        goto cleanup;
+    }
+
+    AVStream *videoStream = formatContext->streams[videoStreamIndex];
+    AVCodecParameters *parameters = videoStream->codecpar;
+    const AVCodec *decoder = SFXFindSoftwareVideoDecoder(parameters->codec_id);
+    if (decoder == NULL) {
+        goto cleanup;
+    }
+
+    codecContext = avcodec_alloc_context3(decoder);
+    if (codecContext == NULL) {
+        goto cleanup;
+    }
+
+    result = avcodec_parameters_to_context(codecContext, parameters);
+    if (result < 0) {
+        goto cleanup;
+    }
+
+    codecContext->thread_count = 0;
+    codecContext->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+
+    result = avcodec_open2(codecContext, decoder, NULL);
+    if (result < 0) {
+        goto cleanup;
+    }
+
+    double seconds = fmax(0, (double)milliseconds / 1000.0);
+    if (!SFXSeekToStartPosition(formatContext, videoStreamIndex, seconds, &seekError)) {
+        goto cleanup;
+    }
+    avcodec_flush_buffers(codecContext);
+
+    packet = av_packet_alloc();
+    frame = av_frame_alloc();
+    if (packet == NULL || frame == NULL) {
+        goto cleanup;
+    }
+
+    while (av_read_frame(formatContext, packet) >= 0) {
+        if (packet->stream_index != videoStreamIndex) {
+            av_packet_unref(packet);
+            continue;
+        }
+
+        result = avcodec_send_packet(codecContext, packet);
+        av_packet_unref(packet);
+        if (result < 0) {
+            continue;
+        }
+
+        while ((result = avcodec_receive_frame(codecContext, frame)) >= 0) {
+            int width = frame->width > 0 ? frame->width : codecContext->width;
+            int height = frame->height > 0 ? frame->height : codecContext->height;
+            enum AVPixelFormat inputFormat = (enum AVPixelFormat)frame->format;
+            if (width <= 0
+                || height <= 0
+                || inputFormat == AV_PIX_FMT_NONE
+                || av_pix_fmt_desc_get(inputFormat) == NULL) {
+                av_frame_unref(frame);
+                continue;
+            }
+
+            scaler = sws_getContext(
+                width,
+                height,
+                inputFormat,
+                width,
+                height,
+                AV_PIX_FMT_BGRA,
+                SWS_BILINEAR,
+                NULL,
+                NULL,
+                NULL
+            );
+            if (scaler == NULL) {
+                av_frame_unref(frame);
+                goto cleanup;
+            }
+
+            int pixelFormat = kCVPixelFormatType_32BGRA;
+            int bufferWidth = width;
+            int bufferHeight = height;
+            CFNumberRef pixelFormatNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pixelFormat);
+            CFNumberRef widthNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &bufferWidth);
+            CFNumberRef heightNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &bufferHeight);
+            CFDictionaryRef ioSurfaceProperties = CFDictionaryCreate(
+                kCFAllocatorDefault,
+                NULL,
+                NULL,
+                0,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks
+            );
+
+            const void *keys[] = {
+                kCVPixelBufferPixelFormatTypeKey,
+                kCVPixelBufferWidthKey,
+                kCVPixelBufferHeightKey,
+                kCVPixelBufferIOSurfacePropertiesKey
+            };
+            const void *values[] = {
+                pixelFormatNumber,
+                widthNumber,
+                heightNumber,
+                ioSurfaceProperties
+            };
+            CFDictionaryRef attributes = NULL;
+            if (pixelFormatNumber != NULL && widthNumber != NULL && heightNumber != NULL && ioSurfaceProperties != NULL) {
+                attributes = CFDictionaryCreate(
+                    kCFAllocatorDefault,
+                    keys,
+                    values,
+                    4,
+                    &kCFTypeDictionaryKeyCallBacks,
+                    &kCFTypeDictionaryValueCallBacks
+                );
+            }
+            if (pixelFormatNumber != NULL) {
+                CFRelease(pixelFormatNumber);
+            }
+            if (widthNumber != NULL) {
+                CFRelease(widthNumber);
+            }
+            if (heightNumber != NULL) {
+                CFRelease(heightNumber);
+            }
+            if (ioSurfaceProperties != NULL) {
+                CFRelease(ioSurfaceProperties);
+            }
+            if (attributes == NULL) {
+                av_frame_unref(frame);
+                goto cleanup;
+            }
+
+            CVReturn createResult = CVPixelBufferCreate(
+                kCFAllocatorDefault,
+                width,
+                height,
+                kCVPixelFormatType_32BGRA,
+                attributes,
+                &pixelBuffer
+            );
+            CFRelease(attributes);
+            if (createResult != kCVReturnSuccess || pixelBuffer == NULL) {
+                av_frame_unref(frame);
+                goto cleanup;
+            }
+
+            CVReturn lockResult = CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+            if (lockResult != kCVReturnSuccess) {
+                CVPixelBufferRelease(pixelBuffer);
+                pixelBuffer = NULL;
+                av_frame_unref(frame);
+                goto cleanup;
+            }
+
+            uint8_t *destinationData[] = {
+                CVPixelBufferGetBaseAddress(pixelBuffer),
+                NULL,
+                NULL,
+                NULL
+            };
+            int destinationLinesize[] = {
+                (int)CVPixelBufferGetBytesPerRow(pixelBuffer),
+                0,
+                0,
+                0
+            };
+
+            int convertedHeight = sws_scale(
+                scaler,
+                (const uint8_t * const *)frame->data,
+                frame->linesize,
+                0,
+                height,
+                destinationData,
+                destinationLinesize
+            );
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+            if (convertedHeight <= 0) {
+                CVPixelBufferRelease(pixelBuffer);
+                pixelBuffer = NULL;
+                av_frame_unref(frame);
+                goto cleanup;
+            }
+
+            if (presentationTimeOut != NULL) {
+                *presentationTimeOut = SFXFramePresentationTime(frame, videoStream);
+            }
+            if (frameMillisecondsOut != NULL) {
+                double frameSeconds = SFXFramePlaybackSeconds(frame, videoStream);
+                *frameMillisecondsOut = isfinite(frameSeconds) && frameSeconds >= 0
+                    ? (NSInteger)llround(frameSeconds * 1000.0)
+                    : milliseconds;
+            }
+            av_frame_unref(frame);
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    if (scaler != NULL) {
+        sws_freeContext(scaler);
+    }
+    av_frame_free(&frame);
+    av_packet_free(&packet);
+    avcodec_free_context(&codecContext);
+    avformat_close_input(&formatContext);
+    return pixelBuffer;
+}
+
 static int SFXOutputChannelCount(int inputChannels) {
     if (inputChannels <= 0) {
         return 0;
@@ -397,6 +689,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 @interface SFXNativePlaybackPlayer ()
 - (void)requestAutomaticSoftwareRecycleForSession:(SFXNativePlaybackSession *)session
                                    atMilliseconds:(NSInteger)milliseconds;
+- (void)cancelTimelineScrubPreviewRequests;
 @end
 
 @interface SFXNativePlaybackSession : NSObject
@@ -414,6 +707,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)start;
 - (void)stopAndWait;
 - (void)setPaused:(BOOL)paused;
+- (void)setReadAheadSuspended:(BOOL)suspended;
 - (void)setVolume:(float)volume;
 - (void)setPlaybackRate:(float)playbackRate;
 @property (nonatomic, copy, readonly) NSString *path;
@@ -441,6 +735,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     int _packetQueueCount;
     BOOL _packetQueueEOF;
     BOOL _packetQueueDemuxStarted;
+    BOOL _readAheadSuspended;
 
     AVFormatContext *_formatContext;
     AVCodecContext *_videoCodecContext;
@@ -953,6 +1248,13 @@ static int SFXOutputChannelCount(int inputChannels) {
     [self notifyTimeIfNeeded:YES];
 }
 
+- (void)setReadAheadSuspended:(BOOL)suspended {
+    [_packetQueueCondition lock];
+    _readAheadSuspended = suspended;
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+}
+
 - (void)setVolume:(float)volume {
     _volume = volume;
     AVAudioPlayerNode *audioPlayer = _audioPlayer;
@@ -1096,7 +1398,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         while (!atomic_load(&_cancelled)
                && !atomic_load(&_finishingForAutomaticRecycle)
                && !_packetQueueEOF
-               && [self isPacketQueueAtHighWaterLocked]) {
+               && (_readAheadSuspended || [self isPacketQueueAtHighWaterLocked])) {
             [_packetQueueCondition wait];
         }
         BOOL shouldStop = atomic_load(&_cancelled)
@@ -2149,6 +2451,9 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     float _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
     BOOL _didRecycleInitialSoftwareSession;
+    dispatch_queue_t _scrubPreviewQueue;
+    NSUInteger _scrubPreviewGeneration;
+    NSInteger _lastScrubPreviewFrameMilliseconds;
 }
 
 - (instancetype)init {
@@ -2162,6 +2467,8 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     _volume = 1.0;
     _playbackRate = 1.0;
     _decodeMode = SFXNativePlaybackDecodeModeAuto;
+    _scrubPreviewQueue = dispatch_queue_create("CueSeeker.NativePlayback.ScrubPreview", DISPATCH_QUEUE_SERIAL);
+    _lastScrubPreviewFrameMilliseconds = -1;
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
     return self;
 }
@@ -2244,6 +2551,7 @@ startMilliseconds:(NSInteger)startMilliseconds
 flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
 allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
            error:(NSError **)error {
+    [self cancelTimelineScrubPreviewRequests];
     [self stopAndFlushDisplay:flushDisplayBeforeStart];
 
     SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
@@ -2282,6 +2590,111 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
        flushDisplayBeforeStart:NO
  allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
                     error:error];
+}
+
+- (BOOL)setTimelineScrubbing:(BOOL)active error:(NSError **)error {
+    if (_session == nil) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(42, @"Native playback has no active session for timeline scrubbing.");
+        }
+        return NO;
+    }
+
+    if (active) {
+        _lastScrubPreviewFrameMilliseconds = -1;
+        [_session setReadAheadSuspended:YES];
+        [_session setPaused:YES];
+    } else {
+        [self cancelTimelineScrubPreviewRequests];
+        [_session setReadAheadSuspended:NO];
+    }
+    return YES;
+}
+
+- (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds {
+    NSString *path = nil;
+    AVSampleBufferDisplayLayer *displayLayer = nil;
+    NSUInteger generation = 0;
+    @synchronized (self) {
+        if (_currentPath == nil) {
+            return;
+        }
+        _scrubPreviewGeneration += 1;
+        generation = _scrubPreviewGeneration;
+        path = [_currentPath copy];
+        displayLayer = _nativeView.displayLayer;
+    }
+
+    NSInteger targetMilliseconds = MAX(0, milliseconds);
+    dispatch_async(_scrubPreviewQueue, ^{
+        @autoreleasepool {
+            @synchronized (self) {
+                if (generation != _scrubPreviewGeneration
+                    || _currentPath == nil
+                    || ![_currentPath isEqualToString:path]) {
+                    return;
+                }
+            }
+
+            CMTime presentationTime = CMTimeMake(targetMilliseconds, 1000);
+            NSInteger frameMilliseconds = -1;
+            CVPixelBufferRef pixelBuffer = SFXCopyBGRAKeyframePreviewPixelBuffer(
+                path,
+                targetMilliseconds,
+                &presentationTime,
+                &frameMilliseconds
+            );
+            if (pixelBuffer == NULL) {
+                return;
+            }
+
+            @synchronized (self) {
+                if (generation != _scrubPreviewGeneration
+                    || _currentPath == nil
+                    || ![_currentPath isEqualToString:path]) {
+                    CVPixelBufferRelease(pixelBuffer);
+                    return;
+                }
+
+                if (frameMilliseconds >= 0 && frameMilliseconds == _lastScrubPreviewFrameMilliseconds) {
+                    CVPixelBufferRelease(pixelBuffer);
+                    return;
+                }
+                _lastScrubPreviewFrameMilliseconds = frameMilliseconds;
+            }
+
+            CVPixelBufferRetain(pixelBuffer);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                @synchronized (self) {
+                    if (generation != _scrubPreviewGeneration
+                        || _currentPath == nil
+                        || ![_currentPath isEqualToString:path]) {
+                        CVPixelBufferRelease(pixelBuffer);
+                        return;
+                    }
+                }
+
+                CMSampleBufferRef sampleBuffer = SFXSampleBufferForPixelBuffer(
+                    pixelBuffer,
+                    presentationTime
+                );
+                if (sampleBuffer != NULL) {
+                    [displayLayer flush];
+                    [displayLayer enqueueSampleBuffer:sampleBuffer];
+                    CFRelease(sampleBuffer);
+                }
+                CVPixelBufferRelease(pixelBuffer);
+            });
+            CVPixelBufferRelease(pixelBuffer);
+        }
+    });
+}
+
+- (void)cancelTimelineScrubPreviewRequests {
+    @synchronized (self) {
+        _scrubPreviewGeneration += 1;
+        _lastScrubPreviewFrameMilliseconds = -1;
+    }
 }
 
 - (void)requestAutomaticSoftwareRecycleForSession:(SFXNativePlaybackSession *)session
@@ -2323,6 +2736,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 }
 
 - (void)stopAndFlushDisplay:(BOOL)flushDisplay {
+    [self cancelTimelineScrubPreviewRequests];
     [_session stopAndWait];
     _session = nil;
     _currentPath = nil;

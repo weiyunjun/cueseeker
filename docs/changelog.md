@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented Phase 1.5.4 keyframe-only video-surface scrubbing. Timeline
+  dragging now asks the native playback layer to enter a paused scrubbing mode,
+  freezes ordinary read-ahead, submits latest-only keyframe preview frames to
+  the existing video surface through an isolated scrub-render queue, and commits
+  the final precise seek while restoring the prior play/pause state.
 - Implemented Phase 1.5.3 shared timeline scrub time display. The progress
   scrubber now publishes its active drag target through playback state, the
   bottom-player time label reads that shared scrub time while dragging, and the

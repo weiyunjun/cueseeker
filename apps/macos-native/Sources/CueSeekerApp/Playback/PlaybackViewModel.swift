@@ -52,6 +52,7 @@ public final class PlaybackViewModel: ObservableObject {
     static let maximumPlaybackSpeed = 2.0
     static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
     private static let displayedCurrentTimePublishInterval: TimeInterval = 0.5
+    private static let timelineScrubPreviewMinimumInterval: TimeInterval = 1.0 / 15.0
     private static let defaultVolume = 100.0
     private static let defaultPlaybackSpeed = 1.0
 
@@ -74,6 +75,10 @@ public final class PlaybackViewModel: ObservableObject {
     private var lastNonzeroVolume = 100.0
     private var subtitleTrack = PlaybackSubtitleTrack.empty
     private var lastDisplayedCurrentTimePublishTimestamp: TimeInterval = 0
+    private var timelineScrubbingWasPlaying: Bool?
+    private var lastTimelineScrubPreviewRequestTimestamp: TimeInterval = 0
+    private var pendingTimelineScrubPreviewTime: Double?
+    private var pendingTimelineScrubPreviewTask: Task<Void, Never>?
     private let onVolumeChanged: (Double) -> Void
     private let onLastNonzeroVolumeChanged: (Double) -> Void
     private let onPlaybackSpeedChanged: (Double) -> Void
@@ -122,9 +127,84 @@ public final class PlaybackViewModel: ObservableObject {
         performSeek(to: seconds, resetsAccumulatedFeedback: true)
     }
 
+    public func beginTimelineScrubbing() {
+        guard timelineScrubbingWasPlaying == nil else {
+            return
+        }
+
+        timelineScrubbingWasPlaying = isPlaying
+        pendingTimelineScrubPreviewTask?.cancel()
+        pendingTimelineScrubPreviewTask = nil
+        pendingTimelineScrubPreviewTime = nil
+        lastTimelineScrubPreviewRequestTimestamp = 0
+
+        do {
+            try player.beginTimelineScrubbing()
+            if isPlaying {
+                isPlaying = false
+                publishDisplayedCurrentTimeIfNeeded(force: true)
+            }
+        } catch {
+            timelineScrubbingWasPlaying = nil
+            print("Failed to begin timeline scrubbing: \(error)")
+        }
+    }
+
+    public func updateTimelineScrubbing(to seconds: Double) {
+        guard timelineScrubbingWasPlaying != nil else {
+            return
+        }
+
+        let targetTime = clampedPlaybackTime(seconds)
+        updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        scheduleTimelineScrubPreview(at: targetTime)
+    }
+
+    public func endTimelineScrubbing(to seconds: Double) {
+        let shouldResumePlayback = timelineScrubbingWasPlaying ?? isPlaying
+        timelineScrubbingWasPlaying = nil
+        pendingTimelineScrubPreviewTask?.cancel()
+        pendingTimelineScrubPreviewTask = nil
+        pendingTimelineScrubPreviewTime = nil
+
+        let targetTime = clampedPlaybackTime(seconds)
+        let previousTime = currentTime
+        updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        accumulatedForwardSeconds = 0
+        accumulatedRewindSeconds = 0
+
+        do {
+            try player.seek(toMilliseconds: Int(targetTime * 1000))
+            try player.setPaused(!shouldResumePlayback)
+            isPlaying = shouldResumePlayback
+        } catch {
+            try? player.endTimelineScrubbing()
+            updatePlaybackTime(previousTime, publishesControlsImmediately: true)
+            print("Failed to end timeline scrubbing: \(error)")
+        }
+    }
+
+    public func cancelTimelineScrubbing() {
+        guard let wasPlaying = timelineScrubbingWasPlaying else {
+            return
+        }
+
+        timelineScrubbingWasPlaying = nil
+        pendingTimelineScrubPreviewTask?.cancel()
+        pendingTimelineScrubPreviewTask = nil
+        pendingTimelineScrubPreviewTime = nil
+
+        do {
+            try player.endTimelineScrubbing()
+            try player.setPaused(!wasPlaying)
+            isPlaying = wasPlaying
+        } catch {
+            print("Failed to cancel timeline scrubbing: \(error)")
+        }
+    }
+
     private func performSeek(to seconds: Double, resetsAccumulatedFeedback: Bool) {
-        let nonnegativeSeconds = seconds.isFinite ? max(seconds, 0) : 0
-        let targetTime = duration > 0 ? min(nonnegativeSeconds, duration) : nonnegativeSeconds
+        let targetTime = clampedPlaybackTime(seconds)
         let previousTime = currentTime
         updatePlaybackTime(targetTime, publishesControlsImmediately: true)
         if resetsAccumulatedFeedback {
@@ -138,6 +218,47 @@ public final class PlaybackViewModel: ObservableObject {
             updatePlaybackTime(previousTime, publishesControlsImmediately: true)
             print("Failed to seek: \(error)")
         }
+    }
+
+    private func clampedPlaybackTime(_ seconds: Double) -> Double {
+        let nonnegativeSeconds = seconds.isFinite ? max(seconds, 0) : 0
+        return duration > 0 ? min(nonnegativeSeconds, duration) : nonnegativeSeconds
+    }
+
+    private func scheduleTimelineScrubPreview(at seconds: Double) {
+        let now = Date.timeIntervalSinceReferenceDate
+        let elapsed = now - lastTimelineScrubPreviewRequestTimestamp
+        guard elapsed < Self.timelineScrubPreviewMinimumInterval else {
+            requestTimelineScrubPreview(at: seconds)
+            return
+        }
+
+        pendingTimelineScrubPreviewTime = seconds
+        pendingTimelineScrubPreviewTask?.cancel()
+
+        let delay = Self.timelineScrubPreviewMinimumInterval - elapsed
+        pendingTimelineScrubPreviewTask = Task { [weak self] in
+            let nanoseconds = UInt64(max(0, delay) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard let self, let pendingTime = self.pendingTimelineScrubPreviewTime else {
+                    return
+                }
+
+                self.pendingTimelineScrubPreviewTask = nil
+                self.pendingTimelineScrubPreviewTime = nil
+                self.requestTimelineScrubPreview(at: pendingTime)
+            }
+        }
+    }
+
+    private func requestTimelineScrubPreview(at seconds: Double) {
+        lastTimelineScrubPreviewRequestTimestamp = Date.timeIntervalSinceReferenceDate
+        player.requestTimelineScrubPreview(toMilliseconds: Int(clampedPlaybackTime(seconds) * 1000))
     }
     
     public func seekRelative(by seconds: Double) {

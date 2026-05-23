@@ -56,6 +56,20 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         updateASSSubtitleTime(milliseconds: max(0, milliseconds))
     }
 
+    public func beginTimelineScrubbing() throws {
+        try nativePlayer.setTimelineScrubbing(true)
+    }
+
+    public func requestTimelineScrubPreview(toMilliseconds milliseconds: Int) {
+        let safeMilliseconds = max(0, milliseconds)
+        nativePlayer.requestTimelineScrubPreview(atMilliseconds: safeMilliseconds)
+        updateASSSubtitleTime(milliseconds: safeMilliseconds)
+    }
+
+    public func endTimelineScrubbing() throws {
+        try nativePlayer.setTimelineScrubbing(false)
+    }
+
     public func setPaused(_ isPaused: Bool) throws {
         try nativePlayer.setPaused(isPaused)
     }

@@ -78,16 +78,19 @@ struct PlaybackProgressScrubber: View {
                         guard duration > 0, width > 0 else {
                             return
                         }
-                        scrubTime = seekTime(for: value.location.x, width: width, duration: duration)
+                        let targetTime = seekTime(for: value.location.x, width: width, duration: duration)
+                        scrubTime = targetTime
+                        viewModel.updateTimelineScrubbing(to: targetTime)
                     }
                     .onEnded { value in
                         guard duration > 0, width > 0 else {
+                            viewModel.cancelTimelineScrubbing()
                             endScrubbingIfNeeded()
                             return
                         }
                         let finalTime = seekTime(for: value.location.x, width: width, duration: duration)
                         scrubTime = finalTime
-                        viewModel.seek(to: finalTime)
+                        viewModel.endTimelineScrubbing(to: finalTime)
                         endScrubbingIfNeeded()
                     }
             )
@@ -124,6 +127,9 @@ struct PlaybackProgressScrubber: View {
         }
         .frame(height: 18)
         .onDisappear {
+            if isDragging {
+                viewModel.cancelTimelineScrubbing()
+            }
             endScrubbingIfNeeded()
         }
     }
@@ -134,6 +140,7 @@ struct PlaybackProgressScrubber: View {
         }
 
         isDragging = true
+        viewModel.beginTimelineScrubbing()
         onScrubbingChanged(true)
     }
 
