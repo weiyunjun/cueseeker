@@ -137,10 +137,6 @@ extension AppCoordinator {
                 startMilliseconds: selection.startMilliseconds,
                 endMilliseconds: selection.endMilliseconds
             ) != nil {
-                guard confirmShioriRemoval() else {
-                    return false
-                }
-
                 try database.removeShiori(
                     subtitleFile: subtitleFile,
                     startMilliseconds: selection.startMilliseconds,
@@ -168,15 +164,6 @@ extension AppCoordinator {
         }
     }
 
-    func confirmShioriRemoval() -> Bool {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Remove Shiori?"
-        alert.informativeText = "This subtitle is already saved. Remove it from Shiori?"
-        alert.addButton(withTitle: "Remove")
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn
-    }
 
     func toggleShioriGroup(_ subtitlePath: String) {
         UIInvalidationProbe.mark(

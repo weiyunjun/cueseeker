@@ -133,28 +133,32 @@ struct PlaybackSidebarIconView: View {
 
     var body: some View {
         ZStack {
+            // Outer rounded rectangle outline (always drawn)
+            RoundedRectangle(cornerRadius: 3.2)
+                .stroke(lineWidth: 2.0)
+            
+            // Vertical dividing line (always drawn)
+            GeometryReader { geo in
+                Path { path in
+                    let x = geo.size.width * 0.68
+                    path.move(to: CGPoint(x: x, y: 0))
+                    path.addLine(to: CGPoint(x: x, y: geo.size.height))
+                }
+                .stroke(lineWidth: 2.0)
+            }
+            
+            // If open, fill the right chamber solid white
             if isOpen {
                 RoundedRectangle(cornerRadius: 3.2)
                     .mask(
                         GeometryReader { geo in
-                            Rectangle()
-                                .frame(width: geo.size.width * 0.68, height: geo.size.height)
+                            HStack(spacing: 0) {
+                                Spacer(minLength: 0)
+                                Rectangle()
+                                    .frame(width: geo.size.width * 0.32, height: geo.size.height)
+                            }
                         }
                     )
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 3.2)
-                        .stroke(lineWidth: 1.6)
-                    
-                    GeometryReader { geo in
-                        Path { path in
-                            let x = geo.size.width * 0.68
-                            path.move(to: CGPoint(x: x, y: 1.6))
-                            path.addLine(to: CGPoint(x: x, y: geo.size.height - 1.6))
-                        }
-                        .stroke(lineWidth: 1.6)
-                    }
-                }
             }
         }
         .frame(width: size, height: size)
