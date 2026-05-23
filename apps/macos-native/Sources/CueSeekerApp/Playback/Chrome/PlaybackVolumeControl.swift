@@ -64,16 +64,7 @@ struct PlaybackVolumeControl: View {
     }
 
     private var volumeIcon: String {
-        if viewModel.volume <= 0 {
-            return "speaker.slash.fill"
-        }
-        if viewModel.volume < 33 {
-            return "speaker.wave.1.fill"
-        }
-        if viewModel.volume < 66 {
-            return "speaker.wave.2.fill"
-        }
-        return "speaker.wave.3.fill"
+        viewModel.volume <= 0 ? "speaker.slash.fill" : "speaker.wave.2.fill"
     }
 }
 

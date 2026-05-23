@@ -23,14 +23,8 @@ struct PlaybackFeedbackOverlay: View {
 
     private func centerFeedback(_ feedback: PlaybackFeedback) -> some View {
         feedbackContent(feedback, isSideFeedback: false, isTrailing: false)
-            .frame(
-                minWidth: feedback.icon == nil ? 0 : 108,
-                maxWidth: feedback.icon == nil ? nil : 280,
-                minHeight: feedback.icon == nil ? 42 : 98
-            )
-            .padding(.horizontal, feedback.icon == nil ? 18 : 22)
-            .padding(.vertical, feedback.icon == nil ? 0 : 18)
-            .background(feedbackBackground(cornerRadius: feedback.icon == nil ? 999 : 20))
+            .frame(height: 80)
+            .background(feedbackBackground(cornerRadius: 40))
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
     }
 
@@ -44,9 +38,8 @@ struct PlaybackFeedbackOverlay: View {
             }
 
             feedbackContent(feedback, isSideFeedback: true, isTrailing: isTrailing)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(feedbackBackground(cornerRadius: 999))
+            .frame(height: 80)
+            .background(feedbackBackground(cornerRadius: 40))
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
             if !isTrailing {
@@ -54,7 +47,7 @@ struct PlaybackFeedbackOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 56)
+        .padding(.horizontal, 25)
     }
 
     private func feedbackContent(
@@ -62,28 +55,16 @@ struct PlaybackFeedbackOverlay: View {
         isSideFeedback: Bool,
         isTrailing: Bool
     ) -> some View {
-        Group {
-            if isSideFeedback {
-                HStack(spacing: 10) {
-                    if !isTrailing {
-                        feedbackIcon(feedback.icon, size: 30)
-                    }
-
-                    feedbackText(feedback.text, isTextOnly: false)
-
-                    if isTrailing {
-                        feedbackIcon(feedback.icon, size: 30)
-                    }
-                }
-            } else if feedback.icon == nil {
-                feedbackText(feedback.text, isTextOnly: true)
+        HStack(spacing: 16) {
+            if isSideFeedback && isTrailing {
+                feedbackText(feedback.text)
+                feedbackIcon(feedback.icon, size: 30)
             } else {
-                VStack(spacing: 10) {
-                    feedbackIcon(feedback.icon, size: 34)
-                    feedbackText(feedback.text, isTextOnly: false)
-                }
+                feedbackIcon(feedback.icon, size: 30)
+                feedbackText(feedback.text)
             }
         }
+        .padding(.horizontal, 28)
     }
 
     @ViewBuilder
@@ -91,14 +72,14 @@ struct PlaybackFeedbackOverlay: View {
         if let icon {
             switch icon {
             case .system(let name):
-            Image(systemName: name)
-                .font(.system(size: size, weight: .semibold))
-                .foregroundColor(.white)
-                .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
+                Image(systemName: name)
+                    .font(.system(size: size, weight: .semibold))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
             case .copy:
                 PlaybackCopyGlyph()
                     .stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-                    .frame(width: size * 0.5, height: size * 0.5)
+                    .frame(width: size * 0.57, height: size * 0.57)
                     .foregroundColor(.white)
                     .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
             }
@@ -106,10 +87,10 @@ struct PlaybackFeedbackOverlay: View {
     }
 
     @ViewBuilder
-    private func feedbackText(_ text: String?, isTextOnly: Bool) -> some View {
+    private func feedbackText(_ text: String?) -> some View {
         if let text {
             Text(text)
-                .font(.system(size: isTextOnly ? 13 : 14, weight: .bold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
                 .lineLimit(1)
                 .truncationMode(.tail)

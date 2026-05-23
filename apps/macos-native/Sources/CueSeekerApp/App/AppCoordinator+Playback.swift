@@ -41,6 +41,7 @@ extension AppCoordinator {
         // playback.isPlaybackSurfaceExpanded (architecture §7.1, doc 12 §11). The
         // panel's own ~180 ms show/hide animation is owned by PlaybackPageView.
         playback.isPlaybackSidePanelVisible.toggle()
+        playback.playbackViewModel?.showSidebarFeedback(isVisible: playback.isPlaybackSidePanelVisible)
     }
 
     func exitPlaybackFullscreenFromUser() {

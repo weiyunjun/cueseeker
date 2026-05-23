@@ -300,12 +300,13 @@ public final class PlaybackViewModel: ObservableObject {
 
     public func setVolume(_ value: Double, showsFeedback: Bool = true) {
         let clampedValue = Self.clampedVolume(value)
+        let isIncrease = clampedValue > volume ? true : (clampedValue < volume ? false : nil)
 
         do {
             try player.setDoubleProperty("volume", value: clampedValue)
             applyVolumePreference(clampedValue)
             if showsFeedback {
-                showVolumeFeedback(clampedValue)
+                showVolumeFeedback(clampedValue, isIncrease: isIncrease)
             }
         } catch {
             print("Failed to set volume: \(error)")
@@ -317,7 +318,16 @@ public final class PlaybackViewModel: ObservableObject {
     }
     
     public func adjustVolume(by delta: Double) {
-        setVolume(volume + delta)
+        let clampedValue = Self.clampedVolume(volume + delta)
+        let isIncrease = delta > 0
+
+        do {
+            try player.setDoubleProperty("volume", value: clampedValue)
+            applyVolumePreference(clampedValue)
+            showVolumeFeedback(clampedValue, isIncrease: isIncrease)
+        } catch {
+            print("Failed to set volume: \(error)")
+        }
     }
 
     public func setSpeed(_ value: Double, showsFeedback: Bool = true) {
@@ -486,21 +496,41 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    func showSidebarFeedback(isVisible: Bool) {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                systemImage: isVisible ? "list.bullet.rectangle.fill" : "list.bullet.rectangle",
+                text: isVisible ? "Sidebar On" : "Sidebar Off"
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     private func showSpeedFeedback(_ speed: Double) {
         showFeedback(
             PlaybackFeedback(
                 position: .center,
-                systemImage: "chevron.right",
+                systemImage: "speedometer",
                 text: Self.formatSpeed(speed)
             )
         )
     }
 
-    private func showVolumeFeedback(_ volume: Double) {
+    private func showVolumeFeedback(_ volume: Double, isIncrease: Bool?) {
+        let systemImage: String
+        if volume <= 0 {
+            systemImage = "speaker.slash.fill"
+        } else if let isIncrease {
+            systemImage = isIncrease ? "speaker.wave.3.fill" : "speaker.wave.1.fill"
+        } else {
+            systemImage = "speaker.wave.2.fill"
+        }
+
         showFeedback(
             PlaybackFeedback(
                 position: .center,
-                systemImage: volume > 0 ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                systemImage: systemImage,
                 text: volume > 0 ? "Volume \(Int(volume.rounded()))%" : "Muted"
             )
         )

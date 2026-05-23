@@ -256,7 +256,7 @@ struct PlaybackChromeView: View {
                 PlaybackChromeIconButton(
                     systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
                     kind: .transport,
-                    isSelected: viewModel.areSubtitlesVisible,
+                    isSelected: false,
                     suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Subtitles",
@@ -264,9 +264,9 @@ struct PlaybackChromeView: View {
                 )
 
                 PlaybackChromeIconButton(
-                    systemName: "list.bullet",
+                    systemName: controls.isSidePanelVisible ? "list.bullet.rectangle.fill" : "list.bullet.rectangle",
                     kind: .transport,
-                    isSelected: controls.isSidePanelVisible,
+                    isSelected: false,
                     isDisabled: !controls.canToggleSidePanel,
                     suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
