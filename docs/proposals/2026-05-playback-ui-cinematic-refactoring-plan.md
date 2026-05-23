@@ -43,12 +43,18 @@ This document serves as the authoritative, unified roadmap for the entire playba
   - Refactor `installSpeedMenuDismissMonitor` to capture and convert `event.locationInWindow` to SwiftUI coordinate system (flipping Y-axis using window height), and check if the click point falls inside `speedButtonFrame`.
   - If inside, the Event Monitor ignores it so that the button's native action block toggles the menu (from `true` to `false`) smoothly; if outside, the Event Monitor normalizes it to `false` without triggering button actions. This completely eliminates the race condition where the menu instantly closes and re-opens on double click/re-click.
 
-#### Phase 1.3: Volume Slider Inline Hover Expansion (Planned)
-- **Goals**: Replace the discrete volume jumps with a fluid, horizontal sliding volume deck.
+#### Phase 1.3: Volume Slider Inline Hover Expansion & Time Capsule Refinement (Planned)
+- **Goals**: Implement a fluid inline horizontal volume slider that dynamically expands into a single cohesive capsule, and format the playback time display as a matching control capsule.
 - **Specifications**:
-  - On hovering the Mute transport button, the slider smoothly expands horizontally from the button's right edge.
-  - The volume track uses `PlaybackTheme.scrubberTrackBackground` and fills progress using the high-contrast `PlaybackTheme.progressRed` (or white/blue matching user-defined styling).
-  - Slide interactions support smooth drag gestures mapping perfectly to `viewModel.volume` mutations.
+  - **Time Capsule Design**: Format the playback time display (current / duration) in a cohesive, height-40 capsule backed by `Color.white.opacity(0.10)` (`PlaybackTheme.capsuleFill`). On mouse hover, apply a smooth highlight background transition to `Color.white.opacity(0.16)` (`PlaybackTheme.capsuleHoverFill`), matching standard control capsules.
+  - **Dynamic Volume Capsule**: Integrate the volume button and the slider into a single continuous container. On hovering anywhere within the volume control area:
+    - The container background smoothly expands its width from `40` (a standalone circle) to `136` (a unified capsule) via a `RoundedRectangle(cornerRadius: 20)` width animation.
+    - This horizontal expansion dynamically pushes the adjacent Time Capsule to the right in the layout flow.
+    - Within this expanded capsule, the standalone circular button border/base is disabled, rendering the icon and the slider seamlessly together on the continuous gray backing.
+  - **Slider Elements & Styling**:
+    - The volume track uses `PlaybackTheme.scrubberTrackBackground` (`Color.white.opacity(0.16)`), with the active progress track filled in high-contrast solid white (`Color.white`).
+    - The slider thumb renders a high-fidelity solid white circle.
+    - Drag gestures map smoothly to `viewModel.volume` mutations, fading the slider elements and percentages inline using `.opacity(isHovered ? 1 : 0)` during transitions.
 
 #### Phase 1.4: Progress Scrubber Hover Tooltip & Tracks (Planned)
 - **Goals**: Refine timeline scrubbing with visual previews and dynamic location metrics.
