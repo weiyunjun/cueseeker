@@ -62,9 +62,12 @@ This document serves as the authoritative, unified roadmap for the entire playba
 #### Phase 1.4: Progress Scrubber Hover Tooltip & Tracks (Planned)
 - **Goals**: Refine timeline scrubbing with visual previews and dynamic location metrics.
 - **Specifications**:
-  - The progress scrubber expands in vertical thickness on mouse hover.
-  - Render a floating cinematic tooltip overlay displaying the exact timestamp matching the hovered track coordinate.
-  - Prepare a thumbnail preview slot inside the tooltip for frame-by-frame scrubbing visual alignment.
+  - **Scrubber Thickness Expansion**: The progress scrubber track dynamically expands from a vertical height of `3` to `6` on mouse hover to provide satisfying tactile feedback.
+  - **Small Tooltip Capsule**: When hovering the progress scrubber, a floating timestamp tooltip appears directly above the cursor position. The tooltip displays the exact time using a monospaced font size `10pt` (`PlaybackTheme.textPrimary` color), nested inside a smaller capsule backing (`height: 22`) powered by the unified `PlaybackCinematicBacking` component (configured with `isHovered: false` to maintain a consistent persistent gray base of `Color.white.opacity(0.10)`).
+  - **Snappy Zero-Lag Tracking**: To preserve YouTube's crisp, responsive experience, the horizontal position of the tooltip tracks the cursor coord `localPoint.x` with **zero lag and absolutely no easing or spring animation**.
+  - **Snappy Visibility Toggle**: The tooltip appears and disappears instantly upon entering/exiting the progress bar.
+  - **Boundary Clamping**: Apply horizontal clamping (`halfTooltipWidth` to `width - halfTooltipWidth`) on the coordinate layout to prevent the tooltip from shifting outside the left/right viewport boundaries.
+  - **Gesture Safety**: Set `.allowsHitTesting(false)` on the tooltip to guarantee it does not intercept hover or drag gestures, keeping the scrubbing interaction 100% uninterrupted.
 
 ---
 
