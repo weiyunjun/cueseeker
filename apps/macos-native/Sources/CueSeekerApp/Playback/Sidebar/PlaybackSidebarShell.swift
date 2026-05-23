@@ -80,9 +80,8 @@ struct PlaybackSidebarShell: View {
                 scrollView.drawsBackground = false
                 scrollView.borderType = .noBorder
                 scrollView.scrollerStyle = .overlay
-                if !(scrollView.verticalScroller is PlaybackTransparentScroller) {
-                    scrollView.verticalScroller = PlaybackTransparentScroller()
-                }
+                scrollView.hasVerticalScroller = false
+                scrollView.verticalScroller = nil
                 scrollView.appearance = NSAppearance(named: .darkAqua)
             })
             .onAppear { scrollSelectedIntoView(proxy) }
@@ -174,10 +173,6 @@ enum PlaybackOverlayPanelMetrics {
     static let bottomInset: CGFloat = 104
     static let horizontalMargin: CGFloat = 24
     static let maxWidth: CGFloat = 300
-}
-
-final class PlaybackTransparentScroller: NSScroller {
-    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
 }
 
 struct ScrollViewIntrospector: NSViewRepresentable {
