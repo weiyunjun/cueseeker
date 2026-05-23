@@ -6,6 +6,19 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Completed the cinematic player bottom controls bar refinement (Phase 1 of the `ui/restructure`
+  branch). Resolved the critical color visibility and contrast issues on transparent bottom bar
+  layouts by transitioning base capsule backings and scrubber timelines from translucent white
+  to translucent black (`capsuleFill` at `0.30` opacity and `scrubberTrackBackground` at `0.60`
+  opacity), which adaptive-mixes as sleek, highly visible grey on white video frames while
+  blending cleanly and framelessly on black video stages. Refined concentric inner hover
+  highlights using `Color.white.opacity(0.16)` (`capsuleHoverFill`), and aligned the speed
+  popover settings menu items' hover, pressed, and selected backgrounds to a unified
+  `menuItemHighlight` (`0.12` opacity white) for absolute visual identity. Implemented vertical
+  coordinate Y-clamping for the settings popover within `speedMenuOverlay` to lock the bottom of
+  the card tightly next to the progress bar (2.0px safety gap when hovered), completely
+  eliminating visual overlap or scrubber hover gesture interference. Verified by `swift build`
+  and all 95 native unit tests passing with zero regressions under bypassed compiler sandboxing.
 - Updated the UI collaboration workflow to Swift-first during the active native
   UI restructure. Native SwiftUI/AppKit implementation is now authoritative;
   HTML prototypes are reference artifacts and no longer block approved App UI
