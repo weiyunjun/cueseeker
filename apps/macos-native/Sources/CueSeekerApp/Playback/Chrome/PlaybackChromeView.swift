@@ -105,19 +105,6 @@ struct PlaybackChromeView: View {
             .frame(height: 52)
             .padding(.bottom, 12)
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color.black.opacity(0.88),
-                    Color.black.opacity(0.78),
-                    Color.black.opacity(0.48),
-                    Color.black.opacity(0.12),
-                    Color.clear
-                ]),
-                startPoint: .bottom,
-                endPoint: .top
-            )
-        )
         .contentShape(Rectangle())
     }
 

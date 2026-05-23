@@ -6,6 +6,7 @@ struct PlaybackProgressScrubber: View {
     @State private var dragTime: Double?
     @State private var hoverX: CGFloat? = nil
     @State private var isHoveringScrubber = false
+    @State private var tooltipWidth: CGFloat = 44
 
     var body: some View {
         GeometryReader { geometry in
@@ -27,16 +28,26 @@ struct PlaybackProgressScrubber: View {
             }()
 
             ZStack(alignment: .leading) {
+                // 1. Base track (Persistent 0.10 Capsule Fill, matching standard buttons)
                 Capsule()
-                    .fill(Color.white.opacity(0.16))
+                    .fill(Color.white.opacity(0.10))
                     .frame(height: trackHeight)
 
+                // 2. Hover highlight track (Only active between 0 and cursor position)
+                if isHoveringScrubber, let hoverX = hoverX {
+                    Capsule()
+                        .fill(PlaybackTheme.scrubberHoverTrack)
+                        .frame(width: max(0, hoverX), height: trackHeight)
+                }
+
+                // 3. Active progress track (YouTube signature red)
                 Capsule()
-                    .fill(Color.white.opacity(0.68))
+                    .fill(PlaybackTheme.progressRed)
                     .frame(width: filledWidth, height: trackHeight)
 
+                // 4. Scrubber Thumb (YouTube signature red)
                 Circle()
-                    .fill(Color.white.opacity(0.92))
+                    .fill(PlaybackTheme.progressRed)
                     .frame(width: 12, height: 12)
                     .offset(x: filledWidth - 6)
                     .opacity(isHovered || dragTime != nil ? 1 : 0)
@@ -75,16 +86,21 @@ struct PlaybackProgressScrubber: View {
             .overlay(
                 Group {
                     if let targetX = targetX, (isHoveringScrubber || dragTime != nil), duration > 0 {
-                        let isLongDuration = duration >= 3600
-                        let tooltipWidth: CGFloat = isLongDuration ? 56 : 42
                         let clampedX = min(max(targetX - tooltipWidth / 2, 0), width - tooltipWidth)
 
                         Text(formatPlaybackTime(tooltipTime))
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .foregroundStyle(PlaybackTheme.textPrimary)
                             .monospacedDigit()
-                            .padding(.horizontal, 6)
-                            .frame(width: tooltipWidth, height: 22)
+                            .padding(.horizontal, 8)
+                            .frame(height: 22)
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear
+                                        .onAppear { tooltipWidth = geo.size.width }
+                                        .onChange(of: geo.size.width) { tooltipWidth = $0 }
+                                }
+                            )
                             .background(
                                 PlaybackCinematicBacking(
                                     shape: Capsule(),
