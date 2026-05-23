@@ -588,19 +588,24 @@ func highlightedContent(
     _ content: String,
     query: String,
     textColor: Color,
-    state: SearchHighlightState
+    state: SearchHighlightState,
+    highlightBackgroundColor: Color? = nil
 ) -> AttributedString {
     var highlighted = AttributedString(content)
     let terms = highlightTerms(from: query)
 
     let bg: Color
-    switch state {
-    case .default:
-        bg = SearchHighlightTokens.default
-    case .hover:
-        bg = SearchHighlightTokens.hover
-    case .selected:
-        bg = SearchHighlightTokens.onSelected
+    if let customBg = highlightBackgroundColor {
+        bg = customBg
+    } else {
+        switch state {
+        case .default:
+            bg = SearchHighlightTokens.default
+        case .hover:
+            bg = SearchHighlightTokens.hover
+        case .selected:
+            bg = SearchHighlightTokens.onSelected
+        }
     }
 
     for term in terms {
