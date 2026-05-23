@@ -30,16 +30,26 @@ This proposal details **Phase 3** of the native macOS playback UI modifications 
   - Primary text / cues: `Color.white.opacity(0.94)`
   - Ranks / timestamps: `Color.white.opacity(0.55)` (or `Color.white` when selected)
 - **Selection Highlight**: Selected rows in the Search Results and Subtitles lists will discard the yellow accent border and solid background. They will use the **`PlaybackTheme.menuItemHighlight`** (`Color.white.opacity(0.12)`) as both their hover and selection background, matching the speed preset menu exactly.
-- **Segment Tab Options**: The "Search Results" and "Subtitles" segment options will receive a **deeper background color** for their active state (e.g., `Color.black.opacity(0.50)` or `Color.white.opacity(0.15)`) over a semi-translucent container backing (`Color.black.opacity(0.25)`).
 
-### 2.3 Keyword Highlight Background
+### 2.3 Options Tab (Segmented Controls) Background Specs
+
+To ensure a robust, high-end visual hierarchy for the options tab, the Segmented Control will feature a clear **base container background** paired with a **contrasting active tab background**:
+
+- **Option A (Cinema Contrast - Recommended)**:
+  - **Base Container Background**: A subtle, semi-translucent dark capsule backing using **`Color.black.opacity(0.30)`** (matching `PlaybackTheme.capsuleFill` perfectly).
+  - **Selected Tab Background**: A deeper, solid-feeling dark charcoal backing using **`Color.black.opacity(0.65)`** (with a clean subtle shadow `.black.opacity(0.35)`). This creates an elegant "engraved/sunken" physical button feel.
+- **Option B (Vibrant Slate)**:
+  - **Base Container Background**: A light translucent white backing using **`Color.white.opacity(0.08)`**.
+  - **Selected Tab Background**: A deep slate black backing using **`Color.black.opacity(0.50)`**.
+
+### 2.4 Keyword Highlight Background
 
 To maintain high contrast and clear readability when all text is forced to white, we need a saturated, high-contrast highlight background for query-matched keywords. We propose two options for the user:
 
 - **Option A (Recommended - Sapphire Blue)**: A deep sapphire theme blue with opacity: `Color(red: 0/255, green: 102/255, blue: 204/255).opacity(0.50)`. It looks incredibly premium in dark modes and ensures perfect white text contrast.
 - **Option B (Amber Gold)**: A warm, saturated deep amber: `Color(red: 230/255, green: 130/255, blue: 0/255).opacity(0.45)`.
 
-### 2.4 Scrollbar and Line Cleanups
+### 2.5 Scrollbar and Line Cleanups
 
 - **Header Hairline**: Completely **remove the horizontal line** below the `xxx results` text in `PlaybackSidebarShell.swift`.
 - **Scrollbar Introspection**: Implement a native macOS `ScrollViewIntrospector` via `NSViewRepresentable` to:
@@ -64,7 +74,7 @@ The proposed implementation involves changes to the following components:
 #### [MODIFY] [PlaybackSidebarShell.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Playback/Sidebar/PlaybackSidebarShell.swift)
 - Remove the `.overlay` containing the bottom `headerHairlineColor` under the header.
 - Create and attach a `ScrollViewIntrospector` to the search results `ScrollView`.
-- Re-style the segment control ("Search Results" vs "Subtitles") to use a semi-translucent container background and a **deeper dark background** for the active tab, forcing the text to white/gray.
+- Re-style the segment control ("Search Results" vs "Subtitles") to use the chosen container background and the contrasting deeper active tab background, forcing all button text to white/gray.
 
 #### [MODIFY] [PlaybackSidebarResultRow.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Playback/Sidebar/PlaybackSidebarResultRow.swift)
 - Force text colors (`lineColor`, `metaColor`) to use pure white with appropriate opacities.
