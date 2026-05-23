@@ -20,6 +20,7 @@ This document serves as the authoritative, unified roadmap for the entire playba
 - **Key Deliverables**:
   - `PlaybackTheme.cinematicBacking`: Premium semi-translucent pure black surface backing (`Color.black.opacity(0.50)`).
   - `PlaybackTheme.capsuleFill` & `capsuleHoverFill`: Standardised translucent white fills (`0.08` and `0.16` opacity).
+  - `PlaybackCinematicBacking`: Unified concentric double-layer backing component supporting circles and capsules with a persistent base (`Color.white.opacity(0.10)`) and proportional inner highlight scale dynamics (`Color.white.opacity(0.18)` scaled to `0.85`-`0.96` horizontally) to globally unify hover/pressed visual states.
   - High-contrast typography colors (`textPrimary` at `0.94`, `textSecondary` at `0.62`, `textTertiary` at `0.34`).
   - Progress bar colors (`progressRed` as signature YouTube red, `scrubberTrackBackground` at `0.16`).
 
