@@ -45,6 +45,9 @@ struct PlaybackSubtitlesList: View {
                 scrollView.drawsBackground = false
                 scrollView.borderType = .noBorder
                 scrollView.scrollerStyle = .overlay
+                if !(scrollView.verticalScroller is PlaybackTransparentScroller) {
+                    scrollView.verticalScroller = PlaybackTransparentScroller()
+                }
                 scrollView.appearance = NSAppearance(named: .darkAqua)
             })
             .onAppear { scrollActiveIntoView(proxy, id: activeID) }

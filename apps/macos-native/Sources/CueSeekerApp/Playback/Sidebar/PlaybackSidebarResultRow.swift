@@ -30,7 +30,7 @@ struct PlaybackSidebarResultRow: View {
                         query: query,
                         textColor: lineColor,
                         state: highlightState,
-                        highlightBackgroundColor: Color(red: 0/255, green: 102/255, blue: 204/255).opacity(0.50)
+                        highlightBackgroundColor: Color.clear
                     ))
                     .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(lineColor)

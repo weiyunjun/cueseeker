@@ -80,6 +80,9 @@ struct PlaybackSidebarShell: View {
                 scrollView.drawsBackground = false
                 scrollView.borderType = .noBorder
                 scrollView.scrollerStyle = .overlay
+                if !(scrollView.verticalScroller is PlaybackTransparentScroller) {
+                    scrollView.verticalScroller = PlaybackTransparentScroller()
+                }
                 scrollView.appearance = NSAppearance(named: .darkAqua)
             })
             .onAppear { scrollSelectedIntoView(proxy) }
@@ -133,11 +136,11 @@ struct PlaybackSidebarShell: View {
                 .frame(height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 7)
-                        .fill(isActive ? Color.black.opacity(0.50) : Color.clear)
+                        .fill(isActive ? Color.black.opacity(0.24) : Color.clear)
                         .shadow(
-                            color: isActive ? Color.black.opacity(0.35) : Color.clear,
-                            radius: 2,
-                            y: 1
+                            color: isActive ? Color.black.opacity(0.15) : Color.clear,
+                            radius: 1,
+                            y: 0.5
                         )
                 )
         }
@@ -163,14 +166,18 @@ struct PlaybackSidebarShell: View {
 
 /// Hosts the playback feedback HUD above the centered overlay panel so command
 /// feedback is never occluded by it (doc 12 §11/§13.4, doc 11 §6). This is the
-/// v6 prototype `.sidebar` geometry: a centered floating overlay that never
-/// squeezes the video — `top: 64px; bottom: 104px; left: 50%;
-/// width: min(420px, calc(100% - 48px))`.
+/// cinematic sidebar geometry: a right-aligned floating overlay that never
+/// squeezes the video — `top: 46px; right: 20px; bottom: 104px;
+/// width: min(300px, calc(100% - 40px))`.
 enum PlaybackOverlayPanelMetrics {
     static let topInset: CGFloat = 46
     static let bottomInset: CGFloat = 104
     static let horizontalMargin: CGFloat = 24
-    static let maxWidth: CGFloat = 420
+    static let maxWidth: CGFloat = 300
+}
+
+final class PlaybackTransparentScroller: NSScroller {
+    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
 }
 
 struct ScrollViewIntrospector: NSViewRepresentable {
