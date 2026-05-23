@@ -33,14 +33,10 @@ This proposal details **Phase 3** of the native macOS playback UI modifications 
 
 ### 2.3 Options Tab (Segmented Controls) Background Specs
 
-To ensure a robust, high-end visual hierarchy for the options tab, the Segmented Control will feature a clear **base container background** paired with a **contrasting active tab background**:
+To prevent the controls from blending into the dark semi-transparent sidebar background (`Color.black.opacity(0.55)`), we use **frosted-white opacity** for the container base. This ensures it stands out clearly, while using a **deeper (darker) charcoal** for the selected tab to create a premium, high-visibility contrast:
 
-- **Option A (Cinema Contrast - Recommended)**:
-  - **Base Container Background**: A subtle, semi-translucent dark capsule backing using **`Color.black.opacity(0.30)`** (matching `PlaybackTheme.capsuleFill` perfectly).
-  - **Selected Tab Background**: A deeper, solid-feeling dark charcoal backing using **`Color.black.opacity(0.65)`** (with a clean subtle shadow `.black.opacity(0.35)`). This creates an elegant "engraved/sunken" physical button feel.
-- **Option B (Vibrant Slate)**:
-  - **Base Container Background**: A light translucent white backing using **`Color.white.opacity(0.08)`**.
-  - **Selected Tab Background**: A deep slate black backing using **`Color.black.opacity(0.50)`**.
+- **Base Container Background**: A subtle, elegant frosted-white pill using **`Color.white.opacity(0.08)`**. Against the `0.55` dark backing, this yields a gorgeous, highly visible mid-gray base.
+- **Selected Tab Background**: A deep, rich charcoal black using **`Color.black.opacity(0.50)`** (or **`Color.black.opacity(0.60)`**). Over the frosted container, this active tab stands out with a stark, premium "cut-out/sunken" physical appearance.
 
 ### 2.4 Keyword Highlight Background
 
