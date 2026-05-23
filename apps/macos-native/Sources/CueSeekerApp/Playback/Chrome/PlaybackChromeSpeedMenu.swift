@@ -37,7 +37,7 @@ struct PlaybackChromeSpeedMenu: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
+                .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.42), radius: 24, y: 12)
     }
@@ -59,11 +59,8 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
     }
 
     private func backgroundColor(isPressed: Bool) -> Color {
-        if isPressed || isHovered {
-            return Color.white.opacity(0.14)
-        }
-        if isSelected {
-            return Color.white.opacity(0.10)
+        if isPressed || isHovered || isSelected {
+            return PlaybackTheme.menuItemHighlight
         }
         return .clear
     }

@@ -173,7 +173,7 @@ struct PlaybackChromeView: View {
                 )
             }
             .frame(height: 40)
-            .background(Capsule().fill(Color.white.opacity(0.10)))
+            .background(Capsule().fill(PlaybackTheme.capsuleFill))
 
             PlaybackVolumeControl(viewModel: viewModel)
 
@@ -244,7 +244,7 @@ struct PlaybackChromeView: View {
                 )
             }
             .frame(height: 40)
-            .background(Capsule().fill(Color.white.opacity(0.10)))
+            .background(Capsule().fill(PlaybackTheme.capsuleFill))
 
             speedControl
 

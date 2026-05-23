@@ -8,17 +8,22 @@ public enum PlaybackTheme {
 
     /// Premium cinematic semi-translucent pure black surface backing.
     public static var cinematicBacking: Color {
-        Color.black.opacity(0.50)
+        Color.black.opacity(0.55)
     }
 
     /// Dark translucent capsule fill for buttons and time display labels.
     public static var capsuleFill: Color {
-        Color.white.opacity(0.08)
+        Color.black.opacity(0.30)
     }
 
     /// Dark translucent capsule fill when hovered.
     public static var capsuleHoverFill: Color {
         Color.white.opacity(0.16)
+    }
+
+    /// Unified background highlight for selected and hovered menu items.
+    public static var menuItemHighlight: Color {
+        Color.white.opacity(0.12)
     }
 
     // MARK: - Foreground Colors (Typography & Glyphs)
@@ -47,12 +52,12 @@ public enum PlaybackTheme {
 
     /// Semi-translucent gray for timeline hovered track extension.
     public static var scrubberHoverTrack: Color {
-        Color.white.opacity(0.26)
+        Color.white.opacity(0.35)
     }
 
     /// Background track color for the scrubber timeline.
     public static var scrubberTrackBackground: Color {
-        Color.white.opacity(0.16)
+        Color.black.opacity(0.60)
     }
 }
 
@@ -83,12 +88,12 @@ public struct PlaybackCinematicBacking<S: Shape>: View {
         ZStack {
             // Persistent outer base
             shape
-                .fill(Color.white.opacity(0.10))
+                .fill(PlaybackTheme.capsuleFill)
 
             // Concentric inner hover highlight
             if isHovered || isPressed {
                 shape
-                    .fill(Color.white.opacity(0.18))
+                    .fill(PlaybackTheme.capsuleHoverFill)
                     .scaleEffect(x: scaleX, y: scaleY)
             }
         }

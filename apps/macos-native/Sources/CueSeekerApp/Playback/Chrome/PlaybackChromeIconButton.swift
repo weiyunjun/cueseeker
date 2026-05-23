@@ -164,7 +164,7 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
                     // Outer persistent base
                     if hasPersistentBase {
                         Circle()
-                            .fill(isSelected ? Color.white : Color.white.opacity(0.10))
+                            .fill(isSelected ? Color.white : PlaybackTheme.capsuleFill)
                     } else if isSelected {
                         // Grouped buttons inside capsule: draw active white circle base
                         Circle()
@@ -174,7 +174,7 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
                     // Concentric inner hover circle
                     if isEnabled && !isSelected && (isHovered || configuration.isPressed) {
                         Circle()
-                            .fill(Color.white.opacity(0.18))
+                            .fill(PlaybackTheme.capsuleHoverFill)
                             .scaleEffect(0.85)
                     }
                 }

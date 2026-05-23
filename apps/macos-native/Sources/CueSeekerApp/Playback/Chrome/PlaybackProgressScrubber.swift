@@ -28,9 +28,9 @@ struct PlaybackProgressScrubber: View {
             }()
 
             ZStack(alignment: .leading) {
-                // 1. Base track (Persistent 0.10 Capsule Fill, matching standard buttons)
+                // 1. Base track (Persistent 0.60 Capsule Fill)
                 Capsule()
-                    .fill(Color.white.opacity(0.10))
+                    .fill(PlaybackTheme.scrubberTrackBackground)
                     .frame(height: trackHeight)
 
                 // 2. Hover highlight track (Only active between 0 and cursor position)
