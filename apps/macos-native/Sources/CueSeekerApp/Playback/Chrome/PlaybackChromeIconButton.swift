@@ -162,6 +162,7 @@ struct PlaybackSidebarIconView: View {
                     )
             }
         }
+        .compositingGroup()
         .frame(width: size, height: size)
     }
 }
