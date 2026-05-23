@@ -17,7 +17,7 @@ struct PlaybackVolumeControl: View {
             .accessibilityLabel("Mute")
 
             if isHovered {
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     PlaybackVolumeSlider(volume: Binding(
                         get: { viewModel.volume },
                         set: { viewModel.setVolume($0, showsFeedback: false) }
@@ -34,7 +34,7 @@ struct PlaybackVolumeControl: View {
                 .transition(.opacity)
             }
         }
-        .frame(width: isHovered ? 164 : 40, height: 40, alignment: .leading)
+        .frame(width: isHovered ? 160 : 40, height: 40, alignment: .leading)
         .background(
             PlaybackCinematicBacking(
                 shape: RoundedRectangle(cornerRadius: 20),

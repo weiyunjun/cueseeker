@@ -49,7 +49,7 @@ This document serves as the authoritative, unified roadmap for the entire playba
 - **Specifications**:
   - **Time Capsule Design**: Format the playback time display (current / duration) in a cohesive, height-40 capsule backed by `Color.white.opacity(0.10)` (`PlaybackTheme.capsuleFill`). Both the current time and duration are styled in high-contrast `PlaybackTheme.textPrimary` (`Color.white.opacity(0.94)`) to ensure excellent readability under all theater conditions. On mouse hover, apply a smooth highlight background transition to `Color.white.opacity(0.16)` (`PlaybackTheme.capsuleHoverFill`), matching standard control capsules.
   - **Dynamic Volume Capsule**: Integrate the volume button, the slider, and the percentage text into a single continuous container. On hovering anywhere within the volume control area:
-    - The container background smoothly expands its width from `40` (a standalone circle) to `164` (a unified capsule) via a `RoundedRectangle(cornerRadius: 20)` width animation.
+    - The container background smoothly expands its width from `40` (a standalone circle) to `160` (a unified capsule) via a `RoundedRectangle(cornerRadius: 20)` width animation.
     - To match YouTube-style visual dynamics, hovering anywhere on the capsule highlights the entire background to `Color.white.opacity(0.16)` (`PlaybackTheme.capsuleHoverFill`), rather than keeping it at `0.10`.
     - This horizontal expansion dynamically pushes the adjacent Time Capsule to the right in the layout flow.
     - Within this expanded capsule, the standalone circular button base is disabled, rendering the icon, the slider, and the volume percentage text seamlessly together on the continuous highlighted gray backing.
