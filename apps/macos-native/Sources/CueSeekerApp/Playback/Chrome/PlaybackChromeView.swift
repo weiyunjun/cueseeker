@@ -196,7 +196,7 @@ struct PlaybackChromeView: View {
                 Text("/")
                     .foregroundStyle(PlaybackTheme.textTertiary)
                 Text(formatPlaybackTime(viewModel.duration))
-                    .foregroundStyle(PlaybackTheme.textSecondary)
+                    .foregroundStyle(PlaybackTheme.textPrimary)
             }
             .font(.system(size: 12, weight: .semibold, design: .monospaced))
             .monospacedDigit()

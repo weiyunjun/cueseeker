@@ -15,18 +15,28 @@ struct PlaybackVolumeControl: View {
             )
             .frame(width: 40, height: 40)
 
-            PlaybackVolumeSlider(volume: Binding(
-                get: { viewModel.volume },
-                set: { viewModel.setVolume($0, showsFeedback: false) }
-            ))
-            .frame(width: isHovered ? 72 : 0)
-            .opacity(isHovered ? 1 : 0)
-            .clipped()
+            if isHovered {
+                HStack(spacing: 8) {
+                    PlaybackVolumeSlider(volume: Binding(
+                        get: { viewModel.volume },
+                        set: { viewModel.setVolume($0, showsFeedback: false) }
+                    ))
+                    .frame(width: 72, height: 40)
+
+                    Text("\(Int(viewModel.volume.rounded()))%")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(PlaybackTheme.textPrimary)
+                        .monospacedDigit()
+                        .frame(width: 32, alignment: .trailing)
+                }
+                .padding(.trailing, 12)
+                .transition(.opacity)
+            }
         }
-        .frame(width: isHovered ? 128 : 40, height: 40, alignment: .leading)
+        .frame(width: isHovered ? 164 : 40, height: 40, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.10))
+                .fill(Color.white.opacity(isHovered ? 0.16 : 0.10))
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.22)) {
