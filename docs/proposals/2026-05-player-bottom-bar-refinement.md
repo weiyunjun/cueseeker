@@ -88,7 +88,8 @@ All adjacent navigation queries (both through bottom controls bar buttons and `A
 - Refactor the **Speed Control Button** using standard SwiftUI `Button` with a redesigned **`PlaybackChromeCapsuleButtonStyle`**:
   - Keep its original **54x40 capsule shape** and fixed **12pt semibold font** with monospaced digits.
   - Remove all legacy `.ultraThinMaterial` backings, outer borders, and shadows.
-  - Implement a flat background fill of **`Color.white.opacity(0.10)`** under normal state, matching standard transport button bases, and **`Color.white.opacity(0.18)`** under hover/press states.
+  - Implement a **concentric capsule overlay hover effect** to match standard circular button dynamics: it renders a persistent `Color.white.opacity(0.10)` background capsule under normal state, and overlay-adds an inner `Color.white.opacity(0.18)` capsule scaled to `x: 0.88, y: 0.85` under hover/press states, ensuring unified micro-animation pacing.
+  - Manage **dynamic foreground colors** based on `isEnabled` availability status (`0.96` opacity when enabled, `0.34` opacity when disabled) to align with global button hierarchy.
   - Ensure the style does NOT implement any selected/active high-contrast inversion (no solid white backgrounds when the menu is active), keeping a clean translucent cinematic style.
 - **Solve Speed Popover Click Collision**: 
   - Add `@State private var speedButtonFrame: CGRect = .zero` to track the button bounds in window space.

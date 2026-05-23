@@ -266,7 +266,6 @@ struct PlaybackChromeView: View {
             Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
                 .font(.system(size: 12, weight: .semibold))
                 .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.96))
                 .frame(width: 54, height: 40)
                 .contentShape(Capsule())
         }
@@ -351,22 +350,28 @@ private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .foregroundStyle(foregroundColor)
             .background(
-                Capsule()
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
+                ZStack {
+                    // Outer persistent base capsule
+                    Capsule()
+                        .fill(Color.white.opacity(0.10))
+
+                    // Concentric inner hover capsule
+                    if isEnabled && (isHovered || configuration.isPressed) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.18))
+                            .scaleEffect(x: 0.88, y: 0.85)
+                    }
+                }
             )
             .scaleEffect(configuration.isPressed && isEnabled ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
             .onHover { isHovered = $0 }
     }
 
-    private func backgroundColor(isPressed: Bool) -> Color {
-        guard isEnabled else {
-            return Color.white.opacity(0.04)
-        }
-        if isPressed || isHovered {
-            return Color.white.opacity(0.18)
-        }
-        return Color.white.opacity(0.10)
+    private var foregroundColor: Color {
+        isEnabled ? Color.white.opacity(0.96) : Color.white.opacity(0.34)
     }
 }
