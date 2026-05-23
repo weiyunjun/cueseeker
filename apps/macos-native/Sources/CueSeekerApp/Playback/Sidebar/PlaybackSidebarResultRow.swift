@@ -29,7 +29,8 @@ struct PlaybackSidebarResultRow: View {
                         line,
                         query: query,
                         textColor: lineColor,
-                        state: highlightState
+                        state: highlightState,
+                        highlightBackgroundColor: Color(red: 0/255, green: 102/255, blue: 204/255).opacity(0.50)
                     ))
                     .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(lineColor)
@@ -44,10 +45,6 @@ struct PlaybackSidebarResultRow: View {
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(rowBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(isSelected ? selectedRingColor : Color.clear, lineWidth: 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: 8))
             .padding(.vertical, 2)
@@ -65,34 +62,16 @@ struct PlaybackSidebarResultRow: View {
     }
 
     private var lineColor: Color {
-        if isSelected {
-            return colorScheme == .dark
-                ? Color(red: 248 / 255, green: 246 / 255, blue: 251 / 255)
-                : Color(red: 10 / 255, green: 20 / 255, blue: 38 / 255)
-        }
-        return Color.primary.opacity(0.86)
+        isSelected ? Color.white : Color.white.opacity(0.90)
     }
 
     private var metaColor: Color {
-        isSelected ? accentColor : Color.primary.opacity(0.45)
-    }
-
-    private var accentColor: Color {
-        colorScheme == .dark
-            ? Color(red: 110 / 255, green: 166 / 255, blue: 255 / 255)
-            : Color(red: 10 / 255, green: 132 / 255, blue: 255 / 255)
-    }
-
-    private var selectedRingColor: Color {
-        accentColor.opacity(colorScheme == .dark ? 0.52 : 0.55)
+        isSelected ? Color.white : Color.white.opacity(0.55)
     }
 
     private var rowBackground: Color {
-        if isSelected {
-            return colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.85)
-        }
-        if isHovered {
-            return colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.55)
+        if isSelected || isHovered {
+            return PlaybackTheme.menuItemHighlight
         }
         return Color.clear
     }
