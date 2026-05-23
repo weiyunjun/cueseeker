@@ -60,14 +60,21 @@ This document serves as the authoritative, unified roadmap for the entire playba
     - Drag gestures map smoothly to `viewModel.volume` mutations.
 
 #### Phase 1.4: Progress Scrubber Hover Tooltip & Tracks (Planned)
-- **Goals**: Refine timeline scrubbing with visual previews and dynamic location metrics.
+- **Goals**: Refine timeline scrubbing with visual previews and dynamic location metrics, and purify the player bottom bar.
 - **Specifications**:
-  - **Scrubber Thickness Expansion**: The progress scrubber track dynamically expands from a vertical height of `3` to `6` on mouse hover to provide satisfying tactile feedback.
-  - **Small Tooltip Capsule**: When hovering the progress scrubber, a floating timestamp tooltip appears directly above the cursor position. The tooltip displays the exact time using a monospaced font size `10pt` (`PlaybackTheme.textPrimary` color), nested inside a smaller capsule backing (`height: 22`) powered by the unified `PlaybackCinematicBacking` component (configured with `isHovered: false` to maintain a consistent persistent gray base of `Color.white.opacity(0.10)`).
-  - **Snappy Zero-Lag Tracking**: To preserve YouTube's crisp, responsive experience, the horizontal position of the tooltip tracks the cursor coord `localPoint.x` with **zero lag and absolutely no easing or spring animation**.
+  - **Transparent Bottom Bar Layout**: The black background gradient from the player's bottom controls bar is completely removed, rendering all premium button circles/capsules floating natively transparent over the video stage to maximize widescreen legibility.
+  - **Red Active Progress & Thumb**: The current playback progress track and the scrubbing thumb are styled using YouTube signature red (`PlaybackTheme.progressRed`/`Color.red`), providing a high-contrast focal indicator.
+  - **Proportional Base Track Backing**: The scrubber base background track uses `Color.white.opacity(0.10)` (`PlaybackTheme.capsuleFill`) to remain perfectly visual-consistent with bottom controls.
+  - **Three-Segment Scrubber Visuals**: Layer the scrubber tracks in a ZStack:
+    - Base track (full width) is `Color.white.opacity(0.10)`.
+    - Hover track (0 to cursor position) is `PlaybackTheme.scrubberHoverTrack` (`Color.white.opacity(0.26)`), appearing only when hovered.
+    - Active progress track (0 to current playhead) is `PlaybackTheme.progressRed` (`Color.red`), naturally overlaying the hover track to create a bright white/gray highlight segment only between the current playhead and the cursor.
+  - **Scrubber Thickness Expansion**: The scrubber track dynamically expands from a vertical height of `3` to `6` on mouse hover to provide satisfying tactile feedback.
+  - **Dynamic Self-Sizing Tooltip Capsule**: When hovering the progress scrubber, a floating timestamp tooltip appears directly above the cursor position. To prevent truncation of hours or minutes, the tooltip's width dynamically self-sizes based on the string length (using a horizontal padding of `8`). Its backing is a height `22` capsule powered by `PlaybackCinematicBacking` with `isHovered: false`.
+  - **Snappy Zero-Lag Tracking**: The horizontal position of the tooltip tracks the cursor coordinates with zero lag and absolutely no easing or spring animation.
   - **Snappy Visibility Toggle**: The tooltip appears and disappears instantly upon entering/exiting the progress bar.
-  - **Boundary Clamping**: Apply horizontal clamping (`halfTooltipWidth` to `width - halfTooltipWidth`) on the coordinate layout to prevent the tooltip from shifting outside the left/right viewport boundaries.
-  - **Gesture Safety**: Set `.allowsHitTesting(false)` on the tooltip to guarantee it does not intercept hover or drag gestures, keeping the scrubbing interaction 100% uninterrupted.
+  - **Boundary Clamping**: Apply horizontal clamping based on the dynamic tooltip width (`tooltipWidth`) to prevent the tooltip from shifting outside the left/right viewport boundaries.
+  - **Gesture Safety**: Set `.allowsHitTesting(false)` on the tooltip to guarantee it does not intercept hover or drag gestures.
 
 ---
 
