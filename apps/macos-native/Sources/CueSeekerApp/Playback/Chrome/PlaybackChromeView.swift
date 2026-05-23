@@ -122,9 +122,9 @@ struct PlaybackChromeView: View {
                 )
                 let calculatedY = buttonFrame.minY - PlaybackChromeMetrics.speedMenuGap - menuHeight / 2
                 // Lock the bottom of the popover card tightly above the scrubber timeline (starts at height - 98 + 16)
-                // with a clean 0pt gap to achieve perfect tight snapping with the progress bar.
+                // with a clean 2pt gap when hovered to completely prevent any visual overlap or anti-aliasing artifacts.
                 let maxMenuCenterY = proxy.size.width > 0
-                    ? proxy.size.height - PlaybackChromeMetrics.height + 24 - menuHeight / 2
+                    ? proxy.size.height - PlaybackChromeMetrics.height + 20 - menuHeight / 2
                     : calculatedY
                 let y = max(
                     menuHeight / 2,
