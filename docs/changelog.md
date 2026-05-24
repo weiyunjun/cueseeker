@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the first-pass Anki export scope: Search and Shiori group headers
+  can export loaded subtitle moments to `.apkg` decks named
+  `CueSeeker::<group display title>`, with one Audio/Image/Text card per row and
+  no metadata fields in the initial template.
 - Updated Git workflow direction: `main` is now the active integration branch,
   `native-macos-rewrite` and `ui/restructure` are retired for new work, and
   major features should use `feature/<short-topic>` branches from `main`.

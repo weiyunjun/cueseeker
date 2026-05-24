@@ -134,6 +134,10 @@ Stable design snapshot:
   backgrounds, hover lift, readable bilingual text, and inline keyword
   highlights. Search, Library, and Shiori main-page cards do not retain a
   selected visual state after activation.
+- Search and Shiori group headers may show a compact Anki export icon after the
+  muted result count. The icon uses the native `square.and.arrow.up` symbol at
+  small header scale, with a fixed 24pt hit target so it reads as a secondary
+  group action rather than a title element.
 - The expanded video surface is a black playback frame with a subtitle overlay.
   The overlay can be shown or hidden from the bottom player without resizing
   the bottom player controls.

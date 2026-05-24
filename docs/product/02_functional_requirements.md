@@ -588,6 +588,38 @@ Initial Shiori panel behavior:
   user-facing English text.
 - Shiori rows should be grouped by subtitle file, following the Search
   result grouping pattern where practical.
+
+## 13. Anki Export
+
+CueSeeker should support a first-pass Anki export workflow for subtitle moments
+from Search result groups and Shiori groups.
+
+Initial Anki export behavior:
+
+- Search result group headers should expose a compact export button immediately
+  after the `N results` count.
+- Shiori group headers should expose the same compact export button immediately
+  after the `N shioris` count.
+- The export button should use the native `square.and.arrow.up` symbol.
+- Activating the export button should open a macOS save panel for an `.apkg`
+  destination.
+- Confirming the save panel should export silently. The first pass does not
+  need progress UI, success UI, or automatic Finder reveal.
+- Search export should export the currently loaded rows in that Search result
+  group.
+- Shiori export should export all Shiori rows in that Shiori group.
+- Each exported row should become one Anki card.
+- The generated deck name should be `CueSeeker::<group display title>`, such as
+  `CueSeeker::It's MyGO!!!!! - 07`.
+- The initial note type should contain only `Audio`, `Image`, and `Text`
+  fields. Do not add metadata fields in the first pass.
+- The front of each card should show the audio clip and midpoint screenshot.
+- The back of each card should show the subtitle text as CueSeeker displays it,
+  preserving grouped cue lines without adding language labels.
+- Audio clips should use the subtitle row start and end timestamps.
+- Screenshots should use the midpoint between the subtitle row start and end
+  timestamps.
+- Video clips are out of scope for the first pass.
 - Shiori groups are expanded by default. The disclosure rail, hover
   background, and selected background follow the same rules as Search
   result rows.
