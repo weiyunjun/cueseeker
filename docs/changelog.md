@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Updated Git workflow direction: `main` is now the active integration branch,
+  `native-macos-rewrite` and `ui/restructure` are retired for new work, and
+  major features should use `feature/<short-topic>` branches from `main`.
 - Playback overlay panel visibility now persists across launches and defaults
   to hidden on first use, so the video page opens without the right-side
   Search Results / Subtitles panel unless the user restores it.

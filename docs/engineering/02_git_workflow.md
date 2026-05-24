@@ -6,7 +6,8 @@ Status: Draft
 
 This document defines Git workflow rules for CueSeeker.
 
-Git history should preserve meaningful project stages and make the native macOS rewrite reviewable.
+Git history should preserve meaningful project stages and make active macOS
+development reviewable.
 
 ## 2. Repository State
 
@@ -17,40 +18,56 @@ Known baseline:
 - Baseline commit: `064fa30 Baseline Flutter implementation`
 - Baseline tag: `flutter-baseline`
 - Archive commit: `b7db6de Archive: move Flutter implementation under archive/flutter`
-- Active branch: `native-macos-rewrite`
+- Active branch: `main`
 
 Rules:
 
 - The archived Flutter implementation must remain available under `archive/flutter/`.
-- Active native macOS work happens on `native-macos-rewrite`, which is the
-  single de facto main branch. This is the later workflow change that the
-  earlier "unless a later workflow changes this" clause anticipated:
-  development is no longer split across branches or worktrees (see §3).
+- Active native macOS work is based on `main`.
+- The previous `native-macos-rewrite` branch is retired and must not be used
+  for new work.
+- The previous `ui/restructure` branch is retired after its accepted work moved
+  into `main`; it must not be used for new work.
 - Do not rewrite the baseline or archive history.
 
 ## 3. Branching Rules
 
-The single de facto main branch and the only development branch is:
+The stable integration branch is:
 
 ```text
-native-macos-rewrite
+main
 ```
 
-This is a solo project with strictly sequential work. There are no parallel
-tasks and no concurrent use of multiple AI assistants — for example, Claude and
-Codex are never run at the same time. The multi-branch, feature-branch, and
-merge-back model used by larger teams is intentionally not adopted; it adds
-overhead with no benefit for a single sequential developer.
+Small, tightly scoped changes may be committed directly on `main` when the
+owner explicitly asks for the modification and the change is low risk.
+Major features, risky UI work, long-lived experiments, and work that benefits
+from review isolation should start from `main` on a feature branch.
+
+Feature branch naming:
+
+```text
+feature/<short-topic>
+```
+
+Examples:
+
+```text
+feature/anki-export
+feature/search-polish
+feature/playback-export
+```
 
 Rules:
 
-- All native macOS work — code, docs, ADRs, and prototypes — is committed
-  directly on `native-macos-rewrite` in the primary checkout at the repository
-  root. Do not develop on a side branch and merge back.
-- Do not create `git worktree`s or per-session `claude/*` branches for ongoing
-  development. Any worktrees or `claude/*` branches left by earlier tooling are
-  legacy, are not part of the workflow, and may be removed.
-- Use small reviewable changes committed directly on `native-macos-rewrite`.
+- Create feature branches from the current `main`.
+- Keep feature branch commits small and reviewable.
+- Merge or otherwise integrate accepted feature work back to `main` before
+  treating it as stable project direction.
+- Delete retired or completed local feature branches after their useful work is
+  integrated or explicitly abandoned.
+- Do not create `git worktree`s or per-session `claude/*` branches for normal
+  ongoing development. Any worktrees or `claude/*` branches left by earlier
+  tooling are legacy, are not part of the current workflow, and may be removed.
 - Do not mix unrelated documentation, architecture, database, UI, and playback changes in one large commit.
 - Keep experimental work behind proposals or ADRs before it becomes stable implementation.
 
