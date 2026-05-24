@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Playback overlay panel visibility now persists across launches and defaults
+  to hidden on first use, so the video page opens without the right-side
+  Search Results / Subtitles panel unless the user restores it.
 - Accepted the current `ui/restructure` Swift-first UI alignment as complete
   for this stage and ready for owner-controlled merge to `main`. The accepted
   native App direction includes the cinematic bottom player, modal timeline

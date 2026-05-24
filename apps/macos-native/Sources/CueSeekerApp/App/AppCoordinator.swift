@@ -365,7 +365,7 @@ final class AppCoordinator: ObservableObject {
         shiori = ShioriStore()
         library = LibraryStore()
         search = SearchStore()
-        playback = PlaybackStore()
+        playback = PlaybackStore(userDefaults: userDefaults)
 
         let openedDatabase: SubtitleDatabase?
         let initialError: Error?
