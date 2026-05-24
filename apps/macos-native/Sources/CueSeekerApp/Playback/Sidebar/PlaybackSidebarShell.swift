@@ -61,7 +61,7 @@ struct PlaybackSidebarShell: View {
     private var searchResultsList: some View {
         let rows = flattenedResultRows
         return ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: true) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(rows, id: \.result.entryID) { row in
                         PlaybackSidebarResultRow(
@@ -183,18 +183,43 @@ func configurePlaybackSidebarScrollView(_ scrollView: NSScrollView) {
 
     scrollView.borderType = .noBorder
     scrollView.scrollerStyle = .overlay
+    scrollView.scrollerKnobStyle = .light
     scrollView.scrollerInsets = zeroInsets
     scrollView.contentInsets = zeroInsets
     scrollView.automaticallyAdjustsContentInsets = false
     scrollView.contentView.contentInsets = zeroInsets
     scrollView.contentView.automaticallyAdjustsContentInsets = false
 
-    scrollView.hasVerticalScroller = false
+    scrollView.hasVerticalScroller = true
     scrollView.hasHorizontalScroller = false
-    scrollView.verticalScroller?.isHidden = true
+    if !(scrollView.verticalScroller is PlaybackTransparentScroller) {
+        let replacement = PlaybackTransparentScroller(
+            frame: scrollView.verticalScroller?.frame ?? .zero
+        )
+        replacement.controlSize = scrollView.verticalScroller?.controlSize ?? .regular
+        replacement.scrollerStyle = .overlay
+        replacement.knobStyle = .light
+        scrollView.verticalScroller = replacement
+    }
+
+    scrollView.verticalScroller?.isHidden = false
+    scrollView.verticalScroller?.scrollerStyle = .overlay
+    scrollView.verticalScroller?.knobStyle = .light
     scrollView.horizontalScroller?.isHidden = true
 
-    scrollView.appearance = NSAppearance(named: .darkAqua)
+    let darkAppearance = NSAppearance(named: .darkAqua)
+    scrollView.appearance = darkAppearance
+    scrollView.verticalScroller?.appearance = darkAppearance
+}
+
+private final class PlaybackTransparentScroller: NSScroller {
+    override class var isCompatibleWithOverlayScrollers: Bool {
+        true
+    }
+
+    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {
+        // Keep the system knob, but make the track/gutter transparent.
+    }
 }
 
 struct ScrollViewIntrospector: NSViewRepresentable {

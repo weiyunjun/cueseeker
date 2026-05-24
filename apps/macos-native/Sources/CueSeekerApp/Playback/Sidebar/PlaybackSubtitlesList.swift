@@ -24,7 +24,7 @@ struct PlaybackSubtitlesList: View {
         let entries = orderedEntries
         let activeID = activeEntryID
         return ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: true) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(entries, id: \.id) { entry in
                         PlaybackSidebarSubtitleRow(
