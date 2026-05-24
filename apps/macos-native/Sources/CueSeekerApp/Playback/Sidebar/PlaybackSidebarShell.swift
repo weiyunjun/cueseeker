@@ -213,8 +213,30 @@ func configurePlaybackSidebarScrollView(_ scrollView: NSScrollView) {
 }
 
 private final class PlaybackTransparentScroller: NSScroller {
+    private static let fixedKnobWidth: CGFloat = 6
+    private static let knobAlpha: CGFloat = 0.58
+
     override class var isCompatibleWithOverlayScrollers: Bool {
         true
+    }
+
+    override func drawKnob() {
+        let knobRect = rect(for: .knob)
+        guard !knobRect.isEmpty else {
+            return
+        }
+
+        let width = min(Self.fixedKnobWidth, knobRect.width)
+        let horizontalInset = max(0, (knobRect.width - width) / 2)
+        let fixedRect = knobRect.insetBy(dx: horizontalInset, dy: 0)
+
+        NSColor.white.withAlphaComponent(Self.knobAlpha).setFill()
+        NSBezierPath(
+            roundedRect: fixedRect,
+            xRadius: width / 2,
+            yRadius: width / 2
+        )
+        .fill()
     }
 
     override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {
