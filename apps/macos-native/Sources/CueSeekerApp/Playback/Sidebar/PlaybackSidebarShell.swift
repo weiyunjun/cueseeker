@@ -1,3 +1,4 @@
+import AppKit
 import CueSeekerCore
 import SwiftUI
 
@@ -60,7 +61,7 @@ struct PlaybackSidebarShell: View {
     private var searchResultsList: some View {
         let rows = flattenedResultRows
         return ScrollViewReader { proxy in
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(rows, id: \.result.entryID) { row in
                         PlaybackSidebarResultRow(
@@ -75,15 +76,11 @@ struct PlaybackSidebarShell: View {
                     }
                 }
                 .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(ScrollViewIntrospector { scrollView in
+                    configurePlaybackSidebarScrollView(scrollView)
+                })
             }
-            .background(ScrollViewIntrospector { scrollView in
-                scrollView.drawsBackground = false
-                scrollView.borderType = .noBorder
-                scrollView.scrollerStyle = .overlay
-                scrollView.hasVerticalScroller = false
-                scrollView.verticalScroller = nil
-                scrollView.appearance = NSAppearance(named: .darkAqua)
-            })
             .onAppear { scrollSelectedIntoView(proxy) }
             .onChange(of: search.selectedSearchResult?.entryID) { _ in
                 scrollSelectedIntoView(proxy)
@@ -173,6 +170,31 @@ enum PlaybackOverlayPanelMetrics {
     static let bottomInset: CGFloat = 104
     static let horizontalMargin: CGFloat = 24
     static let maxWidth: CGFloat = 300
+}
+
+@MainActor
+func configurePlaybackSidebarScrollView(_ scrollView: NSScrollView) {
+    let zeroInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+
+    scrollView.drawsBackground = false
+    scrollView.backgroundColor = .clear
+    scrollView.contentView.drawsBackground = false
+    scrollView.contentView.backgroundColor = .clear
+
+    scrollView.borderType = .noBorder
+    scrollView.scrollerStyle = .overlay
+    scrollView.scrollerInsets = zeroInsets
+    scrollView.contentInsets = zeroInsets
+    scrollView.automaticallyAdjustsContentInsets = false
+    scrollView.contentView.contentInsets = zeroInsets
+    scrollView.contentView.automaticallyAdjustsContentInsets = false
+
+    scrollView.hasVerticalScroller = false
+    scrollView.hasHorizontalScroller = false
+    scrollView.verticalScroller?.isHidden = true
+    scrollView.horizontalScroller?.isHidden = true
+
+    scrollView.appearance = NSAppearance(named: .darkAqua)
 }
 
 struct ScrollViewIntrospector: NSViewRepresentable {

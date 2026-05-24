@@ -24,7 +24,7 @@ struct PlaybackSubtitlesList: View {
         let entries = orderedEntries
         let activeID = activeEntryID
         return ScrollViewReader { proxy in
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(entries, id: \.id) { entry in
                         PlaybackSidebarSubtitleRow(
@@ -40,15 +40,11 @@ struct PlaybackSubtitlesList: View {
                     }
                 }
                 .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(ScrollViewIntrospector { scrollView in
+                    configurePlaybackSidebarScrollView(scrollView)
+                })
             }
-            .background(ScrollViewIntrospector { scrollView in
-                scrollView.drawsBackground = false
-                scrollView.borderType = .noBorder
-                scrollView.scrollerStyle = .overlay
-                scrollView.hasVerticalScroller = false
-                scrollView.verticalScroller = nil
-                scrollView.appearance = NSAppearance(named: .darkAqua)
-            })
             .onAppear { scrollActiveIntoView(proxy, id: activeID) }
             .onChange(of: activeID) { newValue in
                 scrollActiveIntoView(proxy, id: newValue)
