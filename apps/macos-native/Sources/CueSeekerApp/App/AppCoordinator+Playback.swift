@@ -410,7 +410,7 @@ extension AppCoordinator {
             copyCurrentSubtitleToClipboard()
             return true
         case 1:
-            toggleCurrentShiori()
+            _ = toggleCurrentShiori()
             return true
         case 8:
             viewModel.toggleSubtitles()
