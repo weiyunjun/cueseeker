@@ -75,15 +75,21 @@ enum AnkiPackageExporter {
             let baseName = "cueseeker_\(index + 1)_\(stableHash(item.videoPath + "\(item.startMilliseconds)"))"
             let audioName = "\(baseName).mp3"
             let imageName = "\(baseName).jpg"
-            let audioURL = workspaceURL.appendingPathComponent("\(mediaIndex)")
-            mediaMap["\(mediaIndex)"] = audioName
+            let audioMediaKey = "\(mediaIndex)"
+            let audioURL = workspaceURL.appendingPathComponent(audioMediaKey)
+            let audioExportURL = workspaceURL.appendingPathComponent("\(audioMediaKey).mp3")
+            mediaMap[audioMediaKey] = audioName
             mediaIndex += 1
-            let imageURL = workspaceURL.appendingPathComponent("\(mediaIndex)")
-            mediaMap["\(mediaIndex)"] = imageName
+            let imageMediaKey = "\(mediaIndex)"
+            let imageURL = workspaceURL.appendingPathComponent(imageMediaKey)
+            let imageExportURL = workspaceURL.appendingPathComponent("\(imageMediaKey).jpg")
+            mediaMap[imageMediaKey] = imageName
             mediaIndex += 1
 
-            try await exportAudio(item: item, ffmpegURL: ffmpegURL, outputURL: audioURL)
-            try await exportImage(item: item, ffmpegURL: ffmpegURL, outputURL: imageURL)
+            try await exportAudio(item: item, ffmpegURL: ffmpegURL, outputURL: audioExportURL)
+            try FileManager.default.moveItem(at: audioExportURL, to: audioURL)
+            try await exportImage(item: item, ffmpegURL: ffmpegURL, outputURL: imageExportURL)
+            try FileManager.default.moveItem(at: imageExportURL, to: imageURL)
 
             notes.append(
                 AnkiPackageNote(
