@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Implemented first-pass Anki export in the native App: Search and Shiori group
+  headers now expose a compact `square.and.arrow.up` export action that opens a
+  save panel and silently writes `.apkg` packages with Audio/Image/Text cards.
 - Accepted the first-pass Anki export scope: Search and Shiori group headers
   can export loaded subtitle moments to `.apkg` decks named
   `CueSeeker::<group display title>`, with one Audio/Image/Text card per row and

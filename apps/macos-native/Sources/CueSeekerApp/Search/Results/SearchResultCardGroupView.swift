@@ -7,6 +7,7 @@ struct SearchResultCardGroupView: View {
     let onToggle: () -> Void
     let onOpenResult: (SubtitleSearchResult) -> Void
     let onResultAppear: (SubtitleSearchResult) -> Void
+    let onExportToAnki: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -14,7 +15,8 @@ struct SearchResultCardGroupView: View {
                 title: group.subtitleDisplayTitle,
                 countText: resultCountText,
                 isCollapsed: group.isCollapsed,
-                onToggle: onToggle
+                onToggle: onToggle,
+                onExportToAnki: group.results.isEmpty ? nil : onExportToAnki
             )
 
             if !group.isCollapsed {

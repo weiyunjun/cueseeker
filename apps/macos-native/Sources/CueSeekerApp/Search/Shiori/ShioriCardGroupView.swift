@@ -5,6 +5,7 @@ struct ShioriCardGroupView: View {
     let group: ShioriFileGroup
     let onToggle: () -> Void
     let onOpenShiori: (Shiori) -> Void
+    let onExportToAnki: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -12,7 +13,8 @@ struct ShioriCardGroupView: View {
                 title: group.subtitleDisplayTitle,
                 countText: "\(group.totalCount) \(group.totalCount == 1 ? "shiori" : "shioris")",
                 isCollapsed: group.isCollapsed,
-                onToggle: onToggle
+                onToggle: onToggle,
+                onExportToAnki: group.shioris.isEmpty ? nil : onExportToAnki
             )
 
             if !group.isCollapsed {

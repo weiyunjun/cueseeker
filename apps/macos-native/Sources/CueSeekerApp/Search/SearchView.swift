@@ -286,6 +286,10 @@ struct SearchView: View {
                             onOpenShiori: { shiori in
                                 layoutState.clearSearchFocus()
                                 appState.openShiori(shiori)
+                            },
+                            onExportToAnki: {
+                                layoutState.clearSearchFocus()
+                                appState.exportShioriGroupToAnki(group)
                             }
                         )
                     }
@@ -322,6 +326,10 @@ struct SearchView: View {
                             onResultAppear: { result in
                                 appState.markSearchResultVisible(result)
                                 appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                            },
+                            onExportToAnki: {
+                                layoutState.clearSearchFocus()
+                                appState.exportSearchResultGroupToAnki(group)
                             }
                         )
                     }
