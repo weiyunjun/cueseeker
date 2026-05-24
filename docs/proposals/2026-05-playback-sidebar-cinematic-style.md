@@ -1,6 +1,6 @@
 # Proposal: Playback Sidebar Cinematic Reconstruction (Phase 3)
 
-Status: Draft
+Status: Accepted / Implemented for current Swift-first UI stage
 Date: 2026-05-24
 Topic: Playback Sidebar Cinematic Style & Positioning
 
@@ -9,6 +9,11 @@ Topic: Playback Sidebar Cinematic Style & Positioning
 ## 1. Goal Description
 
 This proposal details **Phase 3** of the native macOS playback UI modifications for CueSeeker. The goal is to reconstruct the position, scrolling ergonomics, and visual aesthetics of the playback overlay sidebar (Search Results & Subtitles) to create a cohesive, high-contrast, pure-black theater cinematic experience that matches the existing playback speed popup menu styling.
+
+Acceptance note: the current native SwiftUI/AppKit implementation was accepted
+by the owner on 2026-05-24 as complete for this UI stage. Remaining pixel-level
+visual polish is intentionally deferred to later work and does not block merging
+the `ui/restructure` branch.
 
 ---
 
@@ -49,19 +54,27 @@ To keep styling clean and unified, we will keep the highlight structure intact i
 To completely eradicate the vertical scroller track background lines and any ugly white/gray background stripes (caused by macOS drawing non-overlay scrollbar tracks in dark mode), we implement a **custom transparent scrollbar track subclass** combined with native introspection:
 
 1. **Header Hairline**: Completely **remove the horizontal line** below the `xxx results` text in `PlaybackSidebarShell.swift`.
-2. **Transparent Scroller Track Subclass**: Implement a transparent native `NSScroller` subclass in Swift to bypass slot drawing:
+2. **Transparent Scroller Track Subclass**: Implement a transparent native `NSScroller` subclass in Swift to bypass slot drawing while preserving a narrow fixed-width knob:
    ```swift
-   class PlaybackTransparentScroller: NSScroller {
+   final class PlaybackTransparentScroller: NSScroller {
+       override class var isCompatibleWithOverlayScrollers: Bool {
+           true
+       }
+
+       override func drawKnob() {
+           // Draw a fixed-width light thumb so hover does not widen it.
+       }
+
        override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {
-           // Do nothing to draw a completely transparent track background
+           // Do nothing to draw a completely transparent track background.
        }
    }
    ```
 3. **Scrollbar Introspection**: Introspect the `NSScrollView` in the result/subtitle views to:
    - Apply the custom transparent scroller: `scrollView.verticalScroller = PlaybackTransparentScroller()`
-   - Hide the scroller track and background borders: `scrollView.borderType = .noBorder`, `scrollView.drawsBackground = false`.
+   - Hide the scroller track and background borders: `scrollView.borderType = .noBorder`, `scrollView.drawsBackground = false`, `scrollView.backgroundColor = .clear`, and the clip view backgrounds/insets are cleared.
    - Force the scrollbar style to modern overlay: `scrollView.scrollerStyle = .overlay`.
-   - Force the scrollbar scroller to draw a clean **white/light gray knob** by setting `scrollView.appearance = NSAppearance(named: .darkAqua)`.
+   - Force the scrollbar scroller to draw a clean **white/light gray fixed-width knob** by setting dark appearance / light knob style and custom knob drawing.
 
 ---
 
@@ -98,3 +111,7 @@ The proposed implementation involves changes to the following components:
 3. **Scrollbar Elegance**: Confirm the scrollbar knob displays a clean, elegant white pill shape, and that its vertical track background is **100% transparent** with absolutely no vertical white stripes or track borders.
 4. **Keyword Highlights**: Confirm query matching keywords are displayed exactly like normal text (no background blocks), but the highlight logic in code remains untouched.
 5. **Subtitles Highlight**: Confirm selected subtitle row background uses a clean, unified semi-translucent highlight (`Color.white.opacity(0.12)`).
+
+Acceptance result: owner UI review accepted the current native implementation
+as the stopping point for this stage. Known remaining visual details are
+deferred.

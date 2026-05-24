@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the current `ui/restructure` Swift-first UI alignment as complete
+  for this stage and ready for owner-controlled merge to `main`. The accepted
+  native App direction includes the cinematic bottom player, modal timeline
+  scrubbing, feedback HUD/sidebar icons, and the right-aligned playback
+  overlay panel with a transparent-track fixed-width scrollbar thumb. Remaining
+  pixel-level visual details are deferred to later work and are not blockers
+  for this phase.
 - Fixed Player-UI and cursor idle handling so physical pointer movement while
   dragging with any mouse button keeps the playback chrome and cursor visible
   instead of letting the three-second idle timer fire mid-drag.

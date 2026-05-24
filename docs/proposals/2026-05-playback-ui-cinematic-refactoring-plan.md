@@ -1,6 +1,6 @@
 # Player Cinematic UI/UX Refactoring Master Plan (YouTube-Style)
 
-Status: Proposal
+Status: Accepted for current Swift-first UI stage; remaining visual polish deferred
 Author: Antigravity & User
 
 ## Background
@@ -8,6 +8,11 @@ Author: Antigravity & User
 As part of the ongoing refactoring of the video player interface into a YouTube-style cinematic layout, several high-fidelity details require alignment. To avoid fragmented patches, this master plan consolidates all phases of the playback UI refinement—from bottom control bars and theme token definitions to interactive overlay menus, sliding sliders, feedback HUDs, and right-side overlay sidebars.
 
 This document serves as the authoritative, unified roadmap for the entire playback UI cinematic refactoring.
+
+Current acceptance: the owner accepted the native SwiftUI/AppKit result on
+2026-05-24 as complete for the current UI stage. The branch may be merged after
+documentation sync. Remaining visual details are future polish, not blockers
+for this phase.
 
 ---
 
@@ -79,7 +84,7 @@ This document serves as the authoritative, unified roadmap for the entire playba
   - **Speed Menu Popover Vertical Clamping**: Position the speed menu card so that its bottom edge sits tightly above the progress bar with a clean `2pt` gap when hovered, preventing any visual overlap or click interference when hovering the scrubber. Clamp the center Y position to at most `proxy.size.height - PlaybackChromeMetrics.height + 20 - menuHeight / 2`.
   - **Active Dragging Tooltip Tracking**: When actively dragging the progress scrubber (`dragTime != nil`), prioritize the drag gesture's horizontal coordinate (`filledWidth`) and time value (`dragTime`) over continuous hover variables to prevent the tooltip from lagging at the pre-drag hover location.
 
-#### Phase 1.5: Timeline Scrubbing Playback Alignment (Planned)
+#### Phase 1.5: Timeline Scrubbing Playback Alignment (Implemented & Accepted)
 - **Goals**: Align Timeline drag behavior with YouTube/Movist-style
   scrubbing while preserving the native playback backend's bounded read-ahead
   model. Phase 1.5 fixes the behavior gap discovered after Phase 1.4: dragging
@@ -150,7 +155,7 @@ This document serves as the authoritative, unified roadmap for the entire playba
 
 ---
 
-### 🟦 Phase 2: Cinematic Feedback HUD & Animations (Planned)
+### 🟦 Phase 2: Cinematic Feedback HUD & Animations (Implemented & Accepted)
 
 - **Goals**: Deliver high-fidelity, satisfying micro-animations for on-stage playback feedback.
 - **Specifications**:
@@ -160,13 +165,14 @@ This document serves as the authoritative, unified roadmap for the entire playba
 
 ---
 
-### 🟪 Phase 3: Sidebar to Right-Side Overlay (Planned)
+### 🟪 Phase 3: Sidebar to Right-Side Overlay (Implemented & Accepted)
 
-- **Goals**: Migrate the active panel from a middle-center squeezing block into an elegant, right-side sliding drawer.
+- **Goals**: Migrate the active panel from a middle-center squeezing block into an elegant, right-side floating overlay.
 - **Specifications**:
   - The right-side sidebar overlays the video stage instead of squeezing the aspect-ratio geometry, preserving pure widescreen scaling.
-  - The sidebar panel uses `PlaybackTheme.cinematicBacking` with a fine border, sliding in from the right edge on toggle with a `.spring` animation.
+  - The sidebar panel uses `PlaybackTheme.cinematicBacking` with a fine border and right-aligned floating geometry.
   - Active search results and subtitles tabs inside the sidebar remain responsive to page-up/down events.
+  - The native sidebar scrollbar keeps a narrow fixed-width light thumb when visible while the track/gutter remains transparent.
 
 ---
 

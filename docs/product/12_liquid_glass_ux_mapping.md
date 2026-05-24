@@ -43,7 +43,7 @@ Surfaces covered by this UX mapping:
 - Video page top bar (custom traffic-light cluster plus centered title).
 - Playback close lifecycle (via the video-page top bar, returns to the info page).
 - Playback input feedback overlay.
-- Video page centered overlay panel (replaces the former right side panel).
+- Video page right-aligned overlay panel (replaces the former squeezing side panel).
 - Playback fullscreen chrome.
 
 Explicitly excluded:
@@ -74,7 +74,7 @@ Rules:
   originating info page, but it must not clear Search results, database search
   caches, Library rows, Shiori records, or unrelated workbench presentation
   state.
-- The centered overlay panel must never resize the video stage. Toggling the
+- The right-aligned overlay panel must never resize the video stage. Toggling the
   panel must not change video available size, so playback render and seek are
   not disturbed.
 - Settings remains the current independent native Settings window and is not
@@ -447,7 +447,7 @@ Rules:
   bookmark glyph and ordinary circular icon-button styling.
 - Subtitle visibility toggles the current player's subtitle overlay without
   resizing the bottom player.
-- The panel toggle shows or hides the centered overlay panel without moving or
+- The panel toggle shows or hides the right-aligned overlay panel without moving or
   resizing the video or the bottom-player controls.
 - Fullscreen enters or exits playback fullscreen through the existing playback
   fullscreen manager.
@@ -526,7 +526,7 @@ Rules:
   lights are suppressed on the video page. The custom top bar is windowed-only;
   in fullscreen it is not shown and the macOS native fullscreen titlebar takes
   over (see §12).
-- The centered overlay panel floats above the video and does NOT squeeze or
+- The right-aligned overlay panel floats above the video and does NOT squeeze or
   resize the video base. Showing or hiding it must not change video available
   size.
 - The overlay panel never auto-hides. Its visibility is driven only by the
@@ -677,7 +677,7 @@ Mapping notes (App implementation):
   are not reliable substitutes for enter/exit/ordinary movement tracking.
   Layout/fullscreen/focus changes are not movement; exiting fullscreen does not
   change state.
-- The centered overlay panel is not Player UI; its visibility is independent
+- The right-aligned overlay panel is not Player UI; its visibility is independent
   of this machine and it never auto-hides. Hiding the chrome does not pause
   playback, change selection, or close menus except where a menu cannot remain
   visible without its anchor. Horizontal geometry changes remain immediate and
@@ -721,7 +721,7 @@ container and placement changed.
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
-| The overlay panel is a centered floating panel over the video and does not squeeze the video. | `.sidebar` | Overlay-panel view, `LiquidGlassSurface` | None |
+| The overlay panel is a right-aligned floating panel over the video and does not squeeze the video. | `.sidebar` | Overlay-panel view, `LiquidGlassSurface` | None |
 | Panel contains `Search Results` and `Subtitles` tabs. | `ui-segmented-control` | `LiquidGlassSegmentedControl` | Active drawer state |
 | Tabs sit at the top. | `.sidebar-top` | Overlay-panel view | None |
 | Active count label sits below tabs on the left. | `.sidebar-summary` | Overlay-panel summary | Search/subtitle counts |
@@ -736,6 +736,8 @@ Rules:
 - The selected Search result row uses selected state and should scroll into
   view when practical.
 - The Search Results tab does not show `Collapse All`.
+- The native scrollbar may show a fixed-width light thumb when visible, but
+  its track/gutter remains transparent.
 - The `Subtitles` tab lists the current subtitle file in timestamp order.
 - Subtitles rows do not apply keyword highlighting.
 - The current playback subtitle row uses selected state for context and should

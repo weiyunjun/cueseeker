@@ -1,7 +1,8 @@
 # UI Restructure Plan
 
-Status: Accepted; Phases 0, 3, 1, 2 all implemented. `ui/restructure` branch
-not merged to main — UI detail alignment continues on the same branch.
+Status: Accepted; Phases 0, 3, 1, 2 all implemented. Current UI alignment on
+`ui/restructure` is owner-accepted and ready for owner-controlled merge to
+`main`; remaining visual details are deferred.
 
 ## Background
 
@@ -303,16 +304,16 @@ code review on each block.
 ## Acceptance and rollback
 
 Each phase is its own group of small commits. Rollback unit is one commit.
-The branch `ui/restructure` is the working branch. The original plan called
-for merging back to `main` after Phase 2 + owner acceptance, but the
-project owner has decided to keep the branch open for subsequent UI detail
-alignment work (handed off to other AIs) instead of merging immediately.
-Merge timing is owner-controlled.
+The branch `ui/restructure` is the working branch. The project owner accepted
+the current UI alignment on 2026-05-24 as sufficient for this stage. Remaining
+visual details are deferred to later work and do not block merging the branch
+back to `main`. Merge execution remains owner-controlled.
 
 ## Decision
 
 All four phases (0, 3, 1, 2) are implemented and owner-accepted via
-per-sub-step E2E regression. `ui/restructure` stays open as the active
-branch for follow-up UI alignment work. Subsequent structural work (e.g.
-splitting `AppCoordinator.swift` further) is out of this proposal's scope
-and, if pursued, will land as its own proposal.
+per-sub-step E2E regression. The current UI alignment work on
+`ui/restructure` is accepted as merge-ready for this stage. Subsequent
+structural work (e.g. splitting `AppCoordinator.swift` further) and remaining
+pixel-level visual polish are out of this proposal's scope and, if pursued,
+will land as separate follow-up work.
