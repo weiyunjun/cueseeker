@@ -1,0 +1,82 @@
+I am debugging a native macOS SwiftUI/AppKit issue. Please review the attached
+code bundle and help identify the root cause and a minimal fix.
+
+Project context
+===============
+
+The app is CueSeeker, a native macOS SwiftUI app. The bug is in the video
+playback page's right overlay sidebar. The sidebar is a dark translucent
+floating panel over video content. It contains two tabs:
+- Search Results
+- Subtitles
+
+Both tabs contain SwiftUI ScrollViews. The code uses an NSViewRepresentable
+called ScrollViewIntrospector to find the underlying NSScrollView and customize
+it.
+
+Attached code bundle
+====================
+
+The attached text file is:
+
+docs/proposals/2026-05-sidebar-scrollbar-debug-code-bundle.txt
+
+It contains:
+- The bug summary.
+- Screenshot file paths and visual description.
+- Recent attempted fixes.
+- The current relevant Swift code from:
+  - PlaybackPage.swift
+  - PlaybackSidebarShell.swift
+  - PlaybackSubtitlesList.swift
+  - PlaybackSidebarResultRow.swift
+  - PlaybackTheme.swift
+
+Bug
+===
+
+A bright white vertical strip remains visible at the right edge of the dark
+playback overlay sidebar. It looks like a scrollbar track/gutter/background.
+It should be either fully transparent, or temporarily hidden completely.
+
+The white strip persists even after these attempted fixes:
+
+1. A custom NSScroller subclass that overrides drawKnobSlot to draw no track.
+2. A direct "hide scrollbar" attempt in both sidebar ScrollViews:
+
+```swift
+scrollView.drawsBackground = false
+scrollView.borderType = .noBorder
+scrollView.scrollerStyle = .overlay
+scrollView.hasVerticalScroller = false
+scrollView.verticalScroller = nil
+scrollView.appearance = NSAppearance(named: .darkAqua)
+```
+
+The second attempt is the current code. It builds and tests pass, but the user
+still reports that the white vertical strip remains.
+
+Question
+========
+
+Please answer these:
+
+1. What is the most likely root cause?
+2. Is ScrollViewIntrospector failing to customize the actual NSScrollView, or is
+   the white strip likely coming from a different view/background/inset?
+3. What is the smallest SwiftUI/AppKit code change that should remove the white
+   strip reliably?
+4. If hiding the scrollbar is acceptable as a temporary solution, what is the
+   correct way to hide it in SwiftUI/AppKit for this case?
+5. Please avoid broad refactors. Prefer a surgical fix that preserves the
+   existing SwiftUI structure unless a custom NSScrollView wrapper is truly
+   required.
+
+Important constraints
+=====================
+
+- This is a macOS SwiftUI app using AppKit interop.
+- The overlay sidebar should stay dark/translucent and should not squeeze the
+  video.
+- The fix should be minimal and low risk.
+- Please explain how to verify the fix visually.

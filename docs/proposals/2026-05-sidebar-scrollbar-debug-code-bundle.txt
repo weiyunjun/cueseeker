@@ -1,0 +1,708 @@
+CueSeeker playback sidebar scrollbar bug code bundle
+Generated: 2026-05-24
+Current commit before bundle generation: 23dd713
+
+Bug summary
+===========
+
+In the native macOS SwiftUI playback page, the right overlay sidebar contains
+two tabs: "Search Results" and "Subtitles". Each tab uses a SwiftUI ScrollView
+with an NSViewRepresentable introspector that customizes the underlying
+NSScrollView.
+
+Observed bug:
+- A bright white vertical scrollbar/gutter remains visible on the right side of
+  the overlay sidebar.
+- This persists even after attempting to remove/hide the vertical scroller.
+- The white strip visually breaks the dark translucent cinematic sidebar.
+
+Recent attempts in the current branch:
+- d4210d1 Playback: align sidebar cinematic styling
+  - Set sidebar width to 300.
+  - Added ScrollViewIntrospector.
+  - Used a custom PlaybackTransparentScroller that overrode drawKnobSlot.
+  - Result reported by user: white scrollbar/gutter still visible.
+- 23dd713 Playback: hide sidebar scrollbars
+  - Removed PlaybackTransparentScroller.
+  - Set scrollView.hasVerticalScroller = false.
+  - Set scrollView.verticalScroller = nil.
+  - Result reported by user: still not fixed.
+
+Relevant design target from docs/proposals/2026-05-playback-sidebar-cinematic-style.md:
+- The scrollbar knob should be clean and elegant if visible.
+- The scrollbar track/gutter background should be fully transparent.
+- As a stopgap, hiding the scrollbar entirely is acceptable if it removes the
+  white gutter.
+
+Screenshot context
+==================
+
+The user supplied screenshots showing a white vertical strip at the right edge
+of the dark overlay sidebar:
+- /Users/weiyunjun/Library/Application Support/CleanShot/media/media_xHtXfI3xYt/CleanShot 2026-05-24 at 03.21.31@2x.png
+- /Users/weiyunjun/Library/Application Support/CleanShot/media/media_vzZj4OI6pF/CleanShot 2026-05-24 at 03.25.16@2x.png
+
+Please attach one of those screenshots when asking another AI, if possible.
+
+Build/test status after the latest attempted fix
+================================================
+
+These passed after commit 23dd713:
+- git diff --check
+- swift build --package-path apps/macos-native
+- swift test --package-path apps/macos-native
+- 95 tests passed
+
+Code: apps/macos-native/Sources/CueSeekerApp/Playback/PlaybackPage.swift
+======================================================================
+
+```swift
+import AppKit
+import CueSeekerCore
+import SwiftUI
+
+struct PlaybackPageView: View {
+    let playbackSurface: AnyView
+    @ObservedObject var appState: AppCoordinator
+    let onClose: () -> Void
+    @State private var activePanel: PlaybackDrawerKind = .results
+    @EnvironmentObject private var playback: PlaybackStore
+    @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var search: SearchStore
+    @EnvironmentObject private var shiori: ShioriStore
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        GeometryReader { geometry in
+            // The video stage fills the whole window. The overlay panel floats
+            // above it (centered, prototype geometry) and never squeezes it, so
+            // toggling the panel cannot resize the video stage or disturb seek.
+            ZStack(alignment: .top) {
+                PlaybackVideoStage(
+                    playbackSurface: playbackSurface,
+                    appState: appState,
+                    fullscreenManager: appState.playbackFullscreenManager,
+                    onClose: onClose
+                )
+                .frame(width: geometry.size.width, height: geometry.size.height)
+
+                overlayPanel(in: geometry.size)
+
+                // The feedback HUD renders above the overlay panel and is
+                // centered within the full-window black video base
+                // (doc 12 §11/§13.4). It is the SwiftUI feedback layer only;
+                // the native render/seek path is untouched.
+                if let viewModel = playback.playbackViewModel {
+                    PlaybackFeedbackLayer(viewModel: viewModel)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .allowsHitTesting(false)
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .background(Color.black)
+        .onAppear {
+            refreshSidebarData()
+        }
+        .onChange(of: appState.currentPlaybackSubtitlePath) { _ in
+            refreshSidebarData()
+        }
+    }
+
+    @ViewBuilder
+    private func overlayPanel(in size: CGSize) -> some View {
+        let visible = playback.isPlaybackSidePanelVisible
+        let panelWidth = min(
+            PlaybackOverlayPanelMetrics.maxWidth,
+            max(0, size.width - 40)
+        )
+        let panelHeight = max(
+            0,
+            size.height
+                - PlaybackOverlayPanelMetrics.topInset
+                - PlaybackOverlayPanelMetrics.bottomInset
+        )
+
+        PlaybackSidebarShell(appState: appState, activePanel: $activePanel)
+            .frame(width: panelWidth, height: panelHeight)
+            .background(PlaybackTheme.cinematicBacking)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
+            )
+            .shadow(color: Color.black.opacity(0.42), radius: 24, x: 0, y: 12)
+            .opacity(visible ? 1 : 0)
+            .scaleEffect(visible ? 1 : 0.98)
+            .position(
+                x: size.width - 20 - panelWidth / 2,
+                y: PlaybackOverlayPanelMetrics.topInset + panelHeight / 2
+            )
+            .offset(y: visible ? 0 : 10)
+            .allowsHitTesting(visible)
+            .animation(.easeInOut(duration: 0.18), value: visible)
+    }
+
+    private func refreshSidebarData() {
+        appState.refreshSearchNavigationSnapshot()
+        appState.refreshCurrentSubtitleEntries()
+    }
+}
+```
+
+Code: apps/macos-native/Sources/CueSeekerApp/Playback/Sidebar/PlaybackSidebarShell.swift
+=====================================================================================
+
+```swift
+import CueSeekerCore
+import SwiftUI
+
+struct PlaybackSidebarShell: View {
+    @ObservedObject var appState: AppCoordinator
+    @Binding var activePanel: PlaybackDrawerKind
+    @EnvironmentObject private var search: SearchStore
+    @EnvironmentObject private var playback: PlaybackStore
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 2) {
+                    sidebarTab(.results, title: "Search Results")
+                    sidebarTab(.subtitles, title: "Subtitles")
+                }
+                .padding(2)
+                .background(
+                    RoundedRectangle(cornerRadius: 9)
+                        .fill(Color.white.opacity(0.08))
+                )
+
+                Text(summaryText)
+                    .font(.system(size: 11.5, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.55))
+                    .monospacedDigit()
+                    .padding(.horizontal, 2)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+
+            content
+        }
+        // The opaque rounded surface, border, and shadow are owned by the
+        // floating container in PlaybackPageView. The shell only renders
+        // content; it no longer draws the old squeeze-era background or the
+        // left divider.
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if playback.isPlaybackSidePanelVisible {
+            switch activePanel {
+            case .results:
+                searchResultsList
+            case .subtitles:
+                if let viewModel = playback.playbackViewModel {
+                    PlaybackSubtitlesList(appState: appState, viewModel: viewModel)
+                } else {
+                    Spacer(minLength: 0)
+                }
+            }
+        } else {
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var searchResultsList: some View {
+        let rows = flattenedResultRows
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(rows, id: \.result.entryID) { row in
+                        PlaybackSidebarResultRow(
+                            rank: row.rank,
+                            result: row.result,
+                            query: search.searchQuery,
+                            isSelected: row.result.entryID
+                                == search.selectedSearchResult?.entryID,
+                            onOpen: { appState.openSearchResult(row.result) }
+                        )
+                        .id(row.result.entryID)
+                    }
+                }
+                .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
+            }
+            .background(ScrollViewIntrospector { scrollView in
+                scrollView.drawsBackground = false
+                scrollView.borderType = .noBorder
+                scrollView.scrollerStyle = .overlay
+                scrollView.hasVerticalScroller = false
+                scrollView.verticalScroller = nil
+                scrollView.appearance = NSAppearance(named: .darkAqua)
+            })
+            .onAppear { scrollSelectedIntoView(proxy) }
+            .onChange(of: search.selectedSearchResult?.entryID) { _ in
+                scrollSelectedIntoView(proxy)
+            }
+        }
+    }
+
+    private func scrollSelectedIntoView(_ proxy: ScrollViewProxy) {
+        guard let id = search.selectedSearchResult?.entryID else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            proxy.scrollTo(id, anchor: .center)
+        }
+    }
+
+    /// The complete active Search result order, flattened across file groups
+    /// with a global one-based rank to mirror the prototype `.sidebar-list`.
+    /// Reads only the published navigation groups, so result-to-result jumps
+    /// never clear the list while the current Search result list is valid.
+    private var flattenedResultRows: [(rank: Int, result: SubtitleSearchResult)] {
+        var rows: [(rank: Int, result: SubtitleSearchResult)] = []
+        var rank = 1
+        for group in search.searchNavigationResultGroups {
+            for result in group.results {
+                rows.append((rank: rank, result: result))
+                rank += 1
+            }
+        }
+        return rows
+    }
+
+    private func sidebarTab(_ panel: PlaybackDrawerKind, title: String) -> some View {
+        let isActive = activePanel == panel
+        return Button {
+            activePanel = panel
+            switch panel {
+            case .results:
+                appState.refreshSearchNavigationSnapshot()
+            case .subtitles:
+                appState.refreshCurrentSubtitleEntries()
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 12, weight: isActive ? .semibold : .medium))
+                .foregroundStyle(isActive ? Color.white : Color.white.opacity(0.60))
+                .frame(maxWidth: .infinity)
+                .frame(height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(isActive ? Color.black.opacity(0.24) : Color.clear)
+                        .shadow(
+                            color: isActive ? Color.black.opacity(0.15) : Color.clear,
+                            radius: 1,
+                            y: 0.5
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var summaryText: String {
+        switch activePanel {
+        case .results:
+            let groupedCount = search.searchNavigationResultGroups.reduce(0) { $0 + $1.results.count }
+            let fallbackCount = search.searchResultTotalCount > 0
+                ? search.searchResultTotalCount
+                : search.searchResults.count
+            let count = search.searchNavigationSnapshot?.totalCount
+                ?? (groupedCount > 0 ? groupedCount : fallbackCount)
+            return "\(count) \(count == 1 ? "result" : "results")"
+        case .subtitles:
+            let count = playback.currentSubtitleEntries.count
+            return "\(count) \(count == 1 ? "subtitle" : "subtitles")"
+        }
+    }
+}
+
+/// Hosts the playback feedback HUD above the centered overlay panel so command
+/// feedback is never occluded by it (doc 12 §11/§13.4, doc 11 §6). This is the
+/// cinematic sidebar geometry: a right-aligned floating overlay that never
+/// squeezes the video — `top: 46px; right: 20px; bottom: 104px;
+/// width: min(300px, calc(100% - 40px))`.
+enum PlaybackOverlayPanelMetrics {
+    static let topInset: CGFloat = 46
+    static let bottomInset: CGFloat = 104
+    static let horizontalMargin: CGFloat = 24
+    static let maxWidth: CGFloat = 300
+}
+
+struct ScrollViewIntrospector: NSViewRepresentable {
+    let customize: (NSScrollView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let scrollView = findScrollView(for: view) {
+                customize(scrollView)
+            }
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            if let scrollView = findScrollView(for: nsView) {
+                customize(scrollView)
+            }
+        }
+    }
+
+    private func findScrollView(for view: NSView) -> NSScrollView? {
+        var current: NSView? = view
+        while let next = current?.superview {
+            if let scrollView = next as? NSScrollView {
+                return scrollView
+            }
+            current = next
+        }
+        return nil
+    }
+}
+```
+
+Code: apps/macos-native/Sources/CueSeekerApp/Playback/Sidebar/PlaybackSubtitlesList.swift
+======================================================================================
+
+```swift
+import CueSeekerCore
+import SwiftUI
+
+/// The overlay-panel Subtitles tab: the current subtitle file in timestamp
+/// order. Observes the view model so the active-cue selection follows the
+/// rate-limited displayed time (not the frame-cadence clock).
+struct PlaybackSubtitlesList: View {
+    @ObservedObject var appState: AppCoordinator
+    @ObservedObject var viewModel: PlaybackViewModel
+    @EnvironmentObject private var playback: PlaybackStore
+
+    private var orderedEntries: [SubtitleDatabaseEntry] {
+        playback.currentSubtitleEntries
+    }
+
+    /// The cue active at the current displayed time: the entry that contains
+    /// it, otherwise the last entry that has already started (handles gaps).
+    private var activeEntryID: Int64? {
+        let ms = Int((viewModel.displayedCurrentTime * 1_000).rounded(.down))
+        return playback.currentSubtitleEntryLookup.activeEntryID(atMilliseconds: ms)
+    }
+
+    var body: some View {
+        let entries = orderedEntries
+        let activeID = activeEntryID
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(entries, id: \.id) { entry in
+                        PlaybackSidebarSubtitleRow(
+                            entry: entry,
+                            isSelected: entry.id == activeID,
+                            onSeek: {
+                                appState.seekCurrentPlayback(
+                                    toMilliseconds: entry.startMilliseconds
+                                )
+                            }
+                        )
+                        .id(entry.id)
+                    }
+                }
+                .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
+            }
+            .background(ScrollViewIntrospector { scrollView in
+                scrollView.drawsBackground = false
+                scrollView.borderType = .noBorder
+                scrollView.scrollerStyle = .overlay
+                scrollView.hasVerticalScroller = false
+                scrollView.verticalScroller = nil
+                scrollView.appearance = NSAppearance(named: .darkAqua)
+            })
+            .onAppear { scrollActiveIntoView(proxy, id: activeID) }
+            .onChange(of: activeID) { newValue in
+                scrollActiveIntoView(proxy, id: newValue)
+            }
+        }
+    }
+
+    private func scrollActiveIntoView(_ proxy: ScrollViewProxy, id: Int64?) {
+        guard let id else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            proxy.scrollTo(id, anchor: .center)
+        }
+    }
+}
+
+/// One Subtitles row, mirroring the prototype `.sidebar-row`: a timestamp meta
+/// line above the cue lines. No rank and no keyword highlight (doc 12 §11).
+private struct PlaybackSidebarSubtitleRow: View {
+    let entry: SubtitleDatabaseEntry
+    let isSelected: Bool
+    let onSeek: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSeek) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(formatTimestamp(entry.startMilliseconds))
+                    .font(.system(size: 11.5, weight: isSelected ? .semibold : .regular))
+                    .monospacedDigit()
+                    .foregroundStyle(metaColor)
+
+                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(lineColor)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(rowBackground)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var displayLines: [String] {
+        subtitleDisplayLines(content: entry.content, cueLines: [])
+    }
+
+    private var lineColor: Color {
+        isSelected ? Color.white : Color.white.opacity(0.90)
+    }
+
+    private var metaColor: Color {
+        isSelected ? Color.white : Color.white.opacity(0.55)
+    }
+
+    private var rowBackground: Color {
+        if isSelected || isHovered {
+            return PlaybackTheme.menuItemHighlight
+        }
+        return Color.clear
+    }
+}
+```
+
+Code: apps/macos-native/Sources/CueSeekerApp/Playback/Sidebar/PlaybackSidebarResultRow.swift
+=========================================================================================
+
+```swift
+import CueSeekerCore
+import SwiftUI
+
+/// One Search Results row in the overlay panel, mirroring the prototype
+/// `.sidebar-row`: a meta line (global rank + timestamp) above the cue lines,
+/// with query-match highlighting reused from the info-page Search renderer.
+struct PlaybackSidebarResultRow: View {
+    let rank: Int
+    let result: SubtitleSearchResult
+    let query: String
+    let isSelected: Bool
+    let onOpen: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text("#\(rank)")
+                    Text(formatTimestamp(result.startMilliseconds))
+                }
+                .font(.system(size: 11.5, weight: isSelected ? .semibold : .regular))
+                .monospacedDigit()
+                .foregroundStyle(metaColor)
+
+                ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
+                    Text(highlightedContent(
+                        line,
+                        query: query,
+                        textColor: lineColor,
+                        state: highlightState,
+                        highlightBackgroundColor: Color.clear
+                    ))
+                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(lineColor)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(rowBackground)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var displayLines: [String] {
+        subtitleDisplayLines(content: result.content, cueLines: result.cueLines)
+    }
+
+    private var highlightState: SearchHighlightState {
+        isSelected ? .selected : (isHovered ? .hover : .default)
+    }
+
+    private var lineColor: Color {
+        isSelected ? Color.white : Color.white.opacity(0.90)
+    }
+
+    private var metaColor: Color {
+        isSelected ? Color.white : Color.white.opacity(0.55)
+    }
+
+    private var rowBackground: Color {
+        if isSelected || isHovered {
+            return PlaybackTheme.menuItemHighlight
+        }
+        return Color.clear
+    }
+}
+```
+
+Code: apps/macos-native/Sources/CueSeekerApp/Playback/PlaybackTheme.swift
+========================================================================
+
+```swift
+import SwiftUI
+
+/// Defines the global cinematic theme parameters and styles for CueSeeker playback interface.
+/// Discards standard system light/dark color scheme variation in favor of a cohesive, high-contrast dark theater environment.
+public enum PlaybackTheme {
+
+    // MARK: - Core Backings & Backgrounds
+
+    /// Premium cinematic semi-translucent pure black surface backing.
+    public static var cinematicBacking: Color {
+        Color.black.opacity(0.55)
+    }
+
+    /// Dark translucent capsule fill for buttons and time display labels.
+    public static var capsuleFill: Color {
+        Color.black.opacity(0.30)
+    }
+
+    /// Dark translucent capsule fill when hovered.
+    public static var capsuleHoverFill: Color {
+        Color.white.opacity(0.16)
+    }
+
+    /// Unified background highlight for selected and hovered menu items.
+    public static var menuItemHighlight: Color {
+        Color.white.opacity(0.12)
+    }
+
+    // MARK: - Foreground Colors (Typography & Glyphs)
+
+    /// Pure white with high contrast for primary texts, active labels, and active buttons.
+    public static var textPrimary: Color {
+        Color.white.opacity(0.94)
+    }
+
+    /// Pure white with medium contrast for metadata, secondary indicators, and secondary metrics.
+    public static var textSecondary: Color {
+        Color.white.opacity(0.62)
+    }
+
+    /// Pure white with low contrast for disabled buttons, secondary timestamps, and borders.
+    public static var textTertiary: Color {
+        Color.white.opacity(0.34)
+    }
+
+    // MARK: - Scrubber & Progress Bar
+
+    /// YouTube-style signature red for active playback progress track.
+    public static var progressRed: Color {
+        Color.red
+    }
+
+    /// Semi-translucent gray for timeline hovered track extension.
+    public static var scrubberHoverTrack: Color {
+        Color.white.opacity(0.35)
+    }
+
+    /// Background track color for the scrubber timeline.
+    public static var scrubberTrackBackground: Color {
+        Color.black.opacity(0.60)
+    }
+}
+
+/// A unified concentric backing visual element for cinematic buttons and interactive controls.
+/// Supports both circular and capsule-like shapes with standardized micro-animation hover/press dynamics.
+public struct PlaybackCinematicBacking<S: Shape>: View {
+    public let shape: S
+    public let isHovered: Bool
+    public let isPressed: Bool
+    public let scaleX: CGFloat
+    public let scaleY: CGFloat
+
+    public init(
+        shape: S,
+        isHovered: Bool,
+        isPressed: Bool = false,
+        scaleX: CGFloat = 0.85,
+        scaleY: CGFloat = 0.85
+    ) {
+        self.shape = shape
+        self.isHovered = isHovered
+        self.isPressed = isPressed
+        self.scaleX = scaleX
+        self.scaleY = scaleY
+    }
+
+    public var body: some View {
+        ZStack {
+            // Persistent outer base
+            shape
+                .fill(PlaybackTheme.capsuleFill)
+
+            // Concentric inner hover highlight
+            if isHovered || isPressed {
+                shape
+                    .fill(PlaybackTheme.capsuleHoverFill)
+                    .scaleEffect(x: scaleX, y: scaleY)
+            }
+        }
+    }
+}
+```
+
+Potential areas to inspect
+==========================
+
+1. ScrollViewIntrospector may not be customizing the actual NSScrollView that is
+   drawing the visible white strip.
+2. The NSViewRepresentable may run before SwiftUI finishes installing or
+   replacing the underlying scroll view.
+3. The white strip may not be the NSScroller at all; it may be a reserved
+   content inset, safe-area/inset artifact, clip view background, overlay panel
+   mask/clipping artifact, or the ScrollView host background.
+4. SwiftUI's ScrollView may recreate the AppKit scroll view after the
+   customization runs, losing hasVerticalScroller = false.
+5. A more robust fix may require a custom NSViewRepresentable wrapping
+   NSScrollView directly, or a more reliable introspection strategy that searches
+   descendants/ancestors repeatedly and clears the clip view/document view
+   backgrounds.
