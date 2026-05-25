@@ -376,7 +376,7 @@ extension AppCoordinator {
         playback.resetQuickSearchResultSelection()
         playback.resetQuickSearchAIState()
         configurePlaybackQuickSearchSubtitleLineSelection()
-        configurePlaybackQuickSearchAIHint()
+        configurePlaybackQuickSearchAIEntry()
         playback.isQuickSearchOverlayVisible = true
         playback.requestQuickSearchFocus()
         pausePlayback()
@@ -428,6 +428,7 @@ extension AppCoordinator {
 
         let didMove = playback.moveQuickSearchSubtitleLineSelection(by: offset)
         if didMove {
+            configurePlaybackQuickSearchAIEntry()
             playback.requestQuickSearchFocus()
         }
         return didMove
@@ -685,12 +686,80 @@ extension AppCoordinator {
         playback.setQuickSearchSubtitleLineCandidates(candidates, selectedIndex: selectedIndex)
     }
 
-    private func configurePlaybackQuickSearchAIHint() {
+    private func configurePlaybackQuickSearchAIEntry() {
         settings.refreshDeepSeekAPIKeyStatus()
-        playback.showQuickSearchAIHintIfPossible(
+
+        let cachedChunks = playbackQuickSearchAIChunkCacheEntryForCurrentDraft()?.chunks
+        playback.showQuickSearchAIEntryIfPossible(
             isEnabled: settings.aiChunkingEnabled,
-            hasAPIKey: settings.deepSeekAPIKeyConfigured
+            hasAPIKey: settings.deepSeekAPIKeyConfigured,
+            cachedChunks: cachedChunks
         )
+    }
+
+    private func playbackQuickSearchAIChunkCacheEntryForCurrentDraft() -> AIChunkCacheEntry? {
+        guard settings.aiChunkingEnabled,
+              settings.deepSeekAPIKeyConfigured,
+              let database = subtitleDatabase,
+              let key = playbackQuickSearchAIChunkCacheKeyForCurrentDraft()
+        else {
+            return nil
+        }
+
+        do {
+            let entry = try database.aiChunkCacheEntry(for: key)
+            if let entry, !entry.chunks.isEmpty {
+                logPlaybackQuickSearchAIChunkCacheHit(entry: entry)
+                return entry
+            }
+
+            logPlaybackQuickSearchAIChunkCacheMiss(key: key)
+            return nil
+        } catch {
+            print(
+                "[AIChunking] cache lookup failed provider=\(key.provider) model=\(key.model) " +
+                    "prompt_version=\(key.promptVersion) text_hash=\(Self.shortLogHash(for: key.normalizedSentence)) " +
+                    "error=\(Self.errorMessage(for: error))"
+            )
+            return nil
+        }
+    }
+
+    private func playbackQuickSearchAIChunkCacheKeyForCurrentDraft() -> AIChunkCacheKey? {
+        let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(playback.quickSearchDraft)
+        guard !normalizedSentence.isEmpty else {
+            return nil
+        }
+
+        return AIChunkCacheKey(
+            normalizedSentence: normalizedSentence,
+            provider: AIProvider.deepSeek.rawValue,
+            model: DeepSeekChunkingClient.defaultModel,
+            promptVersion: DeepSeekChunkingClient.promptVersion
+        )
+    }
+
+    private func logPlaybackQuickSearchAIChunkCacheHit(entry: AIChunkCacheEntry) {
+        let key = entry.key
+        print(
+            "[AIChunking] cache hit, skip request provider=\(key.provider) model=\(key.model) " +
+                "prompt_version=\(key.promptVersion) text_hash=\(Self.shortLogHash(for: key.normalizedSentence)) " +
+                "items=\(entry.chunks.count)"
+        )
+    }
+
+    private func logPlaybackQuickSearchAIChunkCacheMiss(key: AIChunkCacheKey) {
+        print(
+            "[AIChunking] cache miss, request requires /chunks provider=\(key.provider) model=\(key.model) " +
+                "prompt_version=\(key.promptVersion) text_hash=\(Self.shortLogHash(for: key.normalizedSentence))"
+        )
+    }
+
+    private static func shortLogHash(for text: String) -> String {
+        let hash = text.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { partialResult, byte in
+            (partialResult ^ UInt64(byte)) &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
     }
 
     private func cancelPlaybackQuickSearchAIChunking() {

@@ -137,6 +137,11 @@ let package = Package(
             path: "Tests/CueSeekerPlaybackTests"
         ),
         .testTarget(
+            name: "CueSeekerAppTests",
+            dependencies: ["CueSeekerApp"],
+            path: "Tests/CueSeekerAppTests"
+        ),
+        .testTarget(
             name: "CASSRenderingTests",
             dependencies: ["CASSRendering"],
             path: "Tests/CASSRenderingTests",

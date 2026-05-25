@@ -197,12 +197,22 @@ final class PlaybackStore: ObservableObject {
         quickSearchSelectedResultIndex = nil
     }
 
-    func showQuickSearchAIHintIfPossible(isEnabled: Bool, hasAPIKey: Bool) {
+    func showQuickSearchAIEntryIfPossible(
+        isEnabled: Bool,
+        hasAPIKey: Bool,
+        cachedChunks: [String]?
+    ) {
         let trimmedDraft = quickSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if isEnabled, hasAPIKey, !trimmedDraft.isEmpty {
-            quickSearchAIState = .hint
-        } else {
+        guard isEnabled, hasAPIKey, !trimmedDraft.isEmpty else {
             resetQuickSearchAIState()
+            return
+        }
+
+        if let cachedChunks, !cachedChunks.isEmpty {
+            quickSearchAIRequestID += 1
+            quickSearchAIState = .chunks(cachedChunks, selectedIndex: 0)
+        } else {
+            quickSearchAIState = .hint
         }
     }
 

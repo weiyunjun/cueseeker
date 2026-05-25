@@ -7,7 +7,10 @@ struct AIChunkingResult: Equatable, Sendable {
 
 struct DeepSeekChunkingClient: Sendable {
     var apiURL = URL(string: "https://api.deepseek.com/chat/completions")!
-    var model = "deepseek-v4-flash"
+    static let defaultModel = "deepseek-v4-flash"
+    static let promptVersion = "chunk-v1"
+
+    var model = Self.defaultModel
     var maxTokens = 1000
 
     func chunks(for sentence: String, apiKey: String) async throws -> AIChunkingResult {
