@@ -11,6 +11,8 @@ struct SearchTextView: NSViewRepresentable {
     var textColor: NSColor = .labelColor
     var placeholderColor: NSColor = .placeholderTextColor
     var onSubmit: () -> Void = {}
+    var onMoveUp: () -> Bool = { false }
+    var onMoveDown: () -> Bool = { false }
 
     func makeNSView(context: Context) -> CustomTextView {
         let textView = CustomTextView()
@@ -97,7 +99,9 @@ struct SearchTextView: NSViewRepresentable {
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
-            parent.text = textView.string
+            if parent.text != textView.string {
+                parent.text = textView.string
+            }
         }
 
         func requestFocus(for textView: CustomTextView) {
@@ -136,6 +140,12 @@ struct SearchTextView: NSViewRepresentable {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
                 parent.onSubmit()
                 return true
+            }
+            if commandSelector == #selector(NSResponder.moveUp(_:)) {
+                return parent.onMoveUp()
+            }
+            if commandSelector == #selector(NSResponder.moveDown(_:)) {
+                return parent.onMoveDown()
             }
             return false
         }

@@ -192,16 +192,19 @@ Line navigation is line-based, not cue-card-based:
 
 - Build a transient quick-search line stream from
   `playback.currentSubtitleEntries`.
-- Each subtitle entry contributes at most one quick-search candidate: the last
-  non-empty display line returned by `subtitleDisplayLines`.
-- Up moves to the previous candidate in that stream.
-- Down moves to the next candidate in that stream until the user enters result
-  navigation.
+- Each subtitle entry contributes every non-empty display line returned by
+  `subtitleDisplayLines`, in display order.
+- Opening the overlay selects the current subtitle entry's last non-empty
+  display line by default.
+- Up moves to the previous display-line candidate in that stream. If the
+  current subtitle entry has two display lines and the default selection is the
+  second line, Up moves to the first line in the same entry.
+- Down moves to the next display-line candidate in that stream until the user
+  enters result navigation.
 - Same-timestamp merged subtitle content should be treated as one subtitle
   moment for display selection.
-- If a same-timestamp subtitle moment contains multiple subtitle entries, each
-  entry contributes only its last non-empty display line to the quick-search
-  line candidates.
+- If a same-timestamp subtitle moment contains multiple subtitle entries, their
+  display lines remain adjacent in the quick-search line stream.
 - Up and Down can switch subtitle candidates only while the input is unchanged
   from the currently selected subtitle candidate. Once the user edits the input,
   Up and Down must no longer replace the query with another subtitle line.
@@ -211,11 +214,11 @@ Example:
 ```text
 Two same-timestamp subtitle entries
 Each entry has two lines
-Quick Search line candidates use only the last line from each entry
+Quick Search line candidates contain all four display lines in order
 ```
 
-This keeps quick search aligned with the user's visible final subtitle line
-rather than forcing the user to search every bilingual or multi-line component.
+This keeps quick search aligned with visible subtitle lines while still using
+the current entry's final visible line as the default query.
 
 ## Search Behavior
 
@@ -312,7 +315,8 @@ Stage 1: overlay shell and playback state.
 Stage 2: subtitle candidate navigation.
 
 - Build the quick-search line stream from `playback.currentSubtitleEntries`.
-- Each entry contributes only its last non-empty display line.
+- Each entry contributes every non-empty display line in display order.
+- Opening starts at the current subtitle entry's last display line.
 - Up and Down switch to the previous or next candidate while the input remains
   unchanged from the selected candidate.
 - Once the user edits the input, Up and Down stop replacing the query with
@@ -361,8 +365,10 @@ Risks:
 - The overlay input defaults to the current playback subtitle entry's last
   non-empty display line, using the same data source as the playback subtitle
   sidebar.
-- Up and Down can move between nearby subtitle candidates before a search is
-  submitted while the input is unchanged from the selected candidate.
+- Up and Down can move between nearby display-line candidates before a search
+  is submitted while the input is unchanged from the selected candidate.
+- When the current subtitle entry has multiple display lines, Up and Down move
+  within those lines before moving to adjacent subtitle entries.
 - Up and Down do not replace the query after the user edits the input.
 - Same-timestamp merged subtitle content follows the quick-search line selection
   rules in this proposal.

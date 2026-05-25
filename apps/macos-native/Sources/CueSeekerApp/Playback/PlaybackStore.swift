@@ -1,6 +1,13 @@
 import Foundation
 import CueSeekerCore
 
+struct PlaybackQuickSearchLineCandidate: Equatable {
+    let entryID: Int64
+    let entryIndex: Int
+    let lineIndex: Int
+    let text: String
+}
+
 @MainActor
 final class PlaybackStore: ObservableObject {
     private static let sidePanelVisibleKey = "playbackSidePanelVisible"
@@ -20,11 +27,25 @@ final class PlaybackStore: ObservableObject {
     @Published var timelineScrubTime: Double?
     @Published var playbackViewModel: PlaybackViewModel?
     @Published var isQuickSearchOverlayVisible = false
-    @Published var quickSearchDraft = ""
+    @Published var quickSearchDraft = "" {
+        didSet {
+            guard isQuickSearchOverlayVisible,
+                  !isApplyingQuickSearchDraftUpdate
+            else {
+                return
+            }
+
+            quickSearchCanNavigateSubtitleLines = false
+        }
+    }
     @Published var isQuickSearchFocused = false
     @Published private(set) var quickSearchForcedTextUpdateID = 0
     @Published private(set) var quickSearchFocusRequestID = 0
+    @Published private(set) var quickSearchCanNavigateSubtitleLines = false
+    @Published private(set) var quickSearchSubtitleLineCandidates: [PlaybackQuickSearchLineCandidate] = []
+    @Published private(set) var quickSearchSelectedSubtitleLineIndex: Int?
     var quickSearchPlaybackWasPlayingOnOpen = false
+    private var isApplyingQuickSearchDraftUpdate = false
 
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
@@ -32,12 +53,83 @@ final class PlaybackStore: ObservableObject {
     }
 
     func setQuickSearchDraft(_ draft: String) {
-        quickSearchDraft = draft
-        quickSearchForcedTextUpdateID += 1
+        applyQuickSearchDraft(
+            draft,
+            canNavigateSubtitleLines: false,
+            selectedSubtitleLineIndex: quickSearchSelectedSubtitleLineIndex
+        )
     }
 
     func requestQuickSearchFocus() {
         isQuickSearchFocused = true
         quickSearchFocusRequestID += 1
+    }
+
+    func setQuickSearchSubtitleLineCandidates(
+        _ candidates: [PlaybackQuickSearchLineCandidate],
+        selectedIndex: Int?
+    ) {
+        quickSearchSubtitleLineCandidates = candidates
+
+        guard let selectedIndex,
+              candidates.indices.contains(selectedIndex)
+        else {
+            applyQuickSearchDraft(
+                "",
+                canNavigateSubtitleLines: false,
+                selectedSubtitleLineIndex: nil
+            )
+            return
+        }
+
+        applyQuickSearchDraft(
+            candidates[selectedIndex].text,
+            canNavigateSubtitleLines: true,
+            selectedSubtitleLineIndex: selectedIndex
+        )
+    }
+
+    @discardableResult
+    func moveQuickSearchSubtitleLineSelection(by offset: Int) -> Bool {
+        guard quickSearchCanNavigateSubtitleLines,
+              let selectedIndex = quickSearchSelectedSubtitleLineIndex,
+              !quickSearchSubtitleLineCandidates.isEmpty
+        else {
+            return false
+        }
+
+        let nextIndex = min(
+            max(selectedIndex + offset, quickSearchSubtitleLineCandidates.startIndex),
+            quickSearchSubtitleLineCandidates.index(before: quickSearchSubtitleLineCandidates.endIndex)
+        )
+        guard quickSearchSubtitleLineCandidates.indices.contains(nextIndex) else {
+            return true
+        }
+
+        applyQuickSearchDraft(
+            quickSearchSubtitleLineCandidates[nextIndex].text,
+            canNavigateSubtitleLines: true,
+            selectedSubtitleLineIndex: nextIndex
+        )
+        return true
+    }
+
+    func resetQuickSearchSubtitleLineNavigation() {
+        quickSearchSubtitleLineCandidates = []
+        quickSearchSelectedSubtitleLineIndex = nil
+        quickSearchCanNavigateSubtitleLines = false
+    }
+
+    private func applyQuickSearchDraft(
+        _ draft: String,
+        canNavigateSubtitleLines: Bool,
+        selectedSubtitleLineIndex: Int?
+    ) {
+        isApplyingQuickSearchDraftUpdate = true
+        quickSearchDraft = draft
+        quickSearchForcedTextUpdateID += 1
+        quickSearchCanNavigateSubtitleLines = canNavigateSubtitleLines
+        quickSearchSelectedSubtitleLineIndex = selectedSubtitleLineIndex
+        isApplyingQuickSearchDraftUpdate = false
     }
 }

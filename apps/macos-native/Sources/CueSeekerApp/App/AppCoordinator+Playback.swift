@@ -371,11 +371,20 @@ extension AppCoordinator {
         }
 
         playback.quickSearchPlaybackWasPlayingOnOpen = playbackViewModel.isPlaying
-        playback.setQuickSearchDraft(currentPlaybackQuickSearchInitialQuery())
+        configurePlaybackQuickSearchSubtitleLineSelection()
         playback.isQuickSearchOverlayVisible = true
         playback.requestQuickSearchFocus()
         pausePlayback()
         return true
+    }
+
+    @discardableResult
+    func movePlaybackQuickSearchSubtitleLineSelection(by offset: Int) -> Bool {
+        let didMove = playback.moveQuickSearchSubtitleLineSelection(by: offset)
+        if didMove {
+            playback.requestQuickSearchFocus()
+        }
+        return didMove
     }
 
     @discardableResult
@@ -509,25 +518,47 @@ extension AppCoordinator {
         )
     }
 
-    private func currentPlaybackQuickSearchInitialQuery() -> String {
+    private func configurePlaybackQuickSearchSubtitleLineSelection() {
+        let candidates = currentPlaybackQuickSearchLineCandidates()
+        let selectedIndex = currentPlaybackQuickSearchInitialLineIndex(in: candidates)
+        playback.setQuickSearchSubtitleLineCandidates(candidates, selectedIndex: selectedIndex)
+    }
+
+    private func currentPlaybackQuickSearchInitialLineIndex(
+        in candidates: [PlaybackQuickSearchLineCandidate]
+    ) -> Int? {
         guard let playbackViewModel = playback.playbackViewModel else {
-            return ""
+            return nil
         }
 
         let milliseconds = max(0, Int((playbackViewModel.displayedCurrentTime * 1_000).rounded(.down)))
         guard let entryID = playback.currentSubtitleEntryLookup.activeEntryID(atMilliseconds: milliseconds),
-              let entry = playback.currentSubtitleEntries.first(where: { $0.id == entryID })
+              let selectedIndex = candidates.lastIndex(where: { $0.entryID == entryID })
         else {
-            return ""
+            return nil
         }
 
-        return Self.quickSearchCandidateText(for: entry)
+        return selectedIndex
     }
 
-    private static func quickSearchCandidateText(for entry: SubtitleDatabaseEntry) -> String {
-        subtitleDisplayLines(content: entry.content, cueLines: [])
-            .last?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    private func currentPlaybackQuickSearchLineCandidates() -> [PlaybackQuickSearchLineCandidate] {
+        playback.currentSubtitleEntries.enumerated().flatMap { entryIndex, entry in
+            subtitleDisplayLines(content: entry.content, cueLines: [])
+                .enumerated()
+                .compactMap { lineIndex, line in
+                    let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else {
+                        return nil
+                    }
+
+                    return PlaybackQuickSearchLineCandidate(
+                        entryID: entry.id,
+                        entryIndex: entryIndex,
+                        lineIndex: lineIndex,
+                        text: text
+                    )
+                }
+        }
     }
 
     func stopPlayback() {
@@ -545,6 +576,7 @@ extension AppCoordinator {
             playback.isQuickSearchOverlayVisible = false
             playback.isQuickSearchFocused = false
             playback.quickSearchPlaybackWasPlayingOnOpen = false
+            playback.resetQuickSearchSubtitleLineNavigation()
             if let originatingMode = playbackOriginatingPanelMode {
                 workbenchLayout.selectPanelMode(originatingMode)
                 playbackOriginatingPanelMode = nil

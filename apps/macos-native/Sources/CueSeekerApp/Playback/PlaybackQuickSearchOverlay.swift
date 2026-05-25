@@ -9,6 +9,8 @@ struct PlaybackQuickSearchOverlay: View {
     let onSubmit: () -> Void
     let onClear: () -> Void
     let onRequestFocus: () -> Void
+    let onMoveUp: () -> Bool
+    let onMoveDown: () -> Bool
 
     var body: some View {
         HStack(spacing: 16) {
@@ -26,7 +28,9 @@ struct PlaybackQuickSearchOverlay: View {
                 font: .systemFont(ofSize: 30, weight: .semibold),
                 textColor: NSColor.white.withAlphaComponent(0.94),
                 placeholderColor: NSColor.white.withAlphaComponent(0.34),
-                onSubmit: onSubmit
+                onSubmit: onSubmit,
+                onMoveUp: onMoveUp,
+                onMoveDown: onMoveDown
             )
             .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
 

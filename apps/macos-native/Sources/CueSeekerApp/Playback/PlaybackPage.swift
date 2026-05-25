@@ -104,6 +104,12 @@ struct PlaybackPageView: View {
                 },
                 onRequestFocus: {
                     playback.requestQuickSearchFocus()
+                },
+                onMoveUp: {
+                    appState.movePlaybackQuickSearchSubtitleLineSelection(by: -1)
+                },
+                onMoveDown: {
+                    appState.movePlaybackQuickSearchSubtitleLineSelection(by: 1)
                 }
             )
             .frame(width: overlayWidth)
