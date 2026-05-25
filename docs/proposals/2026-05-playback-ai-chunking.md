@@ -150,21 +150,33 @@ This proposal does not require prompt2 to be implemented later.
 
 When the user opens Playback Quick Search:
 
-- If AI chunking is disabled, show no AI chunking row.
+- If AI chunking is disabled, show no AI chunking hint.
 - If AI chunking is enabled but no API key is configured, show no AI chunking
-  row in the overlay.
-- If AI chunking is enabled and an API key exists, show one AI chunking option
-  directly below the search field.
-- The AI chunking row should visually align with search result rows.
-- Manual edits to the input hide the AI chunking option for the current overlay
+  hint in the overlay.
+- If AI chunking is enabled and an API key exists, show a low-emphasis inline
+  ghost suffix `/chunks` immediately after the seeded query text.
+- The text insertion point remains at the end of the real query text, before the
+  ghost suffix.
+- The ghost suffix is an action hint, not part of the query text.
+- Manual edits to the input hide the AI chunking hint for the current overlay
   interaction.
 - Programmatic changes caused by subtitle line navigation or chunk selection do
   not count as manual edits.
 
+Example display:
+
+```text
+今天天气真不错 /chunks
+```
+
+In this example, `今天天气真不错` is the actual query text and `/chunks` is a
+dimmed hint.
+
 Keyboard behavior before a local search is submitted:
 
-- Down selects the AI chunking option when it is visible.
-- Selecting the AI chunking option starts the chunking request.
+- Up and Down keep their existing subtitle-line navigation behavior.
+- Right accepts the `/chunks` hint and starts the chunking request when the hint
+  is visible and the insertion point is at the end of the real query text.
 - While loading, show a loading row below the search field.
 - If the request fails, show an error row below the search field.
 - If chunking succeeds, show the returned chunks below the search field.
@@ -245,11 +257,13 @@ Stage 3: AI chunking client.
 
 Stage 4: Quick Search AI entry.
 
-- Show the AI chunking option below the Quick Search field when enabled and
-  configured.
-- Hide the option after manual input edits.
-- Start chunking from Down selection.
-- Show loading and error rows.
+- Show the inline `/chunks` ghost suffix in the Quick Search field when enabled
+  and configured.
+- Keep Up and Down reserved for existing subtitle-line and result-list
+  navigation.
+- Hide the hint after manual input edits.
+- Start chunking from Right accepting the hint.
+- Show loading and error rows below the Quick Search field.
 
 Stage 5: chunk selection and local search.
 
@@ -265,11 +279,15 @@ Stage 5: chunk selection and local search.
 - Settings can enable AI chunking.
 - Settings can save and clear the DeepSeek API key without storing plaintext in
   `UserDefaults`.
-- Opening Quick Search shows the AI chunking option only when the feature is
+- Opening Quick Search shows the `/chunks` ghost hint only when the feature is
   enabled and a key exists.
-- Manually editing the input hides the AI chunking option for the current
+- The insertion point starts at the end of the real query text, before the
+  ghost hint.
+- Manually editing the input hides the AI chunking hint for the current
   overlay interaction.
-- Selecting the AI chunking option sends one stateless request.
+- Up and Down navigation does not trigger AI chunking.
+- Pressing Right while the `/chunks` hint is visible sends one stateless
+  request.
 - Text sent to AI has punctuation and subtitle separators replaced with spaces.
 - Invalid responses show an overlay error.
 - Valid responses show chunks with the first chunk selected by default.
