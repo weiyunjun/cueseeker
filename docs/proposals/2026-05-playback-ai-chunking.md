@@ -27,17 +27,22 @@ or a separate search state.
 - Show AI errors inside the overlay instead of failing silently.
 - Show returned chunks in the overlay with keyboard selection.
 - Search the selected chunk through the existing Quick Search/Search flow.
+- Persist validated chunking results so repeated subtitle lines can show chunks
+  without another provider request.
+- Log cache decisions and AI request usage, including token counts, without
+  logging secrets or full request authorization data.
 
 ## Non-goals
 
 - Do not implement synonym or antonym expansion in the first version.
 - Do not implement the previous prompt2 flow in the first version.
 - Do not combine synonym and antonym result sets.
-- Do not add persistent AI chunking cache in the first version.
 - Do not change local search ranking, query semantics, or database schema for
-  the first version.
+  local subtitle search.
 - Do not create an AI-owned search result list or playback playlist.
 - Do not run a long conversation or retain chat history across requests.
+- Do not persist API keys, authorization headers, or raw provider request bodies
+  in the chunk cache.
 
 ## Product Rules
 
@@ -146,6 +151,40 @@ Reasoning:
 
 This proposal does not require prompt2 to be implemented later.
 
+## Persistent Chunk Cache
+
+AI chunking results should be cached because they are expected to be stable for
+the same normalized sentence and prompt contract.
+
+Cache key:
+
+- Normalized sentence.
+- Provider.
+- Model.
+- Prompt version.
+
+Cache value:
+
+- Validated chunk items.
+- Created timestamp.
+- Updated timestamp.
+- Last-used timestamp.
+
+Rules:
+
+- Cache only validated chunk items.
+- A cache hit must not send an AI provider request.
+- A cache miss may show the `/chunks` hint and request chunks only after the
+  user triggers the hint.
+- Manual `/chunks` refresh bypasses cache lookup for that action.
+- Successful refresh overwrites the cached chunk items for the same key.
+- Failed refresh keeps the previous cached value intact and shows the error in
+  the overlay.
+- Prompt wording or validation changes that can affect chunk output must bump
+  the prompt version so old cache entries are not reused accidentally.
+- Logs may include a short text hash for debugging, but must not include API
+  keys or authorization headers.
+
 ## UI/UX Behavior
 
 When the user opens Playback Quick Search:
@@ -153,13 +192,17 @@ When the user opens Playback Quick Search:
 - If AI chunking is disabled, show no AI chunking hint.
 - If AI chunking is enabled but no API key is configured, show no AI chunking
   hint in the overlay.
-- If AI chunking is enabled and an API key exists, show a low-emphasis inline
-  ghost suffix `/chunks` immediately after the seeded query text.
+- If AI chunking is enabled, an API key exists, and cached chunks exist for the
+  seeded query, show cached chunks below the search field immediately and keep
+  `/chunks` available as a refresh affordance.
+- If AI chunking is enabled, an API key exists, and no cached chunks exist, show
+  a low-emphasis inline ghost suffix `/chunks` immediately after the seeded
+  query text.
 - The text insertion point remains at the end of the real query text, before the
   ghost suffix.
 - The ghost suffix is an action hint, not part of the query text.
-- Manual edits to the input hide the AI chunking hint for the current overlay
-  interaction.
+- Manual edits to the input hide the AI chunking hint and cached chunks for the
+  current overlay interaction.
 - Programmatic changes caused by subtitle line navigation or chunk selection do
   not count as manual edits.
 
@@ -175,8 +218,9 @@ dimmed hint.
 Keyboard behavior before a local search is submitted:
 
 - Up and Down keep their existing subtitle-line navigation behavior.
-- Right accepts the `/chunks` hint and starts the chunking request when the hint
-  is visible and the insertion point is at the end of the real query text.
+- With no cached chunks visible, Right accepts the `/chunks` hint and starts the
+  chunking request when the hint is visible and the insertion point is at the
+  end of the real query text.
 - While loading, show a loading row below the search field.
 - If the request fails, show an error row below the search field.
 - If chunking succeeds, show the returned chunks below the search field.
@@ -184,6 +228,14 @@ Keyboard behavior before a local search is submitted:
 - The selected chunk must have a visible selected background using the current
   Quick Search selected-row visual language.
 - Left and Right move the selected chunk.
+- If cached chunks are visible, Return searches the selected cached chunk.
+- If the first cached chunk is selected, Left moves focus back to the search
+  field and leaves the insertion point at the end of the real query text, before
+  `/chunks`.
+- With cached chunks visible, from the search field, Right first enters the
+  `/chunks` refresh affordance.
+- When the `/chunks` refresh affordance is active, Return sends a refresh
+  request and Right moves back into the cached chunk list.
 - Return searches the selected chunk through the existing Quick Search/Search
   flow.
 
@@ -211,30 +263,44 @@ Storage rules:
 - Logs must not include the API key or full authorization header.
 - The UI should not display the stored key after saving.
 
-## Future Persistence
+## Logging Behavior
 
-The first version should not persist chunking results.
+Chunking should be observable during local testing without exposing secrets.
 
-Future versions should add persistence because chunking results are expected to
-be stable for the same normalized sentence, provider, model, and prompt
-version.
+Cache decision logs:
 
-Future cache key candidates:
+- Cache hit: log that the request was skipped.
+- Cache miss: log that the next chunking action will require a request.
+- Manual refresh: log that cache was bypassed for the request.
 
-- Normalized sentence hash.
+AI request completion logs:
+
 - Provider.
 - Model.
-- Prompt version.
+- Request reason, such as `cache_miss` or `manual_refresh`.
+- Prompt token count.
+- Completion token count.
+- Total token count.
+- Estimated cost in CNY.
+- Returned item count.
+- Whether the cache was written.
 
-Future cache values:
+Failure logs:
 
-- Validated chunk items.
-- Response metadata useful for debugging, excluding API keys and sensitive
-  headers.
-- Created/updated timestamps.
+- Provider.
+- Model.
+- Request reason.
+- Error category or HTTP status when available.
+- No API key, authorization header, or full subtitle text.
 
-Persistent caching should be documented separately before implementation because
-it may require database schema changes and migration tests.
+Rules:
+
+- A cache hit should produce a cache-hit skip log and no AI request completion
+  log.
+- Every completed AI provider request should log token counts from provider
+  usage when available.
+- Estimated cost is a local debugging aid and should not be treated as billing
+  authority.
 
 ## Implementation Stages
 
@@ -273,28 +339,53 @@ Stage 5: chunk selection and local search.
 - Use Return to search the selected chunk through the existing Quick Search
   flow.
 
+Stage 6: persistent chunk cache and request logging.
+
+- Add a persistent cache keyed by normalized sentence, provider, model, and
+  prompt version.
+- Load cached chunks when opening Quick Search or navigating seeded subtitle
+  lines.
+- Show cached chunks immediately with the first chunk selected.
+- Keep `/chunks` available as a manual refresh action.
+- Log cache hits, misses, refreshes, request failures, and request usage token
+  counts.
+
 ## Acceptance Criteria
 
 - AI chunking is disabled by default.
 - Settings can enable AI chunking.
 - Settings can save and clear the DeepSeek API key without storing plaintext in
   `UserDefaults`.
-- Opening Quick Search shows the `/chunks` ghost hint only when the feature is
+- Opening Quick Search shows the `/chunks` ghost hint when the feature is
   enabled and a key exists.
+- Opening Quick Search shows cached chunks immediately when the feature is
+  enabled, a key exists, and the seeded query has a cache hit; the first cached
+  chunk is selected by default.
 - The insertion point starts at the end of the real query text, before the
   ghost hint.
-- Manually editing the input hides the AI chunking hint for the current
-  overlay interaction.
+- Manually editing the input hides the AI chunking hint and cached chunks for
+  the current overlay interaction.
 - Up and Down navigation does not trigger AI chunking.
-- Pressing Right while the `/chunks` hint is visible sends one stateless
-  request.
+- With no cached chunks visible, pressing Right while the `/chunks` hint is
+  visible sends one stateless request.
 - Text sent to AI has punctuation and subtitle separators replaced with spaces.
 - Invalid responses show an overlay error.
 - Valid responses show chunks with the first chunk selected by default.
 - Left and Right move chunk selection.
+- With cached chunks visible, Return searches the selected cached chunk.
+- With the first cached chunk selected, Left returns focus to the search field
+  before the `/chunks` hint.
+- From the search field after returning from cached chunks, Right enters the
+  `/chunks` refresh affordance, and another Right returns to the cached chunks.
+- From the `/chunks` refresh affordance, Return sends one stateless refresh
+  request.
+- Manual `/chunks` refresh bypasses the cache for that action and overwrites the
+  cache only on success.
+- Cache hits log a skipped request and do not log an AI request completion.
+- Every completed AI request logs token counts and estimated CNY cost.
 - Return searches the selected chunk through the existing local Search flow.
-- Prompt2, synonym search, antonym search, and persistent cache are not part of
-  the first implementation.
+- Prompt2, synonym search, and antonym search are not part of the first
+  implementation.
 
 ## Decision
 
