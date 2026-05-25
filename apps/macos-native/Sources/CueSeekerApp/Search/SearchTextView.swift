@@ -10,9 +10,14 @@ struct SearchTextView: NSViewRepresentable {
     var font: NSFont = .systemFont(ofSize: 17, weight: .semibold)
     var textColor: NSColor = .labelColor
     var placeholderColor: NSColor = .placeholderTextColor
+    var ghostSuffix: String = ""
+    var ghostSuffixColor: NSColor = .placeholderTextColor
+    var placesCursorAtEndOnFocusRequest = false
     var onSubmit: () -> Void = {}
     var onMoveUp: () -> Bool = { false }
     var onMoveDown: () -> Bool = { false }
+    var onMoveLeft: () -> Bool = { false }
+    var onMoveRight: (_ isAtEnd: Bool) -> Bool = { _ in false }
 
     func makeNSView(context: Context) -> CustomTextView {
         let textView = CustomTextView()
@@ -50,6 +55,8 @@ struct SearchTextView: NSViewRepresentable {
         textView.insertionPointColor = textColor
         textView.placeholder = placeholder
         textView.placeholderColor = placeholderColor
+        textView.ghostSuffix = ghostSuffix
+        textView.ghostSuffixColor = ghostSuffixColor
         let shouldForceFocus = context.coordinator.appliedFocusRequestID != focusRequestID
         if shouldForceFocus {
             context.coordinator.appliedFocusRequestID = focusRequestID
@@ -129,6 +136,9 @@ struct SearchTextView: NSViewRepresentable {
                 if textView.window?.firstResponder != textView {
                     textView.window?.makeFirstResponder(textView)
                 }
+                if self.parent.placesCursorAtEndOnFocusRequest {
+                    textView.placeCursorAtEnd()
+                }
 
                 if attempt < 3, textView.window?.firstResponder != textView {
                     self.requestFocus(for: textView, attempt: attempt + 1)
@@ -146,6 +156,15 @@ struct SearchTextView: NSViewRepresentable {
             }
             if commandSelector == #selector(NSResponder.moveDown(_:)) {
                 return parent.onMoveDown()
+            }
+            if commandSelector == #selector(NSResponder.moveLeft(_:)) {
+                return parent.onMoveLeft()
+            }
+            if commandSelector == #selector(NSResponder.moveRight(_:)) {
+                let selectedRange = textView.selectedRange()
+                let isAtEnd = selectedRange.length == 0
+                    && selectedRange.location >= (textView.string as NSString).length
+                return parent.onMoveRight(isAtEnd)
             }
             return false
         }
@@ -175,6 +194,16 @@ enum SearchTextViewTextUpdatePolicy {
 final class CustomTextView: NSTextView {
     var placeholder: String = ""
     var placeholderColor: NSColor = .placeholderTextColor
+    var ghostSuffix: String = "" {
+        didSet {
+            needsDisplay = true
+        }
+    }
+    var ghostSuffixColor: NSColor = .placeholderTextColor {
+        didSet {
+            needsDisplay = true
+        }
+    }
     var onFocusChange: ((Bool) -> Void)?
 
     override func becomeFirstResponder() -> Bool {
@@ -211,10 +240,43 @@ final class CustomTextView: NSTextView {
                               height: size.height)
             placeholder.draw(in: rect, withAttributes: attributes)
         }
+
+        if !string.isEmpty && !ghostSuffix.isEmpty {
+            drawGhostSuffix()
+        }
     }
     
     override func didChangeText() {
         super.didChangeText()
         needsDisplay = true
+    }
+
+    func placeCursorAtEnd() {
+        setSelectedRange(NSRange(location: (string as NSString).length, length: 0))
+    }
+
+    private func drawGhostSuffix() {
+        let drawingFont = font ?? NSFont.systemFont(ofSize: 17, weight: .semibold)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: drawingFont,
+            .foregroundColor: ghostSuffixColor
+        ]
+        let textWidth = (string as NSString).size(withAttributes: [
+            .font: drawingFont
+        ]).width
+        let x = textContainerInset.width + textWidth
+        let y = textContainerInset.height
+        let width = max(0, bounds.width - x)
+        guard width > 0 else {
+            return
+        }
+
+        let rect = NSRect(
+            x: x,
+            y: y,
+            width: width,
+            height: drawingFont.ascender - drawingFont.descender + 4
+        )
+        ghostSuffix.draw(in: rect, withAttributes: attributes)
     }
 }

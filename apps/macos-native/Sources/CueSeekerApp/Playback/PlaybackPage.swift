@@ -105,6 +105,7 @@ struct PlaybackPageView: View {
                 results: overlayResults,
                 selectedResultIndex: playback.quickSearchSelectedResultIndex,
                 isSearching: search.isSearching,
+                aiState: playback.quickSearchAIState,
                 onSubmit: {
                     appState.submitPlaybackQuickSearchFromUser()
                 },
@@ -119,6 +120,12 @@ struct PlaybackPageView: View {
                 },
                 onMoveDown: {
                     appState.movePlaybackQuickSearchSubtitleLineSelection(by: 1)
+                },
+                onMoveLeft: {
+                    appState.movePlaybackQuickSearchAIChunkSelection(by: -1)
+                },
+                onMoveRight: { isAtEnd in
+                    appState.acceptPlaybackQuickSearchAIHintOrMoveChunkRight(isAtEnd: isAtEnd)
                 },
                 onOpenResult: { result in
                     appState.openPlaybackQuickSearchResult(result)

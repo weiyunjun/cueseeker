@@ -11,11 +11,14 @@ struct PlaybackQuickSearchOverlay: View {
     let results: [SubtitleSearchResult]
     let selectedResultIndex: Int?
     let isSearching: Bool
+    let aiState: PlaybackQuickSearchAIState
     let onSubmit: () -> Void
     let onClear: () -> Void
     let onRequestFocus: () -> Void
     let onMoveUp: () -> Bool
     let onMoveDown: () -> Bool
+    let onMoveLeft: () -> Bool
+    let onMoveRight: (_ isAtEnd: Bool) -> Bool
     let onOpenResult: (SubtitleSearchResult) -> Void
     let onResultAppear: (SubtitleSearchResult) -> Void
 
@@ -25,6 +28,8 @@ struct PlaybackQuickSearchOverlay: View {
 
             if submittedQuery != nil {
                 resultList
+            } else {
+                aiPanel
             }
         }
     }
@@ -45,9 +50,14 @@ struct PlaybackQuickSearchOverlay: View {
                 font: .systemFont(ofSize: 30, weight: .semibold),
                 textColor: NSColor.white.withAlphaComponent(0.94),
                 placeholderColor: NSColor.white.withAlphaComponent(0.34),
+                ghostSuffix: aiState.ghostSuffix,
+                ghostSuffixColor: NSColor.white.withAlphaComponent(0.34),
+                placesCursorAtEndOnFocusRequest: true,
                 onSubmit: onSubmit,
                 onMoveUp: onMoveUp,
-                onMoveDown: onMoveDown
+                onMoveDown: onMoveDown,
+                onMoveLeft: onMoveLeft,
+                onMoveRight: onMoveRight
             )
             .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
 
@@ -74,6 +84,69 @@ struct PlaybackQuickSearchOverlay: View {
                 onRequestFocus()
             }
         }
+    }
+
+    @ViewBuilder
+    private var aiPanel: some View {
+        switch aiState {
+        case .hidden, .hint:
+            EmptyView()
+        case .loading:
+            aiPanelContainer {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Chunking...")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(PlaybackTheme.textSecondary)
+                    Spacer(minLength: 0)
+                }
+                .padding(EdgeInsets(top: 13, leading: 18, bottom: 13, trailing: 18))
+            }
+        case .failed(let message):
+            aiPanelContainer {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.red.opacity(0.85))
+                    Text(message)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(PlaybackTheme.textSecondary)
+                        .lineLimit(3)
+                    Spacer(minLength: 0)
+                }
+                .padding(EdgeInsets(top: 13, leading: 18, bottom: 13, trailing: 18))
+            }
+        case .chunks(let chunks, let selectedIndex):
+            aiPanelContainer {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
+                            Text(chunk)
+                                .font(.system(size: 13.5, weight: index == selectedIndex ? .semibold : .medium))
+                                .foregroundStyle(index == selectedIndex ? Color.white : Color.white.opacity(0.88))
+                                .lineLimit(1)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(index == selectedIndex ? PlaybackTheme.menuItemHighlight : Color.clear)
+                                )
+                        }
+                    }
+                    .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+                }
+            }
+        }
+    }
+
+    private func aiPanelContainer<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(maxWidth: .infinity)
+            .background(quickSearchBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     @ViewBuilder

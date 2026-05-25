@@ -371,8 +371,11 @@ extension AppCoordinator {
         }
 
         playback.quickSearchPlaybackWasPlayingOnOpen = playbackViewModel.isPlaying
+        cancelPlaybackQuickSearchAIChunking()
         playback.resetQuickSearchResultSelection()
+        playback.resetQuickSearchAIState()
         configurePlaybackQuickSearchSubtitleLineSelection()
+        configurePlaybackQuickSearchAIHint()
         playback.isQuickSearchOverlayVisible = true
         playback.requestQuickSearchFocus()
         pausePlayback()
@@ -383,6 +386,11 @@ extension AppCoordinator {
     func submitPlaybackQuickSearchFromUser() -> Bool {
         guard playback.isQuickSearchOverlayVisible else {
             return false
+        }
+
+        if playback.quickSearchSubmittedQuery == nil,
+           let selectedChunk = playback.selectedQuickSearchAIChunk() {
+            playback.applyQuickSearchAIChunkQuery(selectedChunk)
         }
 
         let trimmedQuery = playback.quickSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -437,12 +445,98 @@ extension AppCoordinator {
         return didMove
     }
 
+    @discardableResult
+    func movePlaybackQuickSearchAIChunkSelection(by offset: Int) -> Bool {
+        let didMove = playback.moveQuickSearchAIChunkSelection(by: offset)
+        if didMove {
+            playback.requestQuickSearchFocus()
+        }
+        return didMove
+    }
+
+    @discardableResult
+    func acceptPlaybackQuickSearchAIHintOrMoveChunkRight(isAtEnd: Bool) -> Bool {
+        switch playback.quickSearchAIState {
+        case .chunks:
+            return movePlaybackQuickSearchAIChunkSelection(by: 1)
+        case .hint where isAtEnd:
+            return startPlaybackQuickSearchAIChunkingFromHint()
+        case .hidden, .hint, .loading, .failed:
+            return false
+        }
+    }
+
+    @discardableResult
+    func startPlaybackQuickSearchAIChunkingFromHint() -> Bool {
+        guard playback.isQuickSearchOverlayVisible,
+              case .hint = playback.quickSearchAIState
+        else {
+            return false
+        }
+
+        let sentence = playback.quickSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sentence.isEmpty else {
+            let requestID = playback.markQuickSearchAIChunkingStarted()
+            playback.markQuickSearchAIChunkingFailed("The sentence is empty.", requestID: requestID)
+            return true
+        }
+
+        guard settings.aiChunkingEnabled else {
+            return false
+        }
+
+        let apiKey: String
+        do {
+            guard let storedAPIKey = try settings.deepSeekAPIKey(),
+                  !storedAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                settings.refreshDeepSeekAPIKeyStatus()
+                return false
+            }
+            apiKey = storedAPIKey
+        } catch {
+            let requestID = playback.markQuickSearchAIChunkingStarted()
+            playback.markQuickSearchAIChunkingFailed(Self.errorMessage(for: error), requestID: requestID)
+            return true
+        }
+
+        cancelPlaybackQuickSearchAIChunking()
+        let requestID = playback.markQuickSearchAIChunkingStarted()
+        let client = DeepSeekChunkingClient()
+        quickSearchAIChunkingTask = Task { [weak self] in
+            do {
+                let result = try await client.chunks(for: sentence, apiKey: apiKey)
+                await MainActor.run {
+                    self?.playback.markQuickSearchAIChunkingSucceeded(
+                        result.items,
+                        requestID: requestID
+                    )
+                    self?.playback.requestQuickSearchFocus()
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                await MainActor.run {
+                    self?.playback.markQuickSearchAIChunkingFailed(
+                        Self.errorMessage(for: error),
+                        requestID: requestID
+                    )
+                    self?.playback.requestQuickSearchFocus()
+                }
+            }
+        }
+        playback.requestQuickSearchFocus()
+        return true
+    }
+
     func openPlaybackQuickSearchResult(_ result: SubtitleSearchResult) {
+        cancelPlaybackQuickSearchAIChunking()
         playback.quickSearchPlaybackWasPlayingOnOpen = false
         playback.isQuickSearchFocused = false
         playback.isQuickSearchOverlayVisible = false
         playback.resetQuickSearchSubtitleLineNavigation()
         playback.resetQuickSearchResultSelection()
+        playback.resetQuickSearchAIState()
         openSearchResult(result)
     }
 
@@ -453,11 +547,13 @@ extension AppCoordinator {
         }
 
         let shouldResume = playback.quickSearchPlaybackWasPlayingOnOpen
+        cancelPlaybackQuickSearchAIChunking()
         playback.quickSearchPlaybackWasPlayingOnOpen = false
         playback.isQuickSearchFocused = false
         playback.isQuickSearchOverlayVisible = false
         playback.resetQuickSearchSubtitleLineNavigation()
         playback.resetQuickSearchResultSelection()
+        playback.resetQuickSearchAIState()
 
         if shouldResume {
             resumePlayback()
@@ -585,6 +681,19 @@ extension AppCoordinator {
         playback.setQuickSearchSubtitleLineCandidates(candidates, selectedIndex: selectedIndex)
     }
 
+    private func configurePlaybackQuickSearchAIHint() {
+        settings.refreshDeepSeekAPIKeyStatus()
+        playback.showQuickSearchAIHintIfPossible(
+            isEnabled: settings.aiChunkingEnabled,
+            hasAPIKey: settings.deepSeekAPIKeyConfigured
+        )
+    }
+
+    private func cancelPlaybackQuickSearchAIChunking() {
+        quickSearchAIChunkingTask?.cancel()
+        quickSearchAIChunkingTask = nil
+    }
+
     private func currentPlaybackQuickSearchInitialLineIndex(
         in candidates: [PlaybackQuickSearchLineCandidate]
     ) -> Int? {
@@ -624,6 +733,7 @@ extension AppCoordinator {
 
     func stopPlayback() {
         do {
+            cancelPlaybackQuickSearchAIChunking()
             saveCurrentLibraryPlaybackHistory()
             stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()
@@ -639,6 +749,7 @@ extension AppCoordinator {
             playback.quickSearchPlaybackWasPlayingOnOpen = false
             playback.resetQuickSearchSubtitleLineNavigation()
             playback.resetQuickSearchResultSelection()
+            playback.resetQuickSearchAIState()
             if let originatingMode = playbackOriginatingPanelMode {
                 workbenchLayout.selectPanelMode(originatingMode)
                 playbackOriginatingPanelMode = nil
