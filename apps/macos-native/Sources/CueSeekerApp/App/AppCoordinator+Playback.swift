@@ -334,23 +334,13 @@ extension AppCoordinator {
 
     @discardableResult
     func copyCurrentSubtitleToClipboard() -> Bool {
-        guard let currentPlaybackSubtitlePath, let playbackViewModel = playback.playbackViewModel else {
+        guard let playbackViewModel = playback.playbackViewModel else {
             playback.playbackViewModel?.showSubtitleCopyFeedback(copied: false)
             return false
         }
 
-        let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
-
-        guard let database = subtitleDatabase else {
-            playbackViewModel.showSubtitleCopyFeedback(copied: false)
-            return false
-        }
-
         do {
-            guard let selection = try database.cueTextSelection(
-                forSubtitleFile: URL(fileURLWithPath: currentPlaybackSubtitlePath),
-                atMilliseconds: milliseconds
-            ), !selection.text.isEmpty else {
+            guard let selection = try currentPlaybackCueTextSelection(), !selection.text.isEmpty else {
                 playbackViewModel.showSubtitleCopyFeedback(copied: false)
                 return false
             }
@@ -368,6 +358,45 @@ extension AppCoordinator {
     }
 
     @discardableResult
+    func openPlaybackQuickSearchFromUser() -> Bool {
+        guard currentPlaybackVideoPath != nil,
+              let playbackViewModel = playback.playbackViewModel
+        else {
+            return false
+        }
+
+        guard !playback.isQuickSearchOverlayVisible else {
+            playback.isQuickSearchFocused = true
+            return true
+        }
+
+        playback.quickSearchPlaybackWasPlayingOnOpen = playbackViewModel.isPlaying
+        playback.setQuickSearchDraft(currentPlaybackQuickSearchInitialQuery())
+        playback.isQuickSearchOverlayVisible = true
+        playback.isQuickSearchFocused = true
+        pausePlayback()
+        return true
+    }
+
+    @discardableResult
+    func dismissPlaybackQuickSearchFromUser() -> Bool {
+        guard playback.isQuickSearchOverlayVisible else {
+            return false
+        }
+
+        let shouldResume = playback.quickSearchPlaybackWasPlayingOnOpen
+        playback.quickSearchPlaybackWasPlayingOnOpen = false
+        playback.isQuickSearchFocused = false
+        playback.isQuickSearchOverlayVisible = false
+
+        if shouldResume {
+            resumePlayback()
+        }
+
+        return true
+    }
+
+    @discardableResult
     func handlePlaybackKeyDown(
         keyCode: UInt16,
         modifierFlagsRawValue: UInt
@@ -379,6 +408,14 @@ extension AppCoordinator {
         }
 
         guard currentPlaybackVideoPath != nil, let viewModel = playback.playbackViewModel else {
+            return false
+        }
+
+        if playback.isQuickSearchOverlayVisible {
+            if keyCode == 53 {
+                return dismissPlaybackQuickSearchFromUser()
+            }
+
             return false
         }
 
@@ -421,6 +458,8 @@ extension AppCoordinator {
         case 49:
             togglePlaybackFromUser()
             return true
+        case 36, 76:
+            return openPlaybackQuickSearchFromUser()
         case 123:
             viewModel.seekRelative(by: -5)
             return true
@@ -446,12 +485,39 @@ extension AppCoordinator {
 
     private static func isPlaybackShortcutKey(keyCode: UInt16, hasShift: Bool) -> Bool {
         switch keyCode {
-        case 0, 1, 2, 3, 8, 12, 49, 123, 124, 125, 126:
+        case 0, 1, 2, 3, 8, 12, 36, 49, 76, 123, 124, 125, 126:
             return true
         case 43, 47:
             return hasShift
         default:
             return false
+        }
+    }
+
+    private func currentPlaybackCueTextSelection() throws -> SubtitleCueTextSelection? {
+        guard let currentPlaybackSubtitlePath,
+              let playbackViewModel = playback.playbackViewModel,
+              let database = subtitleDatabase
+        else {
+            return nil
+        }
+
+        let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
+        return try database.cueTextSelection(
+            forSubtitleFile: URL(fileURLWithPath: currentPlaybackSubtitlePath),
+            atMilliseconds: milliseconds
+        )
+    }
+
+    private func currentPlaybackQuickSearchInitialQuery() -> String {
+        do {
+            return try currentPlaybackCueTextSelection()?
+                .lines
+                .last?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        } catch {
+            print("Failed to load quick search subtitle seed: \(error)")
+            return ""
         }
     }
 
@@ -467,6 +533,9 @@ extension AppCoordinator {
             library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
             playback.isPlaybackSurfaceExpanded = false
+            playback.isQuickSearchOverlayVisible = false
+            playback.isQuickSearchFocused = false
+            playback.quickSearchPlaybackWasPlayingOnOpen = false
             if let originatingMode = playbackOriginatingPanelMode {
                 workbenchLayout.selectPanelMode(originatingMode)
                 playbackOriginatingPanelMode = nil

@@ -38,6 +38,8 @@ struct PlaybackPageView: View {
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .allowsHitTesting(false)
                 }
+
+                quickSearchOverlay(in: geometry.size)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
@@ -82,6 +84,29 @@ struct PlaybackPageView: View {
             .offset(y: visible ? 0 : 10)
             .allowsHitTesting(visible)
             .animation(.easeInOut(duration: 0.18), value: visible)
+    }
+
+    @ViewBuilder
+    private func quickSearchOverlay(in size: CGSize) -> some View {
+        let visible = playback.isQuickSearchOverlayVisible
+        let overlayWidth = min(860, max(280, size.width - 64))
+        let overlayY = min(max(96, size.height * 0.18), 150)
+
+        if visible {
+            PlaybackQuickSearchOverlay(
+                draft: $playback.quickSearchDraft,
+                isFocused: $playback.isQuickSearchFocused,
+                forcedTextUpdateID: playback.quickSearchForcedTextUpdateID,
+                onSubmit: {},
+                onClear: {
+                    playback.setQuickSearchDraft("")
+                }
+            )
+            .frame(width: overlayWidth)
+            .position(x: size.width / 2, y: overlayY)
+            .transition(.opacity.combined(with: .scale(scale: 0.98)).combined(with: .offset(y: 8)))
+            .animation(.easeInOut(duration: 0.16), value: visible)
+        }
     }
 
     private func refreshSidebarData() {

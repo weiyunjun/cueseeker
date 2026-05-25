@@ -6,13 +6,18 @@ struct SearchTextView: NSViewRepresentable {
     var placeholder: String
     @Binding var isFocused: Bool
     var forcedTextUpdateID: Int = 0
+    var font: NSFont = .systemFont(ofSize: 17, weight: .semibold)
+    var textColor: NSColor = .labelColor
+    var placeholderColor: NSColor = .placeholderTextColor
     var onSubmit: () -> Void = {}
 
     func makeNSView(context: Context) -> CustomTextView {
         let textView = CustomTextView()
         textView.isRichText = false
         textView.drawsBackground = false
-        textView.font = .systemFont(ofSize: 17, weight: .semibold)
+        textView.font = font
+        textView.textColor = textColor
+        textView.insertionPointColor = textColor
         textView.delegate = context.coordinator
         
         // Configure for single line behavior
@@ -25,6 +30,7 @@ struct SearchTextView: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: 0, height: 2) // Visual vertical center
         
         textView.placeholder = placeholder
+        textView.placeholderColor = placeholderColor
         textView.onFocusChange = { focused in
             DispatchQueue.main.async {
                 self.isFocused = focused
@@ -35,6 +41,12 @@ struct SearchTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ textView: CustomTextView, context: Context) {
+        textView.font = font
+        textView.textColor = textColor
+        textView.insertionPointColor = textColor
+        textView.placeholder = placeholder
+        textView.placeholderColor = placeholderColor
+
         let shouldForceTextUpdate = context.coordinator.appliedForcedTextUpdateID != forcedTextUpdateID
         if shouldForceTextUpdate {
             context.coordinator.appliedForcedTextUpdateID = forcedTextUpdateID
@@ -111,6 +123,7 @@ enum SearchTextViewTextUpdatePolicy {
 
 final class CustomTextView: NSTextView {
     var placeholder: String = ""
+    var placeholderColor: NSColor = .placeholderTextColor
     var onFocusChange: ((Bool) -> Void)?
 
     override func becomeFirstResponder() -> Bool {
@@ -137,7 +150,7 @@ final class CustomTextView: NSTextView {
         if string.isEmpty && !placeholder.isEmpty {
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font ?? NSFont.systemFont(ofSize: 17, weight: .semibold),
-                .foregroundColor: NSColor.placeholderTextColor
+                .foregroundColor: placeholderColor
             ]
             let size = placeholder.size(withAttributes: attributes)
             // Align with text container inset

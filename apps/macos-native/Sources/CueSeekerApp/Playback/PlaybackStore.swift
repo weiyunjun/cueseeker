@@ -19,9 +19,19 @@ final class PlaybackStore: ObservableObject {
     @Published var isTimelineScrubbing = false
     @Published var timelineScrubTime: Double?
     @Published var playbackViewModel: PlaybackViewModel?
+    @Published var isQuickSearchOverlayVisible = false
+    @Published var quickSearchDraft = ""
+    @Published var isQuickSearchFocused = false
+    @Published private(set) var quickSearchForcedTextUpdateID = 0
+    var quickSearchPlaybackWasPlayingOnOpen = false
 
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
         isPlaybackSidePanelVisible = userDefaults.object(forKey: Self.sidePanelVisibleKey) as? Bool ?? false
+    }
+
+    func setQuickSearchDraft(_ draft: String) {
+        quickSearchDraft = draft
+        quickSearchForcedTextUpdateID += 1
     }
 }
