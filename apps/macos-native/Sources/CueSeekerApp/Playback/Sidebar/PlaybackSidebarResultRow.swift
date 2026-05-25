@@ -9,6 +9,7 @@ struct PlaybackSidebarResultRow: View {
     let result: SubtitleSearchResult
     let query: String
     let isSelected: Bool
+    var allowsHoverHighlight = true
     let onOpen: () -> Void
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
@@ -58,7 +59,7 @@ struct PlaybackSidebarResultRow: View {
     }
 
     private var highlightState: SearchHighlightState {
-        isSelected ? .selected : (isHovered ? .hover : .default)
+        isSelected ? .selected : (showsHoverHighlight ? .hover : .default)
     }
 
     private var lineColor: Color {
@@ -70,9 +71,13 @@ struct PlaybackSidebarResultRow: View {
     }
 
     private var rowBackground: Color {
-        if isSelected || isHovered {
+        if isSelected || showsHoverHighlight {
             return PlaybackTheme.menuItemHighlight
         }
         return Color.clear
+    }
+
+    private var showsHoverHighlight: Bool {
+        allowsHoverHighlight && isHovered
     }
 }

@@ -91,6 +91,7 @@ struct PlaybackQuickSearchOverlay: View {
                                     result: result,
                                     query: submittedQuery ?? "",
                                     isSelected: index == selectedResultIndex,
+                                    allowsHoverHighlight: false,
                                     onOpen: {
                                         onOpenResult(result)
                                     }
