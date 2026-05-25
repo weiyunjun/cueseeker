@@ -166,7 +166,8 @@ Cache key:
 Cache value:
 
 - Validated chunk items.
-- Created timestamp.
+- Cache date, recorded once when chunks are first cached for the same normalized
+  subtitle line and cache key.
 - Updated timestamp.
 - Last-used timestamp.
 
@@ -178,12 +179,26 @@ Rules:
   user triggers the hint.
 - Manual `/chunks` refresh bypasses cache lookup for that action.
 - Successful refresh overwrites the cached chunk items for the same key.
+- Successful refresh must not create a second cache date for the same normalized
+  subtitle line and cache key.
 - Failed refresh keeps the previous cached value intact and shows the error in
   the overlay.
 - Prompt wording or validation changes that can affect chunk output must bump
   the prompt version so old cache entries are not reused accidentally.
 - Logs may include a short text hash for debugging, but must not include API
   keys or authorization headers.
+
+The current cache implementation only needs to record the cache date. It should
+not implement date-based filtering, date-based UI hints, or a full per-query
+usage history yet.
+
+Future date metadata:
+
+- If a cached chunk set is searched multiple times, future versions may record
+  every search/use date as separate usage metadata.
+- The cache date remains one record per normalized subtitle line and cache key.
+- Future Search or Quick Search UI may use the cache date to filter cached
+  chunks or show freshness hints near the search field.
 
 ## UI/UX Behavior
 
@@ -343,6 +358,7 @@ Stage 6: persistent chunk cache and request logging.
 
 - Add a persistent cache keyed by normalized sentence, provider, model, and
   prompt version.
+- Record one cache date per cached normalized subtitle line and cache key.
 - Load cached chunks when opening Quick Search or navigating seeded subtitle
   lines.
 - Show cached chunks immediately with the first chunk selected.
@@ -381,6 +397,8 @@ Stage 6: persistent chunk cache and request logging.
   request.
 - Manual `/chunks` refresh bypasses the cache for that action and overwrites the
   cache only on success.
+- Cache date is recorded once per normalized subtitle line and cache key; a
+  refresh must not create duplicate cache dates.
 - Cache hits log a skipped request and do not log an AI request completion.
 - Every completed AI request logs token counts and estimated CNY cost.
 - Return searches the selected chunk through the existing local Search flow.
