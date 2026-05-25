@@ -27,6 +27,9 @@ local subtitle search before adding optional AI-assisted query expansion later.
 - Submit the query with Return and show results directly below the input.
 - Reuse existing search result data, paging, lazy loading, and playback
   behavior.
+- Reuse existing input, row, highlighting, timestamp, and subtitle display
+  helpers wherever practical instead of creating a separate transitional UI
+  system.
 - Keep Escape focused on dismissing the quick search overlay before fullscreen
   Escape handling.
 
@@ -73,20 +76,27 @@ The Escape event is consumed by the overlay and must not exit fullscreen
 
 ## UI/UX Impact
 
-The overlay should visually reference macOS Spotlight:
+The overlay should use the current playback-page cinematic visual language, not
+the older light Liquid Glass search-card style and not a literal macOS Spotlight
+clone.
+
+Spotlight is only a geometry and interaction reference:
 
 - Wide rounded search surface.
 - Search icon at the leading edge.
 - Large, comfortable text field.
-- Light translucent glass-like backing.
 - Slightly upper-centered placement rather than exact screen center.
 
-The implementation should not introduce a one-off color system. The overlay
-visual class should reuse existing CueSeeker visual tokens where practical:
+The actual surface should align with the current playback UI:
 
-- `LiquidGlassTokens` for light/dark text, field, hairline, hover, and card
-  surfaces.
-- `PlaybackTheme` where the overlay appears over the cinematic playback surface.
+- `PlaybackTheme.cinematicBacking` for the overlay body.
+- `.ultraThinMaterial` where the existing playback overlays use it.
+- `PlaybackTheme.textPrimary`, `textSecondary`, and `textTertiary` for text and
+  hairline contrast.
+- The playback overlay hairline pattern:
+  `PlaybackTheme.textTertiary.opacity(0.3)` at `0.5`.
+- The playback overlay shadow pattern:
+  black at roughly `0.42` opacity, large radius, downward offset.
 
 The overlay should be a distinct reusable style/component, not inline ad hoc
 styling inside the playback page.
@@ -99,6 +109,58 @@ Result presentation should reference the compact Bilibili-style search overlay:
 - Rows should preserve timestamp and source context where space allows.
 - The selected row should have a clear keyboard selection state.
 - The list should remain compact and keyboard-first, not a card grid.
+
+## UI Reuse Plan
+
+The quick search overlay is a transitional interaction layer and should stay
+thin. It should compose existing UI and helper code rather than creating a new
+parallel search UI stack.
+
+Input reuse:
+
+- Use `SearchTextView` for the text input. It already owns single-line editing,
+  focus coordination, IME behavior, and Return submission.
+- Add only a playback-specific wrapper such as `PlaybackQuickSearchField` to
+  provide the larger command-overlay layout, leading magnifying-glass icon, and
+  optional clear button.
+- Do not implement a custom text field, custom IME handling, or custom Return
+  handling inside SwiftUI text primitives.
+
+Result row reuse:
+
+- Use `PlaybackSidebarResultRow` for compact overlay results.
+- Do not use `SearchResultCardGroupView`; the main Search card grid is too
+  heavy for a command overlay.
+- Do not create a second result-row renderer unless the existing playback
+  sidebar row proves insufficient after implementation review.
+
+Helper reuse:
+
+- Reuse `formatTimestamp(_:)` for timestamps.
+- Reuse `subtitleDisplayLines(content:cueLines:)` for result text display.
+- Reuse `highlightedContent(...)` and `SearchHighlightState` for query
+  highlighting.
+- Reuse `PlaybackTheme.menuItemHighlight` for hovered or keyboard-selected
+  result rows.
+
+State and data reuse:
+
+- Reuse `SearchStore.searchQuery`, `searchResults`, paging state, and selected
+  result state for submitted overlay searches.
+- Reuse the existing search execution path instead of adding an overlay-only
+  database query path.
+- Reuse `markSearchResultVisible` and `loadMoreSearchResultsIfNeeded` for lazy
+  loading.
+- Reuse `openSearchResult(result)` for playback.
+
+New UI should be limited to layout glue:
+
+```text
+PlaybackQuickSearchOverlay
+  -> PlaybackQuickSearchField
+  -> PlaybackSidebarResultRow
+  -> existing SearchStore / openSearchResult
+```
 
 ## Subtitle Line Selection
 
@@ -142,7 +204,8 @@ using a separate search store:
 - Set the main search query to the submitted overlay query.
 - Start the existing non-debounced search flow.
 - Preserve existing result grouping, lazy loading, and paging behavior.
-- Show a compact overlay projection of those results under the search field.
+- Show a compact overlay projection of those results under the search field,
+  using the existing playback sidebar result row.
 - Keep the underlying Search page in its default result presentation after a
   result is opened.
 
@@ -216,8 +279,12 @@ Risks:
 - Subtitle line selection must avoid assuming a universal bilingual or
   "Chinese-line" concept. It should use the database's normalized subtitle lines
   and the quick-search line rules above.
-- Spotlight-like visual treatment can become hard to maintain if it introduces
-  one-off colors instead of shared tokens.
+- Command-overlay visual treatment can become hard to maintain if it introduces
+  one-off colors instead of following the current playback cinematic tokens and
+  overlay patterns.
+- Because the overlay is transitional UI, custom result rows, custom
+  highlighting, or a duplicate search state model would create avoidable
+  maintenance cost.
 - The overlay must avoid restoring old playback state after the user opens a new
   result.
 
@@ -246,7 +313,11 @@ Risks:
 - Escape is consumed by the overlay and does not exit fullscreen while the
   overlay is visible.
 - The overlay style is implemented through a reusable class/component that
-  reuses existing visual tokens where practical.
+  follows the current playback cinematic overlay visual language.
+- The text input uses `SearchTextView` rather than a custom text field.
+- Overlay result rows reuse `PlaybackSidebarResultRow`.
+- Query highlighting, subtitle display lines, and timestamp formatting reuse the
+  existing helper functions.
 
 ## Decision
 
