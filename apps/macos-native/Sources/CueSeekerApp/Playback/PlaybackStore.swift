@@ -23,6 +23,7 @@ final class PlaybackStore: ObservableObject {
     @Published var quickSearchDraft = ""
     @Published var isQuickSearchFocused = false
     @Published private(set) var quickSearchForcedTextUpdateID = 0
+    @Published private(set) var quickSearchFocusRequestID = 0
     var quickSearchPlaybackWasPlayingOnOpen = false
 
     init(userDefaults: UserDefaults) {
@@ -33,5 +34,10 @@ final class PlaybackStore: ObservableObject {
     func setQuickSearchDraft(_ draft: String) {
         quickSearchDraft = draft
         quickSearchForcedTextUpdateID += 1
+    }
+
+    func requestQuickSearchFocus() {
+        isQuickSearchFocused = true
+        quickSearchFocusRequestID += 1
     }
 }

@@ -366,14 +366,14 @@ extension AppCoordinator {
         }
 
         guard !playback.isQuickSearchOverlayVisible else {
-            playback.isQuickSearchFocused = true
+            playback.requestQuickSearchFocus()
             return true
         }
 
         playback.quickSearchPlaybackWasPlayingOnOpen = playbackViewModel.isPlaying
         playback.setQuickSearchDraft(currentPlaybackQuickSearchInitialQuery())
         playback.isQuickSearchOverlayVisible = true
-        playback.isQuickSearchFocused = true
+        playback.requestQuickSearchFocus()
         pausePlayback()
         return true
     }
@@ -510,15 +510,24 @@ extension AppCoordinator {
     }
 
     private func currentPlaybackQuickSearchInitialQuery() -> String {
-        do {
-            return try currentPlaybackCueTextSelection()?
-                .lines
-                .last?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        } catch {
-            print("Failed to load quick search subtitle seed: \(error)")
+        guard let playbackViewModel = playback.playbackViewModel else {
             return ""
         }
+
+        let milliseconds = max(0, Int((playbackViewModel.displayedCurrentTime * 1_000).rounded(.down)))
+        guard let entryID = playback.currentSubtitleEntryLookup.activeEntryID(atMilliseconds: milliseconds),
+              let entry = playback.currentSubtitleEntries.first(where: { $0.id == entryID })
+        else {
+            return ""
+        }
+
+        return Self.quickSearchCandidateText(for: entry)
+    }
+
+    private static func quickSearchCandidateText(for entry: SubtitleDatabaseEntry) -> String {
+        subtitleDisplayLines(content: entry.content, cueLines: [])
+            .last?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     func stopPlayback() {

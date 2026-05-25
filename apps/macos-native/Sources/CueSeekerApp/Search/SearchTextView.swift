@@ -6,6 +6,7 @@ struct SearchTextView: NSViewRepresentable {
     var placeholder: String
     @Binding var isFocused: Bool
     var forcedTextUpdateID: Int = 0
+    var focusRequestID: Int = 0
     var font: NSFont = .systemFont(ofSize: 17, weight: .semibold)
     var textColor: NSColor = .labelColor
     var placeholderColor: NSColor = .placeholderTextColor
@@ -41,11 +42,16 @@ struct SearchTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ textView: CustomTextView, context: Context) {
+        context.coordinator.parent = self
         textView.font = font
         textView.textColor = textColor
         textView.insertionPointColor = textColor
         textView.placeholder = placeholder
         textView.placeholderColor = placeholderColor
+        let shouldForceFocus = context.coordinator.appliedFocusRequestID != focusRequestID
+        if shouldForceFocus {
+            context.coordinator.appliedFocusRequestID = focusRequestID
+        }
 
         let shouldForceTextUpdate = context.coordinator.appliedForcedTextUpdateID != forcedTextUpdateID
         if shouldForceTextUpdate {
@@ -63,9 +69,9 @@ struct SearchTextView: NSViewRepresentable {
         }
         
         if isFocused && textView.window?.firstResponder != textView {
-            DispatchQueue.main.async {
-                textView.window?.makeFirstResponder(textView)
-            }
+            context.coordinator.requestFocus(for: textView)
+        } else if isFocused && shouldForceFocus {
+            context.coordinator.requestFocus(for: textView)
         } else if !isFocused && textView.window?.firstResponder == textView {
             DispatchQueue.main.async {
                 textView.window?.makeFirstResponder(nil)
@@ -77,18 +83,53 @@ struct SearchTextView: NSViewRepresentable {
         Coordinator(self)
     }
 
+    @MainActor
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: SearchTextView
         var appliedForcedTextUpdateID: Int
+        var appliedFocusRequestID: Int
 
         init(_ parent: SearchTextView) {
             self.parent = parent
             self.appliedForcedTextUpdateID = parent.forcedTextUpdateID
+            self.appliedFocusRequestID = parent.focusRequestID
         }
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+        }
+
+        func requestFocus(for textView: CustomTextView) {
+            requestFocus(for: textView, attempt: 0)
+        }
+
+        private func requestFocus(for textView: CustomTextView, attempt: Int) {
+            let delay: DispatchTimeInterval
+            switch attempt {
+            case 0:
+                delay = .milliseconds(0)
+            case 1:
+                delay = .milliseconds(20)
+            case 2:
+                delay = .milliseconds(60)
+            default:
+                delay = .milliseconds(120)
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak textView] in
+                guard let self, let textView, self.parent.isFocused else {
+                    return
+                }
+
+                if textView.window?.firstResponder != textView {
+                    textView.window?.makeFirstResponder(textView)
+                }
+
+                if attempt < 3, textView.window?.firstResponder != textView {
+                    self.requestFocus(for: textView, attempt: attempt + 1)
+                }
+            }
         }
         
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {

@@ -97,9 +97,13 @@ struct PlaybackPageView: View {
                 draft: $playback.quickSearchDraft,
                 isFocused: $playback.isQuickSearchFocused,
                 forcedTextUpdateID: playback.quickSearchForcedTextUpdateID,
+                focusRequestID: playback.quickSearchFocusRequestID,
                 onSubmit: {},
                 onClear: {
                     playback.setQuickSearchDraft("")
+                },
+                onRequestFocus: {
+                    playback.requestQuickSearchFocus()
                 }
             )
             .frame(width: overlayWidth)

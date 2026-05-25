@@ -5,8 +5,10 @@ struct PlaybackQuickSearchOverlay: View {
     @Binding var draft: String
     @Binding var isFocused: Bool
     let forcedTextUpdateID: Int
+    let focusRequestID: Int
     let onSubmit: () -> Void
     let onClear: () -> Void
+    let onRequestFocus: () -> Void
 
     var body: some View {
         HStack(spacing: 16) {
@@ -20,6 +22,7 @@ struct PlaybackQuickSearchOverlay: View {
                 placeholder: "Search subtitles",
                 isFocused: $isFocused,
                 forcedTextUpdateID: forcedTextUpdateID,
+                focusRequestID: focusRequestID,
                 font: .systemFont(ofSize: 30, weight: .semibold),
                 textColor: NSColor.white.withAlphaComponent(0.94),
                 placeholderColor: NSColor.white.withAlphaComponent(0.34),
@@ -43,11 +46,11 @@ struct PlaybackQuickSearchOverlay: View {
         .background(quickSearchBackground)
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .onTapGesture {
-            isFocused = true
+            onRequestFocus()
         }
         .onAppear {
             DispatchQueue.main.async {
-                isFocused = true
+                onRequestFocus()
             }
         }
     }
