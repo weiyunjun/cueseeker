@@ -372,6 +372,7 @@ extension AppCoordinator {
 
         playback.quickSearchPlaybackWasPlayingOnOpen = playbackViewModel.isPlaying
         cancelPlaybackQuickSearchAIChunking()
+        capturePlaybackQuickSearchSearchContext()
         playback.resetQuickSearchResultSelection()
         playback.resetQuickSearchAIState()
         configurePlaybackQuickSearchSubtitleLineSelection()
@@ -408,6 +409,7 @@ extension AppCoordinator {
             "ACTION UI.PlaybackQuickSearch.submitted",
             details: "length=\(trimmedQuery.count)"
         )
+        quickSearchSearchContextWasMutated = true
         workbenchLayout.selectPanelMode(.search)
         search.searchQuery = trimmedQuery
         search.searchNavigationSnapshot = nil
@@ -531,6 +533,7 @@ extension AppCoordinator {
 
     func openPlaybackQuickSearchResult(_ result: SubtitleSearchResult) {
         cancelPlaybackQuickSearchAIChunking()
+        discardPlaybackQuickSearchSearchContext()
         playback.quickSearchPlaybackWasPlayingOnOpen = false
         playback.isQuickSearchFocused = false
         playback.isQuickSearchOverlayVisible = false
@@ -548,6 +551,7 @@ extension AppCoordinator {
 
         let shouldResume = playback.quickSearchPlaybackWasPlayingOnOpen
         cancelPlaybackQuickSearchAIChunking()
+        restorePlaybackQuickSearchSearchContextIfNeeded()
         playback.quickSearchPlaybackWasPlayingOnOpen = false
         playback.isQuickSearchFocused = false
         playback.isQuickSearchOverlayVisible = false
@@ -694,6 +698,39 @@ extension AppCoordinator {
         quickSearchAIChunkingTask = nil
     }
 
+    private func capturePlaybackQuickSearchSearchContext() {
+        quickSearchSearchContextSnapshot = PlaybackQuickSearchSearchContextSnapshot(appState: self)
+        quickSearchSearchContextWasMutated = false
+    }
+
+    private func restorePlaybackQuickSearchSearchContextIfNeeded() {
+        guard let snapshot = quickSearchSearchContextSnapshot else {
+            return
+        }
+
+        if quickSearchSearchContextWasMutated {
+            cancelPlaybackQuickSearchSearchTasks()
+        }
+        snapshot.restore(to: self)
+        quickSearchSearchContextSnapshot = nil
+        quickSearchSearchContextWasMutated = false
+    }
+
+    private func discardPlaybackQuickSearchSearchContext() {
+        quickSearchSearchContextSnapshot = nil
+        quickSearchSearchContextWasMutated = false
+    }
+
+    private func cancelPlaybackQuickSearchSearchTasks() {
+        searchTask?.cancel()
+        searchTask = nil
+        searchExactCompletionTask?.cancel()
+        searchExactCompletionTask = nil
+        searchNavigationTask?.cancel()
+        searchNavigationTask = nil
+        cancelSearchResultGroupTasks()
+    }
+
     private func currentPlaybackQuickSearchInitialLineIndex(
         in candidates: [PlaybackQuickSearchLineCandidate]
     ) -> Int? {
@@ -734,6 +771,7 @@ extension AppCoordinator {
     func stopPlayback() {
         do {
             cancelPlaybackQuickSearchAIChunking()
+            discardPlaybackQuickSearchSearchContext()
             saveCurrentLibraryPlaybackHistory()
             stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()

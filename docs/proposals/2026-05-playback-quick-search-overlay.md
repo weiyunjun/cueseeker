@@ -75,6 +75,8 @@ Dismissal flow:
 User presses Escape while the overlay is visible
 Overlay closes
 Playback returns to the state it had before the overlay opened
+If the overlay search did not open a result, the previous Search page and
+playback result-list context are restored
 The Escape event is consumed by the overlay and must not exit fullscreen
 ```
 
@@ -222,15 +224,21 @@ the current entry's final visible line as the default query.
 
 ## Search Behavior
 
-Submitting the overlay query should update the existing Search state instead of
-using a separate search store:
+Submitting the overlay query may temporarily use the existing Search execution
+path, but it must not permanently replace the Search page or playback
+result-list context until the user opens a result:
 
-- Set the main search query to the submitted overlay query.
+- Snapshot the current Search page and playback result-list context when the
+  overlay opens.
+- Set the main search query to the submitted overlay query only for the active
+  overlay interaction.
 - Start the existing non-debounced search flow.
 - Preserve existing result grouping, lazy loading, and paging behavior.
 - Show a compact overlay projection of those results under the search field,
   using the existing playback sidebar result row.
 - Select the first loaded result by default after the query is submitted.
+- Pressing Escape after a submitted overlay search restores the pre-overlay
+  Search page and playback result-list context.
 - Pressing Return again immediately after the first result is selected should
   open that selected result. This makes the common flow "Return, Return" mean
   "search current subtitle line, then play the best/default result."
@@ -297,8 +305,12 @@ Transient UI state is expected:
 - Whether the input is still equal to the current subtitle candidate.
 - Current overlay result selection index.
 - Whether the overlay is in subtitle-line navigation or result-list navigation.
+- A transient snapshot of the pre-overlay Search page and playback result-list
+  context so Escape can restore it when no result is opened.
 
-The existing Search state remains authoritative for submitted query and results.
+The existing Search flow remains authoritative for executing submitted overlay
+queries. The pre-overlay Search context remains authoritative again if the
+overlay is dismissed without opening a result.
 
 ## Implementation Stages
 
@@ -389,6 +401,8 @@ Risks:
 - Opening a result closes the overlay.
 - Opening a result updates the underlying Search page to the submitted query and
   default result presentation.
+- Pressing Escape after submitting an overlay search restores the Search page
+  and playback result-list context that existed before the overlay opened.
 - Pressing Escape while the overlay is visible closes the overlay.
 - Escape restores playback only when playback was playing before the overlay
   opened.

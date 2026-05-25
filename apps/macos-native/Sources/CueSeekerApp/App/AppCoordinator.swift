@@ -340,6 +340,8 @@ final class AppCoordinator: ObservableObject {
     var activeSearchPerformanceRun: SearchPerformanceRun?
     var pendingSearchVisibleEntryIDs: Set<Int64> = []
     var quickSearchAIChunkingTask: Task<Void, Never>?
+    var quickSearchSearchContextSnapshot: PlaybackQuickSearchSearchContextSnapshot?
+    var quickSearchSearchContextWasMutated = false
     var activePlaybackSource: ActivePlaybackSource = .none
     var playbackOriginatingPanelMode: WorkbenchPanelMode?
     var loadedGlobalSearchResultCount = 0
