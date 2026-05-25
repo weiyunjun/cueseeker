@@ -115,6 +115,109 @@ func upsertsSearchPathAndReturnsStableID() throws {
 }
 
 @Test
+func storesAndLoadsAIChunkCacheEntry() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let key = AIChunkCacheKey(
+        normalizedSentence: "運も実力のうちだ",
+        provider: "deepseek",
+        model: "deepseek-v4-flash",
+        promptVersion: "chunk-v1"
+    )
+    let cacheDate = "2026-05-26T00:00:00Z"
+
+    let saved = try database.upsertAIChunkCacheEntry(
+        key: key,
+        chunks: ["運", "実力", "うち"],
+        cacheDate: cacheDate
+    )
+    let loaded = try database.aiChunkCacheEntry(for: key)
+
+    #expect(saved.key == key)
+    #expect(saved.chunks == ["運", "実力", "うち"])
+    #expect(saved.cacheDate == cacheDate)
+    #expect(loaded == saved)
+}
+
+@Test
+func refreshingAIChunkCachePreservesCacheDate() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let key = AIChunkCacheKey(
+        normalizedSentence: "春日影はわたくしたちの歌ですのね",
+        provider: "deepseek",
+        model: "deepseek-v4-flash",
+        promptVersion: "chunk-v1"
+    )
+
+    try database.upsertAIChunkCacheEntry(
+        key: key,
+        chunks: ["春日影", "わたくしたち", "歌"],
+        cacheDate: "2026-05-26T00:00:00Z"
+    )
+    let refreshed = try database.upsertAIChunkCacheEntry(
+        key: key,
+        chunks: ["春日影", "わたくしたちの歌"],
+        cacheDate: "2026-05-27T00:00:00Z"
+    )
+    let loaded = try database.aiChunkCacheEntry(for: key)
+
+    #expect(refreshed.chunks == ["春日影", "わたくしたちの歌"])
+    #expect(refreshed.cacheDate == "2026-05-26T00:00:00Z")
+    #expect(loaded == refreshed)
+}
+
+@Test
+func storesSameAIChunkSeparatelyForDifferentSubtitleLines() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let firstKey = AIChunkCacheKey(
+        normalizedSentence: "運も実力のうちだ",
+        provider: "deepseek",
+        model: "deepseek-v4-flash",
+        promptVersion: "chunk-v1"
+    )
+    let secondKey = AIChunkCacheKey(
+        normalizedSentence: "これが実力だ",
+        provider: "deepseek",
+        model: "deepseek-v4-flash",
+        promptVersion: "chunk-v1"
+    )
+
+    try database.upsertAIChunkCacheEntry(
+        key: firstKey,
+        chunks: ["実力"],
+        cacheDate: "2026-05-26T00:00:00Z"
+    )
+    try database.upsertAIChunkCacheEntry(
+        key: secondKey,
+        chunks: ["実力"],
+        cacheDate: "2026-05-27T00:00:00Z"
+    )
+
+    #expect(try database.aiChunkCacheEntry(for: firstKey)?.cacheDate == "2026-05-26T00:00:00Z")
+    #expect(try database.aiChunkCacheEntry(for: secondKey)?.cacheDate == "2026-05-27T00:00:00Z")
+}
+
+@Test
 func storesSubtitleEntriesAndSearchesWithFTS5() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

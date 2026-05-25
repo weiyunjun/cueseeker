@@ -131,6 +131,39 @@ public struct SubtitleSearchResultCacheStats: Equatable, Sendable {
     public let invalidations: Int
 }
 
+public struct AIChunkCacheKey: Equatable, Hashable, Sendable {
+    public let normalizedSentence: String
+    public let provider: String
+    public let model: String
+    public let promptVersion: String
+
+    public init(
+        normalizedSentence: String,
+        provider: String,
+        model: String,
+        promptVersion: String
+    ) {
+        self.normalizedSentence = normalizedSentence
+        self.provider = provider
+        self.model = model
+        self.promptVersion = promptVersion
+    }
+}
+
+public struct AIChunkCacheEntry: Equatable, Sendable {
+    public let key: AIChunkCacheKey
+    public let chunks: [String]
+    public let cacheDate: String
+}
+
+public enum AIChunkCacheError: Error, Equatable {
+    case emptyNormalizedSentence
+    case emptyProvider
+    case emptyModel
+    case emptyPromptVersion
+    case emptyChunks
+}
+
 public struct SubtitleFTSVocabularyTermDiagnostic: Equatable, Sendable {
     public let term: String
     public let documentCount: Int
@@ -495,7 +528,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 13
+    public static let currentSchemaVersion: Int = 14
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -716,6 +749,25 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE INDEX IF NOT EXISTS idx_shioris_order
                 ON shioris(subtitle_path, start_ms, end_ms);
+
+            CREATE TABLE IF NOT EXISTS ai_chunk_cache_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                normalized_sentence TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                prompt_version TEXT NOT NULL,
+                chunks_json TEXT NOT NULL,
+                cache_date TEXT NOT NULL,
+                UNIQUE(normalized_sentence, provider, model, prompt_version)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ai_chunk_cache_entries_lookup
+                ON ai_chunk_cache_entries(
+                    normalized_sentence,
+                    provider,
+                    model,
+                    prompt_version
+                );
             """
         )
 
@@ -843,6 +895,74 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return statement.int64Column(0)
+    }
+
+    public func aiChunkCacheEntry(for key: AIChunkCacheKey) throws -> AIChunkCacheEntry? {
+        try Self.validateAIChunkCacheKey(key)
+
+        let statement = try database.prepare(
+            """
+            SELECT normalized_sentence, provider, model, prompt_version, chunks_json, cache_date
+            FROM ai_chunk_cache_entries
+            WHERE normalized_sentence = ?
+              AND provider = ?
+              AND model = ?
+              AND prompt_version = ?
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(key.normalizedSentence, at: 1)
+        try statement.bind(key.provider, at: 2)
+        try statement.bind(key.model, at: 3)
+        try statement.bind(key.promptVersion, at: 4)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return try aiChunkCacheEntry(from: statement)
+    }
+
+    @discardableResult
+    public func upsertAIChunkCacheEntry(
+        key: AIChunkCacheKey,
+        chunks: [String],
+        cacheDate: String = ISO8601DateFormatter().string(from: Date())
+    ) throws -> AIChunkCacheEntry {
+        try Self.validateAIChunkCacheKey(key)
+        try Self.validateAIChunkCacheChunks(chunks)
+
+        let chunksJSON = try Self.encodeAIChunks(chunks)
+        let statement = try database.prepare(
+            """
+            INSERT INTO ai_chunk_cache_entries(
+                normalized_sentence,
+                provider,
+                model,
+                prompt_version,
+                chunks_json,
+                cache_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(normalized_sentence, provider, model, prompt_version)
+            DO UPDATE SET chunks_json = excluded.chunks_json
+            RETURNING normalized_sentence, provider, model, prompt_version, chunks_json, cache_date;
+            """
+        )
+
+        try statement.bind(key.normalizedSentence, at: 1)
+        try statement.bind(key.provider, at: 2)
+        try statement.bind(key.model, at: 3)
+        try statement.bind(key.promptVersion, at: 4)
+        try statement.bind(chunksJSON, at: 5)
+        try statement.bind(cacheDate, at: 6)
+
+        guard try statement.step() else {
+            throw SQLiteDatabaseError.stepFailed("AI chunk cache entry could not be saved")
+        }
+
+        return try aiChunkCacheEntry(from: statement)
     }
 
     public func replaceEntries(
@@ -3774,6 +3894,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
+    private func aiChunkCacheEntry(from statement: SQLiteStatement) throws -> AIChunkCacheEntry {
+        let key = AIChunkCacheKey(
+            normalizedSentence: statement.stringColumn(0),
+            provider: statement.stringColumn(1),
+            model: statement.stringColumn(2),
+            promptVersion: statement.stringColumn(3)
+        )
+        let chunks = try Self.decodeAIChunks(statement.stringColumn(4))
+
+        return AIChunkCacheEntry(
+            key: key,
+            chunks: chunks,
+            cacheDate: statement.stringColumn(5)
+        )
+    }
+
     private func cueGroupSelection(from statement: SQLiteStatement) -> CueGroupSelection {
         CueGroupSelection(
             cueGroupID: statement.int64Column(0),
@@ -3796,6 +3932,41 @@ public final class SubtitleDatabase: @unchecked Sendable {
             isValid: statement.intColumn(8) != 0,
             createdAt: statement.stringColumn(9)
         )
+    }
+
+    private static func validateAIChunkCacheKey(_ key: AIChunkCacheKey) throws {
+        guard !key.normalizedSentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AIChunkCacheError.emptyNormalizedSentence
+        }
+        guard !key.provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AIChunkCacheError.emptyProvider
+        }
+        guard !key.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AIChunkCacheError.emptyModel
+        }
+        guard !key.promptVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AIChunkCacheError.emptyPromptVersion
+        }
+    }
+
+    private static func validateAIChunkCacheChunks(_ chunks: [String]) throws {
+        guard !chunks.isEmpty,
+              chunks.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+        else {
+            throw AIChunkCacheError.emptyChunks
+        }
+    }
+
+    private static func encodeAIChunks(_ chunks: [String]) throws -> String {
+        String(decoding: try JSONEncoder().encode(chunks), as: UTF8.self)
+    }
+
+    private static func decodeAIChunks(_ chunksJSON: String) throws -> [String] {
+        guard let data = chunksJSON.data(using: .utf8) else {
+            throw SQLiteDatabaseError.stepFailed("AI chunk cache entry contains invalid UTF-8 JSON")
+        }
+
+        return try JSONDecoder().decode([String].self, from: data)
     }
 
     private func bindStaleEntryParameters(
