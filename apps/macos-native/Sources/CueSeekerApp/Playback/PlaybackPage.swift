@@ -90,7 +90,10 @@ struct PlaybackPageView: View {
     private func quickSearchOverlay(in size: CGSize) -> some View {
         let visible = playback.isQuickSearchOverlayVisible
         let overlayWidth = min(860, max(280, size.width - 64))
-        let overlayY = min(max(96, size.height * 0.18), 150)
+        let overlayTop = min(max(58, size.height * 0.18 - 37), 113)
+        let submittedQuery = playback.quickSearchSubmittedQuery
+        let trimmedSearchQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let overlayResults = submittedQuery == trimmedSearchQuery ? search.searchResults : []
 
         if visible {
             PlaybackQuickSearchOverlay(
@@ -98,7 +101,13 @@ struct PlaybackPageView: View {
                 isFocused: $playback.isQuickSearchFocused,
                 forcedTextUpdateID: playback.quickSearchForcedTextUpdateID,
                 focusRequestID: playback.quickSearchFocusRequestID,
-                onSubmit: {},
+                submittedQuery: submittedQuery,
+                results: overlayResults,
+                selectedResultIndex: playback.quickSearchSelectedResultIndex,
+                isSearching: search.isSearching,
+                onSubmit: {
+                    appState.submitPlaybackQuickSearchFromUser()
+                },
                 onClear: {
                     playback.setQuickSearchDraft("")
                 },
@@ -110,10 +119,16 @@ struct PlaybackPageView: View {
                 },
                 onMoveDown: {
                     appState.movePlaybackQuickSearchSubtitleLineSelection(by: 1)
+                },
+                onOpenResult: { result in
+                    appState.openPlaybackQuickSearchResult(result)
+                },
+                onResultAppear: { result in
+                    appState.markSearchResultVisible(result)
                 }
             )
             .frame(width: overlayWidth)
-            .position(x: size.width / 2, y: overlayY)
+            .padding(.top, overlayTop)
             .transition(.opacity.combined(with: .scale(scale: 0.98)).combined(with: .offset(y: 8)))
             .animation(.easeInOut(duration: 0.16), value: visible)
         }

@@ -36,6 +36,9 @@ final class PlaybackStore: ObservableObject {
             }
 
             quickSearchCanNavigateSubtitleLines = false
+            if quickSearchSubmittedQuery != quickSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines) {
+                resetQuickSearchResultSelection()
+            }
         }
     }
     @Published var isQuickSearchFocused = false
@@ -44,6 +47,8 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var quickSearchCanNavigateSubtitleLines = false
     @Published private(set) var quickSearchSubtitleLineCandidates: [PlaybackQuickSearchLineCandidate] = []
     @Published private(set) var quickSearchSelectedSubtitleLineIndex: Int?
+    @Published private(set) var quickSearchSubmittedQuery: String?
+    @Published private(set) var quickSearchSelectedResultIndex: Int?
     var quickSearchPlaybackWasPlayingOnOpen = false
     private var isApplyingQuickSearchDraftUpdate = false
 
@@ -53,6 +58,7 @@ final class PlaybackStore: ObservableObject {
     }
 
     func setQuickSearchDraft(_ draft: String) {
+        resetQuickSearchResultSelection()
         applyQuickSearchDraft(
             draft,
             canNavigateSubtitleLines: false,
@@ -118,6 +124,36 @@ final class PlaybackStore: ObservableObject {
         quickSearchSubtitleLineCandidates = []
         quickSearchSelectedSubtitleLineIndex = nil
         quickSearchCanNavigateSubtitleLines = false
+    }
+
+    func markQuickSearchSubmitted(query: String) {
+        quickSearchSubmittedQuery = query
+        quickSearchSelectedResultIndex = nil
+        quickSearchCanNavigateSubtitleLines = false
+    }
+
+    func selectDefaultQuickSearchResultIfNeeded(resultCount: Int) {
+        guard quickSearchSubmittedQuery != nil, resultCount > 0 else {
+            quickSearchSelectedResultIndex = nil
+            return
+        }
+
+        quickSearchSelectedResultIndex = 0
+    }
+
+    func selectedQuickSearchResult(in results: [SubtitleSearchResult]) -> SubtitleSearchResult? {
+        guard let quickSearchSelectedResultIndex,
+              results.indices.contains(quickSearchSelectedResultIndex)
+        else {
+            return nil
+        }
+
+        return results[quickSearchSelectedResultIndex]
+    }
+
+    func resetQuickSearchResultSelection() {
+        quickSearchSubmittedQuery = nil
+        quickSearchSelectedResultIndex = nil
     }
 
     private func applyQuickSearchDraft(

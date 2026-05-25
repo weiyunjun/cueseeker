@@ -371,10 +371,42 @@ extension AppCoordinator {
         }
 
         playback.quickSearchPlaybackWasPlayingOnOpen = playbackViewModel.isPlaying
+        playback.resetQuickSearchResultSelection()
         configurePlaybackQuickSearchSubtitleLineSelection()
         playback.isQuickSearchOverlayVisible = true
         playback.requestQuickSearchFocus()
         pausePlayback()
+        return true
+    }
+
+    @discardableResult
+    func submitPlaybackQuickSearchFromUser() -> Bool {
+        guard playback.isQuickSearchOverlayVisible else {
+            return false
+        }
+
+        let trimmedQuery = playback.quickSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            return true
+        }
+
+        if playback.quickSearchSubmittedQuery == trimmedQuery,
+           let selectedResult = playback.selectedQuickSearchResult(in: search.searchResults) {
+            openPlaybackQuickSearchResult(selectedResult)
+            return true
+        }
+
+        UIInvalidationProbe.mark(
+            "ACTION UI.PlaybackQuickSearch.submitted",
+            details: "length=\(trimmedQuery.count)"
+        )
+        workbenchLayout.selectPanelMode(.search)
+        search.searchQuery = trimmedQuery
+        search.searchNavigationSnapshot = nil
+        search.searchNavigationResultGroups = []
+        playback.markQuickSearchSubmitted(query: trimmedQuery)
+        startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
+        playback.requestQuickSearchFocus()
         return true
     }
 
@@ -387,6 +419,15 @@ extension AppCoordinator {
         return didMove
     }
 
+    func openPlaybackQuickSearchResult(_ result: SubtitleSearchResult) {
+        playback.quickSearchPlaybackWasPlayingOnOpen = false
+        playback.isQuickSearchFocused = false
+        playback.isQuickSearchOverlayVisible = false
+        playback.resetQuickSearchSubtitleLineNavigation()
+        playback.resetQuickSearchResultSelection()
+        openSearchResult(result)
+    }
+
     @discardableResult
     func dismissPlaybackQuickSearchFromUser() -> Bool {
         guard playback.isQuickSearchOverlayVisible else {
@@ -397,6 +438,8 @@ extension AppCoordinator {
         playback.quickSearchPlaybackWasPlayingOnOpen = false
         playback.isQuickSearchFocused = false
         playback.isQuickSearchOverlayVisible = false
+        playback.resetQuickSearchSubtitleLineNavigation()
+        playback.resetQuickSearchResultSelection()
 
         if shouldResume {
             resumePlayback()
@@ -577,6 +620,7 @@ extension AppCoordinator {
             playback.isQuickSearchFocused = false
             playback.quickSearchPlaybackWasPlayingOnOpen = false
             playback.resetQuickSearchSubtitleLineNavigation()
+            playback.resetQuickSearchResultSelection()
             if let originatingMode = playbackOriginatingPanelMode {
                 workbenchLayout.selectPanelMode(originatingMode)
                 playbackOriginatingPanelMode = nil

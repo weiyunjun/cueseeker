@@ -327,10 +327,14 @@ Stage 3: query submission and result display.
 - Return submits the current input through the existing `SearchStore` flow.
 - Results appear under the overlay input.
 - The first loaded result is selected by default.
+- If a result is already selected for the submitted query, pressing Return opens
+  that selected result through the existing playback path. This enables the
+  common "Return, Return" flow for the default result.
 
 Stage 4: result navigation and playback.
 
-- Up and Down move through visible overlay results.
+- Up and Down move through visible overlay results beyond the default selected
+  row.
 - Lazy loading follows the existing Search page behavior.
 - Return opens the selected result through `openSearchResult(result)`.
 - Opening a result closes the overlay and does not restore the old playback

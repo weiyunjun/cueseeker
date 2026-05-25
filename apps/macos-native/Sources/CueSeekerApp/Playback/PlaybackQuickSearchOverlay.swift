@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerCore
 import SwiftUI
 
 struct PlaybackQuickSearchOverlay: View {
@@ -6,13 +7,29 @@ struct PlaybackQuickSearchOverlay: View {
     @Binding var isFocused: Bool
     let forcedTextUpdateID: Int
     let focusRequestID: Int
+    let submittedQuery: String?
+    let results: [SubtitleSearchResult]
+    let selectedResultIndex: Int?
+    let isSearching: Bool
     let onSubmit: () -> Void
     let onClear: () -> Void
     let onRequestFocus: () -> Void
     let onMoveUp: () -> Bool
     let onMoveDown: () -> Bool
+    let onOpenResult: (SubtitleSearchResult) -> Void
+    let onResultAppear: (SubtitleSearchResult) -> Void
 
     var body: some View {
+        VStack(spacing: 8) {
+            searchField
+
+            if submittedQuery != nil {
+                resultList
+            }
+        }
+    }
+
+    private var searchField: some View {
         HStack(spacing: 16) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 28, weight: .regular))
@@ -56,6 +73,55 @@ struct PlaybackQuickSearchOverlay: View {
             DispatchQueue.main.async {
                 onRequestFocus()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var resultList: some View {
+        VStack(spacing: 0) {
+            if results.isEmpty {
+                overlayStatus
+            } else {
+                ScrollView(.vertical, showsIndicators: true) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(results.prefix(8).enumerated()), id: \.element.entryID) { index, result in
+                            PlaybackSidebarResultRow(
+                                rank: index + 1,
+                                result: result,
+                                query: submittedQuery ?? "",
+                                isSelected: index == selectedResultIndex,
+                                onOpen: {
+                                    onOpenResult(result)
+                                }
+                            )
+                            .onAppear {
+                                onResultAppear(result)
+                            }
+                        }
+                    }
+                    .padding(EdgeInsets(top: 6, leading: 8, bottom: 8, trailing: 8))
+                }
+                .frame(maxHeight: 380)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(quickSearchBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var overlayStatus: some View {
+        if isSearching {
+            ProgressView()
+                .controlSize(.small)
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity)
+        } else {
+            Text("No results")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(PlaybackTheme.textSecondary)
+                .padding(.vertical, 22)
+                .frame(maxWidth: .infinity)
         }
     }
 
