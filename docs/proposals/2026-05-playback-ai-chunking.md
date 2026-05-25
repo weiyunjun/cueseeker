@@ -118,12 +118,11 @@ The first version implements only sentence chunking.
 The AI should return JSON shaped like:
 
 ```json
-{"lang":"ja|en|unknown","items":["item1","item2"]}
+{"items":["item1","item2"]}
 ```
 
 Validation rules:
 
-- `lang` must be `ja`, `en`, or `unknown`.
 - `items` must not be empty.
 - Each item must be a non-empty continuous substring of the normalized sentence
   sent to AI.
@@ -214,7 +213,6 @@ Future cache key candidates:
 - Provider.
 - Model.
 - Prompt version.
-- Language if validation keeps it.
 
 Future cache values:
 
