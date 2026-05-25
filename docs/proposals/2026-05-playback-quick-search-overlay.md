@@ -1,0 +1,258 @@
+# Proposal: Playback Quick Search Overlay
+
+Status: Proposal
+
+## Background
+
+CueSeeker already supports subtitle search, lazy-loaded search results, search
+result playback, result-to-result playback navigation, and copying the current
+subtitle from the playback page.
+
+The next interaction step should not start with AI features. The first step is a
+fast playback-page search overlay that turns the current subtitle line into a
+search query with minimal friction. This keeps the product direction grounded in
+local subtitle search before adding optional AI-assisted query expansion later.
+
+## Goals
+
+- Add a centered, slightly upper-positioned quick search overlay on the playback
+  page.
+- Open the overlay with the Return key when video playback is visible and no
+  editable text input already owns focus.
+- Pause playback while the overlay is active.
+- Restore the pre-overlay playback state when the overlay is dismissed.
+- Seed the overlay input from the current subtitle text, using the same source
+  of truth as the current-subtitle copy action.
+- Let the user move through subtitle lines with Up and Down before searching.
+- Submit the query with Return and show results directly below the input.
+- Reuse existing search result data, paging, lazy loading, and playback
+  behavior.
+- Keep Escape focused on dismissing the quick search overlay before fullscreen
+  Escape handling.
+
+## Non-goals
+
+- Add AI segmentation, synonym generation, antonym generation, or RAG behavior.
+- Change search ranking, query semantics, or the SQLite search schema.
+- Add a second independent search engine or search result playlist model.
+- Redesign the main Search page.
+- Replace the current playback keyboard shortcuts except for adding Return and
+  overlay-specific key handling.
+- Change playback engine behavior.
+
+## User Flow
+
+The proposed user flow is:
+
+```text
+User is watching a video
+User presses Return
+Playback pauses
+Quick Search overlay appears near the upper center of the playback page
+Input is seeded with the current subtitle's last display line
+User optionally presses Up or Down to choose a nearby subtitle line
+User presses Return
+Search results appear directly below the input
+User presses Down to move into the result list
+User presses Up or Down to select a result
+User presses Return
+Overlay closes
+Selected result opens through the existing Search result playback flow
+The underlying Search page state updates to the submitted query and default
+result presentation
+```
+
+Dismissal flow:
+
+```text
+User presses Escape while the overlay is visible
+Overlay closes
+Playback returns to the state it had before the overlay opened
+The Escape event is consumed by the overlay and must not exit fullscreen
+```
+
+## UI/UX Impact
+
+The overlay should visually reference macOS Spotlight:
+
+- Wide rounded search surface.
+- Search icon at the leading edge.
+- Large, comfortable text field.
+- Light translucent glass-like backing.
+- Slightly upper-centered placement rather than exact screen center.
+
+The implementation should not introduce a one-off color system. The overlay
+visual class should reuse existing CueSeeker visual tokens where practical:
+
+- `LiquidGlassTokens` for light/dark text, field, hairline, hover, and card
+  surfaces.
+- `PlaybackTheme` where the overlay appears over the cinematic playback surface.
+
+The overlay should be a distinct reusable style/component, not inline ad hoc
+styling inside the playback page.
+
+Result presentation should reference the compact Bilibili-style search overlay:
+
+- Results appear in a vertical list directly under the search field.
+- The matched query text may be highlighted.
+- Rows should show enough subtitle text to identify the result.
+- Rows should preserve timestamp and source context where space allows.
+- The selected row should have a clear keyboard selection state.
+- The list should remain compact and keyboard-first, not a card grid.
+
+## Subtitle Line Selection
+
+The initial query should come from the same data source as the current subtitle
+copy action:
+
+```text
+SubtitleDatabase.cueTextSelection(forSubtitleFile:atMilliseconds:)
+```
+
+The default displayed query is the last non-empty display line from the current
+subtitle selection.
+
+Line navigation is line-based, not cue-card-based:
+
+- Up moves to the previous subtitle display line.
+- Down moves to the next subtitle display line until the user enters result
+  navigation.
+- Same-timestamp merged subtitle content should be treated as one subtitle
+  moment for display selection.
+- If a same-timestamp subtitle moment contains multiple subtitle entries, each
+  entry contributes only its last non-empty display line to the quick-search
+  line candidates.
+
+Example:
+
+```text
+Two same-timestamp subtitle entries
+Each entry has two lines
+Quick Search line candidates use only the last line from each entry
+```
+
+This keeps quick search aligned with the user's visible final subtitle line
+rather than forcing the user to search every bilingual or multi-line component.
+
+## Search Behavior
+
+Submitting the overlay query should update the existing Search state instead of
+using a separate search store:
+
+- Set the main search query to the submitted overlay query.
+- Start the existing non-debounced search flow.
+- Preserve existing result grouping, lazy loading, and paging behavior.
+- Show a compact overlay projection of those results under the search field.
+- Keep the underlying Search page in its default result presentation after a
+  result is opened.
+
+The overlay result list should call the existing lazy-load hooks when the user
+navigates near the loaded result boundary, matching the main Search page's
+behavior.
+
+## Playback Behavior
+
+Opening the overlay records whether playback was playing immediately before the
+overlay opened.
+
+Rules:
+
+- Opening the overlay pauses playback.
+- Pressing Escape closes the overlay.
+- Escape restores playback only if playback was playing before the overlay
+  opened.
+- Escape keeps playback paused if playback was already paused before the
+  overlay opened.
+- Opening a selected result closes the overlay and then uses existing search
+  result playback.
+- Opening a selected result should not restore the old playback state; the new
+  selected result owns playback state.
+
+Opening a result should use the existing search result path, equivalent to:
+
+```text
+openSearchResult(result)
+```
+
+This ensures the current Search result playlist and previous/next result
+navigation remain consistent with the main Search page.
+
+## Keyboard Priority
+
+Keyboard handling priority while the overlay is visible:
+
+1. Escape dismisses the quick search overlay and consumes the event.
+2. Return submits the input or opens the selected result.
+3. Up and Down navigate subtitle lines or search results depending on focus
+   state.
+4. Other playback shortcuts are disabled while the overlay owns focus.
+
+Escape must be handled before fullscreen Escape behavior. In fullscreen, pressing
+Escape with the overlay visible closes the overlay and must not exit fullscreen.
+
+## Data Model Impact
+
+No database schema change is required.
+
+Transient UI state is expected:
+
+- Overlay visibility.
+- Overlay input text.
+- Whether playback was playing before the overlay opened.
+- Current subtitle line candidate index.
+- Current overlay result selection index.
+- Whether the overlay is in subtitle-line navigation or result-list navigation.
+
+The existing Search state remains authoritative for submitted query and results.
+
+## Technical Risk
+
+Risks:
+
+- Keyboard handling can conflict with fullscreen Escape and existing playback
+  shortcuts if overlay priority is not explicit.
+- Reusing the main `SearchStore` from an overlay requires care so the Search
+  page and overlay do not fight over focus, presentation, or lazy loading.
+- Subtitle line selection must avoid assuming a universal bilingual or
+  "Chinese-line" concept. It should use the database's normalized subtitle lines
+  and the quick-search line rules above.
+- Spotlight-like visual treatment can become hard to maintain if it introduces
+  one-off colors instead of shared tokens.
+- The overlay must avoid restoring old playback state after the user opens a new
+  result.
+
+## Acceptance Criteria
+
+- Pressing Return on the playback page opens the quick search overlay when no
+  editable text input is focused.
+- Opening the overlay pauses playback.
+- The overlay input defaults to the current subtitle selection's last non-empty
+  display line.
+- Up and Down can move between nearby subtitle display lines before a search is
+  submitted.
+- Same-timestamp merged subtitle content follows the quick-search line selection
+  rules in this proposal.
+- Pressing Return with a query submits a Search using the existing Search flow.
+- Search results appear directly below the search field.
+- Result list keyboard navigation supports selecting a result with Up and Down.
+- Pressing Return on a selected result opens it through the existing Search
+  result playback flow.
+- Opening a result closes the overlay.
+- Opening a result updates the underlying Search page to the submitted query and
+  default result presentation.
+- Pressing Escape while the overlay is visible closes the overlay.
+- Escape restores playback only when playback was playing before the overlay
+  opened.
+- Escape is consumed by the overlay and does not exit fullscreen while the
+  overlay is visible.
+- The overlay style is implemented through a reusable class/component that
+  reuses existing visual tokens where practical.
+
+## Decision
+
+Pending.
+
+The current direction is to build the playback quick search overlay before any
+AI-assisted search feature. The overlay should be treated as the first product
+step toward lower-friction subtitle lookup, with optional AI query expansion
+remaining outside this proposal.
