@@ -13,11 +13,12 @@ enum PlaybackQuickSearchAIState: Equatable {
     case hint
     case loading
     case failed(String)
-    case chunks([String], selectedIndex: Int)
+    case chunks([String], selectedIndex: Int?)
+    case refreshHint([String])
 
     var ghostSuffix: String {
         switch self {
-        case .hint:
+        case .hint, .refreshHint:
             return " /chunks"
         case .hidden, .loading, .failed, .chunks:
             return ""
@@ -244,10 +245,15 @@ final class PlaybackStore: ObservableObject {
 
     @discardableResult
     func moveQuickSearchAIChunkSelection(by offset: Int) -> Bool {
-        guard case .chunks(let chunks, let selectedIndex) = quickSearchAIState,
+        guard case .chunks(let chunks, let selectedIndex?) = quickSearchAIState,
               !chunks.isEmpty
         else {
             return false
+        }
+
+        if offset < 0, selectedIndex == chunks.startIndex {
+            quickSearchAIState = .chunks(chunks, selectedIndex: nil)
+            return true
         }
 
         let nextIndex = min(
@@ -258,8 +264,49 @@ final class PlaybackStore: ObservableObject {
         return true
     }
 
+    @discardableResult
+    func showQuickSearchAIRefreshHintFromSearchField() -> Bool {
+        guard case .chunks(let chunks, nil) = quickSearchAIState,
+              !chunks.isEmpty
+        else {
+            return false
+        }
+
+        quickSearchAIState = .refreshHint(chunks)
+        return true
+    }
+
+    @discardableResult
+    func restoreQuickSearchAIChunkSelectionFromRefreshHint() -> Bool {
+        guard case .refreshHint(let chunks) = quickSearchAIState,
+              !chunks.isEmpty
+        else {
+            return false
+        }
+
+        quickSearchAIState = .chunks(chunks, selectedIndex: 0)
+        return true
+    }
+
+    var isQuickSearchAIRefreshHintActive: Bool {
+        if case .refreshHint = quickSearchAIState {
+            return true
+        }
+
+        return false
+    }
+
+    var canStartQuickSearchAIChunkingRequest: Bool {
+        switch quickSearchAIState {
+        case .hint, .refreshHint:
+            return true
+        case .hidden, .loading, .failed, .chunks:
+            return false
+        }
+    }
+
     func selectedQuickSearchAIChunk() -> String? {
-        guard case .chunks(let chunks, let selectedIndex) = quickSearchAIState,
+        guard case .chunks(let chunks, let selectedIndex?) = quickSearchAIState,
               chunks.indices.contains(selectedIndex)
         else {
             return nil

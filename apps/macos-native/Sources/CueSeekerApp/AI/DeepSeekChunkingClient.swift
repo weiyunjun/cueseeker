@@ -3,6 +3,21 @@ import Foundation
 struct AIChunkingResult: Equatable, Sendable {
     let normalizedSentence: String
     let items: [String]
+    let usage: AIChunkingUsage?
+}
+
+struct AIChunkingUsage: Equatable, Sendable {
+    static let inputPriceCNYPerMillionTokens = 1.0
+    static let outputPriceCNYPerMillionTokens = 2.0
+
+    let promptTokens: Int
+    let completionTokens: Int
+    let totalTokens: Int
+
+    var estimatedCostCNY: Double {
+        Double(promptTokens) / 1_000_000 * Self.inputPriceCNYPerMillionTokens
+            + Double(completionTokens) / 1_000_000 * Self.outputPriceCNYPerMillionTokens
+    }
 }
 
 struct DeepSeekChunkingClient: Sendable {
@@ -67,7 +82,11 @@ struct DeepSeekChunkingClient: Sendable {
             decodedContent.items,
             normalizedSentence: normalizedSentence
         )
-        return AIChunkingResult(normalizedSentence: normalizedSentence, items: items)
+        return AIChunkingResult(
+            normalizedSentence: normalizedSentence,
+            items: items,
+            usage: completion.usage?.aiChunkingUsage
+        )
     }
 
     private static func prompt(for sentence: String) -> String {
@@ -170,6 +189,7 @@ private struct DeepSeekThinking: Encodable {
 
 private struct DeepSeekChatCompletionResponse: Decodable {
     let choices: [DeepSeekChatChoice]
+    let usage: DeepSeekUsage?
 }
 
 private struct DeepSeekChatChoice: Decodable {
@@ -178,4 +198,26 @@ private struct DeepSeekChatChoice: Decodable {
 
 private struct AIChunkingContent: Decodable {
     let items: [String]
+}
+
+private struct DeepSeekUsage: Decodable {
+    let promptTokens: Int?
+    let completionTokens: Int?
+    let totalTokens: Int?
+
+    var aiChunkingUsage: AIChunkingUsage {
+        let resolvedPromptTokens = promptTokens ?? 0
+        let resolvedCompletionTokens = completionTokens ?? 0
+        return AIChunkingUsage(
+            promptTokens: resolvedPromptTokens,
+            completionTokens: resolvedCompletionTokens,
+            totalTokens: totalTokens ?? resolvedPromptTokens + resolvedCompletionTokens
+        )
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case promptTokens = "prompt_tokens"
+        case completionTokens = "completion_tokens"
+        case totalTokens = "total_tokens"
+    }
 }

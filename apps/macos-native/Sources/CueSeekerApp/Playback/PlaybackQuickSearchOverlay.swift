@@ -118,24 +118,30 @@ struct PlaybackQuickSearchOverlay: View {
                 .padding(EdgeInsets(top: 13, leading: 18, bottom: 13, trailing: 18))
             }
         case .chunks(let chunks, let selectedIndex):
-            aiPanelContainer {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
-                            Text(chunk)
-                                .font(.system(size: 13.5, weight: index == selectedIndex ? .semibold : .medium))
-                                .foregroundStyle(index == selectedIndex ? Color.white : Color.white.opacity(0.88))
-                                .lineLimit(1)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(index == selectedIndex ? PlaybackTheme.menuItemHighlight : Color.clear)
-                                )
-                        }
+            aiChunksPanel(chunks: chunks, selectedIndex: selectedIndex)
+        case .refreshHint(let chunks):
+            aiChunksPanel(chunks: chunks, selectedIndex: nil)
+        }
+    }
+
+    private func aiChunksPanel(chunks: [String], selectedIndex: Int?) -> some View {
+        aiPanelContainer {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
+                        Text(chunk)
+                            .font(.system(size: 13.5, weight: index == selectedIndex ? .semibold : .medium))
+                            .foregroundStyle(index == selectedIndex ? Color.white : Color.white.opacity(0.88))
+                            .lineLimit(1)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(index == selectedIndex ? PlaybackTheme.menuItemHighlight : Color.clear)
+                            )
                     }
-                    .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
                 }
+                .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
             }
         }
     }

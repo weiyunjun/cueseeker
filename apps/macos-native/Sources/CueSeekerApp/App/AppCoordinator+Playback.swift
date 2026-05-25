@@ -3,6 +3,11 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
+private enum PlaybackQuickSearchAIChunkingRequestReason: String {
+    case cacheMiss = "cache_miss"
+    case manualRefresh = "manual_refresh"
+}
+
 @MainActor
 extension AppCoordinator {
     func togglePlaybackFullscreenFromUser() {
@@ -390,6 +395,11 @@ extension AppCoordinator {
         }
 
         if playback.quickSearchSubmittedQuery == nil,
+           playback.isQuickSearchAIRefreshHintActive {
+            return startPlaybackQuickSearchAIChunking(reason: .manualRefresh)
+        }
+
+        if playback.quickSearchSubmittedQuery == nil,
            let selectedChunk = playback.selectedQuickSearchAIChunk() {
             playback.applyQuickSearchAIChunkQuery(selectedChunk)
         }
@@ -461,18 +471,30 @@ extension AppCoordinator {
     func acceptPlaybackQuickSearchAIHintOrMoveChunkRight(isAtEnd: Bool) -> Bool {
         switch playback.quickSearchAIState {
         case .chunks:
+            if isAtEnd, playback.showQuickSearchAIRefreshHintFromSearchField() {
+                playback.requestQuickSearchFocus()
+                return true
+            }
             return movePlaybackQuickSearchAIChunkSelection(by: 1)
+        case .refreshHint:
+            let didRestore = playback.restoreQuickSearchAIChunkSelectionFromRefreshHint()
+            if didRestore {
+                playback.requestQuickSearchFocus()
+            }
+            return didRestore
         case .hint where isAtEnd:
-            return startPlaybackQuickSearchAIChunkingFromHint()
+            return startPlaybackQuickSearchAIChunking(reason: .cacheMiss)
         case .hidden, .hint, .loading, .failed:
             return false
         }
     }
 
     @discardableResult
-    func startPlaybackQuickSearchAIChunkingFromHint() -> Bool {
+    private func startPlaybackQuickSearchAIChunking(
+        reason: PlaybackQuickSearchAIChunkingRequestReason
+    ) -> Bool {
         guard playback.isQuickSearchOverlayVisible,
-              case .hint = playback.quickSearchAIState
+              playback.canStartQuickSearchAIChunkingRequest
         else {
             return false
         }
@@ -506,25 +528,69 @@ extension AppCoordinator {
         cancelPlaybackQuickSearchAIChunking()
         let requestID = playback.markQuickSearchAIChunkingStarted()
         let client = DeepSeekChunkingClient()
+        let model = client.model
+        let provider = AIProvider.deepSeek.rawValue
+        let promptVersion = DeepSeekChunkingClient.promptVersion
+        if reason == .manualRefresh {
+            logPlaybackQuickSearchAIChunkManualRefreshBypass(
+                provider: provider,
+                model: model,
+                promptVersion: promptVersion,
+                sentence: sentence
+            )
+        }
         quickSearchAIChunkingTask = Task { [weak self] in
             do {
                 let result = try await client.chunks(for: sentence, apiKey: apiKey)
                 await MainActor.run {
-                    self?.playback.markQuickSearchAIChunkingSucceeded(
+                    guard let self else {
+                        return
+                    }
+
+                    let cacheWritten = self.writePlaybackQuickSearchAIChunkCache(
+                        normalizedSentence: result.normalizedSentence,
+                        provider: provider,
+                        model: model,
+                        promptVersion: promptVersion,
+                        chunks: result.items
+                    )
+                    self.logPlaybackQuickSearchAIChunkRequestFinished(
+                        reason: reason,
+                        provider: provider,
+                        model: model,
+                        promptVersion: promptVersion,
+                        normalizedSentence: result.normalizedSentence,
+                        usage: result.usage,
+                        itemCount: result.items.count,
+                        cacheWritten: cacheWritten
+                    )
+                    self.playback.markQuickSearchAIChunkingSucceeded(
                         result.items,
                         requestID: requestID
                     )
-                    self?.playback.requestQuickSearchFocus()
+                    self.playback.requestQuickSearchFocus()
                 }
             } catch is CancellationError {
                 return
             } catch {
                 await MainActor.run {
-                    self?.playback.markQuickSearchAIChunkingFailed(
+                    guard let self else {
+                        return
+                    }
+
+                    self.logPlaybackQuickSearchAIChunkRequestFailed(
+                        reason: reason,
+                        provider: provider,
+                        model: model,
+                        promptVersion: promptVersion,
+                        sentence: sentence,
+                        error: error
+                    )
+                    self.playback.markQuickSearchAIChunkingFailed(
                         Self.errorMessage(for: error),
                         requestID: requestID
                     )
-                    self?.playback.requestQuickSearchFocus()
+                    self.playback.requestQuickSearchFocus()
                 }
             }
         }
@@ -753,6 +819,97 @@ extension AppCoordinator {
             "[AIChunking] cache miss, request requires /chunks provider=\(key.provider) model=\(key.model) " +
                 "prompt_version=\(key.promptVersion) text_hash=\(Self.shortLogHash(for: key.normalizedSentence))"
         )
+    }
+
+    private func writePlaybackQuickSearchAIChunkCache(
+        normalizedSentence: String,
+        provider: String,
+        model: String,
+        promptVersion: String,
+        chunks: [String]
+    ) -> Bool {
+        guard let database = subtitleDatabase else {
+            return false
+        }
+
+        let key = AIChunkCacheKey(
+            normalizedSentence: normalizedSentence,
+            provider: provider,
+            model: model,
+            promptVersion: promptVersion
+        )
+
+        do {
+            try database.upsertAIChunkCacheEntry(key: key, chunks: chunks)
+            return true
+        } catch {
+            print(
+                "[AIChunking] cache write failed provider=\(provider) model=\(model) " +
+                    "prompt_version=\(promptVersion) text_hash=\(Self.shortLogHash(for: normalizedSentence)) " +
+                    "error=\(Self.errorMessage(for: error))"
+            )
+            return false
+        }
+    }
+
+    private func logPlaybackQuickSearchAIChunkManualRefreshBypass(
+        provider: String,
+        model: String,
+        promptVersion: String,
+        sentence: String
+    ) {
+        let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(sentence)
+        print(
+            "[AIChunking] manual refresh, bypass cache provider=\(provider) model=\(model) " +
+                "prompt_version=\(promptVersion) text_hash=\(Self.shortLogHash(for: normalizedSentence))"
+        )
+    }
+
+    private func logPlaybackQuickSearchAIChunkRequestFinished(
+        reason: PlaybackQuickSearchAIChunkingRequestReason,
+        provider: String,
+        model: String,
+        promptVersion: String,
+        normalizedSentence: String,
+        usage: AIChunkingUsage?,
+        itemCount: Int,
+        cacheWritten: Bool
+    ) {
+        let promptTokens = usage?.promptTokens ?? 0
+        let completionTokens = usage?.completionTokens ?? 0
+        let totalTokens = usage?.totalTokens ?? promptTokens + completionTokens
+        let estimatedCostCNY = usage?.estimatedCostCNY ?? 0
+        print(
+            "[AIChunking] request finished reason=\(reason.rawValue) provider=\(provider) model=\(model) " +
+                "prompt_version=\(promptVersion) text_hash=\(Self.shortLogHash(for: normalizedSentence)) " +
+                "prompt_tokens=\(promptTokens) completion_tokens=\(completionTokens) total_tokens=\(totalTokens) " +
+                "estimated_cost_cny=\(String(format: "%.8f", estimatedCostCNY)) " +
+                "items=\(itemCount) cache_written=\(cacheWritten)"
+        )
+    }
+
+    private func logPlaybackQuickSearchAIChunkRequestFailed(
+        reason: PlaybackQuickSearchAIChunkingRequestReason,
+        provider: String,
+        model: String,
+        promptVersion: String,
+        sentence: String,
+        error: Error
+    ) {
+        let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(sentence)
+        print(
+            "[AIChunking] request failed reason=\(reason.rawValue) provider=\(provider) model=\(model) " +
+                "prompt_version=\(promptVersion) text_hash=\(Self.shortLogHash(for: normalizedSentence)) " +
+                "error=\(Self.aiChunkingLogErrorDescription(for: error))"
+        )
+    }
+
+    private static func aiChunkingLogErrorDescription(for error: Error) -> String {
+        if case AIChunkingClientError.requestFailed(let statusCode) = error {
+            return "http_status_\(statusCode)"
+        }
+
+        return String(describing: type(of: error))
     }
 
     private static func shortLogHash(for text: String) -> String {
