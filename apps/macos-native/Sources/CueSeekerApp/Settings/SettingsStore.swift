@@ -9,6 +9,7 @@ final class SettingsStore: ObservableObject {
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
+    private static let aiChunkingEnabledKey = "aiChunkingEnabled"
 
     @Published var appAppearanceMode: AppAppearanceMode {
         didSet {
@@ -38,15 +39,29 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    private let userDefaults: UserDefaults
+    @Published var aiChunkingEnabled: Bool {
+        didSet {
+            userDefaults.set(aiChunkingEnabled, forKey: Self.aiChunkingEnabledKey)
+        }
+    }
 
-    init(userDefaults: UserDefaults) {
+    @Published private(set) var deepSeekAPIKeyConfigured: Bool
+
+    private let userDefaults: UserDefaults
+    private let credentialStore: KeychainCredentialStore
+
+    init(
+        userDefaults: UserDefaults,
+        credentialStore: KeychainCredentialStore = KeychainCredentialStore()
+    ) {
         self.userDefaults = userDefaults
+        self.credentialStore = credentialStore
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.searchE2ELoggingEnabledKey: true,
-            Self.searchFTSVocabularyDiagnosticsEnabledKey: true
+            Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
+            Self.aiChunkingEnabledKey: false
         ])
 
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
@@ -56,8 +71,42 @@ final class SettingsStore: ObservableObject {
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
         )
+        self.aiChunkingEnabled = userDefaults.bool(forKey: Self.aiChunkingEnabledKey)
+        self.deepSeekAPIKeyConfigured = Self.isAPIKeyConfigured(
+            for: .deepSeek,
+            credentialStore: credentialStore
+        )
 
         Self.applyAppAppearanceMode(loadedAppearance)
+    }
+
+    func saveDeepSeekAPIKey(_ apiKey: String) throws {
+        let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAPIKey.isEmpty else {
+            throw SettingsCredentialError.emptyAPIKey
+        }
+
+        try credentialStore.save(
+            trimmedAPIKey,
+            account: AIProvider.deepSeek.keychainAccount
+        )
+        deepSeekAPIKeyConfigured = true
+    }
+
+    func clearDeepSeekAPIKey() throws {
+        try credentialStore.delete(account: AIProvider.deepSeek.keychainAccount)
+        deepSeekAPIKeyConfigured = false
+    }
+
+    func deepSeekAPIKey() throws -> String? {
+        try credentialStore.read(account: AIProvider.deepSeek.keychainAccount)
+    }
+
+    func refreshDeepSeekAPIKeyStatus() {
+        deepSeekAPIKeyConfigured = Self.isAPIKeyConfigured(
+            for: .deepSeek,
+            credentialStore: credentialStore
+        )
     }
 
     private static func loadAppAppearanceMode(from userDefaults: UserDefaults) -> AppAppearanceMode {
@@ -80,5 +129,23 @@ final class SettingsStore: ObservableObject {
 
     private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {
         NSApp.appearance = mode.nsAppearance
+    }
+
+    private static func isAPIKeyConfigured(
+        for provider: AIProvider,
+        credentialStore: KeychainCredentialStore
+    ) -> Bool {
+        (try? credentialStore.contains(account: provider.keychainAccount)) ?? false
+    }
+}
+
+enum SettingsCredentialError: LocalizedError {
+    case emptyAPIKey
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyAPIKey:
+            return "Enter an API key before saving."
+        }
     }
 }
