@@ -336,6 +336,8 @@ Stage 4: result navigation and playback.
 - Up and Down move through visible overlay results beyond the default selected
   row.
 - Lazy loading follows the existing Search page behavior.
+- The overlay result list renders the loaded result set rather than an arbitrary
+  fixed preview count.
 - Return opens the selected result through `openSearchResult(result)`.
 - Opening a result closes the overlay and does not restore the old playback
   state.

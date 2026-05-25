@@ -82,26 +82,35 @@ struct PlaybackQuickSearchOverlay: View {
             if results.isEmpty {
                 overlayStatus
             } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(results.prefix(8).enumerated()), id: \.element.entryID) { index, result in
-                            PlaybackSidebarResultRow(
-                                rank: index + 1,
-                                result: result,
-                                query: submittedQuery ?? "",
-                                isSelected: index == selectedResultIndex,
-                                onOpen: {
-                                    onOpenResult(result)
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(results.enumerated()), id: \.element.entryID) { index, result in
+                                PlaybackSidebarResultRow(
+                                    rank: index + 1,
+                                    result: result,
+                                    query: submittedQuery ?? "",
+                                    isSelected: index == selectedResultIndex,
+                                    onOpen: {
+                                        onOpenResult(result)
+                                    }
+                                )
+                                .id(result.entryID)
+                                .onAppear {
+                                    onResultAppear(result)
                                 }
-                            )
-                            .onAppear {
-                                onResultAppear(result)
                             }
                         }
+                        .padding(EdgeInsets(top: 6, leading: 8, bottom: 8, trailing: 8))
                     }
-                    .padding(EdgeInsets(top: 6, leading: 8, bottom: 8, trailing: 8))
+                    .frame(maxHeight: 380)
+                    .onAppear {
+                        scrollSelectedResultIntoView(proxy)
+                    }
+                    .onChange(of: selectedResultIndex) { _ in
+                        scrollSelectedResultIntoView(proxy)
+                    }
                 }
-                .frame(maxHeight: 380)
             }
         }
         .frame(maxWidth: .infinity)
@@ -122,6 +131,19 @@ struct PlaybackQuickSearchOverlay: View {
                 .foregroundStyle(PlaybackTheme.textSecondary)
                 .padding(.vertical, 22)
                 .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func scrollSelectedResultIntoView(_ proxy: ScrollViewProxy) {
+        guard let selectedResultIndex,
+              results.indices.contains(selectedResultIndex)
+        else {
+            return
+        }
+
+        let selectedResult = results[selectedResultIndex]
+        withAnimation(.easeInOut(duration: 0.14)) {
+            proxy.scrollTo(selectedResult.entryID, anchor: .center)
         }
     }
 

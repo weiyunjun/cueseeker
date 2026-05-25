@@ -412,8 +412,26 @@ extension AppCoordinator {
 
     @discardableResult
     func movePlaybackQuickSearchSubtitleLineSelection(by offset: Int) -> Bool {
+        if playback.quickSearchSubmittedQuery != nil {
+            return movePlaybackQuickSearchResultSelection(by: offset)
+        }
+
         let didMove = playback.moveQuickSearchSubtitleLineSelection(by: offset)
         if didMove {
+            playback.requestQuickSearchFocus()
+        }
+        return didMove
+    }
+
+    @discardableResult
+    func movePlaybackQuickSearchResultSelection(by offset: Int) -> Bool {
+        let didMove = playback.moveQuickSearchResultSelection(
+            by: offset,
+            resultCount: search.searchResults.count
+        )
+        if didMove,
+           let selectedResult = playback.selectedQuickSearchResult(in: search.searchResults) {
+            loadMoreSearchResultsIfNeeded(currentResult: selectedResult)
             playback.requestQuickSearchFocus()
         }
         return didMove

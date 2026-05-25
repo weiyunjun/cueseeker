@@ -151,6 +151,25 @@ final class PlaybackStore: ObservableObject {
         return results[quickSearchSelectedResultIndex]
     }
 
+    @discardableResult
+    func moveQuickSearchResultSelection(by offset: Int, resultCount: Int) -> Bool {
+        guard quickSearchSubmittedQuery != nil else {
+            return false
+        }
+
+        guard resultCount > 0 else {
+            quickSearchSelectedResultIndex = nil
+            return true
+        }
+
+        let currentIndex = quickSearchSelectedResultIndex ?? 0
+        quickSearchSelectedResultIndex = min(
+            max(currentIndex + offset, 0),
+            resultCount - 1
+        )
+        return true
+    }
+
     func resetQuickSearchResultSelection() {
         quickSearchSubmittedQuery = nil
         quickSearchSelectedResultIndex = nil

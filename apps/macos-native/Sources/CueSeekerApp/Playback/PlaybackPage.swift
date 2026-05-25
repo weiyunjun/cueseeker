@@ -125,6 +125,7 @@ struct PlaybackPageView: View {
                 },
                 onResultAppear: { result in
                     appState.markSearchResultVisible(result)
+                    appState.loadMoreSearchResultsIfNeeded(currentResult: result)
                 }
             )
             .frame(width: overlayWidth)
