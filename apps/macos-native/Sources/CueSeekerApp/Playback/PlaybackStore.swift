@@ -302,6 +302,7 @@ final class PlaybackStore: ObservableObject {
     @discardableResult
     func markQuickSearchAIChunkingStarted() -> Int {
         quickSearchAIRequestID += 1
+        print("[Telemetry] markQuickSearchAIChunkingStarted assigned requestID=\(quickSearchAIRequestID)")
         quickSearchCanNavigateSubtitleLines = false
         quickSearchAIState = .loading
         quickSearchFocusTarget = .aiOption
@@ -310,7 +311,9 @@ final class PlaybackStore: ObservableObject {
     }
 
     func markQuickSearchAIChunkingFailed(_ message: String, requestID: Int) {
+        print("[Telemetry] markQuickSearchAIChunkingFailed requestID=\(requestID) current_quickSearchAIRequestID=\(quickSearchAIRequestID) message='\(message)'")
         guard requestID == quickSearchAIRequestID else {
+            print("[Telemetry] markQuickSearchAIChunkingFailed IGNORED due to requestID mismatch")
             return
         }
         quickSearchAIState = .failed(message)
@@ -319,7 +322,9 @@ final class PlaybackStore: ObservableObject {
     }
 
     func markQuickSearchAIChunkingSucceeded(_ chunks: [AIChunkItem], requestID: Int) {
+        print("[Telemetry] markQuickSearchAIChunkingSucceeded requestID=\(requestID) current_quickSearchAIRequestID=\(quickSearchAIRequestID) chunks=\(chunks.count)")
         guard requestID == quickSearchAIRequestID else {
+            print("[Telemetry] markQuickSearchAIChunkingSucceeded IGNORED due to requestID mismatch")
             return
         }
         guard !chunks.isEmpty else {
@@ -335,6 +340,7 @@ final class PlaybackStore: ObservableObject {
         )
         quickSearchFocusTarget = .aiOption
         isQuickSearchFocused = false
+        print("[Telemetry] markQuickSearchAIChunkingSucceeded applied Options state successfully")
     }
 
     @discardableResult
