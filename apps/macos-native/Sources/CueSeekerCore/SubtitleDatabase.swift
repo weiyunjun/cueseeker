@@ -648,7 +648,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     public func cueGroupOccurrenceCount(for query: String) throws -> Int {
-        let startTime = DispatchTime.now()
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return 0
@@ -693,7 +692,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
         }
 
-        let prepStartTime = DispatchTime.now()
         let statement = try database.prepare(
             """
             SELECT COUNT(*)
@@ -705,24 +703,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         try statement.bind(ftsQuery, at: 1)
         try statement.bind("%\(trimmed)%", at: 2)
-        let prepEndTime = DispatchTime.now()
 
-        let stepStartTime = DispatchTime.now()
         guard try statement.step() else {
-            let stepEndTime = DispatchTime.now()
-            let totalTimeMs = Double(stepEndTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000.0
-            print("[Performance] cueGroupOccurrenceCount query='\(query)' ftsQuery='\(ftsQuery)' total_time=\(String(format: "%.2f", totalTimeMs))ms count=0")
             return 0
         }
-        let count = statement.intColumn(0)
-        let stepEndTime = DispatchTime.now()
-        
-        let totalTimeMs = Double(stepEndTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000.0
-        let prepTimeMs = Double(prepEndTime.uptimeNanoseconds - prepStartTime.uptimeNanoseconds) / 1_000_000.0
-        let stepTimeMs = Double(stepEndTime.uptimeNanoseconds - stepStartTime.uptimeNanoseconds) / 1_000_000.0
-        
-        print("[Performance] cueGroupOccurrenceCount query='\(query)' ftsQuery='\(ftsQuery)' total_time=\(String(format: "%.2f", totalTimeMs))ms (prep=\(String(format: "%.2f", prepTimeMs))ms, step=\(String(format: "%.2f", stepTimeMs))ms) count=\(count)")
-        return count
+        return statement.intColumn(0)
     }
 
     public func clearSearchResultCache() {

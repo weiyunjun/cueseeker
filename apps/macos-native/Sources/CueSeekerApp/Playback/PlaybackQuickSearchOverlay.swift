@@ -324,12 +324,8 @@ struct PlaybackQuickSearchOverlay: View {
     }
 
     private func updateSelectedChunkCount() {
-        let callId = UUID().uuidString.prefix(6)
-        print("[Telemetry] updateSelectedChunkCount [\(callId)] called, focusTarget=\(focusTarget), aiState=\(aiState)")
-        
         guard case .options(let chunks, let selectedChunkIndex?, .chunks) = aiState,
               chunks.indices.contains(selectedChunkIndex) else {
-            print("[Telemetry] updateSelectedChunkCount [\(callId)] ignored (no selection or not chunks option)")
             selectedChunkCount = nil
             lastQueriedItem = nil
             return
@@ -337,28 +333,17 @@ struct PlaybackQuickSearchOverlay: View {
 
         let selectedChunk = chunks[selectedChunkIndex]
         guard selectedChunk.item != lastQueriedItem else {
-            print("[Telemetry] updateSelectedChunkCount [\(callId)] skipped, item '\(selectedChunk.item)' matches lastQueriedItem")
             return
         }
 
         let itemToQuery = selectedChunk.item
         lastQueriedItem = itemToQuery
-        selectedChunkCount = nil
-
-        let startTime = DispatchTime.now()
-        print("[Telemetry] updateSelectedChunkCount [\(callId)] starting query for '\(itemToQuery)'")
 
         Task {
             let count = occurrenceCountProvider(itemToQuery)
-            let endTime = DispatchTime.now()
-            let timeMs = Double(endTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000.0
-            print("[Telemetry] updateSelectedChunkCount [\(callId)] query finished in \(String(format: "%.2f", timeMs))ms, count=\(count)")
-            
             await MainActor.run {
                 if lastQueriedItem == itemToQuery {
                     selectedChunkCount = count
-                } else {
-                    print("[Telemetry] updateSelectedChunkCount [\(callId)] discarded count (selection changed to '\(lastQueriedItem ?? "nil")')")
                 }
             }
         }
