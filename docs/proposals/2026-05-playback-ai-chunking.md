@@ -220,6 +220,9 @@ When the user opens Playback Quick Search:
   current sentence, also show a fixed `current sentence / chunks` option row
   below the chunks row. Pressing Return on this fixed row sends a manual refresh
   request.
+- The fixed `current sentence / chunks` option row must display the full
+  current sentence and `/chunks` command by wrapping inside the overlay; it must
+  not truncate the subtitle text.
 - If AI chunking is enabled, an API key exists, and no cached chunks exist for
   the current sentence, show only the fixed `current sentence / chunks` option
   row. It is selected by default, and the search input must not be the AppKit
@@ -413,6 +416,8 @@ Stage 6: persistent chunk cache and request logging.
 - Cached chunks are all visible by wrapping within the overlay width.
 - Opening Quick Search shows only `current sentence / chunks` when the feature
   is enabled, a key exists, and the current sentence has no cached chunks.
+- The `current sentence / chunks` option row displays the full current sentence
+  without truncation.
 - When an AI option is selected by default, the search input has no caret and
   does not own AppKit text focus.
 - The input becomes the real text responder only after the user moves logical

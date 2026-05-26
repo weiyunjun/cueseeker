@@ -172,18 +172,14 @@ struct PlaybackQuickSearchOverlay: View {
     }
 
     private func aiRefreshOptionRow(isSelected: Bool) -> some View {
-        HStack(spacing: 8) {
-            Text(currentSentence.isEmpty ? "Current sentence" : currentSentence)
-                .font(.system(size: 13.5, weight: isSelected ? .semibold : .medium))
-                .foregroundStyle(Color.white.opacity(isSelected ? 0.96 : 0.86))
-                .lineLimit(1)
-            Text("/chunks")
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(isSelected ? 0.78 : 0.46))
-            Spacer(minLength: 0)
-        }
-        .padding(EdgeInsets(top: 11, leading: 18, bottom: 11, trailing: 18))
-        .background(optionRowBackground(isSelected: isSelected))
+        Text("\(currentSentence.isEmpty ? "Current sentence" : currentSentence) /chunks")
+            .font(.system(size: 13.5, weight: isSelected ? .semibold : .medium))
+            .foregroundStyle(Color.white.opacity(isSelected ? 0.96 : 0.86))
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(EdgeInsets(top: 11, leading: 18, bottom: 11, trailing: 18))
+            .background(optionRowBackground(isSelected: isSelected))
     }
 
     private func optionRowBackground(isSelected: Bool) -> some View {
