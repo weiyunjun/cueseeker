@@ -175,6 +175,7 @@ extension AppCoordinator {
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
+        recordPlaybackNavigationEntry(playbackNavigationPayload(for: result))
         activePlaybackSource = .search
         workbenchLayout.selectPanelMode(.search)
         search.selectedSearchResult = result

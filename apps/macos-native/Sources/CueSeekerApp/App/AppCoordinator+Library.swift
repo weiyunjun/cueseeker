@@ -176,6 +176,7 @@ extension AppCoordinator {
         if case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
+        recordPlaybackNavigationEntry(playbackNavigationPayload(for: video))
         library.selectedLibraryVideo = video
         search.selectedSearchResult = nil
         shiori.selectedShiori = nil

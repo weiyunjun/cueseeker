@@ -51,6 +51,7 @@ extension AppCoordinator {
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
+        recordPlaybackNavigationEntry(playbackNavigationPayload(for: shiori))
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil
