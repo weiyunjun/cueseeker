@@ -525,9 +525,11 @@ extension AppCoordinator {
                 sentence: sentence
             )
         }
+        let apiStartTime = DispatchTime.now()
         quickSearchAIChunkingTask = Task { [weak self] in
             do {
                 let result = try await client.chunks(for: sentence, apiKey: apiKey)
+                let apiDurationMs = Double(DispatchTime.now().uptimeNanoseconds - apiStartTime.uptimeNanoseconds) / 1_000_000.0
                 await MainActor.run {
                     guard let self else {
                         return
@@ -548,7 +550,8 @@ extension AppCoordinator {
                         normalizedSentence: result.normalizedSentence,
                         usage: result.usage,
                         itemCount: result.items.count,
-                        cacheWritten: cacheWritten
+                        cacheWritten: cacheWritten,
+                        durationMs: apiDurationMs
                     )
                     self.playback.markQuickSearchAIChunkingSucceeded(
                         result.items,
@@ -558,6 +561,7 @@ extension AppCoordinator {
             } catch is CancellationError {
                 return
             } catch {
+                let apiDurationMs = Double(DispatchTime.now().uptimeNanoseconds - apiStartTime.uptimeNanoseconds) / 1_000_000.0
                 await MainActor.run {
                     guard let self else {
                         return
@@ -569,7 +573,8 @@ extension AppCoordinator {
                         model: model,
                         promptVersion: promptVersion,
                         sentence: sentence,
-                        error: error
+                        error: error,
+                        durationMs: apiDurationMs
                     )
                     self.playback.markQuickSearchAIChunkingFailed(
                         Self.errorMessage(for: error),
@@ -904,7 +909,8 @@ extension AppCoordinator {
         normalizedSentence: String,
         usage: AIChunkingUsage?,
         itemCount: Int,
-        cacheWritten: Bool
+        cacheWritten: Bool,
+        durationMs: Double
     ) {
         let promptTokens = usage?.promptTokens ?? 0
         let completionTokens = usage?.completionTokens ?? 0
@@ -915,7 +921,7 @@ extension AppCoordinator {
                 "prompt_version=\(promptVersion) text_hash=\(Self.shortLogHash(for: normalizedSentence)) " +
                 "prompt_tokens=\(promptTokens) completion_tokens=\(completionTokens) total_tokens=\(totalTokens) " +
                 "estimated_cost_cny=\(String(format: "%.8f", estimatedCostCNY)) " +
-                "items=\(itemCount) cache_written=\(cacheWritten)"
+                "items=\(itemCount) cache_written=\(cacheWritten) duration=\(String(format: "%.2f", durationMs))ms"
         )
     }
 
@@ -925,13 +931,14 @@ extension AppCoordinator {
         model: String,
         promptVersion: String,
         sentence: String,
-        error: Error
+        error: Error,
+        durationMs: Double
     ) {
         let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(sentence)
         print(
             "[AIChunking] request failed reason=\(reason.rawValue) provider=\(provider) model=\(model) " +
                 "prompt_version=\(promptVersion) text_hash=\(Self.shortLogHash(for: normalizedSentence)) " +
-                "error=\(Self.aiChunkingLogErrorDescription(for: error))"
+                "error=\(Self.aiChunkingLogErrorDescription(for: error)) duration=\(String(format: "%.2f", durationMs))ms"
         )
     }
 

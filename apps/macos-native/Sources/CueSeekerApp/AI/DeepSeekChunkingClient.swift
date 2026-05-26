@@ -28,8 +28,8 @@ struct DeepSeekChunkingClient: Sendable {
 
     var model = Self.defaultModel
     var maxTokens = 1000
-
     func chunks(for sentence: String, apiKey: String) async throws -> AIChunkingResult {
+        let startTime = DispatchTime.now()
         let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(sentence)
         guard !normalizedSentence.isEmpty else {
             throw AIChunkingClientError.emptySentence
@@ -57,7 +57,10 @@ struct DeepSeekChunkingClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(payload)
 
+        let networkStartTime = DispatchTime.now()
         let (data, response) = try await URLSession.shared.data(for: request)
+        let networkEndTime = DispatchTime.now()
+        
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AIChunkingClientError.invalidHTTPResponse
         }
@@ -65,6 +68,7 @@ struct DeepSeekChunkingClient: Sendable {
             throw AIChunkingClientError.requestFailed(statusCode: httpResponse.statusCode)
         }
 
+        let decodeStartTime = DispatchTime.now()
         let completion = try JSONDecoder().decode(DeepSeekChatCompletionResponse.self, from: data)
         guard let content = completion.choices.first?.message.content,
               let contentData = content.data(using: .utf8)
@@ -83,6 +87,13 @@ struct DeepSeekChunkingClient: Sendable {
             decodedContent.items,
             normalizedSentence: normalizedSentence
         )
+        let endTime = DispatchTime.now()
+        
+        let networkTimeMs = Double(networkEndTime.uptimeNanoseconds - networkStartTime.uptimeNanoseconds) / 1_000_000.0
+        let parseTimeMs = Double(endTime.uptimeNanoseconds - decodeStartTime.uptimeNanoseconds) / 1_000_000.0
+        let totalTimeMs = Double(endTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000.0
+        print("[Performance] DeepSeekChunkingClient network_time=\(String(format: "%.2f", networkTimeMs))ms, parse_time=\(String(format: "%.2f", parseTimeMs))ms, total_client_time=\(String(format: "%.2f", totalTimeMs))ms")
+        
         return AIChunkingResult(
             normalizedSentence: normalizedSentence,
             items: items,
