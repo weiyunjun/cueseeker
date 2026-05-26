@@ -224,9 +224,8 @@ When the user opens Playback Quick Search:
   current sentence and `/chunks` command by wrapping inside the overlay; it must
   not truncate the subtitle text.
 - If playback navigation history can move backward or forward, show a
-  navigation command row between the chunks row and the fixed `current sentence
-  / chunks` row. This row contains `/back`, `/forward`, or both commands on the
-  same row.
+  navigation command row below the fixed `current sentence / chunks` row. This
+  row contains `/back`, `/forward`, or both commands on the same row.
 - If AI chunking is enabled, an API key exists, and no cached chunks exist for
   the current sentence, show only the fixed `current sentence / chunks` option
   row. It is selected by default, and the search input must not be the AppKit
@@ -242,8 +241,8 @@ Example display:
 Search subtitles
 
 chunks: [tonight] [looks beautiful] [from here]
-/back /forward
 current sentence / chunks
+/back /forward
 ```
 
 The chunks row appears only after cached chunks are loaded or a chunking request
@@ -252,8 +251,12 @@ has completed successfully.
 Visible option row order is fixed:
 
 1. Already chunked `chunks` row.
-2. Playback navigation row containing `/back` and/or `/forward`.
-3. Fixed `current sentence / chunks` API request row.
+2. Fixed `current sentence / chunks` API request row.
+3. Playback navigation row containing `/back` and/or `/forward`.
+
+Whenever any option row is visible below the search field, the first visible
+option row is selected by default when the overlay opens. The search input
+must not show a caret while that option owns logical focus.
 
 Keyboard behavior before a local search is submitted:
 

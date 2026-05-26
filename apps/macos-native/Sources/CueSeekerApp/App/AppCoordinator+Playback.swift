@@ -386,6 +386,7 @@ extension AppCoordinator {
         configurePlaybackQuickSearchSubtitleLineSelection()
         configurePlaybackQuickSearchAIEntry()
         configurePlaybackQuickSearchNavigationAvailability()
+        playback.focusFirstVisibleQuickSearchOptionRow()
         playback.isQuickSearchOverlayVisible = true
         if playback.quickSearchFocusTarget == .input {
             playback.requestQuickSearchFocus()

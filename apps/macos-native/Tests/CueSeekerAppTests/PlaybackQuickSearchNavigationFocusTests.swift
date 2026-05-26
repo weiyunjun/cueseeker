@@ -66,11 +66,11 @@ func quickSearchNavigationFocusTraversalThroughChunksAndRefresh() {
         #expect(extractSelectedAIOption(store) == .chunks)
 
         #expect(store.moveQuickSearchAIOptionFocus(by: 1))
-        #expect(store.quickSearchFocusTarget == .navigation)
-
-        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
         #expect(store.quickSearchFocusTarget == .aiOption)
         #expect(extractSelectedAIOption(store) == .refresh)
+
+        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
+        #expect(store.quickSearchFocusTarget == .navigation)
 
         #expect(store.moveQuickSearchAIOptionFocus(by: 1))
         #expect(store.quickSearchFocusTarget == .input)
@@ -79,7 +79,7 @@ func quickSearchNavigationFocusTraversalThroughChunksAndRefresh() {
 
 @MainActor
 @Test
-func quickSearchNavigationFocusTraversalUpwardThroughRefreshAndChunks() {
+func quickSearchNavigationFocusTraversalUpwardThroughNavigationRefreshAndChunks() {
     withNavigationFocusUserDefaults { userDefaults in
         let store = PlaybackStore(userDefaults: userDefaults)
         prepareNavigationFocusSentence(in: store)
@@ -92,17 +92,61 @@ func quickSearchNavigationFocusTraversalUpwardThroughRefreshAndChunks() {
         store.focusQuickSearchInput()
 
         #expect(store.moveQuickSearchAIOptionFocus(by: -1))
-        #expect(store.quickSearchFocusTarget == .aiOption)
-        #expect(extractSelectedAIOption(store) == .refresh)
+        #expect(store.quickSearchFocusTarget == .navigation)
 
         #expect(store.moveQuickSearchAIOptionFocus(by: -1))
-        #expect(store.quickSearchFocusTarget == .navigation)
+        #expect(store.quickSearchFocusTarget == .aiOption)
+        #expect(extractSelectedAIOption(store) == .refresh)
 
         #expect(store.moveQuickSearchAIOptionFocus(by: -1))
         #expect(store.quickSearchFocusTarget == .aiOption)
         #expect(extractSelectedAIOption(store) == .chunks)
 
         #expect(store.moveQuickSearchAIOptionFocus(by: -1))
+        #expect(store.quickSearchFocusTarget == .input)
+    }
+}
+
+@MainActor
+@Test
+func focusFirstVisibleQuickSearchOptionRowSelectsChunksWhenChunksVisible() {
+    withNavigationFocusUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareNavigationFocusSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: ["a", "b"]
+        )
+        store.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: true)
+        store.focusFirstVisibleQuickSearchOptionRow()
+
+        #expect(store.quickSearchFocusTarget == .aiOption)
+        #expect(extractSelectedAIOption(store) == .chunks)
+    }
+}
+
+@MainActor
+@Test
+func focusFirstVisibleQuickSearchOptionRowSelectsNavigationWhenOnlyNavigationVisible() {
+    withNavigationFocusUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareNavigationFocusSentence(in: store)
+        store.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: false)
+        store.focusFirstVisibleQuickSearchOptionRow()
+
+        #expect(store.quickSearchFocusTarget == .navigation)
+    }
+}
+
+@MainActor
+@Test
+func focusFirstVisibleQuickSearchOptionRowDoesNothingWhenNoRowsVisible() {
+    withNavigationFocusUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareNavigationFocusSentence(in: store)
+        store.focusFirstVisibleQuickSearchOptionRow()
+
         #expect(store.quickSearchFocusTarget == .input)
     }
 }

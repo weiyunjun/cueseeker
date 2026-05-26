@@ -153,6 +153,7 @@ struct PlaybackQuickSearchOverlay: View {
                         isSelected: focusTarget == .aiOption && selectedOption == .chunks
                     )
                 }
+                aiRefreshOptionRow(isSelected: focusTarget == .aiOption && selectedOption == .refresh)
                 if case .visible(let commands, let selectedIndex) = navigationState {
                     aiNavigationOptionRow(
                         commands: commands,
@@ -160,7 +161,6 @@ struct PlaybackQuickSearchOverlay: View {
                         isSelected: focusTarget == .navigation
                     )
                 }
-                aiRefreshOptionRow(isSelected: focusTarget == .aiOption && selectedOption == .refresh)
             }
         }
     }

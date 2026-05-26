@@ -70,17 +70,19 @@ Verification:
 ### Step 3 — Show the `/back` `/forward` row in Quick Search
 
 When the overlay opens and the current-position pointer can move backward or
-forward, display a navigation row between the cached-chunks row and the
-"current sentence / chunks" row.
+forward, display a navigation row below the "current sentence / chunks" row.
 
 Behavior:
 
 - If neither direction is available, the row is hidden entirely.
 - If only one direction is available, only that command is shown.
-- Up and Down move logical focus through input, chunks row, navigation row,
-  "current sentence / chunks" row, and back, following the existing Quick
-  Search focus rules.
+- Up and Down move logical focus through input, chunks row, "current sentence
+  / chunks" row, navigation row, and back, following the existing Quick Search
+  focus rules.
 - The selected command uses the existing Quick Search row highlight.
+- Whenever any option row is visible below the search field, the first visible
+  option row is selected by default when the overlay opens; if only the
+  navigation row is visible, navigation is selected by default.
 
 Verification:
 

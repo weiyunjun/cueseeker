@@ -408,13 +408,24 @@ final class PlaybackStore: ObservableObject {
         if case .options(let chunks, _, _) = quickSearchAIState, !chunks.isEmpty {
             stops.append(.aiOption(.chunks))
         }
-        if case .visible = quickSearchNavigationState {
-            stops.append(.navigation)
-        }
         if case .options = quickSearchAIState {
             stops.append(.aiOption(.refresh))
         }
+        if case .visible = quickSearchNavigationState {
+            stops.append(.navigation)
+        }
         return stops
+    }
+
+    func focusFirstVisibleQuickSearchOptionRow() {
+        guard quickSearchFocusTarget == .input else {
+            return
+        }
+        let stops = visibleOptionStops()
+        guard let first = stops.first else {
+            return
+        }
+        applyOptionStopFocus(first)
     }
 
     private func currentOptionStop() -> PlaybackQuickSearchOptionStop? {
