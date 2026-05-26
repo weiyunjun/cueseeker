@@ -1,6 +1,11 @@
 import Foundation
 import Testing
+import CueSeekerCore
 @testable import CueSeekerApp
+
+private func mockChunks(_ items: [String]) -> [AIChunkItem] {
+    items.map { AIChunkItem(item: $0, translation: $0) }
+}
 
 @MainActor
 @Test
@@ -12,7 +17,7 @@ func quickSearchAIEntryShowsCachedChunksWhenAvailable() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["運", "実力", "うち"]
+            cachedChunks: mockChunks(["運", "実力", "うち"])
         )
 
         #expect(store.quickSearchDraft == "")
@@ -21,7 +26,7 @@ func quickSearchAIEntryShowsCachedChunksWhenAvailable() {
         #expect(store.quickSearchFocusTarget == .aiOption)
         #expect(!store.isQuickSearchFocused)
         #expect(store.quickSearchAIState == .options(
-            chunks: ["運", "実力", "うち"],
+            chunks: mockChunks(["運", "実力", "うち"]),
             selectedChunkIndex: 0,
             selectedOption: .chunks
         ))
@@ -62,7 +67,7 @@ func quickSearchManualInputHidesCachedChunks() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["運", "実力", "うち"]
+            cachedChunks: mockChunks(["運", "実力", "うち"])
         )
 
         store.requestQuickSearchFocus()
@@ -83,7 +88,7 @@ func quickSearchInputFocusClearsAIOptionSelectionAndRestoresTextFocus() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["運", "実力", "うち"]
+            cachedChunks: mockChunks(["運", "実力", "うち"])
         )
 
         store.requestQuickSearchFocus()
@@ -91,7 +96,7 @@ func quickSearchInputFocusClearsAIOptionSelectionAndRestoresTextFocus() {
         #expect(store.quickSearchFocusTarget == .input)
         #expect(store.isQuickSearchFocused)
         #expect(store.quickSearchAIState == .options(
-            chunks: ["運", "実力", "うち"],
+            chunks: mockChunks(["運", "実力", "うち"]),
             selectedChunkIndex: 0,
             selectedOption: nil
         ))
@@ -107,7 +112,7 @@ func quickSearchAIOptionFocusCanMoveBackToInputAtBoundaries() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["運", "実力", "うち"]
+            cachedChunks: mockChunks(["運", "実力", "うち"])
         )
 
         #expect(!store.isQuickSearchFocused)
@@ -115,7 +120,7 @@ func quickSearchAIOptionFocusCanMoveBackToInputAtBoundaries() {
         #expect(store.quickSearchFocusTarget == .input)
         #expect(store.isQuickSearchFocused)
         #expect(store.quickSearchAIState == .options(
-            chunks: ["運", "実力", "うち"],
+            chunks: mockChunks(["運", "実力", "うち"]),
             selectedChunkIndex: 0,
             selectedOption: nil
         ))
@@ -123,14 +128,14 @@ func quickSearchAIOptionFocusCanMoveBackToInputAtBoundaries() {
         #expect(store.moveQuickSearchAIOptionFocus(by: 1))
         #expect(!store.isQuickSearchFocused)
         #expect(store.quickSearchAIState == .options(
-            chunks: ["運", "実力", "うち"],
+            chunks: mockChunks(["運", "実力", "うち"]),
             selectedChunkIndex: 0,
             selectedOption: .chunks
         ))
         #expect(store.moveQuickSearchAIOptionFocus(by: 1))
         #expect(!store.isQuickSearchFocused)
         #expect(store.quickSearchAIState == .options(
-            chunks: ["運", "実力", "うち"],
+            chunks: mockChunks(["運", "実力", "うち"]),
             selectedChunkIndex: 0,
             selectedOption: .refresh
         ))
@@ -149,7 +154,7 @@ func quickSearchChunkSearchCanRestorePreviousChunkOptions() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["運", "実力", "うち"]
+            cachedChunks: mockChunks(["運", "実力", "うち"])
         )
 
         #expect(store.moveQuickSearchOptionRowSelection(by: 1))
@@ -167,7 +172,7 @@ func quickSearchChunkSearchCanRestorePreviousChunkOptions() {
         #expect(store.quickSearchFocusTarget == .aiOption)
         #expect(!store.isQuickSearchFocused)
         #expect(store.quickSearchAIState == .options(
-            chunks: ["運", "実力", "うち"],
+            chunks: mockChunks(["運", "実力", "うち"]),
             selectedChunkIndex: 1,
             selectedOption: .chunks
         ))

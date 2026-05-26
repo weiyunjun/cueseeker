@@ -1,6 +1,11 @@
 import Foundation
 import Testing
+import CueSeekerCore
 @testable import CueSeekerApp
+
+private func mockChunks(_ items: [String]) -> [AIChunkItem] {
+    items.map { AIChunkItem(item: $0, translation: $0) }
+}
 
 @MainActor
 @Test
@@ -56,7 +61,7 @@ func quickSearchNavigationFocusTraversalThroughChunksAndRefresh() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["a", "b"]
+            cachedChunks: mockChunks(["a", "b"])
         )
         store.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: true)
         store.focusQuickSearchInput()
@@ -86,7 +91,7 @@ func quickSearchNavigationFocusTraversalUpwardThroughNavigationRefreshAndChunks(
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["a", "b"]
+            cachedChunks: mockChunks(["a", "b"])
         )
         store.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: true)
         store.focusQuickSearchInput()
@@ -116,7 +121,7 @@ func focusFirstVisibleQuickSearchOptionRowSelectsChunksWhenChunksVisible() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["a", "b"]
+            cachedChunks: mockChunks(["a", "b"])
         )
         store.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: true)
         store.focusFirstVisibleQuickSearchOptionRow()
@@ -193,7 +198,7 @@ func chunksRowLeftRightWrapsAtBothEnds() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["a", "b", "c"]
+            cachedChunks: mockChunks(["a", "b", "c"])
         )
         // Focus on chunks row, first chunk selected by default.
         #expect(store.selectedQuickSearchAIChunk() == "a")
@@ -256,7 +261,7 @@ func optionRowSelectionDoesNotActWhenFocusIsInput() {
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
-            cachedChunks: ["a", "b"]
+            cachedChunks: mockChunks(["a", "b"])
         )
         store.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: true)
         store.focusQuickSearchInput()

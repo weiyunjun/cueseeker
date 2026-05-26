@@ -25,6 +25,11 @@ struct PlaybackQuickSearchOverlay: View {
     let onOpenResult: (SubtitleSearchResult) -> Void
     let onResultAppear: (SubtitleSearchResult) -> Void
 
+    let occurrenceCountProvider: (String) -> Int
+
+    @State private var selectedChunkCount: Int? = nil
+    @State private var lastQueriedItem: String? = nil
+
     var body: some View {
         VStack(spacing: 8) {
             searchField
@@ -34,6 +39,12 @@ struct PlaybackQuickSearchOverlay: View {
             } else {
                 aiPanel
             }
+        }
+        .onAppear {
+            updateSelectedChunkCount()
+        }
+        .onChange(of: aiState) { _ in
+            updateSelectedChunkCount()
         }
     }
 
@@ -140,12 +151,14 @@ struct PlaybackQuickSearchOverlay: View {
     }
 
     private func aiOptionsPanel(
-        chunks: [String],
+        chunks: [AIChunkItem],
         selectedChunkIndex: Int?,
         selectedOption: PlaybackQuickSearchAIOption?
     ) -> some View {
         aiPanelContainer {
             VStack(spacing: 0) {
+                selectedChunkDetailRow(chunks: chunks, selectedChunkIndex: selectedChunkIndex)
+
                 if !chunks.isEmpty {
                     aiChunksOptionRow(
                         chunks: chunks,
@@ -208,13 +221,13 @@ struct PlaybackQuickSearchOverlay: View {
     }
 
     private func aiChunksOptionRow(
-        chunks: [String],
+        chunks: [AIChunkItem],
         selectedChunkIndex: Int?,
         isSelected: Bool
     ) -> some View {
         QuickSearchChunkFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
             ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
-                Text(chunk)
+                Text(chunk.item)
                     .font(.system(size: 13.5, weight: index == selectedChunkIndex ? .semibold : .medium))
                     .foregroundStyle(index == selectedChunkIndex ? Color.white : Color.white.opacity(0.88))
                     .fixedSize(horizontal: false, vertical: true)
@@ -247,6 +260,93 @@ struct PlaybackQuickSearchOverlay: View {
             .fill(isSelected ? PlaybackTheme.menuItemHighlight.opacity(0.78) : Color.clear)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
+    }
+
+    @ViewBuilder
+    private func selectedChunkDetailRow(
+        chunks: [AIChunkItem],
+        selectedChunkIndex: Int?
+    ) -> some View {
+        HStack(spacing: 12) {
+            if let selectedChunkIndex, chunks.indices.contains(selectedChunkIndex) {
+                let selectedChunk = chunks[selectedChunkIndex]
+                
+                Image(systemName: "character.book.closed.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(PlaybackTheme.textSecondary)
+                
+                Text(selectedChunk.translation)
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundStyle(PlaybackTheme.textPrimary)
+                    .lineLimit(1)
+                
+                Spacer(minLength: 16)
+                
+                if let count = selectedChunkCount {
+                    HStack(spacing: 4) {
+                        Image(systemName: "number")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("\(count) occurrences")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(PlaybackTheme.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(PlaybackTheme.capsuleFill)
+                    )
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
+                }
+            } else {
+                Text("Select a chunk to see details")
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundStyle(PlaybackTheme.textTertiary)
+                Spacer()
+            }
+        }
+        .frame(height: 38)
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .overlay(
+            VStack {
+                Spacer()
+                Rectangle()
+                    .fill(PlaybackTheme.textTertiary.opacity(0.18))
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 18)
+            }
+        )
+    }
+
+    private func updateSelectedChunkCount() {
+        guard case .options(let chunks, let selectedChunkIndex?, .chunks) = aiState,
+              chunks.indices.contains(selectedChunkIndex) else {
+            selectedChunkCount = nil
+            lastQueriedItem = nil
+            return
+        }
+
+        let selectedChunk = chunks[selectedChunkIndex]
+        guard selectedChunk.item != lastQueriedItem else {
+            return
+        }
+
+        let itemToQuery = selectedChunk.item
+        lastQueriedItem = itemToQuery
+
+        Task {
+            let count = occurrenceCountProvider(itemToQuery)
+            await MainActor.run {
+                if lastQueriedItem == itemToQuery {
+                    selectedChunkCount = count
+                }
+            }
+        }
     }
 
     private func aiPanelContainer<Content: View>(

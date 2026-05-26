@@ -857,7 +857,7 @@ extension AppCoordinator {
         provider: String,
         model: String,
         promptVersion: String,
-        chunks: [String]
+        chunks: [AIChunkItem]
     ) -> Bool {
         guard let database = subtitleDatabase else {
             return false
@@ -1301,6 +1301,18 @@ extension AppCoordinator {
         }
 
         return min(max(volume, 0), 100)
+    }
+
+    func cueGroupOccurrenceCount(for query: String) -> Int {
+        guard let database = subtitleDatabase else {
+            return 0
+        }
+        do {
+            return try database.cueGroupOccurrenceCount(for: query)
+        } catch {
+            print("[AIChunking] failed to get occurrence count for query='\(query)': \(error)")
+            return 0
+        }
     }
 }
 private extension NSView {

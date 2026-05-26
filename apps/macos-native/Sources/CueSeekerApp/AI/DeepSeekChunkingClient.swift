@@ -1,8 +1,9 @@
 import Foundation
+import CueSeekerCore
 
 struct AIChunkingResult: Equatable, Sendable {
     let normalizedSentence: String
-    let items: [String]
+    let items: [AIChunkItem]
     let usage: AIChunkingUsage?
 }
 
@@ -91,31 +92,48 @@ struct DeepSeekChunkingClient: Sendable {
 
     private static func prompt(for sentence: String) -> String {
         """
-        从句子中抽取适合继续检索的最小学习项。只返回 JSON。
-        格式：{"items":["项1","项2"]}。
-        规则：items 必须是原句中的连续原文片段；不要求覆盖整句；允许重叠；只抽取最小可独立查询单位；优先抽取名词、动词、形容词、固定表达、语法结构；不要擅自合并相邻词成短语；语法结构要返回完整形式，不要删掉助词或组成部分；不要返回普通代词、普通助词或无意义半截字符；通常返回 4 到 10 个。句子：\(sentence)
+        从句子中抽取适合继续检索和语言学习的词块（Chunks），并提供每个词块的简体中文翻译。只返回 JSON 格式。
+
+        格式要求：
+        {
+          "items": [
+            {"item": "词块1", "translation": "词块1的简体中文翻译"},
+            {"item": "词块2", "translation": "词块2的简体中文翻译"},
+            ...
+          ]
+        }
+
+        规则：
+        1. 自动识别输入句子的语言，并针对该语言进行“多层级、高召回率”的词块提取，允许并鼓励词块在原句中重叠；
+        2. 词块应覆盖多个学习层级：
+           - 核心词汇：名词、形容词、副词、动词。对于有词性/时态变化的语言，动词和形容词应同时提取“原句中的具体活用形态”和“对应的字典原型/原形”；
+           - 语法句型与接续：提取句子中的关键语法句型、固定搭配、短语尾缀、连词/接续词；
+           - 复合短语与文节：提取由词汇和助词/介词组合而成的复合短语、连体修饰块或语言学文节，以展示真实的词汇语境搭配；
+        3. 过滤无意义字符：避免单独提取无检索和学习价值的单字符助词（如日语中单独的“の”、“を”，英语中单独的“a”、“the”），但它们与核心词组合而成的完整词块应当保留；
+        4. 数量动态决定：词块数量应当根据输入句子的长度与复杂度自然决定。长句应提取出丰富的多层级词块，短句则仅保留有价值的少数核心词块，切忌为了凑数而强行拆解无意义的字词；
+        5. 词块翻译要求：精准翻译每个词块在“当前句子语境下”的含义 and 语法作用（如果是助词/连词/句式，可以说明其语法功能，如“格助词，表示宾语”或“表示限定的假定语法”）。
+
+        句子：\(sentence)
         """
     }
 
     private static func validatedItems(
-        _ rawItems: [String],
+        _ rawItems: [AIChunkItem],
         normalizedSentence: String
-    ) throws -> [String] {
+    ) throws -> [AIChunkItem] {
         var seen = Set<String>()
-        var items: [String] = []
+        var items: [AIChunkItem] = []
 
         for rawItem in rawItems {
-            let item = rawItem.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !item.isEmpty else {
+            let itemStr = rawItem.item.trimmingCharacters(in: .whitespacesAndNewlines)
+            let translationStr = rawItem.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !itemStr.isEmpty else {
                 continue
             }
-            guard normalizedSentence.contains(item) else {
-                throw AIChunkingClientError.itemNotFound(item)
-            }
-            guard seen.insert(item).inserted else {
+            guard seen.insert(itemStr).inserted else {
                 continue
             }
-            items.append(item)
+            items.append(AIChunkItem(item: itemStr, translation: translationStr))
         }
 
         guard !items.isEmpty else {
@@ -197,7 +215,7 @@ private struct DeepSeekChatChoice: Decodable {
 }
 
 private struct AIChunkingContent: Decodable {
-    let items: [String]
+    let items: [AIChunkItem]
 }
 
 private struct DeepSeekUsage: Decodable {

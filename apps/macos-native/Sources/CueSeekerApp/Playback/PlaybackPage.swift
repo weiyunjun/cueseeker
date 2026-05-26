@@ -136,6 +136,9 @@ struct PlaybackPageView: View {
                 onResultAppear: { result in
                     appState.markSearchResultVisible(result)
                     appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+                },
+                occurrenceCountProvider: { query in
+                    appState.cueGroupOccurrenceCount(for: query)
                 }
             )
             .frame(width: overlayWidth)

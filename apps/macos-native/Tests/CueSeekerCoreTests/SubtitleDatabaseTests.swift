@@ -3,6 +3,10 @@ import SQLite3
 import Testing
 import CueSeekerCore
 
+private func mockChunks(_ items: [String]) -> [AIChunkItem] {
+    items.map { AIChunkItem(item: $0, translation: $0) }
+}
+
 private final class SearchProgressCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var snapshots: [SubtitleSearchProgressSnapshot] = []
@@ -134,13 +138,13 @@ func storesAndLoadsAIChunkCacheEntry() throws {
 
     let saved = try database.upsertAIChunkCacheEntry(
         key: key,
-        chunks: ["運", "実力", "うち"],
+        chunks: mockChunks(["運", "実力", "うち"]),
         cacheDate: cacheDate
     )
     let loaded = try database.aiChunkCacheEntry(for: key)
 
     #expect(saved.key == key)
-    #expect(saved.chunks == ["運", "実力", "うち"])
+    #expect(saved.chunks == mockChunks(["運", "実力", "うち"]))
     #expect(saved.cacheDate == cacheDate)
     #expect(loaded == saved)
 }
@@ -164,17 +168,17 @@ func refreshingAIChunkCachePreservesCacheDate() throws {
 
     try database.upsertAIChunkCacheEntry(
         key: key,
-        chunks: ["春日影", "わたくしたち", "歌"],
+        chunks: mockChunks(["春日影", "わたくしたち", "歌"]),
         cacheDate: "2026-05-26T00:00:00Z"
     )
     let refreshed = try database.upsertAIChunkCacheEntry(
         key: key,
-        chunks: ["春日影", "わたくしたちの歌"],
+        chunks: mockChunks(["春日影", "わたくしたちの歌"]),
         cacheDate: "2026-05-27T00:00:00Z"
     )
     let loaded = try database.aiChunkCacheEntry(for: key)
 
-    #expect(refreshed.chunks == ["春日影", "わたくしたちの歌"])
+    #expect(refreshed.chunks == mockChunks(["春日影", "わたくしたちの歌"]))
     #expect(refreshed.cacheDate == "2026-05-26T00:00:00Z")
     #expect(loaded == refreshed)
 }
@@ -204,12 +208,12 @@ func storesSameAIChunkSeparatelyForDifferentSubtitleLines() throws {
 
     try database.upsertAIChunkCacheEntry(
         key: firstKey,
-        chunks: ["実力"],
+        chunks: mockChunks(["実力"]),
         cacheDate: "2026-05-26T00:00:00Z"
     )
     try database.upsertAIChunkCacheEntry(
         key: secondKey,
-        chunks: ["実力"],
+        chunks: mockChunks(["実力"]),
         cacheDate: "2026-05-27T00:00:00Z"
     )
 

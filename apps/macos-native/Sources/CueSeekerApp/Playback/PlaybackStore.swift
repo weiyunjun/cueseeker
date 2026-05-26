@@ -49,7 +49,7 @@ enum PlaybackQuickSearchAIState: Equatable {
     case hidden
     case loading
     case failed(String)
-    case options(chunks: [String], selectedChunkIndex: Int?, selectedOption: PlaybackQuickSearchAIOption?)
+    case options(chunks: [AIChunkItem], selectedChunkIndex: Int?, selectedOption: PlaybackQuickSearchAIOption?)
 
     var selectedOption: PlaybackQuickSearchAIOption? {
         guard case .options(_, _, let selectedOption) = self else {
@@ -273,7 +273,7 @@ final class PlaybackStore: ObservableObject {
     func showQuickSearchAIEntryIfPossible(
         isEnabled: Bool,
         hasAPIKey: Bool,
-        cachedChunks: [String]?
+        cachedChunks: [AIChunkItem]?
     ) {
         let currentSentence = quickSearchCurrentSentence.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isEnabled, hasAPIKey, !currentSentence.isEmpty else {
@@ -318,7 +318,7 @@ final class PlaybackStore: ObservableObject {
         isQuickSearchFocused = false
     }
 
-    func markQuickSearchAIChunkingSucceeded(_ chunks: [String], requestID: Int) {
+    func markQuickSearchAIChunkingSucceeded(_ chunks: [AIChunkItem], requestID: Int) {
         guard requestID == quickSearchAIRequestID else {
             return
         }
@@ -508,7 +508,7 @@ final class PlaybackStore: ObservableObject {
         else {
             return nil
         }
-        return chunks[selectedIndex]
+        return chunks[selectedIndex].item
     }
 
     func applyQuickSearchAIChunkQuery(_ chunk: String) {
@@ -575,7 +575,7 @@ final class PlaybackStore: ObservableObject {
 
     private func selectedChunkIndexForFocus(
         option: PlaybackQuickSearchAIOption,
-        chunks: [String],
+        chunks: [AIChunkItem],
         currentIndex: Int?
     ) -> Int? {
         guard option == .chunks, !chunks.isEmpty else {
