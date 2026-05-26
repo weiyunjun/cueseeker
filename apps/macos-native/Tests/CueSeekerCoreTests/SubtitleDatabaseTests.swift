@@ -2489,6 +2489,190 @@ func activeSubtitleEntryLookupKeepsLongRunningCueActivePastShortLaterCues() thro
     #expect(lookup.activeEntryID(atMilliseconds: -1) == nil)
 }
 
+@Test
+func playbackNavigationStartsWithEmptyHistoryAndZeroRevision() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.playbackNavigationEntries().isEmpty)
+    #expect(try database.playbackNavigationCurrentEntryID() == nil)
+    #expect(try database.playbackNavigationIndexRevision() == 0)
+}
+
+@Test
+func appendPlaybackNavigationEntryPersistsPayloadAndAssignsIncrementingIDs() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let first = try database.appendPlaybackNavigationEntry(
+        .library(PlaybackNavigationLibraryPayload(videoPath: "/Media/A.mkv"))
+    )
+    let second = try database.appendPlaybackNavigationEntry(
+        .shiori(
+            PlaybackNavigationShioriPayload(
+                id: 42,
+                subtitlePath: "/Media/B.srt",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000
+            )
+        )
+    )
+
+    #expect(second.id > first.id)
+
+    let entries = try database.playbackNavigationEntries()
+    #expect(entries.count == 2)
+    #expect(entries[0].id == first.id)
+    #expect(entries[0].payload == .library(
+        PlaybackNavigationLibraryPayload(videoPath: "/Media/A.mkv")
+    ))
+    #expect(entries[1].id == second.id)
+    #expect(entries[1].kind == .shiori)
+    if case .shiori(let shiori) = entries[1].payload {
+        #expect(shiori.id == 42)
+        #expect(shiori.subtitlePath == "/Media/B.srt")
+        #expect(shiori.startMilliseconds == 1_000)
+        #expect(shiori.endMilliseconds == 2_000)
+    } else {
+        Issue.record("Expected shiori payload")
+    }
+}
+
+@Test
+func updatePlaybackNavigationEntryReplacesPayloadAndKeepsID() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let entry = try database.appendPlaybackNavigationEntry(
+        .library(PlaybackNavigationLibraryPayload(videoPath: "/Media/Old.mkv"))
+    )
+
+    let updated = try #require(try database.updatePlaybackNavigationEntry(
+        id: entry.id,
+        payload: .library(PlaybackNavigationLibraryPayload(videoPath: "/Media/New.mkv"))
+    ))
+
+    #expect(updated.id == entry.id)
+    #expect(updated.payload == .library(
+        PlaybackNavigationLibraryPayload(videoPath: "/Media/New.mkv")
+    ))
+
+    let reread = try #require(try database.playbackNavigationEntry(id: entry.id))
+    #expect(reread.payload == .library(
+        PlaybackNavigationLibraryPayload(videoPath: "/Media/New.mkv")
+    ))
+}
+
+@Test
+func deletePlaybackNavigationEntriesAfterTruncatesForwardEntries() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let first = try database.appendPlaybackNavigationEntry(
+        .library(PlaybackNavigationLibraryPayload(videoPath: "/Media/A.mkv"))
+    )
+    _ = try database.appendPlaybackNavigationEntry(
+        .library(PlaybackNavigationLibraryPayload(videoPath: "/Media/B.mkv"))
+    )
+    _ = try database.appendPlaybackNavigationEntry(
+        .library(PlaybackNavigationLibraryPayload(videoPath: "/Media/C.mkv"))
+    )
+
+    try database.deletePlaybackNavigationEntries(after: first.id)
+
+    let entries = try database.playbackNavigationEntries()
+    #expect(entries.count == 1)
+    #expect(entries[0].id == first.id)
+}
+
+@Test
+func prunePlaybackNavigationEntriesKeepsLatestN() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    var appendedIDs: [Int64] = []
+    for index in 0..<5 {
+        let entry = try database.appendPlaybackNavigationEntry(
+            .library(PlaybackNavigationLibraryPayload(videoPath: "/Media/\(index).mkv"))
+        )
+        appendedIDs.append(entry.id)
+    }
+
+    try database.prunePlaybackNavigationEntries(keepingLatest: 2)
+
+    let entries = try database.playbackNavigationEntries()
+    #expect(entries.count == 2)
+    #expect(entries.map(\.id) == Array(appendedIDs.suffix(2)))
+}
+
+@Test
+func currentPlaybackNavigationEntryIDReadsAndWritesNullableValue() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let entry = try database.appendPlaybackNavigationEntry(
+        .library(PlaybackNavigationLibraryPayload(videoPath: "/Media/A.mkv"))
+    )
+
+    try database.setPlaybackNavigationCurrentEntryID(entry.id)
+    #expect(try database.playbackNavigationCurrentEntryID() == entry.id)
+
+    try database.setPlaybackNavigationCurrentEntryID(nil)
+    #expect(try database.playbackNavigationCurrentEntryID() == nil)
+}
+
+@Test
+func playbackNavigationIndexRevisionBumpsWhenIndexedContentChanges() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let baseline = try database.playbackNavigationIndexRevision()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Movie.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Movie.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "hello"
+            )
+        ]
+    )
+
+    let afterReplace = try database.playbackNavigationIndexRevision()
+    #expect(afterReplace > baseline)
+
+    try database.clearIndexedContent()
+
+    let afterClear = try database.playbackNavigationIndexRevision()
+    #expect(afterClear > afterReplace)
+}
+
 private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerDatabaseTests-\(UUID().uuidString)")

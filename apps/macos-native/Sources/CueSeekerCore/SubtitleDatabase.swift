@@ -231,6 +231,98 @@ public struct LibraryPlaybackHistory: Equatable, Sendable {
     public let updatedAt: String
 }
 
+public enum PlaybackNavigationEntryKind: String, Equatable, Sendable, Codable {
+    case library
+    case search
+    case shiori
+}
+
+public struct PlaybackNavigationLibraryPayload: Equatable, Sendable, Codable {
+    public let videoPath: String
+
+    public init(videoPath: String) {
+        self.videoPath = videoPath
+    }
+}
+
+public struct PlaybackNavigationSearchPayload: Equatable, Sendable, Codable {
+    public let query: String
+    public let scopePaths: [String]
+    public let entryID: Int64?
+    public let subtitlePath: String?
+    public let videoPath: String?
+    public let startMilliseconds: Int?
+    public let endMilliseconds: Int?
+    public let indexRevision: Int64
+
+    public init(
+        query: String,
+        scopePaths: [String],
+        entryID: Int64?,
+        subtitlePath: String?,
+        videoPath: String?,
+        startMilliseconds: Int?,
+        endMilliseconds: Int?,
+        indexRevision: Int64
+    ) {
+        self.query = query
+        self.scopePaths = scopePaths
+        self.entryID = entryID
+        self.subtitlePath = subtitlePath
+        self.videoPath = videoPath
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = endMilliseconds
+        self.indexRevision = indexRevision
+    }
+}
+
+public struct PlaybackNavigationShioriPayload: Equatable, Sendable, Codable {
+    public let id: Int64
+    public let subtitlePath: String
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+
+    public init(
+        id: Int64,
+        subtitlePath: String,
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) {
+        self.id = id
+        self.subtitlePath = subtitlePath
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = endMilliseconds
+    }
+}
+
+public enum PlaybackNavigationPayload: Equatable, Sendable, Codable {
+    case library(PlaybackNavigationLibraryPayload)
+    case search(PlaybackNavigationSearchPayload)
+    case shiori(PlaybackNavigationShioriPayload)
+
+    public var kind: PlaybackNavigationEntryKind {
+        switch self {
+        case .library:
+            .library
+        case .search:
+            .search
+        case .shiori:
+            .shiori
+        }
+    }
+}
+
+public struct PlaybackNavigationEntry: Equatable, Sendable {
+    public let id: Int64
+    public let payload: PlaybackNavigationPayload
+    public let createdAt: String
+    public let updatedAt: String
+
+    public var kind: PlaybackNavigationEntryKind {
+        payload.kind
+    }
+}
+
 public struct Shiori: Equatable, Sendable, Identifiable {
     public let id: Int64
     public let subtitlePath: String
@@ -528,7 +620,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 14
+    public static let currentSchemaVersion: Int = 15
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -768,8 +860,30 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     model,
                     prompt_version
                 );
+
+            CREATE TABLE IF NOT EXISTS playback_navigation_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_playback_navigation_entries_order
+                ON playback_navigation_entries(id);
+
+            CREATE TABLE IF NOT EXISTS playback_navigation_state (
+                id INTEGER PRIMARY KEY CHECK(id = 1),
+                current_entry_id INTEGER,
+                index_revision INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(current_entry_id)
+                    REFERENCES playback_navigation_entries(id)
+                    ON DELETE SET NULL
+            );
             """
         )
+        try ensurePlaybackNavigationStateRow()
 
         if previousVersion >= 4 && previousVersion < 5 {
             try database.execute(
@@ -965,6 +1079,246 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return try aiChunkCacheEntry(from: statement)
     }
 
+    public func playbackNavigationIndexRevision() throws -> Int64 {
+        let statement = try database.prepare(
+            """
+            SELECT index_revision
+            FROM playback_navigation_state
+            WHERE id = 1;
+            """
+        )
+
+        guard try statement.step() else {
+            return 0
+        }
+
+        return max(0, statement.int64Column(0))
+    }
+
+    public func playbackNavigationCurrentEntryID() throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT current_entry_id
+            FROM playback_navigation_state
+            WHERE id = 1;
+            """
+        )
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return statement.nullableInt64Column(0)
+    }
+
+    public func setPlaybackNavigationCurrentEntryID(_ entryID: Int64?) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE playback_navigation_state
+            SET current_entry_id = ?, updated_at = ?
+            WHERE id = 1;
+            """
+        )
+
+        if let entryID {
+            try statement.bind(entryID, at: 1)
+        } else {
+            try statement.bindNull(at: 1)
+        }
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 2)
+        try statement.run()
+    }
+
+    @discardableResult
+    public func appendPlaybackNavigationEntry(
+        _ payload: PlaybackNavigationPayload
+    ) throws -> PlaybackNavigationEntry {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let statement = try database.prepare(
+            """
+            INSERT INTO playback_navigation_entries(kind, payload_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?);
+            """
+        )
+
+        try statement.bind(payload.kind.rawValue, at: 1)
+        try statement.bind(try Self.encodePlaybackNavigationPayload(payload), at: 2)
+        try statement.bind(now, at: 3)
+        try statement.bind(now, at: 4)
+        try statement.run()
+
+        let id = database.lastInsertRowID()
+        return PlaybackNavigationEntry(
+            id: id,
+            payload: payload,
+            createdAt: now,
+            updatedAt: now
+        )
+    }
+
+    @discardableResult
+    public func updatePlaybackNavigationEntry(
+        id: Int64,
+        payload: PlaybackNavigationPayload
+    ) throws -> PlaybackNavigationEntry? {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let statement = try database.prepare(
+            """
+            UPDATE playback_navigation_entries
+            SET kind = ?, payload_json = ?, updated_at = ?
+            WHERE id = ?;
+            """
+        )
+
+        try statement.bind(payload.kind.rawValue, at: 1)
+        try statement.bind(try Self.encodePlaybackNavigationPayload(payload), at: 2)
+        try statement.bind(now, at: 3)
+        try statement.bind(id, at: 4)
+        try statement.run()
+
+        return try playbackNavigationEntry(id: id)
+    }
+
+    public func playbackNavigationEntry(id: Int64) throws -> PlaybackNavigationEntry? {
+        let statement = try database.prepare(
+            """
+            SELECT id, kind, payload_json, created_at, updated_at
+            FROM playback_navigation_entries
+            WHERE id = ?;
+            """
+        )
+
+        try statement.bind(id, at: 1)
+        guard try statement.step() else {
+            return nil
+        }
+
+        return try Self.playbackNavigationEntry(from: statement)
+    }
+
+    public func playbackNavigationEntries(limit: Int? = nil) throws -> [PlaybackNavigationEntry] {
+        let boundedLimit = limit.map { max(0, $0) }
+        let sql: String
+        if boundedLimit != nil {
+            sql = """
+                SELECT id, kind, payload_json, created_at, updated_at
+                FROM playback_navigation_entries
+                ORDER BY id ASC
+                LIMIT ?;
+                """
+        } else {
+            sql = """
+                SELECT id, kind, payload_json, created_at, updated_at
+                FROM playback_navigation_entries
+                ORDER BY id ASC;
+                """
+        }
+
+        let statement = try database.prepare(sql)
+        if let boundedLimit {
+            try statement.bind(boundedLimit, at: 1)
+        }
+
+        var entries: [PlaybackNavigationEntry] = []
+        while try statement.step() {
+            entries.append(try Self.playbackNavigationEntry(from: statement))
+        }
+        return entries
+    }
+
+    public func deletePlaybackNavigationEntries(after entryID: Int64) throws {
+        let statement = try database.prepare(
+            """
+            DELETE FROM playback_navigation_entries
+            WHERE id > ?;
+            """
+        )
+        try statement.bind(entryID, at: 1)
+        try statement.run()
+    }
+
+    public func prunePlaybackNavigationEntries(keepingLatest count: Int) throws {
+        let boundedCount = max(0, count)
+        let statement = try database.prepare(
+            """
+            DELETE FROM playback_navigation_entries
+            WHERE id NOT IN (
+                SELECT id
+                FROM playback_navigation_entries
+                ORDER BY id DESC
+                LIMIT ?
+            );
+            """
+        )
+        try statement.bind(boundedCount, at: 1)
+        try statement.run()
+    }
+
+    private func ensurePlaybackNavigationStateRow() throws {
+        let statement = try database.prepare(
+            """
+            INSERT OR IGNORE INTO playback_navigation_state(
+                id,
+                current_entry_id,
+                index_revision,
+                updated_at
+            )
+            VALUES (1, NULL, 0, ?);
+            """
+        )
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 1)
+        try statement.run()
+    }
+
+    private func bumpPlaybackNavigationIndexRevisionInCurrentTransaction() throws {
+        let statement = try database.prepare(
+            """
+            UPDATE playback_navigation_state
+            SET index_revision = index_revision + 1,
+                updated_at = ?
+            WHERE id = 1;
+            """
+        )
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 1)
+        try statement.run()
+    }
+
+    private static func playbackNavigationEntry(
+        from statement: SQLiteStatement
+    ) throws -> PlaybackNavigationEntry {
+        let kind = statement.stringColumn(1)
+        let payload = try decodePlaybackNavigationPayload(from: statement.stringColumn(2))
+        guard payload.kind.rawValue == kind else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Playback navigation entry kind does not match payload."
+            )
+        }
+
+        return PlaybackNavigationEntry(
+            id: statement.int64Column(0),
+            payload: payload,
+            createdAt: statement.stringColumn(3),
+            updatedAt: statement.stringColumn(4)
+        )
+    }
+
+    private static func encodePlaybackNavigationPayload(
+        _ payload: PlaybackNavigationPayload
+    ) throws -> String {
+        String(decoding: try JSONEncoder().encode(payload), as: UTF8.self)
+    }
+
+    private static func decodePlaybackNavigationPayload(
+        from json: String
+    ) throws -> PlaybackNavigationPayload {
+        guard let data = json.data(using: .utf8) else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Playback navigation payload contains invalid UTF-8."
+            )
+        }
+        return try JSONDecoder().decode(PlaybackNavigationPayload.self, from: data)
+    }
+
     public func replaceEntries(
         subtitleFile: URL,
         videoFile: URL,
@@ -1028,6 +1382,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 try rebuildSearchDerivedIndexInCurrentTransaction()
             }
             try deleteOrphanedVideoFiles()
+            try bumpPlaybackNavigationIndexRevisionInCurrentTransaction()
             try database.execute("COMMIT")
             clearSearchResultCache()
         } catch {
@@ -1324,6 +1679,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             try deleteOrphanedVideoFiles()
             try rebuildSearchDerivedIndexInCurrentTransaction()
+            try bumpPlaybackNavigationIndexRevisionInCurrentTransaction()
             try database.execute("COMMIT")
             clearSearchResultCache()
         } catch {
@@ -1336,6 +1692,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             try rebuildSearchDerivedIndexInCurrentTransaction()
+            try bumpPlaybackNavigationIndexRevisionInCurrentTransaction()
             try database.execute("COMMIT")
             clearSearchResultCache()
         } catch {
@@ -1354,6 +1711,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try database.execute("DELETE FROM subtitle_files;")
             try database.execute("DELETE FROM video_files;")
             try database.execute("DELETE FROM search_paths;")
+            try bumpPlaybackNavigationIndexRevisionInCurrentTransaction()
             try database.execute("COMMIT")
             clearSearchResultCache()
         } catch {
@@ -3308,6 +3666,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             try deleteOrphanedVideoFiles()
             try rebuildSearchDerivedIndexInCurrentTransaction()
+            try bumpPlaybackNavigationIndexRevisionInCurrentTransaction()
             try database.execute("COMMIT")
             clearSearchResultCache()
         } catch {
