@@ -305,7 +305,10 @@ Logical focus must align with visible first-responder behavior:
 
 ## Data Model Impact
 
-No database schema change is required.
+The base overlay search interaction uses existing Search state. Playback
+navigation commands exposed inside the overlay require durable navigation
+history so `/back` and `/forward` do not depend on long-lived in-memory result
+objects.
 
 Transient UI state is expected:
 
@@ -322,6 +325,25 @@ Transient UI state is expected:
 The existing Search flow remains authoritative for executing submitted overlay
 queries. The pre-overlay Search context remains authoritative again if the
 overlay is dismissed without opening a result.
+
+Persistent playback navigation state is expected:
+
+- A bounded navigation history table stores compact playback entries, not full
+  result pages.
+- Library entries store the library video identity and resume through the
+  Library playback path, using the latest persisted library playback position.
+- Search entries store the query, active scope, selected result anchor, and
+  index revision. Search result pages remain cacheable optimization data and are
+  not persisted as history payloads.
+- Shiori entries store the shiori identity and resume through the Shiori
+  playback path.
+- Restoring a Search entry uses cached search pages only when the index revision
+  is unchanged; after indexing changes, the Search flow reruns against the
+  current index.
+- If the rerun Search has results, playback opens the first refreshed result.
+- If the rerun Search has no results, playback does not change, the overlay
+  stays on the current option interface, and centered text-only playback
+  feedback reports that no search results exist.
 
 ## Implementation Stages
 
@@ -410,6 +432,8 @@ Risks:
 - Pressing Return with a query submits a Search using the existing Search flow.
 - Search results appear directly below the search field.
 - The first loaded search result is selected by default after submission.
+- Direct searches with no local results show centered text-only playback
+  feedback using the existing feedback HUD animation.
 - Result list keyboard navigation supports selecting a result with Up and Down.
 - Pressing Return on a selected result opens it through the existing Search
   result playback flow.
@@ -418,6 +442,11 @@ Risks:
   default result presentation.
 - After direct search results are visible, pressing Escape while a result has
   logical focus moves focus back to the input and keeps results visible.
+- `/back` and `/forward` options are backed by durable bounded playback
+  navigation history rather than unbounded in-memory result objects.
+- Restoring a Search-origin history entry reruns Search after index changes and
+  shows centered text-only feedback without leaving the current options when no
+  refreshed results exist.
 - Pressing Escape while the input has focus closes the overlay and restores the
   Search page and playback result-list context that existed before the overlay
   opened.

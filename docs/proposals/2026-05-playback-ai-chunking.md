@@ -223,6 +223,10 @@ When the user opens Playback Quick Search:
 - The fixed `current sentence / chunks` option row must display the full
   current sentence and `/chunks` command by wrapping inside the overlay; it must
   not truncate the subtitle text.
+- If playback navigation history can move backward or forward, show a
+  navigation command row between the chunks row and the fixed `current sentence
+  / chunks` row. This row contains `/back`, `/forward`, or both commands on the
+  same row.
 - If AI chunking is enabled, an API key exists, and no cached chunks exist for
   the current sentence, show only the fixed `current sentence / chunks` option
   row. It is selected by default, and the search input must not be the AppKit
@@ -238,11 +242,18 @@ Example display:
 Search subtitles
 
 chunks: [tonight] [looks beautiful] [from here]
+/back /forward
 current sentence / chunks
 ```
 
 The chunks row appears only after cached chunks are loaded or a chunking request
 has completed successfully.
+
+Visible option row order is fixed:
+
+1. Already chunked `chunks` row.
+2. Playback navigation row containing `/back` and/or `/forward`.
+3. Fixed `current sentence / chunks` API request row.
 
 Keyboard behavior before a local search is submitted:
 
@@ -254,6 +265,10 @@ Keyboard behavior before a local search is submitted:
   select nearby subtitle lines.
 - If the first visible option is selected, Up returns focus to the input.
 - If the last visible option is selected, Down returns focus to the input.
+- Option rows may contain one or more horizontally selectable items. Left and
+  Right move within the focused row, wrap from the first item to the last item,
+  and wrap from the last item to the first item. This rule applies to chunks,
+  the `/back` `/forward` row, and future multi-item option rows.
 - Pressing Return on `current sentence / chunks` sends one stateless chunking
   request for the captured current sentence.
 - While loading, show a loading row below the search field.
@@ -262,9 +277,10 @@ Keyboard behavior before a local search is submitted:
   The first chunk is selected by default.
 - The selected chunk must have a visible selected background using the current
   Quick Search selected-row visual language.
-- Left and Right move the selected chunk only while the chunks row is selected.
 - Pressing Return on the chunks row searches the selected chunk through the
   existing Quick Search/Search flow.
+- Pressing Return on `/back` or `/forward` closes the overlay and performs the
+  corresponding playback navigation command.
 
 AI options and search results are mutually exclusive:
 
@@ -275,6 +291,29 @@ AI options and search results are mutually exclusive:
   selected chunk.
 - Pressing Escape from search results reached through a chunk search returns to
   the previous AI options and restores the selected chunk.
+
+Search result recovery for playback navigation:
+
+- Playback navigation history must persist enough search context to restore a
+  Search-origin playback target without storing full search result pages in
+  memory. The persisted context includes the query, active search scope, the
+  target result anchor, and the index revision at the time the history entry was
+  recorded.
+- Search result pages remain an optimization owned by the existing
+  `SearchResultPageCache`. They must not be treated as the durable playback
+  history source of truth.
+- When `/back` or `/forward` restores a Search-origin entry and the index
+  revision has not changed, use the existing Search flow; it may satisfy the
+  request from the current search result cache.
+- When the index revision has changed, run the search again against the current
+  index.
+- If the re-run search has results, play the first result from the refreshed
+  result set rather than using a stale persisted result.
+- If the re-run search has no results, do not change playback and do not move
+  the overlay into a results page. Keep the current option interface visible and
+  show the centered text feedback used for other playback HUD messages.
+- Direct Quick Search submissions that return no local results show the same
+  centered text-only feedback.
 
 Keyboard behavior after local search results are visible:
 
@@ -418,6 +457,9 @@ Stage 6: persistent chunk cache and request logging.
   is enabled, a key exists, and the current sentence has no cached chunks.
 - The `current sentence / chunks` option row displays the full current sentence
   without truncation.
+- When playback navigation history is available, Quick Search shows `/back` and
+  `/forward` on one row between cached chunks and `current sentence / chunks`;
+  unavailable commands are hidden.
 - When an AI option is selected by default, the search input has no caret and
   does not own AppKit text focus.
 - The input becomes the real text responder only after the user moves logical
@@ -432,8 +474,11 @@ Stage 6: persistent chunk cache and request logging.
 - Text sent to AI has punctuation and subtitle separators replaced with spaces.
 - Invalid responses show an overlay error.
 - Valid responses show chunks with the first chunk selected by default.
-- Left and Right move chunk selection.
+- Left and Right move the focused option row's horizontal selection and wrap at
+  both ends.
 - With chunks visible, Return searches the selected chunk.
+- From the `/back` `/forward` row, Return executes the selected navigation
+  command.
 - If the first visible AI option is selected, Up returns focus to the input.
 - If the last visible AI option is selected, Down returns focus to the input.
 - From the `current sentence / chunks` option, Return sends one stateless
@@ -448,6 +493,14 @@ Stage 6: persistent chunk cache and request logging.
 - AI options and search results are not visible at the same time.
 - From search results reached through a chunk search, Escape on a focused result
   returns to the previous chunks options and preserves the selected chunk.
+- Search-origin playback history restores through the existing Search flow,
+  uses cached result pages only when the index revision is unchanged, reruns
+  search when the index revision changed, and plays the first refreshed result
+  when refreshed results exist.
+- Search-origin playback history with no refreshed results keeps the current
+  option interface visible and shows centered text-only feedback.
+- Direct Quick Search submissions with no local results show the same centered
+  text-only feedback.
 - From search results reached through a chunk search, Escape in the input
   dismisses Quick Search.
 - From search results reached through direct search, Escape on a focused result
