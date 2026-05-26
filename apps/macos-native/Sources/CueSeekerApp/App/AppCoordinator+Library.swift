@@ -167,7 +167,7 @@ extension AppCoordinator {
         )
     }
 
-    func openLibraryVideo(_ video: LibraryVideo) {
+    func openLibraryVideo(_ video: LibraryVideo, recordsNavigationHistory: Bool = true) {
         UIInvalidationProbe.mark(
             "ACTION UI.LibraryVideo.opened",
             details: "duration=\(video.duration.map { String(format: "%.2f", $0) } ?? "unknown")"
@@ -176,7 +176,9 @@ extension AppCoordinator {
         if case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
-        recordPlaybackNavigationEntry(playbackNavigationPayload(for: video))
+        if recordsNavigationHistory {
+            recordPlaybackNavigationEntry(playbackNavigationPayload(for: video))
+        }
         library.selectedLibraryVideo = video
         search.selectedSearchResult = nil
         shiori.selectedShiori = nil

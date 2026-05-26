@@ -75,6 +75,125 @@ extension AppCoordinator {
         )
     }
 
+    @discardableResult
+    func executePlaybackQuickSearchNavigationCommand(
+        _ command: PlaybackQuickSearchNavigationCommand
+    ) -> Bool {
+        guard let database = subtitleDatabase else {
+            return false
+        }
+
+        do {
+            guard let currentEntryID = try database.playbackNavigationCurrentEntryID() else {
+                return false
+            }
+            let entries = try database.playbackNavigationEntries()
+            guard let currentIndex = entries.firstIndex(where: { $0.id == currentEntryID }) else {
+                return false
+            }
+
+            let targetIndex: Int
+            switch command {
+            case .back:
+                targetIndex = currentIndex - 1
+            case .forward:
+                targetIndex = currentIndex + 1
+            }
+
+            guard entries.indices.contains(targetIndex) else {
+                return false
+            }
+
+            let target = entries[targetIndex]
+            playback.isQuickSearchOverlayVisible = false
+
+            switch target.payload {
+            case .library(let payload):
+                return restoreLibraryNavigationEntry(payload, targetEntryID: target.id)
+            case .shiori(let payload):
+                return restoreShioriNavigationEntry(payload, targetEntryID: target.id)
+            case .search(let payload):
+                return restoreSearchNavigationEntry(payload, targetEntryID: target.id)
+            }
+        } catch {
+            return false
+        }
+    }
+
+    private func restoreLibraryNavigationEntry(
+        _ payload: PlaybackNavigationLibraryPayload,
+        targetEntryID: Int64
+    ) -> Bool {
+        guard let video = library.libraryVideos.first(where: { $0.videoPath == payload.videoPath }) else {
+            return false
+        }
+        openLibraryVideo(video, recordsNavigationHistory: false)
+        try? subtitleDatabase?.setPlaybackNavigationCurrentEntryID(targetEntryID)
+        return true
+    }
+
+    private func restoreShioriNavigationEntry(
+        _ payload: PlaybackNavigationShioriPayload,
+        targetEntryID: Int64
+    ) -> Bool {
+        guard let target = shiori.shioris.first(where: { $0.id == payload.id }) else {
+            return false
+        }
+        openShiori(target, recordsNavigationHistory: false)
+        try? subtitleDatabase?.setPlaybackNavigationCurrentEntryID(targetEntryID)
+        return true
+    }
+
+    private func restoreSearchNavigationEntry(
+        _ payload: PlaybackNavigationSearchPayload,
+        targetEntryID: Int64
+    ) -> Bool {
+        guard let database = subtitleDatabase else {
+            return false
+        }
+
+        let trimmedQuery = payload.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            return false
+        }
+
+        let scopeURLs = payload.scopePaths.map { URL(fileURLWithPath: $0) }
+        let revisionUnchanged: Bool
+        let results: [SubtitleSearchResult]
+        do {
+            let currentRevision = try database.playbackNavigationIndexRevision()
+            revisionUnchanged = (currentRevision == payload.indexRevision)
+            results = try database.search(
+                trimmedQuery,
+                limit: 200,
+                offset: 0,
+                under: scopeURLs.isEmpty ? nil : scopeURLs
+            )
+        } catch {
+            return false
+        }
+
+        let targetResult: SubtitleSearchResult?
+        if revisionUnchanged,
+           let savedEntryID = payload.entryID,
+           let savedResult = results.first(where: { $0.entryID == savedEntryID }) {
+            targetResult = savedResult
+        } else {
+            targetResult = results.first
+        }
+
+        guard let result = targetResult else {
+            return false
+        }
+
+        workbenchLayout.selectPanelMode(.search)
+        search.searchQuery = trimmedQuery
+        startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
+        openSearchResult(result, recordsNavigationHistory: false)
+        try? database.setPlaybackNavigationCurrentEntryID(targetEntryID)
+        return true
+    }
+
     func playbackNavigationAvailability() -> (canMoveBack: Bool, canMoveForward: Bool) {
         guard let database = subtitleDatabase else {
             return (false, false)

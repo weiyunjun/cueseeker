@@ -43,7 +43,7 @@ extension AppCoordinator {
         )
     }
 
-    func openShiori(_ shiori: Shiori) {
+    func openShiori(_ shiori: Shiori, recordsNavigationHistory: Bool = true) {
         UIInvalidationProbe.mark(
             "ACTION UI.Shiori.opened",
             details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
@@ -51,7 +51,9 @@ extension AppCoordinator {
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
-        recordPlaybackNavigationEntry(playbackNavigationPayload(for: shiori))
+        if recordsNavigationHistory {
+            recordPlaybackNavigationEntry(playbackNavigationPayload(for: shiori))
+        }
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil

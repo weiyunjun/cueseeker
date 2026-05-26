@@ -167,7 +167,7 @@ extension AppCoordinator {
         playbackOriginatingPanelMode = workbenchLayout.panelMode
     }
 
-    func openSearchResult(_ result: SubtitleSearchResult) {
+    func openSearchResult(_ result: SubtitleSearchResult, recordsNavigationHistory: Bool = true) {
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
@@ -175,7 +175,9 @@ extension AppCoordinator {
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
-        recordPlaybackNavigationEntry(playbackNavigationPayload(for: result))
+        if recordsNavigationHistory {
+            recordPlaybackNavigationEntry(playbackNavigationPayload(for: result))
+        }
         activePlaybackSource = .search
         workbenchLayout.selectPanelMode(.search)
         search.selectedSearchResult = result
@@ -398,6 +400,13 @@ extension AppCoordinator {
     func submitPlaybackQuickSearchFromUser() -> Bool {
         guard playback.isQuickSearchOverlayVisible else {
             return false
+        }
+
+        if playback.quickSearchSubmittedQuery == nil,
+           playback.quickSearchFocusTarget == .navigation,
+           case .visible(let commands, let selectedIndex) = playback.quickSearchNavigationState,
+           commands.indices.contains(selectedIndex) {
+            return executePlaybackQuickSearchNavigationCommand(commands[selectedIndex])
         }
 
         if playback.quickSearchSubmittedQuery == nil,
