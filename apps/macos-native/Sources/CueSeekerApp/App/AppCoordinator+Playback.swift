@@ -395,13 +395,16 @@ extension AppCoordinator {
         }
 
         if playback.quickSearchSubmittedQuery == nil,
-           playback.isQuickSearchAIRefreshHintActive {
-            return startPlaybackQuickSearchAIChunking(reason: .manualRefresh)
+           playback.isQuickSearchAIRefreshOptionActive,
+           case .options(let chunks, _, .refresh) = playback.quickSearchAIState {
+            return startPlaybackQuickSearchAIChunking(reason: chunks.isEmpty ? .cacheMiss : .manualRefresh)
         }
 
+        var resultSource = PlaybackQuickSearchResultSource.direct
         if playback.quickSearchSubmittedQuery == nil,
            let selectedChunk = playback.selectedQuickSearchAIChunk() {
             playback.applyQuickSearchAIChunkQuery(selectedChunk)
+            resultSource = .chunk
         }
 
         let trimmedQuery = playback.quickSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -424,21 +427,20 @@ extension AppCoordinator {
         search.searchQuery = trimmedQuery
         search.searchNavigationSnapshot = nil
         search.searchNavigationResultGroups = []
-        playback.markQuickSearchSubmitted(query: trimmedQuery)
+        playback.markQuickSearchSubmitted(query: trimmedQuery, source: resultSource)
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
         playback.requestQuickSearchFocus()
         return true
     }
 
     @discardableResult
-    func movePlaybackQuickSearchSubtitleLineSelection(by offset: Int) -> Bool {
+    func movePlaybackQuickSearchFocus(by offset: Int) -> Bool {
         if playback.quickSearchSubmittedQuery != nil {
             return movePlaybackQuickSearchResultSelection(by: offset)
         }
 
-        let didMove = playback.moveQuickSearchSubtitleLineSelection(by: offset)
+        let didMove = playback.moveQuickSearchAIOptionFocus(by: offset)
         if didMove {
-            configurePlaybackQuickSearchAIEntry()
             playback.requestQuickSearchFocus()
         }
         return didMove
@@ -468,28 +470,6 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func acceptPlaybackQuickSearchAIHintOrMoveChunkRight(isAtEnd: Bool) -> Bool {
-        switch playback.quickSearchAIState {
-        case .chunks:
-            if isAtEnd, playback.showQuickSearchAIRefreshHintFromSearchField() {
-                playback.requestQuickSearchFocus()
-                return true
-            }
-            return movePlaybackQuickSearchAIChunkSelection(by: 1)
-        case .refreshHint:
-            let didRestore = playback.restoreQuickSearchAIChunkSelectionFromRefreshHint()
-            if didRestore {
-                playback.requestQuickSearchFocus()
-            }
-            return didRestore
-        case .hint where isAtEnd:
-            return startPlaybackQuickSearchAIChunking(reason: .cacheMiss)
-        case .hidden, .hint, .loading, .failed:
-            return false
-        }
-    }
-
-    @discardableResult
     private func startPlaybackQuickSearchAIChunking(
         reason: PlaybackQuickSearchAIChunkingRequestReason
     ) -> Bool {
@@ -499,7 +479,7 @@ extension AppCoordinator {
             return false
         }
 
-        let sentence = playback.quickSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sentence = playback.quickSearchCurrentSentence.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sentence.isEmpty else {
             let requestID = playback.markQuickSearchAIChunkingStarted()
             playback.markQuickSearchAIChunkingFailed("The sentence is empty.", requestID: requestID)
@@ -611,6 +591,31 @@ extension AppCoordinator {
     }
 
     @discardableResult
+    func handlePlaybackQuickSearchEscapeFromUser() -> Bool {
+        guard playback.isQuickSearchOverlayVisible else {
+            return false
+        }
+
+        if playback.quickSearchSubmittedQuery != nil {
+            if playback.quickSearchResultSource == .chunk,
+               playback.quickSearchFocusTarget == .result,
+               playback.restoreQuickSearchAIOptionsAfterChunkSearch() {
+                playback.requestQuickSearchFocus()
+                return true
+            }
+
+            if playback.quickSearchResultSource == .direct,
+               playback.quickSearchFocusTarget == .result {
+                playback.focusQuickSearchInput()
+                playback.requestQuickSearchFocus()
+                return true
+            }
+        }
+
+        return dismissPlaybackQuickSearchFromUser()
+    }
+
+    @discardableResult
     func dismissPlaybackQuickSearchFromUser() -> Bool {
         guard playback.isQuickSearchOverlayVisible else {
             return false
@@ -650,7 +655,7 @@ extension AppCoordinator {
 
         if playback.isQuickSearchOverlayVisible {
             if keyCode == 53 {
-                return dismissPlaybackQuickSearchFromUser()
+                return handlePlaybackQuickSearchEscapeFromUser()
             }
 
             return false
@@ -767,7 +772,7 @@ extension AppCoordinator {
         guard settings.aiChunkingEnabled,
               settings.deepSeekAPIKeyConfigured,
               let database = subtitleDatabase,
-              let key = playbackQuickSearchAIChunkCacheKeyForCurrentDraft()
+              let key = playbackQuickSearchAIChunkCacheKeyForCurrentSentence()
         else {
             return nil
         }
@@ -791,8 +796,8 @@ extension AppCoordinator {
         }
     }
 
-    private func playbackQuickSearchAIChunkCacheKeyForCurrentDraft() -> AIChunkCacheKey? {
-        let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(playback.quickSearchDraft)
+    private func playbackQuickSearchAIChunkCacheKeyForCurrentSentence() -> AIChunkCacheKey? {
+        let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(playback.quickSearchCurrentSentence)
         guard !normalizedSentence.isEmpty else {
             return nil
         }
@@ -816,7 +821,7 @@ extension AppCoordinator {
 
     private func logPlaybackQuickSearchAIChunkCacheMiss(key: AIChunkCacheKey) {
         print(
-            "[AIChunking] cache miss, request requires /chunks provider=\(key.provider) model=\(key.model) " +
+            "[AIChunking] cache miss, request requires current sentence chunk option provider=\(key.provider) model=\(key.model) " +
                 "prompt_version=\(key.promptVersion) text_hash=\(Self.shortLogHash(for: key.normalizedSentence))"
         )
     }

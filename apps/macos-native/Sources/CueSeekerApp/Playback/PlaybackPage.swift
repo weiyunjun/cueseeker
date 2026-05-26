@@ -105,7 +105,9 @@ struct PlaybackPageView: View {
                 results: overlayResults,
                 selectedResultIndex: playback.quickSearchSelectedResultIndex,
                 isSearching: search.isSearching,
+                currentSentence: playback.quickSearchCurrentSentence,
                 aiState: playback.quickSearchAIState,
+                focusTarget: playback.quickSearchFocusTarget,
                 onSubmit: {
                     appState.submitPlaybackQuickSearchFromUser()
                 },
@@ -116,16 +118,16 @@ struct PlaybackPageView: View {
                     playback.requestQuickSearchFocus()
                 },
                 onMoveUp: {
-                    appState.movePlaybackQuickSearchSubtitleLineSelection(by: -1)
+                    appState.movePlaybackQuickSearchFocus(by: -1)
                 },
                 onMoveDown: {
-                    appState.movePlaybackQuickSearchSubtitleLineSelection(by: 1)
+                    appState.movePlaybackQuickSearchFocus(by: 1)
                 },
                 onMoveLeft: {
                     appState.movePlaybackQuickSearchAIChunkSelection(by: -1)
                 },
-                onMoveRight: { isAtEnd in
-                    appState.acceptPlaybackQuickSearchAIHintOrMoveChunkRight(isAtEnd: isAtEnd)
+                onMoveRight: { _ in
+                    appState.movePlaybackQuickSearchAIChunkSelection(by: 1)
                 },
                 onOpenResult: { result in
                     appState.openPlaybackQuickSearchResult(result)

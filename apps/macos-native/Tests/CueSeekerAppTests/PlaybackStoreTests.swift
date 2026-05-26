@@ -7,18 +7,7 @@ import Testing
 func quickSearchAIEntryShowsCachedChunksWhenAvailable() {
     withTemporaryUserDefaults { userDefaults in
         let store = PlaybackStore(userDefaults: userDefaults)
-        store.isQuickSearchOverlayVisible = true
-        store.setQuickSearchSubtitleLineCandidates(
-            [
-                PlaybackQuickSearchLineCandidate(
-                    entryID: 1,
-                    entryIndex: 0,
-                    lineIndex: 0,
-                    text: "運も実力のうちだ"
-                )
-            ],
-            selectedIndex: 0
-        )
+        prepareQuickSearchCurrentSentence(in: store)
 
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
@@ -26,28 +15,24 @@ func quickSearchAIEntryShowsCachedChunksWhenAvailable() {
             cachedChunks: ["運", "実力", "うち"]
         )
 
+        #expect(store.quickSearchDraft == "")
+        #expect(store.quickSearchCurrentSentence == "運も実力のうちだ")
         #expect(store.selectedQuickSearchAIChunk() == "運")
-        #expect(store.quickSearchAIState == .chunks(["運", "実力", "うち"], selectedIndex: 0))
+        #expect(store.quickSearchFocusTarget == .aiOption)
+        #expect(store.quickSearchAIState == .options(
+            chunks: ["運", "実力", "うち"],
+            selectedChunkIndex: 0,
+            selectedOption: .chunks
+        ))
     }
 }
 
 @MainActor
 @Test
-func quickSearchAIEntryFallsBackToHintWhenCacheMisses() {
+func quickSearchAIEntryFallsBackToCurrentSentenceChunkOptionWhenCacheMisses() {
     withTemporaryUserDefaults { userDefaults in
         let store = PlaybackStore(userDefaults: userDefaults)
-        store.isQuickSearchOverlayVisible = true
-        store.setQuickSearchSubtitleLineCandidates(
-            [
-                PlaybackQuickSearchLineCandidate(
-                    entryID: 1,
-                    entryIndex: 0,
-                    lineIndex: 0,
-                    text: "運も実力のうちだ"
-                )
-            ],
-            selectedIndex: 0
-        )
+        prepareQuickSearchCurrentSentence(in: store)
 
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
@@ -55,7 +40,13 @@ func quickSearchAIEntryFallsBackToHintWhenCacheMisses() {
             cachedChunks: nil
         )
 
-        #expect(store.quickSearchAIState == .hint)
+        #expect(store.quickSearchAIState == .options(
+            chunks: [],
+            selectedChunkIndex: nil,
+            selectedOption: .refresh
+        ))
+        #expect(store.isQuickSearchAIRefreshOptionActive)
+        #expect(store.canStartQuickSearchAIChunkingRequest)
     }
 }
 
@@ -64,18 +55,7 @@ func quickSearchAIEntryFallsBackToHintWhenCacheMisses() {
 func quickSearchManualInputHidesCachedChunks() {
     withTemporaryUserDefaults { userDefaults in
         let store = PlaybackStore(userDefaults: userDefaults)
-        store.isQuickSearchOverlayVisible = true
-        store.setQuickSearchSubtitleLineCandidates(
-            [
-                PlaybackQuickSearchLineCandidate(
-                    entryID: 1,
-                    entryIndex: 0,
-                    lineIndex: 0,
-                    text: "運も実力のうちだ"
-                )
-            ],
-            selectedIndex: 0
-        )
+        prepareQuickSearchCurrentSentence(in: store)
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
@@ -85,41 +65,90 @@ func quickSearchManualInputHidesCachedChunks() {
         store.quickSearchDraft = "manual input"
 
         #expect(store.quickSearchAIState == .hidden)
+        #expect(store.quickSearchFocusTarget == .input)
     }
 }
 
 @MainActor
 @Test
-func quickSearchCachedChunksCanReturnToRefreshHintAndBack() {
+func quickSearchAIOptionFocusCanMoveBackToInputAtBoundaries() {
     withTemporaryUserDefaults { userDefaults in
         let store = PlaybackStore(userDefaults: userDefaults)
-        store.isQuickSearchOverlayVisible = true
-        store.setQuickSearchSubtitleLineCandidates(
-            [
-                PlaybackQuickSearchLineCandidate(
-                    entryID: 1,
-                    entryIndex: 0,
-                    lineIndex: 0,
-                    text: "運も実力のうちだ"
-                )
-            ],
-            selectedIndex: 0
-        )
+        prepareQuickSearchCurrentSentence(in: store)
         store.showQuickSearchAIEntryIfPossible(
             isEnabled: true,
             hasAPIKey: true,
             cachedChunks: ["運", "実力", "うち"]
         )
 
-        #expect(store.moveQuickSearchAIChunkSelection(by: -1))
-        #expect(store.quickSearchAIState == .chunks(["運", "実力", "うち"], selectedIndex: nil))
-        #expect(store.showQuickSearchAIRefreshHintFromSearchField())
-        #expect(store.quickSearchAIState == .refreshHint(["運", "実力", "うち"]))
-        #expect(store.quickSearchAIState.ghostSuffix == " /chunks")
-        #expect(store.isQuickSearchAIRefreshHintActive)
-        #expect(store.canStartQuickSearchAIChunkingRequest)
-        #expect(store.restoreQuickSearchAIChunkSelectionFromRefreshHint())
-        #expect(store.quickSearchAIState == .chunks(["運", "実力", "うち"], selectedIndex: 0))
+        #expect(store.moveQuickSearchAIOptionFocus(by: -1))
+        #expect(store.quickSearchFocusTarget == .input)
+        #expect(store.quickSearchAIState == .options(
+            chunks: ["運", "実力", "うち"],
+            selectedChunkIndex: 0,
+            selectedOption: nil
+        ))
+
+        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: ["運", "実力", "うち"],
+            selectedChunkIndex: 0,
+            selectedOption: .chunks
+        ))
+        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: ["運", "実力", "うち"],
+            selectedChunkIndex: 0,
+            selectedOption: .refresh
+        ))
+        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
+        #expect(store.quickSearchFocusTarget == .input)
+    }
+}
+
+@MainActor
+@Test
+func quickSearchChunkSearchCanRestorePreviousChunkOptions() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareQuickSearchCurrentSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: ["運", "実力", "うち"]
+        )
+
+        #expect(store.moveQuickSearchAIChunkSelection(by: 1))
+        #expect(store.selectedQuickSearchAIChunk() == "実力")
+        store.applyQuickSearchAIChunkQuery("実力")
+        store.markQuickSearchSubmitted(query: "実力", source: .chunk)
+        store.selectDefaultQuickSearchResultIfNeeded(resultCount: 2)
+
+        #expect(store.restoreQuickSearchAIOptionsAfterChunkSearch())
+        #expect(store.quickSearchDraft == "")
+        #expect(store.quickSearchSubmittedQuery == nil)
+        #expect(store.quickSearchFocusTarget == .aiOption)
+        #expect(store.quickSearchAIState == .options(
+            chunks: ["運", "実力", "うち"],
+            selectedChunkIndex: 1,
+            selectedOption: .chunks
+        ))
+    }
+}
+
+@MainActor
+@Test
+func quickSearchDirectResultSelectionReturnsToInputAtBoundaries() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        store.isQuickSearchOverlayVisible = true
+        store.markQuickSearchSubmitted(query: "manual", source: .direct)
+        store.selectDefaultQuickSearchResultIfNeeded(resultCount: 2)
+
+        #expect(store.quickSearchFocusTarget == .result)
+        #expect(store.moveQuickSearchResultSelection(by: -1, resultCount: 2))
+        #expect(store.quickSearchFocusTarget == .input)
+        #expect(store.quickSearchSelectedResultIndex == nil)
     }
 }
 
@@ -132,6 +161,22 @@ func aiChunkingUsageEstimatesCNYCost() {
     )
 
     #expect(usage.estimatedCostCNY == 0.005)
+}
+
+@MainActor
+private func prepareQuickSearchCurrentSentence(in store: PlaybackStore) {
+    store.isQuickSearchOverlayVisible = true
+    store.setQuickSearchSubtitleLineCandidates(
+        [
+            PlaybackQuickSearchLineCandidate(
+                entryID: 1,
+                entryIndex: 0,
+                lineIndex: 0,
+                text: "運も実力のうちだ"
+            )
+        ],
+        selectedIndex: 0
+    )
 }
 
 private func withTemporaryUserDefaults(_ body: (UserDefaults) -> Void) {

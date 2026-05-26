@@ -11,7 +11,9 @@ struct PlaybackQuickSearchOverlay: View {
     let results: [SubtitleSearchResult]
     let selectedResultIndex: Int?
     let isSearching: Bool
+    let currentSentence: String
     let aiState: PlaybackQuickSearchAIState
+    let focusTarget: PlaybackQuickSearchFocusTarget
     let onSubmit: () -> Void
     let onClear: () -> Void
     let onRequestFocus: () -> Void
@@ -50,8 +52,6 @@ struct PlaybackQuickSearchOverlay: View {
                 font: .systemFont(ofSize: 30, weight: .semibold),
                 textColor: NSColor.white.withAlphaComponent(0.94),
                 placeholderColor: NSColor.white.withAlphaComponent(0.34),
-                ghostSuffix: aiState.ghostSuffix,
-                ghostSuffixColor: NSColor.white.withAlphaComponent(0.34),
                 placesCursorAtEndOnFocusRequest: true,
                 onSubmit: onSubmit,
                 onMoveUp: onMoveUp,
@@ -89,7 +89,7 @@ struct PlaybackQuickSearchOverlay: View {
     @ViewBuilder
     private var aiPanel: some View {
         switch aiState {
-        case .hidden, .hint:
+        case .hidden:
             EmptyView()
         case .loading:
             aiPanelContainer {
@@ -117,33 +117,79 @@ struct PlaybackQuickSearchOverlay: View {
                 }
                 .padding(EdgeInsets(top: 13, leading: 18, bottom: 13, trailing: 18))
             }
-        case .chunks(let chunks, let selectedIndex):
-            aiChunksPanel(chunks: chunks, selectedIndex: selectedIndex)
-        case .refreshHint(let chunks):
-            aiChunksPanel(chunks: chunks, selectedIndex: nil)
+        case .options(let chunks, let selectedChunkIndex, let selectedOption):
+            aiOptionsPanel(
+                chunks: chunks,
+                selectedChunkIndex: selectedChunkIndex,
+                selectedOption: selectedOption
+            )
         }
     }
 
-    private func aiChunksPanel(chunks: [String], selectedIndex: Int?) -> some View {
+    private func aiOptionsPanel(
+        chunks: [String],
+        selectedChunkIndex: Int?,
+        selectedOption: PlaybackQuickSearchAIOption?
+    ) -> some View {
         aiPanelContainer {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
-                        Text(chunk)
-                            .font(.system(size: 13.5, weight: index == selectedIndex ? .semibold : .medium))
-                            .foregroundStyle(index == selectedIndex ? Color.white : Color.white.opacity(0.88))
-                            .lineLimit(1)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(index == selectedIndex ? PlaybackTheme.menuItemHighlight : Color.clear)
-                            )
-                    }
+            VStack(spacing: 0) {
+                if !chunks.isEmpty {
+                    aiChunksOptionRow(
+                        chunks: chunks,
+                        selectedChunkIndex: selectedChunkIndex,
+                        isSelected: focusTarget == .aiOption && selectedOption == .chunks
+                    )
                 }
-                .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+                aiRefreshOptionRow(isSelected: focusTarget == .aiOption && selectedOption == .refresh)
             }
         }
+    }
+
+    private func aiChunksOptionRow(
+        chunks: [String],
+        selectedChunkIndex: Int?,
+        isSelected: Bool
+    ) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
+                    Text(chunk)
+                        .font(.system(size: 13.5, weight: index == selectedChunkIndex ? .semibold : .medium))
+                        .foregroundStyle(index == selectedChunkIndex ? Color.white : Color.white.opacity(0.88))
+                        .lineLimit(1)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(index == selectedChunkIndex ? PlaybackTheme.menuItemHighlight : Color.clear)
+                        )
+                }
+            }
+            .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+        }
+        .background(optionRowBackground(isSelected: isSelected))
+    }
+
+    private func aiRefreshOptionRow(isSelected: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(currentSentence.isEmpty ? "Current sentence" : currentSentence)
+                .font(.system(size: 13.5, weight: isSelected ? .semibold : .medium))
+                .foregroundStyle(Color.white.opacity(isSelected ? 0.96 : 0.86))
+                .lineLimit(1)
+            Text("/chunks")
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(isSelected ? 0.78 : 0.46))
+            Spacer(minLength: 0)
+        }
+        .padding(EdgeInsets(top: 11, leading: 18, bottom: 11, trailing: 18))
+        .background(optionRowBackground(isSelected: isSelected))
+    }
+
+    private func optionRowBackground(isSelected: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(isSelected ? PlaybackTheme.menuItemHighlight.opacity(0.78) : Color.clear)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
     }
 
     private func aiPanelContainer<Content: View>(
