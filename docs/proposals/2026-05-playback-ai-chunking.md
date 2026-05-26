@@ -123,18 +123,21 @@ The first version implements only sentence chunking.
 The AI should return JSON shaped like:
 
 ```json
-{"items":["item1","item2"]}
+{
+  "items": [
+    {"item": "item1", "translation": "translation1"},
+    {"item": "item2", "translation": "translation2"}
+  ]
+}
 ```
 
 Validation rules:
 
 - `items` must not be empty.
-- Each item must be a non-empty continuous substring of the normalized sentence
-  sent to AI.
-- Duplicate items should be ignored or treated as invalid according to the
-  strictness chosen during implementation.
-- Ordinary pronouns, ordinary particles, and meaningless half characters should
-  not be accepted as useful chunks.
+- Items represent core learning units, which can be inflected forms or their corresponding base/dictionary forms (e.g., dictionary form of verbs/adjectives). The prompt must not strictly require them to be exact substrings of the original sentence to allow base forms to be extracted.
+- The `translation` field for each item must represent its meaning and grammatical role in the context of the sentence (in Simplified Chinese).
+- Duplicate items should be ignored or treated as invalid according to the strictness chosen during implementation.
+- Ordinary pronouns, ordinary particles, and meaningless half characters should not be accepted as useful chunks unless they are part of a larger grammatical pattern, connective, or phrasal unit.
 
 ## Prompt2 Status
 
@@ -165,7 +168,8 @@ Cache key:
 
 Cache value:
 
-- Validated chunk items.
+- Validated chunk items and their corresponding Chinese translations, stored as a serialized JSON array of key-value objects in the `chunks_json` field.
+- The local database search result counts (occurrence counts) must not be cached persistently because they depend on dynamic library indexing, and must be live-queried dynamically at runtime.
 - Cache date, recorded once when chunks are first cached for the same normalized
   subtitle line and cache key.
 - Updated timestamp.
@@ -211,7 +215,8 @@ When the user opens Playback Quick Search:
   captured as transient overlay context, not inserted into the input.
 - If AI chunking is enabled, an API key exists, and cached chunks exist for the
   current sentence, show a chunks option row immediately under the search field.
-  The first chunk is selected by default, and the search input must not show a
+  Inside the chunks interface, at least one row must be reserved at the top to display the local database search result count and the Chinese translation for the currently selected chunk. When the user navigates between chunks, this row updates dynamically.
+- The first chunk is selected by default, and the search input must not show a
   text caret while that option owns logical focus.
 - The chunks option row must wrap as needed so every chunk is visible in the
   overlay; it must not force chunks into a single horizontally scrolling or
@@ -476,9 +481,10 @@ Stage 6: persistent chunk cache and request logging.
 - Pressing Return on `current sentence / chunks` sends one stateless request.
 - Text sent to AI has punctuation and subtitle separators replaced with spaces.
 - Invalid responses show an overlay error.
-- Valid responses show chunks with the first chunk selected by default.
-- Left and Right move the focused option row's horizontal selection and wrap at
-  both ends.
+- Valid responses show chunks with the first chunk selected by default, with a dedicated top row displaying the selected chunk's live-queried database count and Chinese translation.
+- Chunks and their Chinese translations are persistently cached in `chunks_json` within `ai_chunk_cache_entries`.
+- Local database result counts are computed live and not persistently cached.
+- Left and Right move the focused option row's horizontal selection and wrap at both ends.
 - With chunks visible, Return searches the selected chunk.
 - From the `/back` `/forward` row, Return executes the selected navigation
   command.
