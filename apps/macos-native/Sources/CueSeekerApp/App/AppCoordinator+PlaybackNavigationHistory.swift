@@ -75,6 +75,25 @@ extension AppCoordinator {
         )
     }
 
+    func playbackNavigationAvailability() -> (canMoveBack: Bool, canMoveForward: Bool) {
+        guard let database = subtitleDatabase else {
+            return (false, false)
+        }
+
+        do {
+            guard let currentEntryID = try database.playbackNavigationCurrentEntryID() else {
+                return (false, false)
+            }
+            let entries = try database.playbackNavigationEntries()
+            guard let index = entries.firstIndex(where: { $0.id == currentEntryID }) else {
+                return (false, false)
+            }
+            return (index > 0, index < entries.count - 1)
+        } catch {
+            return (false, false)
+        }
+    }
+
     private func playbackNavigationEntryKind(
         for source: ActivePlaybackSource
     ) -> PlaybackNavigationEntryKind? {

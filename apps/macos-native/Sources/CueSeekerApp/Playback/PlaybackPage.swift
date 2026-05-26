@@ -107,6 +107,7 @@ struct PlaybackPageView: View {
                 isSearching: search.isSearching,
                 currentSentence: playback.quickSearchCurrentSentence,
                 aiState: playback.quickSearchAIState,
+                navigationState: playback.quickSearchNavigationState,
                 focusTarget: playback.quickSearchFocusTarget,
                 onSubmit: {
                     appState.submitPlaybackQuickSearchFromUser()

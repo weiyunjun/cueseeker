@@ -383,6 +383,7 @@ extension AppCoordinator {
         playback.resetQuickSearchAIState()
         configurePlaybackQuickSearchSubtitleLineSelection()
         configurePlaybackQuickSearchAIEntry()
+        configurePlaybackQuickSearchNavigationAvailability()
         playback.isQuickSearchOverlayVisible = true
         if playback.quickSearchFocusTarget == .input {
             playback.requestQuickSearchFocus()
@@ -772,6 +773,14 @@ extension AppCoordinator {
             isEnabled: settings.aiChunkingEnabled,
             hasAPIKey: settings.deepSeekAPIKeyConfigured,
             cachedChunks: cachedChunks
+        )
+    }
+
+    private func configurePlaybackQuickSearchNavigationAvailability() {
+        let availability = playbackNavigationAvailability()
+        playback.configureQuickSearchNavigation(
+            canMoveBack: availability.canMoveBack,
+            canMoveForward: availability.canMoveForward
         )
     }
 

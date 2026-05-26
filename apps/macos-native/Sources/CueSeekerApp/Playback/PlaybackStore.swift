@@ -11,6 +11,7 @@ struct PlaybackQuickSearchLineCandidate: Equatable {
 enum PlaybackQuickSearchFocusTarget: Equatable {
     case input
     case aiOption
+    case navigation
     case result
 }
 
@@ -22,6 +23,21 @@ enum PlaybackQuickSearchResultSource: Equatable {
 enum PlaybackQuickSearchAIOption: Equatable {
     case chunks
     case refresh
+}
+
+enum PlaybackQuickSearchNavigationCommand: Equatable {
+    case back
+    case forward
+}
+
+enum PlaybackQuickSearchNavigationState: Equatable {
+    case hidden
+    case visible(commands: [PlaybackQuickSearchNavigationCommand], selectedIndex: Int)
+}
+
+private enum PlaybackQuickSearchOptionStop: Equatable {
+    case aiOption(PlaybackQuickSearchAIOption)
+    case navigation
 }
 
 struct PlaybackQuickSearchAIOptionsSnapshot: Equatable {
@@ -92,6 +108,7 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var quickSearchResultSource: PlaybackQuickSearchResultSource?
     @Published private(set) var quickSearchFocusTarget: PlaybackQuickSearchFocusTarget = .input
     @Published private(set) var quickSearchAIState: PlaybackQuickSearchAIState = .hidden
+    @Published private(set) var quickSearchNavigationState: PlaybackQuickSearchNavigationState = .hidden
     private(set) var quickSearchAIRequestID = 0
     var quickSearchPlaybackWasPlayingOnOpen = false
     private var isApplyingQuickSearchDraftUpdate = false
@@ -344,63 +361,102 @@ final class PlaybackStore: ObservableObject {
 
     @discardableResult
     func moveQuickSearchAIOptionFocus(by offset: Int) -> Bool {
-        guard case .options(let chunks, let selectedChunkIndex, let selectedOption) = quickSearchAIState else {
+        let stops = visibleOptionStops()
+        guard !stops.isEmpty else {
             return false
         }
 
-        let options = aiOptions(for: chunks)
-        guard !options.isEmpty else {
-            focusQuickSearchInput()
-            return true
+        let currentStop = currentOptionStop()
+        let currentIndex: Int
+        if let currentStop, let foundIndex = stops.firstIndex(of: currentStop) {
+            currentIndex = foundIndex
+        } else {
+            currentIndex = offset < 0 ? stops.count : -1
         }
 
-        if quickSearchFocusTarget == .input || selectedOption == nil {
-            let nextOption = offset < 0 ? options[options.index(before: options.endIndex)] : options[0]
-            quickSearchAIState = .options(
-                chunks: chunks,
-                selectedChunkIndex: selectedChunkIndexForFocus(
-                    option: nextOption,
-                    chunks: chunks,
-                    currentIndex: selectedChunkIndex
-                ),
-                selectedOption: nextOption
-            )
-            quickSearchFocusTarget = .aiOption
-            isQuickSearchFocused = false
-            return true
-        }
-
-        guard let selectedOption,
-              let optionIndex = options.firstIndex(of: selectedOption)
-        else {
-            return false
-        }
-
-        let nextIndex = optionIndex + offset
-        guard options.indices.contains(nextIndex) else {
-            quickSearchAIState = .options(
-                chunks: chunks,
-                selectedChunkIndex: selectedChunkIndex,
-                selectedOption: nil
-            )
+        let nextIndex = currentIndex + offset
+        guard stops.indices.contains(nextIndex) else {
             quickSearchSelectedResultIndex = nil
             focusQuickSearchInput()
             return true
         }
 
-        let nextOption = options[nextIndex]
-        quickSearchAIState = .options(
-            chunks: chunks,
-            selectedChunkIndex: selectedChunkIndexForFocus(
-                option: nextOption,
-                chunks: chunks,
-                currentIndex: selectedChunkIndex
-            ),
-            selectedOption: nextOption
-        )
-        quickSearchFocusTarget = .aiOption
-        isQuickSearchFocused = false
+        applyOptionStopFocus(stops[nextIndex])
         return true
+    }
+
+    private func visibleOptionStops() -> [PlaybackQuickSearchOptionStop] {
+        var stops: [PlaybackQuickSearchOptionStop] = []
+        if case .options(let chunks, _, _) = quickSearchAIState, !chunks.isEmpty {
+            stops.append(.aiOption(.chunks))
+        }
+        if case .visible = quickSearchNavigationState {
+            stops.append(.navigation)
+        }
+        if case .options = quickSearchAIState {
+            stops.append(.aiOption(.refresh))
+        }
+        return stops
+    }
+
+    private func currentOptionStop() -> PlaybackQuickSearchOptionStop? {
+        switch quickSearchFocusTarget {
+        case .input, .result:
+            return nil
+        case .navigation:
+            return .navigation
+        case .aiOption:
+            if case .options(_, _, let selectedOption?) = quickSearchAIState {
+                return .aiOption(selectedOption)
+            }
+            return nil
+        }
+    }
+
+    private func applyOptionStopFocus(_ stop: PlaybackQuickSearchOptionStop) {
+        switch stop {
+        case .aiOption(let option):
+            if case .options(let chunks, let selectedChunkIndex, _) = quickSearchAIState {
+                quickSearchAIState = .options(
+                    chunks: chunks,
+                    selectedChunkIndex: selectedChunkIndexForFocus(
+                        option: option,
+                        chunks: chunks,
+                        currentIndex: selectedChunkIndex
+                    ),
+                    selectedOption: option
+                )
+            }
+            quickSearchFocusTarget = .aiOption
+        case .navigation:
+            if case .options(let chunks, let selectedChunkIndex, _) = quickSearchAIState {
+                quickSearchAIState = .options(
+                    chunks: chunks,
+                    selectedChunkIndex: selectedChunkIndex,
+                    selectedOption: nil
+                )
+            }
+            quickSearchFocusTarget = .navigation
+        }
+        isQuickSearchFocused = false
+    }
+
+    func configureQuickSearchNavigation(canMoveBack: Bool, canMoveForward: Bool) {
+        var commands: [PlaybackQuickSearchNavigationCommand] = []
+        if canMoveBack { commands.append(.back) }
+        if canMoveForward { commands.append(.forward) }
+
+        if commands.isEmpty {
+            if quickSearchNavigationState != .hidden {
+                quickSearchNavigationState = .hidden
+            }
+            if quickSearchFocusTarget == .navigation {
+                quickSearchFocusTarget = .input
+            }
+            return
+        }
+
+        quickSearchNavigationState = .visible(commands: commands, selectedIndex: 0)
     }
 
     var isQuickSearchAIRefreshOptionActive: Bool {
@@ -467,7 +523,10 @@ final class PlaybackStore: ObservableObject {
         }
         quickSearchAIRequestID += 1
         quickSearchAIOptionsSnapshot = nil
-        if quickSearchFocusTarget == .aiOption {
+        if quickSearchNavigationState != .hidden {
+            quickSearchNavigationState = .hidden
+        }
+        if quickSearchFocusTarget == .aiOption || quickSearchFocusTarget == .navigation {
             quickSearchFocusTarget = .input
         }
     }
@@ -483,10 +542,6 @@ final class PlaybackStore: ObservableObject {
         quickSearchCanNavigateSubtitleLines = canNavigateSubtitleLines
         quickSearchSelectedSubtitleLineIndex = selectedSubtitleLineIndex
         isApplyingQuickSearchDraftUpdate = false
-    }
-
-    private func aiOptions(for chunks: [String]) -> [PlaybackQuickSearchAIOption] {
-        chunks.isEmpty ? [.refresh] : [.chunks, .refresh]
     }
 
     private func selectedChunkIndexForFocus(

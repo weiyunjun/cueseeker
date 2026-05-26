@@ -13,6 +13,7 @@ struct PlaybackQuickSearchOverlay: View {
     let isSearching: Bool
     let currentSentence: String
     let aiState: PlaybackQuickSearchAIState
+    let navigationState: PlaybackQuickSearchNavigationState
     let focusTarget: PlaybackQuickSearchFocusTarget
     let onSubmit: () -> Void
     let onClear: () -> Void
@@ -92,7 +93,17 @@ struct PlaybackQuickSearchOverlay: View {
     private var aiPanel: some View {
         switch aiState {
         case .hidden:
-            EmptyView()
+            if case .visible(let commands, let selectedIndex) = navigationState {
+                aiPanelContainer {
+                    aiNavigationOptionRow(
+                        commands: commands,
+                        selectedCommandIndex: selectedIndex,
+                        isSelected: focusTarget == .navigation
+                    )
+                }
+            } else {
+                EmptyView()
+            }
         case .loading:
             aiPanelContainer {
                 HStack(spacing: 10) {
@@ -142,8 +153,57 @@ struct PlaybackQuickSearchOverlay: View {
                         isSelected: focusTarget == .aiOption && selectedOption == .chunks
                     )
                 }
+                if case .visible(let commands, let selectedIndex) = navigationState {
+                    aiNavigationOptionRow(
+                        commands: commands,
+                        selectedCommandIndex: selectedIndex,
+                        isSelected: focusTarget == .navigation
+                    )
+                }
                 aiRefreshOptionRow(isSelected: focusTarget == .aiOption && selectedOption == .refresh)
             }
+        }
+    }
+
+    private func aiNavigationOptionRow(
+        commands: [PlaybackQuickSearchNavigationCommand],
+        selectedCommandIndex: Int,
+        isSelected: Bool
+    ) -> some View {
+        HStack(spacing: 12) {
+            ForEach(Array(commands.enumerated()), id: \.offset) { index, command in
+                Text(navigationCommandLabel(for: command))
+                    .font(.system(
+                        size: 13.5,
+                        weight: isSelected && index == selectedCommandIndex ? .semibold : .medium
+                    ))
+                    .foregroundStyle(
+                        isSelected && index == selectedCommandIndex
+                            ? Color.white
+                            : Color.white.opacity(0.86)
+                    )
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(
+                                isSelected && index == selectedCommandIndex
+                                    ? PlaybackTheme.menuItemHighlight
+                                    : Color.clear
+                            )
+                    )
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(EdgeInsets(top: 6, leading: 18, bottom: 6, trailing: 18))
+        .background(optionRowBackground(isSelected: isSelected))
+    }
+
+    private func navigationCommandLabel(for command: PlaybackQuickSearchNavigationCommand) -> String {
+        switch command {
+        case .back: return "/back"
+        case .forward: return "/forward"
         }
     }
 
