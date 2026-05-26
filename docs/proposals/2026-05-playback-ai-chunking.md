@@ -213,6 +213,9 @@ When the user opens Playback Quick Search:
   current sentence, show a chunks option row immediately under the search field.
   The first chunk is selected by default, and the search input must not show a
   text caret while that option owns logical focus.
+- The chunks option row must wrap as needed so every chunk is visible in the
+  overlay; it must not force chunks into a single horizontally scrolling or
+  clipped row.
 - If AI chunking is enabled, an API key exists, and cached chunks exist for the
   current sentence, also show a fixed `current sentence / chunks` option row
   below the chunks row. Pressing Return on this fixed row sends a manual refresh
@@ -407,6 +410,7 @@ Stage 6: persistent chunk cache and request logging.
 - Opening Quick Search shows cached chunks immediately when the feature is
   enabled, a key exists, and the current sentence has a cache hit; the first
   cached chunk is selected by default.
+- Cached chunks are all visible by wrapping within the overlay width.
 - Opening Quick Search shows only `current sentence / chunks` when the feature
   is enabled, a key exists, and the current sentence has no cached chunks.
 - When an AI option is selected by default, the search input has no caret and

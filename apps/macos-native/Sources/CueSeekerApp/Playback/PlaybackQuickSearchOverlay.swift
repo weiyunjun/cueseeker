@@ -152,23 +152,22 @@ struct PlaybackQuickSearchOverlay: View {
         selectedChunkIndex: Int?,
         isSelected: Bool
     ) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
-                    Text(chunk)
-                        .font(.system(size: 13.5, weight: index == selectedChunkIndex ? .semibold : .medium))
-                        .foregroundStyle(index == selectedChunkIndex ? Color.white : Color.white.opacity(0.88))
-                        .lineLimit(1)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(index == selectedChunkIndex ? PlaybackTheme.menuItemHighlight : Color.clear)
-                        )
-                }
+        QuickSearchChunkFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+            ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
+                Text(chunk)
+                    .font(.system(size: 13.5, weight: index == selectedChunkIndex ? .semibold : .medium))
+                    .foregroundStyle(index == selectedChunkIndex ? Color.white : Color.white.opacity(0.88))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(index == selectedChunkIndex ? PlaybackTheme.menuItemHighlight : Color.clear)
+                    )
             }
-            .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(EdgeInsets(top: 8, leading: 18, bottom: 8, trailing: 18))
         .background(optionRowBackground(isSelected: isSelected))
     }
 
@@ -284,5 +283,65 @@ struct PlaybackQuickSearchOverlay: View {
                     .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
             )
             .shadow(color: .black.opacity(0.42), radius: 24, y: 12)
+    }
+}
+
+private struct QuickSearchChunkFlowLayout: Layout {
+    var horizontalSpacing: CGFloat
+    var verticalSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        let childProposal = maxWidth.isFinite
+            ? ProposedViewSize(width: maxWidth, height: nil)
+            : ProposedViewSize.unspecified
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var widestRow: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(childProposal)
+            if rowWidth > 0, rowWidth + horizontalSpacing + size.width > maxWidth {
+                totalHeight += rowHeight + verticalSpacing
+                widestRow = max(widestRow, rowWidth)
+                rowWidth = size.width
+                rowHeight = size.height
+            } else {
+                rowWidth += (rowWidth > 0 ? horizontalSpacing : 0) + size.width
+                rowHeight = max(rowHeight, size.height)
+            }
+        }
+
+        totalHeight += rowHeight
+        widestRow = max(widestRow, rowWidth)
+        return CGSize(
+            width: maxWidth.isFinite ? maxWidth : widestRow,
+            height: totalHeight
+        )
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        let childProposal = ProposedViewSize(width: bounds.width, height: nil)
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(childProposal)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+
+            subview.place(
+                at: CGPoint(x: x, y: y),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
+            x += size.width + horizontalSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
