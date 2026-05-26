@@ -383,7 +383,11 @@ extension AppCoordinator {
         configurePlaybackQuickSearchSubtitleLineSelection()
         configurePlaybackQuickSearchAIEntry()
         playback.isQuickSearchOverlayVisible = true
-        playback.requestQuickSearchFocus()
+        if playback.quickSearchFocusTarget == .input {
+            playback.requestQuickSearchFocus()
+        } else {
+            playback.clearQuickSearchInputFocus()
+        }
         pausePlayback()
         return true
     }
@@ -429,7 +433,6 @@ extension AppCoordinator {
         search.searchNavigationResultGroups = []
         playback.markQuickSearchSubmitted(query: trimmedQuery, source: resultSource)
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
-        playback.requestQuickSearchFocus()
         return true
     }
 
@@ -439,11 +442,7 @@ extension AppCoordinator {
             return movePlaybackQuickSearchResultSelection(by: offset)
         }
 
-        let didMove = playback.moveQuickSearchAIOptionFocus(by: offset)
-        if didMove {
-            playback.requestQuickSearchFocus()
-        }
-        return didMove
+        return playback.moveQuickSearchAIOptionFocus(by: offset)
     }
 
     @discardableResult
@@ -455,18 +454,13 @@ extension AppCoordinator {
         if didMove,
            let selectedResult = playback.selectedQuickSearchResult(in: search.searchResults) {
             loadMoreSearchResultsIfNeeded(currentResult: selectedResult)
-            playback.requestQuickSearchFocus()
         }
         return didMove
     }
 
     @discardableResult
     func movePlaybackQuickSearchAIChunkSelection(by offset: Int) -> Bool {
-        let didMove = playback.moveQuickSearchAIChunkSelection(by: offset)
-        if didMove {
-            playback.requestQuickSearchFocus()
-        }
-        return didMove
+        playback.moveQuickSearchAIChunkSelection(by: offset)
     }
 
     @discardableResult
@@ -548,7 +542,6 @@ extension AppCoordinator {
                         result.items,
                         requestID: requestID
                     )
-                    self.playback.requestQuickSearchFocus()
                 }
             } catch is CancellationError {
                 return
@@ -570,11 +563,9 @@ extension AppCoordinator {
                         Self.errorMessage(for: error),
                         requestID: requestID
                     )
-                    self.playback.requestQuickSearchFocus()
                 }
             }
         }
-        playback.requestQuickSearchFocus()
         return true
     }
 
@@ -600,14 +591,12 @@ extension AppCoordinator {
             if playback.quickSearchResultSource == .chunk,
                playback.quickSearchFocusTarget == .result,
                playback.restoreQuickSearchAIOptionsAfterChunkSearch() {
-                playback.requestQuickSearchFocus()
                 return true
             }
 
             if playback.quickSearchResultSource == .direct,
                playback.quickSearchFocusTarget == .result {
                 playback.focusQuickSearchInput()
-                playback.requestQuickSearchFocus()
                 return true
             }
         }
@@ -658,7 +647,24 @@ extension AppCoordinator {
                 return handlePlaybackQuickSearchEscapeFromUser()
             }
 
-            return false
+            if playback.isQuickSearchFocused {
+                return false
+            }
+
+            switch keyCode {
+            case 36, 76:
+                return submitPlaybackQuickSearchFromUser()
+            case 126:
+                return movePlaybackQuickSearchFocus(by: -1)
+            case 125:
+                return movePlaybackQuickSearchFocus(by: 1)
+            case 123:
+                return movePlaybackQuickSearchAIChunkSelection(by: -1)
+            case 124:
+                return movePlaybackQuickSearchAIChunkSelection(by: 1)
+            default:
+                return false
+            }
         }
 
         guard !Self.isEditableTextInputFocused() else {

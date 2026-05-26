@@ -211,14 +211,16 @@ When the user opens Playback Quick Search:
   captured as transient overlay context, not inserted into the input.
 - If AI chunking is enabled, an API key exists, and cached chunks exist for the
   current sentence, show a chunks option row immediately under the search field.
-  The first chunk is selected by default.
+  The first chunk is selected by default, and the search input must not show a
+  text caret while that option owns logical focus.
 - If AI chunking is enabled, an API key exists, and cached chunks exist for the
   current sentence, also show a fixed `current sentence / chunks` option row
   below the chunks row. Pressing Return on this fixed row sends a manual refresh
   request.
 - If AI chunking is enabled, an API key exists, and no cached chunks exist for
   the current sentence, show only the fixed `current sentence / chunks` option
-  row. It is selected by default.
+  row. It is selected by default, and the search input must not be the AppKit
+  first responder.
 - Manual edits to the input hide AI option rows and cached chunks for the
   current overlay interaction.
 - Programmatic changes caused by chunk selection or restoring AI options after a
@@ -239,6 +241,9 @@ has completed successfully.
 Keyboard behavior before a local search is submitted:
 
 - Quick Search owns a logical focus target: input, AI option, or search result.
+- Logical focus and real input focus must match visually: when an AI option is
+  selected, the search input does not show a caret and is not the active AppKit
+  text responder.
 - Up and Down move between the input and visible option rows. They no longer
   select nearby subtitle lines.
 - If the first visible option is selected, Up returns focus to the input.
@@ -404,6 +409,10 @@ Stage 6: persistent chunk cache and request logging.
   cached chunk is selected by default.
 - Opening Quick Search shows only `current sentence / chunks` when the feature
   is enabled, a key exists, and the current sentence has no cached chunks.
+- When an AI option is selected by default, the search input has no caret and
+  does not own AppKit text focus.
+- The input becomes the real text responder only after the user moves logical
+  focus back to the input or clicks/taps the input.
 - When chunking succeeds, the chunks row appears above `current sentence /
   chunks` and the first chunk is selected.
 - Manually editing the input hides AI option rows and cached chunks for

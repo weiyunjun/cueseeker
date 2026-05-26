@@ -105,7 +105,7 @@ final class PlaybackStore: ObservableObject {
     func setQuickSearchDraft(_ draft: String) {
         resetQuickSearchResultSelection()
         resetQuickSearchAIState()
-        quickSearchFocusTarget = .input
+        focusQuickSearchInput()
         applyQuickSearchDraft(
             draft,
             canNavigateSubtitleLines: false,
@@ -114,6 +114,23 @@ final class PlaybackStore: ObservableObject {
     }
 
     func requestQuickSearchFocus() {
+        focusQuickSearchInput()
+    }
+
+    func clearQuickSearchInputFocus() {
+        isQuickSearchFocused = false
+    }
+
+    func focusQuickSearchInput() {
+        quickSearchFocusTarget = .input
+        quickSearchSelectedResultIndex = nil
+        if case .options(let chunks, let selectedChunkIndex, _) = quickSearchAIState {
+            quickSearchAIState = .options(
+                chunks: chunks,
+                selectedChunkIndex: selectedChunkIndex,
+                selectedOption: nil
+            )
+        }
         isQuickSearchFocused = true
         quickSearchFocusRequestID += 1
     }
@@ -134,6 +151,7 @@ final class PlaybackStore: ObservableObject {
                 selectedSubtitleLineIndex: nil
             )
             quickSearchFocusTarget = .input
+            isQuickSearchFocused = false
             return
         }
 
@@ -144,6 +162,7 @@ final class PlaybackStore: ObservableObject {
             selectedSubtitleLineIndex: selectedIndex
         )
         quickSearchFocusTarget = .input
+        isQuickSearchFocused = false
     }
 
     @discardableResult
@@ -174,6 +193,7 @@ final class PlaybackStore: ObservableObject {
 
         quickSearchSelectedResultIndex = 0
         quickSearchFocusTarget = .result
+        isQuickSearchFocused = false
     }
 
     func selectedQuickSearchResult(in results: [SubtitleSearchResult]) -> SubtitleSearchResult? {
@@ -195,30 +215,32 @@ final class PlaybackStore: ObservableObject {
 
         guard resultCount > 0 else {
             quickSearchSelectedResultIndex = nil
-            quickSearchFocusTarget = .input
+            focusQuickSearchInput()
             return true
         }
 
         if quickSearchFocusTarget == .input {
             quickSearchSelectedResultIndex = offset < 0 ? resultCount - 1 : 0
             quickSearchFocusTarget = .result
+            isQuickSearchFocused = false
             return true
         }
 
         let currentIndex = quickSearchSelectedResultIndex ?? 0
         if offset < 0, currentIndex <= 0 {
             quickSearchSelectedResultIndex = nil
-            quickSearchFocusTarget = .input
+            focusQuickSearchInput()
             return true
         }
         if offset > 0, currentIndex >= resultCount - 1 {
             quickSearchSelectedResultIndex = nil
-            quickSearchFocusTarget = .input
+            focusQuickSearchInput()
             return true
         }
 
         quickSearchSelectedResultIndex = min(max(currentIndex + offset, 0), resultCount - 1)
         quickSearchFocusTarget = .result
+        isQuickSearchFocused = false
         return true
     }
 
@@ -257,6 +279,7 @@ final class PlaybackStore: ObservableObject {
             )
         }
         quickSearchFocusTarget = .aiOption
+        isQuickSearchFocused = false
     }
 
     @discardableResult
@@ -265,6 +288,7 @@ final class PlaybackStore: ObservableObject {
         quickSearchCanNavigateSubtitleLines = false
         quickSearchAIState = .loading
         quickSearchFocusTarget = .aiOption
+        isQuickSearchFocused = false
         return quickSearchAIRequestID
     }
 
@@ -274,6 +298,7 @@ final class PlaybackStore: ObservableObject {
         }
         quickSearchAIState = .failed(message)
         quickSearchFocusTarget = .aiOption
+        isQuickSearchFocused = false
     }
 
     func markQuickSearchAIChunkingSucceeded(_ chunks: [String], requestID: Int) {
@@ -283,6 +308,7 @@ final class PlaybackStore: ObservableObject {
         guard !chunks.isEmpty else {
             quickSearchAIState = .failed("The AI service returned no usable chunks.")
             quickSearchFocusTarget = .aiOption
+            isQuickSearchFocused = false
             return
         }
         quickSearchAIState = .options(
@@ -291,6 +317,7 @@ final class PlaybackStore: ObservableObject {
             selectedOption: .chunks
         )
         quickSearchFocusTarget = .aiOption
+        isQuickSearchFocused = false
     }
 
     @discardableResult
@@ -311,6 +338,7 @@ final class PlaybackStore: ObservableObject {
             selectedOption: .chunks
         )
         quickSearchFocusTarget = .aiOption
+        isQuickSearchFocused = false
         return true
     }
 
@@ -322,7 +350,7 @@ final class PlaybackStore: ObservableObject {
 
         let options = aiOptions(for: chunks)
         guard !options.isEmpty else {
-            quickSearchFocusTarget = .input
+            focusQuickSearchInput()
             return true
         }
 
@@ -338,6 +366,7 @@ final class PlaybackStore: ObservableObject {
                 selectedOption: nextOption
             )
             quickSearchFocusTarget = .aiOption
+            isQuickSearchFocused = false
             return true
         }
 
@@ -355,7 +384,7 @@ final class PlaybackStore: ObservableObject {
                 selectedOption: nil
             )
             quickSearchSelectedResultIndex = nil
-            quickSearchFocusTarget = .input
+            focusQuickSearchInput()
             return true
         }
 
@@ -370,6 +399,7 @@ final class PlaybackStore: ObservableObject {
             selectedOption: nextOption
         )
         quickSearchFocusTarget = .aiOption
+        isQuickSearchFocused = false
         return true
     }
 
@@ -408,6 +438,7 @@ final class PlaybackStore: ObservableObject {
             selectedSubtitleLineIndex: quickSearchSelectedSubtitleLineIndex
         )
         quickSearchFocusTarget = .input
+        isQuickSearchFocused = false
     }
 
     @discardableResult
@@ -426,19 +457,8 @@ final class PlaybackStore: ObservableObject {
         )
         quickSearchAIState = snapshot.aiState
         quickSearchFocusTarget = .aiOption
+        isQuickSearchFocused = false
         return true
-    }
-
-    func focusQuickSearchInput() {
-        quickSearchFocusTarget = .input
-        quickSearchSelectedResultIndex = nil
-        if case .options(let chunks, let selectedChunkIndex, _) = quickSearchAIState {
-            quickSearchAIState = .options(
-                chunks: chunks,
-                selectedChunkIndex: selectedChunkIndex,
-                selectedOption: nil
-            )
-        }
     }
 
     func resetQuickSearchAIState() {

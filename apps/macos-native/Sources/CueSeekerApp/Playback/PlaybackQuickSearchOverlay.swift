@@ -81,7 +81,9 @@ struct PlaybackQuickSearchOverlay: View {
         }
         .onAppear {
             DispatchQueue.main.async {
-                onRequestFocus()
+                if focusTarget == .input {
+                    onRequestFocus()
+                }
             }
         }
     }

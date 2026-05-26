@@ -19,8 +19,8 @@ before adding optional AI-assisted query expansion later.
   page.
 - Open the overlay with the Return key when video playback is visible and no
   editable text input already owns focus.
-- Focus the overlay input immediately after opening so the user can type or
-  press Return without an extra click.
+- Give the overlay keyboard priority immediately after opening. Focus the text
+  input only when the input is the current logical focus target.
 - Pause playback while the overlay is active.
 - Restore the pre-overlay playback state when the overlay is dismissed.
 - Open the overlay input empty.
@@ -55,7 +55,7 @@ User is watching a video
 User presses Return
 Playback pauses
 Quick Search overlay appears near the upper center of the playback page
-Input receives focus immediately
+Overlay receives keyboard priority immediately
 Input is empty
 User types a query or uses an optional overlay action to choose a query
 User presses Return
@@ -296,6 +296,13 @@ Keyboard handling priority while the overlay is visible:
 Escape must be handled before fullscreen Escape behavior. In fullscreen,
 pressing Escape with the overlay visible must not exit fullscreen.
 
+Logical focus must align with visible first-responder behavior:
+
+- When the logical focus target is an option row or search result, the search
+  input must not show a caret and must not be the AppKit first responder.
+- When logical focus returns to the input, the input becomes the AppKit first
+  responder and may show the caret.
+
 ## Data Model Impact
 
 No database schema change is required.
@@ -321,7 +328,7 @@ overlay is dismissed without opening a result.
 Stage 1: overlay shell and playback state.
 
 - Return opens the overlay on the playback page.
-- The overlay input receives focus immediately.
+- The overlay receives keyboard priority immediately.
 - Opening pauses playback and records whether playback was playing.
 - Escape from the input closes the overlay, consumes the event, and restores the
   prior playback state.
@@ -338,6 +345,10 @@ Stage 2: logical focus navigation.
 - Up and Down move between input, visible option rows, and visible search
   results.
 - Up and Down do not replace the input with nearby subtitle candidates.
+- Moving logical focus away from the input removes real text focus from the
+  input.
+- Moving logical focus back to the input makes the input the real text
+  responder.
 
 Stage 3: query submission and result display.
 
@@ -383,7 +394,7 @@ Risks:
 
 - Pressing Return on the playback page opens the quick search overlay when no
   editable text input is focused.
-- The overlay input receives focus immediately after opening.
+- The overlay receives keyboard priority immediately after opening.
 - Opening the overlay pauses playback.
 - The overlay input opens empty.
 - The overlay captures the current playback subtitle entry's last non-empty
@@ -392,6 +403,8 @@ Risks:
 - Up and Down do not move between nearby display-line candidates.
 - Up and Down move logical focus between the input, visible option rows, and
   visible search results.
+- When an option row or result is selected, the search input does not show a
+  caret and does not own AppKit text focus.
 - Same-timestamp merged subtitle content follows the quick-search line selection
   rules in this proposal.
 - Pressing Return with a query submits a Search using the existing Search flow.
