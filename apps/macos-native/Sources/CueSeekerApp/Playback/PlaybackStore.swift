@@ -338,25 +338,43 @@ final class PlaybackStore: ObservableObject {
     }
 
     @discardableResult
-    func moveQuickSearchAIChunkSelection(by offset: Int) -> Bool {
-        guard case .options(let chunks, let selectedIndex?, .chunks) = quickSearchAIState,
-              !chunks.isEmpty
-        else {
+    func moveQuickSearchOptionRowSelection(by offset: Int) -> Bool {
+        switch quickSearchFocusTarget {
+        case .aiOption:
+            guard case .options(let chunks, let selectedIndex?, .chunks) = quickSearchAIState,
+                  !chunks.isEmpty
+            else {
+                return false
+            }
+            let nextIndex = Self.cyclicIndex(from: selectedIndex, offset: offset, count: chunks.count)
+            quickSearchAIState = .options(
+                chunks: chunks,
+                selectedChunkIndex: nextIndex,
+                selectedOption: .chunks
+            )
+            quickSearchFocusTarget = .aiOption
+            isQuickSearchFocused = false
+            return true
+        case .navigation:
+            guard case .visible(let commands, let selectedIndex) = quickSearchNavigationState,
+                  !commands.isEmpty
+            else {
+                return false
+            }
+            let nextIndex = Self.cyclicIndex(from: selectedIndex, offset: offset, count: commands.count)
+            quickSearchNavigationState = .visible(commands: commands, selectedIndex: nextIndex)
+            quickSearchFocusTarget = .navigation
+            isQuickSearchFocused = false
+            return true
+        case .input, .result:
             return false
         }
+    }
 
-        let nextIndex = min(
-            max(selectedIndex + offset, chunks.startIndex),
-            chunks.index(before: chunks.endIndex)
-        )
-        quickSearchAIState = .options(
-            chunks: chunks,
-            selectedChunkIndex: nextIndex,
-            selectedOption: .chunks
-        )
-        quickSearchFocusTarget = .aiOption
-        isQuickSearchFocused = false
-        return true
+    private static func cyclicIndex(from current: Int, offset: Int, count: Int) -> Int {
+        let modulus = max(count, 1)
+        let raw = (current + offset) % modulus
+        return raw < 0 ? raw + modulus : raw
     }
 
     @discardableResult

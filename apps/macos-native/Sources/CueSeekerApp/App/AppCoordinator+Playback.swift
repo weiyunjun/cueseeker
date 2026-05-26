@@ -461,8 +461,8 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func movePlaybackQuickSearchAIChunkSelection(by offset: Int) -> Bool {
-        playback.moveQuickSearchAIChunkSelection(by: offset)
+    func movePlaybackQuickSearchOptionRowSelection(by offset: Int) -> Bool {
+        playback.moveQuickSearchOptionRowSelection(by: offset)
     }
 
     @discardableResult
@@ -661,9 +661,9 @@ extension AppCoordinator {
             case 125:
                 return movePlaybackQuickSearchFocus(by: 1)
             case 123:
-                return movePlaybackQuickSearchAIChunkSelection(by: -1)
+                return movePlaybackQuickSearchOptionRowSelection(by: -1)
             case 124:
-                return movePlaybackQuickSearchAIChunkSelection(by: 1)
+                return movePlaybackQuickSearchOptionRowSelection(by: 1)
             default:
                 return false
             }

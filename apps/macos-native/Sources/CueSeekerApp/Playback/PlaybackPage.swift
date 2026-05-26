@@ -125,10 +125,10 @@ struct PlaybackPageView: View {
                     appState.movePlaybackQuickSearchFocus(by: 1)
                 },
                 onMoveLeft: {
-                    appState.movePlaybackQuickSearchAIChunkSelection(by: -1)
+                    appState.movePlaybackQuickSearchOptionRowSelection(by: -1)
                 },
                 onMoveRight: { _ in
-                    appState.movePlaybackQuickSearchAIChunkSelection(by: 1)
+                    appState.movePlaybackQuickSearchOptionRowSelection(by: 1)
                 },
                 onOpenResult: { result in
                     appState.openPlaybackQuickSearchResult(result)

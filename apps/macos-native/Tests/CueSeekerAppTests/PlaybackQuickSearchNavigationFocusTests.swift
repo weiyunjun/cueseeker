@@ -141,6 +141,97 @@ func quickSearchManualDraftEditHidesNavigationRow() {
 }
 
 @MainActor
+@Test
+func chunksRowLeftRightWrapsAtBothEnds() {
+    withNavigationFocusUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareNavigationFocusSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: ["a", "b", "c"]
+        )
+        // Focus on chunks row, first chunk selected by default.
+        #expect(store.selectedQuickSearchAIChunk() == "a")
+
+        // Right within the row: a -> b -> c -> wrap -> a.
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.selectedQuickSearchAIChunk() == "b")
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.selectedQuickSearchAIChunk() == "c")
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.selectedQuickSearchAIChunk() == "a")
+
+        // Left: a -> wrap -> c -> b -> a.
+        #expect(store.moveQuickSearchOptionRowSelection(by: -1))
+        #expect(store.selectedQuickSearchAIChunk() == "c")
+        #expect(store.moveQuickSearchOptionRowSelection(by: -1))
+        #expect(store.selectedQuickSearchAIChunk() == "b")
+        #expect(store.moveQuickSearchOptionRowSelection(by: -1))
+        #expect(store.selectedQuickSearchAIChunk() == "a")
+    }
+}
+
+@MainActor
+@Test
+func navigationRowLeftRightWrapsBetweenBackAndForward() {
+    withNavigationFocusUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareNavigationFocusSentence(in: store)
+        store.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: true)
+
+        // Move focus to navigation row.
+        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
+        #expect(store.quickSearchFocusTarget == .navigation)
+        #expect(extractNavigationSelection(store) == 0)
+
+        // Right wraps from index 0 (last->first only if at end; 0 -> 1 first).
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(extractNavigationSelection(store) == 1)
+
+        // Right at last wraps to first.
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(extractNavigationSelection(store) == 0)
+
+        // Left at first wraps to last.
+        #expect(store.moveQuickSearchOptionRowSelection(by: -1))
+        #expect(extractNavigationSelection(store) == 1)
+
+        // Left from last back to first.
+        #expect(store.moveQuickSearchOptionRowSelection(by: -1))
+        #expect(extractNavigationSelection(store) == 0)
+    }
+}
+
+@MainActor
+@Test
+func optionRowSelectionDoesNotActWhenFocusIsInput() {
+    withNavigationFocusUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareNavigationFocusSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: ["a", "b"]
+        )
+        store.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: true)
+        store.focusQuickSearchInput()
+
+        #expect(store.quickSearchFocusTarget == .input)
+        #expect(!store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.quickSearchFocusTarget == .input)
+    }
+}
+
+@MainActor
+private func extractNavigationSelection(_ store: PlaybackStore) -> Int? {
+    if case .visible(_, let selectedIndex) = store.quickSearchNavigationState {
+        return selectedIndex
+    }
+    return nil
+}
+
+@MainActor
 private func extractSelectedAIOption(_ store: PlaybackStore) -> PlaybackQuickSearchAIOption? {
     if case .options(_, _, let selectedOption) = store.quickSearchAIState {
         return selectedOption

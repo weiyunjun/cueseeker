@@ -152,7 +152,7 @@ func quickSearchChunkSearchCanRestorePreviousChunkOptions() {
             cachedChunks: ["運", "実力", "うち"]
         )
 
-        #expect(store.moveQuickSearchAIChunkSelection(by: 1))
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
         #expect(store.selectedQuickSearchAIChunk() == "実力")
         #expect(!store.isQuickSearchFocused)
         store.applyQuickSearchAIChunkQuery("実力")
