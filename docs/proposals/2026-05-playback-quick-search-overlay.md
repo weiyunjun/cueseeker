@@ -9,9 +9,9 @@ result playback, result-to-result playback navigation, and copying the current
 subtitle from the playback page.
 
 The next interaction step should not start with AI features. The first step is a
-fast playback-page search overlay that turns the current subtitle line into a
-search query with minimal friction. This keeps the product direction grounded in
-local subtitle search before adding optional AI-assisted query expansion later.
+fast playback-page search overlay for local subtitle lookup with minimal
+friction. This keeps the product direction grounded in local subtitle search
+before adding optional AI-assisted query expansion later.
 
 ## Goals
 
@@ -23,17 +23,18 @@ local subtitle search before adding optional AI-assisted query expansion later.
   press Return without an extra click.
 - Pause playback while the overlay is active.
 - Restore the pre-overlay playback state when the overlay is dismissed.
-- Seed the overlay input from the playback page's current subtitle list, using
-  the same source of truth as the playback subtitle sidebar.
-- Let the user move through subtitle lines with Up and Down before searching.
+- Open the overlay input empty.
+- Keep the playback page's current subtitle sentence available as transient
+  overlay context for optional AI-assisted actions, using the same source of
+  truth as the playback subtitle sidebar.
 - Submit the query with Return and show results directly below the input.
 - Reuse existing search result data, paging, lazy loading, and playback
   behavior.
 - Reuse existing input, row, highlighting, timestamp, and subtitle display
   helpers wherever practical instead of creating a separate transitional UI
   system.
-- Keep Escape focused on dismissing the quick search overlay before fullscreen
-  Escape handling.
+- Keep Escape owned by the quick search overlay before fullscreen Escape
+  handling.
 
 ## Non-goals
 
@@ -55,8 +56,8 @@ User presses Return
 Playback pauses
 Quick Search overlay appears near the upper center of the playback page
 Input receives focus immediately
-Input is seeded with the current subtitle's last display line
-User optionally presses Up or Down to choose a nearby subtitle line
+Input is empty
+User types a query or uses an optional overlay action to choose a query
 User presses Return
 Search results appear directly below the input
 The first result is selected by default
@@ -69,10 +70,10 @@ The underlying Search page state updates to the submitted query and default
 result presentation
 ```
 
-Dismissal flow:
+Dismissal flow from the input:
 
 ```text
-User presses Escape while the overlay is visible
+User presses Escape while the overlay input has focus
 Overlay closes
 Playback returns to the state it had before the overlay opened
 If the overlay search did not open a result, the previous Search page and
@@ -168,10 +169,14 @@ PlaybackQuickSearchOverlay
   -> existing SearchStore / openSearchResult
 ```
 
-## Subtitle Line Selection
+## Current Subtitle Context
 
-The initial query and subtitle-line navigation must come from the playback
-page's current subtitle list, not from a separate database lookup:
+The Quick Search input opens empty. The playback page's current subtitle
+sentence may still be captured as transient overlay context for optional
+AI-assisted actions, but it must not be inserted into the input by default.
+
+Current subtitle context must come from the playback page's current subtitle
+list, not from a separate database lookup:
 
 ```text
 playback.currentSubtitleEntries
@@ -179,8 +184,8 @@ playback.currentSubtitleEntryLookup
 subtitleDisplayLines(content:cueLines:)
 ```
 
-This keeps Quick Search aligned with the visible playback subtitle sidebar and
-avoids a second "current subtitle" source of truth.
+This keeps optional Quick Search actions aligned with the visible playback
+subtitle sidebar and avoids a second "current subtitle" source of truth.
 
 When the overlay opens:
 
@@ -188,28 +193,24 @@ When the overlay opens:
   locate the current subtitle entry from `playback.currentSubtitleEntries`.
 - Use `subtitleDisplayLines(content: entry.content, cueLines: [])` to derive
   the visible display lines for that entry.
-- Seed the input with that entry's last non-empty display line.
+- Capture that entry's last non-empty display line as the current sentence
+  context.
+- Leave the input empty.
 
-Line navigation is line-based, not cue-card-based:
+Current sentence context is line-based, not cue-card-based:
 
 - Build a transient quick-search line stream from
   `playback.currentSubtitleEntries`.
 - Each subtitle entry contributes every non-empty display line returned by
   `subtitleDisplayLines`, in display order.
-- Opening the overlay selects the current subtitle entry's last non-empty
-  display line by default.
-- Up moves to the previous display-line candidate in that stream. If the
-  current subtitle entry has two display lines and the default selection is the
-  second line, Up moves to the first line in the same entry.
-- Down moves to the next display-line candidate in that stream until the user
-  enters result navigation.
+- Opening the overlay captures the current subtitle entry's last non-empty
+  display line as the current sentence context.
 - Same-timestamp merged subtitle content should be treated as one subtitle
   moment for display selection.
 - If a same-timestamp subtitle moment contains multiple subtitle entries, their
   display lines remain adjacent in the quick-search line stream.
-- Up and Down can switch subtitle candidates only while the input is unchanged
-  from the currently selected subtitle candidate. Once the user edits the input,
-  Up and Down must no longer replace the query with another subtitle line.
+- Up and Down do not switch subtitle candidates. They are reserved for moving
+  between the input, visible option rows, and visible search results.
 
 Example:
 
@@ -219,8 +220,8 @@ Each entry has two lines
 Quick Search line candidates contain all four display lines in order
 ```
 
-This keeps quick search aligned with visible subtitle lines while still using
-the current entry's final visible line as the default query.
+This keeps optional quick-search actions aligned with visible subtitle lines
+without making the current entry's final visible line the default query.
 
 ## Search Behavior
 
@@ -237,11 +238,13 @@ result-list context until the user opens a result:
 - Show a compact overlay projection of those results under the search field,
   using the existing playback sidebar result row.
 - Select the first loaded result by default after the query is submitted.
-- Pressing Escape after a submitted overlay search restores the pre-overlay
-  Search page and playback result-list context.
-- Pressing Return again immediately after the first result is selected should
-  open that selected result. This makes the common flow "Return, Return" mean
-  "search current subtitle line, then play the best/default result."
+- After direct search results are visible, pressing Escape while a result has
+  logical focus moves focus back to the input and keeps the result list visible.
+- After direct search results are visible, pressing Escape while the input has
+  focus dismisses the overlay and restores the pre-overlay Search page and
+  playback result-list context.
+- Pressing Return again while a result is selected should open that selected
+  result.
 - Keep the underlying Search page in its default result presentation after a
   result is opened.
 
@@ -257,11 +260,13 @@ overlay opened.
 Rules:
 
 - Opening the overlay pauses playback.
-- Pressing Escape closes the overlay.
+- Pressing Escape from the input closes the overlay.
+- Pressing Escape from a direct-search result moves focus back to the input and
+  keeps results visible.
 - Escape restores playback only if playback was playing before the overlay
-  opened.
+  opened and the overlay is dismissed.
 - Escape keeps playback paused if playback was already paused before the
-  overlay opened.
+  overlay opened and the overlay is dismissed.
 - Opening a selected result closes the overlay and then uses existing search
   result playback.
 - Opening a selected result should not restore the old playback state; the new
@@ -280,17 +285,16 @@ navigation remain consistent with the main Search page.
 
 Keyboard handling priority while the overlay is visible:
 
-1. Escape dismisses the quick search overlay and consumes the event.
+1. Escape follows the overlay focus rules and consumes the event.
 2. Return submits the input or opens the selected result.
-3. Up and Down navigate subtitle line candidates only while the input still
-   equals the selected subtitle candidate.
-4. After the user edits the input, Up and Down no longer replace the query with
-   subtitle candidates.
-5. After search results are visible, Up and Down navigate the result list.
-6. Other playback shortcuts are disabled while the overlay owns focus.
+3. Up and Down move logical focus between the input, visible option rows, and
+   visible search results.
+4. Left and Right remain available to the input unless a visible option row owns
+   its own horizontal selection.
+5. Other playback shortcuts are disabled while the overlay owns focus.
 
-Escape must be handled before fullscreen Escape behavior. In fullscreen, pressing
-Escape with the overlay visible closes the overlay and must not exit fullscreen.
+Escape must be handled before fullscreen Escape behavior. In fullscreen,
+pressing Escape with the overlay visible must not exit fullscreen.
 
 ## Data Model Impact
 
@@ -301,10 +305,10 @@ Transient UI state is expected:
 - Overlay visibility.
 - Overlay input text.
 - Whether playback was playing before the overlay opened.
-- Current subtitle line candidate index.
-- Whether the input is still equal to the current subtitle candidate.
+- Current subtitle sentence context.
+- Current logical focus target: input, option, or result.
 - Current overlay result selection index.
-- Whether the overlay is in subtitle-line navigation or result-list navigation.
+- Whether submitted results came from direct search or an option-driven search.
 - A transient snapshot of the pre-overlay Search page and playback result-list
   context so Escape can restore it when no result is opened.
 
@@ -319,20 +323,21 @@ Stage 1: overlay shell and playback state.
 - Return opens the overlay on the playback page.
 - The overlay input receives focus immediately.
 - Opening pauses playback and records whether playback was playing.
-- Escape closes the overlay, consumes the event, and restores the prior
-  playback state.
-- The default input is seeded from the playback subtitle sidebar source of
-  truth: current subtitle entry plus its last display line.
+- Escape from the input closes the overlay, consumes the event, and restores the
+  prior playback state.
+- The input opens empty.
+- The current subtitle sentence context is captured from the playback subtitle
+  sidebar source of truth: current subtitle entry plus its last display line.
 
-Stage 2: subtitle candidate navigation.
+Stage 2: logical focus navigation.
 
 - Build the quick-search line stream from `playback.currentSubtitleEntries`.
 - Each entry contributes every non-empty display line in display order.
-- Opening starts at the current subtitle entry's last display line.
-- Up and Down switch to the previous or next candidate while the input remains
-  unchanged from the selected candidate.
-- Once the user edits the input, Up and Down stop replacing the query with
-  subtitle candidates.
+- Opening captures the current subtitle entry's last display line as current
+  sentence context.
+- Up and Down move between input, visible option rows, and visible search
+  results.
+- Up and Down do not replace the input with nearby subtitle candidates.
 
 Stage 3: query submission and result display.
 
@@ -340,16 +345,16 @@ Stage 3: query submission and result display.
 - Results appear under the overlay input.
 - The first loaded result is selected by default.
 - If a result is already selected for the submitted query, pressing Return opens
-  that selected result through the existing playback path. This enables the
-  common "Return, Return" flow for the default result.
+  that selected result through the existing playback path.
 
 Stage 4: result navigation and playback.
 
-- Up and Down move through visible overlay results beyond the default selected
-  row.
+- Up and Down move between the input and visible overlay results.
 - Lazy loading follows the existing Search page behavior.
 - The overlay result list renders the loaded result set rather than an arbitrary
   fixed preview count.
+- Escape from a result reached by direct search returns focus to the input.
+- Escape from the input dismisses the overlay.
 - Return opens the selected result through `openSearchResult(result)`.
 - Opening a result closes the overlay and does not restore the old playback
   state.
@@ -362,7 +367,7 @@ Risks:
   shortcuts if overlay priority is not explicit.
 - Reusing the main `SearchStore` from an overlay requires care so the Search
   page and overlay do not fight over focus, presentation, or lazy loading.
-- Subtitle line selection must avoid assuming a universal bilingual or
+- Current sentence context must avoid assuming a universal bilingual or
   "Chinese-line" concept. It should use the database's normalized subtitle lines
   and the quick-search line rules above.
 - Command-overlay visual treatment can become hard to maintain if it introduces
@@ -380,30 +385,29 @@ Risks:
   editable text input is focused.
 - The overlay input receives focus immediately after opening.
 - Opening the overlay pauses playback.
-- The overlay input defaults to the current playback subtitle entry's last
-  non-empty display line, using the same data source as the playback subtitle
-  sidebar.
-- Up and Down can move between nearby display-line candidates before a search
-  is submitted while the input is unchanged from the selected candidate.
-- When the current subtitle entry has multiple display lines, Up and Down move
-  within those lines before moving to adjacent subtitle entries.
-- Up and Down do not replace the query after the user edits the input.
+- The overlay input opens empty.
+- The overlay captures the current playback subtitle entry's last non-empty
+  display line as current sentence context, using the same data source as the
+  playback subtitle sidebar.
+- Up and Down do not move between nearby display-line candidates.
+- Up and Down move logical focus between the input, visible option rows, and
+  visible search results.
 - Same-timestamp merged subtitle content follows the quick-search line selection
   rules in this proposal.
 - Pressing Return with a query submits a Search using the existing Search flow.
 - Search results appear directly below the search field.
 - The first loaded search result is selected by default after submission.
-- Pressing Return twice from the initial seeded input can search and then open
-  the default selected result.
 - Result list keyboard navigation supports selecting a result with Up and Down.
 - Pressing Return on a selected result opens it through the existing Search
   result playback flow.
 - Opening a result closes the overlay.
 - Opening a result updates the underlying Search page to the submitted query and
   default result presentation.
-- Pressing Escape after submitting an overlay search restores the Search page
-  and playback result-list context that existed before the overlay opened.
-- Pressing Escape while the overlay is visible closes the overlay.
+- After direct search results are visible, pressing Escape while a result has
+  logical focus moves focus back to the input and keeps results visible.
+- Pressing Escape while the input has focus closes the overlay and restores the
+  Search page and playback result-list context that existed before the overlay
+  opened.
 - Escape restores playback only when playback was playing before the overlay
   opened.
 - Escape is consumed by the overlay and does not exit fullscreen while the

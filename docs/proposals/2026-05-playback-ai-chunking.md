@@ -175,9 +175,9 @@ Rules:
 
 - Cache only validated chunk items.
 - A cache hit must not send an AI provider request.
-- A cache miss may show the `/chunks` hint and request chunks only after the
-  user triggers the hint.
-- Manual `/chunks` refresh bypasses cache lookup for that action.
+- A cache miss may show the fixed `current sentence / chunks` option and
+  request chunks only after the user triggers that option.
+- Manual chunk refresh bypasses cache lookup for that action.
 - Successful refresh overwrites the cached chunk items for the same key.
 - Successful refresh must not create a second cache date for the same normalized
   subtitle line and cache key.
@@ -204,61 +204,83 @@ Future date metadata:
 
 When the user opens Playback Quick Search:
 
-- If AI chunking is disabled, show no AI chunking hint.
-- If AI chunking is enabled but no API key is configured, show no AI chunking
-  hint in the overlay.
+- If AI chunking is disabled, show no AI option rows.
+- If AI chunking is enabled but no API key is configured, show no AI option rows
+  in the overlay.
+- The Quick Search input opens empty. The current playback subtitle sentence is
+  captured as transient overlay context, not inserted into the input.
 - If AI chunking is enabled, an API key exists, and cached chunks exist for the
-  seeded query, show cached chunks below the search field immediately and keep
-  `/chunks` available as a refresh affordance.
-- If AI chunking is enabled, an API key exists, and no cached chunks exist, show
-  a low-emphasis inline ghost suffix `/chunks` immediately after the seeded
-  query text.
-- The text insertion point remains at the end of the real query text, before the
-  ghost suffix.
-- The ghost suffix is an action hint, not part of the query text.
-- Manual edits to the input hide the AI chunking hint and cached chunks for the
+  current sentence, show a chunks option row immediately under the search field.
+  The first chunk is selected by default.
+- If AI chunking is enabled, an API key exists, and cached chunks exist for the
+  current sentence, also show a fixed `current sentence / chunks` option row
+  below the chunks row. Pressing Return on this fixed row sends a manual refresh
+  request.
+- If AI chunking is enabled, an API key exists, and no cached chunks exist for
+  the current sentence, show only the fixed `current sentence / chunks` option
+  row. It is selected by default.
+- Manual edits to the input hide AI option rows and cached chunks for the
   current overlay interaction.
-- Programmatic changes caused by subtitle line navigation or chunk selection do
-  not count as manual edits.
+- Programmatic changes caused by chunk selection or restoring AI options after a
+  chunk search do not count as manual edits.
 
 Example display:
 
 ```text
-今天天气真不错 /chunks
+Search subtitles
+
+chunks: [tonight] [looks beautiful] [from here]
+current sentence / chunks
 ```
 
-In this example, `今天天气真不错` is the actual query text and `/chunks` is a
-dimmed hint.
+The chunks row appears only after cached chunks are loaded or a chunking request
+has completed successfully.
 
 Keyboard behavior before a local search is submitted:
 
-- Up and Down keep their existing subtitle-line navigation behavior.
-- With no cached chunks visible, Right accepts the `/chunks` hint and starts the
-  chunking request when the hint is visible and the insertion point is at the
-  end of the real query text.
+- Quick Search owns a logical focus target: input, AI option, or search result.
+- Up and Down move between the input and visible option rows. They no longer
+  select nearby subtitle lines.
+- If the first visible option is selected, Up returns focus to the input.
+- If the last visible option is selected, Down returns focus to the input.
+- Pressing Return on `current sentence / chunks` sends one stateless chunking
+  request for the captured current sentence.
 - While loading, show a loading row below the search field.
 - If the request fails, show an error row below the search field.
-- If chunking succeeds, show the returned chunks below the search field.
-- The first chunk is selected by default.
+- If chunking succeeds, insert the chunks row above `current sentence / chunks`.
+  The first chunk is selected by default.
 - The selected chunk must have a visible selected background using the current
   Quick Search selected-row visual language.
-- Left and Right move the selected chunk.
-- If cached chunks are visible, Return searches the selected cached chunk.
-- If the first cached chunk is selected, Left moves focus back to the search
-  field and leaves the insertion point at the end of the real query text, before
-  `/chunks`.
-- With cached chunks visible, from the search field, Right first enters the
-  `/chunks` refresh affordance.
-- When the `/chunks` refresh affordance is active, Return sends a refresh
-  request and Right moves back into the cached chunk list.
-- Return searches the selected chunk through the existing Quick Search/Search
-  flow.
+- Left and Right move the selected chunk only while the chunks row is selected.
+- Pressing Return on the chunks row searches the selected chunk through the
+  existing Quick Search/Search flow.
 
-Keyboard behavior after local search results are visible remains unchanged:
+AI options and search results are mutually exclusive:
 
-- Up and Down select search results.
+- Before a search is submitted, the overlay may show AI option rows.
+- After a chunk or direct query is submitted, the overlay shows search results
+  instead of AI option rows.
+- A chunk search stores a transient snapshot of the previous AI options and the
+  selected chunk.
+- Pressing Escape from search results reached through a chunk search returns to
+  the previous AI options and restores the selected chunk.
+
+Keyboard behavior after local search results are visible:
+
+- Up and Down move between the input and visible search results.
+- If the first search result is selected, Up returns focus to the input.
+- If the last search result is selected, Down returns focus to the input.
 - Return opens the selected result.
-- Escape dismisses the overlay before fullscreen Escape behavior.
+- If results were reached through a chunk search and focus is on a search
+  result, Escape returns to the previous AI options and preserves the selected
+  chunk.
+- If results were reached through a chunk search and focus is in the input,
+  Escape dismisses the overlay.
+- If results were reached through direct search and focus is on a search result,
+  Escape moves focus back to the input and keeps the result list visible.
+- If results were reached through direct search and focus is in the input,
+  Escape dismisses the overlay.
+- Escape is consumed by the overlay before fullscreen Escape behavior.
 
 ## Settings Behavior
 
@@ -338,17 +360,20 @@ Stage 3: AI chunking client.
 
 Stage 4: Quick Search AI entry.
 
-- Show the inline `/chunks` ghost suffix in the Quick Search field when enabled
-  and configured.
-- Keep Up and Down reserved for existing subtitle-line and result-list
-  navigation.
-- Hide the hint after manual input edits.
-- Start chunking from Right accepting the hint.
+- Open Quick Search with an empty input.
+- Capture the current playback subtitle sentence as transient option context.
+- Show fixed AI option rows below the Quick Search field when enabled and
+  configured.
+- Keep AI options and search results mutually exclusive.
+- Use Up and Down for logical focus movement between input and option rows.
+- Hide AI option rows after manual input edits.
+- Start chunking from Return on the `current sentence / chunks` option.
 - Show loading and error rows below the Quick Search field.
 
 Stage 5: chunk selection and local search.
 
 - Display validated chunks.
+- Insert the chunks row above the fixed `current sentence / chunks` row.
 - Select the first chunk by default.
 - Support Left and Right selection.
 - Use Return to search the selected chunk through the existing Quick Search
@@ -359,10 +384,9 @@ Stage 6: persistent chunk cache and request logging.
 - Add a persistent cache keyed by normalized sentence, provider, model, and
   prompt version.
 - Record one cache date per cached normalized subtitle line and cache key.
-- Load cached chunks when opening Quick Search or navigating seeded subtitle
-  lines.
-- Show cached chunks immediately with the first chunk selected.
-- Keep `/chunks` available as a manual refresh action.
+- Load cached chunks when opening Quick Search for the current sentence.
+- Show cached chunks immediately with the first chunk selected and keep the
+  fixed `current sentence / chunks` row available as a manual refresh action.
 - Log cache hits, misses, refreshes, request failures, and request usage token
   counts.
 
@@ -372,36 +396,46 @@ Stage 6: persistent chunk cache and request logging.
 - Settings can enable AI chunking.
 - Settings can save and clear the DeepSeek API key without storing plaintext in
   `UserDefaults`.
-- Opening Quick Search shows the `/chunks` ghost hint when the feature is
-  enabled and a key exists.
+- Opening Quick Search leaves the input empty.
+- Opening Quick Search captures the current subtitle sentence as AI option
+  context when the feature is enabled and a key exists.
 - Opening Quick Search shows cached chunks immediately when the feature is
-  enabled, a key exists, and the seeded query has a cache hit; the first cached
-  chunk is selected by default.
-- The insertion point starts at the end of the real query text, before the
-  ghost hint.
-- Manually editing the input hides the AI chunking hint and cached chunks for
+  enabled, a key exists, and the current sentence has a cache hit; the first
+  cached chunk is selected by default.
+- Opening Quick Search shows only `current sentence / chunks` when the feature
+  is enabled, a key exists, and the current sentence has no cached chunks.
+- When chunking succeeds, the chunks row appears above `current sentence /
+  chunks` and the first chunk is selected.
+- Manually editing the input hides AI option rows and cached chunks for
   the current overlay interaction.
-- Up and Down navigation does not trigger AI chunking.
-- With no cached chunks visible, pressing Right while the `/chunks` hint is
-  visible sends one stateless request.
+- Up and Down navigation does not trigger AI chunking and does not select
+  nearby subtitle lines.
+- Pressing Return on `current sentence / chunks` sends one stateless request.
 - Text sent to AI has punctuation and subtitle separators replaced with spaces.
 - Invalid responses show an overlay error.
 - Valid responses show chunks with the first chunk selected by default.
 - Left and Right move chunk selection.
-- With cached chunks visible, Return searches the selected cached chunk.
-- With the first cached chunk selected, Left returns focus to the search field
-  before the `/chunks` hint.
-- From the search field after returning from cached chunks, Right enters the
-  `/chunks` refresh affordance, and another Right returns to the cached chunks.
-- From the `/chunks` refresh affordance, Return sends one stateless refresh
-  request.
-- Manual `/chunks` refresh bypasses the cache for that action and overwrites the
+- With chunks visible, Return searches the selected chunk.
+- If the first visible AI option is selected, Up returns focus to the input.
+- If the last visible AI option is selected, Down returns focus to the input.
+- From the `current sentence / chunks` option, Return sends one stateless
+  refresh request.
+- Manual chunk refresh bypasses the cache for that action and overwrites the
   cache only on success.
 - Cache date is recorded once per normalized subtitle line and cache key; a
   refresh must not create duplicate cache dates.
 - Cache hits log a skipped request and do not log an AI request completion.
 - Every completed AI request logs token counts and estimated CNY cost.
 - Return searches the selected chunk through the existing local Search flow.
+- AI options and search results are not visible at the same time.
+- From search results reached through a chunk search, Escape on a focused result
+  returns to the previous chunks options and preserves the selected chunk.
+- From search results reached through a chunk search, Escape in the input
+  dismisses Quick Search.
+- From search results reached through direct search, Escape on a focused result
+  returns focus to the input.
+- From search results reached through direct search, Escape in the input
+  dismisses Quick Search.
 - Prompt2, synonym search, and antonym search are not part of the first
   implementation.
 
