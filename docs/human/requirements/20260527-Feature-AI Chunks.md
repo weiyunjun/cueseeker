@@ -1,4 +1,6 @@
 备注：此为初步需求文档，需要随着讨论逐渐细化。
+### 版本
+feature/playback-quick-search
 ### 需求描述
 1. 在Settings - Experimental Features - AI Chunking中，支持prompt配置和保存，方便我调试。
 2. prompt中需要包含通配符的格式，因为最后调用API时，会根据实际的句子来处理发送内容。
