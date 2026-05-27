@@ -147,16 +147,18 @@ struct PlaybackQuickSearchOverlay: View {
     ) -> some View {
         aiPanelContainer {
             VStack(spacing: 0) {
-                selectedChunkDetailRow(chunks: chunks, selectedChunkIndex: selectedChunkIndex)
-
                 if !chunks.isEmpty {
+                    selectedChunkDetailRow(chunks: chunks, selectedChunkIndex: selectedChunkIndex)
                     aiChunksOptionRow(
                         chunks: chunks,
                         selectedChunkIndex: selectedChunkIndex,
                         isSelected: focusTarget == .aiOption && selectedOption == .chunks
                     )
                 }
-                aiRefreshOptionRow(isSelected: focusTarget == .aiOption && selectedOption == .refresh)
+                aiRefreshOptionRow(
+                    hasChunks: !chunks.isEmpty,
+                    isSelected: focusTarget == .aiOption && selectedOption == .refresh
+                )
                 if case .visible(let commands, let selectedIndex) = navigationState {
                     aiNavigationOptionRow(
                         commands: commands,
@@ -175,26 +177,10 @@ struct PlaybackQuickSearchOverlay: View {
     ) -> some View {
         HStack(spacing: 12) {
             ForEach(Array(commands.enumerated()), id: \.offset) { index, command in
-                Text(navigationCommandLabel(for: command))
-                    .font(.system(
-                        size: 13.5,
-                        weight: isSelected && index == selectedCommandIndex ? .semibold : .medium
-                    ))
-                    .foregroundStyle(
-                        isSelected && index == selectedCommandIndex
-                            ? Color.white
-                            : Color.white.opacity(0.86)
-                    )
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(
-                                isSelected && index == selectedCommandIndex
-                                    ? PlaybackTheme.menuItemHighlight
-                                    : Color.clear
-                            )
-                    )
+                quickSearchActionLabel(
+                    navigationCommandLabel(for: command),
+                    isSelected: isSelected && index == selectedCommandIndex
+                )
             }
             Spacer(minLength: 0)
         }
@@ -234,15 +220,35 @@ struct PlaybackQuickSearchOverlay: View {
         .background(optionRowBackground(isSelected: isSelected))
     }
 
-    private func aiRefreshOptionRow(isSelected: Bool) -> some View {
-        Text("\(currentSentence.isEmpty ? "Current sentence" : currentSentence) /chunks")
+    private func aiRefreshOptionRow(hasChunks: Bool, isSelected: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(currentSentence.isEmpty ? "Current sentence" : currentSentence)
+                .font(.system(size: 13.5, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.88))
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                quickSearchActionLabel(hasChunks ? "/rechunk" : "/chunk", isSelected: isSelected)
+                quickSearchActionLabel("/copy", isSelected: false)
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(EdgeInsets(top: 10, leading: 18, bottom: 10, trailing: 18))
+        .background(optionRowBackground(isSelected: isSelected))
+    }
+
+    private func quickSearchActionLabel(_ label: String, isSelected: Bool) -> some View {
+        Text(label)
             .font(.system(size: 13.5, weight: isSelected ? .semibold : .medium))
-            .foregroundStyle(Color.white.opacity(isSelected ? 0.96 : 0.86))
-            .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(EdgeInsets(top: 11, leading: 18, bottom: 11, trailing: 18))
-            .background(optionRowBackground(isSelected: isSelected))
+            .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.86))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? PlaybackTheme.menuItemHighlight : Color.clear)
+            )
     }
 
     private func optionRowBackground(isSelected: Bool) -> some View {
