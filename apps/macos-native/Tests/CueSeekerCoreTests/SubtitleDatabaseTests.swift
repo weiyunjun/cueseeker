@@ -671,6 +671,57 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
 }
 
 @Test
+func cueGroupOccurrenceCountMatchesSearchPageExactTotals() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let mediaFolder = URL(fileURLWithPath: "/Media")
+    let mediaSubtitle = mediaFolder.appendingPathComponent("Exam.srt")
+    let mediaVideo = mediaFolder.appendingPathComponent("Exam.mkv")
+    let archiveFolder = URL(fileURLWithPath: "/Archive")
+    let archiveSubtitle = archiveFolder.appendingPathComponent("Exam.srt")
+    let archiveVideo = archiveFolder.appendingPathComponent("Exam.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: mediaSubtitle,
+        videoFile: mediaVideo,
+        entries: [
+            databaseTestEntry(text: "一級試験は例年通りなら"),
+            databaseTestEntry(text: "一級魔法使い")
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: archiveSubtitle,
+        videoFile: archiveVideo,
+        entries: [
+            databaseTestEntry(text: "一級試験"),
+            databaseTestEntry(text: "magic circle")
+        ]
+    )
+
+    let allCJKPage = try database.searchPage("一級", limit: 10)
+    #expect(try database.cueGroupOccurrenceCount(for: " 一級 ") == allCJKPage.totalCount)
+    #expect(allCJKPage.totalCount == 3)
+
+    let scopedCJKPage = try database.searchPage("一級", limit: 10, under: [mediaFolder])
+    #expect(try database.cueGroupOccurrenceCount(for: "一級", under: [mediaFolder]) == scopedCJKPage.totalCount)
+    #expect(scopedCJKPage.totalCount == 2)
+
+    let phrasePage = try database.searchPage("一級試験", limit: 10)
+    #expect(try database.cueGroupOccurrenceCount(for: "一級試験") == phrasePage.totalCount)
+    #expect(phrasePage.totalCount == 2)
+
+    let latinPage = try database.searchPage("mag", limit: 10)
+    #expect(try database.cueGroupOccurrenceCount(for: "mag") == latinPage.totalCount)
+    #expect(latinPage.totalCount == 1)
+}
+
+@Test
 func searchPageExposesExactCountsWhenRowsContinue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

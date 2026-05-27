@@ -647,67 +647,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
         database = try SQLiteDatabase(path: path)
     }
 
-    public func cueGroupOccurrenceCount(for query: String) throws -> Int {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+    public func cueGroupOccurrenceCount(
+        for query: String,
+        under folders: [URL]? = nil
+    ) throws -> Int {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
             return 0
         }
 
-        let ftsQuery: String
-        let containsCJK = trimmed.unicodeScalars.contains { scalar in
-            let value = Int(scalar.value)
-            return (0x3400...0x4DBF).contains(value)
-                || (0x4E00...0x9FFF).contains(value)
-                || (0xF900...0xFAFF).contains(value)
-                || (0x3040...0x309F).contains(value)
-                || (0x30A0...0x30FF).contains(value)
-                || (0x31F0...0x31FF).contains(value)
-                || (0xFF66...0xFF9F).contains(value)
-        }
-
-        if containsCJK {
-            var segmented = ""
-            for scalar in trimmed.unicodeScalars {
-                segmented.unicodeScalars.append(scalar)
-                let value = Int(scalar.value)
-                if (0x3400...0x4DBF).contains(value)
-                    || (0x4E00...0x9FFF).contains(value)
-                    || (0xF900...0xFAFF).contains(value)
-                    || (0x3040...0x309F).contains(value)
-                    || (0x30A0...0x30FF).contains(value)
-                    || (0x31F0...0x31FF).contains(value)
-                    || (0xFF66...0xFF9F).contains(value) {
-                    segmented.append(" ")
-                }
-            }
-            ftsQuery = "\"\(segmented.trimmingCharacters(in: .whitespacesAndNewlines))\""
-        } else {
-            let tokens = trimmed.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
-            if tokens.count > 1 {
-                ftsQuery = tokens.joined(separator: " AND ")
-            } else if !tokens.isEmpty {
-                ftsQuery = "\(tokens[0])*"
-            } else {
-                return 0
-            }
-        }
-
-        let statement = try database.prepare(
-            """
-            SELECT COUNT(*)
-            FROM subtitle_cue_groups_fts f
-            JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-            WHERE subtitle_cue_groups_fts MATCH ? AND g.search_content LIKE ?;
-            """
-        )
-
-        try statement.bind(ftsQuery, at: 1)
-        try statement.bind("%\(trimmed)%", at: 2)
-
-        guard try statement.step() else {
-            return 0
-        }
-        return statement.intColumn(0)
+        return try searchPage(
+            trimmedQuery,
+            limit: 1,
+            cursor: .start,
+            under: folders,
+            mode: .exact
+        ).totalCount
     }
 
     public func clearSearchResultCache() {

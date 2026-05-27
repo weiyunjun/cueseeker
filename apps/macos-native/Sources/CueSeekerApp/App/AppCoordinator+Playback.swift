@@ -1307,8 +1307,9 @@ extension AppCoordinator {
         guard let database = subtitleDatabase else {
             return 0
         }
+        let folders = indexing.selectedFolders
         do {
-            return try database.cueGroupOccurrenceCount(for: query)
+            return try database.cueGroupOccurrenceCount(for: query, under: folders)
         } catch {
             print("[AIChunking] failed to get occurrence count for query='\(query)': \(error)")
             return 0
