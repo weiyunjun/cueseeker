@@ -302,19 +302,15 @@ struct PlaybackQuickSearchOverlay: View {
     }
 
     private func selectedChunkCountBadge(count: Int) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "number")
-                .font(.system(size: 11, weight: .semibold))
-            Text("\(count) occurrences")
-                .font(.system(size: 12, weight: .semibold))
-        }
-        .foregroundStyle(PlaybackTheme.textSecondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            Capsule()
-                .fill(PlaybackTheme.capsuleFill)
-        )
+        Text("\(count) results")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(PlaybackTheme.textSecondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(PlaybackTheme.capsuleFill)
+            )
     }
 
     private func selectedChunkCount(for chunk: AIChunkItem) -> Int? {

@@ -39,6 +39,9 @@
      and count reset when AI state resets.
    Result: automated checks cover the exact-count source and the key
    front-end state lifecycle.
+6. Applied the requirement update for the selected chunk count badge label.
+   Result: the badge now displays `xx results` without the number icon and no
+   longer displays `xx occurrences`.
 
 ## Verification
 
@@ -55,6 +58,11 @@
   present.
 - Step 5: `git diff --check` passed.
 - Step 5: `swift test` passed from `apps/macos-native` with 139 tests.
+- Requirement update: `rg` audit confirmed the old `occurrences` text and
+  `number` system image are no longer present in Playback code.
+- Requirement update: `git diff --check` passed.
+- Requirement update: `swift test` passed from `apps/macos-native` with 139
+  tests.
 - Existing playback-history disk I/O log messages still appeared during the
   test run, but the full test suite passed.
 
