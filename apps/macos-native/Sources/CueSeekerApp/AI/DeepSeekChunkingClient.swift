@@ -24,6 +24,20 @@ struct AIChunkingUsage: Equatable, Sendable {
     }
 }
 
+struct AIChunkingValidatedChunk: Equatable, Sendable {
+    let item: AIChunkItem
+    let startOffset: Int
+    let endOffset: Int
+}
+
+struct AIChunkingValidatedPlan: Equatable, Sendable {
+    let chunks: [AIChunkingValidatedChunk]
+
+    var items: [AIChunkItem] {
+        chunks.map(\.item)
+    }
+}
+
 struct DeepSeekChunkingClient: Sendable {
     var apiURL = URL(string: "https://api.deepseek.com/chat/completions")!
     static let defaultModel = "deepseek-v4-flash"
@@ -86,15 +100,8 @@ struct DeepSeekChunkingClient: Sendable {
             throw AIChunkingClientError.missingContent
         }
 
-        let decodedContent: AIChunkingContent
-        do {
-            decodedContent = try JSONDecoder().decode(AIChunkingContent.self, from: contentData)
-        } catch {
-            throw AIChunkingClientError.invalidJSON
-        }
-
         let items = try Self.validatedItems(
-            decodedContent.items,
+            responseContentData: contentData,
             normalizedSentence: renderedPrompt.normalizedSentence
         )
         let duration = requestStart.duration(to: ContinuousClock.now)
@@ -108,29 +115,118 @@ struct DeepSeekChunkingClient: Sendable {
         )
     }
 
-    private static func validatedItems(
-        _ rawItems: [AIChunkItem],
+    static func validatedItems(
+        responseContent: String,
         normalizedSentence: String
     ) throws -> [AIChunkItem] {
-        var seen = Set<String>()
-        var items: [AIChunkItem] = []
+        guard let contentData = responseContent.data(using: .utf8) else {
+            throw AIChunkingClientError.invalidJSON
+        }
+
+        return try validatedItems(
+            responseContentData: contentData,
+            normalizedSentence: normalizedSentence
+        )
+    }
+
+    private static func validatedItems(
+        responseContentData: Data,
+        normalizedSentence: String
+    ) throws -> [AIChunkItem] {
+        let decodedContent: AIChunkingContent
+        do {
+            decodedContent = try JSONDecoder().decode(AIChunkingContent.self, from: responseContentData)
+        } catch {
+            throw AIChunkingClientError.invalidJSON
+        }
+
+        let validatedPlans = try validatedPlans(
+            decodedContent.plans.map(\.items),
+            normalizedSentence: normalizedSentence
+        )
+        return validatedPlans[0].items
+    }
+
+    static func validatedPlans(
+        _ rawPlans: [[AIChunkItem]],
+        normalizedSentence: String
+    ) throws -> [AIChunkingValidatedPlan] {
+        guard (1...3).contains(rawPlans.count) else {
+            throw AIChunkingClientError.invalidPlanCount
+        }
+
+        let plans = rawPlans.compactMap { rawItems in
+            try? validatedPlan(rawItems, normalizedSentence: normalizedSentence)
+        }
+
+        guard !plans.isEmpty else {
+            throw AIChunkingClientError.noValidPlans
+        }
+        return plans
+    }
+
+    private static func validatedPlan(
+        _ rawItems: [AIChunkItem],
+        normalizedSentence: String
+    ) throws -> AIChunkingValidatedPlan {
+        guard !rawItems.isEmpty else {
+            throw AIChunkingClientError.emptyItems
+        }
+
+        var chunks: [AIChunkingValidatedChunk] = []
+        var currentIndex = normalizedSentence.startIndex
 
         for rawItem in rawItems {
+            currentIndex = skipSpaces(in: normalizedSentence, from: currentIndex)
+
             let itemStr = rawItem.item.trimmingCharacters(in: .whitespacesAndNewlines)
             let translationStr = rawItem.translation.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !itemStr.isEmpty else {
-                continue
+                throw AIChunkingClientError.emptyItems
             }
-            guard seen.insert(itemStr).inserted else {
-                continue
+            guard itemStr.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else {
+                throw AIChunkingClientError.itemNotFound(itemStr)
             }
-            items.append(AIChunkItem(item: itemStr, translation: translationStr))
+            guard normalizedSentence[currentIndex...].hasPrefix(itemStr),
+                  let endIndex = normalizedSentence.index(
+                    currentIndex,
+                    offsetBy: itemStr.count,
+                    limitedBy: normalizedSentence.endIndex
+                  )
+            else {
+                throw AIChunkingClientError.itemNotFound(itemStr)
+            }
+
+            chunks.append(AIChunkingValidatedChunk(
+                item: AIChunkItem(item: itemStr, translation: translationStr),
+                startOffset: normalizedSentence.distance(
+                    from: normalizedSentence.startIndex,
+                    to: currentIndex
+                ),
+                endOffset: normalizedSentence.distance(
+                    from: normalizedSentence.startIndex,
+                    to: endIndex
+                )
+            ))
+            currentIndex = endIndex
         }
 
-        guard !items.isEmpty else {
-            throw AIChunkingClientError.emptyItems
+        let finalIndex = skipSpaces(in: normalizedSentence, from: currentIndex)
+        guard finalIndex == normalizedSentence.endIndex else {
+            throw AIChunkingClientError.itemNotFound(String(normalizedSentence[finalIndex...]))
         }
-        return items
+
+        return AIChunkingValidatedPlan(chunks: chunks)
+    }
+
+    private static func skipSpaces(in string: String, from startIndex: String.Index) -> String.Index {
+        var index = startIndex
+        while index < string.endIndex,
+              string[index].unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) })
+        {
+            index = string.index(after: index)
+        }
+        return index
     }
 
     private static func durationMilliseconds(_ duration: Duration) -> Int {
@@ -153,6 +249,8 @@ enum AIChunkingClientError: LocalizedError {
     case missingContent
     case invalidJSON
     case emptyItems
+    case invalidPlanCount
+    case noValidPlans
     case itemNotFound(String)
 
     var errorDescription: String? {
@@ -169,6 +267,10 @@ enum AIChunkingClientError: LocalizedError {
             return "The AI service returned invalid JSON."
         case .emptyItems:
             return "The AI service returned no usable chunks."
+        case .invalidPlanCount:
+            return "The AI service returned an invalid number of chunking plans."
+        case .noValidPlans:
+            return "The AI service returned no valid chunking plans."
         case .itemNotFound(let item):
             return "The AI service returned text outside the sentence: \(item)"
         }
@@ -218,6 +320,10 @@ private struct DeepSeekChatChoice: Decodable {
 }
 
 private struct AIChunkingContent: Decodable {
+    let plans: [AIChunkingPlanContent]
+}
+
+private struct AIChunkingPlanContent: Decodable {
     let items: [AIChunkItem]
 }
 
