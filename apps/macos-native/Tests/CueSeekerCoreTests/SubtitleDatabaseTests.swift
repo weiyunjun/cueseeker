@@ -222,6 +222,32 @@ func storesSameAIChunkSeparatelyForDifferentSubtitleLines() throws {
 }
 
 @Test
+func clearsAIChunkCacheEntries() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let key = AIChunkCacheKey(
+        normalizedSentence: "運も実力のうちだ",
+        provider: "deepseek",
+        model: "deepseek-v4-flash",
+        promptVersion: "chunk-v1"
+    )
+
+    try database.upsertAIChunkCacheEntry(
+        key: key,
+        chunks: mockChunks(["運"])
+    )
+    try database.clearAIChunkCacheEntries()
+
+    #expect(try database.aiChunkCacheEntry(for: key) == nil)
+}
+
+@Test
 func storesSubtitleEntriesAndSearchesWithFTS5() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

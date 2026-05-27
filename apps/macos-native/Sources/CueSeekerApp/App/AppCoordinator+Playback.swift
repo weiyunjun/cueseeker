@@ -528,7 +528,9 @@ extension AppCoordinator {
         let configuredClient = client
         let model = client.model
         let provider = AIProvider.deepSeek.rawValue
-        let promptVersion = DeepSeekChunkingClient.promptVersion
+        let promptVersion = client.promptConfiguration.cachePromptVersion(
+            baseVersion: DeepSeekChunkingClient.promptVersion
+        )
         let requestContent: String
         do {
             requestContent = try client.renderedPrompt(for: sentence).content
@@ -859,7 +861,9 @@ extension AppCoordinator {
             normalizedSentence: normalizedSentence,
             provider: AIProvider.deepSeek.rawValue,
             model: DeepSeekChunkingClient.defaultModel,
-            promptVersion: DeepSeekChunkingClient.promptVersion
+            promptVersion: settings.aiChunkingPromptConfiguration.cachePromptVersion(
+                baseVersion: DeepSeekChunkingClient.promptVersion
+            )
         )
     }
 

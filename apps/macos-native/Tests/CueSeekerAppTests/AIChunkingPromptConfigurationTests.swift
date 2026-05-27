@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CueSeekerCore
 @testable import CueSeekerApp
 
 @Test
@@ -24,6 +25,30 @@ func aiChunkingPromptTemplateRendersConfiguredLanguageEverywhere() throws {
     let prompt = try configuration.renderedPrompt(for: "運も実力のうちだ")
 
     #expect(prompt == "日本語: 運も実力のうちだ -> 日本語")
+}
+
+@Test
+func aiChunkingPromptCacheVersionChangesWithLanguageAndTemplate() {
+    let baseVersion = "chunk-v1"
+    let simplifiedChinese = AIChunkingPromptConfiguration(
+        template: "{{sentence}} -> {{language}}",
+        translationLanguage: .simplifiedChinese
+    )
+    let japanese = AIChunkingPromptConfiguration(
+        template: "{{sentence}} -> {{language}}",
+        translationLanguage: .japanese
+    )
+    let expandedTemplate = AIChunkingPromptConfiguration(
+        template: "Translate {{sentence}} into {{language}}.",
+        translationLanguage: .simplifiedChinese
+    )
+
+    let simplifiedChineseVersion = simplifiedChinese.cachePromptVersion(baseVersion: baseVersion)
+
+    #expect(simplifiedChineseVersion.hasPrefix("chunk-v1-cfg-"))
+    #expect(simplifiedChineseVersion == simplifiedChinese.cachePromptVersion(baseVersion: baseVersion))
+    #expect(simplifiedChineseVersion != japanese.cachePromptVersion(baseVersion: baseVersion))
+    #expect(simplifiedChineseVersion != expandedTemplate.cachePromptVersion(baseVersion: baseVersion))
 }
 
 @Test
@@ -97,6 +122,53 @@ func settingsStoreRejectsInvalidAIChunkingPromptTemplateWithoutChangingCurrentTe
     }
 }
 
+@MainActor
+@Test
+func aiChunkingCacheClearRunsOnceForPromptAwareCacheMigration() throws {
+    try withTemporarySettingsUserDefaults { userDefaults, _ in
+        let databaseURL = temporarySettingsDatabaseURL()
+        defer {
+            try? FileManager.default.removeItem(at: databaseURL)
+            try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+            try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+        }
+
+        let database = try SubtitleDatabase(path: databaseURL)
+        try database.migrate()
+        let key = AIChunkCacheKey(
+            normalizedSentence: "運も実力のうちだ",
+            provider: "deepseek",
+            model: "deepseek-v4-flash",
+            promptVersion: "chunk-v1"
+        )
+
+        try database.upsertAIChunkCacheEntry(
+            key: key,
+            chunks: [AIChunkItem(item: "運", translation: "运")]
+        )
+        try AppCoordinator.clearAIChunkCacheForPromptAwareSettingsIfNeeded(
+            database: database,
+            userDefaults: userDefaults
+        )
+
+        #expect(try database.aiChunkCacheEntry(for: key) == nil)
+        #expect(userDefaults.bool(forKey: AppCoordinator.aiChunkingPromptAwareCacheClearKey))
+
+        try database.upsertAIChunkCacheEntry(
+            key: key,
+            chunks: [AIChunkItem(item: "実力", translation: "实力")]
+        )
+        try AppCoordinator.clearAIChunkCacheForPromptAwareSettingsIfNeeded(
+            database: database,
+            userDefaults: userDefaults
+        )
+
+        #expect(try database.aiChunkCacheEntry(for: key)?.chunks == [
+            AIChunkItem(item: "実力", translation: "实力")
+        ])
+    }
+}
+
 private func expectAIChunkingPromptTemplateError(
     _ expression: @autoclosure () throws -> Void,
     equals expectedError: AIChunkingPromptTemplateError,
@@ -120,4 +192,10 @@ private func withTemporarySettingsUserDefaults(_ body: (UserDefaults, String) th
     }
 
     try body(userDefaults, suiteName)
+}
+
+private func temporarySettingsDatabaseURL() -> URL {
+    FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerAppTests-\(UUID().uuidString)")
+        .appendingPathExtension("sqlite")
 }

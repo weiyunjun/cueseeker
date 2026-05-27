@@ -24,6 +24,7 @@ final class AppCoordinator: ObservableObject {
     static let searchNavigationPanelRadius = 10_000
     static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
     static let databaseCompactionMinimumFreelistRatio = 0.25
+    static let aiChunkingPromptAwareCacheClearKey = "aiChunkingPromptAwareCacheCleared"
 
     @Published var startupError: String?
     let settings: SettingsStore
@@ -378,6 +379,10 @@ final class AppCoordinator: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
+            try Self.clearAIChunkCacheForPromptAwareSettingsIfNeeded(
+                database: database,
+                userDefaults: userDefaults
+            )
             openedDatabase = database
             initialError = nil
         } catch {
@@ -648,6 +653,18 @@ final class AppCoordinator: ObservableObject {
             at: databaseURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
+    }
+
+    static func clearAIChunkCacheForPromptAwareSettingsIfNeeded(
+        database: SubtitleDatabase,
+        userDefaults: UserDefaults
+    ) throws {
+        guard !userDefaults.bool(forKey: aiChunkingPromptAwareCacheClearKey) else {
+            return
+        }
+
+        try database.clearAIChunkCacheEntries()
+        userDefaults.set(true, forKey: aiChunkingPromptAwareCacheClearKey)
     }
 
     static func availableDiskSpaceBytes(for databaseURL: URL) -> Int64? {

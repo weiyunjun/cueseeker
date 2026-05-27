@@ -1107,6 +1107,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return try aiChunkCacheEntry(from: statement)
     }
 
+    public func clearAIChunkCacheEntries() throws {
+        try database.execute("DELETE FROM ai_chunk_cache_entries;")
+    }
+
     public func playbackNavigationIndexRevision() throws -> Int64 {
         let statement = try database.prepare(
             """

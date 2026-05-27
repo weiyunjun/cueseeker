@@ -63,6 +63,11 @@ struct AIChunkingPromptConfiguration: Equatable, Sendable {
             .replacingOccurrences(of: Self.sentencePlaceholder, with: sentence)
     }
 
+    func cachePromptVersion(baseVersion: String) -> String {
+        let signatureSource = template + "\n--translation-language--\n" + translationLanguage.rawValue
+        return "\(baseVersion)-cfg-\(Self.shortHash(for: signatureSource))"
+    }
+
     static func validateTemplate(_ template: String) throws {
         if let unsupportedPlaceholder = firstUnsupportedPlaceholder(in: template) {
             throw AIChunkingPromptTemplateError.unsupportedPlaceholder(unsupportedPlaceholder)
@@ -104,6 +109,13 @@ struct AIChunkingPromptConfiguration: Equatable, Sendable {
         }
 
         return nil
+    }
+
+    private static func shortHash(for text: String) -> String {
+        let hash = text.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { partialResult, byte in
+            (partialResult ^ UInt64(byte)) &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
     }
 }
 
