@@ -230,6 +230,39 @@ func quickSearchSentenceActionRowDefaultsToChunkActionWhenFocusedFromChunks() {
     }
 }
 
+@MainActor
+@Test
+func quickSearchChunksRowDefaultsToFirstChunkWhenRefocused() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareQuickSearchCurrentSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: mockChunks(["運", "実力", "うち"])
+        )
+
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.selectedQuickSearchAIChunk() == "実力")
+
+        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: mockChunks(["運", "実力", "うち"]),
+            selectedChunkIndex: 1,
+            selectedOption: .refresh
+        ))
+        #expect(store.selectedQuickSearchAIChunk() == nil)
+
+        #expect(store.moveQuickSearchAIOptionFocus(by: -1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: mockChunks(["運", "実力", "うち"]),
+            selectedChunkIndex: 0,
+            selectedOption: .chunks
+        ))
+        #expect(store.selectedQuickSearchAIChunk() == "運")
+    }
+}
+
 @Test
 func quickSearchSentenceChunkMatchFindsSelectedChunkTextInSentence() {
     let match = PlaybackQuickSearchSentenceChunkMatch.match(
@@ -288,7 +321,7 @@ func quickSearchChunkSearchCanRestorePreviousChunkOptions() {
         #expect(!store.isQuickSearchFocused)
         #expect(store.quickSearchAIState == .options(
             chunks: mockChunks(["運", "実力", "うち"]),
-            selectedChunkIndex: 1,
+            selectedChunkIndex: 0,
             selectedOption: .chunks
         ))
     }

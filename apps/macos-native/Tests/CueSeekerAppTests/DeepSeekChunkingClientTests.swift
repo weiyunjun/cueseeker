@@ -166,7 +166,7 @@ func aiChunkingResponseMergesMultiplePlansBySplittingBaseChunks() throws {
         AIChunkItem(item: "説明", translation: "说明"),
         AIChunkItem(item: "しました", translation: "做了"),
         AIChunkItem(item: "が", translation: "但是"),
-        AIChunkItem(item: "説明しました", translation: "说明了")
+        AIChunkItem(item: "説明しました", translation: "说明了", displayGroup: .additional)
     ])
 }
 
@@ -207,8 +207,8 @@ func aiChunkingResponseCanSplitOneBaseChunkAcrossMultiplePlans() throws {
         AIChunkItem(item: "春日影", translation: "春日影"),
         AIChunkItem(item: "は", translation: "主题助词"),
         AIChunkItem(item: "歌です", translation: "是歌"),
-        AIChunkItem(item: "春日影は", translation: "春日影是"),
-        AIChunkItem(item: "は歌です", translation: "是歌")
+        AIChunkItem(item: "春日影は", translation: "春日影是", displayGroup: .additional),
+        AIChunkItem(item: "は歌です", translation: "是歌", displayGroup: .additional)
     ])
 }
 
@@ -246,7 +246,7 @@ func aiChunkingResponseUsesFirstValidPlanAsMergeBase() throws {
     #expect(items == [
         AIChunkItem(item: "運", translation: "运气"),
         AIChunkItem(item: "も", translation: "也"),
-        AIChunkItem(item: "運も", translation: "运气也")
+        AIChunkItem(item: "運も", translation: "运气也", displayGroup: .additional)
     ])
 }
 
@@ -284,7 +284,7 @@ func aiChunkingResponseKeepsEarlierTranslationWhenDeduplicatingPlans() throws {
     #expect(items == [
         AIChunkItem(item: "運", translation: "运气-2"),
         AIChunkItem(item: "も", translation: "也-2"),
-        AIChunkItem(item: "運も", translation: "运气也")
+        AIChunkItem(item: "運も", translation: "运气也", displayGroup: .additional)
     ])
 }
 
@@ -321,8 +321,8 @@ func aiChunkingResponseKeepsRepeatedTextAtDifferentPositionsWhenDeduplicatingPla
         AIChunkItem(item: "も", translation: "也-1"),
         AIChunkItem(item: "運", translation: "运气-2"),
         AIChunkItem(item: "も", translation: "也-2"),
-        AIChunkItem(item: "運も", translation: "运气也-1"),
-        AIChunkItem(item: "運も", translation: "运气也-2")
+        AIChunkItem(item: "運も", translation: "运气也-1", displayGroup: .additional),
+        AIChunkItem(item: "運も", translation: "运气也-2", displayGroup: .additional)
     ])
 }
 

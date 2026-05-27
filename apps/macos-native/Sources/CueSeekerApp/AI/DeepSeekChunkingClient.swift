@@ -268,15 +268,22 @@ struct DeepSeekChunkingClient: Sendable {
         var seen = Set<AIChunkingChunkRange>()
         var items: [AIChunkItem] = []
 
-        for chunk in plans.flatMap(\.chunks) {
-            let range = AIChunkingChunkRange(
-                startOffset: chunk.startOffset,
-                endOffset: chunk.endOffset
-            )
-            guard seen.insert(range).inserted else {
-                continue
+        for (planIndex, plan) in plans.enumerated() {
+            let displayGroup: AIChunkDisplayGroup = planIndex == 0 ? .primary : .additional
+            for chunk in plan.chunks {
+                let range = AIChunkingChunkRange(
+                    startOffset: chunk.startOffset,
+                    endOffset: chunk.endOffset
+                )
+                guard seen.insert(range).inserted else {
+                    continue
+                }
+                items.append(AIChunkItem(
+                    item: chunk.item.item,
+                    translation: chunk.item.translation,
+                    displayGroup: displayGroup
+                ))
             }
-            items.append(chunk.item)
         }
         return items
     }

@@ -491,13 +491,17 @@ final class PlaybackStore: ObservableObject {
         switch stop {
         case .chunks:
             if case .options(let chunks, let selectedChunkIndex, _) = quickSearchAIState {
+                let nextSelectedChunkIndex = selectedChunkIndexForFocus(
+                    option: .chunks,
+                    chunks: chunks,
+                    currentIndex: selectedChunkIndex
+                )
+                if nextSelectedChunkIndex != selectedChunkIndex {
+                    resetQuickSearchSelectedChunkCount()
+                }
                 quickSearchAIState = .options(
                     chunks: chunks,
-                    selectedChunkIndex: selectedChunkIndexForFocus(
-                        option: .chunks,
-                        chunks: chunks,
-                        currentIndex: selectedChunkIndex
-                    ),
+                    selectedChunkIndex: nextSelectedChunkIndex,
                     selectedOption: .chunks
                 )
             }
@@ -655,7 +659,7 @@ final class PlaybackStore: ObservableObject {
             canNavigateSubtitleLines: false,
             selectedSubtitleLineIndex: quickSearchSelectedSubtitleLineIndex
         )
-        quickSearchAIState = snapshot.aiState
+        quickSearchAIState = restoredQuickSearchAIState(snapshot.aiState)
         quickSearchFocusTarget = .aiOption
         isQuickSearchFocused = false
         return true
@@ -703,6 +707,19 @@ final class PlaybackStore: ObservableObject {
             return currentIndex
         }
 
-        return min(max(currentIndex ?? 0, chunks.startIndex), chunks.index(before: chunks.endIndex))
+        return chunks.startIndex
+    }
+
+    private func restoredQuickSearchAIState(_ state: PlaybackQuickSearchAIState) -> PlaybackQuickSearchAIState {
+        guard case .options(let chunks, _, .chunks) = state else {
+            return state
+        }
+
+        resetQuickSearchSelectedChunkCount()
+        return .options(
+            chunks: chunks,
+            selectedChunkIndex: chunks.isEmpty ? nil : chunks.startIndex,
+            selectedOption: .chunks
+        )
     }
 }

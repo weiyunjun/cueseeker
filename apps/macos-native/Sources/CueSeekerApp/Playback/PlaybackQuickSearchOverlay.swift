@@ -145,19 +145,23 @@ struct PlaybackQuickSearchOverlay: View {
         selectedChunkIndex: Int?,
         selectedOption: PlaybackQuickSearchAIOption?
     ) -> some View {
-        aiPanelContainer {
+        let selectedChunkIndexForChunkFocus = focusTarget == .aiOption && selectedOption == .chunks
+            ? selectedChunkIndex
+            : nil
+
+        return aiPanelContainer {
             VStack(spacing: 0) {
                 if !chunks.isEmpty {
-                    selectedChunkDetailRow(chunks: chunks, selectedChunkIndex: selectedChunkIndex)
+                    selectedChunkDetailRow(chunks: chunks, selectedChunkIndex: selectedChunkIndexForChunkFocus)
                     aiChunksOptionRow(
                         chunks: chunks,
-                        selectedChunkIndex: selectedChunkIndex,
+                        selectedChunkIndex: selectedChunkIndexForChunkFocus,
                         isSelected: focusTarget == .aiOption && selectedOption == .chunks
                     )
                 }
                 aiRefreshOptionRow(
                     chunks: chunks,
-                    selectedChunkIndex: focusTarget == .aiOption && selectedOption == .chunks ? selectedChunkIndex : nil,
+                    selectedChunkIndex: selectedChunkIndexForChunkFocus,
                     hasChunks: !chunks.isEmpty,
                     selectedOption: focusTarget == .aiOption ? selectedOption : nil
                 )
@@ -203,14 +207,42 @@ struct PlaybackQuickSearchOverlay: View {
         selectedChunkIndex: Int?,
         isSelected: Bool
     ) -> some View {
-        QuickSearchChunkFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
-            ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
-                quickSearchChunkLabel(chunk.item, isSelected: index == selectedChunkIndex)
+        let indexedChunks = Array(chunks.enumerated())
+        let primaryChunks = indexedChunks.filter { $0.element.displayGroup == .primary }
+        let additionalChunks = indexedChunks.filter { $0.element.displayGroup == .additional }
+
+        return VStack(alignment: .leading, spacing: 8) {
+            if !primaryChunks.isEmpty {
+                aiChunkFlow(
+                    indexedChunks: primaryChunks,
+                    selectedChunkIndex: selectedChunkIndex,
+                    isSelected: isSelected
+                )
+            }
+            if !additionalChunks.isEmpty {
+                aiChunkFlow(
+                    indexedChunks: additionalChunks,
+                    selectedChunkIndex: selectedChunkIndex,
+                    isSelected: isSelected
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(EdgeInsets(top: 8, leading: 18, bottom: 8, trailing: 18))
         .background(optionRowBackground(isSelected: isSelected))
+    }
+
+    private func aiChunkFlow(
+        indexedChunks: [(offset: Int, element: AIChunkItem)],
+        selectedChunkIndex: Int?,
+        isSelected: Bool
+    ) -> some View {
+        QuickSearchChunkFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+            ForEach(indexedChunks, id: \.offset) { index, chunk in
+                quickSearchChunkLabel(chunk.item, isSelected: isSelected && index == selectedChunkIndex)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func aiRefreshOptionRow(

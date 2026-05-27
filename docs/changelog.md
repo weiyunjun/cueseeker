@@ -16,7 +16,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   sentence, invalid plans are ignored unless all plans fail, valid plans merge
   by splitting the first valid plan with later-plan chunks, and final results
   de-duplicate by sentence position so repeated text at different positions is
-  preserved.
+  preserved. Chunks outside the generated merged plan now display on a separate
+  wrapping row, and the chunks row clears its selected visual state when focus
+  leaves it.
 - Completed the AI Chunking settings work: Experimental Features now supports
   persisted Translation Language and prompt-template settings, validates
   required `{{sentence}}` / `{{language}}` placeholders before saving, disables

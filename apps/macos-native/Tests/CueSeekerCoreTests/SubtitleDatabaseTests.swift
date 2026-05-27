@@ -150,6 +150,21 @@ func storesAndLoadsAIChunkCacheEntry() throws {
 }
 
 @Test
+func decodesLegacyAIChunkItemsWithoutDisplayGroups() throws {
+    let data = """
+    [
+      {"item": "運", "translation": "运气"}
+    ]
+    """.data(using: .utf8)!
+
+    let chunks = try JSONDecoder().decode([AIChunkItem].self, from: data)
+
+    #expect(chunks == [
+        AIChunkItem(item: "運", translation: "运气")
+    ])
+}
+
+@Test
 func refreshingAIChunkCachePreservesCacheDate() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
