@@ -6,8 +6,7 @@
 
 ## Scope
 
-- Make AI Chunking cache keys follow the active Translation Language and prompt
-  template.
+- Make AI Chunking cache keys follow the active Translation Language.
 - Clear existing AI Chunking cache entries once when this prompt-aware cache
   strategy first runs.
 - Preserve the current database schema by using the existing `prompt_version`
@@ -18,11 +17,10 @@
 
 1. Added prompt-configuration cache version generation.
    Result: cache `prompt_version` now combines the base chunk prompt version
-   with a stable hash of the prompt template and Translation Language.
+   with a stable Translation Language identifier.
 2. Updated cache lookup and cache writes to use the prompt-aware version.
-   Result: changing Translation Language or prompt template isolates AI Chunking
-   cache entries and prevents reuse of results from a different prompt
-   configuration.
+   Result: changing Translation Language isolates AI Chunking cache entries and
+   prevents reuse of results from a different translation target.
 3. Added a core database method to clear AI Chunking cache entries.
    Result: the app can explicitly discard historical cached AI chunk results
    without touching other subtitle/search data.
@@ -32,8 +30,12 @@
    launches do not repeat the clear.
 5. Added automated coverage for prompt-aware cache versions, cache clearing,
    and the one-time clearing marker.
-   Result: tests cover the language/prompt cache split and the historical cache
-   clearing rule.
+   Result: tests cover the language-only cache split, prompt-template cache
+   stability, and the historical cache clearing rule.
+6. Corrected the cache version boundary after prompt-tuning review.
+   Result: prompt template edits no longer change `prompt_version`; manual
+   refresh remains the mechanism for re-requesting a sentence with the latest
+   prompt.
 
 ## Verification
 

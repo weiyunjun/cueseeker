@@ -28,7 +28,7 @@ func aiChunkingPromptTemplateRendersConfiguredLanguageEverywhere() throws {
 }
 
 @Test
-func aiChunkingPromptCacheVersionChangesWithLanguageAndTemplate() {
+func aiChunkingPromptCacheVersionFollowsLanguageButIgnoresTemplate() {
     let baseVersion = "chunk-v1"
     let simplifiedChinese = AIChunkingPromptConfiguration(
         template: "{{sentence}} -> {{language}}",
@@ -45,10 +45,10 @@ func aiChunkingPromptCacheVersionChangesWithLanguageAndTemplate() {
 
     let simplifiedChineseVersion = simplifiedChinese.cachePromptVersion(baseVersion: baseVersion)
 
-    #expect(simplifiedChineseVersion.hasPrefix("chunk-v1-cfg-"))
-    #expect(simplifiedChineseVersion == simplifiedChinese.cachePromptVersion(baseVersion: baseVersion))
+    #expect(simplifiedChineseVersion == "chunk-v1-lang-zh-hans")
+    #expect(japanese.cachePromptVersion(baseVersion: baseVersion) == "chunk-v1-lang-ja")
     #expect(simplifiedChineseVersion != japanese.cachePromptVersion(baseVersion: baseVersion))
-    #expect(simplifiedChineseVersion != expandedTemplate.cachePromptVersion(baseVersion: baseVersion))
+    #expect(simplifiedChineseVersion == expandedTemplate.cachePromptVersion(baseVersion: baseVersion))
 }
 
 @Test

@@ -11,6 +11,19 @@ enum AIChunkingTranslationLanguage: String, CaseIterable, Identifiable, Sendable
     var id: String {
         rawValue
     }
+
+    var cacheIdentifier: String {
+        switch self {
+        case .simplifiedChinese:
+            return "zh-hans"
+        case .traditionalChinese:
+            return "zh-hant"
+        case .english:
+            return "en"
+        case .japanese:
+            return "ja"
+        }
+    }
 }
 
 struct AIChunkingPromptConfiguration: Equatable, Sendable {
@@ -64,8 +77,7 @@ struct AIChunkingPromptConfiguration: Equatable, Sendable {
     }
 
     func cachePromptVersion(baseVersion: String) -> String {
-        let signatureSource = template + "\n--translation-language--\n" + translationLanguage.rawValue
-        return "\(baseVersion)-cfg-\(Self.shortHash(for: signatureSource))"
+        "\(baseVersion)-lang-\(translationLanguage.cacheIdentifier)"
     }
 
     static func validateTemplate(_ template: String) throws {
@@ -109,13 +121,6 @@ struct AIChunkingPromptConfiguration: Equatable, Sendable {
         }
 
         return nil
-    }
-
-    private static func shortHash(for text: String) -> String {
-        let hash = text.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { partialResult, byte in
-            (partialResult ^ UInt64(byte)) &* 1_099_511_628_211
-        }
-        return String(hash, radix: 16)
     }
 }
 
