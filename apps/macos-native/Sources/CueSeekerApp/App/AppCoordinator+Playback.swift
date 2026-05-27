@@ -523,10 +523,19 @@ extension AppCoordinator {
 
         cancelPlaybackQuickSearchAIChunking()
         let requestID = playback.markQuickSearchAIChunkingStarted()
-        let client = DeepSeekChunkingClient()
+        var client = DeepSeekChunkingClient()
+        client.promptConfiguration = settings.aiChunkingPromptConfiguration
+        let configuredClient = client
         let model = client.model
         let provider = AIProvider.deepSeek.rawValue
         let promptVersion = DeepSeekChunkingClient.promptVersion
+        let requestContent: String
+        do {
+            requestContent = try client.renderedPrompt(for: sentence).content
+        } catch {
+            playback.markQuickSearchAIChunkingFailed(Self.errorMessage(for: error), requestID: requestID)
+            return true
+        }
         if reason == .manualRefresh {
             logPlaybackQuickSearchAIChunkManualRefreshBypass(
                 provider: provider,
@@ -537,7 +546,7 @@ extension AppCoordinator {
         }
         quickSearchAIChunkingTask = Task { [weak self] in
             do {
-                let result = try await client.chunks(for: sentence, apiKey: apiKey)
+                let result = try await configuredClient.chunks(for: sentence, apiKey: apiKey)
                 await MainActor.run {
                     guard let self else {
                         return
@@ -558,7 +567,10 @@ extension AppCoordinator {
                         normalizedSentence: result.normalizedSentence,
                         usage: result.usage,
                         itemCount: result.items.count,
-                        cacheWritten: cacheWritten
+                        cacheWritten: cacheWritten,
+                        durationMilliseconds: result.durationMilliseconds,
+                        requestContent: result.requestContent,
+                        responseContent: result.responseContent
                     )
                     self.playback.markQuickSearchAIChunkingSucceeded(
                         result.items,
@@ -580,7 +592,8 @@ extension AppCoordinator {
                         model: model,
                         promptVersion: promptVersion,
                         sentence: sentence,
-                        error: error
+                        error: error,
+                        requestContent: requestContent
                     )
                     self.playback.markQuickSearchAIChunkingFailed(
                         Self.errorMessage(for: error),
@@ -918,7 +931,10 @@ extension AppCoordinator {
         normalizedSentence: String,
         usage: AIChunkingUsage?,
         itemCount: Int,
-        cacheWritten: Bool
+        cacheWritten: Bool,
+        durationMilliseconds: Int,
+        requestContent: String,
+        responseContent: String
     ) {
         let promptTokens = usage?.promptTokens ?? 0
         let completionTokens = usage?.completionTokens ?? 0
@@ -929,7 +945,9 @@ extension AppCoordinator {
                 "prompt_version=\(promptVersion) text_hash=\(Self.shortLogHash(for: normalizedSentence)) " +
                 "prompt_tokens=\(promptTokens) completion_tokens=\(completionTokens) total_tokens=\(totalTokens) " +
                 "estimated_cost_cny=\(String(format: "%.8f", estimatedCostCNY)) " +
-                "items=\(itemCount) cache_written=\(cacheWritten)"
+                "items=\(itemCount) cache_written=\(cacheWritten) duration_ms=\(durationMilliseconds) " +
+                "request_content=\"\(Self.aiChunkingLogContent(requestContent))\" " +
+                "response_content=\"\(Self.aiChunkingLogContent(responseContent))\""
         )
     }
 
@@ -939,13 +957,15 @@ extension AppCoordinator {
         model: String,
         promptVersion: String,
         sentence: String,
-        error: Error
+        error: Error,
+        requestContent: String
     ) {
         let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(sentence)
         print(
             "[AIChunking] request failed reason=\(reason.rawValue) provider=\(provider) model=\(model) " +
                 "prompt_version=\(promptVersion) text_hash=\(Self.shortLogHash(for: normalizedSentence)) " +
-                "error=\(Self.aiChunkingLogErrorDescription(for: error))"
+                "error=\(Self.aiChunkingLogErrorDescription(for: error)) " +
+                "request_content=\"\(Self.aiChunkingLogContent(requestContent))\""
         )
     }
 
@@ -955,6 +975,15 @@ extension AppCoordinator {
         }
 
         return String(describing: type(of: error))
+    }
+
+    private static func aiChunkingLogContent(_ content: String) -> String {
+        content
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
     private static func shortLogHash(for text: String) -> String {

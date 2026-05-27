@@ -5,6 +5,9 @@ struct AIChunkingResult: Equatable, Sendable {
     let normalizedSentence: String
     let items: [AIChunkItem]
     let usage: AIChunkingUsage?
+    let requestContent: String
+    let responseContent: String
+    let durationMilliseconds: Int
 }
 
 struct AIChunkingUsage: Equatable, Sendable {
@@ -30,19 +33,27 @@ struct DeepSeekChunkingClient: Sendable {
     var maxTokens = 1000
     var promptConfiguration = AIChunkingPromptConfiguration.defaultConfiguration
 
-    func chunks(for sentence: String, apiKey: String) async throws -> AIChunkingResult {
+    func renderedPrompt(for sentence: String) throws -> AIChunkingRenderedPrompt {
         let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(sentence)
         guard !normalizedSentence.isEmpty else {
             throw AIChunkingClientError.emptySentence
         }
-        let prompt = try promptConfiguration.renderedPrompt(for: normalizedSentence)
+
+        return AIChunkingRenderedPrompt(
+            normalizedSentence: normalizedSentence,
+            content: try promptConfiguration.renderedPrompt(for: normalizedSentence)
+        )
+    }
+
+    func chunks(for sentence: String, apiKey: String) async throws -> AIChunkingResult {
+        let renderedPrompt = try renderedPrompt(for: sentence)
 
         let payload = DeepSeekChatCompletionRequest(
             model: model,
             messages: [
                 DeepSeekChatMessage(
                     role: "user",
-                    content: prompt
+                    content: renderedPrompt.content
                 )
             ],
             temperature: 0.2,
@@ -59,6 +70,7 @@ struct DeepSeekChunkingClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(payload)
 
+        let requestStart = ContinuousClock.now
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AIChunkingClientError.invalidHTTPResponse
@@ -83,12 +95,16 @@ struct DeepSeekChunkingClient: Sendable {
 
         let items = try Self.validatedItems(
             decodedContent.items,
-            normalizedSentence: normalizedSentence
+            normalizedSentence: renderedPrompt.normalizedSentence
         )
+        let duration = requestStart.duration(to: ContinuousClock.now)
         return AIChunkingResult(
-            normalizedSentence: normalizedSentence,
+            normalizedSentence: renderedPrompt.normalizedSentence,
             items: items,
-            usage: completion.usage?.aiChunkingUsage
+            usage: completion.usage?.aiChunkingUsage,
+            requestContent: renderedPrompt.content,
+            responseContent: content,
+            durationMilliseconds: Self.durationMilliseconds(duration)
         )
     }
 
@@ -116,6 +132,18 @@ struct DeepSeekChunkingClient: Sendable {
         }
         return items
     }
+
+    private static func durationMilliseconds(_ duration: Duration) -> Int {
+        let components = duration.components
+        return Int(
+            components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000
+        )
+    }
+}
+
+struct AIChunkingRenderedPrompt: Equatable, Sendable {
+    let normalizedSentence: String
+    let content: String
 }
 
 enum AIChunkingClientError: LocalizedError {
