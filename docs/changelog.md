@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Completed AI Chunking multi-plan merge: the default prompt now requests one
+  to three Japanese chunking plans, old saved prompt templates are reset to the
+  new contract once, responses validate each plan against the normalized
+  sentence, invalid plans are ignored unless all plans fail, valid plans merge
+  by splitting the first valid plan with later-plan chunks, and final results
+  de-duplicate by sentence position so repeated text at different positions is
+  preserved.
 - Completed the AI Chunking settings work: Experimental Features now supports
   persisted Translation Language and prompt-template settings, validates
   required `{{sentence}}` / `{{language}}` placeholders before saving, disables
