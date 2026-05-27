@@ -5,6 +5,11 @@ struct SettingsExperimentalCategory: View {
     @State private var deepSeekAPIKeyInput = ""
     @State private var deepSeekAPIKeyMessage: String?
     @State private var deepSeekAPIKeyMessageIsError = false
+    @State private var aiChunkingPromptDraft = AIChunkingPromptConfiguration.defaultTemplate
+    @State private var aiChunkingPromptMessage: String?
+    @State private var aiChunkingPromptMessageIsError = false
+    @State private var isEditingAIChunkingPrompt = false
+    @FocusState private var aiChunkingPromptFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -19,6 +24,7 @@ struct SettingsExperimentalCategory: View {
                 }
 
                 aiChunkingToggleRow
+                aiChunkingSettingsPanel
                 deepSeekAPIKeyPanel
             }
             .padding(24)
@@ -28,6 +34,22 @@ struct SettingsExperimentalCategory: View {
         .background(Color.white)
         .onAppear {
             settingsStore.refreshDeepSeekAPIKeyStatus()
+            aiChunkingPromptDraft = settingsStore.aiChunkingPromptTemplate
+        }
+        .onChange(of: settingsStore.aiChunkingEnabled) { isEnabled in
+            if !isEnabled {
+                cancelAIChunkingPromptEditing()
+            }
+        }
+        .onChange(of: settingsStore.aiChunkingPromptTemplate) { promptTemplate in
+            if !isEditingAIChunkingPrompt {
+                aiChunkingPromptDraft = promptTemplate
+            }
+        }
+        .onChange(of: aiChunkingPromptFocused) { isFocused in
+            if isFocused {
+                beginAIChunkingPromptEditing()
+            }
         }
     }
 
@@ -46,6 +68,89 @@ struct SettingsExperimentalCategory: View {
             Toggle("", isOn: $settingsStore.aiChunkingEnabled)
                 .labelsHidden()
                 .toggleStyle(.switch)
+        }
+    }
+
+    private var aiChunkingSettingsPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            aiChunkingTranslationLanguageRow
+
+            Divider()
+
+            aiChunkingPromptEditor
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.035))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .disabled(!settingsStore.aiChunkingEnabled)
+        .opacity(settingsStore.aiChunkingEnabled ? 1 : 0.45)
+    }
+
+    private var aiChunkingTranslationLanguageRow: some View {
+        HStack(spacing: 16) {
+            Text("Translation Language")
+                .font(.headline)
+
+            Spacer()
+
+            Picker("Translation Language", selection: $settingsStore.aiChunkingTranslationLanguage) {
+                ForEach(AIChunkingTranslationLanguage.allCases) { language in
+                    Text(language.rawValue)
+                        .tag(language)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 180)
+        }
+    }
+
+    private var aiChunkingPromptEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Prompt")
+                .font(.headline)
+
+            TextEditor(text: $aiChunkingPromptDraft)
+                .font(.system(.body, design: .monospaced))
+                .frame(minHeight: 240)
+                .focused($aiChunkingPromptFocused)
+                .onTapGesture {
+                    beginAIChunkingPromptEditing()
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.black.opacity(0.16), lineWidth: 1)
+                )
+
+            if isEditingAIChunkingPrompt {
+                HStack(spacing: 10) {
+                    Button {
+                        restoreDefaultAIChunkingPromptDraft()
+                    } label: {
+                        Label("Default", systemImage: "arrow.counterclockwise")
+                    }
+
+                    Button {
+                        cancelAIChunkingPromptEditing()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark")
+                    }
+
+                    Button {
+                        saveAIChunkingPrompt()
+                    } label: {
+                        Label("Save", systemImage: "checkmark")
+                    }
+
+                    Spacer()
+                }
+            }
+
+            if let aiChunkingPromptMessage {
+                Text(aiChunkingPromptMessage)
+                    .font(.caption)
+                    .foregroundStyle(aiChunkingPromptMessageIsError ? .red : .secondary)
+            }
         }
     }
 
@@ -132,6 +237,46 @@ struct SettingsExperimentalCategory: View {
         } catch {
             deepSeekAPIKeyMessage = error.localizedDescription
             deepSeekAPIKeyMessageIsError = true
+        }
+    }
+
+    private func beginAIChunkingPromptEditing() {
+        guard settingsStore.aiChunkingEnabled else {
+            return
+        }
+
+        if !isEditingAIChunkingPrompt {
+            aiChunkingPromptDraft = settingsStore.aiChunkingPromptTemplate
+            aiChunkingPromptMessage = nil
+            aiChunkingPromptMessageIsError = false
+        }
+        isEditingAIChunkingPrompt = true
+    }
+
+    private func restoreDefaultAIChunkingPromptDraft() {
+        aiChunkingPromptDraft = AIChunkingPromptConfiguration.defaultTemplate
+        aiChunkingPromptMessage = nil
+        aiChunkingPromptMessageIsError = false
+    }
+
+    private func cancelAIChunkingPromptEditing() {
+        aiChunkingPromptDraft = settingsStore.aiChunkingPromptTemplate
+        aiChunkingPromptMessage = nil
+        aiChunkingPromptMessageIsError = false
+        isEditingAIChunkingPrompt = false
+        aiChunkingPromptFocused = false
+    }
+
+    private func saveAIChunkingPrompt() {
+        do {
+            try settingsStore.saveAIChunkingPromptTemplate(aiChunkingPromptDraft)
+            aiChunkingPromptMessage = "AI chunking prompt saved."
+            aiChunkingPromptMessageIsError = false
+            isEditingAIChunkingPrompt = false
+            aiChunkingPromptFocused = false
+        } catch {
+            aiChunkingPromptMessage = error.localizedDescription
+            aiChunkingPromptMessageIsError = true
         }
     }
 }
