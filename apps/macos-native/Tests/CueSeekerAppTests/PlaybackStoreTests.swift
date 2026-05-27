@@ -147,6 +147,91 @@ func quickSearchAIOptionFocusCanMoveBackToInputAtBoundaries() {
 
 @MainActor
 @Test
+func quickSearchSentenceActionRowLeftRightCyclesBetweenChunkAndCopyWhenNoChunks() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareQuickSearchCurrentSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: nil
+        )
+
+        #expect(store.quickSearchAIState == .options(
+            chunks: [],
+            selectedChunkIndex: nil,
+            selectedOption: .refresh
+        ))
+        #expect(store.canStartQuickSearchAIChunkingRequest)
+        #expect(store.selectedQuickSearchCurrentSentenceForCopy() == nil)
+
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: [],
+            selectedChunkIndex: nil,
+            selectedOption: .copy
+        ))
+        #expect(!store.canStartQuickSearchAIChunkingRequest)
+        #expect(store.selectedQuickSearchCurrentSentenceForCopy() == "運も実力のうちだ")
+
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: [],
+            selectedChunkIndex: nil,
+            selectedOption: .refresh
+        ))
+        #expect(store.moveQuickSearchOptionRowSelection(by: -1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: [],
+            selectedChunkIndex: nil,
+            selectedOption: .copy
+        ))
+    }
+}
+
+@MainActor
+@Test
+func quickSearchSentenceActionRowDefaultsToChunkActionWhenFocusedFromChunks() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareQuickSearchCurrentSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: mockChunks(["運", "実力", "うち"])
+        )
+
+        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: mockChunks(["運", "実力", "うち"]),
+            selectedChunkIndex: 0,
+            selectedOption: .refresh
+        ))
+
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: mockChunks(["運", "実力", "うち"]),
+            selectedChunkIndex: 0,
+            selectedOption: .copy
+        ))
+
+        #expect(store.moveQuickSearchAIOptionFocus(by: -1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: mockChunks(["運", "実力", "うち"]),
+            selectedChunkIndex: 0,
+            selectedOption: .chunks
+        ))
+        #expect(store.moveQuickSearchAIOptionFocus(by: 1))
+        #expect(store.quickSearchAIState == .options(
+            chunks: mockChunks(["運", "実力", "うち"]),
+            selectedChunkIndex: 0,
+            selectedOption: .refresh
+        ))
+    }
+}
+
+@MainActor
+@Test
 func quickSearchChunkSearchCanRestorePreviousChunkOptions() {
     withTemporaryUserDefaults { userDefaults in
         let store = PlaybackStore(userDefaults: userDefaults)

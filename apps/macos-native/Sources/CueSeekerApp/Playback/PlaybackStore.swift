@@ -23,6 +23,7 @@ enum PlaybackQuickSearchResultSource: Equatable {
 enum PlaybackQuickSearchAIOption: Equatable {
     case chunks
     case refresh
+    case copy
 }
 
 enum PlaybackQuickSearchNavigationCommand: Equatable {
@@ -36,7 +37,8 @@ enum PlaybackQuickSearchNavigationState: Equatable {
 }
 
 private enum PlaybackQuickSearchOptionStop: Equatable {
-    case aiOption(PlaybackQuickSearchAIOption)
+    case chunks
+    case sentenceActions
     case navigation
 }
 
@@ -362,20 +364,34 @@ final class PlaybackStore: ObservableObject {
     func moveQuickSearchOptionRowSelection(by offset: Int) -> Bool {
         switch quickSearchFocusTarget {
         case .aiOption:
-            guard case .options(let chunks, let selectedIndex?, .chunks) = quickSearchAIState,
-                  !chunks.isEmpty
-            else {
+            guard case .options(let chunks, let selectedIndex, let selectedOption?) = quickSearchAIState else {
                 return false
             }
-            let nextIndex = Self.cyclicIndex(from: selectedIndex, offset: offset, count: chunks.count)
-            if nextIndex != selectedIndex {
-                resetQuickSearchSelectedChunkCount()
+
+            switch selectedOption {
+            case .chunks:
+                guard let selectedIndex, !chunks.isEmpty else {
+                    return false
+                }
+                let nextIndex = Self.cyclicIndex(from: selectedIndex, offset: offset, count: chunks.count)
+                if nextIndex != selectedIndex {
+                    resetQuickSearchSelectedChunkCount()
+                }
+                quickSearchAIState = .options(
+                    chunks: chunks,
+                    selectedChunkIndex: nextIndex,
+                    selectedOption: .chunks
+                )
+            case .refresh, .copy:
+                let options: [PlaybackQuickSearchAIOption] = [.refresh, .copy]
+                let currentIndex = options.firstIndex(of: selectedOption) ?? 0
+                let nextIndex = Self.cyclicIndex(from: currentIndex, offset: offset, count: options.count)
+                quickSearchAIState = .options(
+                    chunks: chunks,
+                    selectedChunkIndex: selectedIndex,
+                    selectedOption: options[nextIndex]
+                )
             }
-            quickSearchAIState = .options(
-                chunks: chunks,
-                selectedChunkIndex: nextIndex,
-                selectedOption: .chunks
-            )
             quickSearchFocusTarget = .aiOption
             isQuickSearchFocused = false
             return true
@@ -430,10 +446,10 @@ final class PlaybackStore: ObservableObject {
     private func visibleOptionStops() -> [PlaybackQuickSearchOptionStop] {
         var stops: [PlaybackQuickSearchOptionStop] = []
         if case .options(let chunks, _, _) = quickSearchAIState, !chunks.isEmpty {
-            stops.append(.aiOption(.chunks))
+            stops.append(.chunks)
         }
         if case .options = quickSearchAIState {
-            stops.append(.aiOption(.refresh))
+            stops.append(.sentenceActions)
         }
         if case .visible = quickSearchNavigationState {
             stops.append(.navigation)
@@ -460,7 +476,12 @@ final class PlaybackStore: ObservableObject {
             return .navigation
         case .aiOption:
             if case .options(_, _, let selectedOption?) = quickSearchAIState {
-                return .aiOption(selectedOption)
+                switch selectedOption {
+                case .chunks:
+                    return .chunks
+                case .refresh, .copy:
+                    return .sentenceActions
+                }
             }
             return nil
         }
@@ -468,16 +489,25 @@ final class PlaybackStore: ObservableObject {
 
     private func applyOptionStopFocus(_ stop: PlaybackQuickSearchOptionStop) {
         switch stop {
-        case .aiOption(let option):
+        case .chunks:
             if case .options(let chunks, let selectedChunkIndex, _) = quickSearchAIState {
                 quickSearchAIState = .options(
                     chunks: chunks,
                     selectedChunkIndex: selectedChunkIndexForFocus(
-                        option: option,
+                        option: .chunks,
                         chunks: chunks,
                         currentIndex: selectedChunkIndex
                     ),
-                    selectedOption: option
+                    selectedOption: .chunks
+                )
+            }
+            quickSearchFocusTarget = .aiOption
+        case .sentenceActions:
+            if case .options(let chunks, let selectedChunkIndex, _) = quickSearchAIState {
+                quickSearchAIState = .options(
+                    chunks: chunks,
+                    selectedChunkIndex: selectedChunkIndex,
+                    selectedOption: .refresh
                 )
             }
             quickSearchFocusTarget = .aiOption
@@ -516,6 +546,10 @@ final class PlaybackStore: ObservableObject {
         quickSearchFocusTarget == .aiOption && quickSearchAIState.selectedOption == .refresh
     }
 
+    var isQuickSearchAICopyOptionActive: Bool {
+        quickSearchFocusTarget == .aiOption && quickSearchAIState.selectedOption == .copy
+    }
+
     var canStartQuickSearchAIChunkingRequest: Bool {
         switch quickSearchAIState {
         case .options(_, _, .refresh):
@@ -533,6 +567,15 @@ final class PlaybackStore: ObservableObject {
             return nil
         }
         return chunks[selectedIndex].item
+    }
+
+    func selectedQuickSearchCurrentSentenceForCopy() -> String? {
+        guard isQuickSearchAICopyOptionActive else {
+            return nil
+        }
+
+        let sentence = quickSearchCurrentSentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        return sentence.isEmpty ? nil : sentence
     }
 
     func selectedQuickSearchAIChunkForCount() -> String? {

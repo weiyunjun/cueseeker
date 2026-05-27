@@ -157,7 +157,7 @@ struct PlaybackQuickSearchOverlay: View {
                 }
                 aiRefreshOptionRow(
                     hasChunks: !chunks.isEmpty,
-                    isSelected: focusTarget == .aiOption && selectedOption == .refresh
+                    selectedOption: focusTarget == .aiOption ? selectedOption : nil
                 )
                 if case .visible(let commands, let selectedIndex) = navigationState {
                     aiNavigationOptionRow(
@@ -220,8 +220,13 @@ struct PlaybackQuickSearchOverlay: View {
         .background(optionRowBackground(isSelected: isSelected))
     }
 
-    private func aiRefreshOptionRow(hasChunks: Bool, isSelected: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func aiRefreshOptionRow(
+        hasChunks: Bool,
+        selectedOption: PlaybackQuickSearchAIOption?
+    ) -> some View {
+        let isRowSelected = selectedOption == .refresh || selectedOption == .copy
+
+        return VStack(alignment: .leading, spacing: 8) {
             Text(currentSentence.isEmpty ? "Current sentence" : currentSentence)
                 .font(.system(size: 13.5, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.88))
@@ -229,14 +234,14 @@ struct PlaybackQuickSearchOverlay: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {
-                quickSearchActionLabel(hasChunks ? "/rechunk" : "/chunk", isSelected: isSelected)
-                quickSearchActionLabel("/copy", isSelected: false)
+                quickSearchActionLabel(hasChunks ? "/rechunk" : "/chunk", isSelected: selectedOption == .refresh)
+                quickSearchActionLabel("/copy", isSelected: selectedOption == .copy)
                 Spacer(minLength: 0)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(EdgeInsets(top: 10, leading: 18, bottom: 10, trailing: 18))
-        .background(optionRowBackground(isSelected: isSelected))
+        .background(optionRowBackground(isSelected: isRowSelected))
     }
 
     private func quickSearchActionLabel(_ label: String, isSelected: Bool) -> some View {

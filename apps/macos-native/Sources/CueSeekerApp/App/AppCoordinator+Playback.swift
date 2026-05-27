@@ -366,6 +366,25 @@ extension AppCoordinator {
     }
 
     @discardableResult
+    func copyQuickSearchCurrentSentenceToClipboard() -> Bool {
+        guard let playbackViewModel = playback.playbackViewModel else {
+            playback.playbackViewModel?.showSubtitleCopyFeedback(copied: false)
+            return false
+        }
+
+        guard let sentence = playback.selectedQuickSearchCurrentSentenceForCopy() else {
+            playbackViewModel.showSubtitleCopyFeedback(copied: false)
+            return false
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let copied = pasteboard.setString(sentence, forType: .string)
+        playbackViewModel.showSubtitleCopyFeedback(copied: copied)
+        return copied
+    }
+
+    @discardableResult
     func openPlaybackQuickSearchFromUser() -> Bool {
         guard currentPlaybackVideoPath != nil,
               let playbackViewModel = playback.playbackViewModel
@@ -410,6 +429,11 @@ extension AppCoordinator {
            case .visible(let commands, let selectedIndex) = playback.quickSearchNavigationState,
            commands.indices.contains(selectedIndex) {
             return executePlaybackQuickSearchNavigationCommand(commands[selectedIndex])
+        }
+
+        if playback.quickSearchSubmittedQuery == nil,
+           playback.isQuickSearchAICopyOptionActive {
+            return copyQuickSearchCurrentSentenceToClipboard()
         }
 
         if playback.quickSearchSubmittedQuery == nil,
