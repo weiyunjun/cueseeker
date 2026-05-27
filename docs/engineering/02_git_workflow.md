@@ -191,7 +191,33 @@ Rules:
 - Expensive or hard-to-reverse decisions require ADRs.
 - Significant proposed changes should start in `docs/proposals/`.
 
-## 10. AI Assistant Interaction Rules
+## 10. Implementation Traceability
+
+Every non-documentation code change must be traceable to a human-maintained
+requirement document or stabilized design/planning document.
+
+This is a project rule for human ownership and review, not only an AI assistant
+rule.
+
+Rules:
+
+- Code changes include application source, tests, scripts, prototypes, build
+  files, and configuration files. Documentation-only changes are excluded.
+- Before a code change is implemented or accepted, the responsible human owner
+  must make sure the change is reflected in either a requirement document under
+  `docs/human/requirements/` or a design/planning document under
+  `docs/human/design/`.
+- Requirement documents record historical change or implementation requests.
+  Design/planning documents record stabilized product content, expected
+  behavior, or the accepted initialization of a new feature.
+- If no human-owned requirement or design/planning document covers a requested
+  code change, the missing document is a process blocker. The human owner should
+  create or update the human-owned document before the code change proceeds.
+- The AI must not satisfy this requirement by editing `docs/human/`. It may
+  only report that the required human-owned documentation is missing or propose
+  text outside `docs/human/` for the human owner to apply manually.
+
+## 11. AI Assistant Interaction Rules
 
 Rules:
 
