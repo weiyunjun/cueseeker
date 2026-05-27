@@ -181,6 +181,67 @@ func quickSearchChunkSearchCanRestorePreviousChunkOptions() {
 
 @MainActor
 @Test
+func quickSearchChunkCountIgnoresStaleResultAfterChunkSelectionChanges() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareQuickSearchCurrentSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: mockChunks(["運", "実力"])
+        )
+
+        let firstRequestID = store.markQuickSearchSelectedChunkCountStarted(query: "運")
+        #expect(store.quickSearchSelectedChunkCountState == .loading(query: "運"))
+
+        #expect(store.moveQuickSearchOptionRowSelection(by: 1))
+        #expect(store.selectedQuickSearchAIChunkForCount() == "実力")
+        #expect(store.quickSearchSelectedChunkCountState == .hidden)
+
+        store.markQuickSearchSelectedChunkCountFinished(
+            query: "運",
+            count: 12,
+            requestID: firstRequestID
+        )
+        #expect(store.quickSearchSelectedChunkCountState == .hidden)
+
+        let secondRequestID = store.markQuickSearchSelectedChunkCountStarted(query: "実力")
+        store.markQuickSearchSelectedChunkCountFinished(
+            query: "実力",
+            count: 4,
+            requestID: secondRequestID
+        )
+        #expect(store.quickSearchSelectedChunkCountState == .exact(query: "実力", count: 4))
+    }
+}
+
+@MainActor
+@Test
+func quickSearchChunkCountClearsWhenAIStateResets() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        prepareQuickSearchCurrentSentence(in: store)
+        store.showQuickSearchAIEntryIfPossible(
+            isEnabled: true,
+            hasAPIKey: true,
+            cachedChunks: mockChunks(["運"])
+        )
+
+        let requestID = store.markQuickSearchSelectedChunkCountStarted(query: "運")
+        store.resetQuickSearchAIState()
+
+        store.markQuickSearchSelectedChunkCountFinished(
+            query: "運",
+            count: 12,
+            requestID: requestID
+        )
+        #expect(store.quickSearchSelectedChunkCountState == .hidden)
+        #expect(store.selectedQuickSearchAIChunkForCount() == nil)
+    }
+}
+
+@MainActor
+@Test
 func quickSearchDirectResultSelectionReturnsToInputAtBoundaries() {
     withTemporaryUserDefaults { userDefaults in
         let store = PlaybackStore(userDefaults: userDefaults)

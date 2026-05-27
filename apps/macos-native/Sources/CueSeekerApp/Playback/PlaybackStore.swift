@@ -60,6 +60,20 @@ enum PlaybackQuickSearchAIState: Equatable {
     }
 }
 
+enum PlaybackQuickSearchChunkCountState: Equatable {
+    case hidden
+    case loading(query: String)
+    case exact(query: String, count: Int)
+
+    var count: Int? {
+        guard case .exact(_, let count) = self else {
+            return nil
+        }
+
+        return count
+    }
+}
+
 @MainActor
 final class PlaybackStore: ObservableObject {
     private static let sidePanelVisibleKey = "playbackSidePanelVisible"
@@ -109,7 +123,9 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var quickSearchFocusTarget: PlaybackQuickSearchFocusTarget = .input
     @Published private(set) var quickSearchAIState: PlaybackQuickSearchAIState = .hidden
     @Published private(set) var quickSearchNavigationState: PlaybackQuickSearchNavigationState = .hidden
+    @Published private(set) var quickSearchSelectedChunkCountState: PlaybackQuickSearchChunkCountState = .hidden
     private(set) var quickSearchAIRequestID = 0
+    private(set) var quickSearchSelectedChunkCountRequestID = 0
     var quickSearchPlaybackWasPlayingOnOpen = false
     private var isApplyingQuickSearchDraftUpdate = false
     private var quickSearchAIOptionsSnapshot: PlaybackQuickSearchAIOptionsSnapshot?
@@ -283,12 +299,14 @@ final class PlaybackStore: ObservableObject {
 
         if let cachedChunks, !cachedChunks.isEmpty {
             quickSearchAIRequestID += 1
+            resetQuickSearchSelectedChunkCount()
             quickSearchAIState = .options(
                 chunks: cachedChunks,
                 selectedChunkIndex: 0,
                 selectedOption: .chunks
             )
         } else {
+            resetQuickSearchSelectedChunkCount()
             quickSearchAIState = .options(
                 chunks: [],
                 selectedChunkIndex: nil,
@@ -303,6 +321,7 @@ final class PlaybackStore: ObservableObject {
     func markQuickSearchAIChunkingStarted() -> Int {
         quickSearchAIRequestID += 1
         quickSearchCanNavigateSubtitleLines = false
+        resetQuickSearchSelectedChunkCount()
         quickSearchAIState = .loading
         quickSearchFocusTarget = .aiOption
         isQuickSearchFocused = false
@@ -313,6 +332,7 @@ final class PlaybackStore: ObservableObject {
         guard requestID == quickSearchAIRequestID else {
             return
         }
+        resetQuickSearchSelectedChunkCount()
         quickSearchAIState = .failed(message)
         quickSearchFocusTarget = .aiOption
         isQuickSearchFocused = false
@@ -322,6 +342,7 @@ final class PlaybackStore: ObservableObject {
         guard requestID == quickSearchAIRequestID else {
             return
         }
+        resetQuickSearchSelectedChunkCount()
         guard !chunks.isEmpty else {
             quickSearchAIState = .failed("The AI service returned no usable chunks.")
             quickSearchFocusTarget = .aiOption
@@ -347,6 +368,9 @@ final class PlaybackStore: ObservableObject {
                 return false
             }
             let nextIndex = Self.cyclicIndex(from: selectedIndex, offset: offset, count: chunks.count)
+            if nextIndex != selectedIndex {
+                resetQuickSearchSelectedChunkCount()
+            }
             quickSearchAIState = .options(
                 chunks: chunks,
                 selectedChunkIndex: nextIndex,
@@ -511,6 +535,54 @@ final class PlaybackStore: ObservableObject {
         return chunks[selectedIndex].item
     }
 
+    func selectedQuickSearchAIChunkForCount() -> String? {
+        guard case .options(let chunks, let selectedIndex?, _) = quickSearchAIState,
+              chunks.indices.contains(selectedIndex)
+        else {
+            return nil
+        }
+
+        let query = chunks[selectedIndex].item.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty ? nil : query
+    }
+
+    func isQuickSearchSelectedChunkCountCurrent(for query: String) -> Bool {
+        switch quickSearchSelectedChunkCountState {
+        case .hidden:
+            return false
+        case .loading(let currentQuery), .exact(let currentQuery, _):
+            return currentQuery == query
+        }
+    }
+
+    @discardableResult
+    func markQuickSearchSelectedChunkCountStarted(query: String) -> Int {
+        quickSearchSelectedChunkCountRequestID += 1
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        quickSearchSelectedChunkCountState = trimmedQuery.isEmpty
+            ? .hidden
+            : .loading(query: trimmedQuery)
+        return quickSearchSelectedChunkCountRequestID
+    }
+
+    func markQuickSearchSelectedChunkCountFinished(
+        query: String,
+        count: Int,
+        requestID: Int
+    ) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard requestID == quickSearchSelectedChunkCountRequestID,
+              selectedQuickSearchAIChunkForCount() == trimmedQuery
+        else {
+            return
+        }
+
+        quickSearchSelectedChunkCountState = .exact(
+            query: trimmedQuery,
+            count: max(0, count)
+        )
+    }
+
     func applyQuickSearchAIChunkQuery(_ chunk: String) {
         quickSearchAIOptionsSnapshot = PlaybackQuickSearchAIOptionsSnapshot(
             draft: quickSearchDraft,
@@ -551,6 +623,7 @@ final class PlaybackStore: ObservableObject {
             quickSearchAIState = .hidden
         }
         quickSearchAIRequestID += 1
+        resetQuickSearchSelectedChunkCount()
         quickSearchAIOptionsSnapshot = nil
         if quickSearchNavigationState != .hidden {
             quickSearchNavigationState = .hidden
@@ -558,6 +631,11 @@ final class PlaybackStore: ObservableObject {
         if quickSearchFocusTarget == .aiOption || quickSearchFocusTarget == .navigation {
             quickSearchFocusTarget = .input
         }
+    }
+
+    func resetQuickSearchSelectedChunkCount() {
+        quickSearchSelectedChunkCountRequestID += 1
+        quickSearchSelectedChunkCountState = .hidden
     }
 
     private func applyQuickSearchDraft(

@@ -13,6 +13,7 @@ struct PlaybackQuickSearchOverlay: View {
     let isSearching: Bool
     let currentSentence: String
     let aiState: PlaybackQuickSearchAIState
+    let selectedChunkCountState: PlaybackQuickSearchChunkCountState
     let navigationState: PlaybackQuickSearchNavigationState
     let focusTarget: PlaybackQuickSearchFocusTarget
     let onSubmit: () -> Void
@@ -25,11 +26,6 @@ struct PlaybackQuickSearchOverlay: View {
     let onOpenResult: (SubtitleSearchResult) -> Void
     let onResultAppear: (SubtitleSearchResult) -> Void
 
-    let occurrenceCountProvider: (String) -> Int
-
-    @State private var selectedChunkCount: Int? = nil
-    @State private var lastQueriedItem: String? = nil
-
     var body: some View {
         VStack(spacing: 8) {
             searchField
@@ -39,12 +35,6 @@ struct PlaybackQuickSearchOverlay: View {
             } else {
                 aiPanel
             }
-        }
-        .onAppear {
-            updateSelectedChunkCount()
-        }
-        .onChange(of: aiState) { _ in
-            updateSelectedChunkCount()
         }
     }
 
@@ -282,21 +272,9 @@ struct PlaybackQuickSearchOverlay: View {
                 
                 Spacer(minLength: 16)
                 
-                if let count = selectedChunkCount {
-                    HStack(spacing: 4) {
-                        Image(systemName: "number")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("\(count) occurrences")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundStyle(PlaybackTheme.textSecondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(PlaybackTheme.capsuleFill)
-                    )
-                } else {
+                if let count = selectedChunkCount(for: selectedChunk) {
+                    selectedChunkCountBadge(count: count)
+                } else if isSelectedChunkCountLoading(for: selectedChunk) {
                     ProgressView()
                         .controlSize(.small)
                         .scaleEffect(0.7)
@@ -323,30 +301,44 @@ struct PlaybackQuickSearchOverlay: View {
         )
     }
 
-    private func updateSelectedChunkCount() {
-        guard case .options(let chunks, let selectedChunkIndex?, .chunks) = aiState,
-              chunks.indices.contains(selectedChunkIndex) else {
-            selectedChunkCount = nil
-            lastQueriedItem = nil
-            return
+    private func selectedChunkCountBadge(count: Int) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "number")
+                .font(.system(size: 11, weight: .semibold))
+            Text("\(count) occurrences")
+                .font(.system(size: 12, weight: .semibold))
+        }
+        .foregroundStyle(PlaybackTheme.textSecondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(PlaybackTheme.capsuleFill)
+        )
+    }
+
+    private func selectedChunkCount(for chunk: AIChunkItem) -> Int? {
+        let query = normalizedCountQuery(for: chunk)
+        guard case .exact(let countQuery, let count) = selectedChunkCountState,
+              countQuery == query
+        else {
+            return nil
         }
 
-        let selectedChunk = chunks[selectedChunkIndex]
-        guard selectedChunk.item != lastQueriedItem else {
-            return
+        return count
+    }
+
+    private func isSelectedChunkCountLoading(for chunk: AIChunkItem) -> Bool {
+        let query = normalizedCountQuery(for: chunk)
+        guard case .loading(let countQuery) = selectedChunkCountState else {
+            return false
         }
 
-        let itemToQuery = selectedChunk.item
-        lastQueriedItem = itemToQuery
+        return countQuery == query
+    }
 
-        Task {
-            let count = occurrenceCountProvider(itemToQuery)
-            await MainActor.run {
-                if lastQueriedItem == itemToQuery {
-                    selectedChunkCount = count
-                }
-            }
-        }
+    private func normalizedCountQuery(for chunk: AIChunkItem) -> String {
+        chunk.item.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func aiPanelContainer<Content: View>(

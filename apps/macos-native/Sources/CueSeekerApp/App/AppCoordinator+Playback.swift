@@ -380,6 +380,7 @@ extension AppCoordinator {
 
         playback.quickSearchPlaybackWasPlayingOnOpen = playbackViewModel.isPlaying
         cancelPlaybackQuickSearchAIChunking()
+        cancelPlaybackQuickSearchChunkCount()
         capturePlaybackQuickSearchSearchContext()
         playback.resetQuickSearchResultSelection()
         playback.resetQuickSearchAIState()
@@ -393,6 +394,7 @@ extension AppCoordinator {
         } else {
             playback.clearQuickSearchInputFocus()
         }
+        startPlaybackQuickSearchSelectedChunkCountIfNeeded()
         pausePlayback()
         return true
     }
@@ -454,7 +456,11 @@ extension AppCoordinator {
             return movePlaybackQuickSearchResultSelection(by: offset)
         }
 
-        return playback.moveQuickSearchAIOptionFocus(by: offset)
+        let didMove = playback.moveQuickSearchAIOptionFocus(by: offset)
+        if didMove {
+            startPlaybackQuickSearchSelectedChunkCountIfNeeded()
+        }
+        return didMove
     }
 
     @discardableResult
@@ -472,7 +478,11 @@ extension AppCoordinator {
 
     @discardableResult
     func movePlaybackQuickSearchOptionRowSelection(by offset: Int) -> Bool {
-        playback.moveQuickSearchOptionRowSelection(by: offset)
+        let didMove = playback.moveQuickSearchOptionRowSelection(by: offset)
+        if didMove {
+            startPlaybackQuickSearchSelectedChunkCountIfNeeded()
+        }
+        return didMove
     }
 
     @discardableResult
@@ -554,6 +564,7 @@ extension AppCoordinator {
                         result.items,
                         requestID: requestID
                     )
+                    self.startPlaybackQuickSearchSelectedChunkCountIfNeeded()
                 }
             } catch is CancellationError {
                 return
@@ -583,6 +594,7 @@ extension AppCoordinator {
 
     func openPlaybackQuickSearchResult(_ result: SubtitleSearchResult) {
         cancelPlaybackQuickSearchAIChunking()
+        cancelPlaybackQuickSearchChunkCount()
         discardPlaybackQuickSearchSearchContext()
         playback.quickSearchPlaybackWasPlayingOnOpen = false
         playback.isQuickSearchFocused = false
@@ -603,6 +615,7 @@ extension AppCoordinator {
             if playback.quickSearchResultSource == .chunk,
                playback.quickSearchFocusTarget == .result,
                playback.restoreQuickSearchAIOptionsAfterChunkSearch() {
+                startPlaybackQuickSearchSelectedChunkCountIfNeeded()
                 return true
             }
 
@@ -624,6 +637,7 @@ extension AppCoordinator {
 
         let shouldResume = playback.quickSearchPlaybackWasPlayingOnOpen
         cancelPlaybackQuickSearchAIChunking()
+        cancelPlaybackQuickSearchChunkCount()
         restorePlaybackQuickSearchSearchContextIfNeeded()
         playback.quickSearchPlaybackWasPlayingOnOpen = false
         playback.isQuickSearchFocused = false
@@ -955,6 +969,95 @@ extension AppCoordinator {
         quickSearchAIChunkingTask = nil
     }
 
+    private func startPlaybackQuickSearchSelectedChunkCountIfNeeded() {
+        guard playback.isQuickSearchOverlayVisible,
+              let query = playback.selectedQuickSearchAIChunkForCount()
+        else {
+            cancelPlaybackQuickSearchChunkCount()
+            playback.resetQuickSearchSelectedChunkCount()
+            return
+        }
+
+        guard !playback.isQuickSearchSelectedChunkCountCurrent(for: query) else {
+            return
+        }
+
+        cancelPlaybackQuickSearchChunkCount()
+        let requestID = playback.markQuickSearchSelectedChunkCountStarted(query: query)
+        quickSearchChunkCountTaskRequestID = requestID
+
+        guard let database = subtitleDatabase else {
+            playback.markQuickSearchSelectedChunkCountFinished(
+                query: query,
+                count: 0,
+                requestID: requestID
+            )
+            quickSearchChunkCountTaskRequestID = nil
+            return
+        }
+
+        let folders = indexing.selectedFolders
+        quickSearchChunkCountTask = Task { [weak self] in
+            do {
+                let count = try await Task.detached(priority: .utility) {
+                    try database.cueGroupOccurrenceCount(for: query, under: folders)
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                await MainActor.run {
+                    guard let self else {
+                        return
+                    }
+
+                    self.playback.markQuickSearchSelectedChunkCountFinished(
+                        query: query,
+                        count: count,
+                        requestID: requestID
+                    )
+                    self.clearPlaybackQuickSearchChunkCountTaskIfCurrent(requestID: requestID)
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                await MainActor.run {
+                    guard let self else {
+                        return
+                    }
+
+                    print("[AIChunking] failed to get occurrence count for query='\(query)': \(error)")
+                    self.playback.markQuickSearchSelectedChunkCountFinished(
+                        query: query,
+                        count: 0,
+                        requestID: requestID
+                    )
+                    self.clearPlaybackQuickSearchChunkCountTaskIfCurrent(requestID: requestID)
+                }
+            }
+        }
+    }
+
+    private func cancelPlaybackQuickSearchChunkCount() {
+        quickSearchChunkCountTask?.cancel()
+        quickSearchChunkCountTask = nil
+        quickSearchChunkCountTaskRequestID = nil
+    }
+
+    private func clearPlaybackQuickSearchChunkCountTaskIfCurrent(requestID: Int) {
+        guard quickSearchChunkCountTaskRequestID == requestID else {
+            return
+        }
+
+        quickSearchChunkCountTask = nil
+        quickSearchChunkCountTaskRequestID = nil
+    }
+
     private func capturePlaybackQuickSearchSearchContext() {
         quickSearchSearchContextSnapshot = PlaybackQuickSearchSearchContextSnapshot(appState: self)
         quickSearchSearchContextWasMutated = false
@@ -1028,6 +1131,7 @@ extension AppCoordinator {
     func stopPlayback() {
         do {
             cancelPlaybackQuickSearchAIChunking()
+            cancelPlaybackQuickSearchChunkCount()
             discardPlaybackQuickSearchSearchContext()
             saveCurrentLibraryPlaybackHistory()
             stopLibraryPlaybackHistoryTracking()
@@ -1303,18 +1407,6 @@ extension AppCoordinator {
         return min(max(volume, 0), 100)
     }
 
-    func cueGroupOccurrenceCount(for query: String) -> Int {
-        guard let database = subtitleDatabase else {
-            return 0
-        }
-        let folders = indexing.selectedFolders
-        do {
-            return try database.cueGroupOccurrenceCount(for: query, under: folders)
-        } catch {
-            print("[AIChunking] failed to get occurrence count for query='\(query)': \(error)")
-            return 0
-        }
-    }
 }
 private extension NSView {
     var ancestorOrSelfContainsEditableTextInput: Bool {
