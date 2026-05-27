@@ -156,6 +156,8 @@ struct PlaybackQuickSearchOverlay: View {
                     )
                 }
                 aiRefreshOptionRow(
+                    chunks: chunks,
+                    selectedChunkIndex: focusTarget == .aiOption && selectedOption == .chunks ? selectedChunkIndex : nil,
                     hasChunks: !chunks.isEmpty,
                     selectedOption: focusTarget == .aiOption ? selectedOption : nil
                 )
@@ -203,16 +205,7 @@ struct PlaybackQuickSearchOverlay: View {
     ) -> some View {
         QuickSearchChunkFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
             ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
-                Text(chunk.item)
-                    .font(.system(size: 13.5, weight: index == selectedChunkIndex ? .semibold : .medium))
-                    .foregroundStyle(index == selectedChunkIndex ? Color.white : Color.white.opacity(0.88))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(index == selectedChunkIndex ? PlaybackTheme.menuItemHighlight : Color.clear)
-                    )
+                quickSearchChunkLabel(chunk.item, isSelected: index == selectedChunkIndex)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -221,17 +214,15 @@ struct PlaybackQuickSearchOverlay: View {
     }
 
     private func aiRefreshOptionRow(
+        chunks: [AIChunkItem],
+        selectedChunkIndex: Int?,
         hasChunks: Bool,
         selectedOption: PlaybackQuickSearchAIOption?
     ) -> some View {
         let isRowSelected = selectedOption == .refresh || selectedOption == .copy
 
         return VStack(alignment: .leading, spacing: 8) {
-            Text(currentSentence.isEmpty ? "Current sentence" : currentSentence)
-                .font(.system(size: 13.5, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.88))
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
+            currentSentenceText(chunks: chunks, selectedChunkIndex: selectedChunkIndex)
 
             HStack(spacing: 12) {
                 quickSearchActionLabel(hasChunks ? "/rechunk" : "/chunk", isSelected: selectedOption == .refresh)
@@ -242,6 +233,56 @@ struct PlaybackQuickSearchOverlay: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(EdgeInsets(top: 10, leading: 18, bottom: 10, trailing: 18))
         .background(optionRowBackground(isSelected: isRowSelected))
+    }
+
+    @ViewBuilder
+    private func currentSentenceText(
+        chunks: [AIChunkItem],
+        selectedChunkIndex: Int?
+    ) -> some View {
+        let sentenceText = currentSentence.isEmpty ? "Current sentence" : currentSentence
+        if let match = PlaybackQuickSearchSentenceChunkMatch.match(
+            sentence: sentenceText,
+            chunks: chunks,
+            selectedChunkIndex: selectedChunkIndex
+        ) {
+            QuickSearchChunkFlowLayout(horizontalSpacing: 0, verticalSpacing: 4) {
+                if !match.before.isEmpty {
+                    quickSearchSentenceLabel(match.before)
+                }
+                quickSearchChunkLabel(match.selectedText, isSelected: true, selectionOpacity: 0.62)
+                if !match.after.isEmpty {
+                    quickSearchSentenceLabel(match.after)
+                }
+            }
+        } else {
+            quickSearchSentenceLabel(sentenceText)
+        }
+    }
+
+    private func quickSearchSentenceLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 13.5, weight: .medium))
+            .foregroundStyle(Color.white.opacity(0.88))
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func quickSearchChunkLabel(
+        _ label: String,
+        isSelected: Bool,
+        selectionOpacity: Double = 1.0
+    ) -> some View {
+        Text(label)
+            .font(.system(size: 13.5, weight: isSelected ? .semibold : .medium))
+            .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.88))
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? PlaybackTheme.menuItemHighlight.opacity(selectionOpacity) : Color.clear)
+            )
     }
 
     private func quickSearchActionLabel(_ label: String, isSelected: Bool) -> some View {
@@ -438,6 +479,49 @@ struct PlaybackQuickSearchOverlay: View {
                     .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
             )
             .shadow(color: .black.opacity(0.42), radius: 24, y: 12)
+    }
+}
+
+struct PlaybackQuickSearchSentenceChunkMatch: Equatable {
+    let before: String
+    let selectedText: String
+    let after: String
+
+    static func match(
+        sentence: String,
+        chunks: [AIChunkItem],
+        selectedChunkIndex: Int?
+    ) -> PlaybackQuickSearchSentenceChunkMatch? {
+        guard let selectedChunkIndex,
+              chunks.indices.contains(selectedChunkIndex)
+        else {
+            return nil
+        }
+
+        let chunkText = chunks[selectedChunkIndex].item
+        guard !chunkText.isEmpty else {
+            return nil
+        }
+
+        let sameTextOccurrence = chunks[..<selectedChunkIndex].filter { $0.item == chunkText }.count
+        var searchStart = sentence.startIndex
+        var currentOccurrence = 0
+
+        while searchStart <= sentence.endIndex,
+              let range = sentence.range(of: chunkText, range: searchStart..<sentence.endIndex) {
+            if currentOccurrence == sameTextOccurrence {
+                return PlaybackQuickSearchSentenceChunkMatch(
+                    before: String(sentence[..<range.lowerBound]),
+                    selectedText: String(sentence[range]),
+                    after: String(sentence[range.upperBound...])
+                )
+            }
+
+            currentOccurrence += 1
+            searchStart = range.upperBound
+        }
+
+        return nil
     }
 }
 

@@ -230,6 +230,36 @@ func quickSearchSentenceActionRowDefaultsToChunkActionWhenFocusedFromChunks() {
     }
 }
 
+@Test
+func quickSearchSentenceChunkMatchFindsSelectedChunkTextInSentence() {
+    let match = PlaybackQuickSearchSentenceChunkMatch.match(
+        sentence: "運も実力のうちだ",
+        chunks: mockChunks(["運", "実力", "うち"]),
+        selectedChunkIndex: 1
+    )
+
+    #expect(match == PlaybackQuickSearchSentenceChunkMatch(
+        before: "運も",
+        selectedText: "実力",
+        after: "のうちだ"
+    ))
+}
+
+@Test
+func quickSearchSentenceChunkMatchUsesSelectedIndexForRepeatedChunkText() {
+    let match = PlaybackQuickSearchSentenceChunkMatch.match(
+        sentence: "運も運も実力",
+        chunks: mockChunks(["運", "も", "運", "も", "実力"]),
+        selectedChunkIndex: 2
+    )
+
+    #expect(match == PlaybackQuickSearchSentenceChunkMatch(
+        before: "運も",
+        selectedText: "運",
+        after: "も実力"
+    ))
+}
+
 @MainActor
 @Test
 func quickSearchChunkSearchCanRestorePreviousChunkOptions() {
