@@ -246,15 +246,7 @@ struct PlaybackQuickSearchOverlay: View {
             chunks: chunks,
             selectedChunkIndex: selectedChunkIndex
         ) {
-            QuickSearchChunkFlowLayout(horizontalSpacing: 0, verticalSpacing: 4) {
-                if !match.before.isEmpty {
-                    quickSearchSentenceLabel(match.before)
-                }
-                quickSearchSentenceUnderlineLabel(match.selectedText)
-                if !match.after.isEmpty {
-                    quickSearchSentenceLabel(match.after)
-                }
-            }
+            quickSearchSentenceFocusLabel(match)
         } else {
             quickSearchSentenceLabel(sentenceText)
         }
@@ -268,11 +260,16 @@ struct PlaybackQuickSearchOverlay: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func quickSearchSentenceUnderlineLabel(_ text: String) -> some View {
-        Text(text)
+    private func quickSearchSentenceFocusLabel(_ match: PlaybackQuickSearchSentenceChunkMatch) -> some View {
+        (
+            Text(match.before)
+                .foregroundColor(Color.white.opacity(0.42))
+            + Text(match.selectedText)
+                .foregroundColor(Color.white.opacity(0.88))
+            + Text(match.after)
+                .foregroundColor(Color.white.opacity(0.42))
+        )
             .font(.system(size: 13.5, weight: .medium))
-            .foregroundStyle(Color.white.opacity(0.88))
-            .underline(true, color: Color.white.opacity(0.88))
             .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
     }
