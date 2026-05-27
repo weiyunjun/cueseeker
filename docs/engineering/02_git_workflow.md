@@ -193,7 +193,7 @@ Rules:
 
 ## 10. Implementation Traceability
 
-Every non-documentation code change must be traceable to a human-maintained
+Every change outside `docs/human/` must be traceable to a human-maintained
 requirement document or stabilized design/planning document.
 
 This is a project rule for human ownership and review, not only an AI assistant
@@ -201,27 +201,46 @@ rule.
 
 Rules:
 
-- Code changes include application source, tests, scripts, prototypes, build
-  files, and configuration files. Documentation-only changes are excluded.
-- Before a code change is implemented or accepted, the responsible human owner
-  must make sure the change is reflected in either a requirement document under
-  `docs/human/requirements/` or a design/planning document under
-  `docs/human/design/`.
+- Changes outside `docs/human/` include application source, tests, scripts,
+  prototypes, build files, configuration files, product documents, engineering
+  documents, proposals, ADRs, changelog entries, and AI-maintained process
+  records.
+- Before a change outside `docs/human/` is implemented or accepted, the
+  responsible human owner must make sure the change is reflected in either a
+  requirement document under `docs/human/requirements/` or a design/planning
+  document under `docs/human/design/`.
+- The covering human-owned document must be committed before the AI modifies
+  files outside `docs/human/`. An uncommitted human-owned document may be
+  reviewed or discussed, but it does not authorize dependent AI-maintained
+  documentation or code changes.
 - Requirement documents record historical change or implementation requests.
   Design/planning documents record stabilized product content, expected
   behavior, or the accepted initialization of a new feature.
 - If no human-owned requirement or design/planning document covers a requested
-  code change, the missing document is a process blocker. The human owner should
-  create or update the human-owned document before the code change proceeds.
+  change outside `docs/human/`, the missing document is a process blocker. The
+  human owner should create or update the human-owned document before the change
+  proceeds.
+- When a requirement changes, the human-owned document must be updated before
+  dependent AI-maintained documentation or code changes proceed.
 - The AI must not satisfy this requirement by editing `docs/human/`. It may
   only report that the required human-owned documentation is missing or propose
   text outside `docs/human/` for the human owner to apply manually.
+- Each AI-performed change outside `docs/human/` must create or update an
+  implementation record under `docs/engineering/records/` that cites the
+  relevant human-owned document and records the steps taken, verification
+  performed, and whether the result matched expectations.
+- Every commit must include the relevant `docs/human/` document path in the
+  commit message. For commits that change only `docs/human/`, cite the
+  human-owned document path or paths changed by that commit.
 
 ## 11. AI Assistant Interaction Rules
 
 Rules:
 
 - For every code modification, the AI must explicitly state both the before-modification version and the after-modification version to the user to prevent them from having to scroll through chat history. All Git Hashes MUST be represented in their short hash format (typically 7 characters).
+- For every documentation or code modification outside `docs/human/`, the AI
+  must confirm that a committed human-owned requirement or design document
+  covers the change before editing.
 - Unless the user provides an explicit instruction to modify code, all user prompts must be treated as discussion or proposal requests. The AI is strictly prohibited from modifying code without explicit permission.
 - Human-owned documentation lives under `docs/human/`. It is the
   authoritative human-maintained documentation area for requirements, design,
@@ -244,6 +263,17 @@ Rules:
   understand, the AI must report the unclear point and ask for clarification or
   suggest explanatory text outside `docs/human/`. It must not silently reinterpret
   or directly fix the human-owned document.
+- If a human-owned document required for a requested change is missing or
+  uncommitted, the AI must report the blocker. It may help review or commit
+  human-owned documentation when explicitly asked, but it must not modify files
+  outside `docs/human/` until the covering human-owned document is committed.
+- For every AI-performed change outside `docs/human/`, the AI must create or
+  update a matching implementation record under `docs/engineering/records/`.
+  The record must identify the relevant `docs/human/` document and summarize
+  the implementation steps, verification, and outcome.
+- When committing, the AI must include the relevant `docs/human/` path in the
+  commit message. If multiple human-owned documents cover one commit, include
+  each relevant path.
 - Unless the user explicitly asks for a detailed explanation, AI responses
   should be concise and clear, with the most important conclusions emphasized in
   bold so the answer is easy to scan.

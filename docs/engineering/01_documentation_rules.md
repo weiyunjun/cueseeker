@@ -20,21 +20,26 @@ Principles:
 - Exploratory ideas belong in proposals.
 - Hard-to-reverse decisions belong in ADRs.
 - Changelog entries record milestone-level progress.
-- All project documentation must be written in English.
+- AI-maintained documentation outside `docs/human/` must be written in English.
 
 ## 3. Documentation Language
 
-All documentation files under `docs/` must be written in English.
+AI-maintained documentation files outside `docs/human/` must be written in
+English.
 
 This applies to:
 
 - Product documents.
 - Engineering documents.
+- Implementation records.
 - Proposals.
 - Architecture Decision Records.
 - Chronicle entries.
 - Changelog entries.
 - Release notes.
+
+Human-owned documents under `docs/human/` may use the human owner's chosen
+language. The AI must not edit them.
 
 Chinese may appear only when it is part of:
 
@@ -49,8 +54,12 @@ The active documentation structure is:
 
 ```text
 docs/
+  human/
+    requirements/
+    design/
   product/
   engineering/
+    records/
   proposals/
   decisions/
   chronicle/
@@ -60,7 +69,11 @@ docs/
 Rules:
 
 - `docs/product/` records stable product facts.
+- `docs/human/` records human-owned requirements, design, planning, product
+  meaning, and stable human decisions.
 - `docs/engineering/` records stable engineering rules.
+- `docs/engineering/records/` records AI implementation process notes for
+  accepted work outside `docs/human/`.
 - `docs/proposals/` records proposed changes before acceptance.
 - `docs/decisions/` records ADRs.
 - `docs/chronicle/` records reasoning provenance for explicitly started
@@ -105,6 +118,7 @@ docs/engineering/
   06_testing_rules.md
   07_release_rules.md
   08_end_to_end_testing.md
+  records/
 ```
 
 Rules:
@@ -113,8 +127,44 @@ Rules:
 - Detailed rules should live in the dedicated engineering document for that topic.
 - When detailed rules and the governance summary disagree, the disagreement must be resolved before implementation depends on either rule.
 - Engineering documents should define constraints and process, not implementation code.
+- `docs/engineering/records/` is not a rule source. It records how an
+  accepted change was carried out, what was verified, and whether the result
+  matched the expected outcome.
 
-## 7. Proposals
+## 7. Implementation Records
+
+Use an implementation record when the AI carries out an accepted change outside
+`docs/human/`.
+
+Naming format:
+
+```text
+docs/engineering/records/YYYY-MM-DD-topic-name.md
+```
+
+Recommended sections:
+
+```text
+Requirement
+Scope
+Steps
+Verification
+Outcome
+Follow-ups
+```
+
+Rules:
+
+- Each AI-performed change outside `docs/human/` must create or update one
+  implementation record.
+- The record must cite the relevant human-owned requirement or design document.
+- The record should state each meaningful step, what was changed, what was
+  checked, and whether the result matched the expected outcome.
+- Implementation records do not replace human-owned requirements, product or
+  engineering documents, Git history, tests, or changelog entries.
+- Implementation records must not be created under `docs/human/`.
+
+## 8. Proposals
 
 Use a proposal when a change is significant but not yet accepted as stable project direction.
 
@@ -153,7 +203,7 @@ Rules:
 - Rejected or superseded proposals should remain as historical context.
 - Implementation should not depend on proposal text that has not been accepted.
 
-## 8. Architecture Decision Records
+## 9. Architecture Decision Records
 
 Use an ADR for major decisions that are expensive to reverse.
 
@@ -190,7 +240,7 @@ Rules:
 - ADRs should be updated or superseded when decisions change.
 - ADRs do not replace product or engineering documents; stable conclusions must be reflected in the relevant rules.
 
-## 9. Chronicle
+## 10. Chronicle
 
 Use a chronicle entry when an explicitly started Socratic architecture alignment
 session produces a meaningful implementation idea, architecture concern,
@@ -227,7 +277,7 @@ Rules:
   conclusions must still move into the relevant product, engineering, proposal,
   ADR, or changelog document.
 
-## 10. Changelog
+## 11. Changelog
 
 `docs/changelog.md` records milestone-level progress and user-visible project changes.
 
@@ -246,9 +296,13 @@ Rules:
 - Changelog entries should summarize outcomes, not implementation details or individual commits.
 - Changelog entries belong in `Unreleased` until a formal release section exists.
 
-## 11. Change Process
+## 12. Change Process
 
-Small documentation changes may directly update stable documents.
+Every change outside `docs/human/` must be covered by a human-owned requirement
+or design document before it is made.
+
+Small documentation changes may directly update stable documents when their
+human-owned requirement or design document is already committed.
 
 Examples:
 
@@ -271,16 +325,19 @@ Examples:
 Required flow for significant changes:
 
 ```text
-Create proposal or ADR
+Create or update the human-owned requirement or design document
+Commit the human-owned requirement or design document
+Create proposal or ADR when required
 Review the decision
 Merge stable conclusions into product or engineering docs
 Implement
 Verify
+Update the implementation record
 Evaluate changelog trigger and update when required
-Commit changes
+Commit changes with the relevant human-owned document path in the commit message
 ```
 
-## 11. Review Rule
+## 13. Review Rule
 
 Documentation that defines process, product scope, data structure, playback behavior, architecture, testing, or release behavior must be reviewed before implementation depends on it.
 

@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted stricter change traceability rules: AI-performed code and
+  documentation changes outside `docs/human/` now require committed
+  human-owned requirement or design coverage, an engineering implementation
+  record, and commit messages that cite the relevant `docs/human/` path.
 - Fixed first-pass Anki export media generation so ffmpeg writes audio and
   image assets through typed temporary filenames before packaging them into
   Anki's extensionless media slots.
