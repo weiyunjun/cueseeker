@@ -3,6 +3,7 @@
 ## Requirement
 
 - `docs/human/requirements/20260527-Feature-Quick Search Chunk Count Consistency.md`
+- `docs/human/requirements/20260527-Bug-API Result Count Mismatch.md`
 
 ## Scope
 
@@ -65,8 +66,11 @@
   tests.
 - Existing playback-history disk I/O log messages still appeared during the
   test run, but the full test suite passed.
+- Human acceptance passed on 2026-05-27.
+- Human confirmed `docs/human/requirements/20260527-Bug-API Result Count Mismatch.md`
+  is resolved by this implementation.
 
 ## Outcome
 
-- Implementation work and automated verification are complete. Human
-  acceptance testing is still pending.
+- Implementation work, automated verification, and human acceptance are
+  complete. The related API result count mismatch bug is resolved.

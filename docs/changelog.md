@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the Playback Quick Search chunk count consistency fix: selected
+  chunk counts now reuse Search exact totals, run in the background after AI
+  chunks render, ignore stale count completions while switching chunks, display
+  `xx results`, and resolve the API result count mismatch bug.
 - Accepted stricter change traceability rules: AI-performed code and
   documentation changes outside `docs/human/` now require committed
   human-owned requirement or design coverage, an engineering implementation
