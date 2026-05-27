@@ -10,6 +10,8 @@ final class SettingsStore: ObservableObject {
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let aiChunkingEnabledKey = "aiChunkingEnabled"
+    private static let aiChunkingTranslationLanguageKey = "aiChunkingTranslationLanguage"
+    private static let aiChunkingPromptTemplateKey = "aiChunkingPromptTemplate"
 
     @Published var appAppearanceMode: AppAppearanceMode {
         didSet {
@@ -45,6 +47,17 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    @Published var aiChunkingTranslationLanguage: AIChunkingTranslationLanguage {
+        didSet {
+            userDefaults.set(
+                aiChunkingTranslationLanguage.rawValue,
+                forKey: Self.aiChunkingTranslationLanguageKey
+            )
+        }
+    }
+
+    @Published private(set) var aiChunkingPromptTemplate: String
+
     @Published private(set) var deepSeekAPIKeyConfigured: Bool
 
     private let userDefaults: UserDefaults
@@ -61,7 +74,9 @@ final class SettingsStore: ObservableObject {
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
-            Self.aiChunkingEnabledKey: false
+            Self.aiChunkingEnabledKey: false,
+            Self.aiChunkingTranslationLanguageKey: AIChunkingTranslationLanguage.defaultValue.rawValue,
+            Self.aiChunkingPromptTemplateKey: AIChunkingPromptConfiguration.defaultTemplate
         ])
 
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
@@ -72,6 +87,8 @@ final class SettingsStore: ObservableObject {
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
         )
         self.aiChunkingEnabled = userDefaults.bool(forKey: Self.aiChunkingEnabledKey)
+        self.aiChunkingTranslationLanguage = Self.loadAIChunkingTranslationLanguage(from: userDefaults)
+        self.aiChunkingPromptTemplate = Self.loadAIChunkingPromptTemplate(from: userDefaults)
         self.deepSeekAPIKeyConfigured = Self.isAPIKeyConfigured(
             for: .deepSeek,
             credentialStore: credentialStore
@@ -109,6 +126,25 @@ final class SettingsStore: ObservableObject {
         )
     }
 
+    func saveAIChunkingPromptTemplate(_ template: String) throws {
+        try AIChunkingPromptConfiguration.validateTemplate(template)
+
+        aiChunkingPromptTemplate = template
+        userDefaults.set(template, forKey: Self.aiChunkingPromptTemplateKey)
+    }
+
+    func restoreDefaultAIChunkingPromptTemplate() {
+        aiChunkingPromptTemplate = AIChunkingPromptConfiguration.defaultTemplate
+        userDefaults.removeObject(forKey: Self.aiChunkingPromptTemplateKey)
+    }
+
+    var aiChunkingPromptConfiguration: AIChunkingPromptConfiguration {
+        AIChunkingPromptConfiguration(
+            template: aiChunkingPromptTemplate,
+            translationLanguage: aiChunkingTranslationLanguage
+        )
+    }
+
     private static func loadAppAppearanceMode(from userDefaults: UserDefaults) -> AppAppearanceMode {
         guard let rawValue = userDefaults.string(forKey: appAppearanceModeKey),
               let mode = AppAppearanceMode(rawValue: rawValue)
@@ -125,6 +161,24 @@ final class SettingsStore: ObservableObject {
             return .auto
         }
         return mode
+    }
+
+    private static func loadAIChunkingTranslationLanguage(from userDefaults: UserDefaults) -> AIChunkingTranslationLanguage {
+        guard let rawValue = userDefaults.string(forKey: aiChunkingTranslationLanguageKey),
+              let language = AIChunkingTranslationLanguage(rawValue: rawValue)
+        else {
+            return .defaultValue
+        }
+        return language
+    }
+
+    private static func loadAIChunkingPromptTemplate(from userDefaults: UserDefaults) -> String {
+        guard let template = userDefaults.string(forKey: aiChunkingPromptTemplateKey),
+              (try? AIChunkingPromptConfiguration.validateTemplate(template)) != nil
+        else {
+            return AIChunkingPromptConfiguration.defaultTemplate
+        }
+        return template
     }
 
     private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {

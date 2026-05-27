@@ -28,19 +28,21 @@ struct DeepSeekChunkingClient: Sendable {
 
     var model = Self.defaultModel
     var maxTokens = 1000
+    var promptConfiguration = AIChunkingPromptConfiguration.defaultConfiguration
 
     func chunks(for sentence: String, apiKey: String) async throws -> AIChunkingResult {
         let normalizedSentence = AIChunkTextNormalizer.normalizedSentence(sentence)
         guard !normalizedSentence.isEmpty else {
             throw AIChunkingClientError.emptySentence
         }
+        let prompt = try promptConfiguration.renderedPrompt(for: normalizedSentence)
 
         let payload = DeepSeekChatCompletionRequest(
             model: model,
             messages: [
                 DeepSeekChatMessage(
                     role: "user",
-                    content: Self.prompt(for: normalizedSentence)
+                    content: prompt
                 )
             ],
             temperature: 0.2,
@@ -88,33 +90,6 @@ struct DeepSeekChunkingClient: Sendable {
             items: items,
             usage: completion.usage?.aiChunkingUsage
         )
-    }
-
-    private static func prompt(for sentence: String) -> String {
-        """
-        从句子中抽取适合继续检索和语言学习的词块（Chunks），并提供每个词块的简体中文翻译。只返回 JSON 格式。
-
-        格式要求：
-        {
-          "items": [
-            {"item": "词块1", "translation": "词块1的简体中文翻译"},
-            {"item": "词块2", "translation": "词块2的简体中文翻译"},
-            ...
-          ]
-        }
-
-        规则：
-        1. 自动识别输入句子的语言，并针对该语言进行“多层级、高召回率”的词块提取，允许并鼓励词块在原句中重叠；
-        2. 词块应覆盖多个学习层级：
-           - 核心词汇：名词、形容词、副词、动词。对于有词性/时态变化的语言，动词和形容词应同时提取“原句中的具体活用形态”和“对应的字典原型/原形”；
-           - 语法句型与接续：提取句子中的关键语法句型、固定搭配、短语尾缀、连词/接续词；
-           - 复合短语与文节：提取由词汇和助词/介词组合而成的复合短语、连体修饰块或语言学文节，以展示真实的词汇语境搭配；
-        3. 过滤无意义字符：避免单独提取无检索和学习价值的单字符助词（如日语中单独的“の”、“を”，英语中单独的“a”、“the”），但它们与核心词组合而成的完整词块应当保留；
-        4. 数量动态决定：词块数量应当根据输入句子的长度与复杂度自然决定。长句应提取出丰富的多层级词块，短句则仅保留有价值的少数核心词块，切忌为了凑数而强行拆解无意义的字词；
-        5. 词块翻译要求：精准翻译每个词块在“当前句子语境下”的含义和语法作用（如果是助词/连词/句式，可以说明其语法功能，如“格助词，表示宾语”或“表示限定的假定语法”）。
-
-        句子：\(sentence)
-        """
     }
 
     private static func validatedItems(
