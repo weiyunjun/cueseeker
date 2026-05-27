@@ -250,7 +250,7 @@ struct PlaybackQuickSearchOverlay: View {
                 if !match.before.isEmpty {
                     quickSearchSentenceLabel(match.before)
                 }
-                quickSearchSentenceChunkHighlightLabel(match.selectedText)
+                quickSearchSentenceUnderlineLabel(match.selectedText)
                 if !match.after.isEmpty {
                     quickSearchSentenceLabel(match.after)
                 }
@@ -268,18 +268,13 @@ struct PlaybackQuickSearchOverlay: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func quickSearchSentenceChunkHighlightLabel(_ text: String) -> some View {
+    private func quickSearchSentenceUnderlineLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 13.5, weight: .semibold))
-            .foregroundStyle(Color.white)
+            .font(.system(size: 13.5, weight: .medium))
+            .foregroundStyle(Color.white.opacity(0.88))
+            .underline(true, color: Color.white.opacity(0.88))
+            .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 1)
-            .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(PlaybackTheme.menuItemHighlight)
-            )
-            .offset(y: -2)
     }
 
     private func quickSearchChunkLabel(
