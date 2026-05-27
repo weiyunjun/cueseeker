@@ -136,6 +136,159 @@ func aiChunkingPlansFilterInvalidPlansAndKeepValidPlansInOrder() throws {
 }
 
 @Test
+func aiChunkingResponseMergesMultiplePlansBySplittingBaseChunks() throws {
+    let response = """
+    {
+      "plans": [
+        {
+          "items": [
+            {"item": "説明しました", "translation": "说明了"},
+            {"item": "が", "translation": "但是"}
+          ]
+        },
+        {
+          "items": [
+            {"item": "説明", "translation": "说明"},
+            {"item": "しました", "translation": "做了"},
+            {"item": "が", "translation": "但是"}
+          ]
+        }
+      ]
+    }
+    """
+
+    let items = try DeepSeekChunkingClient.validatedItems(
+        responseContent: response,
+        normalizedSentence: "説明しましたが"
+    )
+
+    #expect(items == [
+        AIChunkItem(item: "説明", translation: "说明"),
+        AIChunkItem(item: "しました", translation: "做了"),
+        AIChunkItem(item: "が", translation: "但是"),
+        AIChunkItem(item: "説明しました", translation: "说明了")
+    ])
+}
+
+@Test
+func aiChunkingResponseCanSplitOneBaseChunkAcrossMultiplePlans() throws {
+    let response = """
+    {
+      "plans": [
+        {
+          "items": [
+            {"item": "春日影は", "translation": "春日影是"},
+            {"item": "歌です", "translation": "是歌"}
+          ]
+        },
+        {
+          "items": [
+            {"item": "春日影", "translation": "春日影"},
+            {"item": "は歌です", "translation": "是歌"}
+          ]
+        },
+        {
+          "items": [
+            {"item": "春日影", "translation": "春日影-3"},
+            {"item": "は", "translation": "主题助词"},
+            {"item": "歌です", "translation": "是歌-3"}
+          ]
+        }
+      ]
+    }
+    """
+
+    let items = try DeepSeekChunkingClient.validatedItems(
+        responseContent: response,
+        normalizedSentence: "春日影は歌です"
+    )
+
+    #expect(items == [
+        AIChunkItem(item: "春日影", translation: "春日影"),
+        AIChunkItem(item: "は", translation: "主题助词"),
+        AIChunkItem(item: "歌です", translation: "是歌"),
+        AIChunkItem(item: "春日影は", translation: "春日影是"),
+        AIChunkItem(item: "は歌です", translation: "是歌")
+    ])
+}
+
+@Test
+func aiChunkingResponseUsesFirstValidPlanAsMergeBase() throws {
+    let response = """
+    {
+      "plans": [
+        {
+          "items": [
+            {"item": "運", "translation": "运气"},
+            {"item": "外", "translation": "外部文本"}
+          ]
+        },
+        {
+          "items": [
+            {"item": "運も", "translation": "运气也"}
+          ]
+        },
+        {
+          "items": [
+            {"item": "運", "translation": "运气"},
+            {"item": "も", "translation": "也"}
+          ]
+        }
+      ]
+    }
+    """
+
+    let items = try DeepSeekChunkingClient.validatedItems(
+        responseContent: response,
+        normalizedSentence: "運も"
+    )
+
+    #expect(items == [
+        AIChunkItem(item: "運", translation: "运气"),
+        AIChunkItem(item: "も", translation: "也"),
+        AIChunkItem(item: "運も", translation: "运气也")
+    ])
+}
+
+@Test
+func aiChunkingResponseKeepsEarlierTranslationWhenDeduplicatingPlans() throws {
+    let response = """
+    {
+      "plans": [
+        {
+          "items": [
+            {"item": "運も", "translation": "运气也"}
+          ]
+        },
+        {
+          "items": [
+            {"item": "運", "translation": "运气-2"},
+            {"item": "も", "translation": "也-2"}
+          ]
+        },
+        {
+          "items": [
+            {"item": "運", "translation": "运气-3"},
+            {"item": "も", "translation": "也-3"}
+          ]
+        }
+      ]
+    }
+    """
+
+    let items = try DeepSeekChunkingClient.validatedItems(
+        responseContent: response,
+        normalizedSentence: "運も"
+    )
+
+    #expect(items == [
+        AIChunkItem(item: "運", translation: "运气-2"),
+        AIChunkItem(item: "も", translation: "也-2"),
+        AIChunkItem(item: "運も", translation: "运气也")
+    ])
+}
+
+@Test
 func aiChunkingPlansRejectAllPlansWhenCoverageIsIncomplete() {
     expectAIChunkingClientError(
         try DeepSeekChunkingClient.validatedPlans(

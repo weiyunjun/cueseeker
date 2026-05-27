@@ -38,6 +38,12 @@ struct AIChunkingValidatedPlan: Equatable, Sendable {
     }
 }
 
+private struct AIChunkingSplitCandidate {
+    let planIndex: Int
+    let chunkIndex: Int
+    let chunk: AIChunkingValidatedChunk
+}
+
 struct DeepSeekChunkingClient: Sendable {
     var apiURL = URL(string: "https://api.deepseek.com/chat/completions")!
     static let defaultModel = "deepseek-v4-flash"
@@ -144,7 +150,7 @@ struct DeepSeekChunkingClient: Sendable {
             decodedContent.plans.map(\.items),
             normalizedSentence: normalizedSentence
         )
-        return validatedPlans[0].items
+        return mergedItems(from: validatedPlans)
     }
 
     static func validatedPlans(
@@ -163,6 +169,104 @@ struct DeepSeekChunkingClient: Sendable {
             throw AIChunkingClientError.noValidPlans
         }
         return plans
+    }
+
+    static func mergedItems(from plans: [AIChunkingValidatedPlan]) -> [AIChunkItem] {
+        guard let basePlan = plans.first else {
+            return []
+        }
+        guard plans.count > 1 else {
+            return basePlan.items
+        }
+
+        let splitSourcePlans = Array(plans.dropFirst())
+        let splitPlan = AIChunkingValidatedPlan(
+            chunks: basePlan.chunks.flatMap { baseChunk in
+                splitChunks(for: baseChunk, using: splitSourcePlans) ?? [baseChunk]
+            }
+        )
+        return deduplicatedItems(from: [splitPlan] + plans)
+    }
+
+    private static func splitChunks(
+        for baseChunk: AIChunkingValidatedChunk,
+        using plans: [AIChunkingValidatedPlan]
+    ) -> [AIChunkingValidatedChunk]? {
+        let candidates = splitCandidates(for: baseChunk, using: plans)
+        guard !candidates.isEmpty,
+              let chunks = splitChunks(
+                from: baseChunk.startOffset,
+                to: baseChunk.endOffset,
+                using: candidates
+              ),
+              chunks.count > 1
+        else {
+            return nil
+        }
+
+        return chunks
+    }
+
+    private static func splitCandidates(
+        for baseChunk: AIChunkingValidatedChunk,
+        using plans: [AIChunkingValidatedPlan]
+    ) -> [AIChunkingSplitCandidate] {
+        plans.enumerated().flatMap { planIndex, plan in
+            plan.chunks.enumerated().compactMap { chunkIndex, chunk in
+                guard chunk.startOffset >= baseChunk.startOffset,
+                      chunk.endOffset <= baseChunk.endOffset,
+                      chunk.startOffset != baseChunk.startOffset || chunk.endOffset != baseChunk.endOffset
+                else {
+                    return nil
+                }
+
+                return AIChunkingSplitCandidate(
+                    planIndex: planIndex,
+                    chunkIndex: chunkIndex,
+                    chunk: chunk
+                )
+            }
+        }
+        .sorted { lhs, rhs in
+            if lhs.planIndex != rhs.planIndex {
+                return lhs.planIndex < rhs.planIndex
+            }
+            return lhs.chunkIndex < rhs.chunkIndex
+        }
+    }
+
+    private static func splitChunks(
+        from startOffset: Int,
+        to endOffset: Int,
+        using candidates: [AIChunkingSplitCandidate]
+    ) -> [AIChunkingValidatedChunk]? {
+        guard startOffset < endOffset else {
+            return []
+        }
+
+        for candidate in candidates where candidate.chunk.startOffset == startOffset {
+            guard let tail = splitChunks(
+                from: candidate.chunk.endOffset,
+                to: endOffset,
+                using: candidates
+            ) else {
+                continue
+            }
+
+            return [candidate.chunk] + tail
+        }
+
+        return nil
+    }
+
+    private static func deduplicatedItems(from plans: [AIChunkingValidatedPlan]) -> [AIChunkItem] {
+        var seen = Set<String>()
+        var items: [AIChunkItem] = []
+
+        for item in plans.flatMap(\.items) where seen.insert(item.item).inserted {
+            items.append(item)
+        }
+        return items
     }
 
     private static func validatedPlan(
