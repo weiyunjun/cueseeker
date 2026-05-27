@@ -31,8 +31,9 @@
   and 7 XCTest tests.
 - The passing test run still emitted existing playback-history disk I/O log
   messages, but the full suite passed.
+- Human acceptance passed on 2026-05-28.
 
 ## Outcome
 
-- The sentence-side mapping marker now uses continuous text rendering and an
-  opacity-only focus state.
+- Implementation work, automated verification, and human acceptance are
+  complete. The Quick Search chunk action requirement is closed.

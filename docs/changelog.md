@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted and closed Playback Quick Search chunk actions: the current
+  sentence row now provides `/chunk` or `/rechunk` plus `/copy`, copies only the
+  displayed sentence, and maps selected AI chunks back to the sentence with an
+  opacity-only focus treatment that preserves text layout.
 - Completed AI Chunking multi-plan merge: the default prompt now requests one
   to three Japanese chunking plans, old saved prompt templates are reset to the
   new contract once, responses validate each plan against the normalized
