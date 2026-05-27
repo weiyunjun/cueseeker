@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Completed the AI Chunking settings work: Experimental Features now supports
+  persisted Translation Language and prompt-template settings, validates
+  required `{{sentence}}` / `{{language}}` placeholders before saving, disables
+  those controls when AI Chunking is off, logs request duration plus rendered
+  request and raw response content, scopes cache entries by translation
+  language, clears historical AI Chunking cache data once for the new strategy,
+  and keeps prompt edits from invalidating existing language-scoped cache
+  entries.
 - Accepted the Playback Quick Search chunk count consistency fix: selected
   chunk counts now reuse Search exact totals, run in the background after AI
   chunks render, ignore stale count completions while switching chunks, display
