@@ -197,6 +197,27 @@ Rules:
 
 - For every code modification, the AI must explicitly state both the before-modification version and the after-modification version to the user to prevent them from having to scroll through chat history. All Git Hashes MUST be represented in their short hash format (typically 7 characters).
 - Unless the user provides an explicit instruction to modify code, all user prompts must be treated as discussion or proposal requests. The AI is strictly prohibited from modifying code without explicit permission.
+- Human-owned documentation lives under `docs/human/`. It is the
+  authoritative human-maintained documentation area for requirements, design,
+  planning, product meaning, and stable human decisions.
+- The AI must never create, edit, rename, move, delete, format, or otherwise
+  modify files under `docs/human/` at any time. This prohibition still applies
+  if a user asks the AI to update a human-owned document. In that case, the AI
+  may only provide proposed text, review notes, or a suggested change for the
+  human owner to apply manually.
+- Requirement documents under `docs/human/requirements/` record historical
+  change requests or implementation requests. Design and planning documents
+  under `docs/human/design/` record stabilized product content and expected
+  behavior.
+- When `docs/human/` conflicts with AI-maintained documentation, proposals,
+  implementation assumptions, source comments, or code names, the AI must treat
+  `docs/human/` as the stronger product/documentation authority, report the
+  conflict, and ask for alignment before relying on the conflicting lower
+  authority source.
+- If a human-owned document is ambiguous, incomplete, or hard for the AI to
+  understand, the AI must report the unclear point and ask for clarification or
+  suggest explanatory text outside `docs/human/`. It must not silently reinterpret
+  or directly fix the human-owned document.
 - Unless the user explicitly asks for a detailed explanation, AI responses
   should be concise and clear, with the most important conclusions emphasized in
   bold so the answer is easy to scan.
