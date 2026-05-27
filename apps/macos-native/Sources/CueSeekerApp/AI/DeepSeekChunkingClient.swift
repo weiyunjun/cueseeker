@@ -27,7 +27,7 @@ struct AIChunkingUsage: Equatable, Sendable {
 struct DeepSeekChunkingClient: Sendable {
     var apiURL = URL(string: "https://api.deepseek.com/chat/completions")!
     static let defaultModel = "deepseek-v4-flash"
-    static let promptVersion = "chunk-v1"
+    static let promptVersion = "chunk-v2"
 
     var model = Self.defaultModel
     var maxTokens = 1000

@@ -9,6 +9,9 @@ func defaultAIChunkingPromptTemplateRendersSimplifiedChinesePrompt() throws {
         for: "運も実力のうちだ"
     )
 
+    #expect(prompt.contains("你是日语学习检索分词器"))
+    #expect(prompt.contains("\"plans\""))
+    #expect(prompt.contains("\"items\""))
     #expect(prompt.contains("简体中文翻译"))
     #expect(prompt.contains("句子：運も実力のうちだ"))
     #expect(!prompt.contains(AIChunkingPromptConfiguration.sentencePlaceholder))
@@ -29,7 +32,7 @@ func aiChunkingPromptTemplateRendersConfiguredLanguageEverywhere() throws {
 
 @Test
 func aiChunkingPromptCacheVersionFollowsLanguageButIgnoresTemplate() {
-    let baseVersion = "chunk-v1"
+    let baseVersion = DeepSeekChunkingClient.promptVersion
     let simplifiedChinese = AIChunkingPromptConfiguration(
         template: "{{sentence}} -> {{language}}",
         translationLanguage: .simplifiedChinese
@@ -45,8 +48,9 @@ func aiChunkingPromptCacheVersionFollowsLanguageButIgnoresTemplate() {
 
     let simplifiedChineseVersion = simplifiedChinese.cachePromptVersion(baseVersion: baseVersion)
 
-    #expect(simplifiedChineseVersion == "chunk-v1-lang-zh-hans")
-    #expect(japanese.cachePromptVersion(baseVersion: baseVersion) == "chunk-v1-lang-ja")
+    #expect(DeepSeekChunkingClient.promptVersion == "chunk-v2")
+    #expect(simplifiedChineseVersion == "chunk-v2-lang-zh-hans")
+    #expect(japanese.cachePromptVersion(baseVersion: baseVersion) == "chunk-v2-lang-ja")
     #expect(simplifiedChineseVersion != japanese.cachePromptVersion(baseVersion: baseVersion))
     #expect(simplifiedChineseVersion == expandedTemplate.cachePromptVersion(baseVersion: baseVersion))
 }
@@ -99,6 +103,32 @@ func settingsStorePersistsAIChunkingLanguageAndPromptTemplate() throws {
         #expect(reloadedStore.aiChunkingTranslationLanguage == .japanese)
         #expect(reloadedStore.aiChunkingPromptTemplate == template)
         #expect(try reloadedStore.aiChunkingPromptConfiguration.renderedPrompt(for: "雨") == "Translate 雨 into 日本語.")
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreForcesLegacyAIChunkingPromptTemplateToCurrentDefaultOnce() throws {
+    try withTemporarySettingsUserDefaults { userDefaults, service in
+        let legacyTemplate = "Legacy {{sentence}} -> {{language}}"
+        userDefaults.set(legacyTemplate, forKey: "aiChunkingPromptTemplate")
+
+        let store = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(store.aiChunkingPromptTemplate == AIChunkingPromptConfiguration.defaultTemplate)
+
+        let customTemplate = "Custom {{sentence}} -> {{language}}"
+        try store.saveAIChunkingPromptTemplate(customTemplate)
+
+        let reloadedStore = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(reloadedStore.aiChunkingPromptTemplate == customTemplate)
     }
 }
 

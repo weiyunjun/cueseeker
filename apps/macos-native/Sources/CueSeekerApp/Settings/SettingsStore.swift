@@ -12,6 +12,8 @@ final class SettingsStore: ObservableObject {
     private static let aiChunkingEnabledKey = "aiChunkingEnabled"
     private static let aiChunkingTranslationLanguageKey = "aiChunkingTranslationLanguage"
     private static let aiChunkingPromptTemplateKey = "aiChunkingPromptTemplate"
+    private static let aiChunkingPromptDefaultVersionKey = "aiChunkingPromptDefaultVersion"
+    private static let aiChunkingPromptDefaultVersion = "20260528-multi-plan-merge"
 
     @Published var appAppearanceMode: AppAppearanceMode {
         didSet {
@@ -78,6 +80,7 @@ final class SettingsStore: ObservableObject {
             Self.aiChunkingTranslationLanguageKey: AIChunkingTranslationLanguage.defaultValue.rawValue,
             Self.aiChunkingPromptTemplateKey: AIChunkingPromptConfiguration.defaultTemplate
         ])
+        Self.resetAIChunkingPromptTemplateForCurrentDefaultIfNeeded(userDefaults)
 
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
@@ -131,11 +134,13 @@ final class SettingsStore: ObservableObject {
 
         aiChunkingPromptTemplate = template
         userDefaults.set(template, forKey: Self.aiChunkingPromptTemplateKey)
+        userDefaults.set(Self.aiChunkingPromptDefaultVersion, forKey: Self.aiChunkingPromptDefaultVersionKey)
     }
 
     func restoreDefaultAIChunkingPromptTemplate() {
         aiChunkingPromptTemplate = AIChunkingPromptConfiguration.defaultTemplate
         userDefaults.removeObject(forKey: Self.aiChunkingPromptTemplateKey)
+        userDefaults.set(Self.aiChunkingPromptDefaultVersion, forKey: Self.aiChunkingPromptDefaultVersionKey)
     }
 
     var aiChunkingPromptConfiguration: AIChunkingPromptConfiguration {
@@ -179,6 +184,15 @@ final class SettingsStore: ObservableObject {
             return AIChunkingPromptConfiguration.defaultTemplate
         }
         return template
+    }
+
+    private static func resetAIChunkingPromptTemplateForCurrentDefaultIfNeeded(_ userDefaults: UserDefaults) {
+        guard userDefaults.string(forKey: aiChunkingPromptDefaultVersionKey) != aiChunkingPromptDefaultVersion else {
+            return
+        }
+
+        userDefaults.set(AIChunkingPromptConfiguration.defaultTemplate, forKey: aiChunkingPromptTemplateKey)
+        userDefaults.set(aiChunkingPromptDefaultVersion, forKey: aiChunkingPromptDefaultVersionKey)
     }
 
     private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {
