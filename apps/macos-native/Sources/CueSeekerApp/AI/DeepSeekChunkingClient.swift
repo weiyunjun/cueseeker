@@ -44,6 +44,11 @@ private struct AIChunkingSplitCandidate {
     let chunk: AIChunkingValidatedChunk
 }
 
+private struct AIChunkingChunkRange: Hashable {
+    let startOffset: Int
+    let endOffset: Int
+}
+
 struct DeepSeekChunkingClient: Sendable {
     var apiURL = URL(string: "https://api.deepseek.com/chat/completions")!
     static let defaultModel = "deepseek-v4-flash"
@@ -260,11 +265,18 @@ struct DeepSeekChunkingClient: Sendable {
     }
 
     private static func deduplicatedItems(from plans: [AIChunkingValidatedPlan]) -> [AIChunkItem] {
-        var seen = Set<String>()
+        var seen = Set<AIChunkingChunkRange>()
         var items: [AIChunkItem] = []
 
-        for item in plans.flatMap(\.items) where seen.insert(item.item).inserted {
-            items.append(item)
+        for chunk in plans.flatMap(\.chunks) {
+            let range = AIChunkingChunkRange(
+                startOffset: chunk.startOffset,
+                endOffset: chunk.endOffset
+            )
+            guard seen.insert(range).inserted else {
+                continue
+            }
+            items.append(chunk.item)
         }
         return items
     }

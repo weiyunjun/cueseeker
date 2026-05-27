@@ -289,6 +289,44 @@ func aiChunkingResponseKeepsEarlierTranslationWhenDeduplicatingPlans() throws {
 }
 
 @Test
+func aiChunkingResponseKeepsRepeatedTextAtDifferentPositionsWhenDeduplicatingPlans() throws {
+    let response = """
+    {
+      "plans": [
+        {
+          "items": [
+            {"item": "運も", "translation": "运气也-1"},
+            {"item": "運も", "translation": "运气也-2"}
+          ]
+        },
+        {
+          "items": [
+            {"item": "運", "translation": "运气-1"},
+            {"item": "も", "translation": "也-1"},
+            {"item": "運", "translation": "运气-2"},
+            {"item": "も", "translation": "也-2"}
+          ]
+        }
+      ]
+    }
+    """
+
+    let items = try DeepSeekChunkingClient.validatedItems(
+        responseContent: response,
+        normalizedSentence: "運も運も"
+    )
+
+    #expect(items == [
+        AIChunkItem(item: "運", translation: "运气-1"),
+        AIChunkItem(item: "も", translation: "也-1"),
+        AIChunkItem(item: "運", translation: "运气-2"),
+        AIChunkItem(item: "も", translation: "也-2"),
+        AIChunkItem(item: "運も", translation: "运气也-1"),
+        AIChunkItem(item: "運も", translation: "运气也-2")
+    ])
+}
+
+@Test
 func aiChunkingPlansRejectAllPlansWhenCoverageIsIncomplete() {
     expectAIChunkingClientError(
         try DeepSeekChunkingClient.validatedPlans(
