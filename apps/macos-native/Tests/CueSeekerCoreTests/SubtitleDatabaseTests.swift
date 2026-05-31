@@ -2237,6 +2237,51 @@ func searchesCueGroupsAndRejectsCrossLineOnlyMatches() throws {
 }
 
 @Test
+func searchReadsASSIndexTimePhysicalOrderWithoutRuntimeReordering() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Bilingual.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Bilingual.mkv")
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontsize, Alignment, MarginL, MarginR, MarginV
+    Style: JP,25,2,10,10,13
+    Style: CN,40,2,10,10,10
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,JP,,0000,0000,0000,,Japanese lower line
+    Dialogue: 0,0:00:01.00,0:00:03.00,CN,,0000,0000,0000,,Chinese upper line
+    """
+
+    let cueGroups = ASSParser.parseCueGroups(contents)
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: cueGroups
+    )
+
+    #expect(try database.entries(forSubtitleFile: subtitleFile).map(\.content) == [
+        "Chinese upper line\nJapanese lower line"
+    ])
+
+    let results = try database.search("Chinese")
+    #expect(results.map(\.content) == ["Chinese upper line\nJapanese lower line"])
+    #expect(results.first?.cueLines == ["Chinese upper line", "Japanese lower line"])
+}
+
+@Test
 func paginatedSearchContinuesPastFilteredFTSCandidates() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -36,6 +36,32 @@ func parsesASSDialogueEventsIntoExactTimeCueGroups() {
 }
 
 @Test
+func ordersSameTimestampBottomAlignedASSLinesByCollisionPositionAtIndexTime() {
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontsize, Alignment, MarginL, MarginR, MarginV
+    Style: JP,25,2,10,10,13
+    Style: CN,40,2,10,10,10
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:11:15.90,0:11:19.86,JP,,0000,0000,0000,,Japanese lower line
+    Dialogue: 0,0:11:15.90,0:11:19.86,CN,,0000,0000,0000,,Chinese upper line
+    """
+
+    let groups = ASSParser.parseCueGroups(contents)
+
+    #expect(groups.count == 1)
+    #expect(groups[0].cueLines.map(\.content) == ["Chinese upper line", "Japanese lower line"])
+    #expect(groups[0].cueLines.map(\.displayOrder) == [0, 1])
+    #expect(groups[0].searchContent == "Chinese upper line\nJapanese lower line")
+}
+
+@Test
 func parsesASSDialogueWithNonDefaultEventFieldOrderAndCommasInText() {
     let contents = """
     [Events]
