@@ -155,6 +155,7 @@ public enum ASSParser {
             }
 
             styles[name] = ASSStyle(
+                fontSize: value(named: "fontsize", fields: fields, format: styleFormat).flatMap(Double.init),
                 alignment: value(named: "alignment", fields: fields, format: styleFormat).flatMap(Int.init),
                 marginL: value(named: "marginl", fields: fields, format: styleFormat).flatMap(Double.init),
                 marginR: value(named: "marginr", fields: fields, format: styleFormat).flatMap(Double.init),
@@ -194,9 +195,10 @@ public enum ASSParser {
 
             let sourceStyle = value(named: "style", fields: fields, format: eventFormat)
             let sourceLayer = value(named: "layer", fields: fields, format: eventFormat).flatMap(Int.init)
-            let layout = layoutProjection(
+            let layout = layoutMetadata(
                 rawText: rawText,
                 styleName: sourceStyle,
+                effect: value(named: "effect", fields: fields, format: eventFormat),
                 marginL: value(named: "marginl", fields: fields, format: eventFormat).flatMap(Double.init),
                 marginR: value(named: "marginr", fields: fields, format: eventFormat).flatMap(Double.init),
                 marginV: value(named: "marginv", fields: fields, format: eventFormat).flatMap(Double.init)
@@ -212,37 +214,64 @@ public enum ASSParser {
                     startMilliseconds: startMilliseconds,
                     endMilliseconds: endMilliseconds,
                     content: content,
-                    displayX: layout.x,
-                    displayY: layout.y
+                    layout: layout
                 )
             )
         }
 
-        func layoutProjection(
+        func layoutMetadata(
             rawText: String,
             styleName: String?,
+            effect: String?,
             marginL eventMarginL: Double?,
             marginR eventMarginR: Double?,
             marginV eventMarginV: Double?
+        ) -> ASSLayoutMetadata {
+            let style = styleName.flatMap { styles[$0] }
+            let explicitPosition = inlinePosition(in: rawText)
+            let effectiveAlignment = inlineAlignment(in: rawText) ?? style?.alignment
+            let effectiveFontSize = inlineFontSize(in: rawText) ?? style?.fontSize
+            let marginL = positive(eventMarginL) ?? style?.marginL ?? 0
+            let marginR = positive(eventMarginR) ?? style?.marginR ?? 0
+            let marginV = positive(eventMarginV) ?? style?.marginV ?? 0
+            let projection = layoutProjection(
+                explicitPosition: explicitPosition,
+                effectiveAlignment: effectiveAlignment,
+                marginL: marginL,
+                marginR: marginR,
+                marginV: marginV
+            )
+
+            return ASSLayoutMetadata(
+                effectiveFontSize: effectiveFontSize,
+                effectiveAlignment: effectiveAlignment,
+                explicitPosition: explicitPosition,
+                detectsCollisions: explicitPosition == nil
+                    && !disablesCollisionDetection(rawText: rawText, effect: effect),
+                displayX: projection.x,
+                displayY: projection.y
+            )
+        }
+
+        func layoutProjection(
+            explicitPosition: ASSPoint?,
+            effectiveAlignment: Int?,
+            marginL: Double,
+            marginR: Double,
+            marginV: Double
         ) -> (x: Double?, y: Double?) {
-            if let position = inlinePosition(in: rawText) {
-                return position
+            if let explicitPosition {
+                return (explicitPosition.x, explicitPosition.y)
             }
 
-            let style = styleName.flatMap { styles[$0] }
-            let alignment = inlineAlignment(in: rawText) ?? style?.alignment
-            guard let alignment,
+            guard let effectiveAlignment,
                   let playResY
             else {
                 return (nil, nil)
             }
 
-            let marginL = positive(eventMarginL) ?? style?.marginL ?? 0
-            let marginR = positive(eventMarginR) ?? style?.marginR ?? 0
-            let marginV = positive(eventMarginV) ?? style?.marginV ?? 0
-
             let y: Double
-            switch alignment {
+            switch effectiveAlignment {
             case 7, 8, 9:
                 y = marginV
             case 4, 5, 6:
@@ -253,7 +282,7 @@ public enum ASSParser {
 
             let x: Double?
             if let playResX {
-                switch alignment {
+                switch effectiveAlignment {
                 case 1, 4, 7:
                     x = marginL
                 case 3, 6, 9:
@@ -292,8 +321,8 @@ public enum ASSParser {
                             startMilliseconds: line.startMilliseconds,
                             endMilliseconds: line.endMilliseconds,
                             content: line.content,
-                            displayX: line.displayX,
-                            displayY: line.displayY,
+                            displayX: line.layout.displayX,
+                            displayY: line.layout.displayY,
                             displayOrder: displayOrder
                         )
                     }
@@ -322,28 +351,133 @@ public enum ASSParser {
         }
 
         func sortedCueLines(_ lines: [ParsedCueLine]) -> [ParsedCueLine] {
-            lines.sorted {
-                switch ($0.displayY, $1.displayY) {
-                case let (lhs?, rhs?) where lhs != rhs:
-                    return lhs < rhs
-                case (.some, nil):
-                    return true
-                case (nil, .some):
-                    return false
-                default:
-                    break
+            collisionPlacedLines(lines)
+                .sorted { comparePlacedCueLines($0, $1) }
+                .map(\.line)
+        }
+
+        func collisionPlacedLines(_ lines: [ParsedCueLine]) -> [CollisionPlacedLine] {
+            var placedLines = lines.map { line in
+                CollisionPlacedLine(line: line, rect: collisionRect(for: line))
+            }
+            let indicesByLayer = Dictionary(grouping: placedLines.indices) { index in
+                placedLines[index].line.sourceLayer ?? 0
+            }
+
+            for indices in indicesByLayer.values {
+                let orderedIndices = indices.sorted {
+                    placedLines[$0].line.eventIndex < placedLines[$1].line.eventIndex
+                }
+                var usedRects: [CollisionRect] = []
+
+                for index in orderedIndices {
+                    guard placedLines[index].line.layout.detectsCollisions,
+                          var rect = placedLines[index].rect
+                    else {
+                        continue
+                    }
+
+                    let shift = collisionShift(for: rect, usedRects: usedRects)
+                    if shift != 0 {
+                        rect = rect.shifted(by: shift)
+                        placedLines[index].rect = rect
+                    }
+
+                    usedRects.append(rect)
+                    usedRects.sort { $0.y0 < $1.y0 }
+                }
+            }
+
+            return placedLines
+        }
+
+        func collisionShift(for rect: CollisionRect, usedRects: [CollisionRect]) -> Double {
+            var shift = 0.0
+            let candidates = rect.shiftDirection == .down ? usedRects : usedRects.reversed()
+
+            for usedRect in candidates {
+                guard rect.shifted(by: shift).overlaps(usedRect) else {
+                    continue
                 }
 
-                switch ($0.displayX, $1.displayX) {
-                case let (lhs?, rhs?) where lhs != rhs:
-                    return lhs < rhs
-                case (.some, nil):
-                    return true
-                case (nil, .some):
-                    return false
-                default:
-                    return $0.eventIndex < $1.eventIndex
+                switch rect.shiftDirection {
+                case .down:
+                    shift = usedRect.y1 - rect.y0
+                case .up:
+                    shift = usedRect.y0 - rect.y1
                 }
+            }
+
+            return shift
+        }
+
+        func collisionRect(for line: ParsedCueLine) -> CollisionRect? {
+            guard let displayX = line.layout.displayX,
+                  let displayY = line.layout.displayY
+            else {
+                return nil
+            }
+
+            let fontSize = line.layout.effectiveFontSize ?? 20
+            let lineCount = max(1, line.content.components(separatedBy: .newlines).count)
+            let height = max(1, fontSize * 1.2 * Double(lineCount))
+            let width = max(1, estimatedTextWidth(line.content, fontSize: fontSize))
+            let alignment = line.layout.effectiveAlignment ?? 2
+
+            let x0: Double
+            switch horizontalAlignment(for: alignment) {
+            case .left:
+                x0 = displayX
+            case .center:
+                x0 = displayX - (width / 2)
+            case .right:
+                x0 = displayX - width
+            }
+
+            let y0: Double
+            let shiftDirection: CollisionShiftDirection
+            switch verticalAlignment(for: alignment) {
+            case .top:
+                y0 = displayY
+                shiftDirection = .down
+            case .middle:
+                y0 = displayY - (height / 2)
+                shiftDirection = .down
+            case .bottom:
+                y0 = displayY - height
+                shiftDirection = .up
+            }
+
+            return CollisionRect(
+                x0: x0,
+                y0: y0,
+                x1: x0 + width,
+                y1: y0 + height,
+                shiftDirection: shiftDirection
+            )
+        }
+
+        func comparePlacedCueLines(_ lhs: CollisionPlacedLine, _ rhs: CollisionPlacedLine) -> Bool {
+            switch (lhs.rect?.y0, rhs.rect?.y0) {
+            case let (lhsY?, rhsY?) where lhsY != rhsY:
+                return lhsY < rhsY
+            case (.some, nil):
+                return true
+            case (nil, .some):
+                return false
+            default:
+                break
+            }
+
+            switch (lhs.rect?.x0, rhs.rect?.x0) {
+            case let (lhsX?, rhsX?) where lhsX != rhsX:
+                return lhsX < rhsX
+            case (.some, nil):
+                return true
+            case (nil, .some):
+                return false
+            default:
+                return lhs.line.eventIndex < rhs.line.eventIndex
             }
         }
 
@@ -351,13 +485,13 @@ public enum ASSParser {
             firstOverrideMatch(in: text, pattern: #"\\an([1-9])"#).flatMap(Int.init)
         }
 
-        func inlinePosition(in text: String) -> (x: Double, y: Double)? {
+        func inlinePosition(in text: String) -> ASSPoint? {
             if let match = firstOverrideMatch(in: text, pattern: #"\\pos\(([-0-9.]+),\s*([-0-9.]+)\)"#),
                let separator = match.firstIndex(of: ",") {
                 let xText = match[..<separator]
                 let yText = match[match.index(after: separator)...].trimmingCharacters(in: .whitespacesAndNewlines)
                 if let x = Double(xText), let y = Double(yText) {
-                    return (x, y)
+                    return ASSPoint(x: x, y: y)
                 }
             }
 
@@ -366,11 +500,70 @@ public enum ASSParser {
                 let xText = match[..<separator]
                 let yText = match[match.index(after: separator)...].trimmingCharacters(in: .whitespacesAndNewlines)
                 if let x = Double(xText), let y = Double(yText) {
-                    return (x, y)
+                    return ASSPoint(x: x, y: y)
                 }
             }
 
             return nil
+        }
+
+        func inlineFontSize(in text: String) -> Double? {
+            guard let match = firstOverrideMatch(in: text, pattern: #"\\fs(?!c)([-+]?[0-9.]+)"#),
+                  !match.hasPrefix("+"),
+                  !match.hasPrefix("-"),
+                  let fontSize = Double(match),
+                  fontSize > 0
+            else {
+                return nil
+            }
+
+            return fontSize
+        }
+
+        func disablesCollisionDetection(rawText: String, effect: String?) -> Bool {
+            hasOverrideMatch(in: rawText, pattern: #"\\(?:org|t)\b"#)
+                || effectDisablesCollisionDetection(effect)
+        }
+
+        func effectDisablesCollisionDetection(_ effect: String?) -> Bool {
+            guard let effect else {
+                return false
+            }
+
+            let normalized = effect.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return normalized.hasPrefix("banner;")
+                || normalized.hasPrefix("scroll up;")
+                || normalized.hasPrefix("scroll down;")
+        }
+
+        func estimatedTextWidth(_ text: String, fontSize: Double) -> Double {
+            let widestLine = text.components(separatedBy: .newlines)
+                .map { line in
+                    line.unicodeScalars.reduce(0.0) { width, scalar in
+                        width + estimatedCharacterWidth(scalar, fontSize: fontSize)
+                    }
+                }
+                .max() ?? 0
+            return max(fontSize, widestLine)
+        }
+
+        func estimatedCharacterWidth(_ scalar: UnicodeScalar, fontSize: Double) -> Double {
+            if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+                return fontSize * 0.33
+            }
+            if scalar.value >= 0x1100 {
+                return fontSize
+            }
+            return fontSize * 0.58
+        }
+
+        func hasOverrideMatch(in text: String, pattern: String) -> Bool {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else {
+                return false
+            }
+
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            return regex.firstMatch(in: text, range: range) != nil
         }
 
         func firstOverrideMatch(in text: String, pattern: String) -> String? {
@@ -403,10 +596,69 @@ public enum ASSParser {
     }
 
     private struct ASSStyle {
+        let fontSize: Double?
         let alignment: Int?
         let marginL: Double?
         let marginR: Double?
         let marginV: Double?
+    }
+
+    private struct ASSPoint {
+        let x: Double
+        let y: Double
+    }
+
+    private struct ASSLayoutMetadata {
+        let effectiveFontSize: Double?
+        let effectiveAlignment: Int?
+        let explicitPosition: ASSPoint?
+        let detectsCollisions: Bool
+        let displayX: Double?
+        let displayY: Double?
+    }
+
+    private struct CollisionPlacedLine {
+        let line: ParsedCueLine
+        var rect: CollisionRect?
+    }
+
+    private struct CollisionRect {
+        let x0: Double
+        let y0: Double
+        let x1: Double
+        let y1: Double
+        let shiftDirection: CollisionShiftDirection
+
+        func shifted(by offset: Double) -> CollisionRect {
+            CollisionRect(
+                x0: x0,
+                y0: y0 + offset,
+                x1: x1,
+                y1: y1 + offset,
+                shiftDirection: shiftDirection
+            )
+        }
+
+        func overlaps(_ other: CollisionRect) -> Bool {
+            !(y0 >= other.y1 || other.y0 >= y1 || x0 >= other.x1 || other.x0 >= x1)
+        }
+    }
+
+    private enum CollisionShiftDirection {
+        case up
+        case down
+    }
+
+    private enum ASSHorizontalAlignment {
+        case left
+        case center
+        case right
+    }
+
+    private enum ASSVerticalAlignment {
+        case top
+        case middle
+        case bottom
     }
 
     private struct ParsedCueLine {
@@ -418,8 +670,7 @@ public enum ASSParser {
         let startMilliseconds: Int
         let endMilliseconds: Int
         let content: String
-        let displayX: Double?
-        let displayY: Double?
+        let layout: ASSLayoutMetadata
     }
 
     private struct CueGroupKey: Hashable {
@@ -460,5 +711,27 @@ public enum ASSParser {
         }
 
         return value
+    }
+
+    private static func horizontalAlignment(for alignment: Int) -> ASSHorizontalAlignment {
+        switch alignment {
+        case 1, 4, 7:
+            return .left
+        case 3, 6, 9:
+            return .right
+        default:
+            return .center
+        }
+    }
+
+    private static func verticalAlignment(for alignment: Int) -> ASSVerticalAlignment {
+        switch alignment {
+        case 7, 8, 9:
+            return .top
+        case 4, 5, 6:
+            return .middle
+        default:
+            return .bottom
+        }
     }
 }
