@@ -34,3 +34,9 @@ Benchmarks used a temporary copy of the current app database at
 
 Outcome: no search-stage computation was added, and the measured hot search
 times showed no suspicious regression.
+
+## Acceptance
+
+- Project owner completed end-to-end validation after rebuilding the affected
+  index by removing and re-adding the folder.
+- Acceptance passed on 2026-06-01.

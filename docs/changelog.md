@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the ASS bilingual physical ordering fix: same-timestamp ASS cue
+  groups now determine their libass-like physical line order during indexing,
+  so `search_content`, cue line display order, sidebar subtitles, and search
+  results share the same indexed source without adding search-time sorting or
+  search performance cost.
 - Accepted and closed Playback Quick Search chunk actions: the current
   sentence row now provides `/chunk` or `/rechunk` plus `/copy`, copies only the
   displayed sentence, and maps selected AI chunks back to the sentence with an
