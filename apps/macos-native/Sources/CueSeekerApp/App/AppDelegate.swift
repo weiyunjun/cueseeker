@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.indexing)
             .environmentObject(appState.shiori)
             .environmentObject(appState.library)
+            .environmentObject(appState.vocabulary)
             .environmentObject(appState.search)
             .environmentObject(appState.playback)
 
@@ -123,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.indexing)
             .environmentObject(appState.shiori)
             .environmentObject(appState.library)
+            .environmentObject(appState.vocabulary)
             .environmentObject(appState.search)
             .environmentObject(appState.playback)
         let settingsWindow = NSWindow(

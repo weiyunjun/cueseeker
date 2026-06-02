@@ -9,6 +9,7 @@ struct SearchView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var shiori: ShioriStore
     @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var vocabulary: VocabularyStore
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
@@ -69,6 +70,8 @@ struct SearchView: View {
                     topbarSearchResultsArea
                 case .shiori:
                     shioriPanel
+                case .vocabulary:
+                    vocabularyPanel
                 }
             }
         }
@@ -247,6 +250,29 @@ struct SearchView: View {
 
     private var shioriSummaryText: String {
         "\(shiori.shioriCount) shioris in \(shiori.shioriFileCount) files"
+    }
+
+    private var vocabularyPanel: some View {
+        AppPerformanceProbe.measure("SearchView.vocabularyPanel.body", thresholdMilliseconds: 4) {
+            UIInvalidationProbe.count(
+                "UI.VocabularyPanel.body",
+                details: "entries=\(vocabulary.entries.count)"
+            )
+
+            return VStack(alignment: .leading, spacing: 6) {
+                InfoPageStateView(state: .vocabularyEmpty)
+                    .font(.system(size: SearchTypography.bodySize))
+
+                Spacer()
+            }
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .padding(.top, AppShellLayout.contentTopPadding)
+            .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
+            .background(LayoutPerformanceProbe(name: "SearchView.vocabularyPanel.layout"))
+            .task {
+                appState.hydrateVocabularyEntriesAsync()
+            }
+        }
     }
 
     private var searchResultSummaryText: String? {

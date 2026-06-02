@@ -6,8 +6,8 @@ import CueSeekerCore
 import CueSeekerPlayback
 
 /// Workflow coordinator. Holds references to the per-domain stores (settings,
-/// indexing, workbenchLayout, shiori, library, search, playback) and owns the
-/// orchestration methods that span multiple domains. Per-domain @Published
+/// indexing, workbenchLayout, shiori, library, vocabulary, search, playback)
+/// and owns the orchestration methods that span multiple domains. Per-domain @Published
 /// state and derived display properties live on the respective stores;
 /// AppCoordinator's own @Published surface is intentionally minimal
 /// (`startupError` only) so views observing the stores get scoped invalidation.
@@ -31,6 +31,7 @@ final class AppCoordinator: ObservableObject {
     let indexing: IndexingStore
     let shiori: ShioriStore
     let library: LibraryStore
+    let vocabulary: VocabularyStore
     let search: SearchStore
     let playback: PlaybackStore
     var settingsCancellables: Set<AnyCancellable> = []
@@ -328,6 +329,7 @@ final class AppCoordinator: ObservableObject {
     var indexingTask: Task<Void, Never>?
     var libraryTask: Task<Void, Never>?
     var shiorisTask: Task<Void, Never>?
+    var vocabularyTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var searchTask: Task<Void, Never>?
     var searchExactCompletionTask: Task<Void, Never>?
@@ -370,6 +372,7 @@ final class AppCoordinator: ObservableObject {
         indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
         shiori = ShioriStore()
         library = LibraryStore()
+        vocabulary = VocabularyStore()
         search = SearchStore()
         playback = PlaybackStore(userDefaults: userDefaults)
 
