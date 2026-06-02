@@ -213,6 +213,7 @@ func openingVocabularyExampleUsesAllVocabularyExamplesAsPlaylist() async throws 
             ]
         )
         let firstExample = try #require(examples.first)
+        app.playback.activePlaybackDrawerKind = .subtitles
 
         app.openVocabularyExample(firstExample, playlist: examples)
 
@@ -224,8 +225,8 @@ func openingVocabularyExampleUsesAllVocabularyExamplesAsPlaylist() async throws 
         #expect(app.currentPlaybackVideoPath == videoFile.path)
         #expect(app.currentPlaybackSubtitlePath == subtitleFile.path)
         #expect(app.currentPlaybackDisplayTitle == "Show - 01")
-        #expect(app.playback.activePlaybackDrawerKind == .results)
-        #expect(app.playback.isPlaybackSidePanelVisible)
+        #expect(app.playback.activePlaybackDrawerKind == .subtitles)
+        #expect(!app.playback.isPlaybackSidePanelVisible)
         #expect(app.playback.isPlaybackSurfaceExpanded)
         #expect(!app.canOpenPreviousVocabularyExample)
         #expect(app.canOpenNextVocabularyExample)
@@ -236,6 +237,8 @@ func openingVocabularyExampleUsesAllVocabularyExamplesAsPlaylist() async throws 
         #expect(app.shiori.selectedShiori?.id == examples[1].shiori.id)
         #expect(app.canOpenPreviousVocabularyExample)
         #expect(!app.canOpenNextVocabularyExample)
+        #expect(app.playback.activePlaybackDrawerKind == .subtitles)
+        #expect(!app.playback.isPlaybackSidePanelVisible)
 
         app.openShiori(firstExample.shiori, recordsNavigationHistory: false)
 

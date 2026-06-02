@@ -117,8 +117,6 @@ extension AppCoordinator {
         shiori.selectedShiori = example.shiori
         search.selectedSearchResult = nil
         library.selectedLibraryVideo = nil
-        playback.activePlaybackDrawerKind = .results
-        playback.isPlaybackSidePanelVisible = true
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
