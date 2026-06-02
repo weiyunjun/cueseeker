@@ -49,7 +49,7 @@ struct ASSFontAliasTable: Sendable {
         return replacement
     }
 
-    private static func normalizedKey(_ value: String) -> String {
+    static func normalizedKey(_ value: String) -> String {
         let folded = (value.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? value)
             .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
         let ignoredScalars = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "_-"))
@@ -59,6 +59,229 @@ struct ASSFontAliasTable: Sendable {
             result.unicodeScalars.append(scalar)
         }
         return result
+    }
+}
+
+struct ASSFontNameTableFace: Sendable {
+    let aliases: [String]
+    let postScriptNames: [String]
+    let postScriptKeys: Set<String>
+}
+
+enum ASSFontNameTableParser {
+    private static let supportedNameIDs: Set<UInt16> = [1, 2, 4, 6, 16, 17, 18, 21, 22]
+    private static let postScriptNameID: UInt16 = 6
+    private static let maximumFaceCount = 256
+    private static let maximumTableCount = 512
+
+    static func aliases(in data: Data, matchingPostScriptName postScriptName: String?) -> [String] {
+        aliases(in: faces(in: data), matchingPostScriptName: postScriptName)
+    }
+
+    static func aliases(in faces: [ASSFontNameTableFace], matchingPostScriptName postScriptName: String?) -> [String] {
+        guard !faces.isEmpty else {
+            return []
+        }
+
+        let postScriptKey = postScriptName.map(ASSFontAliasTable.normalizedKey)
+        if let postScriptKey, !postScriptKey.isEmpty,
+           let matchingFace = faces.first(where: { $0.postScriptKeys.contains(postScriptKey) }) {
+            return matchingFace.aliases
+        }
+
+        return faces.count == 1 ? faces[0].aliases : []
+    }
+
+    static func faces(in data: Data) -> [ASSFontNameTableFace] {
+        faceOffsets(in: data).compactMap { parseFace(in: data, at: $0) }
+    }
+
+    private static func faceOffsets(in data: Data) -> [Int] {
+        guard let version = data.uint32BigEndian(at: 0) else {
+            return []
+        }
+
+        if version == sfntTag("ttcf") {
+            guard let faceCount = data.uint32BigEndian(at: 8),
+                  faceCount > 0,
+                  faceCount <= maximumFaceCount
+            else {
+                return []
+            }
+
+            return (0..<Int(faceCount)).compactMap { index in
+                data.uint32BigEndian(at: 12 + index * 4).map(Int.init)
+            }
+        }
+
+        return isFontVersion(version) ? [0] : []
+    }
+
+    private static func parseFace(in data: Data, at faceOffset: Int) -> ASSFontNameTableFace? {
+        guard let version = data.uint32BigEndian(at: faceOffset),
+              isFontVersion(version),
+              let tableCount = data.uint16BigEndian(at: faceOffset + 4),
+              tableCount > 0,
+              tableCount <= maximumTableCount
+        else {
+            return nil
+        }
+
+        let directoryOffset = faceOffset + 12
+        for tableIndex in 0..<Int(tableCount) {
+            let recordOffset = directoryOffset + tableIndex * 16
+            guard let tag = data.uint32BigEndian(at: recordOffset) else {
+                continue
+            }
+
+            guard tag == sfntTag("name"),
+                  let tableOffset = data.uint32BigEndian(at: recordOffset + 8),
+                  let tableLength = data.uint32BigEndian(at: recordOffset + 12)
+            else {
+                continue
+            }
+
+            return parseNameTable(in: data, offset: Int(tableOffset), length: Int(tableLength))
+        }
+
+        return nil
+    }
+
+    private static func parseNameTable(in data: Data, offset: Int, length: Int) -> ASSFontNameTableFace? {
+        guard length >= 6,
+              offset >= 0,
+              offset + length <= data.count,
+              let count = data.uint16BigEndian(at: offset + 2),
+              let stringOffset = data.uint16BigEndian(at: offset + 4)
+        else {
+            return nil
+        }
+
+        let recordStart = offset + 6
+        let storageStart = offset + Int(stringOffset)
+        guard recordStart + Int(count) * 12 <= offset + length,
+              storageStart <= offset + length
+        else {
+            return nil
+        }
+
+        var aliases: [String] = []
+        var seenAliasKeys = Set<String>()
+        var postScriptNames: [String] = []
+        var seenPostScriptKeys = Set<String>()
+        var postScriptKeys = Set<String>()
+
+        for index in 0..<Int(count) {
+            let recordOffset = recordStart + index * 12
+            guard let platformID = data.uint16BigEndian(at: recordOffset),
+                  let encodingID = data.uint16BigEndian(at: recordOffset + 2),
+                  let nameID = data.uint16BigEndian(at: recordOffset + 6),
+                  let stringLength = data.uint16BigEndian(at: recordOffset + 8),
+                  let nameOffset = data.uint16BigEndian(at: recordOffset + 10),
+                  supportedNameIDs.contains(nameID)
+            else {
+                continue
+            }
+
+            let stringStart = storageStart + Int(nameOffset)
+            let stringEnd = stringStart + Int(stringLength)
+            guard stringStart >= storageStart,
+                  stringEnd <= offset + length,
+                  let stringData = data.subdataIfAvailable(in: stringStart..<stringEnd),
+                  let name = decodeNameString(stringData, platformID: platformID, encodingID: encodingID)
+            else {
+                continue
+            }
+
+            appendUnique(name, to: &aliases, seenKeys: &seenAliasKeys)
+            if nameID == postScriptNameID {
+                let key = ASSFontAliasTable.normalizedKey(name)
+                if !key.isEmpty {
+                    postScriptKeys.insert(key)
+                }
+                appendUnique(name, to: &postScriptNames, seenKeys: &seenPostScriptKeys)
+            }
+        }
+
+        guard !aliases.isEmpty else {
+            return nil
+        }
+
+        return ASSFontNameTableFace(
+            aliases: aliases,
+            postScriptNames: postScriptNames,
+            postScriptKeys: postScriptKeys
+        )
+    }
+
+    private static func decodeNameString(_ data: Data, platformID: UInt16, encodingID: UInt16) -> String? {
+        let encoding: String.Encoding?
+        switch platformID {
+        case 0:
+            encoding = .utf16BigEndian
+        case 1:
+            encoding = macStringEncoding(for: encodingID)
+        case 2:
+            encoding = encodingID == 0 ? .ascii : nil
+        case 3:
+            encoding = .utf16BigEndian
+        default:
+            encoding = nil
+        }
+
+        return encoding
+            .flatMap { String(data: data, encoding: $0) }
+            .map { $0.replacingOccurrences(of: "\0", with: "") }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap(\.nilIfEmpty)
+    }
+
+    private static func macStringEncoding(for encodingID: UInt16) -> String.Encoding? {
+        let cfEncoding: CFStringEncoding
+        switch encodingID {
+        case 0:
+            cfEncoding = CFStringEncoding(CFStringBuiltInEncodings.macRoman.rawValue)
+        case 1:
+            cfEncoding = CFStringEncoding(CFStringEncodings.macJapanese.rawValue)
+        case 2:
+            cfEncoding = CFStringEncoding(CFStringEncodings.macChineseTrad.rawValue)
+        case 3:
+            cfEncoding = CFStringEncoding(CFStringEncodings.macKorean.rawValue)
+        case 25:
+            cfEncoding = CFStringEncoding(CFStringEncodings.macChineseSimp.rawValue)
+        default:
+            return nil
+        }
+
+        let nsEncoding = CFStringConvertEncodingToNSStringEncoding(cfEncoding)
+        guard nsEncoding != UInt(kCFStringEncodingInvalidId) else {
+            return nil
+        }
+
+        return String.Encoding(rawValue: nsEncoding)
+    }
+
+    private static func appendUnique(_ value: String, to values: inout [String], seenKeys: inout Set<String>) {
+        let key = ASSFontAliasTable.normalizedKey(value)
+        guard !key.isEmpty, !seenKeys.contains(key) else {
+            return
+        }
+
+        seenKeys.insert(key)
+        values.append(value)
+    }
+
+    private static func isFontVersion(_ value: UInt32) -> Bool {
+        value == 0x0001_0000
+            || value == sfntTag("OTTO")
+            || value == sfntTag("true")
+            || value == sfntTag("typ1")
+    }
+
+    private static func sfntTag(_ tag: String) -> UInt32 {
+        tag.utf8.reduce(UInt32(0)) { result, byte in
+            (result << 8) | UInt32(byte)
+        }
     }
 }
 
@@ -324,11 +547,13 @@ final class ASSFontAliasResolver: @unchecked Sendable {
     }
 
     private static func buildAliasTable() -> ASSFontAliasTable {
+        let installedFontFacesByURL = installedFontFacesByURL()
         let options: [CFString: Any] = [
             kCTFontCollectionRemoveDuplicatesOption: true
         ]
         let collection = CTFontCollectionCreateFromAvailableFonts(options as CFDictionary)
         let descriptors = (CTFontCollectionCreateMatchingFontDescriptors(collection) as? [CTFontDescriptor]) ?? []
+        let descriptorURLs = Set(descriptors.compactMap(fontURL(in:)))
 
         let records = descriptors.compactMap { descriptor -> ASSFontAliasRecord? in
             let postScriptName = stringAttribute(kCTFontNameAttribute, in: descriptor)
@@ -337,23 +562,34 @@ final class ASSFontAliasResolver: @unchecked Sendable {
             let localizedFamilyName = localizedStringAttribute(kCTFontFamilyNameAttribute, in: descriptor)
             let localizedDisplayName = localizedStringAttribute(kCTFontDisplayNameAttribute, in: descriptor)
             let filename = fontFilenameStem(in: descriptor)
+            let fontFileAliases = fontFileAliases(
+                in: descriptor,
+                matchingPostScriptName: postScriptName,
+                facesByURL: installedFontFacesByURL
+            )
 
-            guard let canonicalName = [familyName, displayName, postScriptName].compactMap(\.self).first else {
+            guard let canonicalName = canonicalName(
+                candidates: [familyName, displayName, postScriptName],
+                fontFileAliases: fontFileAliases
+            ) else {
                 return nil
             }
 
             return ASSFontAliasRecord(
                 canonicalName: canonicalName,
-                aliases: [
+                aliases: ([
                     postScriptName,
                     familyName,
                     displayName,
                     localizedFamilyName,
                     localizedDisplayName,
                     filename
-                ].compactMap(\.self)
+                ].compactMap(\.self) + fontFileAliases)
             )
-        }
+        } + installedFontRecords(
+            facesByURL: installedFontFacesByURL,
+            excluding: descriptorURLs
+        )
         .sorted { lhs, rhs in
             lhs.canonicalName.localizedStandardCompare(rhs.canonicalName) == .orderedAscending
         }
@@ -372,7 +608,7 @@ final class ASSFontAliasResolver: @unchecked Sendable {
     }
 
     private static func fontFilenameStem(in descriptor: CTFontDescriptor) -> String? {
-        guard let url = CTFontDescriptorCopyAttribute(descriptor, kCTFontURLAttribute) as? URL else {
+        guard let url = fontURL(in: descriptor) else {
             return nil
         }
 
@@ -380,10 +616,154 @@ final class ASSFontAliasResolver: @unchecked Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
     }
+
+    static func canonicalName(candidates: [String?], fontFileAliases: [String]) -> String? {
+        let parsedAliasKeys = Set(fontFileAliases.map(ASSFontAliasTable.normalizedKey).filter { !$0.isEmpty })
+        let resolvedCandidates = candidates.compactMap(\.self)
+
+        if !parsedAliasKeys.isEmpty,
+           let parsedCanonical = resolvedCandidates.first(where: {
+               parsedAliasKeys.contains(ASSFontAliasTable.normalizedKey($0))
+           }) {
+            return parsedCanonical
+        }
+
+        return resolvedCandidates.first
+    }
+
+    private static func fontFileAliases(
+        in descriptor: CTFontDescriptor,
+        matchingPostScriptName postScriptName: String?,
+        facesByURL: [URL: [ASSFontNameTableFace]]
+    ) -> [String] {
+        guard let url = fontURL(in: descriptor),
+              let faces = facesByURL[url]
+        else {
+            return []
+        }
+
+        return ASSFontNameTableParser.aliases(in: faces, matchingPostScriptName: postScriptName)
+    }
+
+    private static func installedFontRecords(
+        facesByURL: [URL: [ASSFontNameTableFace]],
+        excluding descriptorURLs: Set<URL>
+    ) -> [ASSFontAliasRecord] {
+        facesByURL.flatMap { url, faces -> [ASSFontAliasRecord] in
+            guard !descriptorURLs.contains(url) else {
+                return []
+            }
+
+            let filename = url.deletingPathExtension().lastPathComponent
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty
+            return faces.compactMap { face in
+                guard let canonicalName = face.postScriptNames.first ?? face.aliases.first else {
+                    return nil
+                }
+
+                return ASSFontAliasRecord(
+                    canonicalName: canonicalName,
+                    aliases: face.aliases + [filename].compactMap(\.self)
+                )
+            }
+        }
+    }
+
+    private static func installedFontFacesByURL() -> [URL: [ASSFontNameTableFace]] {
+        var facesByURL: [URL: [ASSFontNameTableFace]] = [:]
+        let supportedExtensions: Set<String> = ["otc", "otf", "ttc", "ttf"]
+
+        for directory in installedFontDirectories() {
+            guard let enumerator = FileManager.default.enumerator(
+                at: directory,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else {
+                continue
+            }
+
+            for case let url as URL in enumerator {
+                let fontURL = url.standardizedFileURL
+                guard supportedExtensions.contains(fontURL.pathExtension.lowercased()),
+                      facesByURL[fontURL] == nil,
+                      (try? fontURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+                else {
+                    continue
+                }
+
+                registerFontForCurrentProcess(at: fontURL)
+                guard let data = try? Data(contentsOf: fontURL, options: [.mappedIfSafe]) else {
+                    continue
+                }
+
+                let faces = ASSFontNameTableParser.faces(in: data)
+                if !faces.isEmpty {
+                    facesByURL[fontURL] = faces
+                }
+            }
+        }
+
+        return facesByURL
+    }
+
+    private static func installedFontDirectories() -> [URL] {
+        var directories: [URL] = []
+        if let userLibrary = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first {
+            directories.append(userLibrary.appendingPathComponent("Fonts", isDirectory: true))
+        }
+        directories.append(URL(fileURLWithPath: "/Library/Fonts", isDirectory: true))
+        directories.append(URL(fileURLWithPath: "/Network/Library/Fonts", isDirectory: true))
+        return directories
+    }
+
+    private static func registerFontForCurrentProcess(at url: URL) {
+        var error: Unmanaged<CFError>?
+        _ = CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
+        if let error {
+            _ = error.takeRetainedValue()
+        }
+    }
+
+    private static func fontURL(in descriptor: CTFontDescriptor) -> URL? {
+        (CTFontDescriptorCopyAttribute(descriptor, kCTFontURLAttribute) as? URL)?.standardizedFileURL
+    }
 }
 
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
+    }
+}
+
+private extension Data {
+    func uint16BigEndian(at offset: Int) -> UInt16? {
+        guard offset >= 0, offset + 2 <= count else {
+            return nil
+        }
+
+        return (UInt16(self[offset]) << 8) | UInt16(self[offset + 1])
+    }
+
+    func uint32BigEndian(at offset: Int) -> UInt32? {
+        guard offset >= 0, offset + 4 <= count else {
+            return nil
+        }
+
+        return (UInt32(self[offset]) << 24)
+            | (UInt32(self[offset + 1]) << 16)
+            | (UInt32(self[offset + 2]) << 8)
+            | UInt32(self[offset + 3])
+    }
+
+    func subdataIfAvailable(in range: Range<Int>) -> Data? {
+        guard range.lowerBound >= 0,
+              range.upperBound <= count,
+              range.lowerBound <= range.upperBound
+        else {
+            return nil
+        }
+
+        return subdata(in: range)
     }
 }

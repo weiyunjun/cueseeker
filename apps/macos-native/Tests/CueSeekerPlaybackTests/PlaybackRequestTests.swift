@@ -92,6 +92,47 @@ func assFontAliasTableMapsFileDerivedNamesToCanonicalFamilyNames() {
 }
 
 @Test
+func assFontNameTableParserReadsLocalizedInstalledFontNames() {
+    let fontData = makeTestFontData(
+        nameRecords: [
+            TestFontNameRecord(platformID: 3, encodingID: 1, languageID: 0x0804, nameID: 1, text: "华文中宋"),
+            TestFontNameRecord(platformID: 3, encodingID: 1, languageID: 0x0804, nameID: 4, text: "华文中宋"),
+            TestFontNameRecord(platformID: 3, encodingID: 1, languageID: 0x0409, nameID: 6, text: "STZhongsong")
+        ]
+    )
+
+    let aliases = ASSFontNameTableParser.aliases(in: fontData, matchingPostScriptName: "STZhongsong")
+    let faces = ASSFontNameTableParser.faces(in: fontData)
+    let table = ASSFontAliasTable(
+        records: [
+            ASSFontAliasRecord(canonicalName: "STZhongsong", aliases: aliases)
+        ]
+    )
+
+    #expect(aliases.contains("华文中宋"))
+    #expect(aliases.contains("STZhongsong"))
+    #expect(faces.first?.postScriptNames == ["STZhongsong"])
+    #expect(table.replacement(for: "华文中宋") == "STZhongsong")
+}
+
+@Test
+func assFontAliasResolverPrefersNameTableMatchedCanonicalName() {
+    let canonicalName = ASSFontAliasResolver.canonicalName(
+        candidates: [
+            "EPSON mojibake family",
+            "EPSON mojibake display",
+            "EPSON-FUTO-MINCHO"
+        ],
+        fontFileAliases: [
+            "EPSON 太明朝体Ｂ",
+            "EPSON-FUTO-MINCHO"
+        ]
+    )
+
+    #expect(canonicalName == "EPSON-FUTO-MINCHO")
+}
+
+@Test
 func assFontAliasRewriterUpdatesStylesAndInlineOverrideTagsOnlyInRenderScript() {
     let table = ASSFontAliasTable(
         records: [
@@ -217,6 +258,76 @@ func playbackRequestStoresASSSubtitleSource() throws {
     #expect(request.subtitleSource?.url == subtitleURL)
     #expect(request.subtitleSource?.format == .ass)
     #expect(request.subtitleSource?.matchedVideoURL == videoURL.standardizedFileURL)
+}
+
+private struct TestFontNameRecord {
+    let platformID: UInt16
+    let encodingID: UInt16
+    let languageID: UInt16
+    let nameID: UInt16
+    let text: String
+}
+
+private func makeTestFontData(nameRecords: [TestFontNameRecord]) -> Data {
+    struct EncodedNameRecord {
+        let source: TestFontNameRecord
+        let data: Data
+        let offset: UInt16
+    }
+
+    var stringStorage = Data()
+    let encodedRecords = nameRecords.map { record in
+        let offset = UInt16(stringStorage.count)
+        let data = record.text.data(using: .utf16BigEndian) ?? Data()
+        stringStorage.append(data)
+        return EncodedNameRecord(source: record, data: data, offset: offset)
+    }
+
+    var nameTable = Data()
+    appendUInt16BigEndian(0, to: &nameTable)
+    appendUInt16BigEndian(UInt16(encodedRecords.count), to: &nameTable)
+    appendUInt16BigEndian(UInt16(6 + encodedRecords.count * 12), to: &nameTable)
+
+    for encodedRecord in encodedRecords {
+        appendUInt16BigEndian(encodedRecord.source.platformID, to: &nameTable)
+        appendUInt16BigEndian(encodedRecord.source.encodingID, to: &nameTable)
+        appendUInt16BigEndian(encodedRecord.source.languageID, to: &nameTable)
+        appendUInt16BigEndian(encodedRecord.source.nameID, to: &nameTable)
+        appendUInt16BigEndian(UInt16(encodedRecord.data.count), to: &nameTable)
+        appendUInt16BigEndian(encodedRecord.offset, to: &nameTable)
+    }
+
+    nameTable.append(stringStorage)
+
+    var fontData = Data()
+    appendUInt32BigEndian(0x0001_0000, to: &fontData)
+    appendUInt16BigEndian(1, to: &fontData)
+    appendUInt16BigEndian(0, to: &fontData)
+    appendUInt16BigEndian(0, to: &fontData)
+    appendUInt16BigEndian(0, to: &fontData)
+    appendSFNTTag("name", to: &fontData)
+    appendUInt32BigEndian(0, to: &fontData)
+    appendUInt32BigEndian(28, to: &fontData)
+    appendUInt32BigEndian(UInt32(nameTable.count), to: &fontData)
+    fontData.append(nameTable)
+
+    return fontData
+}
+
+private func appendSFNTTag(_ tag: String, to data: inout Data) {
+    data.append(contentsOf: tag.utf8)
+}
+
+private func appendUInt16BigEndian(_ value: UInt16, to data: inout Data) {
+    data.append(UInt8((value >> 8) & 0xff))
+    data.append(UInt8(value & 0xff))
+}
+
+private func appendUInt32BigEndian(_ value: UInt32, to data: inout Data) {
+    data.append(UInt8((value >> 24) & 0xff))
+    data.append(UInt8((value >> 16) & 0xff))
+    data.append(UInt8((value >> 8) & 0xff))
+    data.append(UInt8(value & 0xff))
 }
 
 @Test
