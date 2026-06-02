@@ -379,10 +379,6 @@ final class AppCoordinator: ObservableObject {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             try database.migrate()
-            try Self.clearAIChunkCacheForPromptAwareSettingsIfNeeded(
-                database: database,
-                userDefaults: userDefaults
-            )
             openedDatabase = database
             initialError = nil
         } catch {
@@ -398,56 +394,8 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
-        guard let database = openedDatabase else {
+        guard openedDatabase != nil else {
             return
-        }
-
-        let folders = indexing.selectedFolders
-        startupDatabaseTask = Task { [weak self] in
-            do {
-                try await Self.runCancellableDetached(priority: .background) {
-                    try database.reconcileIndexedContent(activeFolders: folders)
-                }
-
-                guard !Task.isCancelled else {
-                    await MainActor.run {
-                        self?.startupDatabaseTask = nil
-                    }
-                    return
-                }
-
-                let stats = try await Self.runCancellableDetached(priority: .background) {
-                    try database.storageStats()
-                }
-
-                guard !Task.isCancelled else {
-                    await MainActor.run {
-                        self?.startupDatabaseTask = nil
-                    }
-                    return
-                }
-
-                await MainActor.run {
-                    self?.indexing.databaseStorageStats = stats
-                    self?.startupDatabaseTask = nil
-                }
-            } catch is CancellationError {
-                await MainActor.run {
-                    self?.startupDatabaseTask = nil
-                }
-            } catch {
-                guard !Task.isCancelled else {
-                    await MainActor.run {
-                        self?.startupDatabaseTask = nil
-                    }
-                    return
-                }
-
-                print("Failed background reconciliation/stats query: \(error)")
-                await MainActor.run {
-                    self?.startupDatabaseTask = nil
-                }
-            }
         }
 
         setupSettingsObservers()
