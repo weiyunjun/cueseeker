@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import Testing
 import CueSeekerCore
 @testable import CueSeekerApp
@@ -214,7 +215,9 @@ private func expectAIChunkingPromptTemplateError(
     }
 }
 
+@MainActor
 private func withTemporarySettingsUserDefaults(_ body: (UserDefaults, String) throws -> Void) rethrows {
+    _ = NSApplication.shared
     let suiteName = "CueSeekerAppTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!
     defer {
