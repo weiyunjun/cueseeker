@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerCore
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -64,6 +65,77 @@ func applyingVocabularyEntriesSelectsNewestEntryWhenSelectionIsMissing() async t
 @Test
 func vocabularyCreatedAtFormatterFailsExplicitlyForInvalidTimestamps() {
     #expect(VocabularyEntryCreatedAtFormatter.displayText(createdAt: "not-a-date") == "Failed to load")
+}
+
+@MainActor
+@Test
+func vocabularyExamplesDeriveFromMatchingShioris() async throws {
+    try await withTemporaryVocabularyApp { app in
+        let database = try #require(app.subtitleDatabase)
+        let subtitleFile = URL(fileURLWithPath: "/Media/Show/Episode 1.srt")
+        let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+        try database.replaceEntries(
+            subtitleFile: subtitleFile,
+            videoFile: videoFile,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:03,000",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 3_000,
+                    text: "I felt resonance.\n共鳴を感じた。"
+                ),
+                SubtitleEntry(
+                    sequenceNumber: 2,
+                    startTimecode: "00:00:04,000",
+                    endTimecode: "00:00:05,000",
+                    startMilliseconds: 4_000,
+                    endMilliseconds: 5_000,
+                    text: "A quiet unrelated line."
+                )
+            ]
+        )
+
+        let matchingSelection = try #require(try database.cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: 1_500
+        ))
+        let unrelatedSelection = try #require(try database.cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: 4_500
+        ))
+        let matchingShiori = try database.upsertShiori(
+            subtitleFile: subtitleFile,
+            subtitleFormat: .srt,
+            videoFile: videoFile,
+            videoName: videoFile.lastPathComponent,
+            selection: matchingSelection
+        )
+        _ = try database.upsertShiori(
+            subtitleFile: subtitleFile,
+            subtitleFormat: .srt,
+            videoFile: videoFile,
+            videoName: videoFile.lastPathComponent,
+            selection: unrelatedSelection
+        )
+        let entry = try database.addVocabularyEntry(
+            term: "RESONANCE",
+            explanation: "Continued sound after the source stops."
+        )
+
+        let examples = VocabularyExampleDeriver.examples(
+            for: entry,
+            shioris: try database.shioris(),
+            displayTitlesBySubtitlePath: [
+                subtitleFile.path: "Show - 01"
+            ]
+        )
+
+        #expect(examples.map(\.id) == [matchingShiori.id])
+        #expect(examples[0].sourceText == "Show - 01 · 00:01")
+        #expect(examples[0].displayLines == ["I felt resonance.", "共鳴を感じた。"])
+    }
 }
 
 @MainActor

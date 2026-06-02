@@ -3,6 +3,7 @@ import SwiftUI
 
 struct VocabularyPanelView: View {
     @EnvironmentObject private var vocabulary: VocabularyStore
+    @EnvironmentObject private var shiori: ShioriStore
     @Environment(\.colorScheme) private var colorScheme
 
     let onSelectEntry: (Int64) -> Void
@@ -30,7 +31,14 @@ struct VocabularyPanelView: View {
                     .frame(width: 1)
 
                 if let selectedEntry {
-                    VocabularyEntryDetailView(entry: selectedEntry)
+                    VocabularyEntryDetailView(
+                        entry: selectedEntry,
+                        examples: VocabularyExampleDeriver.examples(
+                            for: selectedEntry,
+                            shioris: shiori.shioris,
+                            displayTitlesBySubtitlePath: shioriDisplayTitlesByPath
+                        )
+                    )
                 } else {
                     InfoPageStateView(state: .vocabularyEmpty)
                         .font(.system(size: SearchTypography.bodySize))
@@ -39,6 +47,12 @@ struct VocabularyPanelView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
         }
+    }
+
+    private var shioriDisplayTitlesByPath: [String: String] {
+        Dictionary(uniqueKeysWithValues: shiori.shioriFileGroups.map {
+            ($0.subtitlePath, $0.subtitleDisplayTitle)
+        })
     }
 
     private var vocabularyEntryList: some View {

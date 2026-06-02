@@ -279,6 +279,7 @@ struct SearchView: View {
             .background(LayoutPerformanceProbe(name: "SearchView.vocabularyPanel.layout"))
             .task {
                 appState.hydrateVocabularyEntriesAsync()
+                appState.hydrateShiorisAsync()
             }
             .sheet(isPresented: $vocabulary.isAddVocabularyEntryEditorPresented) {
                 VocabularyAddEntrySheet(
