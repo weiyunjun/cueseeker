@@ -27,9 +27,10 @@ before human end-to-end acceptance testing.
   171 Swift Testing tests.
 - The full test run still printed existing non-fatal disk I/O and empty mkv
   probe diagnostics, but all tests passed.
+- Human end-to-end acceptance testing passed after the automated verification.
 
 ## Outcome
 
 No production code changed in this step. Automated backend verification is
-complete, but the requirement remains pending until human end-to-end acceptance
-testing is finished.
+complete, and human end-to-end acceptance testing passed. The requirement is
+accepted.
