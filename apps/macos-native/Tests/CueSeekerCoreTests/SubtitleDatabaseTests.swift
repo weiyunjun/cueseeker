@@ -119,6 +119,47 @@ func upsertsSearchPathAndReturnsStableID() throws {
 }
 
 @Test
+func storesVocabularyEntriesAndAllowsDuplicateTerms() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let olderDate = Date(timeIntervalSince1970: 1_700_000_000)
+    let middleDate = Date(timeIntervalSince1970: 1_750_000_000)
+    let newerDate = Date(timeIntervalSince1970: 1_800_000_000)
+    let formatter = ISO8601DateFormatter()
+
+    let first = try database.addVocabularyEntry(
+        term: "apple",
+        explanation: "A fruit.",
+        createdAt: olderDate
+    )
+    let second = try database.addVocabularyEntry(
+        term: "apple",
+        explanation: "A company name in context.",
+        createdAt: newerDate
+    )
+    let third = try database.addVocabularyEntry(
+        term: "banana",
+        explanation: "Another fruit.",
+        createdAt: middleDate
+    )
+
+    let entries = try database.vocabularyEntries()
+
+    #expect(first.id != second.id)
+    #expect(entries.map(\.id) == [second.id, third.id, first.id])
+    #expect(entries.map(\.term) == ["apple", "banana", "apple"])
+    #expect(first.createdAt == formatter.string(from: olderDate))
+    #expect(second.createdAt == formatter.string(from: newerDate))
+    #expect(third.createdAt == formatter.string(from: middleDate))
+}
+
+@Test
 func storesAndLoadsAIChunkCacheEntry() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
