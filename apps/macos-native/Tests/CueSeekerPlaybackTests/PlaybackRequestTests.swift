@@ -281,6 +281,61 @@ func assFontAliasRewriterUpdatesStylesAndInlineOverrideTagsOnlyInRenderScript() 
 }
 
 @Test
+func assFontAliasRewriterCoversReportedASSFontNamesAndPreservesMissingFonts() {
+    let table = ASSFontAliasTable(
+        records: [
+            ASSFontAliasRecord(
+                canonicalName: "STZhongsong",
+                aliases: [
+                    "华文中宋"
+                ]
+            ),
+            ASSFontAliasRecord(
+                canonicalName: "EPSON-FUTO-MINCHO",
+                aliases: [
+                    "EPSON 太明朝体Ｂ"
+                ]
+            ),
+            ASSFontAliasRecord(
+                canonicalName: "FZZhunYuan-M02",
+                aliases: [
+                    "方正准圆_GBK"
+                ]
+            )
+        ]
+    )
+    let script = #"""
+    [Script Info]
+    ScriptType: v4.00+
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: TitanCN,华文中宋,42
+    Style: TitanJP,EPSON 太明朝体Ｂ,28
+    Style: LegalHigh,方正准圆_GBK,36
+    Style: Missing,不存在的字体,30
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:02.00,TitanCN,,0,0,0,,{\fn华文中宋}Chinese
+    Dialogue: 0,0:00:02.00,0:00:03.00,TitanJP,,0,0,0,,{\fnEPSON 太明朝体Ｂ}Japanese
+    Dialogue: 0,0:00:03.00,0:00:04.00,LegalHigh,,0,0,0,,{\fn方正准圆_GBK}Legal
+    Dialogue: 0,0:00:04.00,0:00:05.00,Missing,,0,0,0,,{\fn不存在的字体}Missing
+    """#
+
+    let rewritten = ASSFontAliasRewriter.rewrite(script: script, aliases: table)
+
+    #expect(rewritten.contains("Style: TitanCN,STZhongsong,42"))
+    #expect(rewritten.contains("Style: TitanJP,EPSON-FUTO-MINCHO,28"))
+    #expect(rewritten.contains("Style: LegalHigh,FZZhunYuan-M02,36"))
+    #expect(rewritten.contains("Style: Missing,不存在的字体,30"))
+    #expect(rewritten.contains(#"{\fnSTZhongsong}"#))
+    #expect(rewritten.contains(#"{\fnEPSON-FUTO-MINCHO}"#))
+    #expect(rewritten.contains(#"{\fnFZZhunYuan-M02}"#))
+    #expect(rewritten.contains(#"{\fn不存在的字体}"#))
+}
+
+@Test
 func assFontAliasRewriterHandlesCRLFLineEndings() {
     let table = ASSFontAliasTable(
         records: [
