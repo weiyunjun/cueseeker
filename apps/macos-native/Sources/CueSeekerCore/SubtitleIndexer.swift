@@ -85,11 +85,13 @@ public struct SubtitleIndexer {
 
             let cueGroups: [SubtitleCueGroup]
             var assRenderSegments: [ASSRenderSegmentPayload] = []
+            var assFontReferences: [ASSFontReferenceIntent] = []
             switch format {
             case .srt:
                 cueGroups = SRTParser.parseCueGroups(contents)
             case .ass:
                 cueGroups = ASSParser.parseCueGroups(contents)
+                assFontReferences = ASSFontIntentExtractor.references(from: contents)
                 if ASSRenderSegmenter.shouldSegment(format: format, fileSize: fileSize) {
                     assRenderSegments = ASSRenderSegmenter.renderSegments(from: contents)
                 }
@@ -101,6 +103,7 @@ public struct SubtitleIndexer {
                 format: format,
                 cueGroups: cueGroups,
                 assRenderSegments: assRenderSegments,
+                assFontReferences: assFontReferences,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt,
                 rebuildSearchDerivedIndex: false
@@ -133,6 +136,11 @@ public struct SubtitleIndexer {
         }
 
         guard abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001 else {
+            return false
+        }
+
+        if metadata.subtitleFormat == .ass,
+           try !database.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) {
             return false
         }
 

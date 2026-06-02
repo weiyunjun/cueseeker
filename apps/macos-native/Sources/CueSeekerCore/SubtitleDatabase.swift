@@ -614,6 +614,28 @@ public struct ASSRenderSegment: Equatable, Sendable {
     public let byteCount: Int
 }
 
+public struct ASSFontReference: Equatable, Sendable {
+    public let subtitlePath: String
+    public let fontName: String
+    public let source: ASSFontReferenceSource
+    public let occurrenceCount: Int
+    public let firstOccurrenceOrder: Int
+
+    public init(
+        subtitlePath: String,
+        fontName: String,
+        source: ASSFontReferenceSource,
+        occurrenceCount: Int,
+        firstOccurrenceOrder: Int
+    ) {
+        self.subtitlePath = subtitlePath
+        self.fontName = fontName
+        self.source = source
+        self.occurrenceCount = occurrenceCount
+        self.firstOccurrenceOrder = firstOccurrenceOrder
+    }
+}
+
 public enum ASSFontResourceStatus: String, Equatable, Sendable {
     case readyWithFonts
     case readyWithoutFonts
@@ -661,7 +683,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 15
+    public static let currentSchemaVersion: Int = 16
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -826,6 +848,29 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE INDEX IF NOT EXISTS idx_ass_render_segments_lookup
                 ON ass_render_segments(subtitle_file_id, start_ms, end_ms);
+
+            CREATE TABLE IF NOT EXISTS ass_font_reference_manifests (
+                subtitle_file_id INTEGER PRIMARY KEY,
+                algorithm_version INTEGER NOT NULL,
+                referenced_font_count INTEGER NOT NULL,
+                extracted_at TEXT NOT NULL,
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS ass_font_references (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subtitle_file_id INTEGER NOT NULL,
+                font_name TEXT NOT NULL,
+                source_location TEXT NOT NULL,
+                occurrence_count INTEGER NOT NULL,
+                first_occurrence_order INTEGER NOT NULL,
+                algorithm_version INTEGER NOT NULL,
+                UNIQUE(subtitle_file_id, font_name, source_location, algorithm_version),
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ass_font_references_lookup
+                ON ass_font_references(subtitle_file_id, algorithm_version, first_occurrence_order);
 
             CREATE TABLE IF NOT EXISTS ass_font_resources (
                 subtitle_file_id INTEGER PRIMARY KEY,
@@ -1407,6 +1452,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
         assRenderSegments: [ASSRenderSegmentPayload] = [],
+        assFontReferences: [ASSFontReferenceIntent] = [],
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil,
         rebuildSearchDerivedIndex: Bool = true
@@ -1424,6 +1470,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             let videoFileID = try upsertVideoFile(videoFile)
             try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
+
+            if format == .ass {
+                try insertASSFontReferenceManifest(
+                    subtitleFileID: subtitleFileID,
+                    referencedFontCount: assFontReferences.count
+                )
+                for reference in assFontReferences {
+                    try insertASSFontReference(subtitleFileID: subtitleFileID, reference: reference)
+                }
+            }
 
             for segment in assRenderSegments {
                 try insertASSRenderSegment(subtitleFileID: subtitleFileID, segment: segment)
@@ -1564,6 +1620,55 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.bind(subtitleFile.path, at: 1)
         try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
         return try statement.step()
+    }
+
+    public func hasCurrentASSFontReferenceManifest(forSubtitleFile subtitleFile: URL) throws -> Bool {
+        let statement = try database.prepare(
+            """
+            SELECT 1
+            FROM ass_font_reference_manifests m
+            JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND m.algorithm_version = ?
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(ASSFontIntentExtractor.cacheAlgorithmVersion, at: 2)
+        return try statement.step()
+    }
+
+    public func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference] {
+        let statement = try database.prepare(
+            """
+            SELECT sf.subtitle_path, r.font_name, r.source_location,
+                   r.occurrence_count, r.first_occurrence_order
+            FROM ass_font_references r
+            JOIN subtitle_files sf ON sf.id = r.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND r.algorithm_version = ?
+            ORDER BY r.first_occurrence_order ASC, r.id ASC;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(ASSFontIntentExtractor.cacheAlgorithmVersion, at: 2)
+
+        var references: [ASSFontReference] = []
+        while try statement.step() {
+            references.append(
+                ASSFontReference(
+                    subtitlePath: statement.stringColumn(0),
+                    fontName: statement.stringColumn(1),
+                    source: ASSFontReferenceSource(rawValue: statement.stringColumn(2)) ?? .style,
+                    occurrenceCount: statement.intColumn(3),
+                    firstOccurrenceOrder: statement.intColumn(4)
+                )
+            )
+        }
+
+        return references
     }
 
     public func assRenderSegment(
@@ -1770,6 +1875,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try database.execute("DELETE FROM library_video_rows;")
             try database.execute("DELETE FROM subtitle_search_order_rows;")
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
+            try database.execute("DELETE FROM ass_font_references;")
+            try database.execute("DELETE FROM ass_font_reference_manifests;")
             try database.execute("DELETE FROM ass_render_segments;")
             try database.execute("DELETE FROM subtitle_files;")
             try database.execute("DELETE FROM video_files;")
@@ -3633,6 +3740,40 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
         do {
+            let deleteASSFontReferences = try database.prepare(
+                """
+                DELETE FROM ass_font_references
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteASSFontReferences,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteASSFontReferences.run()
+
+            let deleteASSFontReferenceManifests = try database.prepare(
+                """
+                DELETE FROM ass_font_reference_manifests
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteASSFontReferenceManifests,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteASSFontReferenceManifests.run()
+
             let deleteASSRenderSegments = try database.prepare(
                 """
                 DELETE FROM ass_render_segments
@@ -4008,6 +4149,56 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    private func insertASSFontReferenceManifest(
+        subtitleFileID: Int64,
+        referencedFontCount: Int
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO ass_font_reference_manifests(
+                subtitle_file_id,
+                algorithm_version,
+                referenced_font_count,
+                extracted_at
+            )
+            VALUES (?, ?, ?, ?);
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(ASSFontIntentExtractor.cacheAlgorithmVersion, at: 2)
+        try statement.bind(referencedFontCount, at: 3)
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 4)
+        try statement.run()
+    }
+
+    private func insertASSFontReference(
+        subtitleFileID: Int64,
+        reference: ASSFontReferenceIntent
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO ass_font_references(
+                subtitle_file_id,
+                font_name,
+                source_location,
+                occurrence_count,
+                first_occurrence_order,
+                algorithm_version
+            )
+            VALUES (?, ?, ?, ?, ?, ?);
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(reference.fontName, at: 2)
+        try statement.bind(reference.source.rawValue, at: 3)
+        try statement.bind(reference.occurrenceCount, at: 4)
+        try statement.bind(reference.firstOccurrenceOrder, at: 5)
+        try statement.bind(ASSFontIntentExtractor.cacheAlgorithmVersion, at: 6)
+        try statement.run()
+    }
+
     private func insertFTSRow(
         rowID: Int64? = nil,
         cueGroupID: Int64,
@@ -4226,6 +4417,32 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private func deleteIndexedSubtitlePath(_ subtitlePath: String) throws {
+        let deleteASSFontReferences = try database.prepare(
+            """
+            DELETE FROM ass_font_references
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteASSFontReferences.bind(subtitlePath, at: 1)
+        try deleteASSFontReferences.run()
+
+        let deleteASSFontReferenceManifests = try database.prepare(
+            """
+            DELETE FROM ass_font_reference_manifests
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteASSFontReferenceManifests.bind(subtitlePath, at: 1)
+        try deleteASSFontReferenceManifests.run()
+
         let deleteASSRenderSegments = try database.prepare(
             """
             DELETE FROM ass_render_segments
@@ -4289,6 +4506,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             DROP TABLE IF EXISTS subtitle_cue_groups_fts;
             DROP TABLE IF EXISTS subtitle_cue_lines;
             DROP TABLE IF EXISTS subtitle_cue_groups;
+            DROP TABLE IF EXISTS ass_font_references;
+            DROP TABLE IF EXISTS ass_font_reference_manifests;
             DROP TABLE IF EXISTS ass_render_segments;
             DROP TABLE IF EXISTS subtitle_video_matches;
             DROP TABLE IF EXISTS video_files;

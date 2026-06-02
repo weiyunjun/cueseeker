@@ -1503,6 +1503,60 @@ func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
 }
 
 @Test
+func storesAndLoadsASSFontReferences() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Effects.mkv")
+    let references = [
+        ASSFontReferenceIntent(
+            fontName: "华文中宋",
+            source: .style,
+            occurrenceCount: 2,
+            firstOccurrenceOrder: 0
+        ),
+        ASSFontReferenceIntent(
+            fontName: "汉仪小隶书简",
+            source: .inlineOverride,
+            occurrenceCount: 1,
+            firstOccurrenceOrder: 2
+        )
+    ]
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [],
+        assFontReferences: references
+    )
+
+    #expect(try database.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile))
+    #expect(try database.assFontReferences(forSubtitleFile: subtitleFile) == [
+        ASSFontReference(
+            subtitlePath: subtitleFile.path,
+            fontName: "华文中宋",
+            source: .style,
+            occurrenceCount: 2,
+            firstOccurrenceOrder: 0
+        ),
+        ASSFontReference(
+            subtitlePath: subtitleFile.path,
+            fontName: "汉仪小隶书简",
+            source: .inlineOverride,
+            occurrenceCount: 1,
+            firstOccurrenceOrder: 2
+        )
+    ])
+}
+
+@Test
 func storesAndLoadsASSFontResourceManifest() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -79,6 +79,35 @@ func parsesASSDialogueWithNonDefaultEventFieldOrderAndCommasInText() {
 }
 
 @Test
+func extractsASSReferencedFontsFromStylesAndInlineOverrides() {
+    let contents = """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: CN, 华文中宋 ,42
+    Style: JP,EPSON 太明朝体Ｂ,28
+    Style: CN-Alt,华文中宋,36
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,CN,,0,0,0,,{\\fn汉仪小隶书简\\bord2}Hello {\\fn華康采風體}world
+    Dialogue: 0,0:00:04.00,0:00:05.00,CN,,0,0,0,,literal \\fnIgnored text
+    Dialogue: 0,0:00:06.00,0:00:07.00,CN,,0,0,0,,{\\fn汉仪小隶书简}again
+    """
+
+    let references = ASSFontIntentExtractor.references(from: contents)
+
+    #expect(references == [
+        ASSFontReferenceIntent(fontName: "华文中宋", source: .style, occurrenceCount: 2, firstOccurrenceOrder: 0),
+        ASSFontReferenceIntent(fontName: "EPSON 太明朝体Ｂ", source: .style, occurrenceCount: 1, firstOccurrenceOrder: 1),
+        ASSFontReferenceIntent(fontName: "汉仪小隶书简", source: .inlineOverride, occurrenceCount: 2, firstOccurrenceOrder: 3),
+        ASSFontReferenceIntent(fontName: "華康采風體", source: .inlineOverride, occurrenceCount: 1, firstOccurrenceOrder: 4)
+    ])
+}
+
+@Test
 func rejectsInvalidASSTimecodes() {
     #expect(ASSParser.milliseconds(from: "0:00:00.00") == 0)
     #expect(ASSParser.milliseconds(from: "1:02:03.45") == 3_723_450)

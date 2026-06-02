@@ -237,6 +237,50 @@ func indexesASSFilesAsGroupedCueResults() throws {
 }
 
 @Test
+func indexesASSFontReferencesAndSkipsUnchangedAfterManifest() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    _ = try fixture.writeSubtitle(
+        name: "Episode.ass",
+        contents: """
+        [Script Info]
+        PlayResX: 1920
+        PlayResY: 1080
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize
+        Style: Default,华文中宋,42
+        Style: Title,EPSON 太明朝体Ｂ,28
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\fn汉仪小隶书简}Styled text
+        Dialogue: 0,0:00:04.00,0:00:05.00,Title,,0,0,0,,Plain title
+        """
+    )
+    try fixture.writeVideo(name: "Episode.mkv")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let initialResult = try indexer.index(folder: fixture.root, into: database)
+    let indexedSubtitlePath = try #require(try database.subtitleFiles().first?.subtitlePath)
+    let indexedSubtitleURL = URL(fileURLWithPath: indexedSubtitlePath)
+    let references = try database.assFontReferences(forSubtitleFile: indexedSubtitleURL)
+    let unchangedResult = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(initialResult.indexedSubtitleFiles == 1)
+    #expect(references.map(\.fontName) == ["华文中宋", "EPSON 太明朝体Ｂ", "汉仪小隶书简"])
+    #expect(references.map(\.source) == [.style, .style, .inlineOverride])
+    #expect(try database.hasCurrentASSFontReferenceManifest(forSubtitleFile: indexedSubtitleURL))
+    #expect(unchangedResult.indexedSubtitleFiles == 0)
+    #expect(unchangedResult.skippedUnchangedSubtitleFiles == 1)
+}
+
+@Test
 func assRenderSegmenterBuildsWindowedScriptsWithOverlappingEvents() throws {
     let contents = """
     [Script Info]
