@@ -71,6 +71,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var frameWidth = 0
     private var frameHeight = 0
     private var activeRenderSegmentWindow: PlaybackSubtitleTimeWindow?
+    private var requestedFontNames: [String]?
 
     func load(
         source: PlaybackSubtitleSource,
@@ -93,6 +94,10 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
                 self.activeRenderSegmentWindow = nil
+                self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
+                    sourcePath: sourcePath,
+                    renderCacheDatabaseURL: renderCacheDatabaseURL
+                )
 
                 let nextSession = try self.makeSession(containing: initialTimestampMilliseconds)
                 self.session = nextSession
@@ -119,6 +124,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             self.frameWidth = 0
             self.frameHeight = 0
             self.activeRenderSegmentWindow = nil
+            self.requestedFontNames = nil
             completion?()
         }
     }
@@ -190,7 +196,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 "libass indexed segment: window=\(segment.startMilliseconds)-\(segment.endMilliseconds)ms events=\(segment.eventCount) bytes=\(segment.byteCount)"
             )
             let sourceIdentifier = "\(sourcePath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)"
-            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(segment.scriptText)
+            let renderScript = rewriteRenderScript(segment.scriptText)
             return try SFXASSRendererSession(
                 assScript: renderScript,
                 sourceIdentifier: sourceIdentifier,
@@ -201,7 +207,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
         activeRenderSegmentWindow = nil
         if let sourceScript = try? String(contentsOf: URL(fileURLWithPath: sourcePath)) {
-            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(sourceScript)
+            let renderScript = rewriteRenderScript(sourceScript)
             if renderScript != sourceScript {
                 return try SFXASSRendererSession(
                     assScript: renderScript,
@@ -216,6 +222,13 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             assFileAtPath: sourcePath,
             frameWidth: frameWidth,
             frameHeight: frameHeight
+        )
+    }
+
+    private func rewriteRenderScript(_ script: String) -> String {
+        ASSFontAliasResolver.shared.rewriteRenderScript(
+            script,
+            requestedFontNames: requestedFontNames
         )
     }
 

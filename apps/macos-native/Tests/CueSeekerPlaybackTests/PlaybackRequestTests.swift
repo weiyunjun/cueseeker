@@ -133,6 +133,74 @@ func assFontAliasResolverPrefersNameTableMatchedCanonicalName() {
 }
 
 @Test
+func assFontAliasRewritePlannerUsesIndexedFontIntentWhenAvailable() {
+    let table = ASSFontAliasTable(
+        records: [
+            ASSFontAliasRecord(
+                canonicalName: "STZhongsong",
+                aliases: [
+                    "华文中宋"
+                ]
+            )
+        ]
+    )
+
+    #expect(ASSFontAliasRewritePlanner.shouldRewriteScript(requestedFontNames: nil, aliases: table))
+    #expect(ASSFontAliasRewritePlanner.shouldRewriteScript(requestedFontNames: ["华文中宋"], aliases: table))
+    #expect(!ASSFontAliasRewritePlanner.shouldRewriteScript(requestedFontNames: ["Helvetica"], aliases: table))
+    #expect(!ASSFontAliasRewritePlanner.shouldRewriteScript(requestedFontNames: [], aliases: table))
+}
+
+@Test
+func assPlaybackFontIntentProviderLoadsIndexedFontNames() throws {
+    let directory = try temporaryPlaybackTestDirectory()
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let databaseURL = directory.appendingPathComponent("index.sqlite")
+    let subtitleFile = directory.appendingPathComponent("Episode.ass")
+    let videoFile = directory.appendingPathComponent("Episode.mkv")
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    try Data().write(to: videoFile)
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [],
+        assFontReferences: [
+            ASSFontReferenceIntent(
+                fontName: "华文中宋",
+                source: .style,
+                occurrenceCount: 2,
+                firstOccurrenceOrder: 0
+            ),
+            ASSFontReferenceIntent(
+                fontName: "汉仪小隶书简",
+                source: .inlineOverride,
+                occurrenceCount: 1,
+                firstOccurrenceOrder: 2
+            ),
+            ASSFontReferenceIntent(
+                fontName: "华文中宋",
+                source: .inlineOverride,
+                occurrenceCount: 1,
+                firstOccurrenceOrder: 3
+            )
+        ]
+    )
+
+    let fontNames = try ASSPlaybackFontIntentProvider.requestedFontNames(
+        sourcePath: subtitleFile.path,
+        renderCacheDatabaseURL: databaseURL
+    )
+
+    #expect(fontNames == ["华文中宋", "汉仪小隶书简"])
+}
+
+@Test
 func assFontAliasEnvironmentCacheReusesOnlyMatchingFontSnapshot() throws {
     let directory = try temporaryPlaybackTestDirectory()
     defer {

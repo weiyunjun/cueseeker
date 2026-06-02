@@ -374,6 +374,16 @@ struct ASSFontAliasRewriteResult: Sendable, Equatable {
     let replacements: [ASSFontAliasReplacement]
 }
 
+enum ASSFontAliasRewritePlanner {
+    static func shouldRewriteScript(requestedFontNames: [String]?, aliases: ASSFontAliasTable) -> Bool {
+        guard let requestedFontNames else {
+            return true
+        }
+
+        return requestedFontNames.contains { aliases.replacement(for: $0) != nil }
+    }
+}
+
 enum ASSFontAliasRewriter {
     static func rewrite(script: String, aliases: ASSFontAliasTable) -> String {
         rewriteWithReport(script: script, aliases: aliases).script
@@ -600,8 +610,16 @@ final class ASSFontAliasResolver: @unchecked Sendable {
     private let lock = NSLock()
     private var cachedTable: (snapshot: ASSInstalledFontEnvironmentSnapshot, table: ASSFontAliasTable)?
 
-    func rewriteRenderScript(_ script: String) -> String {
-        ASSFontAliasRewriter.rewrite(script: script, aliases: aliasTable())
+    func rewriteRenderScript(_ script: String, requestedFontNames: [String]? = nil) -> String {
+        let aliases = aliasTable()
+        guard ASSFontAliasRewritePlanner.shouldRewriteScript(
+            requestedFontNames: requestedFontNames,
+            aliases: aliases
+        ) else {
+            return script
+        }
+
+        return ASSFontAliasRewriter.rewrite(script: script, aliases: aliases)
     }
 
     private func aliasTable() -> ASSFontAliasTable {
