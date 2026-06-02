@@ -39,6 +39,34 @@ func addingVocabularyEntryPersistsEntryAndClosesEditor() async throws {
 }
 
 @MainActor
+@Test
+func applyingVocabularyEntriesSelectsNewestEntryWhenSelectionIsMissing() async throws {
+    try await withTemporaryVocabularyApp { app in
+        let database = try #require(app.subtitleDatabase)
+        let older = try database.addVocabularyEntry(
+            term: "older",
+            explanation: "Older entry",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let newer = try database.addVocabularyEntry(
+            term: "newer",
+            explanation: "Newer entry",
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+
+        app.applyVocabularyEntries(try database.vocabularyEntries())
+
+        #expect(app.vocabulary.entries.map(\.id) == [newer.id, older.id])
+        #expect(app.vocabulary.selectedEntryID == newer.id)
+    }
+}
+
+@Test
+func vocabularyCreatedAtFormatterFailsExplicitlyForInvalidTimestamps() {
+    #expect(VocabularyEntryCreatedAtFormatter.displayText(createdAt: "not-a-date") == "Failed to load")
+}
+
+@MainActor
 private func withTemporaryVocabularyApp(
     _ body: @MainActor (AppCoordinator) throws -> Void
 ) async throws {

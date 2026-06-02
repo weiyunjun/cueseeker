@@ -53,6 +53,9 @@ extension AppCoordinator {
            !entries.contains(where: { $0.id == selectedEntryID }) {
             vocabulary.selectedEntryID = nil
         }
+        if vocabulary.selectedEntryID == nil {
+            vocabulary.selectedEntryID = entries.first?.id
+        }
     }
 
     func requestVocabularyEntryCreation() {

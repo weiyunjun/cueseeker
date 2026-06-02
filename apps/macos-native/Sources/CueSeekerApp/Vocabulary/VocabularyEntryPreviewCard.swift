@@ -21,6 +21,7 @@ struct VocabularyEntryPreviewCard: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(tokens.text)
                     .lineLimit(nil)
+                    .minimumScaleFactor(0.72)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(entry.explanation)

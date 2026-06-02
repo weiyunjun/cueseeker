@@ -259,17 +259,21 @@ struct SearchView: View {
                 details: "entries=\(vocabulary.entries.count)"
             )
 
-            return VStack(alignment: .leading, spacing: 6) {
+            return Group {
                 if vocabulary.entries.isEmpty {
-                    InfoPageStateView(state: .vocabularyEmpty)
-                        .font(.system(size: SearchTypography.bodySize))
-                } else {
-                    vocabularyEntryList
-                }
+                    VStack(alignment: .leading, spacing: 6) {
+                        InfoPageStateView(state: .vocabularyEmpty)
+                            .font(.system(size: SearchTypography.bodySize))
 
-                Spacer()
+                        Spacer()
+                    }
+                } else {
+                    VocabularyPanelView { entryID in
+                        vocabulary.selectedEntryID = entryID
+                    }
+                }
             }
-            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(.top, AppShellLayout.contentTopPadding)
             .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
             .background(LayoutPerformanceProbe(name: "SearchView.vocabularyPanel.layout"))
@@ -290,27 +294,6 @@ struct SearchView: View {
                 )
             }
         }
-    }
-
-    private var vocabularyEntryList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: SearchCardLayout.cardVerticalSpacing) {
-                ForEach(vocabulary.entries) { entry in
-                    VocabularyEntryPreviewCard(
-                        entry: entry,
-                        isSelected: vocabulary.selectedEntryID == entry.id,
-                        onSelect: {
-                            vocabulary.selectedEntryID = entry.id
-                        }
-                    )
-                    .focusable(false)
-                }
-            }
-            .padding(.horizontal, SearchCardLayout.contentHorizontalPadding)
-            .padding(.top, SearchCardLayout.contentTopPadding)
-            .padding(.bottom, SearchCardLayout.contentBottomPadding)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var searchResultSummaryText: String? {
