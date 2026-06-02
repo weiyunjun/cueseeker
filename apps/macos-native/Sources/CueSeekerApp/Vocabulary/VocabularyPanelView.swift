@@ -7,6 +7,7 @@ struct VocabularyPanelView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let onSelectEntry: (Int64) -> Void
+    let onOpenExample: (VocabularyExample, [VocabularyExample]) -> Void
 
     private var selectedEntry: VocabularyEntry? {
         vocabulary.selectedEntry ?? vocabulary.entries.first
@@ -14,6 +15,12 @@ struct VocabularyPanelView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let displayTitlesByPath = shioriDisplayTitlesByPath
+            let allExamples = VocabularyExampleDeriver.allExamples(
+                for: vocabulary.entries,
+                shioris: shiori.shioris,
+                displayTitlesBySubtitlePath: displayTitlesByPath
+            )
             let listWidth = min(
                 VocabularyPanelLayout.maxListWidth,
                 max(
@@ -36,8 +43,11 @@ struct VocabularyPanelView: View {
                         examples: VocabularyExampleDeriver.examples(
                             for: selectedEntry,
                             shioris: shiori.shioris,
-                            displayTitlesBySubtitlePath: shioriDisplayTitlesByPath
-                        )
+                            displayTitlesBySubtitlePath: displayTitlesByPath
+                        ),
+                        onOpenExample: { example in
+                            onOpenExample(example, allExamples)
+                        }
                     )
                 } else {
                     InfoPageStateView(state: .vocabularyEmpty)

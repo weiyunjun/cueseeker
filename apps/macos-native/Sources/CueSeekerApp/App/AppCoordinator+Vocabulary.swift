@@ -91,4 +91,92 @@ extension AppCoordinator {
         vocabulary.isAddVocabularyEntryEditorPresented = false
         return entry
     }
+
+    func openVocabularyExample(
+        _ example: VocabularyExample,
+        playlist: [VocabularyExample],
+        recordsNavigationHistory: Bool = true
+    ) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.VocabularyExample.opened",
+            details: "time=\(String(format: "%.2f", Double(example.shiori.startMilliseconds) / 1000.0))"
+        )
+        rememberPlaybackOriginatingPanelModeIfEntering()
+        saveCurrentLibraryPlaybackHistory()
+        stopLibraryPlaybackHistoryTracking()
+
+        let nextPlaylist = playlist.isEmpty ? [example] : playlist
+        vocabulary.applyPlaybackExamples(
+            nextPlaylist,
+            selectedExampleID: example.id
+        )
+        if recordsNavigationHistory {
+            recordPlaybackNavigationEntry(playbackNavigationPayload(for: example.shiori))
+        }
+        activePlaybackSource = .vocabulary
+        shiori.selectedShiori = example.shiori
+        search.selectedSearchResult = nil
+        library.selectedLibraryVideo = nil
+        playback.activePlaybackDrawerKind = .results
+        playback.isPlaybackSidePanelVisible = true
+        playback.isPlaybackSurfaceExpanded = true
+        Task { @MainActor in
+            await Task.yield()
+            play(example.shiori, source: .vocabulary)
+        }
+    }
+
+    var canOpenPreviousVocabularyExample: Bool {
+        guard activePlaybackSource == .vocabulary,
+              let selectedID = vocabulary.selectedPlaybackExampleID,
+              let index = vocabulary.playbackExamples.firstIndex(where: { $0.id == selectedID })
+        else {
+            return false
+        }
+
+        return index > 0
+    }
+
+    var canOpenNextVocabularyExample: Bool {
+        guard activePlaybackSource == .vocabulary,
+              let selectedID = vocabulary.selectedPlaybackExampleID,
+              let index = vocabulary.playbackExamples.firstIndex(where: { $0.id == selectedID })
+        else {
+            return false
+        }
+
+        return index < vocabulary.playbackExamples.count - 1
+    }
+
+    func openPreviousVocabularyExample() {
+        let hasResult = canOpenPreviousVocabularyExample
+        playback.playbackViewModel?.showShioriNavigationFeedback(direction: .previous, hasResult: hasResult)
+        guard hasResult,
+              let selectedID = vocabulary.selectedPlaybackExampleID,
+              let index = vocabulary.playbackExamples.firstIndex(where: { $0.id == selectedID })
+        else {
+            return
+        }
+
+        openVocabularyExample(
+            vocabulary.playbackExamples[index - 1],
+            playlist: vocabulary.playbackExamples
+        )
+    }
+
+    func openNextVocabularyExample() {
+        let hasResult = canOpenNextVocabularyExample
+        playback.playbackViewModel?.showShioriNavigationFeedback(direction: .next, hasResult: hasResult)
+        guard hasResult,
+              let selectedID = vocabulary.selectedPlaybackExampleID,
+              let index = vocabulary.playbackExamples.firstIndex(where: { $0.id == selectedID })
+        else {
+            return
+        }
+
+        openVocabularyExample(
+            vocabulary.playbackExamples[index + 1],
+            playlist: vocabulary.playbackExamples
+        )
+    }
 }

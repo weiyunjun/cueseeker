@@ -5,6 +5,7 @@ import SwiftUI
 struct VocabularyEntryDetailView: View {
     let entry: VocabularyEntry
     let examples: [VocabularyExample]
+    let onOpenExample: (VocabularyExample) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -46,7 +47,10 @@ struct VocabularyEntryDetailView: View {
                     if examples.isEmpty {
                         VocabularyExamplesEmptyStateView()
                     } else {
-                        VocabularyExamplesListView(examples: examples)
+                        VocabularyExamplesListView(
+                            examples: examples,
+                            onOpenExample: onOpenExample
+                        )
                     }
                 }
             }
@@ -71,11 +75,17 @@ enum VocabularyEntryCreatedAtFormatter {
 
 private struct VocabularyExamplesListView: View {
     let examples: [VocabularyExample]
+    let onOpenExample: (VocabularyExample) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(examples) { example in
-                VocabularyExampleCard(example: example)
+                VocabularyExampleCard(
+                    example: example,
+                    onOpen: {
+                        onOpenExample(example)
+                    }
+                )
             }
         }
     }
@@ -83,6 +93,7 @@ private struct VocabularyExamplesListView: View {
 
 private struct VocabularyExampleCard: View {
     let example: VocabularyExample
+    let onOpen: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -90,42 +101,46 @@ private struct VocabularyExampleCard: View {
         let tokens = LiquidGlassTokens(colorScheme: colorScheme)
         let shape = RoundedRectangle(cornerRadius: SearchCardLayout.cardCornerRadius, style: .continuous)
 
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 8) {
-                Image(systemName: "play.rectangle")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(tokens.text3)
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: 8) {
+                    Image(systemName: "play.rectangle")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(tokens.text3)
 
-                Text(example.sourceText)
-                    .font(.system(size: 11, weight: .regular, design: .monospaced))
-                    .foregroundStyle(tokens.text3)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .monospacedDigit()
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(example.displayLines.enumerated()), id: \.offset) { _, line in
-                    Text(line)
-                        .font(.system(size: 13.5, weight: .semibold))
-                        .foregroundStyle(tokens.text.opacity(0.88))
-                        .lineLimit(nil)
-                        .lineSpacing(4)
+                    Text(example.sourceText)
+                        .font(.system(size: 11, weight: .regular, design: .monospaced))
+                        .foregroundStyle(tokens.text3)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
+                        .monospacedDigit()
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(example.displayLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundStyle(tokens.text.opacity(0.88))
+                            .lineLimit(nil)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
+            .padding(.horizontal, 13)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, minHeight: SearchCardLayout.cardMinHeight, alignment: .topLeading)
+            .background(
+                shape
+                    .fill(tokens.cardFill)
+                    .overlay(
+                        shape.strokeBorder(tokens.cardHairline, lineWidth: 0.5)
+                    )
+                    .shadow(color: tokens.cardShadow, radius: 1.5, x: 0, y: 1)
+            )
+            .contentShape(shape)
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, minHeight: SearchCardLayout.cardMinHeight, alignment: .topLeading)
-        .background(
-            shape
-                .fill(tokens.cardFill)
-                .overlay(
-                    shape.strokeBorder(tokens.cardHairline, lineWidth: 0.5)
-                )
-                .shadow(color: tokens.cardShadow, radius: 1.5, x: 0, y: 1)
-        )
+        .buttonStyle(.plain)
         .accessibilityLabel(example.sourceText)
     }
 }

@@ -1243,6 +1243,94 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
 }
 
 @Test
+func reindexingSubtitleRefreshesMatchingShioriSnapshotAndInvalidatesMissingCue() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Episode 1.srt")
+    let firstVideoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    let renamedVideoFile = URL(fileURLWithPath: "/Media/Show/Episode 1 Renamed.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: firstVideoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Original resonance.\n古い共鳴。"
+            )
+        ]
+    )
+
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+    let originalShiori = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: firstVideoFile,
+        videoName: firstVideoFile.lastPathComponent,
+        selection: selection,
+        createdAt: createdAt
+    )
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: renamedVideoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Updated resonance.\n新しい共鳴。"
+            )
+        ]
+    )
+
+    let refreshedShiori = try #require(try database.shioris().first)
+    #expect(refreshedShiori.id == originalShiori.id)
+    #expect(refreshedShiori.videoPath == renamedVideoFile.path)
+    #expect(refreshedShiori.videoName == "Episode 1 Renamed.mkv")
+    #expect(refreshedShiori.content == "Updated resonance.\n新しい共鳴。")
+    #expect(refreshedShiori.isValid)
+    #expect(refreshedShiori.createdAt == ISO8601DateFormatter().string(from: createdAt))
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: renamedVideoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "Different cue after edit."
+            )
+        ]
+    )
+
+    let invalidatedShiori = try #require(try database.shioris().first)
+    #expect(invalidatedShiori.id == originalShiori.id)
+    #expect(invalidatedShiori.videoPath == renamedVideoFile.path)
+    #expect(invalidatedShiori.videoName == "Episode 1 Renamed.mkv")
+    #expect(invalidatedShiori.content == "Updated resonance.\n新しい共鳴。")
+    #expect(!invalidatedShiori.isValid)
+}
+
+@Test
 func removingIndexedFolderPreservesShiori() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

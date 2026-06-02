@@ -85,6 +85,7 @@ final class PlaybackStore: ObservableObject {
     @Published var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
     @Published var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
     @Published var playbackStatus: PlaybackStatus = .idle
+    @Published var activePlaybackDrawerKind: PlaybackDrawerKind = .results
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible: Bool {
         didSet {

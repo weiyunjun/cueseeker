@@ -268,9 +268,17 @@ struct SearchView: View {
                         Spacer()
                     }
                 } else {
-                    VocabularyPanelView { entryID in
-                        vocabulary.selectedEntryID = entryID
-                    }
+                    VocabularyPanelView(
+                        onSelectEntry: { entryID in
+                            vocabulary.selectedEntryID = entryID
+                        },
+                        onOpenExample: { example, playlist in
+                            appState.openVocabularyExample(
+                                example,
+                                playlist: playlist
+                            )
+                        }
+                    )
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

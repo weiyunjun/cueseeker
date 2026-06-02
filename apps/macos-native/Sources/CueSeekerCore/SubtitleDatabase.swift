@@ -1498,6 +1498,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
                 try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
             }
+            try refreshShiorisForReindexedSubtitle(
+                subtitleFile: subtitleFile,
+                videoFile: videoFile
+            )
 
             if rebuildSearchDerivedIndex {
                 try rebuildSearchDerivedIndexInCurrentTransaction()
@@ -4093,6 +4097,61 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try statement.bind(cueGroupID, at: 2)
         }
         try statement.run()
+    }
+
+    private func refreshShiorisForReindexedSubtitle(
+        subtitleFile: URL,
+        videoFile: URL
+    ) throws {
+        let refreshMatching = try database.prepare(
+            """
+            UPDATE shioris
+            SET content = (
+                    SELECT g.search_content
+                    FROM subtitle_cue_groups g
+                    WHERE g.subtitle_path = shioris.subtitle_path
+                      AND g.start_ms = shioris.start_ms
+                      AND g.end_ms = shioris.end_ms
+                    LIMIT 1
+                ),
+                video_path = ?,
+                video_name = ?,
+                is_valid = 1
+            WHERE subtitle_path = ?
+              AND EXISTS (
+                    SELECT 1
+                    FROM subtitle_cue_groups g
+                    WHERE g.subtitle_path = shioris.subtitle_path
+                      AND g.start_ms = shioris.start_ms
+                      AND g.end_ms = shioris.end_ms
+                );
+            """
+        )
+        try refreshMatching.bind(videoFile.path, at: 1)
+        try refreshMatching.bind(videoFile.lastPathComponent, at: 2)
+        try refreshMatching.bind(subtitleFile.path, at: 3)
+        try refreshMatching.run()
+
+        let markMissing = try database.prepare(
+            """
+            UPDATE shioris
+            SET video_path = ?,
+                video_name = ?,
+                is_valid = 0
+            WHERE subtitle_path = ?
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM subtitle_cue_groups g
+                    WHERE g.subtitle_path = shioris.subtitle_path
+                      AND g.start_ms = shioris.start_ms
+                      AND g.end_ms = shioris.end_ms
+                );
+            """
+        )
+        try markMissing.bind(videoFile.path, at: 1)
+        try markMissing.bind(videoFile.lastPathComponent, at: 2)
+        try markMissing.bind(subtitleFile.path, at: 3)
+        try markMissing.run()
     }
 
     private func activeCueGroupSelection(

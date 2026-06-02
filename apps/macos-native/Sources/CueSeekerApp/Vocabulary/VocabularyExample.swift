@@ -2,11 +2,13 @@ import CueSeekerCore
 import Foundation
 
 struct VocabularyExample: Equatable, Identifiable {
+    let vocabularyEntryID: Int64
+    let term: String
     let shiori: Shiori
     let sourceTitle: String
 
-    var id: Int64 {
-        shiori.id
+    var id: String {
+        "\(vocabularyEntryID)-\(shiori.id)"
     }
 
     var sourceText: String {
@@ -31,17 +33,37 @@ enum VocabularyExampleDeriver {
 
         return shioris
             .filter { shiori in
-                shiori.content.range(
+                guard shiori.isValid else {
+                    return false
+                }
+
+                return shiori.content.range(
                     of: term,
                     options: [.caseInsensitive, .diacriticInsensitive]
                 ) != nil
             }
             .map { shiori in
                 VocabularyExample(
+                    vocabularyEntryID: entry.id,
+                    term: entry.term,
                     shiori: shiori,
                     sourceTitle: displayTitlesBySubtitlePath[shiori.subtitlePath]
                         ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: shiori.subtitlePath)
                 )
             }
+    }
+
+    static func allExamples(
+        for entries: [VocabularyEntry],
+        shioris: [Shiori],
+        displayTitlesBySubtitlePath: [String: String] = [:]
+    ) -> [VocabularyExample] {
+        entries.flatMap { entry in
+            examples(
+                for: entry,
+                shioris: shioris,
+                displayTitlesBySubtitlePath: displayTitlesBySubtitlePath
+            )
+        }
     }
 }

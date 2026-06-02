@@ -58,6 +58,7 @@ extension AppCoordinator {
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil
         library.selectedLibraryVideo = nil
+        vocabulary.clearPlaybackExamples()
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
@@ -65,11 +66,11 @@ extension AppCoordinator {
         }
     }
 
-    func play(_ shiori: Shiori) {
+    func play(_ shiori: Shiori, source: ActivePlaybackSource = .shiori) {
         ensurePlayerInitialized()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
-        activePlaybackSource = .shiori
+        activePlaybackSource = source
         playback.playbackStatus = .opening
         let subtitleCues = playbackSubtitleCues(for: shiori)
         playback.playbackViewModel?.setSubtitleCues(

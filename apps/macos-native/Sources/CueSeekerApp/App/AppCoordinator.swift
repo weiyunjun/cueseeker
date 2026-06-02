@@ -152,20 +152,30 @@ final class AppCoordinator: ObservableObject {
     }
 
     var currentPlaybackVideoPath: String? {
-        library.selectedLibraryVideo?.videoPath ?? search.selectedSearchResult?.videoPath ?? shiori.selectedShiori?.videoPath
+        library.selectedLibraryVideo?.videoPath
+            ?? search.selectedSearchResult?.videoPath
+            ?? vocabulary.selectedPlaybackExample?.shiori.videoPath
+            ?? shiori.selectedShiori?.videoPath
     }
 
     var currentPlaybackSubtitlePath: String? {
-        library.selectedLibraryVideo?.subtitlePath ?? search.selectedSearchResult?.subtitlePath ?? shiori.selectedShiori?.subtitlePath
+        library.selectedLibraryVideo?.subtitlePath
+            ?? search.selectedSearchResult?.subtitlePath
+            ?? vocabulary.selectedPlaybackExample?.shiori.subtitlePath
+            ?? shiori.selectedShiori?.subtitlePath
     }
 
     var currentPlaybackSubtitleFormat: SubtitleFormat? {
-        library.selectedLibraryVideo?.subtitleFormat ?? search.selectedSearchResult?.subtitleFormat ?? shiori.selectedShiori?.subtitleFormat
+        library.selectedLibraryVideo?.subtitleFormat
+            ?? search.selectedSearchResult?.subtitleFormat
+            ?? vocabulary.selectedPlaybackExample?.shiori.subtitleFormat
+            ?? shiori.selectedShiori?.subtitleFormat
     }
 
     var currentPlaybackTitle: String {
         library.selectedLibraryVideo?.videoName
             ?? search.selectedSearchResult?.videoName
+            ?? vocabulary.selectedPlaybackExample?.shiori.videoName
             ?? shiori.selectedShiori?.videoName
             ?? "No video selected"
     }
@@ -188,6 +198,10 @@ final class AppCoordinator: ObservableObject {
                     .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
                     .subtitleDisplayTitle
                 ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedSearchResult.subtitlePath)
+        }
+
+        if let selectedVocabularyExample = vocabulary.selectedPlaybackExample {
+            return selectedVocabularyExample.sourceTitle
         }
 
         if let selectedShiori = shiori.selectedShiori {
@@ -254,6 +268,8 @@ final class AppCoordinator: ObservableObject {
             return canOpenPreviousLibraryVideo
         case .shiori:
             return canOpenPreviousShiori
+        case .vocabulary:
+            return canOpenPreviousVocabularyExample
         case .none:
             return false
         }
@@ -267,6 +283,8 @@ final class AppCoordinator: ObservableObject {
             openPreviousLibraryVideo()
         case .shiori:
             openPreviousShiori()
+        case .vocabulary:
+            openPreviousVocabularyExample()
         case .none:
             break
         }
@@ -280,6 +298,8 @@ final class AppCoordinator: ObservableObject {
             return canOpenNextLibraryVideo
         case .shiori:
             return canOpenNextShiori
+        case .vocabulary:
+            return canOpenNextVocabularyExample
         case .none:
             return false
         }
@@ -293,6 +313,8 @@ final class AppCoordinator: ObservableObject {
             openNextLibraryVideo()
         case .shiori:
             openNextShiori()
+        case .vocabulary:
+            openNextVocabularyExample()
         case .none:
             break
         }
