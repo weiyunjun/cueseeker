@@ -62,10 +62,83 @@ struct ASSFontAliasTable: Sendable {
     }
 }
 
-struct ASSFontNameTableFace: Sendable {
+struct ASSFontNameTableFace: Codable, Equatable, Sendable {
     let aliases: [String]
     let postScriptNames: [String]
     let postScriptKeys: Set<String>
+}
+
+struct ASSInstalledFontFileSnapshot: Codable, Equatable, Sendable {
+    let path: String
+    let fileSize: Int64
+    let modificationTimeNanoseconds: Int64
+
+    var url: URL {
+        URL(fileURLWithPath: path).standardizedFileURL
+    }
+}
+
+struct ASSInstalledFontEnvironmentSnapshot: Codable, Equatable, Sendable {
+    let entries: [ASSInstalledFontFileSnapshot]
+}
+
+enum ASSFontAliasEnvironmentCache {
+    static let algorithmVersion = 2
+
+    private struct Payload: Codable {
+        let algorithmVersion: Int
+        let snapshot: ASSInstalledFontEnvironmentSnapshot
+        let facesByPath: [String: [ASSFontNameTableFace]]
+    }
+
+    static func cachedFaces(
+        matching snapshot: ASSInstalledFontEnvironmentSnapshot,
+        cacheURL: URL = defaultCacheURL()
+    ) throws -> [URL: [ASSFontNameTableFace]]? {
+        let data = try Data(contentsOf: cacheURL)
+        let payload = try JSONDecoder().decode(Payload.self, from: data)
+        guard payload.algorithmVersion == algorithmVersion,
+              payload.snapshot == snapshot
+        else {
+            return nil
+        }
+
+        return Dictionary(uniqueKeysWithValues: payload.facesByPath.map { path, faces in
+            (URL(fileURLWithPath: path).standardizedFileURL, faces)
+        })
+    }
+
+    static func store(
+        facesByURL: [URL: [ASSFontNameTableFace]],
+        snapshot: ASSInstalledFontEnvironmentSnapshot,
+        cacheURL: URL = defaultCacheURL()
+    ) throws {
+        let payload = Payload(
+            algorithmVersion: algorithmVersion,
+            snapshot: snapshot,
+            facesByPath: Dictionary(uniqueKeysWithValues: facesByURL.map { url, faces in
+                (url.standardizedFileURL.path, faces)
+            })
+        )
+        let data = try JSONEncoder().encode(payload)
+        try FileManager.default.createDirectory(
+            at: cacheURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: cacheURL, options: .atomic)
+    }
+
+    static func defaultCacheURL() -> URL {
+        let baseDirectory = FileManager.default.urls(
+            for: .cachesDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches")
+
+        return baseDirectory
+            .appendingPathComponent("CueSeeker", isDirectory: true)
+            .appendingPathComponent("ASSFontAliasResolver", isDirectory: true)
+            .appendingPathComponent("font-environment-v\(algorithmVersion).json")
+    }
 }
 
 enum ASSFontNameTableParser {
@@ -525,29 +598,32 @@ final class ASSFontAliasResolver: @unchecked Sendable {
     static let shared = ASSFontAliasResolver()
 
     private let lock = NSLock()
-    private var cachedTable: ASSFontAliasTable?
+    private var cachedTable: (snapshot: ASSInstalledFontEnvironmentSnapshot, table: ASSFontAliasTable)?
 
     func rewriteRenderScript(_ script: String) -> String {
         ASSFontAliasRewriter.rewrite(script: script, aliases: aliasTable())
     }
 
     private func aliasTable() -> ASSFontAliasTable {
+        let installedFontSnapshot = Self.installedFontEnvironmentSnapshot()
+
         lock.lock()
-        defer {
+        if let cachedTable, cachedTable.snapshot == installedFontSnapshot {
             lock.unlock()
+            return cachedTable.table
         }
+        lock.unlock()
 
-        if let cachedTable {
-            return cachedTable
-        }
+        let table = Self.buildAliasTable(for: installedFontSnapshot)
 
-        let table = Self.buildAliasTable()
-        cachedTable = table
+        lock.lock()
+        cachedTable = (snapshot: installedFontSnapshot, table: table)
+        lock.unlock()
         return table
     }
 
-    private static func buildAliasTable() -> ASSFontAliasTable {
-        let installedFontFacesByURL = installedFontFacesByURL()
+    private static func buildAliasTable(for installedFontSnapshot: ASSInstalledFontEnvironmentSnapshot) -> ASSFontAliasTable {
+        let installedFontFacesByURL = installedFontFacesByURL(for: installedFontSnapshot)
         let options: [CFString: Any] = [
             kCTFontCollectionRemoveDuplicatesOption: true
         ]
@@ -670,14 +746,51 @@ final class ASSFontAliasResolver: @unchecked Sendable {
         }
     }
 
-    private static func installedFontFacesByURL() -> [URL: [ASSFontNameTableFace]] {
+    private static func installedFontFacesByURL(
+        for snapshot: ASSInstalledFontEnvironmentSnapshot
+    ) -> [URL: [ASSFontNameTableFace]] {
+        registerInstalledFonts(at: snapshot.entries.map(\.url))
+
+        if let cachedFaces = try? ASSFontAliasEnvironmentCache.cachedFaces(matching: snapshot) {
+            return cachedFaces
+        }
+
+        let facesByURL = parseInstalledFontFaces(in: snapshot)
+        try? ASSFontAliasEnvironmentCache.store(facesByURL: facesByURL, snapshot: snapshot)
+        return facesByURL
+    }
+
+    private static func parseInstalledFontFaces(
+        in snapshot: ASSInstalledFontEnvironmentSnapshot
+    ) -> [URL: [ASSFontNameTableFace]] {
         var facesByURL: [URL: [ASSFontNameTableFace]] = [:]
+        for entry in snapshot.entries {
+            let fontURL = entry.url
+            guard facesByURL[fontURL] == nil,
+                  let data = try? Data(contentsOf: fontURL, options: [.mappedIfSafe])
+            else {
+                continue
+            }
+
+            let faces = ASSFontNameTableParser.faces(in: data)
+            if !faces.isEmpty {
+                facesByURL[fontURL] = faces
+            }
+        }
+
+        return facesByURL
+    }
+
+    static func installedFontEnvironmentSnapshot(
+        directories: [URL] = installedFontDirectories()
+    ) -> ASSInstalledFontEnvironmentSnapshot {
+        var entries: [ASSInstalledFontFileSnapshot] = []
         let supportedExtensions: Set<String> = ["otc", "otf", "ttc", "ttf"]
 
-        for directory in installedFontDirectories() {
+        for directory in directories {
             guard let enumerator = FileManager.default.enumerator(
                 at: directory,
-                includingPropertiesForKeys: [.isRegularFileKey],
+                includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants]
             ) else {
                 continue
@@ -686,28 +799,35 @@ final class ASSFontAliasResolver: @unchecked Sendable {
             for case let url as URL in enumerator {
                 let fontURL = url.standardizedFileURL
                 guard supportedExtensions.contains(fontURL.pathExtension.lowercased()),
-                      facesByURL[fontURL] == nil,
-                      (try? fontURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+                      let values = try? fontURL.resourceValues(
+                        forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
+                      ),
+                      values.isRegularFile == true
                 else {
                     continue
                 }
 
-                registerFontForCurrentProcess(at: fontURL)
-                guard let data = try? Data(contentsOf: fontURL, options: [.mappedIfSafe]) else {
-                    continue
-                }
-
-                let faces = ASSFontNameTableParser.faces(in: data)
-                if !faces.isEmpty {
-                    facesByURL[fontURL] = faces
-                }
+                let modificationTimeNanoseconds = Int64(
+                    ((values.contentModificationDate?.timeIntervalSince1970 ?? 0) * 1_000_000_000).rounded()
+                )
+                entries.append(
+                    ASSInstalledFontFileSnapshot(
+                        path: fontURL.path,
+                        fileSize: Int64(values.fileSize ?? 0),
+                        modificationTimeNanoseconds: modificationTimeNanoseconds
+                    )
+                )
             }
         }
 
-        return facesByURL
+        return ASSInstalledFontEnvironmentSnapshot(
+            entries: entries.sorted { lhs, rhs in
+                lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
+            }
+        )
     }
 
-    private static func installedFontDirectories() -> [URL] {
+    static func installedFontDirectories() -> [URL] {
         var directories: [URL] = []
         if let userLibrary = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first {
             directories.append(userLibrary.appendingPathComponent("Fonts", isDirectory: true))
@@ -715,6 +835,12 @@ final class ASSFontAliasResolver: @unchecked Sendable {
         directories.append(URL(fileURLWithPath: "/Library/Fonts", isDirectory: true))
         directories.append(URL(fileURLWithPath: "/Network/Library/Fonts", isDirectory: true))
         return directories
+    }
+
+    private static func registerInstalledFonts(at urls: [URL]) {
+        for url in urls {
+            registerFontForCurrentProcess(at: url)
+        }
     }
 
     private static func registerFontForCurrentProcess(at url: URL) {

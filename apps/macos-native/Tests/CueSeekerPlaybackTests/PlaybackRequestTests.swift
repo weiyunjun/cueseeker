@@ -133,6 +133,51 @@ func assFontAliasResolverPrefersNameTableMatchedCanonicalName() {
 }
 
 @Test
+func assFontAliasEnvironmentCacheReusesOnlyMatchingFontSnapshot() throws {
+    let directory = try temporaryPlaybackTestDirectory()
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let fontURL = directory.appendingPathComponent("STZHONGS.TTF")
+    let cacheURL = directory.appendingPathComponent("font-environment-cache.json")
+    let fontData = makeTestFontData(
+        nameRecords: [
+            TestFontNameRecord(platformID: 3, encodingID: 1, languageID: 0x0804, nameID: 1, text: "华文中宋"),
+            TestFontNameRecord(platformID: 3, encodingID: 1, languageID: 0x0409, nameID: 6, text: "STZhongsong")
+        ]
+    )
+    try fontData.write(to: fontURL)
+
+    let snapshot = ASSFontAliasResolver.installedFontEnvironmentSnapshot(directories: [directory])
+    let facesByURL = [
+        fontURL.standardizedFileURL: [
+            ASSFontNameTableFace(
+                aliases: ["华文中宋", "STZhongsong"],
+                postScriptNames: ["STZhongsong"],
+                postScriptKeys: [ASSFontAliasTable.normalizedKey("STZhongsong")]
+            )
+        ]
+    ]
+
+    try ASSFontAliasEnvironmentCache.store(
+        facesByURL: facesByURL,
+        snapshot: snapshot,
+        cacheURL: cacheURL
+    )
+
+    #expect(try ASSFontAliasEnvironmentCache.cachedFaces(matching: snapshot, cacheURL: cacheURL) == facesByURL)
+
+    var changedFontData = fontData
+    changedFontData.append(0)
+    try changedFontData.write(to: fontURL)
+    let changedSnapshot = ASSFontAliasResolver.installedFontEnvironmentSnapshot(directories: [directory])
+
+    #expect(changedSnapshot != snapshot)
+    #expect(try ASSFontAliasEnvironmentCache.cachedFaces(matching: changedSnapshot, cacheURL: cacheURL) == nil)
+}
+
+@Test
 func assFontAliasRewriterUpdatesStylesAndInlineOverrideTagsOnlyInRenderScript() {
     let table = ASSFontAliasTable(
         records: [
