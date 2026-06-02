@@ -96,21 +96,11 @@ private struct AppTopBar: View {
                             systemImage: "bookmark",
                             help: "Shiori"
                         )
-
-                        TopbarModeButton(
-                            mode: .vocabulary,
-                            systemImage: "character.book.closed",
-                            help: "Vocabulary"
-                        )
                     }
 
                     TopbarSearchInputHost()
                     .frame(width: AppShellLayout.topbarSearchFieldWidth)
                 }
-            }
-            .overlay(alignment: .trailing) {
-                TopbarAddVocabularyButton()
-                    .padding(.trailing, 24)
             }
             .simultaneousGesture(
                 TapGesture().onEnded {
@@ -150,27 +140,6 @@ private struct TopbarCommandBridge: View {
 
                 _ = appState.beginTitlebarZoomTransitionFromUser(window: window)
             }
-    }
-}
-
-private struct TopbarAddVocabularyButton: View {
-    @EnvironmentObject private var appState: AppCoordinator
-
-    var body: some View {
-        Button {
-            appState.performUserInitiatedAppCommand {
-                appState.requestVocabularyEntryCreation()
-            }
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 17, weight: .semibold))
-                .frame(width: 34, height: 34)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(TopbarModeButtonStyle(isSelected: false))
-        .foregroundStyle(AppShellLayout.topbarModeColor)
-        .help("Add Vocabulary")
-        .accessibilityLabel("Add Vocabulary")
     }
 }
 

@@ -384,13 +384,6 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct VocabularyEntry: Equatable, Sendable, Identifiable {
-    public let id: Int64
-    public let term: String
-    public let explanation: String
-    public let createdAt: String
-}
-
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
@@ -668,7 +661,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 16
+    public static let currentSchemaVersion: Int = 15
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -907,16 +900,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE INDEX IF NOT EXISTS idx_shioris_order
                 ON shioris(subtitle_path, start_ms, end_ms);
-
-            CREATE TABLE IF NOT EXISTS vocabulary_entries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                term TEXT NOT NULL,
-                explanation TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_vocabulary_entries_order
-                ON vocabulary_entries(created_at DESC, id DESC);
 
             CREATE TABLE IF NOT EXISTS ai_chunk_cache_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1157,47 +1140,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     public func clearAIChunkCacheEntries() throws {
         try database.execute("DELETE FROM ai_chunk_cache_entries;")
-    }
-
-    public func addVocabularyEntry(
-        term: String,
-        explanation: String,
-        createdAt: Date = Date()
-    ) throws -> VocabularyEntry {
-        let createdAtString = ISO8601DateFormatter().string(from: createdAt)
-        let statement = try database.prepare(
-            """
-            INSERT INTO vocabulary_entries(term, explanation, created_at)
-            VALUES (?, ?, ?)
-            RETURNING id, term, explanation, created_at;
-            """
-        )
-
-        try statement.bind(term, at: 1)
-        try statement.bind(explanation, at: 2)
-        try statement.bind(createdAtString, at: 3)
-
-        guard try statement.step() else {
-            throw SQLiteDatabaseError.stepFailed("Inserted vocabulary entry could not be loaded")
-        }
-
-        return vocabularyEntry(from: statement)
-    }
-
-    public func vocabularyEntries() throws -> [VocabularyEntry] {
-        let statement = try database.prepare(
-            """
-            SELECT id, term, explanation, created_at
-            FROM vocabulary_entries
-            ORDER BY created_at DESC, id DESC;
-            """
-        )
-
-        var entries: [VocabularyEntry] = []
-        while try statement.step() {
-            entries.append(vocabularyEntry(from: statement))
-        }
-        return entries
     }
 
     public func playbackNavigationIndexRevision() throws -> Int64 {
@@ -1498,10 +1440,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
                 try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
             }
-            try refreshShiorisForReindexedSubtitle(
-                subtitleFile: subtitleFile,
-                videoFile: videoFile
-            )
 
             if rebuildSearchDerivedIndex {
                 try rebuildSearchDerivedIndexInCurrentTransaction()
@@ -4099,61 +4037,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func refreshShiorisForReindexedSubtitle(
-        subtitleFile: URL,
-        videoFile: URL
-    ) throws {
-        let refreshMatching = try database.prepare(
-            """
-            UPDATE shioris
-            SET content = (
-                    SELECT g.search_content
-                    FROM subtitle_cue_groups g
-                    WHERE g.subtitle_path = shioris.subtitle_path
-                      AND g.start_ms = shioris.start_ms
-                      AND g.end_ms = shioris.end_ms
-                    LIMIT 1
-                ),
-                video_path = ?,
-                video_name = ?,
-                is_valid = 1
-            WHERE subtitle_path = ?
-              AND EXISTS (
-                    SELECT 1
-                    FROM subtitle_cue_groups g
-                    WHERE g.subtitle_path = shioris.subtitle_path
-                      AND g.start_ms = shioris.start_ms
-                      AND g.end_ms = shioris.end_ms
-                );
-            """
-        )
-        try refreshMatching.bind(videoFile.path, at: 1)
-        try refreshMatching.bind(videoFile.lastPathComponent, at: 2)
-        try refreshMatching.bind(subtitleFile.path, at: 3)
-        try refreshMatching.run()
-
-        let markMissing = try database.prepare(
-            """
-            UPDATE shioris
-            SET video_path = ?,
-                video_name = ?,
-                is_valid = 0
-            WHERE subtitle_path = ?
-              AND NOT EXISTS (
-                    SELECT 1
-                    FROM subtitle_cue_groups g
-                    WHERE g.subtitle_path = shioris.subtitle_path
-                      AND g.start_ms = shioris.start_ms
-                      AND g.end_ms = shioris.end_ms
-                );
-            """
-        )
-        try markMissing.bind(videoFile.path, at: 1)
-        try markMissing.bind(videoFile.lastPathComponent, at: 2)
-        try markMissing.bind(subtitleFile.path, at: 3)
-        try markMissing.run()
-    }
-
     private func activeCueGroupSelection(
         forSubtitleFile subtitleFile: URL,
         atMilliseconds milliseconds: Int
@@ -4470,15 +4353,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             content: statement.stringColumn(7),
             isValid: statement.intColumn(8) != 0,
             createdAt: statement.stringColumn(9)
-        )
-    }
-
-    private func vocabularyEntry(from statement: SQLiteStatement) -> VocabularyEntry {
-        VocabularyEntry(
-            id: statement.int64Column(0),
-            term: statement.stringColumn(1),
-            explanation: statement.stringColumn(2),
-            createdAt: statement.stringColumn(3)
         )
     }
 

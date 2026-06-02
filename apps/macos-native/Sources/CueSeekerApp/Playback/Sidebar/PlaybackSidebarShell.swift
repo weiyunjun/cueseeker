@@ -6,7 +6,6 @@ struct PlaybackSidebarShell: View {
     @ObservedObject var appState: AppCoordinator
     @Binding var activePanel: PlaybackDrawerKind
     @EnvironmentObject private var search: SearchStore
-    @EnvironmentObject private var vocabulary: VocabularyStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
 
@@ -14,7 +13,7 @@ struct PlaybackSidebarShell: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 2) {
-                    sidebarTab(.results, title: resultsTabTitle)
+                    sidebarTab(.results, title: "Search Results")
                     sidebarTab(.subtitles, title: "Subtitles")
                 }
                 .padding(2)
@@ -46,11 +45,7 @@ struct PlaybackSidebarShell: View {
         if playback.isPlaybackSidePanelVisible {
             switch activePanel {
             case .results:
-                if appState.activePlaybackSource == .vocabulary {
-                    vocabularyExamplesList
-                } else {
-                    searchResultsList
-                }
+                searchResultsList
             case .subtitles:
                 if let viewModel = playback.playbackViewModel {
                     PlaybackSubtitlesList(appState: appState, viewModel: viewModel)
@@ -90,49 +85,6 @@ struct PlaybackSidebarShell: View {
             .onChange(of: search.selectedSearchResult?.entryID) { _ in
                 scrollSelectedIntoView(proxy)
             }
-        }
-    }
-
-    private var vocabularyExamplesList: some View {
-        let rows = Array(vocabulary.playbackExamples.enumerated())
-        return ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(rows, id: \.element.id) { index, example in
-                        PlaybackSidebarVocabularyExampleRow(
-                            rank: index + 1,
-                            example: example,
-                            isSelected: example.id == vocabulary.selectedPlaybackExampleID,
-                            onOpen: {
-                                appState.openVocabularyExample(
-                                    example,
-                                    playlist: vocabulary.playbackExamples
-                                )
-                            }
-                        )
-                        .id(example.id)
-                    }
-                }
-                .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(ScrollViewIntrospector { scrollView in
-                    configurePlaybackSidebarScrollView(scrollView)
-                })
-            }
-            .onAppear { scrollSelectedVocabularyExampleIntoView(proxy) }
-            .onChange(of: vocabulary.selectedPlaybackExampleID) { _ in
-                scrollSelectedVocabularyExampleIntoView(proxy)
-            }
-        }
-    }
-
-    private func scrollSelectedVocabularyExampleIntoView(_ proxy: ScrollViewProxy) {
-        guard let id = vocabulary.selectedPlaybackExampleID else {
-            return
-        }
-
-        withAnimation(.easeInOut(duration: 0.18)) {
-            proxy.scrollTo(id, anchor: .center)
         }
     }
 
@@ -194,11 +146,6 @@ struct PlaybackSidebarShell: View {
     private var summaryText: String {
         switch activePanel {
         case .results:
-            if appState.activePlaybackSource == .vocabulary {
-                let count = vocabulary.playbackExamples.count
-                return "\(count) \(count == 1 ? "example" : "examples")"
-            }
-
             let groupedCount = search.searchNavigationResultGroups.reduce(0) { $0 + $1.results.count }
             let fallbackCount = search.searchResultTotalCount > 0
                 ? search.searchResultTotalCount
@@ -210,67 +157,6 @@ struct PlaybackSidebarShell: View {
             let count = playback.currentSubtitleEntries.count
             return "\(count) \(count == 1 ? "subtitle" : "subtitles")"
         }
-    }
-
-    private var resultsTabTitle: String {
-        appState.activePlaybackSource == .vocabulary ? "Vocabulary Examples" : "Search Results"
-    }
-}
-
-private struct PlaybackSidebarVocabularyExampleRow: View {
-    let rank: Int
-    let example: VocabularyExample
-    let isSelected: Bool
-    let onOpen: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text("#\(rank)")
-                    Text(example.sourceText)
-                }
-                .font(.system(size: 11.5, weight: isSelected ? .semibold : .regular))
-                .monospacedDigit()
-                .foregroundStyle(metaColor)
-
-                ForEach(Array(example.displayLines.enumerated()), id: \.offset) { _, line in
-                    Text(line)
-                        .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
-                        .foregroundStyle(lineColor)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(rowBackground)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 8))
-            .padding(.vertical, 2)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-    }
-
-    private var lineColor: Color {
-        isSelected ? Color.white : Color.white.opacity(0.90)
-    }
-
-    private var metaColor: Color {
-        isSelected ? Color.white : Color.white.opacity(0.55)
-    }
-
-    private var rowBackground: Color {
-        if isSelected || isHovered {
-            return PlaybackTheme.menuItemHighlight
-        }
-        return Color.clear
     }
 }
 

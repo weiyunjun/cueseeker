@@ -92,7 +92,6 @@ enum ActivePlaybackSource: Equatable {
     case library(videoPath: String)
     case search
     case shiori
-    case vocabulary
 }
 
 enum SearchResultNavigationDirection: Equatable {

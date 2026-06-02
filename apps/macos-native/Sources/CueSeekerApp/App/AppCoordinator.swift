@@ -6,8 +6,8 @@ import CueSeekerCore
 import CueSeekerPlayback
 
 /// Workflow coordinator. Holds references to the per-domain stores (settings,
-/// indexing, workbenchLayout, shiori, library, vocabulary, search, playback)
-/// and owns the orchestration methods that span multiple domains. Per-domain @Published
+/// indexing, workbenchLayout, shiori, library, search, playback) and owns the
+/// orchestration methods that span multiple domains. Per-domain @Published
 /// state and derived display properties live on the respective stores;
 /// AppCoordinator's own @Published surface is intentionally minimal
 /// (`startupError` only) so views observing the stores get scoped invalidation.
@@ -31,7 +31,6 @@ final class AppCoordinator: ObservableObject {
     let indexing: IndexingStore
     let shiori: ShioriStore
     let library: LibraryStore
-    let vocabulary: VocabularyStore
     let search: SearchStore
     let playback: PlaybackStore
     var settingsCancellables: Set<AnyCancellable> = []
@@ -152,30 +151,20 @@ final class AppCoordinator: ObservableObject {
     }
 
     var currentPlaybackVideoPath: String? {
-        library.selectedLibraryVideo?.videoPath
-            ?? search.selectedSearchResult?.videoPath
-            ?? vocabulary.selectedPlaybackExample?.shiori.videoPath
-            ?? shiori.selectedShiori?.videoPath
+        library.selectedLibraryVideo?.videoPath ?? search.selectedSearchResult?.videoPath ?? shiori.selectedShiori?.videoPath
     }
 
     var currentPlaybackSubtitlePath: String? {
-        library.selectedLibraryVideo?.subtitlePath
-            ?? search.selectedSearchResult?.subtitlePath
-            ?? vocabulary.selectedPlaybackExample?.shiori.subtitlePath
-            ?? shiori.selectedShiori?.subtitlePath
+        library.selectedLibraryVideo?.subtitlePath ?? search.selectedSearchResult?.subtitlePath ?? shiori.selectedShiori?.subtitlePath
     }
 
     var currentPlaybackSubtitleFormat: SubtitleFormat? {
-        library.selectedLibraryVideo?.subtitleFormat
-            ?? search.selectedSearchResult?.subtitleFormat
-            ?? vocabulary.selectedPlaybackExample?.shiori.subtitleFormat
-            ?? shiori.selectedShiori?.subtitleFormat
+        library.selectedLibraryVideo?.subtitleFormat ?? search.selectedSearchResult?.subtitleFormat ?? shiori.selectedShiori?.subtitleFormat
     }
 
     var currentPlaybackTitle: String {
         library.selectedLibraryVideo?.videoName
             ?? search.selectedSearchResult?.videoName
-            ?? vocabulary.selectedPlaybackExample?.shiori.videoName
             ?? shiori.selectedShiori?.videoName
             ?? "No video selected"
     }
@@ -198,10 +187,6 @@ final class AppCoordinator: ObservableObject {
                     .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
                     .subtitleDisplayTitle
                 ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedSearchResult.subtitlePath)
-        }
-
-        if let selectedVocabularyExample = vocabulary.selectedPlaybackExample {
-            return selectedVocabularyExample.sourceTitle
         }
 
         if let selectedShiori = shiori.selectedShiori {
@@ -268,8 +253,6 @@ final class AppCoordinator: ObservableObject {
             return canOpenPreviousLibraryVideo
         case .shiori:
             return canOpenPreviousShiori
-        case .vocabulary:
-            return canOpenPreviousVocabularyExample
         case .none:
             return false
         }
@@ -283,8 +266,6 @@ final class AppCoordinator: ObservableObject {
             openPreviousLibraryVideo()
         case .shiori:
             openPreviousShiori()
-        case .vocabulary:
-            openPreviousVocabularyExample()
         case .none:
             break
         }
@@ -298,8 +279,6 @@ final class AppCoordinator: ObservableObject {
             return canOpenNextLibraryVideo
         case .shiori:
             return canOpenNextShiori
-        case .vocabulary:
-            return canOpenNextVocabularyExample
         case .none:
             return false
         }
@@ -313,8 +292,6 @@ final class AppCoordinator: ObservableObject {
             openNextLibraryVideo()
         case .shiori:
             openNextShiori()
-        case .vocabulary:
-            openNextVocabularyExample()
         case .none:
             break
         }
@@ -351,7 +328,6 @@ final class AppCoordinator: ObservableObject {
     var indexingTask: Task<Void, Never>?
     var libraryTask: Task<Void, Never>?
     var shiorisTask: Task<Void, Never>?
-    var vocabularyTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var searchTask: Task<Void, Never>?
     var searchExactCompletionTask: Task<Void, Never>?
@@ -394,7 +370,6 @@ final class AppCoordinator: ObservableObject {
         indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
         shiori = ShioriStore()
         library = LibraryStore()
-        vocabulary = VocabularyStore()
         search = SearchStore()
         playback = PlaybackStore(userDefaults: userDefaults)
 

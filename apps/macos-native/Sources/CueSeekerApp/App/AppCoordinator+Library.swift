@@ -182,7 +182,6 @@ extension AppCoordinator {
         library.selectedLibraryVideo = video
         search.selectedSearchResult = nil
         shiori.selectedShiori = nil
-        vocabulary.clearPlaybackExamples()
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()

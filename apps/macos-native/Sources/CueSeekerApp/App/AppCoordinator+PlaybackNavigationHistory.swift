@@ -223,8 +223,6 @@ extension AppCoordinator {
             .search
         case .shiori:
             .shiori
-        case .vocabulary:
-            .shiori
         case .none:
             nil
         }

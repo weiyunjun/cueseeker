@@ -23,7 +23,6 @@ enum InfoPageState: Equatable {
     case libraryFailed(String)
     case libraryNoVideos
     case shioriEmpty
-    case vocabularyEmpty
 
     /// Verbatim from the prior `SearchView.swift` call sites.
     var title: String {
@@ -37,7 +36,6 @@ enum InfoPageState: Equatable {
         case .libraryFailed: return "Library Failed"
         case .libraryNoVideos: return "No Videos"
         case .shioriEmpty: return "No Shiori"
-        case .vocabularyEmpty: return "No Vocabulary"
         }
     }
 
@@ -50,7 +48,6 @@ enum InfoPageState: Equatable {
         case .libraryNoLibrary, .libraryLoading: return "folder"
         case .libraryNoVideos: return "play.rectangle"
         case .shioriEmpty: return "bookmark"
-        case .vocabularyEmpty: return "character.book.closed"
         }
     }
 
@@ -74,8 +71,6 @@ enum InfoPageState: Equatable {
             return "Reindex subtitle folders to populate Library videos."
         case .shioriEmpty:
             return "Save subtitles from playback to collect Shiori."
-        case .vocabularyEmpty:
-            return "Add vocabulary entries from the topbar."
         }
     }
 

@@ -81,7 +81,6 @@ extension AppCoordinator {
                 indexing.indexingStatus = .completed(folder, result)
                 refreshLibrary()
                 refreshCurrentSearch()
-                hydrateShiorisAsync()
                 refreshDatabaseStorageStats()
             } catch {
                 guard !Task.isCancelled else {
@@ -184,7 +183,6 @@ extension AppCoordinator {
             )
             refreshLibrary()
             refreshCurrentSearch()
-            hydrateShiorisAsync()
             refreshDatabaseStorageStats()
         }
     }

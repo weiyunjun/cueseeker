@@ -9,7 +9,6 @@ struct SearchView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var shiori: ShioriStore
     @EnvironmentObject private var library: LibraryStore
-    @EnvironmentObject private var vocabulary: VocabularyStore
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
@@ -70,8 +69,6 @@ struct SearchView: View {
                     topbarSearchResultsArea
                 case .shiori:
                     shioriPanel
-                case .vocabulary:
-                    vocabularyPanel
                 }
             }
         }
@@ -250,59 +247,6 @@ struct SearchView: View {
 
     private var shioriSummaryText: String {
         "\(shiori.shioriCount) shioris in \(shiori.shioriFileCount) files"
-    }
-
-    private var vocabularyPanel: some View {
-        AppPerformanceProbe.measure("SearchView.vocabularyPanel.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count(
-                "UI.VocabularyPanel.body",
-                details: "entries=\(vocabulary.entries.count)"
-            )
-
-            return Group {
-                if vocabulary.entries.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        InfoPageStateView(state: .vocabularyEmpty)
-                            .font(.system(size: SearchTypography.bodySize))
-
-                        Spacer()
-                    }
-                } else {
-                    VocabularyPanelView(
-                        onSelectEntry: { entryID in
-                            vocabulary.selectedEntryID = entryID
-                        },
-                        onOpenExample: { example, playlist in
-                            appState.openVocabularyExample(
-                                example,
-                                playlist: playlist
-                            )
-                        }
-                    )
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.top, AppShellLayout.contentTopPadding)
-            .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
-            .background(LayoutPerformanceProbe(name: "SearchView.vocabularyPanel.layout"))
-            .task {
-                appState.hydrateVocabularyEntriesAsync()
-                appState.hydrateShiorisAsync()
-            }
-            .sheet(isPresented: $vocabulary.isAddVocabularyEntryEditorPresented) {
-                VocabularyAddEntrySheet(
-                    onCancel: {
-                        vocabulary.isAddVocabularyEntryEditorPresented = false
-                    },
-                    onSave: { term, explanation in
-                        try appState.addVocabularyEntry(
-                            term: term,
-                            explanation: explanation
-                        )
-                    }
-                )
-            }
-        }
     }
 
     private var searchResultSummaryText: String? {

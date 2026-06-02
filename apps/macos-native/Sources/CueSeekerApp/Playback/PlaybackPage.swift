@@ -6,6 +6,7 @@ struct PlaybackPageView: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppCoordinator
     let onClose: () -> Void
+    @State private var activePanel: PlaybackDrawerKind = .results
     @EnvironmentObject private var playback: PlaybackStore
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var search: SearchStore
@@ -65,10 +66,7 @@ struct PlaybackPageView: View {
                 - PlaybackOverlayPanelMetrics.bottomInset
         )
 
-        PlaybackSidebarShell(
-            appState: appState,
-            activePanel: $playback.activePlaybackDrawerKind
-        )
+        PlaybackSidebarShell(appState: appState, activePanel: $activePanel)
             .frame(width: panelWidth, height: panelHeight)
             .background(PlaybackTheme.cinematicBacking)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
