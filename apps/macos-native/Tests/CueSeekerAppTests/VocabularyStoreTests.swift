@@ -18,6 +18,27 @@ func requestingVocabularyEntryCreationSelectsVocabularyModeAndPresentsEditor() a
 }
 
 @MainActor
+@Test
+func addingVocabularyEntryPersistsEntryAndClosesEditor() async throws {
+    try await withTemporaryVocabularyApp { app in
+        app.requestVocabularyEntryCreation()
+
+        let entry = try app.addVocabularyEntry(
+            term: "  resonance  ",
+            explanation: "  Continued sound after the source stops.  "
+        )
+        let database = try #require(app.subtitleDatabase)
+        let persistedEntries = try database.vocabularyEntries()
+
+        #expect(entry.term == "resonance")
+        #expect(entry.explanation == "Continued sound after the source stops.")
+        #expect(app.vocabulary.entries == persistedEntries)
+        #expect(app.vocabulary.selectedEntryID == entry.id)
+        #expect(!app.vocabulary.isAddVocabularyEntryEditorPresented)
+    }
+}
+
+@MainActor
 private func withTemporaryVocabularyApp(
     _ body: @MainActor (AppCoordinator) throws -> Void
 ) async throws {

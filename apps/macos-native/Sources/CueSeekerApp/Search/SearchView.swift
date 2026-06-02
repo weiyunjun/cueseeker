@@ -260,8 +260,12 @@ struct SearchView: View {
             )
 
             return VStack(alignment: .leading, spacing: 6) {
-                InfoPageStateView(state: .vocabularyEmpty)
-                    .font(.system(size: SearchTypography.bodySize))
+                if vocabulary.entries.isEmpty {
+                    InfoPageStateView(state: .vocabularyEmpty)
+                        .font(.system(size: SearchTypography.bodySize))
+                } else {
+                    vocabularyEntryList
+                }
 
                 Spacer()
             }
@@ -272,7 +276,41 @@ struct SearchView: View {
             .task {
                 appState.hydrateVocabularyEntriesAsync()
             }
+            .sheet(isPresented: $vocabulary.isAddVocabularyEntryEditorPresented) {
+                VocabularyAddEntrySheet(
+                    onCancel: {
+                        vocabulary.isAddVocabularyEntryEditorPresented = false
+                    },
+                    onSave: { term, explanation in
+                        try appState.addVocabularyEntry(
+                            term: term,
+                            explanation: explanation
+                        )
+                    }
+                )
+            }
         }
+    }
+
+    private var vocabularyEntryList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: SearchCardLayout.cardVerticalSpacing) {
+                ForEach(vocabulary.entries) { entry in
+                    VocabularyEntryPreviewCard(
+                        entry: entry,
+                        isSelected: vocabulary.selectedEntryID == entry.id,
+                        onSelect: {
+                            vocabulary.selectedEntryID = entry.id
+                        }
+                    )
+                    .focusable(false)
+                }
+            }
+            .padding(.horizontal, SearchCardLayout.contentHorizontalPadding)
+            .padding(.top, SearchCardLayout.contentTopPadding)
+            .padding(.bottom, SearchCardLayout.contentBottomPadding)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var searchResultSummaryText: String? {
