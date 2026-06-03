@@ -10,6 +10,7 @@ private struct ProbeConfig {
     var seekListLoops: Int
     var startSeconds: Double
     var pauseAfterFirstFrame: Bool
+    var pauseBeforeSeek: Bool
     var timelineScrubBeforeSeek: Bool
     var waitForPlaybackEndBeforeSeek: Bool
     var frameToleranceSeconds: Double
@@ -22,6 +23,7 @@ private struct ProbeConfig {
         var seekListLoops = 1
         var startSeconds = 0.0
         var pauseAfterFirstFrame = false
+        var pauseBeforeSeek = false
         var timelineScrubBeforeSeek = false
         var waitForPlaybackEndBeforeSeek = false
         var frameToleranceSeconds = 0.75
@@ -48,6 +50,9 @@ private struct ProbeConfig {
                 )
             case "--pause-after-first-frame":
                 pauseAfterFirstFrame = true
+                index += 1
+            case "--pause-before-seek":
+                pauseBeforeSeek = true
                 index += 1
             case "--timeline-scrub-before-seek":
                 timelineScrubBeforeSeek = true
@@ -95,6 +100,7 @@ private struct ProbeConfig {
             seekListLoops: seekListLoops,
             startSeconds: startSeconds,
             pauseAfterFirstFrame: pauseAfterFirstFrame,
+            pauseBeforeSeek: pauseBeforeSeek,
             timelineScrubBeforeSeek: timelineScrubBeforeSeek,
             waitForPlaybackEndBeforeSeek: waitForPlaybackEndBeforeSeek,
             frameToleranceSeconds: frameToleranceSeconds,
@@ -173,6 +179,7 @@ private enum ProbeUsage: Error, CustomStringConvertible {
       --seek-list-loops count       Repeat the seek list. Default: 1
       --start seconds               Initial open timestamp. Default: 0
       --pause-after-first-frame     Seek should pause after the first new frame
+      --pause-before-seek           Pause playback immediately before each seek
       --timeline-scrub-before-seek  Enter timeline scrubbing before each seek
       --wait-for-playback-end-before-seek
                                     Let playback naturally end before first seek
@@ -274,7 +281,7 @@ private final class NativePlayerSeekProbeRunner {
         )
         try player.setPaused(false)
 
-        print("PLAYER_SEEK_PROBE_START targets=\(seekTargets.count) start=\(format(config.startSeconds))s pause_after_first_frame=\(config.pauseAfterFirstFrame ? "yes" : "no") timeline_scrub_before_seek=\(config.timelineScrubBeforeSeek ? "yes" : "no") wait_for_end_before_seek=\(config.waitForPlaybackEndBeforeSeek ? "yes" : "no")")
+        print("PLAYER_SEEK_PROBE_START targets=\(seekTargets.count) start=\(format(config.startSeconds))s pause_after_first_frame=\(config.pauseAfterFirstFrame ? "yes" : "no") pause_before_seek=\(config.pauseBeforeSeek ? "yes" : "no") timeline_scrub_before_seek=\(config.timelineScrubBeforeSeek ? "yes" : "no") wait_for_end_before_seek=\(config.waitForPlaybackEndBeforeSeek ? "yes" : "no")")
         printCounters(prefix: "PLAYER_SEEK_COUNTERS_INITIAL")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -333,6 +340,15 @@ private final class NativePlayerSeekProbeRunner {
         let targetSeconds = seekTargets[seekIndex]
         let targetMilliseconds = Int((targetSeconds * 1000).rounded())
         let expectsReopenAfterEnd = config.waitForPlaybackEndBeforeSeek && seekIndex == 0
+        if config.pauseBeforeSeek {
+            do {
+                try player.setPaused(true)
+            } catch {
+                failures.append("seek \(seekIndex + 1) failed to pause before seek: \(error)")
+                finish()
+                return
+            }
+        }
         let frameCountBeforeSeek = player.nativePresentedVideoFrameCount
         let openCountBeforeSeek = player.nativeSessionOpenCount
         let seekCountBeforeSeek = player.nativeInSessionSeekCount
@@ -348,7 +364,7 @@ private final class NativePlayerSeekProbeRunner {
                 toMilliseconds: targetMilliseconds,
                 pauseAfterFirstFrame: config.pauseAfterFirstFrame
             )
-            if !config.pauseAfterFirstFrame {
+            if !config.pauseAfterFirstFrame && !config.pauseBeforeSeek {
                 try player.setPaused(false)
             }
         } catch {
@@ -387,7 +403,9 @@ private final class NativePlayerSeekProbeRunner {
         let currentTime = player.currentTime
         let frameAdvanced = expectsReopen ? frameCount > 0 : frameCount > frameCountBeforeSeek
         let timeIsNearTarget = currentTime + config.frameToleranceSeconds >= targetSeconds
-        let pauseStateOK = !config.pauseAfterFirstFrame || player.isPlaying == false
+        let pauseStateOK = config.pauseAfterFirstFrame
+            ? player.isPlaying == false
+            : (!config.pauseBeforeSeek || player.isPlaying == true)
         let countersOK = openCount == expectedOpenCount && seekCount == expectedSeekCount
         let passed = frameAdvanced && timeIsNearTarget && pauseStateOK && countersOK && snapshot.failures.isEmpty
 

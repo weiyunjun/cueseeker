@@ -1717,7 +1717,6 @@ static int SFXOutputChannelCount(int inputChannels) {
         return NO;
     }
 
-    BOOL wasPaused = atomic_load(&_paused);
     [self stopPacketReadAheadForSeekAndClear];
 
     if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, seekSeconds, error)) {
@@ -1764,8 +1763,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     _flushDisplayOnFirstFrame = YES;
     _pauseAfterFirstFrame = pauseAfterFirstFrame;
     _didPauseAfterFirstFrame = NO;
-    atomic_store(&_paused, pauseAfterFirstFrame ? false : wasPaused);
-    atomic_store(&_playing, !pauseAfterFirstFrame && !wasPaused);
+    atomic_store(&_paused, false);
+    atomic_store(&_playing, !pauseAfterFirstFrame);
     [self notifyTimeIfNeeded:YES];
     [self startPacketReadAhead];
     return YES;

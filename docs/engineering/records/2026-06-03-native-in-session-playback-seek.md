@@ -69,6 +69,28 @@ Human-owned document:
   - final `in_session_seek_count=0`
   - final `playing=no`
   - probe result: pass
+- Review follow-up: a paused-before-seek regression mode was added to
+  `NativePlayerSeekProbe`.
+- Before the paused seek fix,
+  `NativePlayerSeekProbe --video <EP21> --seek-list 10 --pause-before-seek --seek-timeout 3`
+  reproduced the regression:
+  - seek set `current=10.000s`
+  - final `open_count=1`
+  - final `in_session_seek_count=1`
+  - frame count stayed at `11`
+  - final `playing=no`
+  - probe result: fail
+- After the paused seek fix, the same probe passed:
+  - seek reached `current=10.010s`
+  - final `open_count=1`
+  - final `in_session_seek_count=1`
+  - frame count advanced from `11` to `12`
+  - final `playing=yes`
+  - probe result: pass
+- The paused-before-seek path with `--pause-after-first-frame` also passed:
+  - frame count advanced from `11` to `12`
+  - final `playing=no`
+  - probe result: pass
 - `NativePlayerSeekProbe` on the reported Attack on Titan EP21 sample with
   `--seek-list 10,180,40,900 --seek-list-loops 2` passed:
   - final `open_count=1`
@@ -110,8 +132,9 @@ Human-owned document:
   passed with 6 seek operations, 18 output video frames, and 0 packet send
   failures.
 - `swift test --package-path apps/macos-native` passed 7 XCTest tests and 180
-  Swift Testing tests after the change. The run still printed existing non-fatal
-  disk I/O and empty MKV probe diagnostics.
+  Swift Testing tests after the change and after the paused seek review
+  follow-up. The run still printed existing non-fatal disk I/O and empty MKV
+  probe diagnostics.
 
 ## Outcome
 
