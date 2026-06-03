@@ -716,6 +716,9 @@ static int SFXOutputChannelCount(int inputChannels) {
                        error:(NSError **)error;
 - (void)start;
 - (void)stopAndWait;
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error;
 - (void)setPaused:(BOOL)paused;
 - (void)setReadAheadSuspended:(BOOL)suspended;
 - (void)setVolume:(float)volume;
@@ -726,6 +729,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 @property (nonatomic, readonly) NSInteger videoWidth;
 @property (nonatomic, readonly) NSInteger videoHeight;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
+@property (nonatomic, readonly) NSUInteger presentedVideoFrameCount;
 @end
 
 @implementation SFXNativePlaybackSession {
@@ -795,6 +799,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     CVPixelBufferRef _pendingDisplayPixelBuffer;
     CMTime _pendingDisplayPresentationTime;
     NSInteger _pendingDisplayAutomaticRecycleMilliseconds;
+    NSUInteger _presentedVideoFrameCount;
 
     BOOL _flushDisplayBeforeStart;
     BOOL _flushDisplayOnFirstFrame;
@@ -809,8 +814,17 @@ static int SFXOutputChannelCount(int inputChannels) {
     BOOL _videoClockInitialized;
     BOOL _isRebuffering;
     BOOL _isPausedInsideLoop;
+    BOOL _seekRequestPending;
+    BOOL _seekRequestInProgress;
+    BOOL _pendingSeekPauseAfterFirstFrame;
+    double _pendingSeekSeconds;
+    NSUInteger _seekRequestGeneration;
+    NSUInteger _completedSeekRequestGeneration;
+    BOOL _seekRequestSucceeded;
+    NSError *_seekRequestError;
     atomic_bool _cancelled;
     atomic_bool _finishingForAutomaticRecycle;
+    atomic_bool _decodeLoopFinished;
     atomic_bool _paused;
     atomic_bool _playing;
 }
@@ -856,6 +870,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _packetQueueCondition = [[NSCondition alloc] init];
     atomic_init(&_cancelled, false);
     atomic_init(&_finishingForAutomaticRecycle, false);
+    atomic_init(&_decodeLoopFinished, false);
     atomic_init(&_paused, false);
     atomic_init(&_playing, false);
 
@@ -894,6 +909,12 @@ static int SFXOutputChannelCount(int inputChannels) {
         return NO;
     }
     return atomic_load(&_playing);
+}
+
+- (NSUInteger)presentedVideoFrameCount {
+    @synchronized (self) {
+        return _presentedVideoFrameCount;
+    }
 }
 
 - (BOOL)prepareWithError:(NSError **)error {
@@ -1245,6 +1266,51 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 }
 
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error {
+    double seekSeconds = MAX(0, (double)milliseconds / 1000.0);
+
+    [_packetQueueCondition lock];
+    while ((_seekRequestPending || _seekRequestInProgress)
+           && !atomic_load(&_cancelled)
+           && !atomic_load(&_decodeLoopFinished)) {
+        [_packetQueueCondition wait];
+    }
+
+    if (atomic_load(&_cancelled) || atomic_load(&_decodeLoopFinished)) {
+        [_packetQueueCondition unlock];
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(41, @"Native playback session is not active for seek.");
+        }
+        return NO;
+    }
+
+    NSUInteger generation = _seekRequestGeneration + 1;
+    _seekRequestGeneration = generation;
+    _pendingSeekSeconds = seekSeconds;
+    _pendingSeekPauseAfterFirstFrame = pauseAfterFirstFrame;
+    _seekRequestPending = YES;
+    _seekRequestSucceeded = NO;
+    _seekRequestError = nil;
+    [_packetQueueCondition broadcast];
+
+    while (_completedSeekRequestGeneration < generation
+           && !atomic_load(&_cancelled)
+           && !atomic_load(&_decodeLoopFinished)) {
+        [_packetQueueCondition wait];
+    }
+
+    BOOL succeeded = _completedSeekRequestGeneration >= generation && _seekRequestSucceeded;
+    NSError *seekError = _seekRequestError;
+    [_packetQueueCondition unlock];
+
+    if (!succeeded && error != NULL) {
+        *error = seekError ?: SFXNativePlaybackError(41, @"Native playback in-session seek did not complete.");
+    }
+    return succeeded;
+}
+
 - (void)setPaused:(BOOL)paused {
     if (!paused) {
         _pauseAfterFirstFrame = NO;
@@ -1359,6 +1425,29 @@ static int SFXOutputChannelCount(int inputChannels) {
     [self clearPacketQueueLocked];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+}
+
+- (void)stopPacketReadAheadForSeekAndClear {
+    [_packetQueueCondition lock];
+    _packetQueueEOF = YES;
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+
+    if (_demuxQueue != NULL && _packetQueueDemuxStarted) {
+        dispatch_sync(_demuxQueue, ^{});
+    }
+
+    [_packetQueueCondition lock];
+    [self clearPacketQueueLocked];
+    _packetQueueEOF = NO;
+    _packetQueueDemuxStarted = NO;
+    _readAheadSuspended = NO;
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+}
+
+- (BOOL)hasPendingSeekRequestLocked {
+    return _seekRequestPending;
 }
 
 - (BOOL)isPacketQueueAtHighWaterLocked {
@@ -1544,8 +1633,14 @@ static int SFXOutputChannelCount(int inputChannels) {
     while (!atomic_load(&_cancelled)
            && !atomic_load(&_finishingForAutomaticRecycle)
            && !_packetQueueEOF
+           && ![self hasPendingSeekRequestLocked]
            && _packetQueueHead == NULL) {
         [_packetQueueCondition wait];
+    }
+
+    if ([self hasPendingSeekRequestLocked]) {
+        [_packetQueueCondition unlock];
+        return NULL;
     }
 
     if (atomic_load(&_cancelled) || atomic_load(&_finishingForAutomaticRecycle)) {
@@ -1577,6 +1672,100 @@ static int SFXOutputChannelCount(int inputChannels) {
     return queuedPacket;
 }
 
+- (BOOL)performPendingSeekIfNeeded {
+    [_packetQueueCondition lock];
+    if (!_seekRequestPending) {
+        [_packetQueueCondition unlock];
+        return NO;
+    }
+
+    NSUInteger generation = _seekRequestGeneration;
+    double seekSeconds = _pendingSeekSeconds;
+    BOOL pauseAfterFirstFrame = _pendingSeekPauseAfterFirstFrame;
+    _seekRequestPending = NO;
+    _seekRequestInProgress = YES;
+    [_packetQueueCondition unlock];
+
+    NSError *seekError = nil;
+    BOOL succeeded = [self applyInSessionSeekToSeconds:seekSeconds
+                                  pauseAfterFirstFrame:pauseAfterFirstFrame
+                                                 error:&seekError];
+
+    [_packetQueueCondition lock];
+    _seekRequestSucceeded = succeeded;
+    _seekRequestError = seekError;
+    _completedSeekRequestGeneration = generation;
+    _seekRequestInProgress = NO;
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+
+    return YES;
+}
+
+- (BOOL)applyInSessionSeekToSeconds:(double)seekSeconds
+              pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                             error:(NSError **)error {
+    if (_formatContext == NULL || _videoCodecContext == NULL || _videoStreamIndex < 0) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(41, @"Native playback session is not prepared for seek.");
+        }
+        return NO;
+    }
+
+    BOOL wasPaused = atomic_load(&_paused);
+    [self stopPacketReadAheadForSeekAndClear];
+
+    if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, seekSeconds, error)) {
+        [self startPacketReadAhead];
+        return NO;
+    }
+
+    avcodec_flush_buffers(_videoCodecContext);
+    if (_audioCodecContext != NULL) {
+        avcodec_flush_buffers(_audioCodecContext);
+    }
+    av_packet_unref(_packet);
+    av_frame_unref(_videoFrame);
+    if (_audioFrame != NULL) {
+        av_frame_unref(_audioFrame);
+    }
+    if (_convertedAudioFrame != NULL) {
+        av_frame_unref(_convertedAudioFrame);
+    }
+
+    [self clearPendingPixelBufferSubmission];
+    AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
+    AVAudioPlayerNode *audioPlayer = _audioPlayer;
+    [audioPlayer stop];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [displayLayer flushAndRemoveImage];
+    });
+
+    double now = CACurrentMediaTime();
+    @synchronized (self) {
+        _seekSeconds = seekSeconds;
+        _currentTime = seekSeconds;
+        _audioClockInitialized = NO;
+        _audioPlayerStarted = NO;
+        _videoClockInitialized = NO;
+        _isRebuffering = NO;
+        _isPausedInsideLoop = NO;
+        _rebufferStartedHostSeconds = 0;
+        _pauseStartedHostSeconds = 0;
+        _lastVideoOutputHostSeconds = now;
+        _lastDelegateUpdateHostSeconds = 0;
+    }
+
+    _flushDisplayOnFirstFrame = YES;
+    _pauseAfterFirstFrame = pauseAfterFirstFrame;
+    _didPauseAfterFirstFrame = NO;
+    atomic_store(&_paused, pauseAfterFirstFrame ? false : wasPaused);
+    atomic_store(&_playing, !pauseAfterFirstFrame && !wasPaused);
+    [self notifyTimeIfNeeded:YES];
+    [self startPacketReadAhead];
+    return YES;
+}
+
 - (void)decodeLoop {
     atomic_store(&_playing, true);
     @synchronized (self) {
@@ -1587,13 +1776,24 @@ static int SFXOutputChannelCount(int inputChannels) {
     [self waitUntilPacketQueueHasStartupWaterline];
 
     while (!atomic_load(&_cancelled) && !atomic_load(&_finishingForAutomaticRecycle)) {
+        if ([self performPendingSeekIfNeeded]) {
+            continue;
+        }
+
         [self waitWhilePausedIfNeeded];
+        if ([self performPendingSeekIfNeeded]) {
+            continue;
+        }
+
         if (atomic_load(&_cancelled)) {
             break;
         }
 
         SFXQueuedPacket *queuedPacket = [self dequeuePacket];
         if (queuedPacket == NULL) {
+            if ([self performPendingSeekIfNeeded]) {
+                continue;
+            }
             break;
         }
 
@@ -1619,6 +1819,10 @@ static int SFXOutputChannelCount(int inputChannels) {
     if (!cancelled && !finishingForAutomaticRecycle) {
         [self notifyTimeIfNeeded:YES];
     }
+    atomic_store(&_decodeLoopFinished, true);
+    [_packetQueueCondition lock];
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
 }
 
 - (void)waitWhilePausedIfNeeded {
@@ -1654,6 +1858,12 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     while (atomic_load(&_paused) && !atomic_load(&_cancelled)) {
+        [_packetQueueCondition lock];
+        BOOL hasPendingSeekRequest = [self hasPendingSeekRequestLocked];
+        [_packetQueueCondition unlock];
+        if (hasPendingSeekRequest) {
+            break;
+        }
         usleep(20 * 1000);
     }
 }
@@ -2193,6 +2403,9 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     CVPixelBufferRelease(pixelBuffer);
 
     if (enqueued) {
+        @synchronized (self) {
+            _presentedVideoFrameCount += 1;
+        }
         if (automaticRecycleMilliseconds >= 0) {
             SFXNativePlaybackPlayer *owner = _owner;
             [owner requestAutomaticSoftwareRecycleForSession:self
@@ -2478,6 +2691,8 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     float _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
     BOOL _didRecycleInitialSoftwareSession;
+    NSUInteger _nativeSessionOpenCount;
+    NSUInteger _nativeInSessionSeekCount;
     dispatch_queue_t _scrubPreviewQueue;
     NSUInteger _scrubPreviewGeneration;
     NSInteger _lastScrubPreviewFrameMilliseconds;
@@ -2526,6 +2741,18 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (BOOL)isPlaying {
     return _session.isPlaying;
+}
+
+- (NSUInteger)nativeSessionOpenCount {
+    return _nativeSessionOpenCount;
+}
+
+- (NSUInteger)nativeInSessionSeekCount {
+    return _nativeInSessionSeekCount;
+}
+
+- (NSUInteger)nativePresentedVideoFrameCount {
+    return _session.presentedVideoFrameCount;
 }
 
 - (float)volume {
@@ -2603,6 +2830,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     _session = session;
     _currentPath = [path copy];
+    _nativeSessionOpenCount += 1;
     [_session start];
     return YES;
 }
@@ -2623,12 +2851,22 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         return NO;
     }
 
-    return [self openPath:_currentPath
-        startMilliseconds:milliseconds
-       flushDisplayBeforeStart:NO
-        pauseAfterFirstFrame:pauseAfterFirstFrame
- allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
-                    error:error];
+    if (_session == nil) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(42, @"Native playback has no active session to seek.");
+        }
+        return NO;
+    }
+
+    [self cancelTimelineScrubPreviewRequests];
+    if (![_session seekToMilliseconds:milliseconds
+                 pauseAfterFirstFrame:pauseAfterFirstFrame
+                                error:error]) {
+        return NO;
+    }
+
+    _nativeInSessionSeekCount += 1;
+    return YES;
 }
 
 - (BOOL)setTimelineScrubbing:(BOOL)active error:(NSError **)error {

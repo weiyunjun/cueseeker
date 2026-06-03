@@ -21,6 +21,7 @@ let package = Package(
     products: [
         .executable(name: "CueSeeker", targets: ["CueSeekerApp"]),
         .executable(name: "NativePlaybackProbe", targets: ["NativePlaybackProbe"]),
+        .executable(name: "NativePlayerSeekProbe", targets: ["NativePlayerSeekProbe"]),
         .executable(name: "ASSRenderingProbe", targets: ["ASSRenderingProbe"]),
         .executable(name: "PlaybackSyncProbe", targets: ["PlaybackSyncProbe"]),
         .executable(name: "SearchBench", targets: ["SearchBench"])
@@ -106,6 +107,17 @@ let package = Package(
                 .linkedFramework("CoreMedia"),
                 .linkedFramework("CoreVideo"),
                 .linkedFramework("CoreFoundation"),
+                .linkedFramework("QuartzCore")
+            ]
+        ),
+        .executableTarget(
+            name: "NativePlayerSeekProbe",
+            dependencies: [
+                "CNativePlayback"
+            ],
+            path: "Sources/NativePlayerSeekProbe",
+            linkerSettings: [
+                .linkedFramework("AppKit"),
                 .linkedFramework("QuartzCore")
             ]
         ),

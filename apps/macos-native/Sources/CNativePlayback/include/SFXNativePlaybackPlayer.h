@@ -30,6 +30,9 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 @property (nonatomic, readonly) NSInteger videoWidth;
 @property (nonatomic, readonly) NSInteger videoHeight;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
+@property (nonatomic, readonly) NSUInteger nativeSessionOpenCount;
+@property (nonatomic, readonly) NSUInteger nativeInSessionSeekCount;
+@property (nonatomic, readonly) NSUInteger nativePresentedVideoFrameCount;
 @property (nonatomic) float volume;
 @property (nonatomic) float playbackRate;
 @property (nonatomic) SFXNativePlaybackDecodeMode decodeMode;
