@@ -48,6 +48,27 @@ Human-owned document:
 ## Verification
 
 - `swift build --package-path apps/macos-native` passed.
+- Review follow-up: a new EOF regression mode was added to
+  `NativePlayerSeekProbe`.
+- Before the EOF fallback fix,
+  `NativePlayerSeekProbe --video /private/tmp/cueseeker_short_seek_eof.mp4 --seek-list 0.2 --wait-for-playback-end-before-seek`
+  reproduced the regression:
+  - playback naturally ended with `open_count=1`
+  - seek failed with native error 41
+  - final `in_session_seek_count=0`
+  - probe result: fail
+- After the EOF fallback fix, the same probe passed:
+  - playback naturally ended with `open_count=1`
+  - seek reopened the current path to the target timestamp
+  - final `open_count=2`
+  - final `in_session_seek_count=0`
+  - a new frame was submitted at `0.233s`
+  - probe result: pass
+- The EOF fallback path with `--pause-after-first-frame` also passed:
+  - final `open_count=2`
+  - final `in_session_seek_count=0`
+  - final `playing=no`
+  - probe result: pass
 - `NativePlayerSeekProbe` on the reported Attack on Titan EP21 sample with
   `--seek-list 10,180,40,900 --seek-list-loops 2` passed:
   - final `open_count=1`

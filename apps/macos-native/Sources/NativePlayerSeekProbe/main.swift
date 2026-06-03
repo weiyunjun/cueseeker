@@ -11,8 +11,10 @@ private struct ProbeConfig {
     var startSeconds: Double
     var pauseAfterFirstFrame: Bool
     var timelineScrubBeforeSeek: Bool
+    var waitForPlaybackEndBeforeSeek: Bool
     var frameToleranceSeconds: Double
     var seekTimeoutSeconds: Double
+    var endTimeoutSeconds: Double
 
     static func parse(_ arguments: [String]) throws -> ProbeConfig {
         var videoPath: String?
@@ -21,8 +23,10 @@ private struct ProbeConfig {
         var startSeconds = 0.0
         var pauseAfterFirstFrame = false
         var timelineScrubBeforeSeek = false
+        var waitForPlaybackEndBeforeSeek = false
         var frameToleranceSeconds = 0.75
         var seekTimeoutSeconds = 6.0
+        var endTimeoutSeconds = 10.0
 
         var index = 1
         while index < arguments.count {
@@ -48,6 +52,9 @@ private struct ProbeConfig {
             case "--timeline-scrub-before-seek":
                 timelineScrubBeforeSeek = true
                 index += 1
+            case "--wait-for-playback-end-before-seek":
+                waitForPlaybackEndBeforeSeek = true
+                index += 1
             case "--frame-tolerance":
                 frameToleranceSeconds = try parsePositiveDouble(
                     try parseString(valueAfter: argument, arguments: arguments, index: &index),
@@ -55,6 +62,11 @@ private struct ProbeConfig {
                 )
             case "--seek-timeout":
                 seekTimeoutSeconds = try parsePositiveDouble(
+                    try parseString(valueAfter: argument, arguments: arguments, index: &index),
+                    name: argument
+                )
+            case "--end-timeout":
+                endTimeoutSeconds = try parsePositiveDouble(
                     try parseString(valueAfter: argument, arguments: arguments, index: &index),
                     name: argument
                 )
@@ -84,8 +96,10 @@ private struct ProbeConfig {
             startSeconds: startSeconds,
             pauseAfterFirstFrame: pauseAfterFirstFrame,
             timelineScrubBeforeSeek: timelineScrubBeforeSeek,
+            waitForPlaybackEndBeforeSeek: waitForPlaybackEndBeforeSeek,
             frameToleranceSeconds: frameToleranceSeconds,
-            seekTimeoutSeconds: seekTimeoutSeconds
+            seekTimeoutSeconds: seekTimeoutSeconds,
+            endTimeoutSeconds: endTimeoutSeconds
         )
     }
 
@@ -160,8 +174,11 @@ private enum ProbeUsage: Error, CustomStringConvertible {
       --start seconds               Initial open timestamp. Default: 0
       --pause-after-first-frame     Seek should pause after the first new frame
       --timeline-scrub-before-seek  Enter timeline scrubbing before each seek
+      --wait-for-playback-end-before-seek
+                                    Let playback naturally end before first seek
       --frame-tolerance seconds     Allowed first-frame lag after target. Default: 0.75
       --seek-timeout seconds        Per-seek wait timeout. Default: 6
+      --end-timeout seconds         Wait timeout for natural playback end. Default: 10
     """
 }
 
@@ -227,6 +244,7 @@ private final class NativePlayerSeekProbeRunner {
     private var seekIndex = 0
     private var failures: [String] = []
     private(set) var exitCode: Int32 = 1
+    private var playbackEndWaitStart: Double = 0
 
     init(config: ProbeConfig) {
         self.config = config
@@ -256,12 +274,52 @@ private final class NativePlayerSeekProbeRunner {
         )
         try player.setPaused(false)
 
-        print("PLAYER_SEEK_PROBE_START targets=\(seekTargets.count) start=\(format(config.startSeconds))s pause_after_first_frame=\(config.pauseAfterFirstFrame ? "yes" : "no") timeline_scrub_before_seek=\(config.timelineScrubBeforeSeek ? "yes" : "no")")
+        print("PLAYER_SEEK_PROBE_START targets=\(seekTargets.count) start=\(format(config.startSeconds))s pause_after_first_frame=\(config.pauseAfterFirstFrame ? "yes" : "no") timeline_scrub_before_seek=\(config.timelineScrubBeforeSeek ? "yes" : "no") wait_for_end_before_seek=\(config.waitForPlaybackEndBeforeSeek ? "yes" : "no")")
         printCounters(prefix: "PLAYER_SEEK_COUNTERS_INITIAL")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             Task { @MainActor in
-                self?.runNextSeek()
+                self?.startSeekSequence()
+            }
+        }
+    }
+
+    private func startSeekSequence() {
+        if config.waitForPlaybackEndBeforeSeek {
+            playbackEndWaitStart = CACurrentMediaTime()
+            waitForPlaybackEnd()
+        } else {
+            runNextSeek()
+        }
+    }
+
+    private func waitForPlaybackEnd() {
+        let elapsed = CACurrentMediaTime() - playbackEndWaitStart
+        let snapshot = probeDelegate.snapshot()
+        let frameCount = player.nativePresentedVideoFrameCount
+        let duration = snapshot.duration ?? player.duration
+        let currentTime = player.currentTime
+        let ended = frameCount > 0
+            && player.isPlaying == false
+            && duration > 0
+            && currentTime + 0.5 >= duration
+
+        if ended {
+            print("PLAYER_SEEK_END_WAIT status=pass elapsed_ms=\(format(elapsed * 1000)) current=\(format(currentTime))s duration=\(format(duration))s frame_count=\(frameCount) open_count=\(player.nativeSessionOpenCount)")
+            runNextSeek()
+            return
+        }
+
+        if elapsed >= config.endTimeoutSeconds {
+            print("PLAYER_SEEK_END_WAIT status=fail elapsed_ms=\(format(elapsed * 1000)) current=\(format(currentTime))s duration=\(format(duration))s frame_count=\(frameCount) playing=\(player.isPlaying ? "yes" : "no")")
+            failures.append("playback did not naturally end before timeout")
+            finish()
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            Task { @MainActor in
+                self?.waitForPlaybackEnd()
             }
         }
     }
@@ -274,9 +332,12 @@ private final class NativePlayerSeekProbeRunner {
 
         let targetSeconds = seekTargets[seekIndex]
         let targetMilliseconds = Int((targetSeconds * 1000).rounded())
-        let expectedSeekCount = seekIndex + 1
+        let expectsReopenAfterEnd = config.waitForPlaybackEndBeforeSeek && seekIndex == 0
         let frameCountBeforeSeek = player.nativePresentedVideoFrameCount
         let openCountBeforeSeek = player.nativeSessionOpenCount
+        let seekCountBeforeSeek = player.nativeInSessionSeekCount
+        let expectedOpenCount = openCountBeforeSeek + (expectsReopenAfterEnd ? 1 : 0)
+        let expectedSeekCount = seekCountBeforeSeek + (expectsReopenAfterEnd ? 0 : 1)
         let start = CACurrentMediaTime()
 
         do {
@@ -300,6 +361,8 @@ private final class NativePlayerSeekProbeRunner {
             targetSeconds: targetSeconds,
             targetMilliseconds: targetMilliseconds,
             expectedSeekCount: expectedSeekCount,
+            expectedOpenCount: expectedOpenCount,
+            expectsReopen: expectsReopenAfterEnd,
             frameCountBeforeSeek: frameCountBeforeSeek,
             openCountBeforeSeek: openCountBeforeSeek,
             start: start
@@ -309,7 +372,9 @@ private final class NativePlayerSeekProbeRunner {
     private func waitForSeekFrame(
         targetSeconds: Double,
         targetMilliseconds: Int,
-        expectedSeekCount: Int,
+        expectedSeekCount: UInt,
+        expectedOpenCount: UInt,
+        expectsReopen: Bool,
         frameCountBeforeSeek: UInt,
         openCountBeforeSeek: UInt,
         start: Double
@@ -320,10 +385,10 @@ private final class NativePlayerSeekProbeRunner {
         let openCount = player.nativeSessionOpenCount
         let seekCount = player.nativeInSessionSeekCount
         let currentTime = player.currentTime
-        let frameAdvanced = frameCount > frameCountBeforeSeek
+        let frameAdvanced = expectsReopen ? frameCount > 0 : frameCount > frameCountBeforeSeek
         let timeIsNearTarget = currentTime + config.frameToleranceSeconds >= targetSeconds
         let pauseStateOK = !config.pauseAfterFirstFrame || player.isPlaying == false
-        let countersOK = openCount == openCountBeforeSeek && openCount == 1 && seekCount == expectedSeekCount
+        let countersOK = openCount == expectedOpenCount && seekCount == expectedSeekCount
         let passed = frameAdvanced && timeIsNearTarget && pauseStateOK && countersOK && snapshot.failures.isEmpty
 
         if passed || elapsed >= config.seekTimeoutSeconds {
@@ -349,6 +414,8 @@ private final class NativePlayerSeekProbeRunner {
                     targetSeconds: targetSeconds,
                     targetMilliseconds: targetMilliseconds,
                     expectedSeekCount: expectedSeekCount,
+                    expectedOpenCount: expectedOpenCount,
+                    expectsReopen: expectsReopen,
                     frameCountBeforeSeek: frameCountBeforeSeek,
                     openCountBeforeSeek: openCountBeforeSeek,
                     start: start
@@ -361,9 +428,11 @@ private final class NativePlayerSeekProbeRunner {
         let delegateSnapshot = probeDelegate.snapshot()
         failures.append(contentsOf: delegateSnapshot.failures.map { "delegate failure: \($0)" })
 
-        let expectedSeekCount = seekTargets.count
-        if player.nativeSessionOpenCount != 1 {
-            failures.append("expected one native session open, got \(player.nativeSessionOpenCount)")
+        let expectedReopenAfterEndCount = config.waitForPlaybackEndBeforeSeek ? 1 : 0
+        let expectedOpenCount = 1 + expectedReopenAfterEndCount
+        let expectedSeekCount = UInt(seekTargets.count - expectedReopenAfterEndCount)
+        if player.nativeSessionOpenCount != expectedOpenCount {
+            failures.append("expected \(expectedOpenCount) native session opens, got \(player.nativeSessionOpenCount)")
         }
         if player.nativeInSessionSeekCount != expectedSeekCount {
             failures.append("expected \(expectedSeekCount) in-session seeks, got \(player.nativeInSessionSeekCount)")

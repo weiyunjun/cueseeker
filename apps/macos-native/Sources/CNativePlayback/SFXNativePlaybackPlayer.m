@@ -730,6 +730,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 @property (nonatomic, readonly) NSInteger videoHeight;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
 @property (nonatomic, readonly) NSUInteger presentedVideoFrameCount;
+@property (nonatomic, readonly, getter=isFinished) BOOL finished;
 @end
 
 @implementation SFXNativePlaybackSession {
@@ -915,6 +916,10 @@ static int SFXOutputChannelCount(int inputChannels) {
     @synchronized (self) {
         return _presentedVideoFrameCount;
     }
+}
+
+- (BOOL)isFinished {
+    return atomic_load(&_decodeLoopFinished);
 }
 
 - (BOOL)prepareWithError:(NSError **)error {
@@ -2859,6 +2864,15 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     }
 
     [self cancelTimelineScrubPreviewRequests];
+    if (_session.isFinished) {
+        return [self openPath:_currentPath
+            startMilliseconds:milliseconds
+           flushDisplayBeforeStart:NO
+          pauseAfterFirstFrame:pauseAfterFirstFrame
+     allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
+                        error:error];
+    }
+
     if (![_session seekToMilliseconds:milliseconds
                  pauseAfterFirstFrame:pauseAfterFirstFrame
                                 error:error]) {
