@@ -248,6 +248,14 @@ static void ffmpeg_error_string(int code, char *buffer, size_t bufferSize) {
     }
 }
 
+static int open_media_input(AVFormatContext **formatContext, const char *path) {
+    AVDictionary *options = NULL;
+    av_dict_set(&options, "cueseeker_skip_internal_subtitles", "1", 0);
+    int result = avformat_open_input(formatContext, path, NULL, &options);
+    av_dict_free(&options);
+    return result;
+}
+
 static double bytes_to_mb(uint64_t bytes) {
     return (double)bytes / (1024.0 * 1024.0);
 }
@@ -1823,7 +1831,7 @@ static int open_input(
     int *audioStreamIndex,
     int requestedAudioStreamIndex
 ) {
-    int result = avformat_open_input(formatContext, path, NULL, NULL);
+    int result = open_media_input(formatContext, path);
     if (result < 0) {
         char error[AV_ERROR_MAX_STRING_SIZE] = {0};
         ffmpeg_error_string(result, error, sizeof(error));

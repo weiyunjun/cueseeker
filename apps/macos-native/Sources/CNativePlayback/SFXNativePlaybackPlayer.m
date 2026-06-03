@@ -11,6 +11,7 @@
 #include <libavcodec/packet.h>
 #include <libavformat/avformat.h>
 #include <libavutil/channel_layout.h>
+#include <libavutil/dict.h>
 #include <libavutil/error.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/log.h>
@@ -116,6 +117,14 @@ static NSString *SFXFFmpegErrorString(int code) {
         return [NSString stringWithFormat:@"FFmpeg error %d", code];
     }
     return [NSString stringWithUTF8String:buffer];
+}
+
+static int SFXOpenMediaInput(AVFormatContext **formatContext, const char *path) {
+    AVDictionary *options = NULL;
+    av_dict_set(&options, "cueseeker_skip_internal_subtitles", "1", 0);
+    int result = avformat_open_input(formatContext, path, NULL, &options);
+    av_dict_free(&options);
+    return result;
 }
 
 static NSString *SFXPixelFormatName(enum AVPixelFormat pixelFormat) {
@@ -391,7 +400,7 @@ static CVPixelBufferRef SFXCopyBGRAKeyframePreviewPixelBuffer(
     CVPixelBufferRef pixelBuffer = NULL;
     NSError *seekError = nil;
 
-    int result = avformat_open_input(&formatContext, path.fileSystemRepresentation, NULL, NULL);
+    int result = SFXOpenMediaInput(&formatContext, path.fileSystemRepresentation);
     if (result < 0) {
         goto cleanup;
     }
@@ -888,7 +897,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (BOOL)prepareWithError:(NSError **)error {
-    int result = avformat_open_input(&_formatContext, _path.UTF8String, NULL, NULL);
+    int result = SFXOpenMediaInput(&_formatContext, _path.UTF8String);
     if (result < 0) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(10, [NSString stringWithFormat:@"avformat_open_input failed: %@", SFXFFmpegErrorString(result)]);

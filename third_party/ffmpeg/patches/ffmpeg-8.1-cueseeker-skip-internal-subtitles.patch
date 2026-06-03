@@ -1,0 +1,62 @@
+diff --git a/libavformat/matroskadec.c b/libavformat/matroskadec.c
+--- a/libavformat/matroskadec.c
++++ b/libavformat/matroskadec.c
+@@ -438,6 +438,8 @@ typedef struct MatroskaDemuxContext {
+ 
+     /* Bandwidth value for WebM DASH Manifest */
+     int bandwidth;
++
++    int cueseeker_skip_internal_subtitles;
+ } MatroskaDemuxContext;
+ 
+ #define CHILD_OF(parent) { .def = { .n = parent } }
+@@ -1465,6 +1467,11 @@ static int ebml_parse(MatroskaDemuxContext *matroska,
+             // of the element as the "last known good" position.
+             matroska->resync_pos = pos;
+         }
++
++        if (matroska->cueseeker_skip_internal_subtitles &&
++            id == MATROSKA_ID_ATTACHMENTS &&
++            length != EBML_UNKNOWN_LENGTH)
++            data = NULL;
+ 
+         if (!data && length != EBML_UNKNOWN_LENGTH)
+             goto skip;
+@@ -3141,6 +3148,10 @@ static int matroska_parse_tracks(AVFormatContext *s)
+         if (!track->codec_id)
+             continue;
+ 
++        if (matroska->cueseeker_skip_internal_subtitles &&
++            track->type == MATROSKA_TRACK_TYPE_SUBTITLE)
++            continue;
++
+         if (   track->type == MATROSKA_TRACK_TYPE_AUDIO && track->codec_id[0] != 'A'
+             || track->type == MATROSKA_TRACK_TYPE_VIDEO && track->codec_id[0] != 'V'
+             || track->type == MATROSKA_TRACK_TYPE_SUBTITLE && track->codec_id[0] != 'D' && track->codec_id[0] != 'S'
+@@ -4834,6 +4845,18 @@ static int webm_dash_manifest_read_packet(AVFormatContext *s, AVPacket *pkt)
+ }
+ 
+ #define OFFSET(x) offsetof(MatroskaDemuxContext, x)
++static const AVOption matroska_options[] = {
++    { "cueseeker_skip_internal_subtitles", "skip Matroska subtitle streams and attachments during header parsing", OFFSET(cueseeker_skip_internal_subtitles), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
++    { NULL },
++};
++
++static const AVClass matroska_class = {
++    .class_name = "Matroska demuxer",
++    .item_name  = av_default_item_name,
++    .option     = matroska_options,
++    .version    = LIBAVUTIL_VERSION_INT,
++};
++
+ static const AVOption options[] = {
+     { "live", "flag indicating that the input is a live file that only has the headers.", OFFSET(is_live), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
+     { "bandwidth", "bandwidth of this stream to be specified in the DASH manifest.", OFFSET(bandwidth), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, AV_OPT_FLAG_DECODING_PARAM },
+@@ -4864,6 +4887,7 @@ const FFInputFormat ff_matroska_demuxer = {
+     .p.long_name    = NULL_IF_CONFIG_SMALL("Matroska / WebM"),
+     .p.extensions   = "mkv,mk3d,mka,mks,webm",
+     .p.mime_type    = "audio/webm,audio/x-matroska,video/webm,video/x-matroska",
++    .p.priv_class   = &matroska_class,
+     .priv_data_size = sizeof(MatroskaDemuxContext),
+     .flags_internal = FF_INFMT_FLAG_INIT_CLEANUP,
+     .read_probe     = matroska_probe,

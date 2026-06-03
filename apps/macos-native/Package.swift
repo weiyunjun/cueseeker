@@ -1,6 +1,17 @@
 // swift-tools-version: 6.0
 
 import PackageDescription
+import Foundation
+
+let homebrewRoot = "/opt/homebrew"
+let localPatchedFFmpegRoot = "/private/tmp/cueseeker-ffmpeg-8.1-patched"
+let defaultFFmpegRoot = FileManager.default.fileExists(
+    atPath: "\(localPatchedFFmpegRoot)/lib/libavformat.dylib"
+) ? localPatchedFFmpegRoot : homebrewRoot
+let ffmpegRoot = Context.environment["CUESEEKER_FFMPEG_ROOT"] ?? defaultFFmpegRoot
+let ffmpegIncludePath = "\(ffmpegRoot)/include"
+let ffmpegLibraryPath = "\(ffmpegRoot)/lib"
+let libassLibraryPath = "\(homebrewRoot)/opt/libass/lib"
 
 let package = Package(
     name: "CueSeekerNative",
@@ -27,10 +38,10 @@ let package = Package(
             path: "Sources/CNativePlayback",
             publicHeadersPath: "include",
             cSettings: [
-                .unsafeFlags(["-I", "/opt/homebrew/include"])
+                .unsafeFlags(["-I", ffmpegIncludePath])
             ],
             linkerSettings: [
-                .unsafeFlags(["-L", "/opt/homebrew/lib"]),
+                .unsafeFlags(["-L", ffmpegLibraryPath]),
                 .linkedLibrary("avformat"),
                 .linkedLibrary("avcodec"),
                 .linkedLibrary("avutil"),
@@ -50,10 +61,10 @@ let package = Package(
             path: "Sources/CASSRendering",
             publicHeadersPath: "include",
             cSettings: [
-                .unsafeFlags(["-I", "/opt/homebrew/include"])
+                .unsafeFlags(["-I", "\(homebrewRoot)/include"])
             ],
             linkerSettings: [
-                .unsafeFlags(["-L", "/opt/homebrew/lib"]),
+                .unsafeFlags(["-L", libassLibraryPath]),
                 .linkedLibrary("ass"),
                 .linkedFramework("CoreGraphics"),
                 .linkedFramework("Foundation"),
@@ -81,10 +92,10 @@ let package = Package(
             name: "NativePlaybackProbe",
             path: "Sources/NativePlaybackProbe",
             cSettings: [
-                .unsafeFlags(["-I", "/opt/homebrew/include"])
+                .unsafeFlags(["-I", ffmpegIncludePath])
             ],
             linkerSettings: [
-                .unsafeFlags(["-L", "/opt/homebrew/lib"]),
+                .unsafeFlags(["-L", ffmpegLibraryPath]),
                 .linkedLibrary("avformat"),
                 .linkedLibrary("avcodec"),
                 .linkedLibrary("avutil"),

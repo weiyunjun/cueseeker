@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <libavformat/avformat.h>
+#include <libavutil/dict.h>
 #include <libavutil/error.h>
 
 static NSString *SFXMetadataFFmpegErrorString(int code) {
@@ -18,6 +19,14 @@ static NSError *SFXMediaMetadataError(NSInteger code, NSString *message) {
                            userInfo:@{NSLocalizedDescriptionKey: message}];
 }
 
+static int SFXOpenMediaInputForMetadata(AVFormatContext **formatContext, const char *path) {
+    AVDictionary *options = NULL;
+    av_dict_set(&options, "cueseeker_skip_internal_subtitles", "1", 0);
+    int result = avformat_open_input(formatContext, path, NULL, &options);
+    av_dict_free(&options);
+    return result;
+}
+
 @implementation SFXMediaMetadataInspector
 
 + (nullable NSNumber *)durationSecondsAtMediaPath:(NSString *)mediaPath
@@ -30,7 +39,7 @@ static NSError *SFXMediaMetadataError(NSInteger code, NSString *message) {
     }
 
     AVFormatContext *formatContext = NULL;
-    int result = avformat_open_input(&formatContext, mediaPath.UTF8String, NULL, NULL);
+    int result = SFXOpenMediaInputForMetadata(&formatContext, mediaPath.UTF8String);
     if (result < 0) {
         if (error != NULL) {
             *error = SFXMediaMetadataError(
