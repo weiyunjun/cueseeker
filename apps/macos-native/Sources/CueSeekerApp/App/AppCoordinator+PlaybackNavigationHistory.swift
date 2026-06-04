@@ -158,6 +158,7 @@ extension AppCoordinator {
         }
 
         let scopeURLs = payload.scopePaths.map { URL(fileURLWithPath: $0) }
+        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         let revisionUnchanged: Bool
         let results: [SubtitleSearchResult]
         do {
@@ -167,7 +168,8 @@ extension AppCoordinator {
                 trimmedQuery,
                 limit: 200,
                 offset: 0,
-                under: scopeURLs.isEmpty ? nil : scopeURLs
+                under: scopeURLs.isEmpty ? nil : scopeURLs,
+                languageFilter: languageFilter
             )
         } catch {
             return false

@@ -6,6 +6,7 @@ import CueSeekerPlayback
 @MainActor
 final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
+    private static let primarySearchLanguageKey = "primarySearchLanguage"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
@@ -19,6 +20,12 @@ final class SettingsStore: ObservableObject {
         didSet {
             userDefaults.set(appAppearanceMode.rawValue, forKey: Self.appAppearanceModeKey)
             Self.applyAppAppearanceMode(appAppearanceMode)
+        }
+    }
+
+    @Published var primarySearchLanguage: PrimarySearchLanguage {
+        didSet {
+            userDefaults.set(primarySearchLanguage.rawValue, forKey: Self.primarySearchLanguageKey)
         }
     }
 
@@ -73,6 +80,7 @@ final class SettingsStore: ObservableObject {
         self.credentialStore = credentialStore
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
+            Self.primarySearchLanguageKey: PrimarySearchLanguage.defaultValue.rawValue,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
@@ -84,6 +92,7 @@ final class SettingsStore: ObservableObject {
 
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
+        self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         self.searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
@@ -157,6 +166,15 @@ final class SettingsStore: ObservableObject {
             return .auto
         }
         return mode
+    }
+
+    private static func loadPrimarySearchLanguage(from userDefaults: UserDefaults) -> PrimarySearchLanguage {
+        guard let rawValue = userDefaults.string(forKey: primarySearchLanguageKey),
+              let language = PrimarySearchLanguage(rawValue: rawValue)
+        else {
+            return .defaultValue
+        }
+        return language
     }
 
     private static func loadPlaybackDecodeMode(from userDefaults: UserDefaults) -> PlaybackDecodeMode {

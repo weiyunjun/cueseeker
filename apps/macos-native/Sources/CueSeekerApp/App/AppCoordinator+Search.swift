@@ -131,6 +131,7 @@ extension AppCoordinator {
         let folders = indexing.selectedFolders
         let pageSize = Self.searchPageSize
         let offset = cursor.offset
+        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         if let activeSearchPerformanceRun {
             SearchPerformanceLogger.mark(activeSearchPerformanceRun, "search_superseded_by_new_search")
             SearchPerformanceLogger.writeE2ESearchPage(
@@ -255,6 +256,7 @@ extension AppCoordinator {
                         limit: pageSize,
                         cursor: cursor,
                         under: folders,
+                        languageFilter: languageFilter,
                         diagnostics: diagnosticsSink
                     )
                     let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
@@ -388,6 +390,7 @@ extension AppCoordinator {
                     startSearchExactCompletion(
                         query: trimmedQuery,
                         folders: folders,
+                        languageFilter: languageFilter,
                         run: searchPerformanceRun
                     )
                 }
@@ -468,11 +471,13 @@ extension AppCoordinator {
         _ progress: SubtitleSearchProgressSnapshot,
         query trimmedQuery: String,
         folderPaths: [String],
+        languageFilter: SubtitleSearchLanguageFilter,
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
         guard progress.countState == .exactProgress,
               search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
               indexing.selectedFolders.map(\.path) == folderPaths,
+              settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
               search.searchCountState != .exact,
               progress.knownResultCount >= search.searchKnownResultCount,
               progress.knownFileCount >= search.searchKnownFileCount
@@ -521,6 +526,7 @@ extension AppCoordinator {
     func startSearchExactCompletion(
         query trimmedQuery: String,
         folders: [URL],
+        languageFilter: SubtitleSearchLanguageFilter,
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
         searchExactCompletionTask?.cancel()
@@ -537,6 +543,7 @@ extension AppCoordinator {
                     snapshot,
                     query: trimmedQuery,
                     folderPaths: folderPaths,
+                    languageFilter: languageFilter,
                     run: searchPerformanceRun
                 )
             }
@@ -552,6 +559,7 @@ extension AppCoordinator {
                         limit: pageSize,
                         cursor: .start,
                         under: folders,
+                        languageFilter: languageFilter,
                         diagnostics: diagnosticsSink,
                         progress: progressSink
                     )
@@ -578,7 +586,8 @@ extension AppCoordinator {
                 }
 
                 guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
-                      indexing.selectedFolders.map(\.path) == folderPaths
+                      indexing.selectedFolders.map(\.path) == folderPaths,
+                      settings.primarySearchLanguage.searchLanguageFilter == languageFilter
                 else {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_stale")
                     SearchPerformanceLogger.writeE2ESearchPage(
@@ -656,7 +665,8 @@ extension AppCoordinator {
                 }
 
                 guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
-                      indexing.selectedFolders.map(\.path) == folderPaths
+                      indexing.selectedFolders.map(\.path) == folderPaths,
+                      settings.primarySearchLanguage.searchLanguageFilter == languageFilter
                 else {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_exact_completion_error_stale")
                     return
@@ -787,12 +797,14 @@ extension AppCoordinator {
         let folders = indexing.selectedFolders
         let anchor = currentSearchNavigationAnchor()
         let panelRadius = Self.searchNavigationPanelRadius
+        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         searchNavigationTask = Task { [weak self] in
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
                     try database.searchNavigationSnapshot(
                         trimmedQuery,
                         under: folders,
+                        languageFilter: languageFilter,
                         anchor: anchor,
                         radius: panelRadius
                     )
@@ -803,6 +815,10 @@ extension AppCoordinator {
                 }
 
                 guard let self else {
+                    return
+                }
+
+                guard self.settings.primarySearchLanguage.searchLanguageFilter == languageFilter else {
                     return
                 }
 
@@ -910,6 +926,7 @@ extension AppCoordinator {
             return
         }
         let pageSize = Self.searchPageSize
+        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         let subtitleDisplayTitle = search.searchFileSummaries
             .first(where: { $0.subtitlePath == subtitlePath })?
             .subtitleDisplayTitle
@@ -936,7 +953,8 @@ extension AppCoordinator {
                         limit: pageSize,
                         offset: offset,
                         under: folders,
-                        inSubtitlePath: subtitlePath
+                        inSubtitlePath: subtitlePath,
+                        languageFilter: languageFilter
                     )
                     let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
                         since: databaseSearchStart
@@ -963,6 +981,7 @@ extension AppCoordinator {
 
                 guard let self,
                       self.search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                      self.settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
                       self.search.searchFileSummaries.contains(where: { $0.subtitlePath == subtitlePath })
                 else {
                     SearchPerformanceLogger.writeE2EFileLoadMore(

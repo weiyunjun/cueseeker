@@ -109,6 +109,39 @@ func settingsStorePersistsAIChunkingLanguageAndPromptTemplate() throws {
 
 @MainActor
 @Test
+func settingsStorePersistsPrimarySearchLanguage() {
+    withTemporarySettingsUserDefaults { userDefaults, service in
+        let store = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(store.primarySearchLanguage == .all)
+        #expect(store.primarySearchLanguage.searchLanguageFilter == .all)
+
+        store.primarySearchLanguage = .chinese
+
+        let reloadedStore = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(reloadedStore.primarySearchLanguage == .chinese)
+        #expect(reloadedStore.primarySearchLanguage.displayName == "中文")
+        #expect(reloadedStore.primarySearchLanguage.searchLanguageFilter == .chinese)
+        #expect(PrimarySearchLanguage.allCases.map(\.displayName) == [
+            "All",
+            "日本語",
+            "English",
+            "中文",
+            "简体中文",
+            "繁体中文"
+        ])
+    }
+}
+
+@MainActor
+@Test
 func settingsStoreForcesLegacyAIChunkingPromptTemplateToCurrentDefaultOnce() throws {
     try withTemporarySettingsUserDefaults { userDefaults, service in
         let legacyTemplate = "Legacy {{sentence}} -> {{language}}"
