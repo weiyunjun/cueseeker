@@ -46,6 +46,52 @@ func indexesFolderIntoSQLiteSearchDatabase() throws {
 }
 
 @Test
+func indexingSRTStoresLanguageAnalysisAfterVideoMatch() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    _ = try fixture.writeSubtitle(
+        name: "Japanese.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        今日はみんなで映画を見に行きます。
+
+        2
+        00:00:04,000 --> 00:00:06,000
+        明日は学校のあとで友達と話します。
+
+        """
+    )
+    try fixture.writeVideo(name: "Japanese.mkv")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let result = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(result.indexedSubtitleFiles == 1)
+    let indexedSubtitlePath = try #require(try database.subtitleFiles().first?.subtitlePath)
+    let indexedSubtitleURL = URL(fileURLWithPath: indexedSubtitlePath)
+    #expect(try database.hasCurrentSubtitleLanguageManifest(forSubtitleFile: indexedSubtitleURL))
+
+    let detections = try database.languageDetections(forSubtitleFile: indexedSubtitleURL)
+    #expect(detections.count == 1)
+    let detection = try #require(detections.first)
+    #expect(detection.scope == .file)
+    #expect(detection.languages == [.japanese])
+
+    let storedEntries = try database.entries(forSubtitleFile: indexedSubtitleURL)
+    let firstEntry = try #require(storedEntries.first)
+    let secondEntry = try #require(storedEntries.dropFirst().first)
+    let languagesByCueGroupID = try database.cueGroupLanguages(forSubtitleFile: indexedSubtitleURL)
+    #expect(languagesByCueGroupID[firstEntry.id] == [.japanese])
+    #expect(languagesByCueGroupID[secondEntry.id] == [.japanese])
+}
+
+@Test
 func skipsSubtitleFileWhenMatchingVideoIsMissing() throws {
     let fixture = try IndexingFixture()
     defer {
@@ -187,6 +233,46 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
 }
 
 @Test
+func reindexingUnchangedSubtitleFileWithoutLanguageManifestRewritesOnce() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let contents = """
+    1
+    00:00:01,000 --> 00:00:03,000
+    今日はみんなで映画を見に行きます。
+
+    """
+    _ = try fixture.writeSubtitle(name: "Episode.srt", contents: contents)
+    _ = try fixture.writeVideo(name: "Episode.mp4")
+    let scannedSubtitleURL = try #require(SubtitleFileScanner().scanSubtitleFiles(in: fixture.root).first)
+    let videoURL = try #require(VideoMatcher().matchingVideo(for: scannedSubtitleURL))
+    let metadata = try fixture.subtitleFileMetadata(for: scannedSubtitleURL)
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    try database.migrate()
+    try database.replaceEntries(
+        subtitleFile: scannedSubtitleURL,
+        videoFile: videoURL,
+        entries: SRTParser.parse(contents),
+        fileSize: metadata.fileSize,
+        modifiedAt: metadata.modifiedAt
+    )
+
+    #expect(try !database.hasCurrentSubtitleLanguageManifest(forSubtitleFile: scannedSubtitleURL))
+
+    let indexer = SubtitleIndexer()
+    let result = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(result.scannedSubtitleFiles == 1)
+    #expect(result.indexedSubtitleFiles == 1)
+    #expect(result.skippedUnchangedSubtitleFiles == 0)
+    #expect(try database.hasCurrentSubtitleLanguageManifest(forSubtitleFile: scannedSubtitleURL))
+}
+
+@Test
 func indexesASSFilesAsGroupedCueResults() throws {
     let fixture = try IndexingFixture()
     defer {
@@ -234,6 +320,58 @@ func indexesASSFilesAsGroupedCueResults() throws {
     #expect(kanaResults.count == 1)
     #expect(kanaResults[0].subtitleFormat == .ass)
     #expect(kanaResults[0].cueLines == ["日本語ライン", "English line"])
+}
+
+@Test
+func indexingASSStoresUsedStyleLanguageAnalysisOnly() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    _ = try fixture.writeSubtitle(
+        name: "Bilingual.ass",
+        contents: """
+        [Script Info]
+        PlayResX: 1920
+        PlayResY: 1080
+
+        [V4+ Styles]
+        Format: Name, Alignment, MarginL, MarginR, MarginV
+        Style: JP,2,20,20,30
+        Style: CN,8,20,20,40
+        Style: Unused,2,20,20,30
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:01.00,0:00:03.00,JP,,0,0,0,,今日はライブの準備をします
+        Dialogue: 0,0:00:01.00,0:00:03.00,CN,,0,0,0,,我们今天准备演出，大家一起学习新的歌曲。
+        Dialogue: 0,0:00:04.00,0:00:06.00,JP,,0,0,0,,明日はスタジオで練習します
+        """
+    )
+    try fixture.writeVideo(name: "Bilingual.mkv")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let result = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(result.indexedSubtitleFiles == 1)
+    let indexedSubtitlePath = try #require(try database.subtitleFiles().first?.subtitlePath)
+    let indexedSubtitleURL = URL(fileURLWithPath: indexedSubtitlePath)
+    #expect(try database.hasCurrentSubtitleLanguageManifest(forSubtitleFile: indexedSubtitleURL))
+
+    let detections = try database.languageDetections(forSubtitleFile: indexedSubtitleURL)
+    #expect(detections.map(\.scopeKey) == ["CN", "JP"])
+    #expect(detections.first { $0.scopeKey == "CN" }?.languages == [.simplifiedChinese])
+    #expect(detections.first { $0.scopeKey == "JP" }?.languages == [.japanese])
+
+    let storedEntries = try database.entries(forSubtitleFile: indexedSubtitleURL)
+    let firstEntry = try #require(storedEntries.first)
+    let secondEntry = try #require(storedEntries.dropFirst().first)
+    let languagesByCueGroupID = try database.cueGroupLanguages(forSubtitleFile: indexedSubtitleURL)
+    #expect(languagesByCueGroupID[firstEntry.id] == [.japanese, .simplifiedChinese])
+    #expect(languagesByCueGroupID[secondEntry.id] == [.japanese])
 }
 
 @Test
@@ -368,6 +506,14 @@ private struct IndexingFixture {
         let url = root.appendingPathComponent(name)
         try Data().write(to: url)
         return url
+    }
+
+    func subtitleFileMetadata(for url: URL) throws -> (fileSize: Int64?, modifiedAt: Date?) {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return (
+            (attributes[.size] as? NSNumber)?.int64Value,
+            attributes[.modificationDate] as? Date
+        )
     }
 
     func cleanUp() {

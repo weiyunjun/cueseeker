@@ -18,13 +18,16 @@ public struct SubtitleIndexingFailure: Equatable, Sendable {
 public struct SubtitleIndexer {
     private let scanner: SubtitleFileScanner
     private let matcher: VideoMatcher
+    private let languageAnalyzer: SubtitleLanguageAnalyzer
 
     public init(
         scanner: SubtitleFileScanner = SubtitleFileScanner(),
-        matcher: VideoMatcher = VideoMatcher()
+        matcher: VideoMatcher = VideoMatcher(),
+        languageAnalyzer: SubtitleLanguageAnalyzer = SubtitleLanguageAnalyzer()
     ) {
         self.scanner = scanner
         self.matcher = matcher
+        self.languageAnalyzer = languageAnalyzer
     }
 
     public func index(folder: URL, into database: SubtitleDatabase) throws -> SubtitleIndexingResult {
@@ -97,6 +100,7 @@ public struct SubtitleIndexer {
                 }
             }
 
+            let languageAnalysis = languageAnalyzer.analyze(format: format, cueGroups: cueGroups)
             try database.replaceCueGroups(
                 subtitleFile: subtitleFile,
                 videoFile: videoFile,
@@ -106,6 +110,7 @@ public struct SubtitleIndexer {
                 assFontReferences: assFontReferences,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt,
+                languageAnalysis: languageAnalysis,
                 rebuildSearchDerivedIndex: false
             )
 
@@ -136,6 +141,10 @@ public struct SubtitleIndexer {
         }
 
         guard abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001 else {
+            return false
+        }
+
+        guard try database.hasCurrentSubtitleLanguageManifest(forSubtitleFile: subtitleFile) else {
             return false
         }
 
