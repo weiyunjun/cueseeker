@@ -312,6 +312,117 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
 }
 
 @Test
+func persistsSRTLanguageAnalysisWithCueGroupLanguages() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Japanese.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Japanese.mkv")
+    let entries = [
+        SubtitleEntry(
+            sequenceNumber: 1,
+            startTimecode: "00:00:01,000",
+            endTimecode: "00:00:03,000",
+            startMilliseconds: 1_000,
+            endMilliseconds: 3_000,
+            text: "今日はみんなで映画を見に行きます。"
+        ),
+        SubtitleEntry(
+            sequenceNumber: 2,
+            startTimecode: "00:00:04,000",
+            endTimecode: "00:00:06,000",
+            startMilliseconds: 4_000,
+            endMilliseconds: 6_000,
+            text: "明日は学校のあとで友達と話します。"
+        )
+    ]
+    let cueGroups = entries.enumerated().map { index, entry in
+        entry.cueGroup(eventIndex: index)
+    }
+    let analysis = SubtitleLanguageAnalyzer().analyze(format: .srt, cueGroups: cueGroups)
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries,
+        languageAnalysis: analysis
+    )
+
+    #expect(try database.hasCurrentSubtitleLanguageManifest(forSubtitleFile: subtitleFile))
+
+    let detections = try database.languageDetections(forSubtitleFile: subtitleFile)
+    #expect(detections.count == 1)
+    #expect(detections[0].scope == .file)
+    #expect(detections[0].scopeKey == nil)
+    #expect(detections[0].algorithmVersion == SubtitleLanguageRecognizer.algorithmVersion)
+    #expect(detections[0].languages == [.japanese])
+    #expect(detections[0].confidence >= SubtitleLanguageRecognizer.defaultConfidenceThreshold)
+
+    let storedEntries = try database.entries(forSubtitleFile: subtitleFile)
+    let languagesByCueGroupID = try database.cueGroupLanguages(forSubtitleFile: subtitleFile)
+    #expect(languagesByCueGroupID[storedEntries[0].id] == [.japanese])
+    #expect(languagesByCueGroupID[storedEntries[1].id] == [.japanese])
+}
+
+@Test
+func persistsASSStyleLanguageAnalysisForUsedStylesOnly() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Bilingual.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Bilingual.mkv")
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Alignment, MarginL, MarginR, MarginV
+    Style: JP,2,20,20,30
+    Style: CN,8,20,20,40
+    Style: Unused,2,20,20,30
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,JP,,0,0,0,,今日はライブの準備をします
+    Dialogue: 0,0:00:01.00,0:00:03.00,CN,,0,0,0,,我们今天准备演出，大家一起练习新的歌曲。
+    Dialogue: 0,0:00:04.00,0:00:06.00,JP,,0,0,0,,明日はスタジオで練習します
+    """
+    let cueGroups = ASSParser.parseCueGroups(contents)
+    let analysis = SubtitleLanguageAnalyzer().analyze(format: .ass, cueGroups: cueGroups)
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: cueGroups,
+        languageAnalysis: analysis
+    )
+
+    #expect(try database.hasCurrentSubtitleLanguageManifest(forSubtitleFile: subtitleFile))
+
+    let detections = try database.languageDetections(forSubtitleFile: subtitleFile)
+    #expect(detections.map(\.scopeKey) == ["CN", "JP"])
+    #expect(detections.first { $0.scopeKey == "CN" }?.languages == [.simplifiedChinese])
+    #expect(detections.first { $0.scopeKey == "JP" }?.languages == [.japanese])
+
+    let storedEntries = try database.entries(forSubtitleFile: subtitleFile)
+    let languagesByCueGroupID = try database.cueGroupLanguages(forSubtitleFile: subtitleFile)
+    #expect(languagesByCueGroupID[storedEntries[0].id] == [.japanese, .simplifiedChinese])
+    #expect(languagesByCueGroupID[storedEntries[1].id] == [.japanese])
+}
+
+@Test
 func searchPaginatesBeyondDefaultResultLimit() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

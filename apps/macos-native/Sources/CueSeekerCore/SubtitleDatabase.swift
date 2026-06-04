@@ -605,6 +605,25 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
     public let indexedAt: String
 }
 
+public enum SubtitleLanguageDetectionScope: String, Equatable, Sendable {
+    case file
+    case style
+}
+
+public struct StoredSubtitleLanguageDetection: Equatable, Sendable {
+    public let subtitlePath: String
+    public let scope: SubtitleLanguageDetectionScope
+    public let scopeKey: String?
+    public let algorithmVersion: Int
+    public let confidence: Double
+    public let confidenceBand: SubtitleLanguageConfidenceBand
+    public let segmentCount: Int
+    public let effectiveCharacterCount: Int
+    public let languages: Set<SubtitleLanguageCode>
+    public let distribution: [SubtitleLanguageDistribution]
+    public let detectedAt: String
+}
+
 public struct ASSRenderSegment: Equatable, Sendable {
     public let subtitlePath: String
     public let startMilliseconds: Int
@@ -683,7 +702,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 16
+    public static let currentSchemaVersion: Int = 17
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -831,6 +850,59 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 content,
                 cue_group_id UNINDEXED
             );
+
+            CREATE TABLE IF NOT EXISTS subtitle_language_manifests (
+                subtitle_file_id INTEGER PRIMARY KEY,
+                algorithm_version INTEGER NOT NULL,
+                detection_count INTEGER NOT NULL,
+                cue_group_count INTEGER NOT NULL,
+                analyzed_at TEXT NOT NULL,
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS subtitle_language_detections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subtitle_file_id INTEGER NOT NULL,
+                scope TEXT NOT NULL,
+                scope_key TEXT NOT NULL DEFAULT '',
+                algorithm_version INTEGER NOT NULL,
+                confidence REAL NOT NULL,
+                confidence_band TEXT NOT NULL,
+                segment_count INTEGER NOT NULL,
+                effective_character_count INTEGER NOT NULL,
+                detected_at TEXT NOT NULL,
+                UNIQUE(subtitle_file_id, scope, scope_key),
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS subtitle_language_detection_codes (
+                detection_id INTEGER NOT NULL,
+                language_code TEXT NOT NULL,
+                PRIMARY KEY(detection_id, language_code),
+                FOREIGN KEY(detection_id) REFERENCES subtitle_language_detections(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS subtitle_language_detection_distribution (
+                detection_id INTEGER NOT NULL,
+                language_code TEXT NOT NULL,
+                share REAL NOT NULL,
+                rank INTEGER NOT NULL,
+                PRIMARY KEY(detection_id, language_code),
+                FOREIGN KEY(detection_id) REFERENCES subtitle_language_detections(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS subtitle_cue_group_languages (
+                cue_group_id INTEGER NOT NULL,
+                language_code TEXT NOT NULL,
+                PRIMARY KEY(cue_group_id, language_code),
+                FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_language_detections_lookup
+                ON subtitle_language_detections(subtitle_file_id, scope, scope_key);
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_group_languages_language
+                ON subtitle_cue_group_languages(language_code, cue_group_id);
 
             CREATE TABLE IF NOT EXISTS ass_render_segments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1434,7 +1506,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil
     ) throws {
-        try replaceCueGroups(
+        try replaceCueGroupsPersistingLanguageAnalysis(
             subtitleFile: subtitleFile,
             videoFile: videoFile,
             format: .srt,
@@ -1442,7 +1514,29 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 entry.cueGroup(eventIndex: index)
             },
             fileSize: fileSize,
-            modifiedAt: modifiedAt
+            modifiedAt: modifiedAt,
+            languageAnalysis: nil
+        )
+    }
+
+    public func replaceEntries(
+        subtitleFile: URL,
+        videoFile: URL,
+        entries: [SubtitleEntry],
+        fileSize: Int64? = nil,
+        modifiedAt: Date? = nil,
+        languageAnalysis: SubtitleLanguageAnalysis
+    ) throws {
+        try replaceCueGroupsPersistingLanguageAnalysis(
+            subtitleFile: subtitleFile,
+            videoFile: videoFile,
+            format: .srt,
+            cueGroups: entries.enumerated().map { index, entry in
+                entry.cueGroup(eventIndex: index)
+            },
+            fileSize: fileSize,
+            modifiedAt: modifiedAt,
+            languageAnalysis: languageAnalysis
         )
     }
 
@@ -1457,6 +1551,59 @@ public final class SubtitleDatabase: @unchecked Sendable {
         modifiedAt: Date? = nil,
         rebuildSearchDerivedIndex: Bool = true
     ) throws {
+        try replaceCueGroupsPersistingLanguageAnalysis(
+            subtitleFile: subtitleFile,
+            videoFile: videoFile,
+            format: format,
+            cueGroups: cueGroups,
+            assRenderSegments: assRenderSegments,
+            assFontReferences: assFontReferences,
+            fileSize: fileSize,
+            modifiedAt: modifiedAt,
+            languageAnalysis: nil,
+            rebuildSearchDerivedIndex: rebuildSearchDerivedIndex
+        )
+    }
+
+    public func replaceCueGroups(
+        subtitleFile: URL,
+        videoFile: URL,
+        format: SubtitleFormat,
+        cueGroups: [SubtitleCueGroup],
+        assRenderSegments: [ASSRenderSegmentPayload] = [],
+        assFontReferences: [ASSFontReferenceIntent] = [],
+        fileSize: Int64? = nil,
+        modifiedAt: Date? = nil,
+        languageAnalysis: SubtitleLanguageAnalysis,
+        rebuildSearchDerivedIndex: Bool = true
+    ) throws {
+        try replaceCueGroupsPersistingLanguageAnalysis(
+            subtitleFile: subtitleFile,
+            videoFile: videoFile,
+            format: format,
+            cueGroups: cueGroups,
+            assRenderSegments: assRenderSegments,
+            assFontReferences: assFontReferences,
+            fileSize: fileSize,
+            modifiedAt: modifiedAt,
+            languageAnalysis: languageAnalysis,
+            rebuildSearchDerivedIndex: rebuildSearchDerivedIndex
+        )
+    }
+
+    private func replaceCueGroupsPersistingLanguageAnalysis(
+        subtitleFile: URL,
+        videoFile: URL,
+        format: SubtitleFormat,
+        cueGroups: [SubtitleCueGroup],
+        assRenderSegments: [ASSRenderSegmentPayload] = [],
+        assFontReferences: [ASSFontReferenceIntent] = [],
+        fileSize: Int64? = nil,
+        modifiedAt: Date? = nil,
+        languageAnalysis: SubtitleLanguageAnalysis?,
+        rebuildSearchDerivedIndex: Bool = true
+    ) throws {
+        try validateLanguageAnalysis(languageAnalysis, format: format, cueGroupCount: cueGroups.count)
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
 
         do {
@@ -1485,7 +1632,34 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 try insertASSRenderSegment(subtitleFileID: subtitleFileID, segment: segment)
             }
 
-            for group in cueGroups {
+            if let languageAnalysis {
+                try insertSubtitleLanguageManifest(
+                    subtitleFileID: subtitleFileID,
+                    detectionCount: languageAnalysis.styleDetections.count + (languageAnalysis.fileDetection == nil ? 0 : 1),
+                    cueGroupCount: languageAnalysis.cueGroupLanguages.count
+                )
+                if let fileDetection = languageAnalysis.fileDetection {
+                    try insertSubtitleLanguageDetection(
+                        subtitleFileID: subtitleFileID,
+                        scope: .file,
+                        scopeKey: nil,
+                        detection: fileDetection
+                    )
+                }
+                for styleName in languageAnalysis.styleDetections.keys.sorted() {
+                    guard let detection = languageAnalysis.styleDetections[styleName] else {
+                        continue
+                    }
+                    try insertSubtitleLanguageDetection(
+                        subtitleFileID: subtitleFileID,
+                        scope: .style,
+                        scopeKey: styleName,
+                        detection: detection
+                    )
+                }
+            }
+
+            for (index, group) in cueGroups.enumerated() {
                 let cueGroupID = try insertCueGroup(
                     subtitleFileID: subtitleFileID,
                     subtitleFile: subtitleFile,
@@ -1495,6 +1669,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     try insertCueLine(cueGroupID: cueGroupID, line: line)
                 }
                 try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
+                if let languages = languageAnalysis?.cueGroupLanguages[index] {
+                    try insertCueGroupLanguages(cueGroupID: cueGroupID, languages: languages)
+                }
             }
 
             if rebuildSearchDerivedIndex {
@@ -1532,6 +1709,89 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return entries
+    }
+
+    public func languageDetections(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> [StoredSubtitleLanguageDetection] {
+        let statement = try database.prepare(
+            """
+            SELECT d.id, sf.subtitle_path, d.scope, d.scope_key, d.algorithm_version,
+                   d.confidence, d.confidence_band, d.segment_count,
+                   d.effective_character_count, d.detected_at
+            FROM subtitle_language_detections d
+            JOIN subtitle_files sf ON sf.id = d.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY d.scope ASC, d.scope_key ASC, d.id ASC;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+
+        var records: [StoredSubtitleLanguageDetection] = []
+        while try statement.step() {
+            let detectionID = statement.int64Column(0)
+            records.append(
+                StoredSubtitleLanguageDetection(
+                    subtitlePath: statement.stringColumn(1),
+                    scope: SubtitleLanguageDetectionScope(rawValue: statement.stringColumn(2)) ?? .file,
+                    scopeKey: statement.stringColumn(3).isEmpty ? nil : statement.stringColumn(3),
+                    algorithmVersion: statement.intColumn(4),
+                    confidence: statement.nullableDoubleColumn(5) ?? 0,
+                    confidenceBand: SubtitleLanguageConfidenceBand(rawValue: statement.stringColumn(6)) ?? .none,
+                    segmentCount: statement.intColumn(7),
+                    effectiveCharacterCount: statement.intColumn(8),
+                    languages: try subtitleLanguageDetectionCodes(detectionID: detectionID),
+                    distribution: try subtitleLanguageDetectionDistribution(detectionID: detectionID),
+                    detectedAt: statement.stringColumn(9)
+                )
+            )
+        }
+
+        return records
+    }
+
+    public func cueGroupLanguages(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> [Int64: Set<SubtitleLanguageCode>] {
+        let statement = try database.prepare(
+            """
+            SELECT g.id, cgl.language_code
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
+            WHERE sf.subtitle_path = ?
+            ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC, cgl.language_code ASC;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+
+        var languagesByCueGroupID: [Int64: Set<SubtitleLanguageCode>] = [:]
+        while try statement.step() {
+            guard let language = SubtitleLanguageCode(rawValue: statement.stringColumn(1)) else {
+                continue
+            }
+            languagesByCueGroupID[statement.int64Column(0), default: []].insert(language)
+        }
+
+        return languagesByCueGroupID
+    }
+
+    public func hasCurrentSubtitleLanguageManifest(forSubtitleFile subtitleFile: URL) throws -> Bool {
+        let statement = try database.prepare(
+            """
+            SELECT lm.algorithm_version
+            FROM subtitle_language_manifests lm
+            JOIN subtitle_files sf ON sf.id = lm.subtitle_file_id
+            WHERE sf.subtitle_path = ?;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+
+        guard try statement.step() else {
+            return false
+        }
+
+        return statement.intColumn(0) == SubtitleLanguageRecognizer.algorithmVersion
     }
 
     public func cueTimings(
@@ -4118,6 +4378,211 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    private func validateLanguageAnalysis(
+        _ languageAnalysis: SubtitleLanguageAnalysis?,
+        format: SubtitleFormat,
+        cueGroupCount: Int
+    ) throws {
+        guard let languageAnalysis else {
+            return
+        }
+
+        guard languageAnalysis.format == format else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Subtitle language analysis format does not match subtitle format."
+            )
+        }
+
+        guard languageAnalysis.cueGroupLanguages.count == cueGroupCount else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Subtitle language analysis cue group count does not match indexed cue group count."
+            )
+        }
+    }
+
+    private func insertSubtitleLanguageManifest(
+        subtitleFileID: Int64,
+        detectionCount: Int,
+        cueGroupCount: Int
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO subtitle_language_manifests(
+                subtitle_file_id,
+                algorithm_version,
+                detection_count,
+                cue_group_count,
+                analyzed_at
+            )
+            VALUES (?, ?, ?, ?, ?);
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(SubtitleLanguageRecognizer.algorithmVersion, at: 2)
+        try statement.bind(detectionCount, at: 3)
+        try statement.bind(cueGroupCount, at: 4)
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 5)
+        try statement.run()
+    }
+
+    private func insertSubtitleLanguageDetection(
+        subtitleFileID: Int64,
+        scope: SubtitleLanguageDetectionScope,
+        scopeKey: String?,
+        detection: SubtitleLanguageDetectionResult
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO subtitle_language_detections(
+                subtitle_file_id,
+                scope,
+                scope_key,
+                algorithm_version,
+                confidence,
+                confidence_band,
+                segment_count,
+                effective_character_count,
+                detected_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(scope.rawValue, at: 2)
+        try statement.bind(scopeKey ?? "", at: 3)
+        try statement.bind(SubtitleLanguageRecognizer.algorithmVersion, at: 4)
+        try statement.bind(detection.confidence, at: 5)
+        try statement.bind(detection.confidenceBand.rawValue, at: 6)
+        try statement.bind(detection.segmentCount, at: 7)
+        try statement.bind(detection.effectiveCharacterCount, at: 8)
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 9)
+        try statement.run()
+
+        let detectionID = database.lastInsertRowID()
+        for language in detection.languages.sorted(by: { $0.rawValue < $1.rawValue }) {
+            try insertSubtitleLanguageDetectionCode(detectionID: detectionID, language: language)
+        }
+        for (rank, item) in detection.distribution.enumerated() {
+            try insertSubtitleLanguageDetectionDistribution(
+                detectionID: detectionID,
+                item: item,
+                rank: rank
+            )
+        }
+    }
+
+    private func insertSubtitleLanguageDetectionCode(
+        detectionID: Int64,
+        language: SubtitleLanguageCode
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO subtitle_language_detection_codes(detection_id, language_code)
+            VALUES (?, ?);
+            """
+        )
+        try statement.bind(detectionID, at: 1)
+        try statement.bind(language.rawValue, at: 2)
+        try statement.run()
+    }
+
+    private func insertSubtitleLanguageDetectionDistribution(
+        detectionID: Int64,
+        item: SubtitleLanguageDistribution,
+        rank: Int
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO subtitle_language_detection_distribution(
+                detection_id,
+                language_code,
+                share,
+                rank
+            )
+            VALUES (?, ?, ?, ?);
+            """
+        )
+        try statement.bind(detectionID, at: 1)
+        try statement.bind(item.language.rawValue, at: 2)
+        try statement.bind(item.share, at: 3)
+        try statement.bind(rank, at: 4)
+        try statement.run()
+    }
+
+    private func insertCueGroupLanguages(
+        cueGroupID: Int64,
+        languages: Set<SubtitleLanguageCode>
+    ) throws {
+        let resolvedLanguages = languages.isEmpty ? Set([SubtitleLanguageCode.unknown]) : languages
+        let statement = try database.prepare(
+            """
+            INSERT INTO subtitle_cue_group_languages(cue_group_id, language_code)
+            VALUES (?, ?);
+            """
+        )
+        for language in resolvedLanguages.sorted(by: { $0.rawValue < $1.rawValue }) {
+            try statement.reset()
+            try statement.clearBindings()
+            try statement.bind(cueGroupID, at: 1)
+            try statement.bind(language.rawValue, at: 2)
+            try statement.run()
+        }
+    }
+
+    private func subtitleLanguageDetectionCodes(
+        detectionID: Int64
+    ) throws -> Set<SubtitleLanguageCode> {
+        let statement = try database.prepare(
+            """
+            SELECT language_code
+            FROM subtitle_language_detection_codes
+            WHERE detection_id = ?
+            ORDER BY language_code ASC;
+            """
+        )
+        try statement.bind(detectionID, at: 1)
+
+        var languages = Set<SubtitleLanguageCode>()
+        while try statement.step() {
+            if let language = SubtitleLanguageCode(rawValue: statement.stringColumn(0)) {
+                languages.insert(language)
+            }
+        }
+
+        return languages.isEmpty ? [.unknown] : languages
+    }
+
+    private func subtitleLanguageDetectionDistribution(
+        detectionID: Int64
+    ) throws -> [SubtitleLanguageDistribution] {
+        let statement = try database.prepare(
+            """
+            SELECT language_code, share
+            FROM subtitle_language_detection_distribution
+            WHERE detection_id = ?
+            ORDER BY rank ASC, language_code ASC;
+            """
+        )
+        try statement.bind(detectionID, at: 1)
+
+        var distribution: [SubtitleLanguageDistribution] = []
+        while try statement.step() {
+            guard let language = SubtitleLanguageCode(rawValue: statement.stringColumn(0)) else {
+                continue
+            }
+            distribution.append(
+                SubtitleLanguageDistribution(
+                    language: language,
+                    share: statement.nullableDoubleColumn(1) ?? 0
+                )
+            )
+        }
+
+        return distribution
+    }
+
     private func insertASSRenderSegment(
         subtitleFileID: Int64,
         segment: ASSRenderSegmentPayload
@@ -4417,6 +4882,74 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private func deleteIndexedSubtitlePath(_ subtitlePath: String) throws {
+        let deleteLanguageDetectionDistribution = try database.prepare(
+            """
+            DELETE FROM subtitle_language_detection_distribution
+            WHERE detection_id IN (
+                SELECT d.id
+                FROM subtitle_language_detections d
+                JOIN subtitle_files sf ON sf.id = d.subtitle_file_id
+                WHERE sf.subtitle_path = ?
+            );
+            """
+        )
+        try deleteLanguageDetectionDistribution.bind(subtitlePath, at: 1)
+        try deleteLanguageDetectionDistribution.run()
+
+        let deleteLanguageDetectionCodes = try database.prepare(
+            """
+            DELETE FROM subtitle_language_detection_codes
+            WHERE detection_id IN (
+                SELECT d.id
+                FROM subtitle_language_detections d
+                JOIN subtitle_files sf ON sf.id = d.subtitle_file_id
+                WHERE sf.subtitle_path = ?
+            );
+            """
+        )
+        try deleteLanguageDetectionCodes.bind(subtitlePath, at: 1)
+        try deleteLanguageDetectionCodes.run()
+
+        let deleteLanguageDetections = try database.prepare(
+            """
+            DELETE FROM subtitle_language_detections
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteLanguageDetections.bind(subtitlePath, at: 1)
+        try deleteLanguageDetections.run()
+
+        let deleteLanguageManifests = try database.prepare(
+            """
+            DELETE FROM subtitle_language_manifests
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteLanguageManifests.bind(subtitlePath, at: 1)
+        try deleteLanguageManifests.run()
+
+        let deleteCueGroupLanguages = try database.prepare(
+            """
+            DELETE FROM subtitle_cue_group_languages
+            WHERE cue_group_id IN (
+                SELECT g.id
+                FROM subtitle_cue_groups g
+                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                WHERE sf.subtitle_path = ?
+            );
+            """
+        )
+        try deleteCueGroupLanguages.bind(subtitlePath, at: 1)
+        try deleteCueGroupLanguages.run()
+
         let deleteASSFontReferences = try database.prepare(
             """
             DELETE FROM ass_font_references
@@ -4504,6 +5037,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute(
             """
             DROP TABLE IF EXISTS subtitle_cue_groups_fts;
+            DROP TABLE IF EXISTS subtitle_cue_group_languages;
+            DROP TABLE IF EXISTS subtitle_language_detection_distribution;
+            DROP TABLE IF EXISTS subtitle_language_detection_codes;
+            DROP TABLE IF EXISTS subtitle_language_detections;
+            DROP TABLE IF EXISTS subtitle_language_manifests;
             DROP TABLE IF EXISTS subtitle_cue_lines;
             DROP TABLE IF EXISTS subtitle_cue_groups;
             DROP TABLE IF EXISTS ass_font_references;
