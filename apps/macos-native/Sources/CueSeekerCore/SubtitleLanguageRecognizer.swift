@@ -4,12 +4,13 @@ import NaturalLanguage
 public enum SubtitleLanguageCode: String, CaseIterable, Codable, Hashable, Sendable {
     case english = "en"
     case japanese = "ja"
+    case chinese = "zh"
     case simplifiedChinese = "zh-Hans"
     case traditionalChinese = "zh-Hant"
     case unknown = "unknown"
 
     public var isChinese: Bool {
-        self == .simplifiedChinese || self == .traditionalChinese
+        self == .chinese || self == .simplifiedChinese || self == .traditionalChinese
     }
 }
 
@@ -84,7 +85,7 @@ public struct SubtitleLanguageDetectionResult: Codable, Equatable, Sendable {
 }
 
 public struct SubtitleLanguageRecognizer: Sendable {
-    public static let algorithmVersion = 1
+    public static let algorithmVersion = 2
     public static let defaultConfidenceThreshold = 0.9
 
     public let confidenceThreshold: Double
@@ -116,26 +117,20 @@ public struct SubtitleLanguageRecognizer: Sendable {
             )
         }
 
-        var weightedLanguages: [SubtitleLanguageCode: Double] = [:]
-        var totalWeight = 0.0
-
-        for candidate in candidates {
-            let recognized = recognizedLanguage(for: candidate.text, stats: candidate.stats)
-            let weight = Double(candidate.stats.effectiveCharacters) * max(recognized.confidence, 0.2)
-            weightedLanguages[recognized.language, default: 0] += weight
-            totalWeight += weight
-        }
-
-        guard totalWeight > 0 else {
+        let combinedText = candidates.map(\.text).joined(separator: "\n")
+        let combinedStats = ScriptStats(text: combinedText)
+        let languageShares = recognizedLanguageShares(for: combinedText, stats: combinedStats)
+        let scriptShares = scriptLanguageShares(for: candidates)
+        guard !languageShares.isEmpty else {
             return .unknown(
                 segmentCount: candidates.count,
                 effectiveCharacterCount: effectiveCharacterCount
             )
         }
 
-        let distribution = weightedLanguages
-            .map { language, weight in
-                SubtitleLanguageDistribution(language: language, share: weight / totalWeight)
+        let distribution = languageShares
+            .map { language, share in
+                SubtitleLanguageDistribution(language: language, share: share)
             }
             .sorted { lhs, rhs in
                 if lhs.share == rhs.share {
@@ -144,10 +139,8 @@ public struct SubtitleLanguageRecognizer: Sendable {
                 return lhs.share > rhs.share
             }
 
-        let selected = distribution.filter {
-            $0.language != .unknown && $0.share >= minimumLanguageShare
-        }
-        let confidence = selected.reduce(0) { $0 + $1.share }
+        let selected = selectedLanguages(from: languageShares, scriptShares: scriptShares)
+        let confidence = confidence(for: selected, shares: languageShares, scriptShares: scriptShares)
         guard confidence >= confidenceThreshold else {
             return SubtitleLanguageDetectionResult(
                 languages: [.unknown],
@@ -159,7 +152,7 @@ public struct SubtitleLanguageRecognizer: Sendable {
         }
 
         return SubtitleLanguageDetectionResult(
-            languages: Set(selected.map(\.language)),
+            languages: selected,
             confidence: confidence,
             segmentCount: candidates.count,
             effectiveCharacterCount: effectiveCharacterCount,
@@ -173,7 +166,9 @@ public struct SubtitleLanguageRecognizer: Sendable {
             return .english
         case "ja":
             return .japanese
-        case "zh", "zh-hans", "zh-cn", "zh-sg":
+        case "zh":
+            return .chinese
+        case "zh-hans", "zh-cn", "zh-sg":
             return .simplifiedChinese
         case "zh-hant", "zh-tw", "zh-hk", "zh-mo":
             return .traditionalChinese
@@ -200,39 +195,155 @@ public struct SubtitleLanguageRecognizer: Sendable {
         return LanguageCandidate(text: normalized, stats: stats)
     }
 
-    private func recognizedLanguage(
+    private func recognizedLanguageShares(
         for text: String,
         stats: ScriptStats
-    ) -> (language: SubtitleLanguageCode, confidence: Double) {
+    ) -> [SubtitleLanguageCode: Double] {
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
         let hypotheses = recognizer.languageHypotheses(withMaximum: 5)
             .map { (language: $0.key.rawValue, confidence: $0.value) }
             .sorted { $0.confidence > $1.confidence }
 
-        if stats.kanaCharacters > 0 {
-            let confidence = hypotheses.first(where: { $0.language == SubtitleLanguageCode.japanese.rawValue })?.confidence
-                ?? hypotheses.first?.confidence
-                ?? confidenceThreshold
-            return (.japanese, max(confidence, confidenceThreshold))
+        var shares: [SubtitleLanguageCode: Double] = [:]
+        for hypothesis in hypotheses {
+            guard let language = Self.languageCode(forNaturalLanguageIdentifier: hypothesis.language) else {
+                continue
+            }
+
+            if language == .chinese,
+               let scriptLanguage = stats.preferredChineseLanguage {
+                shares[scriptLanguage, default: 0] += hypothesis.confidence
+            } else {
+                shares[language, default: 0] += hypothesis.confidence
+            }
         }
 
-        guard let top = hypotheses.first,
-              var language = Self.languageCode(forNaturalLanguageIdentifier: top.language)
-        else {
-            return (.unknown, 0)
+        if stats.kanaCharacters > 0,
+           shares.isEmpty,
+           let top = hypotheses.first?.confidence {
+            shares[.japanese] = min(top, confidenceThreshold)
         }
 
-        if language.isChinese,
-           let scriptLanguage = stats.preferredChineseLanguage {
-            language = scriptLanguage
+        let totalShare = shares.values.reduce(0, +)
+        guard totalShare > 0 else {
+            return [:]
         }
 
-        guard top.confidence >= confidenceThreshold else {
-            return (.unknown, top.confidence)
+        return shares.mapValues { $0 / totalShare }
+    }
+
+    private func selectedLanguages(
+        from shares: [SubtitleLanguageCode: Double],
+        scriptShares: [SubtitleLanguageCode: Double]
+    ) -> Set<SubtitleLanguageCode> {
+        var selected = Set<SubtitleLanguageCode>()
+
+        let simplifiedConfidence = shares[.simplifiedChinese] ?? 0
+        let traditionalConfidence = shares[.traditionalChinese] ?? 0
+        let genericChineseConfidence = shares[.chinese] ?? 0
+        let splitChineseConfidence = simplifiedConfidence + traditionalConfidence
+        let totalChineseConfidence = splitChineseConfidence + genericChineseConfidence
+
+        if simplifiedConfidence >= confidenceThreshold {
+            selected.insert(.simplifiedChinese)
+        }
+        if traditionalConfidence >= confidenceThreshold {
+            selected.insert(.traditionalChinese)
+        }
+        if genericChineseConfidence >= confidenceThreshold ||
+            (splitChineseConfidence >= confidenceThreshold &&
+             simplifiedConfidence < confidenceThreshold &&
+             traditionalConfidence < confidenceThreshold) {
+            selected.insert(.chinese)
         }
 
-        return (language, top.confidence)
+        for (language, share) in shares where !language.isChinese && share >= minimumLanguageShare {
+            selected.insert(language)
+        }
+
+        for (language, share) in scriptShares where share >= minimumLanguageShare {
+            if language.isChinese,
+               !selected.isDisjoint(with: [.chinese, .simplifiedChinese, .traditionalChinese]) {
+                continue
+            }
+            selected.insert(language)
+        }
+
+        if totalChineseConfidence >= minimumLanguageShare,
+           selected.isDisjoint(with: [.chinese, .simplifiedChinese, .traditionalChinese]) {
+            selected.insert(.chinese)
+        }
+
+        return selected
+    }
+
+    private func confidence(
+        for selected: Set<SubtitleLanguageCode>,
+        shares: [SubtitleLanguageCode: Double],
+        scriptShares: [SubtitleLanguageCode: Double]
+    ) -> Double {
+        guard !selected.isEmpty else {
+            return 0
+        }
+
+        var confidence = 0.0
+        if selected.contains(.chinese) {
+            confidence += (shares[.chinese] ?? 0)
+                + (shares[.simplifiedChinese] ?? 0)
+                + (shares[.traditionalChinese] ?? 0)
+        } else {
+            if selected.contains(.simplifiedChinese) {
+                confidence += shares[.simplifiedChinese] ?? 0
+            }
+            if selected.contains(.traditionalChinese) {
+                confidence += shares[.traditionalChinese] ?? 0
+            }
+        }
+
+        for language in selected where !language.isChinese {
+            confidence += max(shares[language] ?? 0, scriptShares[language] ?? 0)
+        }
+
+        if selected.contains(.chinese) ||
+            selected.contains(.simplifiedChinese) ||
+            selected.contains(.traditionalChinese) {
+            let scriptChineseConfidence = (scriptShares[.chinese] ?? 0)
+                + (scriptShares[.simplifiedChinese] ?? 0)
+                + (scriptShares[.traditionalChinese] ?? 0)
+            confidence = max(confidence, scriptChineseConfidence)
+        }
+
+        return min(confidence, 1)
+    }
+
+    private func scriptLanguageShares(
+        for candidates: [LanguageCandidate]
+    ) -> [SubtitleLanguageCode: Double] {
+        var weights: [SubtitleLanguageCode: Double] = [:]
+        var totalWeight = 0.0
+
+        for candidate in candidates {
+            let stats = candidate.stats
+            let weight = Double(stats.effectiveCharacters)
+            if stats.kanaCharacters > 0 {
+                weights[.japanese, default: 0] += weight
+                totalWeight += weight
+            } else if stats.hanCharacters > 0,
+                      let language = stats.preferredChineseLanguage {
+                weights[language, default: 0] += weight
+                totalWeight += weight
+            } else if stats.latinCharacters > 0 {
+                weights[.english, default: 0] += weight
+                totalWeight += weight
+            }
+        }
+
+        guard totalWeight > 0 else {
+            return [:]
+        }
+
+        return weights.mapValues { $0 / totalWeight }
     }
 }
 

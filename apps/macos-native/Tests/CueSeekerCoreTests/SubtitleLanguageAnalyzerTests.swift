@@ -56,6 +56,35 @@ func analyzesOnlyUsedASSStylesAndMapsStyleLanguagesToCueGroups() {
 }
 
 @Test
+func analyzesASSStyleByMergedCleanedText() {
+    let contents = """
+    [Script Info]
+
+    [V4+ Styles]
+    Format: Name, Alignment, MarginL, MarginR, MarginV
+    Style: Default,2,20,20,30
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\fnScreen\\pos(960,760)}要是没我在你就成真的小偷了哦 你的明白？
+    Dialogue: 0,0:00:04.00,0:00:06.00,Default,,0,0,0,,{\\fs75\\blur25}希望你尽快能找到吧
+    Dialogue: 0,0:00:07.00,0:00:09.00,Default,,0,0,0,,你好烦 我在谷歌啦
+    """
+    let cueGroups = ASSParser.parseCueGroups(contents)
+    let analysis = SubtitleLanguageAnalyzer().analyze(format: .ass, cueGroups: cueGroups)
+    let defaultDetection = analysis.styleDetections["Default"]
+
+    #expect(defaultDetection?.languages.isDisjoint(with: [
+        .chinese,
+        .simplifiedChinese,
+        .traditionalChinese
+    ]) == false)
+    #expect(defaultDetection?.languages != [.unknown])
+    #expect(defaultDetection?.confidence ?? 0 >= SubtitleLanguageRecognizer.defaultConfidenceThreshold)
+    #expect(cueGroups.first?.cueLines.first?.content == "要是没我在你就成真的小偷了哦 你的明白？")
+}
+
+@Test
 func canonicalizesStarPrefixedASSStyleNames() {
     let contents = """
     [Script Info]

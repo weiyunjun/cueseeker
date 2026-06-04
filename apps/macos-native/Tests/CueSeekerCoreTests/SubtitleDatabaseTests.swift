@@ -438,8 +438,9 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
         languageFilterTestEntry(sequenceNumber: 1, text: "Shared Japanese cue"),
         languageFilterTestEntry(sequenceNumber: 2, text: "Shared English cue"),
         languageFilterTestEntry(sequenceNumber: 3, text: "Shared Unknown cue"),
-        languageFilterTestEntry(sequenceNumber: 4, text: "Shared Mixed cue"),
-        languageFilterTestEntry(sequenceNumber: 5, text: "Shared Traditional cue")
+        languageFilterTestEntry(sequenceNumber: 4, text: "Shared Generic Chinese cue"),
+        languageFilterTestEntry(sequenceNumber: 5, text: "Shared Mixed cue"),
+        languageFilterTestEntry(sequenceNumber: 6, text: "Shared Traditional cue")
     ]
     let analysis = SubtitleLanguageAnalysis(
         format: .srt,
@@ -449,6 +450,7 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
             [.japanese],
             [.english],
             [.unknown],
+            [.chinese],
             [.simplifiedChinese, .japanese],
             [.traditionalChinese]
         ]
@@ -465,6 +467,7 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
         "Shared Japanese cue",
         "Shared English cue",
         "Shared Unknown cue",
+        "Shared Generic Chinese cue",
         "Shared Mixed cue",
         "Shared Traditional cue"
     ])
@@ -479,15 +482,18 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
     ])
     #expect(try database.search("shared", languageFilter: .chinese).map(\.content) == [
         "Shared Unknown cue",
+        "Shared Generic Chinese cue",
         "Shared Mixed cue",
         "Shared Traditional cue"
     ])
     #expect(try database.search("shared", languageFilter: .simplifiedChinese).map(\.content) == [
         "Shared Unknown cue",
+        "Shared Generic Chinese cue",
         "Shared Mixed cue"
     ])
     #expect(try database.search("shared", languageFilter: .traditionalChinese).map(\.content) == [
         "Shared Unknown cue",
+        "Shared Generic Chinese cue",
         "Shared Traditional cue"
     ])
 
@@ -499,7 +505,7 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
     )
     #expect(visiblePage.results.map(\.content) == [
         "Shared Unknown cue",
-        "Shared Mixed cue"
+        "Shared Generic Chinese cue"
     ])
     #expect(visiblePage.nextCursor?.offset == 2)
 }

@@ -140,11 +140,11 @@ public enum SubtitleSearchLanguageFilter: String, CaseIterable, Codable, Hashabl
         case .english:
             return [.english]
         case .chinese:
-            return [.simplifiedChinese, .traditionalChinese]
+            return [.chinese, .simplifiedChinese, .traditionalChinese]
         case .simplifiedChinese:
-            return [.simplifiedChinese]
+            return [.chinese, .simplifiedChinese]
         case .traditionalChinese:
-            return [.traditionalChinese]
+            return [.chinese, .traditionalChinese]
         }
     }
 }

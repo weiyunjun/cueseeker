@@ -59,6 +59,36 @@ func returnsLanguageSetForMixedSubtitleSegments() {
 }
 
 @Test
+func combinesChineseScriptConfidenceBeforeApplyingThreshold() {
+    let recognizer = SubtitleLanguageRecognizer()
+
+    let result = recognizer.detectLanguages(in: [
+        "要是没我在你就成真的小偷了哦 你的明白？"
+    ])
+
+    #expect(result.languages == [.chinese])
+    #expect(result.confidence >= SubtitleLanguageRecognizer.defaultConfidenceThreshold)
+    #expect(result.distribution.contains { $0.language == .simplifiedChinese })
+    #expect(result.distribution.contains { $0.language == .traditionalChinese })
+}
+
+@Test
+func doesNotAddGenericChineseWhenScriptSpecificConfidencePassesThreshold() {
+    let recognizer = SubtitleLanguageRecognizer()
+
+    let result = recognizer.detectLanguages(in: [
+        "我又不知道是今天",
+        "今天就请您多多多关照了！",
+        "所以我现在非常地心动",
+        "我看起来像今天吗？",
+        "明天一起去学校吧。"
+    ])
+
+    #expect(result.languages == [.simplifiedChinese])
+    #expect(result.confidence >= SubtitleLanguageRecognizer.defaultConfidenceThreshold)
+}
+
+@Test
 func returnsUnknownForInsufficientText() {
     let recognizer = SubtitleLanguageRecognizer()
 
@@ -79,7 +109,9 @@ func returnsUnknownForInsufficientText() {
 func mapsNaturalLanguageIdentifiersToSupportedCodes() {
     #expect(SubtitleLanguageRecognizer.languageCode(forNaturalLanguageIdentifier: "ja") == .japanese)
     #expect(SubtitleLanguageRecognizer.languageCode(forNaturalLanguageIdentifier: "en") == .english)
+    #expect(SubtitleLanguageRecognizer.languageCode(forNaturalLanguageIdentifier: "zh") == .chinese)
     #expect(SubtitleLanguageRecognizer.languageCode(forNaturalLanguageIdentifier: "zh-Hans") == .simplifiedChinese)
+    #expect(SubtitleLanguageRecognizer.languageCode(forNaturalLanguageIdentifier: "zh-CN") == .simplifiedChinese)
     #expect(SubtitleLanguageRecognizer.languageCode(forNaturalLanguageIdentifier: "zh-Hant") == .traditionalChinese)
     #expect(SubtitleLanguageRecognizer.languageCode(forNaturalLanguageIdentifier: "fr") == nil)
 }
