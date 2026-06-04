@@ -423,6 +423,113 @@ func persistsASSStyleLanguageAnalysisForUsedStylesOnly() throws {
 }
 
 @Test
+func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/LanguageFilter.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/LanguageFilter.mkv")
+    let entries = [
+        languageFilterTestEntry(sequenceNumber: 1, text: "Shared Japanese cue"),
+        languageFilterTestEntry(sequenceNumber: 2, text: "Shared English cue"),
+        languageFilterTestEntry(sequenceNumber: 3, text: "Shared Unknown cue"),
+        languageFilterTestEntry(sequenceNumber: 4, text: "Shared Mixed cue"),
+        languageFilterTestEntry(sequenceNumber: 5, text: "Shared Traditional cue")
+    ]
+    let analysis = SubtitleLanguageAnalysis(
+        format: .srt,
+        fileDetection: nil,
+        styleDetections: [:],
+        cueGroupLanguages: [
+            [.japanese],
+            [.english],
+            [.unknown],
+            [.simplifiedChinese, .japanese],
+            [.traditionalChinese]
+        ]
+    )
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries,
+        languageAnalysis: analysis
+    )
+
+    #expect(try database.search("shared", languageFilter: .all).map(\.content) == [
+        "Shared Japanese cue",
+        "Shared English cue",
+        "Shared Unknown cue",
+        "Shared Mixed cue",
+        "Shared Traditional cue"
+    ])
+    #expect(try database.search("shared", languageFilter: .japanese).map(\.content) == [
+        "Shared Japanese cue",
+        "Shared Unknown cue",
+        "Shared Mixed cue"
+    ])
+    #expect(try database.search("shared", languageFilter: .english).map(\.content) == [
+        "Shared English cue",
+        "Shared Unknown cue"
+    ])
+    #expect(try database.search("shared", languageFilter: .chinese).map(\.content) == [
+        "Shared Unknown cue",
+        "Shared Mixed cue",
+        "Shared Traditional cue"
+    ])
+    #expect(try database.search("shared", languageFilter: .simplifiedChinese).map(\.content) == [
+        "Shared Unknown cue",
+        "Shared Mixed cue"
+    ])
+    #expect(try database.search("shared", languageFilter: .traditionalChinese).map(\.content) == [
+        "Shared Unknown cue",
+        "Shared Traditional cue"
+    ])
+
+    let visiblePage = try database.searchVisiblePage(
+        "shared",
+        limit: 2,
+        cursor: .start,
+        languageFilter: .chinese
+    )
+    #expect(visiblePage.results.map(\.content) == [
+        "Shared Unknown cue",
+        "Shared Mixed cue"
+    ])
+    #expect(visiblePage.nextCursor?.offset == 2)
+}
+
+@Test
+func searchLanguageFilterTreatsMissingLanguageRowsAsUnknown() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/LegacyLanguage.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/LegacyLanguage.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            languageFilterTestEntry(sequenceNumber: 1, text: "Legacy shared row")
+        ]
+    )
+
+    #expect(try database.search("legacy", languageFilter: .japanese).map(\.content) == [
+        "Legacy shared row"
+    ])
+}
+
+@Test
 func searchPaginatesBeyondDefaultResultLimit() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -3544,6 +3651,19 @@ private func databaseTestEntry(text: String) -> SubtitleEntry {
         endTimecode: "00:00:02,000",
         startMilliseconds: 1_000,
         endMilliseconds: 2_000,
+        text: text
+    )
+}
+
+private func languageFilterTestEntry(sequenceNumber: Int, text: String) -> SubtitleEntry {
+    let startMilliseconds = sequenceNumber * 1_000
+    let endMilliseconds = startMilliseconds + 500
+    return SubtitleEntry(
+        sequenceNumber: sequenceNumber,
+        startTimecode: String(format: "00:00:%02d,000", sequenceNumber),
+        endTimecode: String(format: "00:00:%02d,500", sequenceNumber),
+        startMilliseconds: startMilliseconds,
+        endMilliseconds: endMilliseconds,
         text: text
     )
 }

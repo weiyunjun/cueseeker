@@ -123,6 +123,32 @@ public enum SubtitleSearchPageMode: String, Equatable, Sendable, Codable {
     case visibleWindow
 }
 
+public enum SubtitleSearchLanguageFilter: String, CaseIterable, Codable, Hashable, Sendable {
+    case all
+    case japanese = "ja"
+    case english = "en"
+    case chinese = "zh"
+    case simplifiedChinese = "zh-Hans"
+    case traditionalChinese = "zh-Hant"
+
+    public var matchingLanguageCodes: Set<SubtitleLanguageCode> {
+        switch self {
+        case .all:
+            return Set(SubtitleLanguageCode.allCases)
+        case .japanese:
+            return [.japanese]
+        case .english:
+            return [.english]
+        case .chinese:
+            return [.simplifiedChinese, .traditionalChinese]
+        case .simplifiedChinese:
+            return [.simplifiedChinese]
+        case .traditionalChinese:
+            return [.traditionalChinese]
+        }
+    }
+}
+
 public struct SubtitleSearchResultCacheStats: Equatable, Sendable {
     public let entries: Int
     public let hits: Int
@@ -452,6 +478,7 @@ private struct SearchResultCacheKey: Hashable, Sendable {
     let mode: SubtitleSearchPageMode
     let pathPrefixes: [String]?
     let subtitlePath: String?
+    let languageFilter: SubtitleSearchLanguageFilter
 }
 
 private final class SearchResultPageCache: @unchecked Sendable {
@@ -2155,14 +2182,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
         limit: Int = 50,
         offset: Int = 0,
         under folders: [URL]? = nil,
-        inSubtitlePath subtitlePath: String? = nil
+        inSubtitlePath subtitlePath: String? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all
     ) throws -> [SubtitleSearchResult] {
         try searchPage(
             query,
             limit: limit,
             offset: offset,
             under: folders,
-            inSubtitlePath: subtitlePath
+            inSubtitlePath: subtitlePath,
+            languageFilter: languageFilter
         ).results
     }
 
@@ -2172,6 +2201,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         offset: Int = 0,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -2182,6 +2212,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             cursor: SubtitleSearchCursor(offset: offset),
             under: folders,
             inSubtitlePath: subtitlePath,
+            languageFilter: languageFilter,
             diagnostics: diagnostics,
             progress: progress,
             mode: mode
@@ -2194,6 +2225,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         cursor: SubtitleSearchCursor?,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil
     ) throws -> SubtitleSearchPage {
@@ -2203,6 +2235,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             cursor: cursor,
             under: folders,
             inSubtitlePath: subtitlePath,
+            languageFilter: languageFilter,
             diagnostics: diagnostics,
             progress: progress,
             mode: .visibleWindow
@@ -2215,6 +2248,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         cursor: SubtitleSearchCursor?,
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -2293,7 +2327,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             fields: [
                 .init("cursorOffset", appliedCursor.offset),
                 .init("pathPrefixes", pathPrefixes?.count ?? 0),
-                .init("hasSubtitlePathFilter", subtitlePathFilter == nil ? "false" : "true")
+                .init("hasSubtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
+                .init("languageFilter", languageFilter.rawValue)
             ]
         )
 
@@ -2303,7 +2338,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             offset: offset,
             mode: mode,
             pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
-            subtitlePath: subtitlePathFilter
+            subtitlePath: subtitlePathFilter,
+            languageFilter: languageFilter
         )
         let cacheStart = Self.diagnosticNow()
         if let cachedPage = searchResultCache.page(for: cacheKey) {
@@ -2351,6 +2387,29 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 return "AND (\(conditions))"
             } ?? ""
             let subtitlePathCondition = subtitlePathFilter.map { _ in "AND sf.subtitle_path = ?" } ?? ""
+            let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
+            let languageCondition: String
+            if languageFilterCodes.isEmpty {
+                languageCondition = ""
+            } else {
+                let placeholders = Array(repeating: "?", count: languageFilterCodes.count)
+                    .joined(separator: ", ")
+                languageCondition = """
+                AND (
+                    EXISTS (
+                        SELECT 1
+                        FROM subtitle_cue_group_languages cgl
+                        WHERE cgl.cue_group_id = g.id
+                          AND cgl.language_code IN (\(placeholders))
+                    )
+                    OR NOT EXISTS (
+                        SELECT 1
+                        FROM subtitle_cue_group_languages cgl_missing
+                        WHERE cgl_missing.cue_group_id = g.id
+                    )
+                )
+                """
+            }
             emit(
                 "setup",
                 since: setupStart,
@@ -2358,6 +2417,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("candidateBatchLimit", candidateBatchLimit),
                     .init("scopeCondition", scopeCondition.isEmpty ? "none" : "path"),
                     .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
+                    .init("languageFilter", languageFilter.rawValue),
                     .init("metadataMode", mode.rawValue)
                 ]
             )
@@ -2384,6 +2444,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
+                \(languageCondition)
                 ORDER BY f.rowid ASC
                 LIMIT ? OFFSET ?;
                 """
@@ -2408,6 +2469,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
                 if let subtitlePathFilter {
                     try statement.bind(subtitlePathFilter, at: bindIndex)
+                    bindIndex += 1
+                }
+                for languageCode in languageFilterCodes {
+                    try statement.bind(languageCode.rawValue, at: bindIndex)
                     bindIndex += 1
                 }
                 try statement.bind(candidateBatchLimit, at: bindIndex)
@@ -2782,6 +2847,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func searchNavigationSnapshot(
         _ query: String,
         under folders: [URL]? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all,
         anchor: SearchNavigationAnchor,
         radius: Int = 1
     ) throws -> SearchNavigationSnapshot {
@@ -2789,7 +2855,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             query,
             limit: 1,
             offset: 0,
-            under: folders
+            under: folders,
+            languageFilter: languageFilter
         )
         let page = if countPage.totalCount <= countPage.results.count {
             countPage
@@ -2798,7 +2865,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 query,
                 limit: countPage.totalCount,
                 offset: 0,
-                under: folders
+                under: folders,
+                languageFilter: languageFilter
             )
         }
         let results = page.results
@@ -3499,6 +3567,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
         case orderedLatinTokens([String])
         case cjkSubstring(String)
         case explicitFTS(String)
+    }
+
+    private static func languageCodesForSearchFilter(
+        _ languageFilter: SubtitleSearchLanguageFilter
+    ) -> [SubtitleLanguageCode] {
+        guard languageFilter != .all else {
+            return []
+        }
+
+        var codes = languageFilter.matchingLanguageCodes
+        codes.insert(.unknown)
+        return codes.sorted { $0.rawValue < $1.rawValue }
     }
 
     private static func diagnosticNow() -> UInt64 {
