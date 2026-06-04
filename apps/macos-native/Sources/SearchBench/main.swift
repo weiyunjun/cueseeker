@@ -65,7 +65,7 @@ func formatMs(_ value: Double) -> String {
 }
 
 guard CommandLine.arguments.count >= 3 else {
-    print("Usage: SearchBench <db-path> <query> [limit] [--step1-gaps] [--visible-window]")
+    print("Usage: SearchBench <db-path> <query> [limit] [--step1-gaps] [--visible-window] [--language-filter=all|ja|en|zh|zh-Hans|zh-Hant]")
     exit(1)
 }
 
@@ -75,6 +75,15 @@ let query = CommandLine.arguments[2]
 let limit = extraArguments.first(where: { !$0.hasPrefix("--") }).flatMap(Int.init) ?? 1000
 let includesStep1Gaps = extraArguments.contains("--step1-gaps")
 let usesVisibleWindow = extraArguments.contains("--visible-window")
+let languageFilter = extraArguments
+    .compactMap { argument -> SubtitleSearchLanguageFilter? in
+        guard argument.hasPrefix("--language-filter=") else {
+            return nil
+        }
+        let rawValue = String(argument.dropFirst("--language-filter=".count))
+        return SubtitleSearchLanguageFilter(rawValue: rawValue)
+    }
+    .first ?? .all
 let environment = ProcessInfo.processInfo.environment
 let includesFTSVocabularyDiagnostics = environment["CUESEEKER_BENCH_FTS_VOCAB"] == "1"
 let ftsVocabularyTopTermLimit = environment["CUESEEKER_BENCH_FTS_VOCAB_LIMIT"].flatMap(Int.init) ?? 12
@@ -84,6 +93,7 @@ print("DB:    \(dbPath.path)")
 print("Query: \"\(query)\"")
 print("Limit: \(limit)")
 print("Metadata mode: \(usesVisibleWindow ? "visibleWindow" : "exact")")
+print("Language filter: \(languageFilter.rawValue)")
 print("FTS vocab diagnostics: \(includesFTSVocabularyDiagnostics ? "enabled" : "disabled")")
 print("")
 
@@ -111,13 +121,15 @@ func timedSearch(
             query,
             limit: limit,
             cursor: .start,
-            inSubtitlePath: subtitlePath
+            inSubtitlePath: subtitlePath,
+            languageFilter: languageFilter
         )
     } else {
         try database.searchPage(
             query,
             limit: limit,
-            inSubtitlePath: subtitlePath
+            inSubtitlePath: subtitlePath,
+            languageFilter: languageFilter
         )
     }
     return TimedSearchPage(page: page, milliseconds: milliseconds(since: start))

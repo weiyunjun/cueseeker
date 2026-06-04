@@ -505,6 +505,105 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
 }
 
 @Test
+func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/BilingualLineFilter.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/BilingualLineFilter.mkv")
+    let cueGroups = [
+        languageFilterASSCueGroup(
+            startMilliseconds: 1_000,
+            lines: [
+                (style: "CN", content: "今天来了"),
+                (style: "JP", content: "明日は来ません")
+            ]
+        ),
+        languageFilterASSCueGroup(
+            startMilliseconds: 2_000,
+            lines: [
+                (style: "CN", content: "只是中文上下文"),
+                (style: "JP", content: "今日は大丈夫です")
+            ]
+        ),
+        languageFilterASSCueGroup(
+            startMilliseconds: 3_000,
+            lines: [
+                (style: nil, content: "今天没有样式"),
+                (style: "JP", content: "明日も大丈夫です")
+            ]
+        )
+    ]
+    let analysis = SubtitleLanguageAnalysis(
+        format: .ass,
+        fileDetection: nil,
+        styleDetections: [
+            "CN": SubtitleLanguageDetectionResult(
+                languages: [.simplifiedChinese],
+                confidence: 1,
+                segmentCount: 2,
+                effectiveCharacterCount: 16,
+                distribution: [SubtitleLanguageDistribution(language: .simplifiedChinese, share: 1)]
+            ),
+            "JP": SubtitleLanguageDetectionResult(
+                languages: [.japanese],
+                confidence: 1,
+                segmentCount: 3,
+                effectiveCharacterCount: 24,
+                distribution: [SubtitleLanguageDistribution(language: .japanese, share: 1)]
+            )
+        ],
+        cueGroupLanguages: [
+            [.simplifiedChinese, .japanese],
+            [.simplifiedChinese, .japanese],
+            [.japanese]
+        ]
+    )
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: cueGroups,
+        languageAnalysis: analysis
+    )
+
+    #expect(try database.search("今天", languageFilter: .all).map(\.startMilliseconds) == [
+        1_000,
+        3_000
+    ])
+    #expect(try database.search("今天", languageFilter: .japanese).map(\.startMilliseconds) == [
+        3_000
+    ])
+    #expect(try database.search("今天", languageFilter: .chinese).map(\.startMilliseconds) == [
+        1_000,
+        3_000
+    ])
+
+    let japaneseResults = try database.search("今日", languageFilter: .japanese)
+    #expect(japaneseResults.map(\.startMilliseconds) == [2_000])
+    #expect(japaneseResults.first?.cueLines == [
+        "只是中文上下文",
+        "今日は大丈夫です"
+    ])
+    #expect(try database.search("今日", languageFilter: .chinese).isEmpty)
+
+    let visiblePage = try database.searchVisiblePage(
+        "今天",
+        limit: 1,
+        cursor: .start,
+        languageFilter: .japanese
+    )
+    #expect(visiblePage.results.map(\.startMilliseconds) == [3_000])
+    #expect(visiblePage.nextCursor == nil)
+}
+
+@Test
 func searchLanguageFilterTreatsMissingLanguageRowsAsUnknown() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -3665,6 +3764,38 @@ private func languageFilterTestEntry(sequenceNumber: Int, text: String) -> Subti
         startMilliseconds: startMilliseconds,
         endMilliseconds: endMilliseconds,
         text: text
+    )
+}
+
+private func languageFilterASSCueGroup(
+    startMilliseconds: Int,
+    lines: [(style: String?, content: String)]
+) -> SubtitleCueGroup {
+    let endMilliseconds = startMilliseconds + 1_000
+    let cueLines = lines.enumerated().map { index, line in
+        SubtitleCueLine(
+            eventIndex: index,
+            sourceFormat: .ass,
+            sourceStyle: line.style,
+            sourceLayer: 0,
+            startTimecode: "\(startMilliseconds)",
+            endTimecode: "\(endMilliseconds)",
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            content: line.content,
+            displayX: nil,
+            displayY: nil,
+            displayOrder: index
+        )
+    }
+    return SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "\(startMilliseconds)",
+        endTimecode: "\(endMilliseconds)",
+        startMilliseconds: startMilliseconds,
+        endMilliseconds: endMilliseconds,
+        searchContent: lines.map(\.content).joined(separator: "\n"),
+        cueLines: cueLines
     )
 }
 
