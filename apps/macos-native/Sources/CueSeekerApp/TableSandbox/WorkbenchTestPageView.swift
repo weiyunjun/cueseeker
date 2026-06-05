@@ -11,17 +11,21 @@ struct WorkbenchTestPageView: View {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            Text(placeholder)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+            if let placeholder {
+                Text(placeholder)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var placeholder: String {
+    /// Library stays blank per requirement; Search/Shiori keep an interim
+    /// placeholder until the AppKit table replaces them in later phases.
+    private var placeholder: String? {
         switch page {
         case .library:
-            return "Test Library (blank)"
+            return nil
         case .search:
             return "Test Search"
         case .shiori:

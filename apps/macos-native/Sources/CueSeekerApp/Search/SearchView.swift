@@ -62,13 +62,17 @@ struct SearchView: View {
             )
 
             return Group {
-                switch layoutState.panelMode {
-                case .library:
-                    libraryPanel
-                case .search:
-                    topbarSearchResultsArea
-                case .shiori:
-                    shioriPanel
+                if let testPage = layoutState.activeTestPage {
+                    WorkbenchTestPageView(page: testPage)
+                } else {
+                    switch layoutState.panelMode {
+                    case .library:
+                        libraryPanel
+                    case .search:
+                        topbarSearchResultsArea
+                    case .shiori:
+                        shioriPanel
+                    }
                 }
             }
         }

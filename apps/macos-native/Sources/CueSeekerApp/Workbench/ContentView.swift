@@ -17,7 +17,6 @@ private struct ContentRootView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var playback: PlaybackStore
-    @EnvironmentObject private var layoutState: WorkbenchLayoutState
 
     private let windowBackground = Color(
         red: 0.955,
@@ -61,11 +60,7 @@ private struct ContentRootView: View {
 
     @ViewBuilder
     private var mainWorkspace: some View {
-        if let testPage = layoutState.activeTestPage {
-            WorkbenchTestPageView(page: testPage)
-        } else {
-            SearchView()
-        }
+        SearchView()
     }
 }
 
@@ -180,7 +175,7 @@ private struct TopbarModeButton: View {
     let help: String
 
     var body: some View {
-        let isSelected = layoutState.panelMode == mode
+        let isSelected = layoutState.activeTestPage == nil && layoutState.panelMode == mode
 
         Button {
             appState.performUserInitiatedAppCommand {
