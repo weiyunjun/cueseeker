@@ -357,6 +357,17 @@ struct SubtitleTableView: NSViewRepresentable {
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
 
+        /// Minimum content height = exactly one body line (no inter-line spacing),
+        /// so a single-line row is one line tall, not two.
+        private lazy var singleLineFloor: CGFloat = {
+            let measurer = SubtitleTextLayout()
+            measurer.update(
+                attributedString: NSAttributedString(string: "Ag", attributes: [.font: SubtitleTableText.bodyFont]),
+                width: .greatestFiniteMagnitude
+            )
+            return measurer.usedHeight
+        }()
+
         private static let indexCellID = NSUserInterfaceItemIdentifier("SubtitleTable.indexCell")
         private static let nameCellID = NSUserInterfaceItemIdentifier("SubtitleTable.nameCell")
         private static let cuesCellID = NSUserInterfaceItemIdentifier("SubtitleTable.cuesCell")
@@ -395,8 +406,7 @@ struct SubtitleTableView: NSViewRepresentable {
             nameMeasurer.update(attributedString: SubtitleTableText.body(model.name), width: nameWidth)
             cuesMeasurer.update(attributedString: SubtitleTableText.body(model.cues), width: cuesWidth)
 
-            let oneLine = ceil(SubtitleTableText.bodyFont.boundingRectForFont.height)
-            let content = max(nameMeasurer.usedHeight, cuesMeasurer.usedHeight, oneLine)
+            let content = max(nameMeasurer.usedHeight, cuesMeasurer.usedHeight, singleLineFloor)
             return content + 2 * M.rowVerticalInset
         }
 

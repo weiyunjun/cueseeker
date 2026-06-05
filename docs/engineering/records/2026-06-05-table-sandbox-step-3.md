@@ -41,6 +41,15 @@ B1 changes (platform UI/UX only):
   heights, hover background, separators only between real rows, frozen header,
   and light/dark following. (No selection or buttons yet — those are B2/B3.)
 
+## Fix — minimum row height (one line, not two)
+
+Owner reported rows defaulting to roughly two lines tall. The minimum content
+height used `NSFont.boundingRectForFont` (the font's max-glyph box, which
+overestimates) as the floor. Replaced it with a precise single body line height
+measured once via TextKit without inter-line spacing, so a one-line row is one
+line tall. Rows still grow when the Name or Cues text actually wraps (e.g., long
+names in the fixed-width Name column, or bilingual cues), which is intended.
+
 ## Outcome
 
 Build green. Foundation ready for B2 (custom cross-row/cross-column selection,
