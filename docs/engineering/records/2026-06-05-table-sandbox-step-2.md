@@ -58,7 +58,28 @@ visual style before wiring real data in Phase C. This is platform UI/UX only.
   row hover, per-cell text selection, `cmd+A` + `cmd+C`, the play button, and
   light/dark following.
 
+## Fix — broken row heights found in first end-to-end test
+
+The owner's first E2E test showed rows not growing to fit wrapped text: cells
+overlapped and long names overflowed into the Cues column. Root cause:
+`usesAutomaticRowHeights` mis-measured the custom multiline `NSTextField` cells
+(width undefined at measure time → single-line height → horizontal overflow and
+overlapping rows).
+
+Changes:
+
+- Replaced automatic row heights with manual measurement in
+  `tableView(_:heightOfRow:)` using `NSAttributedString.boundingRect` at the
+  real column widths (Name fixed; Cues = current column width minus the play
+  slot and insets), taking the taller of Name/Cues plus vertical insets.
+- Recompute heights on width changes: the table posts frame-change
+  notifications and the coordinator calls `noteHeightOfRows` so wrapping stays
+  correct on window resize.
+- Removed the full-table grid; each `SubtitleTableRowView` now draws its own
+  bottom hairline, so separators appear only between real rows and the empty
+  area below the last row stays clean.
+
 ## Outcome
 
-Build green; the table component renders from sample data and is ready for the
-owner's end-to-end visual check before Phase C wires real data and playback.
+Build green after the row-height fix. Pending the owner's re-run of the
+end-to-end visual check before Phase C wires real data and playback.

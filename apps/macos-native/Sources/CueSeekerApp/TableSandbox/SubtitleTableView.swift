@@ -206,6 +206,14 @@ final class SubtitleTableRowView: NSTableRowView {
             NSColor.secondaryLabelColor.withAlphaComponent(0.06).setFill()
             bounds.fill()
         }
+        // Per-row bottom hairline so separators appear only between real rows.
+        NSColor.separatorColor.setStroke()
+        let y = bounds.maxY - 0.5
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: bounds.minX, y: y))
+        path.line(to: NSPoint(x: bounds.maxX, y: y))
+        path.lineWidth = 0.5
+        path.stroke()
     }
 
     override func drawSelection(in dirtyRect: NSRect) {
@@ -384,18 +392,25 @@ struct SubtitleTableView: NSViewRepresentable {
         table.dataSource = context.coordinator
         table.style = .plain
         table.headerView = nil
-        table.usesAutomaticRowHeights = true
         table.allowsMultipleSelection = true
         table.allowsEmptySelection = true
         table.allowsColumnReordering = false
         table.allowsColumnResizing = false
         table.allowsColumnSelection = false
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-        table.gridStyleMask = [.solidHorizontalGridLineMask]
-        table.gridColor = .separatorColor
+        // Row separators are drawn per-row (see SubtitleTableRowView) so empty
+        // space below the last row stays clean; no full-table grid lines.
+        table.gridStyleMask = []
         table.intercellSpacing = NSSize(width: 0, height: 0)
         table.backgroundColor = .clear
         table.selectionHighlightStyle = .regular
+        table.postsFrameChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.tableFrameChanged),
+            name: NSView.frameDidChangeNotification,
+            object: table
+        )
 
         let indexColumn = NSTableColumn(identifier: Self.indexColumnID)
         indexColumn.width = SubtitleTableMetrics.indexColumnWidth
@@ -457,6 +472,15 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onPlay = onPlay
         }
 
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        @objc func tableFrameChanged() {
+            guard let tableView, tableView.numberOfRows > 0 else { return }
+            tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
+        }
+
         func update(rows: [SubtitleTableRow], onPlay: @escaping (SubtitleTableRow) -> Void) {
             self.onPlay = onPlay
             guard rows != self.rows else { return }
@@ -481,6 +505,41 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func numberOfRows(in tableView: NSTableView) -> Int {
             rows.count
+        }
+
+        func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+            let model = rows[row]
+            let font = NSFont.systemFont(ofSize: SubtitleTableMetrics.bodyFontSize)
+            let M = SubtitleTableMetrics.self
+
+            let nameWidth = M.nameColumnWidth - M.cellLeading - M.trailingInset
+            let cuesWidth = cuesColumnWidth(in: tableView)
+                - M.cellLeading - M.playButtonSize - M.playToTextSpacing - M.trailingInset
+
+            let nameHeight = Self.measuredHeight(model.name, width: nameWidth, font: font)
+            let cuesHeight = Self.measuredHeight(model.cues, width: cuesWidth, font: font)
+            let oneLine = ceil(font.boundingRectForFont.height)
+            let content = max(nameHeight, cuesHeight, oneLine)
+            return content + 2 * M.rowVerticalInset
+        }
+
+        private func cuesColumnWidth(in tableView: NSTableView) -> CGFloat {
+            if let column = tableView.tableColumns.first(where: { $0.identifier == SubtitleTableView.cuesColumnID }) {
+                return column.width
+            }
+            return max(0, tableView.bounds.width - SubtitleTableMetrics.indexColumnWidth - SubtitleTableMetrics.nameColumnWidth)
+        }
+
+        private static func measuredHeight(_ text: String, width: CGFloat, font: NSFont) -> CGFloat {
+            guard width > 0, !text.isEmpty else {
+                return ceil(font.boundingRectForFont.height)
+            }
+            let attributed = NSAttributedString(string: text, attributes: [.font: font])
+            let rect = attributed.boundingRect(
+                with: NSSize(width: width, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading]
+            )
+            return ceil(rect.height) + 1
         }
 
         func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
