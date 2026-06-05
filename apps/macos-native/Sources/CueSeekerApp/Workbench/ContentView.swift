@@ -17,6 +17,7 @@ private struct ContentRootView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var playback: PlaybackStore
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
 
     private let windowBackground = Color(
         red: 0.955,
@@ -60,7 +61,11 @@ private struct ContentRootView: View {
 
     @ViewBuilder
     private var mainWorkspace: some View {
-        SearchView()
+        if let testPage = layoutState.activeTestPage {
+            WorkbenchTestPageView(page: testPage)
+        } else {
+            SearchView()
+        }
     }
 }
 
@@ -100,6 +105,26 @@ private struct AppTopBar: View {
 
                     TopbarSearchInputHost()
                     .frame(width: AppShellLayout.topbarSearchFieldWidth)
+
+                    HStack(spacing: 8) {
+                        TopbarTestButton(
+                            page: .library,
+                            systemImage: "folder.circle",
+                            help: "Test Library"
+                        )
+
+                        TopbarTestButton(
+                            page: .search,
+                            systemImage: "magnifyingglass.circle",
+                            help: "Test Search"
+                        )
+
+                        TopbarTestButton(
+                            page: .shiori,
+                            systemImage: "bookmark.circle",
+                            help: "Test Shiori"
+                        )
+                    }
                 }
             }
             .simultaneousGesture(
@@ -129,8 +154,11 @@ private struct TopbarCommandBridge: View {
                 }
 
                 layoutState.isSearchFocused = isFocused
-                if isFocused, layoutState.panelMode != .search {
-                    appState.activateWorkbenchPanelMode(.search)
+                if isFocused {
+                    layoutState.clearTestPage()
+                    if layoutState.panelMode != .search {
+                        appState.activateWorkbenchPanelMode(.search)
+                    }
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .topbarTitlebarZoomRequested)) { notification in
@@ -162,6 +190,34 @@ private struct TopbarModeButton: View {
             Image(systemName: systemImage)
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(TopbarModeButtonStyle(isSelected: isSelected))
+        .foregroundStyle(isSelected ? AppShellLayout.topbarModeSelectedColor : AppShellLayout.topbarModeColor)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+private struct TopbarTestButton: View {
+    @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
+
+    let page: WorkbenchTestPage
+    let systemImage: String
+    let help: String
+
+    var body: some View {
+        let isSelected = layoutState.activeTestPage == page
+
+        Button {
+            appState.performUserInitiatedAppCommand {
+                layoutState.toggleTestPage(page)
+            }
+        } label: {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }
         .buttonStyle(TopbarModeButtonStyle(isSelected: isSelected))

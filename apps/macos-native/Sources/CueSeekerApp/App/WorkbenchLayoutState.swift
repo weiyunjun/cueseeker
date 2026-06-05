@@ -8,6 +8,16 @@ enum WorkbenchPanelMode: String, CaseIterable {
     case shiori
 }
 
+/// Temporary sandbox pages used to prototype the table-style UI without
+/// polluting the production Library/Search/Shiori views. Reachable only via the
+/// top-bar test icons; intentionally not persisted across launches.
+@MainActor
+enum WorkbenchTestPage: String, CaseIterable {
+    case library
+    case search
+    case shiori
+}
+
 @MainActor
 final class WorkbenchLayoutState: ObservableObject {
     private static let panelModeKey = "workbenchPanelMode"
@@ -16,6 +26,7 @@ final class WorkbenchLayoutState: ObservableObject {
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
     @Published var isSearchFocused = false
+    @Published var activeTestPage: WorkbenchTestPage?
 
     private let userDefaults: UserDefaults
 
@@ -33,6 +44,18 @@ final class WorkbenchLayoutState: ObservableObject {
 
         panelMode = mode
         userDefaults.set(mode.rawValue, forKey: Self.panelModeKey)
+    }
+
+    func toggleTestPage(_ page: WorkbenchTestPage) {
+        activeTestPage = (activeTestPage == page) ? nil : page
+    }
+
+    func clearTestPage() {
+        guard activeTestPage != nil else {
+            return
+        }
+
+        activeTestPage = nil
     }
 
     func beginVideoSizeTransition() -> Bool {

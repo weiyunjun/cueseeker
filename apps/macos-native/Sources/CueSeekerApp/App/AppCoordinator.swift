@@ -455,6 +455,8 @@ final class AppCoordinator: ObservableObject {
 
     func activateWorkbenchPanelMode(_ mode: WorkbenchPanelMode) {
         AppPerformanceProbe.action("AppCoordinator.activateWorkbenchPanelMode", thresholdMilliseconds: 4) {
+            workbenchLayout.clearTestPage()
+
             if workbenchLayout.panelMode == mode {
                 return
             }
