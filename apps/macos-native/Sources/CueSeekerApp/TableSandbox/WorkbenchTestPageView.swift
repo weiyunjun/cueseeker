@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Phase A skeleton for the table-style UI sandbox. Each test page is reachable
-/// only through the top-bar test icons so production views stay untouched.
-/// Library stays blank; Search/Shiori will host the AppKit table in later phases.
+/// Table-style UI sandbox pages, reachable only through the top-bar test icons
+/// so production views stay untouched. Library stays blank per requirement;
+/// Search/Shiori host the AppKit table. Phase B feeds the table static sample
+/// data; Phase C will wire real search results / Shiori entries and playback.
 struct WorkbenchTestPageView: View {
     let page: WorkbenchTestPage
 
@@ -11,25 +12,20 @@ struct WorkbenchTestPageView: View {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            if let placeholder {
-                Text(placeholder)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+            switch page {
+            case .library:
+                EmptyView()
+            case .search, .shiori:
+                SubtitleTableView(
+                    rows: SubtitleTableSampleData.rows,
+                    onPlay: { row in
+                        // Phase B: sample data only; real playback is wired in Phase C.
+                        NSLog("[TableSandbox] play tapped for row: %@", row.name)
+                    }
+                )
+                .padding(16)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    /// Library stays blank per requirement; Search/Shiori keep an interim
-    /// placeholder until the AppKit table replaces them in later phases.
-    private var placeholder: String? {
-        switch page {
-        case .library:
-            return nil
-        case .search:
-            return "Test Search"
-        case .shiori:
-            return "Test Shiori"
-        }
     }
 }
