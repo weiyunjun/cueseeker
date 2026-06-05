@@ -128,6 +128,8 @@ final class SubtitleTextCellView: NSView {
     /// Header cells center their single line vertically; body cells stay top-aligned.
     var centersVertically = false
 
+    weak var selectionHandler: SubtitleTableView.Coordinator?
+
     override var isFlipped: Bool { true }
 
     func configure(attributed: NSAttributedString, leading: CGFloat, trailing: CGFloat) {
@@ -176,6 +178,20 @@ final class SubtitleTextCellView: NSView {
     func setSelectedRange(_ range: NSRange?) {
         selectedRange = range
         needsDisplay = true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let localPoint = convert(event.locationInWindow, from: nil)
+        let position = TableTextPosition(row: rowIndex, column: columnIndex, char: characterIndex(at: localPoint))
+        selectionHandler?.beginSelection(at: position)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        selectionHandler?.updateSelection(windowPoint: event.locationInWindow)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        selectionHandler?.endSelection()
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -349,6 +365,7 @@ final class SubtitleTableNSTableView: NSTableView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        tableCoordinator?.clearSelection()
         super.mouseDown(with: event)
     }
 
@@ -399,6 +416,9 @@ struct SubtitleTableView: NSViewRepresentable {
         let header = SubtitleTableHeaderView()
         header.translatesAutoresizingMaskIntoConstraints = false
         context.coordinator.headerView = header
+        for cell in header.cells {
+            cell.selectionHandler = context.coordinator
+        }
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -575,6 +595,62 @@ struct SubtitleTableView: NSViewRepresentable {
             refreshSelectionHighlights()
         }
 
+        func beginSelection(at position: TableTextPosition) {
+            tableView?.window?.makeFirstResponder(tableView)
+            anchor = position
+            focus = position
+            refreshSelectionHighlights()
+        }
+
+        func updateSelection(windowPoint: CGPoint) {
+            guard let position = position(atWindowPoint: windowPoint) else { return }
+            focus = position
+            refreshSelectionHighlights()
+        }
+
+        func endSelection() {
+            // Auto-scroll teardown is added in a later sub-step.
+        }
+
+        private func position(atWindowPoint windowPoint: CGPoint) -> TableTextPosition? {
+            if let headerView {
+                let hp = headerView.convert(windowPoint, from: nil)
+                if hp.y >= headerView.bounds.minY, hp.y <= headerView.bounds.maxY {
+                    let column = headerView.columnIndex(forX: hp.x)
+                    let cell = headerView.cells[column]
+                    return TableTextPosition(row: -1, column: column, char: cell.characterIndex(at: cell.convert(windowPoint, from: nil)))
+                }
+            }
+            guard let tableView else { return nil }
+            let tp = tableView.convert(windowPoint, from: nil)
+            let rowCount = tableView.numberOfRows
+            guard rowCount > 0 else { return nil }
+
+            var row = tableView.row(at: tp)
+            if row < 0 {
+                if tp.y < 0 {
+                    row = 0
+                } else {
+                    let last = rowCount - 1
+                    return TableTextPosition(row: last, column: 2, char: cellTextLength(row: last, column: 2))
+                }
+            }
+
+            var column = tableView.column(at: tp)
+            if column < 0 {
+                column = tp.x < 0 ? 0 : 2
+            }
+            column = min(max(0, column), 2)
+
+            let char: Int
+            if let cell = tableView.view(atColumn: column, row: row, makeIfNecessary: false) as? SubtitleTextCellView {
+                char = cell.characterIndex(at: cell.convert(windowPoint, from: nil))
+            } else {
+                char = 0
+            }
+            return TableTextPosition(row: row, column: column, char: char)
+        }
+
         func refreshSelectionHighlights() {
             let selection = orderedSelection()
             if let headerView {
@@ -673,6 +749,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func prepare(_ cell: SubtitleTextCellView, row: Int, column: Int) {
             cell.rowIndex = row
             cell.columnIndex = column
+            cell.selectionHandler = self
             cell.setSelectedRange(cellRange(row: row, column: column, length: cell.textLength, selection: orderedSelection()))
         }
 

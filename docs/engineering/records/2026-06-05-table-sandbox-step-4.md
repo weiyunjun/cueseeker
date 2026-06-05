@@ -39,9 +39,19 @@ Additive only; no behavior change yet.
   `performKeyEquivalent` handles cmd+A → select all table text. (Testable now:
   click the table, press cmd+A → header + all rows highlight.)
 
+### Sub-step 4 — mouse drag selection across rows/columns (this commit)
+
+- `SubtitleTextCellView` now handles `mouseDown`/`mouseDragged`/`mouseUp` and
+  delegates to the coordinator. The origin cell keeps the drag, so the
+  coordinator maps each drag point (in window coordinates) to any row/column/
+  header position via `position(atWindowPoint:)`.
+- Coordinator `beginSelection` / `updateSelection` / `endSelection` set the
+  anchor and follow the focus; `position(atWindowPoint:)` resolves the header,
+  data rows, and below-last-row / left-right clamping.
+- Empty-area clicks on the table clear the selection.
+
 ### Planned remaining sub-steps
 
-- Mouse drag selection across rows and columns.
 - cmd+C copy as TSV (tab between columns, newline between rows).
 - Drag auto-scroll at the top/bottom edges, including extending into the header.
 
