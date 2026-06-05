@@ -187,7 +187,7 @@ final class SubtitleTextCellView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        selectionHandler?.updateSelection(windowPoint: event.locationInWindow)
+        selectionHandler?.updateSelection(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -374,11 +374,16 @@ final class SubtitleTableNSTableView: NSTableView {
         guard isCommand, window?.firstResponder === self else {
             return super.performKeyEquivalent(with: event)
         }
-        if event.charactersIgnoringModifiers == "a" {
+        switch event.charactersIgnoringModifiers {
+        case "a":
             tableCoordinator?.selectAll()
             return true
+        case "c":
+            tableCoordinator?.copySelection()
+            return true
+        default:
+            return super.performKeyEquivalent(with: event)
         }
-        return super.performKeyEquivalent(with: event)
     }
 }
 
@@ -503,6 +508,8 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private var anchor: TableTextPosition?
         private var focus: TableTextPosition?
+        private var autoscrollTask: Task<Void, Never>?
+        private var lastDragEvent: NSEvent?
 
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
@@ -602,14 +609,51 @@ struct SubtitleTableView: NSViewRepresentable {
             refreshSelectionHighlights()
         }
 
-        func updateSelection(windowPoint: CGPoint) {
-            guard let position = position(atWindowPoint: windowPoint) else { return }
+        func updateSelection(with event: NSEvent) {
+            lastDragEvent = event
+            applyDragSelection(event)
+            if autoscrollTask == nil {
+                autoscrollTask = Task { [weak self] in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(nanoseconds: 50_000_000)
+                        guard let self, let event = self.lastDragEvent else { break }
+                        self.applyDragSelection(event)
+                    }
+                }
+            }
+        }
+
+        private func applyDragSelection(_ event: NSEvent) {
+            tableView?.autoscroll(with: event)
+            guard let position = position(atWindowPoint: event.locationInWindow) else { return }
             focus = position
             refreshSelectionHighlights()
         }
 
         func endSelection() {
-            // Auto-scroll teardown is added in a later sub-step.
+            autoscrollTask?.cancel()
+            autoscrollTask = nil
+            lastDragEvent = nil
+        }
+
+        func copySelection() {
+            guard let selection = orderedSelection(), selection.start < selection.end else { return }
+            var lines: [String] = []
+            for row in selection.start.row...selection.end.row {
+                var columns: [String] = []
+                for column in 0..<3 {
+                    let full = cellFullText(row: row, column: column) as NSString
+                    if let range = cellRange(row: row, column: column, length: full.length, selection: selection) {
+                        columns.append(full.substring(with: range).replacingOccurrences(of: "\n", with: " "))
+                    } else {
+                        columns.append("")
+                    }
+                }
+                lines.append(columns.joined(separator: "\t"))
+            }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
         }
 
         private func position(atWindowPoint windowPoint: CGPoint) -> TableTextPosition? {

@@ -50,17 +50,30 @@ Additive only; no behavior change yet.
   data rows, and below-last-row / left-right clamping.
 - Empty-area clicks on the table clear the selection.
 
-### Planned remaining sub-steps
+### Sub-step 5 — cmd+C copy as TSV (this commit)
 
-- cmd+C copy as TSV (tab between columns, newline between rows).
-- Drag auto-scroll at the top/bottom edges, including extending into the header.
+- `copySelection` walks the selected rows (including the header) and, per row,
+  joins the three columns' selected substrings with tabs (rows joined by
+  newlines), replacing any in-cell newline with a space so it pastes cleanly
+  into Excel. `performKeyEquivalent` handles cmd+C.
+
+### Sub-step 6 — drag auto-scroll incl. header (this commit)
+
+- During a drag, `applyDragSelection` calls `autoscroll(with:)` and a
+  main-actor `Task` loop keeps scrolling + extending the focus while the pointer
+  is held at the top/bottom edge. Dragging up reaches the frozen header (which
+  participates as row -1); dragging down past the last row extends to its end.
+  The loop ends on mouse-up or when the coordinator is gone.
 
 ## Verification
 
-- `swift build --target CueSeekerApp` succeeded after sub-step 1+2.
-- No visible behavior yet (primitives only); end-to-end checks come once the
-  selection input is wired.
+- `swift build --target CueSeekerApp` succeeded after every sub-step.
+- End-to-end (owner): drag across rows and columns selects continuous text
+  (header included), cmd+A selects all, cmd+C pastes as TSV, and dragging to the
+  top/bottom edge auto-scrolls and keeps selecting.
 
 ## Outcome
 
-Primitives in place and building; remaining sub-steps build on them.
+Phase B2 complete and building: cross-row/column text selection with the frozen
+header participating, cmd+A / cmd+C (TSV), and drag auto-scroll — all on the
+virtualized table. Next is B3 (hover Play/Copy buttons).
