@@ -1,4 +1,5 @@
 import SwiftUI
+import CueSeekerCore
 
 /// Table-style UI sandbox pages, reachable only through the top-bar test icons
 /// so production views stay untouched. Library stays blank per requirement;
@@ -61,7 +62,7 @@ private struct WorkbenchTestSearchView: View {
         search.searchResults.map { result in
             SubtitleTableRow(
                 id: Int(result.entryID),
-                name: result.videoName,
+                name: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath),
                 cues: subtitleDisplayLines(content: result.content, cueLines: result.cueLines).joined(separator: "\n")
             )
         }
@@ -86,7 +87,7 @@ private struct WorkbenchTestShioriView: View {
         shiori.shioris.map { item in
             SubtitleTableRow(
                 id: Int(item.id),
-                name: item.videoName,
+                name: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: item.subtitlePath),
                 cues: subtitleDisplayLines(content: item.content, cueLines: item.cueLines).joined(separator: "\n")
             )
         }

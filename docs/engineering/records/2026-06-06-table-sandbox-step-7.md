@@ -40,7 +40,16 @@ resolves the underlying result/entry.
   production card; Test Shiori lists favorites and Play opens them. Selection,
   cmd+A/cmd+C, hover Play/Copy, and scrolling continue to work.
 
+## Fix — Name uses the contract alias, not the file name
+
+E2E showed the Name column using `videoName` (the file name) instead of the
+display title shown in the production group header (e.g., "AVE MUJICA – 01").
+Changed both tables to use
+`SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath:)` (the same source
+as the production group title; required `import CueSeekerCore`).
+
 ## Outcome
 
 Build green. Phase B4 complete: the sandbox tables run on real Search/Shiori
-data with the production playback entries and an in-page Search box.
+data with the production playback entries and an in-page Search box; Name shows
+the contract alias.
