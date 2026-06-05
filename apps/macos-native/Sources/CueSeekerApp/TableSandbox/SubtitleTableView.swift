@@ -207,56 +207,155 @@ class SubtitleTextCellView: NSView {
     }
 }
 
-// MARK: - Hover Play/Copy buttons for the Cues cell
+// MARK: - Hover Play/Copy buttons (pure AppKit; no SwiftUI hosting)
 
-private struct CueHoverButtons: View {
-    var onPlay: () -> Void
-    var onCopy: () -> Void
+/// Lightweight AppKit pill button (icon + title) matching the toolbar style:
+/// rounded, subtle hover/press background, no border.
+final class PillButton: NSView {
+    private let iconView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private var tracking: NSTrackingArea?
+    private var isHovered = false
+    private var isPressed = false
+    var onClick: (() -> Void)?
 
-    var body: some View {
-        HStack(spacing: 2) {
-            button(title: "Play", systemImage: "play.fill", action: onPlay)
-            button(title: "Copy", systemImage: "doc.on.doc", action: onCopy)
-        }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-        )
+    override var isFlipped: Bool { true }
+
+    init(title: String, symbolName: String) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: title)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 11, weight: .medium))
+        iconView.contentTintColor = .labelColor
+        iconView.imageScaling = .scaleProportionallyDown
+
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.stringValue = title
+        titleLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.isEditable = false
+        titleLabel.isSelectable = false
+        titleLabel.isBordered = false
+        titleLabel.drawsBackground = false
+
+        addSubview(iconView)
+        addSubview(titleLabel)
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: 22),
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
+            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
     }
 
-    private func button(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: systemImage)
-                Text(title)
-            }
-            .font(.system(size: 11, weight: .medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func updateBackground() {
+        let alpha: CGFloat = isPressed ? 0.15 : (isHovered ? 0.08 : 0)
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(alpha).cgColor
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking {
+            removeTrackingArea(tracking)
         }
-        .buttonStyle(ToolbarButtonStyle())
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self)
+        addTrackingArea(area)
+        tracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        updateBackground()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        isPressed = false
+        updateBackground()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        isPressed = true
+        updateBackground()
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        isPressed = false
+        updateBackground()
+        let point = convert(event.locationInWindow, from: nil)
+        if bounds.contains(point) {
+            onClick?()
+        }
+    }
+}
+
+/// AppKit toolbar container holding the Play/Copy pills, with an opaque
+/// background + hairline so it stays readable over the cue text.
+final class CueButtonsToolbar: NSView {
+    let playButton = PillButton(title: "Play", symbolName: "play.fill")
+    let copyButton = PillButton(title: "Copy", symbolName: "doc.on.doc")
+
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 7
+        layer?.borderWidth = 0.5
+
+        playButton.translatesAutoresizingMaskIntoConstraints = false
+        copyButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(playButton)
+        addSubview(copyButton)
+        NSLayoutConstraint.activate([
+            playButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            playButton.topAnchor.constraint(equalTo: topAnchor, constant: 2),
+            playButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+            copyButton.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: 2),
+            copyButton.topAnchor.constraint(equalTo: topAnchor, constant: 2),
+            copyButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+            copyButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+        ])
+        applyAppearanceColors()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyAppearanceColors()
+    }
+
+    private func applyAppearanceColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
+            layer?.borderColor = NSColor.separatorColor.cgColor
+        }
     }
 }
 
 /// Cues cell that overlays hover Play/Copy buttons at its left. Text selection
 /// and drawing are inherited from SubtitleTextCellView.
 final class SubtitleCuesCellView: SubtitleTextCellView {
-    private let buttonsHost: NSHostingView<CueHoverButtons>
+    private let toolbar = CueButtonsToolbar()
 
     override init(frame frameRect: NSRect) {
-        buttonsHost = NSHostingView(rootView: CueHoverButtons(onPlay: {}, onCopy: {}))
         super.init(frame: frameRect)
-        buttonsHost.translatesAutoresizingMaskIntoConstraints = false
-        buttonsHost.isHidden = true
-        addSubview(buttonsHost)
+        toolbar.translatesAutoresizingMaskIntoConstraints = false
+        toolbar.isHidden = true
+        addSubview(toolbar)
         NSLayoutConstraint.activate([
-            buttonsHost.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SubtitleTableMetrics.cellLeading),
-            buttonsHost.topAnchor.constraint(equalTo: topAnchor, constant: SubtitleTableMetrics.rowVerticalInset - 4),
+            toolbar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SubtitleTableMetrics.cellLeading),
+            toolbar.topAnchor.constraint(equalTo: topAnchor, constant: SubtitleTableMetrics.rowVerticalInset - 4),
         ])
     }
 
@@ -264,12 +363,13 @@ final class SubtitleCuesCellView: SubtitleTextCellView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func setActions(onPlay: @escaping () -> Void, onCopy: @escaping () -> Void) {
-        buttonsHost.rootView = CueHoverButtons(onPlay: onPlay, onCopy: onCopy)
+        toolbar.playButton.onClick = onPlay
+        toolbar.copyButton.onClick = onCopy
     }
 
     /// Visibility is driven centrally by the coordinator's single hovered row.
     func setButtonsVisible(_ visible: Bool) {
-        buttonsHost.isHidden = !visible
+        toolbar.isHidden = !visible
     }
 }
 

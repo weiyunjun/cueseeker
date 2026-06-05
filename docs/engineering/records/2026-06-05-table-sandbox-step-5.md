@@ -64,9 +64,30 @@ truth:
 This fixes both the multi-row hover after scrolling and the buttons vanishing
 when moving between the buttons and the cell text.
 
+## Fix 3 — memory: drop SwiftUI entirely, use AppKit hover buttons (option B)
+
+E2E showed ~60MB memory growth on fast scrolling. A first attempt to reduce the
+SwiftUI hosting to a single shared toolbar did not help, so per the owner's
+decision that attempt was reverted (`git revert`) and the hover buttons were
+reimplemented in pure AppKit (no `NSHostingView`/SwiftUI at all in the table):
+
+- `PillButton` (NSView): icon + title, rounded, subtle hover/press background
+  matching the toolbar look, with its own click handling.
+- `CueButtonsToolbar` (NSView): opaque background + hairline holding the Play and
+  Copy pills.
+- `SubtitleCuesCellView` hosts the AppKit toolbar (hidden by default). Central
+  hover still drives a single visible row's `setButtonsVisible`; `setActions`
+  wires `onClick` to `playRow` / `copyRow`.
+- Removed the SwiftUI `CueHoverButtons`. The table no longer instantiates any
+  SwiftUI view per cell.
+
+Introducing one AppKit button family here is an accepted, deliberate deviation
+from the app's otherwise all-SwiftUI buttons.
+
 ## Outcome
 
-Build green; Phase B3 complete. Phase B (sandbox table on fake data) is now
-feature-complete: virtualized table, fonts/wrapping, cross-row/column selection
-with the frozen header, cmd+A / cmd+C (TSV), drag auto-scroll, and hover
-Play/Copy. Next is B4 (real data, Search box, playback wiring).
+Build green; Phase B3 complete (pending the owner's memory re-check). Phase B
+(sandbox table on fake data) is feature-complete: virtualized table,
+fonts/wrapping, cross-row/column selection with the frozen header, cmd+A /
+cmd+C (TSV), drag auto-scroll, and AppKit hover Play/Copy. Next is B4 (real
+data, Search box, playback wiring).
