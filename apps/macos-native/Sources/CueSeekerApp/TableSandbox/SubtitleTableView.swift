@@ -13,40 +13,68 @@ enum SubtitleTableMetrics {
     static let playButtonSize: CGFloat = 16
     static let playToTextSpacing: CGFloat = 8
     static let cornerRadius: CGFloat = 10
-    static let bodyFontSize: CGFloat = 13
-    static let headerFontSize: CGFloat = 11
 }
 
-// MARK: - Label factory
+// MARK: - Typography (aligned with the production search/Shiori cue text)
 
 @MainActor
-private func makeWrappingLabel(secondary: Bool) -> NSTextField {
-    let field = NSTextField(labelWithString: "")
+enum SubtitleTableText {
+    static let bodyFont = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
+    static let indexFont = NSFont.systemFont(ofSize: 12, weight: .regular)
+    static let headerFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+    static let lineSpacing: CGFloat = 4
+
+    static func bodyParagraphStyle() -> NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = lineSpacing
+        style.lineBreakMode = .byWordWrapping
+        return style
+    }
+
+    static func bodyAttributedString(_ text: String) -> NSAttributedString {
+        NSAttributedString(string: text, attributes: [
+            .font: bodyFont,
+            .paragraphStyle: bodyParagraphStyle(),
+            .foregroundColor: NSColor.labelColor,
+        ])
+    }
+}
+
+// MARK: - Selectable label (drag-select clears any active select-all)
+
+final class SelectableLabel: NSTextField {
+    var onMouseDown: (() -> Void)?
+
+    override func mouseDown(with event: NSEvent) {
+        onMouseDown?()
+        super.mouseDown(with: event)
+    }
+}
+
+@MainActor
+private func makeCellLabel() -> SelectableLabel {
+    let field = SelectableLabel(labelWithString: "")
     field.translatesAutoresizingMaskIntoConstraints = false
     field.isEditable = false
     field.isBordered = false
     field.drawsBackground = false
+    field.backgroundColor = .clear
     field.isSelectable = true
     field.allowsEditingTextAttributes = false
     field.lineBreakMode = .byWordWrapping
     field.maximumNumberOfLines = 0
     field.cell?.wraps = true
     field.cell?.isScrollable = false
-    field.font = .systemFont(ofSize: SubtitleTableMetrics.bodyFontSize)
-    field.textColor = secondary ? .secondaryLabelColor : .labelColor
     field.setContentHuggingPriority(.required, for: .vertical)
     field.setContentCompressionResistancePriority(.required, for: .vertical)
     return field
 }
 
-/// Pins a wrapping label to the top of `host` so every cell stays top-aligned
-/// while the row grows to fit its tallest cell. The bottom inset is high (not
-/// required) so it yields when the cell is stretched to the shared row height.
+/// Pins a wrapping label to the top of `host`. The bottom is required-minus-one
+/// so natural sizing keeps the bottom inset, but yields to keep the label
+/// top-aligned when the row is taller than this cell's content.
 @MainActor
-private func pinTopAligned(_ label: NSTextField, in host: NSView, leading: CGFloat, trailing: CGFloat) {
-    // Bottom is required-minus-one so the natural fitting height includes the
-    // bottom inset, but yields (keeping the label top-aligned) when the row is
-    // stretched to the height of a taller sibling cell.
+private func pinTopAligned(_ label: NSView, in host: NSView, leading: CGFloat, trailing: CGFloat) {
     let bottom = label.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -SubtitleTableMetrics.rowVerticalInset)
     bottom.priority = NSLayoutConstraint.Priority(999)
     NSLayoutConstraint.activate([
@@ -57,50 +85,95 @@ private func pinTopAligned(_ label: NSTextField, in host: NSView, leading: CGFlo
     ])
 }
 
-// MARK: - Cell views
+// MARK: - Highlighting cell base (text-only select-all highlight)
 
-final class IndexCellView: NSView {
-    private let label = makeWrappingLabel(secondary: true)
+class HighlightingCellView: NSView {
+    let label = makeCellLabel()
+    var onTextInteraction: (() -> Void)?
+
+    private var textSelected = false
+    private var highlightRect: CGRect = .zero
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        label.maximumNumberOfLines = 1
-        addSubview(label)
-        pinTopAligned(label, in: self, leading: SubtitleTableMetrics.cellLeading, trailing: 4)
+        label.onMouseDown = { [weak self] in
+            self?.onTextInteraction?()
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(number: Int) {
-        label.stringValue = "\(number)"
+    override var isFlipped: Bool { true }
+
+    func setTextSelected(_ selected: Bool) {
+        guard selected != textSelected else { return }
+        textSelected = selected
+        needsDisplay = true
+    }
+
+    private func recomputeHighlightRect() {
+        let width = label.bounds.width
+        guard width > 0, label.attributedStringValue.length > 0 else {
+            highlightRect = .zero
+            return
+        }
+        let size = label.attributedStringValue.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        ).size
+        highlightRect = CGRect(
+            x: label.frame.minX,
+            y: label.frame.minY,
+            width: ceil(size.width),
+            height: ceil(size.height)
+        )
+    }
+
+    override func layout() {
+        super.layout()
+        label.preferredMaxLayoutWidth = label.bounds.width
+        recomputeHighlightRect()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard textSelected, highlightRect.width > 0 else { return }
+        NSColor.selectedTextBackgroundColor.setFill()
+        highlightRect.fill()
     }
 }
 
-final class NameCellView: NSView {
-    private let label = makeWrappingLabel(secondary: false)
+final class IndexCellView: HighlightingCellView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        label.maximumNumberOfLines = 1
+        label.font = SubtitleTableText.indexFont
+        label.textColor = .secondaryLabelColor
+        addSubview(label)
+        pinTopAligned(label, in: self, leading: SubtitleTableMetrics.cellLeading, trailing: 4)
+    }
 
+    func configure(number: Int) {
+        label.stringValue = "\(number)"
+        needsLayout = true
+    }
+}
+
+final class NameCellView: HighlightingCellView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         addSubview(label)
         pinTopAligned(label, in: self, leading: SubtitleTableMetrics.cellLeading, trailing: SubtitleTableMetrics.trailingInset)
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
     func configure(text: String) {
-        label.stringValue = text
-    }
-
-    override func layout() {
-        super.layout()
-        label.preferredMaxLayoutWidth = label.bounds.width
+        label.attributedStringValue = SubtitleTableText.bodyAttributedString(text)
+        needsLayout = true
     }
 }
 
-final class CuesCellView: NSView {
-    private let label = makeWrappingLabel(secondary: false)
+final class CuesCellView: HighlightingCellView {
     private let playButton = HoverImageButton()
     private var onPlay: (() -> Void)?
 
@@ -128,17 +201,10 @@ final class CuesCellView: NSView {
         ])
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
     func configure(text: String, onPlay: @escaping () -> Void) {
-        label.stringValue = text
+        label.attributedStringValue = SubtitleTableText.bodyAttributedString(text)
         self.onPlay = onPlay
-    }
-
-    override func layout() {
-        super.layout()
-        label.preferredMaxLayoutWidth = label.bounds.width
+        needsLayout = true
     }
 
     @objc private func playTapped() {
@@ -189,7 +255,7 @@ final class HoverImageButton: NSButton {
     }
 }
 
-// MARK: - Row view (hover + subtle select-all highlight)
+// MARK: - Row view (hover + per-row separator, no row selection)
 
 final class SubtitleTableRowView: NSTableRowView {
     private var hoverTracking: NSTrackingArea?
@@ -202,7 +268,7 @@ final class SubtitleTableRowView: NSTableRowView {
 
     override func drawBackground(in dirtyRect: NSRect) {
         super.drawBackground(in: dirtyRect)
-        if isHovered && !isSelected {
+        if isHovered {
             NSColor.secondaryLabelColor.withAlphaComponent(0.06).setFill()
             bounds.fill()
         }
@@ -214,12 +280,6 @@ final class SubtitleTableRowView: NSTableRowView {
         path.line(to: NSPoint(x: bounds.maxX, y: y))
         path.lineWidth = 0.5
         path.stroke()
-    }
-
-    override func drawSelection(in dirtyRect: NSRect) {
-        guard selectionHighlightStyle != .none else { return }
-        NSColor.selectedContentBackgroundColor.withAlphaComponent(0.16).setFill()
-        bounds.fill()
     }
 
     override func updateTrackingAreas() {
@@ -248,27 +308,35 @@ final class SubtitleTableRowView: NSTableRowView {
 // MARK: - Sticky header
 
 final class SubtitleTableHeaderView: NSView {
+    private let indexLabel = SubtitleTableHeaderView.makeHeaderLabel("#")
+    private let nameLabel = SubtitleTableHeaderView.makeHeaderLabel("Name")
+    private let cuesLabel = SubtitleTableHeaderView.makeHeaderLabel("Cues")
+
     override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         let M = SubtitleTableMetrics.self
-        let idx = Self.makeHeaderLabel("#")
-        let name = Self.makeHeaderLabel("Name")
-        let cues = Self.makeHeaderLabel("Cues")
-        [idx, name, cues].forEach { addSubview($0) }
+        [indexLabel, nameLabel, cuesLabel].forEach { addSubview($0) }
         NSLayoutConstraint.activate([
-            idx.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.cellLeading),
-            idx.centerYAnchor.constraint(equalTo: centerYAnchor),
-            name.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.indexColumnWidth + M.cellLeading),
-            name.centerYAnchor.constraint(equalTo: centerYAnchor),
-            cues.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.indexColumnWidth + M.nameColumnWidth + M.cellLeading),
-            cues.centerYAnchor.constraint(equalTo: centerYAnchor),
+            indexLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.cellLeading),
+            indexLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.indexColumnWidth + M.cellLeading),
+            nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            cuesLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.indexColumnWidth + M.nameColumnWidth + M.cellLeading),
+            cuesLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func setTextSelected(_ selected: Bool) {
+        for label in [indexLabel, nameLabel, cuesLabel] {
+            label.drawsBackground = selected
+            label.backgroundColor = selected ? .selectedTextBackgroundColor : .clear
+        }
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -284,9 +352,10 @@ final class SubtitleTableHeaderView: NSView {
     private static func makeHeaderLabel(_ title: String) -> NSTextField {
         let field = NSTextField(labelWithString: title)
         field.translatesAutoresizingMaskIntoConstraints = false
-        field.font = .systemFont(ofSize: SubtitleTableMetrics.headerFontSize, weight: .semibold)
+        field.font = SubtitleTableText.headerFont
         field.textColor = .secondaryLabelColor
         field.isSelectable = true
+        field.drawsBackground = false
         return field
     }
 }
@@ -320,7 +389,7 @@ final class SubtitleTableContainerView: NSView {
     }
 }
 
-// MARK: - Table view (cmd+A / cmd+C scoped to the table)
+// MARK: - Table view (cmd+A / cmd+C scoped to the table, no row selection)
 
 final class SubtitleTableNSTableView: NSTableView {
     weak var tableCoordinator: SubtitleTableView.Coordinator?
@@ -334,17 +403,22 @@ final class SubtitleTableNSTableView: NSTableView {
         switch chars {
         case "a":
             window?.makeFirstResponder(self)
-            selectAll(nil)
+            tableCoordinator?.setAllTextSelected(true)
             return true
         case "c":
-            if !selectedRowIndexes.isEmpty {
-                tableCoordinator?.copySelectedRowsText()
+            if tableCoordinator?.isAllTextSelected == true {
+                tableCoordinator?.copyAllText()
                 return true
             }
             return super.performKeyEquivalent(with: event)
         default:
             return super.performKeyEquivalent(with: event)
         }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        tableCoordinator?.setAllTextSelected(false)
+        super.mouseDown(with: event)
     }
 
     private var isFocusWithinTable: Bool {
@@ -365,9 +439,9 @@ struct SubtitleTableView: NSViewRepresentable {
     var rows: [SubtitleTableRow]
     var onPlay: (SubtitleTableRow) -> Void
 
-    private static let indexColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.index")
-    private static let nameColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.name")
-    private static let cuesColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.cues")
+    fileprivate static let indexColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.index")
+    fileprivate static let nameColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.name")
+    fileprivate static let cuesColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.cues")
 
     func makeCoordinator() -> Coordinator {
         Coordinator(rows: rows, onPlay: onPlay)
@@ -378,6 +452,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         let header = SubtitleTableHeaderView()
         header.translatesAutoresizingMaskIntoConstraints = false
+        context.coordinator.headerView = header
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -392,18 +467,15 @@ struct SubtitleTableView: NSViewRepresentable {
         table.dataSource = context.coordinator
         table.style = .plain
         table.headerView = nil
-        table.allowsMultipleSelection = true
-        table.allowsEmptySelection = true
         table.allowsColumnReordering = false
         table.allowsColumnResizing = false
         table.allowsColumnSelection = false
+        table.allowsEmptySelection = true
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-        // Row separators are drawn per-row (see SubtitleTableRowView) so empty
-        // space below the last row stays clean; no full-table grid lines.
         table.gridStyleMask = []
         table.intercellSpacing = NSSize(width: 0, height: 0)
         table.backgroundColor = .clear
-        table.selectionHighlightStyle = .regular
+        table.selectionHighlightStyle = .none
         table.postsFrameChangedNotifications = true
         NotificationCenter.default.addObserver(
             context.coordinator,
@@ -461,6 +533,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rows: [SubtitleTableRow]
         private var onPlay: (SubtitleTableRow) -> Void
         weak var tableView: NSTableView?
+        weak var headerView: SubtitleTableHeaderView?
+        private(set) var isAllTextSelected = false
 
         private static let indexCellID = NSUserInterfaceItemIdentifier("SubtitleTable.indexCell")
         private static let nameCellID = NSUserInterfaceItemIdentifier("SubtitleTable.nameCell")
@@ -476,11 +550,6 @@ struct SubtitleTableView: NSViewRepresentable {
             NotificationCenter.default.removeObserver(self)
         }
 
-        @objc func tableFrameChanged() {
-            guard let tableView, tableView.numberOfRows > 0 else { return }
-            tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
-        }
-
         func update(rows: [SubtitleTableRow], onPlay: @escaping (SubtitleTableRow) -> Void) {
             self.onPlay = onPlay
             guard rows != self.rows else { return }
@@ -488,37 +557,47 @@ struct SubtitleTableView: NSViewRepresentable {
             tableView?.reloadData()
         }
 
-        func copySelectedRowsText() {
-            guard let tableView else { return }
-            let indexes = tableView.selectedRowIndexes
-            guard !indexes.isEmpty else { return }
-            let text = indexes.map { index -> String in
-                let row = rows[index]
-                let cuesOneLine = row.cues.replacingOccurrences(of: "\n", with: " ")
-                return "\(row.name)\t\(cuesOneLine)"
-            }.joined(separator: "\n")
+        @objc func tableFrameChanged() {
+            guard let tableView, tableView.numberOfRows > 0 else { return }
+            tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
+        }
 
+        // MARK: Select-all text + copy
+
+        func setAllTextSelected(_ selected: Bool) {
+            isAllTextSelected = selected
+            tableView?.enumerateAvailableRowViews { rowView, _ in
+                for subview in rowView.subviews {
+                    (subview as? HighlightingCellView)?.setTextSelected(selected)
+                }
+            }
+            headerView?.setTextSelected(selected)
+        }
+
+        func copyAllText() {
+            var lines = ["#\tName\tCues"]
+            for (index, row) in rows.enumerated() {
+                let cues = row.cues.replacingOccurrences(of: "\n", with: " ")
+                lines.append("\(index + 1)\t\(row.name)\t\(cues)")
+            }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
+            pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
         }
 
-        func numberOfRows(in tableView: NSTableView) -> Int {
-            rows.count
-        }
+        // MARK: Row heights
 
         func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
             let model = rows[row]
-            let font = NSFont.systemFont(ofSize: SubtitleTableMetrics.bodyFontSize)
             let M = SubtitleTableMetrics.self
 
             let nameWidth = M.nameColumnWidth - M.cellLeading - M.trailingInset
             let cuesWidth = cuesColumnWidth(in: tableView)
                 - M.cellLeading - M.playButtonSize - M.playToTextSpacing - M.trailingInset
 
-            let nameHeight = Self.measuredHeight(model.name, width: nameWidth, font: font)
-            let cuesHeight = Self.measuredHeight(model.cues, width: cuesWidth, font: font)
-            let oneLine = ceil(font.boundingRectForFont.height)
+            let nameHeight = Self.measuredHeight(model.name, width: nameWidth)
+            let cuesHeight = Self.measuredHeight(model.cues, width: cuesWidth)
+            let oneLine = ceil(SubtitleTableText.bodyFont.boundingRectForFont.height)
             let content = max(nameHeight, cuesHeight, oneLine)
             return content + 2 * M.rowVerticalInset
         }
@@ -530,16 +609,25 @@ struct SubtitleTableView: NSViewRepresentable {
             return max(0, tableView.bounds.width - SubtitleTableMetrics.indexColumnWidth - SubtitleTableMetrics.nameColumnWidth)
         }
 
-        private static func measuredHeight(_ text: String, width: CGFloat, font: NSFont) -> CGFloat {
+        private static func measuredHeight(_ text: String, width: CGFloat) -> CGFloat {
             guard width > 0, !text.isEmpty else {
-                return ceil(font.boundingRectForFont.height)
+                return ceil(SubtitleTableText.bodyFont.boundingRectForFont.height)
             }
-            let attributed = NSAttributedString(string: text, attributes: [.font: font])
-            let rect = attributed.boundingRect(
+            let rect = SubtitleTableText.bodyAttributedString(text).boundingRect(
                 with: NSSize(width: width, height: .greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading]
             )
-            return ceil(rect.height) + 1
+            return ceil(rect.height)
+        }
+
+        // MARK: Data source / delegate
+
+        func numberOfRows(in tableView: NSTableView) -> Int {
+            rows.count
+        }
+
+        func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+            false
         }
 
         func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
@@ -563,6 +651,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     return view
                 }()
                 cell.configure(number: row + 1)
+                bind(cell)
                 return cell
 
             case SubtitleTableView.nameColumnID:
@@ -572,6 +661,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     return view
                 }()
                 cell.configure(text: model.name)
+                bind(cell)
                 return cell
 
             case SubtitleTableView.cuesColumnID:
@@ -583,11 +673,19 @@ struct SubtitleTableView: NSViewRepresentable {
                 cell.configure(text: model.cues) { [weak self] in
                     self?.onPlay(model)
                 }
+                bind(cell)
                 return cell
 
             default:
                 return nil
             }
+        }
+
+        private func bind(_ cell: HighlightingCellView) {
+            cell.onTextInteraction = { [weak self] in
+                self?.setAllTextSelected(false)
+            }
+            cell.setTextSelected(isAllTextSelected)
         }
     }
 }
