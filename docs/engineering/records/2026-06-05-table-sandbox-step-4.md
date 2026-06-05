@@ -72,6 +72,11 @@ Additive only; no behavior change yet.
   (header included), cmd+A selects all, cmd+C pastes as TSV, and dragging to the
   top/bottom edge auto-scrolls and keeps selecting.
 
+### Sample data — expanded to 80 rows (testing aid)
+
+The 8 base sample rows are repeated 10 times (80 rows, sequential ids) so the
+sandbox has enough content to scroll and to test drag auto-scroll.
+
 ## Outcome
 
 Phase B2 complete and building: cross-row/column text selection with the frozen
