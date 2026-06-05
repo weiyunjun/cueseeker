@@ -77,6 +77,39 @@ final class SubtitleTextLayout {
         guard glyphRange.length > 0 else { return }
         layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: origin)
     }
+
+    var length: Int {
+        textStorage.length
+    }
+
+    /// Nearest insertion-point character index for a point in text-local
+    /// coordinates (already offset by the cell's content origin).
+    func characterIndex(forPoint point: CGPoint) -> Int {
+        guard textStorage.length > 0 else { return 0 }
+        var fraction: CGFloat = 0
+        let glyphIndex = layoutManager.glyphIndex(for: point, in: textContainer, fractionOfDistanceThroughGlyph: &fraction)
+        var characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        if fraction >= 0.5 {
+            characterIndex += 1
+        }
+        return min(max(0, characterIndex), textStorage.length)
+    }
+
+    /// Enclosing rects (text-local) for a character range, used to paint the
+    /// selection highlight behind the glyphs.
+    func selectionRects(forCharacterRange range: NSRange) -> [CGRect] {
+        guard range.length > 0 else { return [] }
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        var rects: [CGRect] = []
+        layoutManager.enumerateEnclosingRects(
+            forGlyphRange: glyphRange,
+            withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+            in: textContainer
+        ) { rect, _ in
+            rects.append(rect)
+        }
+        return rects
+    }
 }
 
 // MARK: - Self-drawn text cell (foundation for custom selection in B2)
@@ -86,6 +119,10 @@ final class SubtitleTextCellView: NSView {
     private var attributed = NSAttributedString()
     private var leadingInset = SubtitleTableMetrics.cellLeading
     private var trailingInset = SubtitleTableMetrics.trailingInset
+    private var selectedRange: NSRange?
+
+    /// Header cells center their single line vertically; body cells stay top-aligned.
+    var centersVertically = false
 
     override var isFlipped: Bool { true }
 
@@ -116,9 +153,37 @@ final class SubtitleTextCellView: NSView {
         needsDisplay = true
     }
 
+    private func contentOrigin() -> CGPoint {
+        let y: CGFloat = centersVertically
+            ? max(0, (bounds.height - layout.usedHeight) / 2)
+            : SubtitleTableMetrics.rowVerticalInset
+        return CGPoint(x: leadingInset, y: y)
+    }
+
+    var textLength: Int {
+        layout.length
+    }
+
+    func characterIndex(at point: CGPoint) -> Int {
+        let origin = contentOrigin()
+        return layout.characterIndex(forPoint: CGPoint(x: point.x - origin.x, y: point.y - origin.y))
+    }
+
+    func setSelectedRange(_ range: NSRange?) {
+        selectedRange = range
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        layout.draw(at: CGPoint(x: leadingInset, y: SubtitleTableMetrics.rowVerticalInset))
+        let origin = contentOrigin()
+        if let range = selectedRange, range.length > 0 {
+            NSColor.selectedTextBackgroundColor.setFill()
+            for rect in layout.selectionRects(forCharacterRange: range) {
+                rect.offsetBy(dx: origin.x, dy: origin.y).fill()
+            }
+        }
+        layout.draw(at: origin)
     }
 }
 
