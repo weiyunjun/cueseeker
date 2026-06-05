@@ -32,6 +32,17 @@ Per the requirement, the buttons are not hidden during a drag selection.
   the cue text on the clipboard; Play logs in this phase (sample data). Text
   selection and cmd+A/cmd+C from B2 still work.
 
+## Fix — hover lifecycle bugs found in E2E
+
+Two bugs reported after scrolling/hovering:
+
+- Multiple cells showed the buttons after scrolling: a recycled cell kept its
+  previous "shown" state. Fixed by resetting the buttons to hidden in
+  `setActions` (called on every reuse in `viewFor`).
+- Buttons vanished when moving off a button but still inside the cell: crossing
+  onto/off the buttons subview fires a spurious `mouseExited`. Fixed by ignoring
+  the exit while the pointer is still inside the cell's bounds.
+
 ## Outcome
 
 Build green; Phase B3 complete. Phase B (sandbox table on fake data) is now

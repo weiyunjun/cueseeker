@@ -266,6 +266,8 @@ final class SubtitleCuesCellView: SubtitleTextCellView {
 
     func setActions(onPlay: @escaping () -> Void, onCopy: @escaping () -> Void) {
         buttonsHost.rootView = CueHoverButtons(onPlay: onPlay, onCopy: onCopy)
+        // Reset on reuse so a recycled cell never keeps a stale "shown" state.
+        buttonsHost.isHidden = true
     }
 
     override func updateTrackingAreas() {
@@ -287,6 +289,12 @@ final class SubtitleCuesCellView: SubtitleTextCellView {
     }
 
     override func mouseExited(with event: NSEvent) {
+        // Crossing onto/off the buttons subview fires a spurious exit; ignore it
+        // while the pointer is still inside the cell.
+        let point = convert(event.locationInWindow, from: nil)
+        if bounds.contains(point) {
+            return
+        }
         buttonsHost.isHidden = true
     }
 }
