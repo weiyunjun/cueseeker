@@ -43,6 +43,27 @@ Two bugs reported after scrolling/hovering:
   onto/off the buttons subview fires a spurious `mouseExited`. Fixed by ignoring
   the exit while the pointer is still inside the cell's bounds.
 
+## Fix 2 — centralized hover (row background + buttons)
+
+The first fix only addressed the buttons; the row hover background still showed
+on multiple rows after fast scrolling, because per-view tracking areas are
+unreliable across reuse/fast scroll. Reworked hover into a single source of
+truth:
+
+- Removed the per-cell and per-row tracking areas. `SubtitleTableRowView.isHovered`
+  and `SubtitleCuesCellView.setButtonsVisible` are now set externally.
+- The table has one tracking area (`mouseMoved` + entered/exited). The
+  coordinator keeps a single `hoveredRow` (the row under the cursor) and, on
+  change, hides the old row's background/buttons and shows the new one's.
+- Scrolling recomputes the hovered row from the last mouse point (clip-view
+  bounds-change observation), so a stationary cursor over a scrolling list keeps
+  exactly one row hovered.
+- `viewFor` / `rowView(forRow:)` initialize hover state from `hoveredRow`, so
+  recycled views are always correct.
+
+This fixes both the multi-row hover after scrolling and the buttons vanishing
+when moving between the buttons and the cell text.
+
 ## Outcome
 
 Build green; Phase B3 complete. Phase B (sandbox table on fake data) is now

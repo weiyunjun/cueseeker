@@ -247,7 +247,6 @@ private struct CueHoverButtons: View {
 /// and drawing are inherited from SubtitleTextCellView.
 final class SubtitleCuesCellView: SubtitleTextCellView {
     private let buttonsHost: NSHostingView<CueHoverButtons>
-    private var hoverTracking: NSTrackingArea?
 
     override init(frame frameRect: NSRect) {
         buttonsHost = NSHostingView(rootView: CueHoverButtons(onPlay: {}, onCopy: {}))
@@ -266,43 +265,18 @@ final class SubtitleCuesCellView: SubtitleTextCellView {
 
     func setActions(onPlay: @escaping () -> Void, onCopy: @escaping () -> Void) {
         buttonsHost.rootView = CueHoverButtons(onPlay: onPlay, onCopy: onCopy)
-        // Reset on reuse so a recycled cell never keeps a stale "shown" state.
-        buttonsHost.isHidden = true
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let hoverTracking {
-            removeTrackingArea(hoverTracking)
-        }
-        let area = NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
-            owner: self
-        )
-        addTrackingArea(area)
-        hoverTracking = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        buttonsHost.isHidden = false
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        // Crossing onto/off the buttons subview fires a spurious exit; ignore it
-        // while the pointer is still inside the cell.
-        let point = convert(event.locationInWindow, from: nil)
-        if bounds.contains(point) {
-            return
-        }
-        buttonsHost.isHidden = true
+    /// Visibility is driven centrally by the coordinator's single hovered row.
+    func setButtonsVisible(_ visible: Bool) {
+        buttonsHost.isHidden = !visible
     }
 }
 
 // MARK: - Row view (hover + per-row separator)
 
 final class SubtitleTableRowView: NSTableRowView {
-    private var hoverTracking: NSTrackingArea?
+    /// Driven centrally by the coordinator's single hovered row.
     var isHovered = false {
         didSet {
             guard isHovered != oldValue else { return }
@@ -324,28 +298,6 @@ final class SubtitleTableRowView: NSTableRowView {
         path.line(to: NSPoint(x: bounds.maxX, y: y))
         path.lineWidth = 0.5
         path.stroke()
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let hoverTracking {
-            removeTrackingArea(hoverTracking)
-        }
-        let area = NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
-            owner: self
-        )
-        addTrackingArea(area)
-        hoverTracking = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovered = true
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovered = false
     }
 }
 
@@ -452,8 +404,35 @@ final class SubtitleTableContainerView: NSView {
 
 final class SubtitleTableNSTableView: NSTableView {
     weak var tableCoordinator: SubtitleTableView.Coordinator?
+    private var hoverTracking: NSTrackingArea?
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking {
+            removeTrackingArea(hoverTracking)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        hoverTracking = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        tableCoordinator?.handleMouseHover(windowPoint: event.locationInWindow)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        tableCoordinator?.handleMouseHover(windowPoint: event.locationInWindow)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        tableCoordinator?.clearHover()
+    }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
@@ -567,6 +546,14 @@ struct SubtitleTableView: NSViewRepresentable {
         scrollView.documentView = table
         context.coordinator.tableView = table
 
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.scrollContentDidChange),
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
+
         container.addSubview(header)
         container.addSubview(scrollView)
         NSLayoutConstraint.activate([
@@ -602,6 +589,9 @@ struct SubtitleTableView: NSViewRepresentable {
         private var focus: TableTextPosition?
         private var autoscrollTask: Task<Void, Never>?
         private var lastDragEvent: NSEvent?
+
+        private var hoveredRow: Int?
+        private var lastMouseWindowPoint: CGPoint?
 
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
@@ -845,12 +835,13 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-            if let reused = tableView.makeView(withIdentifier: Self.rowViewID, owner: nil) as? SubtitleTableRowView {
-                return reused
-            }
-            let view = SubtitleTableRowView()
-            view.identifier = Self.rowViewID
-            return view
+            let rowView = (tableView.makeView(withIdentifier: Self.rowViewID, owner: nil) as? SubtitleTableRowView) ?? {
+                let view = SubtitleTableRowView()
+                view.identifier = Self.rowViewID
+                return view
+            }()
+            rowView.isHovered = isRowHovered(row)
+            return rowView
         }
 
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -879,6 +870,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     onPlay: { [weak self] in self?.playRow(row) },
                     onCopy: { [weak self] in self?.copyRow(row) }
                 )
+                cell.setButtonsVisible(isRowHovered(row))
                 return cell
 
             default:
@@ -921,6 +913,56 @@ struct SubtitleTableView: NSViewRepresentable {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(rows[row].cues, forType: .string)
+        }
+
+        // MARK: Hover (single source of truth)
+
+        func handleMouseHover(windowPoint: CGPoint) {
+            lastMouseWindowPoint = windowPoint
+            updateHoveredRow(rowUnderCursor(windowPoint: windowPoint))
+        }
+
+        func clearHover() {
+            lastMouseWindowPoint = nil
+            updateHoveredRow(nil)
+        }
+
+        @objc func scrollContentDidChange() {
+            guard let lastMouseWindowPoint else { return }
+            updateHoveredRow(rowUnderCursor(windowPoint: lastMouseWindowPoint))
+        }
+
+        func isRowHovered(_ row: Int) -> Bool {
+            hoveredRow == row
+        }
+
+        private func rowUnderCursor(windowPoint: CGPoint) -> Int? {
+            guard let tableView else { return nil }
+            let point = tableView.convert(windowPoint, from: nil)
+            guard tableView.visibleRect.contains(point) else { return nil }
+            let row = tableView.row(at: point)
+            return row >= 0 ? row : nil
+        }
+
+        private func updateHoveredRow(_ newRow: Int?) {
+            guard newRow != hoveredRow else { return }
+            if let old = hoveredRow {
+                applyHover(row: old, hovered: false)
+            }
+            hoveredRow = newRow
+            if let new = hoveredRow {
+                applyHover(row: new, hovered: true)
+            }
+        }
+
+        private func applyHover(row: Int, hovered: Bool) {
+            guard let tableView, row >= 0, row < tableView.numberOfRows else { return }
+            if let rowView = tableView.rowView(atRow: row, makeIfNecessary: false) as? SubtitleTableRowView {
+                rowView.isHovered = hovered
+            }
+            if let cues = tableView.view(atColumn: 2, row: row, makeIfNecessary: false) as? SubtitleCuesCellView {
+                cues.setButtonsVisible(hovered)
+            }
         }
     }
 }
