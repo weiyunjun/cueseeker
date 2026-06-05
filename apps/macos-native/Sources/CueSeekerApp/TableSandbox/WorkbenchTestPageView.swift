@@ -56,6 +56,15 @@ private struct WorkbenchTestSearchView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
         }
+        // Eagerly load every page (Excel-style: all rows loaded, only the
+        // visible ones rendered), so the table reaches results beyond page 1.
+        .onChange(of: search.isSearching) { _ in loadAllRemaining() }
+        .onChange(of: search.searchResults.count) { _ in loadAllRemaining() }
+    }
+
+    private func loadAllRemaining() {
+        guard search.hasMoreSearchResults, !search.isSearching else { return }
+        appState.loadMoreSearchResultsIfNeeded()
     }
 
     private var rows: [SubtitleTableRow] {
@@ -81,6 +90,7 @@ private struct WorkbenchTestShioriView: View {
     var body: some View {
         SubtitleTableView(rows: rows, onPlay: play)
             .padding(16)
+            .task { appState.hydrateShiorisAsync() }
     }
 
     private var rows: [SubtitleTableRow] {

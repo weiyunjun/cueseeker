@@ -13,10 +13,11 @@ Platform UI/UX + integration only; no new product semantics.
   Search page. On submit it calls `appState.submitTopbarSearch` (the existing
   search pipeline; it sets the panel to search but does not clear the test page,
   so the table stays visible). The table observes `SearchStore.searchResults`
-  and maps each to a row: `name` = `videoName` (the contract alias), `cues` =
-  `subtitleDisplayLines(content:cueLines:)` joined by newline (identical to the
-  production card derivation). Play calls `appState.openSearchResult` — the same
-  entry as clicking a production search card.
+  and maps each to a row: `name` = the contract alias
+  (`SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath:)`, the production
+  group-title source), `cues` = `subtitleDisplayLines(content:cueLines:)` joined
+  by newline (identical to the production card derivation). Play calls
+  `appState.openSearchResult` — the same entry as clicking a production search card.
 - `WorkbenchTestShioriView`: no search field; the table observes
   `ShioriStore.shioris`, maps the same way, and Play calls `appState.openShiori`.
 - First-screen rendering: the views observe the stores' `@Published` arrays, so
@@ -48,8 +49,23 @@ Changed both tables to use
 `SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath:)` (the same source
 as the production group title; required `import CueSeekerCore`).
 
+## Review fixes (Codex)
+
+- Stale selection after a data refresh could crash on cmd+C: `update(rows:)`
+  now clears `anchor`/`focus`/`hoveredRow` when rows change, and `cellFullText`
+  guards against out-of-range rows.
+- Test Search reached only the first page: per the owner's clarification (load
+  all rows, render only the visible ones, Excel-style), the Search view now
+  eagerly drives `loadMoreSearchResultsIfNeeded()` until `hasMoreSearchResults`
+  is false, so the whole result set is in the table.
+- Test Shiori could be empty when opened directly: it now calls
+  `appState.hydrateShiorisAsync()` via `.task`, like the production Shiori panel.
+- (Not changed) The `f111d5dd` revert commit message lacks the `docs/human/`
+  path; the owner chose to leave it.
+
 ## Outcome
 
 Build green. Phase B4 complete: the sandbox tables run on real Search/Shiori
 data with the production playback entries and an in-page Search box; Name shows
-the contract alias.
+the contract alias; all results load (visible-only rendering); Shiori
+self-hydrates; stale-selection crash fixed.

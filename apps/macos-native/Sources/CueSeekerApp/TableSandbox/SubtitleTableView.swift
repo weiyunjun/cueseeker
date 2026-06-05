@@ -625,6 +625,11 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onPlay = onPlay
             guard rows != self.rows else { return }
             self.rows = rows
+            // New data invalidates any selection/hover that referenced old rows;
+            // clearing avoids stale indices (e.g. cmd+C going out of bounds).
+            anchor = nil
+            focus = nil
+            hoveredRow = nil
             tableView?.reloadData()
         }
 
@@ -812,6 +817,7 @@ struct SubtitleTableView: NSViewRepresentable {
             if row == -1 {
                 return ["#", "Name", "Cues"][column]
             }
+            guard rows.indices.contains(row) else { return "" }
             let model = rows[row]
             switch column {
             case 0: return "\(row + 1)"
