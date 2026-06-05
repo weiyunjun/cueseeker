@@ -114,7 +114,7 @@ final class SubtitleTextLayout {
 
 // MARK: - Self-drawn text cell (foundation for custom selection in B2)
 
-final class SubtitleTextCellView: NSView {
+class SubtitleTextCellView: NSView {
     private let layout = SubtitleTextLayout()
     private var attributed = NSAttributedString()
     private var leadingInset = SubtitleTableMetrics.cellLeading
@@ -204,6 +204,90 @@ final class SubtitleTextCellView: NSView {
             }
         }
         layout.draw(at: origin)
+    }
+}
+
+// MARK: - Hover Play/Copy buttons for the Cues cell
+
+private struct CueHoverButtons: View {
+    var onPlay: () -> Void
+    var onCopy: () -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            button(title: "Play", systemImage: "play.fill", action: onPlay)
+            button(title: "Copy", systemImage: "doc.on.doc", action: onCopy)
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
+    }
+
+    private func button(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                Text(title)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ToolbarButtonStyle())
+    }
+}
+
+/// Cues cell that overlays hover Play/Copy buttons at its left. Text selection
+/// and drawing are inherited from SubtitleTextCellView.
+final class SubtitleCuesCellView: SubtitleTextCellView {
+    private let buttonsHost: NSHostingView<CueHoverButtons>
+    private var hoverTracking: NSTrackingArea?
+
+    override init(frame frameRect: NSRect) {
+        buttonsHost = NSHostingView(rootView: CueHoverButtons(onPlay: {}, onCopy: {}))
+        super.init(frame: frameRect)
+        buttonsHost.translatesAutoresizingMaskIntoConstraints = false
+        buttonsHost.isHidden = true
+        addSubview(buttonsHost)
+        NSLayoutConstraint.activate([
+            buttonsHost.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SubtitleTableMetrics.cellLeading),
+            buttonsHost.topAnchor.constraint(equalTo: topAnchor, constant: SubtitleTableMetrics.rowVerticalInset - 4),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func setActions(onPlay: @escaping () -> Void, onCopy: @escaping () -> Void) {
+        buttonsHost.rootView = CueHoverButtons(onPlay: onPlay, onCopy: onCopy)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking {
+            removeTrackingArea(hoverTracking)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        hoverTracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        buttonsHost.isHidden = false
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        buttonsHost.isHidden = true
     }
 }
 
@@ -780,9 +864,13 @@ struct SubtitleTableView: NSViewRepresentable {
                 return cell
 
             case SubtitleTableView.cuesColumnID:
-                let cell = dequeueTextCell(tableView, id: Self.cuesCellID)
+                let cell = dequeueCuesCell(tableView)
                 cell.configure(attributed: SubtitleTableText.body(model.cues), leading: M.cellLeading, trailing: M.trailingInset)
                 prepare(cell, row: row, column: 2)
+                cell.setActions(
+                    onPlay: { [weak self] in self?.playRow(row) },
+                    onCopy: { [weak self] in self?.copyRow(row) }
+                )
                 return cell
 
             default:
@@ -804,6 +892,27 @@ struct SubtitleTableView: NSViewRepresentable {
             let cell = SubtitleTextCellView()
             cell.identifier = id
             return cell
+        }
+
+        private func dequeueCuesCell(_ tableView: NSTableView) -> SubtitleCuesCellView {
+            if let reused = tableView.makeView(withIdentifier: Self.cuesCellID, owner: nil) as? SubtitleCuesCellView {
+                return reused
+            }
+            let cell = SubtitleCuesCellView()
+            cell.identifier = Self.cuesCellID
+            return cell
+        }
+
+        func playRow(_ row: Int) {
+            guard rows.indices.contains(row) else { return }
+            onPlay(rows[row])
+        }
+
+        func copyRow(_ row: Int) {
+            guard rows.indices.contains(row) else { return }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(rows[row].cues, forType: .string)
         }
     }
 }
