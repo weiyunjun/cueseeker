@@ -121,6 +121,10 @@ final class SubtitleTextCellView: NSView {
     private var trailingInset = SubtitleTableMetrics.trailingInset
     private var selectedRange: NSRange?
 
+    /// Document coordinates of this cell: row (-1 for the header) and column 0/1/2.
+    var rowIndex = 0
+    var columnIndex = 0
+
     /// Header cells center their single line vertically; body cells stay top-aligned.
     var centersVertically = false
 
@@ -240,28 +244,46 @@ final class SubtitleTableRowView: NSTableRowView {
 // MARK: - Frozen header
 
 final class SubtitleTableHeaderView: NSView {
-    private let indexLabel = SubtitleTableHeaderView.makeHeaderLabel("#")
-    private let nameLabel = SubtitleTableHeaderView.makeHeaderLabel("Name")
-    private let cuesLabel = SubtitleTableHeaderView.makeHeaderLabel("Cues")
+    let cells: [SubtitleTextCellView]
 
     override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
         let M = SubtitleTableMetrics.self
-        [indexLabel, nameLabel, cuesLabel].forEach { addSubview($0) }
+        let index = SubtitleTableHeaderView.makeHeaderCell("#", column: 0, trailing: M.indexTrailingInset)
+        let name = SubtitleTableHeaderView.makeHeaderCell("Name", column: 1, trailing: M.trailingInset)
+        let cues = SubtitleTableHeaderView.makeHeaderCell("Cues", column: 2, trailing: M.trailingInset)
+        cells = [index, name, cues]
+        super.init(frame: frameRect)
+
+        cells.forEach { addSubview($0) }
         NSLayoutConstraint.activate([
-            indexLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.cellLeading),
-            indexLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.indexColumnWidth + M.cellLeading),
-            nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            cuesLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: M.indexColumnWidth + M.nameColumnWidth + M.cellLeading),
-            cuesLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            index.leadingAnchor.constraint(equalTo: leadingAnchor),
+            index.topAnchor.constraint(equalTo: topAnchor),
+            index.bottomAnchor.constraint(equalTo: bottomAnchor),
+            index.widthAnchor.constraint(equalToConstant: M.indexColumnWidth),
+
+            name.leadingAnchor.constraint(equalTo: index.trailingAnchor),
+            name.topAnchor.constraint(equalTo: topAnchor),
+            name.bottomAnchor.constraint(equalTo: bottomAnchor),
+            name.widthAnchor.constraint(equalToConstant: M.nameColumnWidth),
+
+            cues.leadingAnchor.constraint(equalTo: name.trailingAnchor),
+            cues.trailingAnchor.constraint(equalTo: trailingAnchor),
+            cues.topAnchor.constraint(equalTo: topAnchor),
+            cues.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func columnIndex(forX x: CGFloat) -> Int {
+        let M = SubtitleTableMetrics.self
+        if x < M.indexColumnWidth { return 0 }
+        if x < M.indexColumnWidth + M.nameColumnWidth { return 1 }
+        return 2
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -274,13 +296,18 @@ final class SubtitleTableHeaderView: NSView {
         path.stroke()
     }
 
-    private static func makeHeaderLabel(_ title: String) -> NSTextField {
-        let field = NSTextField(labelWithString: title)
-        field.translatesAutoresizingMaskIntoConstraints = false
-        field.font = SubtitleTableText.headerFont
-        field.textColor = .secondaryLabelColor
-        field.drawsBackground = false
-    return field
+    private static func makeHeaderCell(_ title: String, column: Int, trailing: CGFloat) -> SubtitleTextCellView {
+        let cell = SubtitleTextCellView()
+        cell.translatesAutoresizingMaskIntoConstraints = false
+        cell.centersVertically = true
+        cell.rowIndex = -1
+        cell.columnIndex = column
+        let attributed = NSAttributedString(string: title, attributes: [
+            .font: SubtitleTableText.headerFont,
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ])
+        cell.configure(attributed: attributed, leading: SubtitleTableMetrics.cellLeading, trailing: trailing)
+        return cell
     }
 }
 
@@ -317,6 +344,39 @@ final class SubtitleTableContainerView: NSView {
 
 final class SubtitleTableNSTableView: NSTableView {
     weak var tableCoordinator: SubtitleTableView.Coordinator?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        super.mouseDown(with: event)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let isCommand = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
+        guard isCommand, window?.firstResponder === self else {
+            return super.performKeyEquivalent(with: event)
+        }
+        if event.charactersIgnoringModifiers == "a" {
+            tableCoordinator?.selectAll()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
+// MARK: - Document position (reading order across header + rows + columns)
+
+struct TableTextPosition: Comparable {
+    var row: Int     // -1 = header, 0..n-1 = data rows
+    var column: Int  // 0 = #, 1 = Name, 2 = Cues
+    var char: Int
+
+    static func < (lhs: TableTextPosition, rhs: TableTextPosition) -> Bool {
+        if lhs.row != rhs.row { return lhs.row < rhs.row }
+        if lhs.column != rhs.column { return lhs.column < rhs.column }
+        return lhs.char < rhs.char
+    }
 }
 
 // MARK: - SwiftUI bridge
@@ -338,6 +398,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         let header = SubtitleTableHeaderView()
         header.translatesAutoresizingMaskIntoConstraints = false
+        context.coordinator.headerView = header
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -418,6 +479,10 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rows: [SubtitleTableRow]
         private var onPlay: (SubtitleTableRow) -> Void
         weak var tableView: NSTableView?
+        weak var headerView: SubtitleTableHeaderView?
+
+        private var anchor: TableTextPosition?
+        private var focus: TableTextPosition?
 
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
@@ -482,6 +547,81 @@ struct SubtitleTableView: NSViewRepresentable {
             return max(0, tableView.bounds.width - SubtitleTableMetrics.indexColumnWidth - SubtitleTableMetrics.nameColumnWidth)
         }
 
+        // MARK: Selection
+
+        private func orderedSelection() -> (start: TableTextPosition, end: TableTextPosition)? {
+            guard let anchor, let focus else { return nil }
+            return anchor <= focus ? (anchor, focus) : (focus, anchor)
+        }
+
+        func selectAll() {
+            let headerLength = (cellFullText(row: -1, column: 2) as NSString).length
+            let start = TableTextPosition(row: -1, column: 0, char: 0)
+            let end: TableTextPosition
+            if rows.isEmpty {
+                end = TableTextPosition(row: -1, column: 2, char: headerLength)
+            } else {
+                let last = rows.count - 1
+                end = TableTextPosition(row: last, column: 2, char: cellTextLength(row: last, column: 2))
+            }
+            anchor = start
+            focus = end
+            refreshSelectionHighlights()
+        }
+
+        func clearSelection() {
+            anchor = nil
+            focus = nil
+            refreshSelectionHighlights()
+        }
+
+        func refreshSelectionHighlights() {
+            let selection = orderedSelection()
+            if let headerView {
+                for cell in headerView.cells {
+                    cell.setSelectedRange(cellRange(row: -1, column: cell.columnIndex, length: cell.textLength, selection: selection))
+                }
+            }
+            guard let tableView else { return }
+            let visible = tableView.rows(in: tableView.visibleRect)
+            guard visible.length > 0 else { return }
+            for row in visible.location..<(visible.location + visible.length) {
+                for column in 0..<3 {
+                    if let cell = tableView.view(atColumn: column, row: row, makeIfNecessary: false) as? SubtitleTextCellView {
+                        cell.setSelectedRange(cellRange(row: row, column: column, length: cell.textLength, selection: selection))
+                    }
+                }
+            }
+        }
+
+        private func cellRange(row: Int, column: Int, length: Int, selection: (start: TableTextPosition, end: TableTextPosition)?) -> NSRange? {
+            guard let selection else { return nil }
+            let cellStart = TableTextPosition(row: row, column: column, char: 0)
+            let cellEnd = TableTextPosition(row: row, column: column, char: length)
+            if cellEnd < selection.start || selection.end < cellStart { return nil }
+            let lower = (selection.start.row == row && selection.start.column == column) ? selection.start.char : 0
+            let upper = (selection.end.row == row && selection.end.column == column) ? selection.end.char : length
+            let lo = min(max(0, lower), length)
+            let hi = min(max(lo, upper), length)
+            return hi > lo ? NSRange(location: lo, length: hi - lo) : nil
+        }
+
+        func cellFullText(row: Int, column: Int) -> String {
+            if row == -1 {
+                return ["#", "Name", "Cues"][column]
+            }
+            let model = rows[row]
+            switch column {
+            case 0: return "\(row + 1)"
+            case 1: return model.name
+            default: return model.cues
+            }
+        }
+
+        private func cellTextLength(row: Int, column: Int) -> Int {
+            (cellFullText(row: row, column: column) as NSString).length
+        }
+
         // MARK: Data source / delegate
 
         func numberOfRows(in tableView: NSTableView) -> Int {
@@ -510,21 +650,30 @@ struct SubtitleTableView: NSViewRepresentable {
             case SubtitleTableView.indexColumnID:
                 let cell = dequeueTextCell(tableView, id: Self.indexCellID)
                 cell.configure(attributed: SubtitleTableText.index(row + 1), leading: M.cellLeading, trailing: M.indexTrailingInset)
+                prepare(cell, row: row, column: 0)
                 return cell
 
             case SubtitleTableView.nameColumnID:
                 let cell = dequeueTextCell(tableView, id: Self.nameCellID)
                 cell.configure(attributed: SubtitleTableText.body(model.name), leading: M.cellLeading, trailing: M.trailingInset)
+                prepare(cell, row: row, column: 1)
                 return cell
 
             case SubtitleTableView.cuesColumnID:
                 let cell = dequeueTextCell(tableView, id: Self.cuesCellID)
                 cell.configure(attributed: SubtitleTableText.body(model.cues), leading: M.cellLeading, trailing: M.trailingInset)
+                prepare(cell, row: row, column: 2)
                 return cell
 
             default:
                 return nil
             }
+        }
+
+        private func prepare(_ cell: SubtitleTextCellView, row: Int, column: Int) {
+            cell.rowIndex = row
+            cell.columnIndex = column
+            cell.setSelectedRange(cellRange(row: row, column: column, length: cell.textLength, selection: orderedSelection()))
         }
 
         private func dequeueTextCell(_ tableView: NSTableView, id: NSUserInterfaceItemIdentifier) -> SubtitleTextCellView {

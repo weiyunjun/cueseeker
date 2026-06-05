@@ -24,10 +24,23 @@ Additive only; no behavior change yet.
   `selectedTextBackgroundColor` behind the selected glyphs (text color
   unchanged) before drawing the text.
 
+### Sub-step 3 — selection model + header cells + cmd+A (this commit)
+
+- Added `TableTextPosition` (Comparable document position: row -1 = header,
+  column 0/1/2, char), and coordinator selection state (`anchor`/`focus`).
+- Converted the frozen header to three `SubtitleTextCellView` cells (row -1) so
+  the header highlights and hit-tests uniformly with the body.
+- Added `orderedSelection`, `cellRange` (per-cell sub-range from the global
+  selection), `refreshSelectionHighlights` (header + visible rows),
+  `selectAll`, `clearSelection`, and `cellFullText`/length helpers.
+- `viewFor` now stamps each cell's row/column and applies the current
+  selection range, so scrolled-in cells show the right highlight.
+- The table accepts first responder and grabs focus on click;
+  `performKeyEquivalent` handles cmd+A → select all table text. (Testable now:
+  click the table, press cmd+A → header + all rows highlight.)
+
 ### Planned remaining sub-steps
 
-- Selection model + state in the coordinator (document positions, per-cell
-  range, refresh) + header converted to selectable text cells + cmd+A.
 - Mouse drag selection across rows and columns.
 - cmd+C copy as TSV (tab between columns, newline between rows).
 - Drag auto-scroll at the top/bottom edges, including extending into the header.
