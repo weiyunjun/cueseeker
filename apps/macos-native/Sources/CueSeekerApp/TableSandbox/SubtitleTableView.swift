@@ -243,36 +243,6 @@ private struct CueHoverButtons: View {
     }
 }
 
-/// Cues cell that overlays hover Play/Copy buttons at its left. Text selection
-/// and drawing are inherited from SubtitleTextCellView.
-final class SubtitleCuesCellView: SubtitleTextCellView {
-    private let buttonsHost: NSHostingView<CueHoverButtons>
-
-    override init(frame frameRect: NSRect) {
-        buttonsHost = NSHostingView(rootView: CueHoverButtons(onPlay: {}, onCopy: {}))
-        super.init(frame: frameRect)
-        buttonsHost.translatesAutoresizingMaskIntoConstraints = false
-        buttonsHost.isHidden = true
-        addSubview(buttonsHost)
-        NSLayoutConstraint.activate([
-            buttonsHost.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SubtitleTableMetrics.cellLeading),
-            buttonsHost.topAnchor.constraint(equalTo: topAnchor, constant: SubtitleTableMetrics.rowVerticalInset - 4),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    func setActions(onPlay: @escaping () -> Void, onCopy: @escaping () -> Void) {
-        buttonsHost.rootView = CueHoverButtons(onPlay: onPlay, onCopy: onCopy)
-    }
-
-    /// Visibility is driven centrally by the coordinator's single hovered row.
-    func setButtonsVisible(_ visible: Bool) {
-        buttonsHost.isHidden = !visible
-    }
-}
-
 // MARK: - Row view (hover + per-row separator)
 
 final class SubtitleTableRowView: NSTableRowView {
@@ -554,6 +524,15 @@ struct SubtitleTableView: NSViewRepresentable {
             object: scrollView.contentView
         )
 
+        let hoverToolbar = NSHostingView(rootView: CueHoverButtons(
+            onPlay: { [weak coordinator = context.coordinator] in coordinator?.playHoveredRow() },
+            onCopy: { [weak coordinator = context.coordinator] in coordinator?.copyHoveredRow() }
+        ))
+        hoverToolbar.translatesAutoresizingMaskIntoConstraints = true
+        hoverToolbar.isHidden = true
+        table.addSubview(hoverToolbar)
+        context.coordinator.hoverToolbar = hoverToolbar
+
         container.addSubview(header)
         container.addSubview(scrollView)
         NSLayoutConstraint.activate([
@@ -592,6 +571,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private var hoveredRow: Int?
         private var lastMouseWindowPoint: CGPoint?
+        fileprivate var hoverToolbar: NSHostingView<CueHoverButtons>?
 
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
@@ -863,14 +843,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 return cell
 
             case SubtitleTableView.cuesColumnID:
-                let cell = dequeueCuesCell(tableView)
+                let cell = dequeueTextCell(tableView, id: Self.cuesCellID)
                 cell.configure(attributed: SubtitleTableText.body(model.cues), leading: M.cellLeading, trailing: M.trailingInset)
                 prepare(cell, row: row, column: 2)
-                cell.setActions(
-                    onPlay: { [weak self] in self?.playRow(row) },
-                    onCopy: { [weak self] in self?.copyRow(row) }
-                )
-                cell.setButtonsVisible(isRowHovered(row))
                 return cell
 
             default:
@@ -891,15 +866,6 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             let cell = SubtitleTextCellView()
             cell.identifier = id
-            return cell
-        }
-
-        private func dequeueCuesCell(_ tableView: NSTableView) -> SubtitleCuesCellView {
-            if let reused = tableView.makeView(withIdentifier: Self.cuesCellID, owner: nil) as? SubtitleCuesCellView {
-                return reused
-            }
-            let cell = SubtitleCuesCellView()
-            cell.identifier = Self.cuesCellID
             return cell
         }
 
@@ -953,6 +919,7 @@ struct SubtitleTableView: NSViewRepresentable {
             if let new = hoveredRow {
                 applyHover(row: new, hovered: true)
             }
+            updateHoverToolbar()
         }
 
         private func applyHover(row: Int, hovered: Bool) {
@@ -960,9 +927,35 @@ struct SubtitleTableView: NSViewRepresentable {
             if let rowView = tableView.rowView(atRow: row, makeIfNecessary: false) as? SubtitleTableRowView {
                 rowView.isHovered = hovered
             }
-            if let cues = tableView.view(atColumn: 2, row: row, makeIfNecessary: false) as? SubtitleCuesCellView {
-                cues.setButtonsVisible(hovered)
+        }
+
+        /// One shared SwiftUI toolbar, repositioned over the hovered Cues cell.
+        private func updateHoverToolbar() {
+            guard let tableView, let hoverToolbar else { return }
+            guard let row = hoveredRow, row >= 0, row < tableView.numberOfRows else {
+                hoverToolbar.isHidden = true
+                return
             }
+            let cellFrame = tableView.frameOfCell(atColumn: 2, row: row)
+            let size = hoverToolbar.fittingSize
+            hoverToolbar.frame = CGRect(
+                x: cellFrame.minX + SubtitleTableMetrics.cellLeading,
+                y: cellFrame.minY + SubtitleTableMetrics.rowVerticalInset - 4,
+                width: size.width,
+                height: size.height
+            )
+            tableView.addSubview(hoverToolbar, positioned: .above, relativeTo: nil)
+            hoverToolbar.isHidden = false
+        }
+
+        func playHoveredRow() {
+            guard let row = hoveredRow else { return }
+            playRow(row)
+        }
+
+        func copyHoveredRow() {
+            guard let row = hoveredRow else { return }
+            copyRow(row)
         }
     }
 }

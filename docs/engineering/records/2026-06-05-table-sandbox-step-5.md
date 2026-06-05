@@ -64,6 +64,25 @@ truth:
 This fixes both the multi-row hover after scrolling and the buttons vanishing
 when moving between the buttons and the cell text.
 
+## Fix 3 — memory: one shared hover toolbar instead of one per cell
+
+E2E showed ~60MB memory growth on fast scrolling. Cause: each Cues cell hosted
+its own SwiftUI `NSHostingView`; recycling cells and replacing each host's
+`rootView` while scrolling churned many SwiftUI graphs. (The card layout stays
+cheap because it is a single SwiftUI tree.) The whole app's buttons are SwiftUI,
+so the fix keeps SwiftUI but uses a single host:
+
+- Removed `SubtitleCuesCellView`; the Cues column is a plain
+  `SubtitleTextCellView` again.
+- Added one shared `NSHostingView<CueHoverButtons>` owned by the coordinator,
+  added once to the table. On hover change it is repositioned over the hovered
+  Cues cell (`frameOfCell`) and shown; otherwise hidden. Its buttons act on the
+  current `hoveredRow` (`playHoveredRow` / `copyHoveredRow`), so the root view is
+  set once (no per-scroll churn).
+
+Memory growth on scroll should now be negligible while keeping the existing
+`ToolbarButtonStyle`.
+
 ## Outcome
 
 Build green; Phase B3 complete. Phase B (sandbox table on fake data) is now
