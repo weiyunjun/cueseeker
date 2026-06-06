@@ -179,6 +179,7 @@ extension AppCoordinator {
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
         )
+        preparePlaybackKeyboardFocus()
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
@@ -195,6 +196,11 @@ extension AppCoordinator {
             await Task.yield()
             play(result)
         }
+    }
+
+    func preparePlaybackKeyboardFocus() {
+        workbenchLayout.clearSearchFocus()
+        NSApplication.shared.keyWindow?.makeFirstResponder(nil)
     }
 
     /// Seeks the current playback to an absolute timestamp through the shared

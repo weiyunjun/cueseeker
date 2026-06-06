@@ -177,3 +177,33 @@ removes the same spacer/scroll-to coupling that affected Search Results.
 The current-video Subtitles side panel now loads the current visible subtitle
 window by offset instead of scrolling through placeholder spacer rows. Fast
 scrollbar movement can request the destination window directly.
+
+## Follow-up Step 4: Search Playback Keyboard Focus
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Fix keyboard shortcut focus when entering playback from Search result rows,
+including the test Search table.
+
+### Changes
+
+- Added `preparePlaybackKeyboardFocus()` to clear Search focus and release the
+  current key window first responder before opening a Search result.
+- `openSearchResult` now calls that focus preparation before expanding playback,
+  so all Search result entry points share the same playback shortcut behavior.
+
+### Verification
+
+- Passed: `swift build`
+- Passed: `swift test --jobs 1 --filter PlaybackQuickSearch`
+  - 14 Testing tests passed.
+
+### Outcome
+
+Opening a Search result no longer leaves the previous Search input or test table
+focus as the active responder, which keeps playback keyboard shortcuts available
+after entering playback from the test Search table.
