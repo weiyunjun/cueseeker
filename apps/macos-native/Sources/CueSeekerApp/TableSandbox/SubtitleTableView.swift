@@ -475,6 +475,7 @@ struct TableTextPosition: Comparable {
 // MARK: - SwiftUI bridge
 
 struct SubtitleTableView: NSViewRepresentable {
+    var tableName: String
     var rows: [SubtitleTableRow]
     var onPlay: (SubtitleTableRow) -> Void
 
@@ -483,7 +484,7 @@ struct SubtitleTableView: NSViewRepresentable {
     fileprivate static let cuesColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.cues")
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(rows: rows, onPlay: onPlay)
+        Coordinator(tableName: tableName, rows: rows, onPlay: onPlay)
     }
 
     func makeNSView(context: Context) -> SubtitleTableContainerView {
@@ -573,13 +574,14 @@ struct SubtitleTableView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: SubtitleTableContainerView, context: Context) {
-        context.coordinator.update(rows: rows, onPlay: onPlay)
+        context.coordinator.update(tableName: tableName, rows: rows, onPlay: onPlay)
     }
 
     // MARK: Coordinator
 
     @MainActor
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+        private var tableName: String
         private var rows: [SubtitleTableRow]
         private var onPlay: (SubtitleTableRow) -> Void
         weak var tableView: NSTableView?
@@ -595,6 +597,12 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
+        private var heightMeasurementBatchCount = 0
+        private var heightMeasurementBatchTotalMilliseconds = 0.0
+        private var heightMeasurementBatchMaxMilliseconds = 0.0
+        private var cellConfigurationBatchCount = 0
+
+        private static let performanceLogBatchSize = 25
 
         /// Minimum content height = exactly one body line (no inter-line spacing),
         /// so a single-line row is one line tall, not two.
@@ -612,7 +620,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private static let cuesCellID = NSUserInterfaceItemIdentifier("SubtitleTable.cuesCell")
         private static let rowViewID = NSUserInterfaceItemIdentifier("SubtitleTable.rowView")
 
-        init(rows: [SubtitleTableRow], onPlay: @escaping (SubtitleTableRow) -> Void) {
+        init(tableName: String, rows: [SubtitleTableRow], onPlay: @escaping (SubtitleTableRow) -> Void) {
+            self.tableName = tableName
             self.rows = rows
             self.onPlay = onPlay
         }
@@ -621,26 +630,54 @@ struct SubtitleTableView: NSViewRepresentable {
             NotificationCenter.default.removeObserver(self)
         }
 
-        func update(rows: [SubtitleTableRow], onPlay: @escaping (SubtitleTableRow) -> Void) {
+        func update(tableName: String, rows: [SubtitleTableRow], onPlay: @escaping (SubtitleTableRow) -> Void) {
+            self.tableName = tableName
             self.onPlay = onPlay
-            guard rows != self.rows else { return }
+            let oldRowCount = self.rows.count
+            let compareStart = TableRenderingPerformanceLogger.now()
+            let rowsChanged = rows != self.rows
+            TableRenderingPerformanceLogger.record(
+                event: "rows_compared",
+                table: tableName,
+                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: compareStart),
+                oldRowCount: oldRowCount,
+                newRowCount: rows.count,
+                changed: rowsChanged
+            )
+            guard rowsChanged else { return }
             self.rows = rows
             // New data invalidates any selection/hover that referenced old rows;
             // clearing avoids stale indices (e.g. cmd+C going out of bounds).
             anchor = nil
             focus = nil
             hoveredRow = nil
+            let reloadStart = TableRenderingPerformanceLogger.now()
             tableView?.reloadData()
+            TableRenderingPerformanceLogger.record(
+                event: "reload_data",
+                table: tableName,
+                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: reloadStart),
+                rowCount: rows.count,
+                oldRowCount: oldRowCount,
+                newRowCount: rows.count
+            )
         }
 
         @objc func tableFrameChanged() {
             guard let tableView, tableView.numberOfRows > 0 else { return }
             tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
+            TableRenderingPerformanceLogger.record(
+                event: "height_invalidated_all",
+                table: tableName,
+                rowCount: tableView.numberOfRows,
+                width: Double(tableView.bounds.width)
+            )
         }
 
         // MARK: Row heights
 
         func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+            let measurementStart = TableRenderingPerformanceLogger.now()
             let model = rows[row]
             let M = SubtitleTableMetrics.self
 
@@ -651,7 +688,12 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesMeasurer.update(attributedString: SubtitleTableText.body(model.cues), width: cuesWidth)
 
             let content = max(nameMeasurer.usedHeight, cuesMeasurer.usedHeight, singleLineFloor)
-            return content + 2 * M.rowVerticalInset
+            let height = content + 2 * M.rowVerticalInset
+            recordHeightMeasurement(
+                TableRenderingPerformanceLogger.elapsedMilliseconds(since: measurementStart),
+                width: cuesWidth
+            )
+            return height
         }
 
         private func cuesColumnWidth(in tableView: NSTableView) -> CGFloat {
@@ -860,12 +902,14 @@ struct SubtitleTableView: NSViewRepresentable {
                 let cell = dequeueTextCell(tableView, id: Self.indexCellID)
                 cell.configure(attributed: SubtitleTableText.index(row + 1), leading: M.cellLeading, trailing: M.indexTrailingInset)
                 prepare(cell, row: row, column: 0)
+                recordCellConfiguration()
                 return cell
 
             case SubtitleTableView.nameColumnID:
                 let cell = dequeueTextCell(tableView, id: Self.nameCellID)
                 cell.configure(attributed: SubtitleTableText.body(model.name), leading: M.cellLeading, trailing: M.trailingInset)
                 prepare(cell, row: row, column: 1)
+                recordCellConfiguration()
                 return cell
 
             case SubtitleTableView.cuesColumnID:
@@ -877,6 +921,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     onCopy: { [weak self] in self?.copyRow(row) }
                 )
                 cell.setButtonsVisible(isRowHovered(row))
+                recordCellConfiguration()
                 return cell
 
             default:
@@ -907,6 +952,48 @@ struct SubtitleTableView: NSViewRepresentable {
             let cell = SubtitleCuesCellView()
             cell.identifier = Self.cuesCellID
             return cell
+        }
+
+        private func recordHeightMeasurement(_ elapsedMilliseconds: Double, width: CGFloat) {
+            guard TableRenderingPerformanceLogger.isEnabled else { return }
+
+            heightMeasurementBatchCount += 1
+            heightMeasurementBatchTotalMilliseconds += elapsedMilliseconds
+            heightMeasurementBatchMaxMilliseconds = max(heightMeasurementBatchMaxMilliseconds, elapsedMilliseconds)
+
+            guard heightMeasurementBatchCount >= Self.performanceLogBatchSize else {
+                return
+            }
+
+            TableRenderingPerformanceLogger.record(
+                event: "height_measure_batch",
+                table: tableName,
+                totalMilliseconds: heightMeasurementBatchTotalMilliseconds,
+                maxMilliseconds: heightMeasurementBatchMaxMilliseconds,
+                rowCount: rows.count,
+                measuredRows: heightMeasurementBatchCount,
+                width: Double(width)
+            )
+            heightMeasurementBatchCount = 0
+            heightMeasurementBatchTotalMilliseconds = 0
+            heightMeasurementBatchMaxMilliseconds = 0
+        }
+
+        private func recordCellConfiguration() {
+            guard TableRenderingPerformanceLogger.isEnabled else { return }
+
+            cellConfigurationBatchCount += 1
+            guard cellConfigurationBatchCount >= Self.performanceLogBatchSize else {
+                return
+            }
+
+            TableRenderingPerformanceLogger.record(
+                event: "cell_configure_batch",
+                table: tableName,
+                rowCount: rows.count,
+                configuredCells: cellConfigurationBatchCount
+            )
+            cellConfigurationBatchCount = 0
         }
 
         func playRow(_ row: Int) {

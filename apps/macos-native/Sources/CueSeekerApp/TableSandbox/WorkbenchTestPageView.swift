@@ -52,7 +52,7 @@ private struct WorkbenchTestSearchView: View {
             )
             .padding(16)
 
-            SubtitleTableView(rows: rows, onPlay: play)
+            SubtitleTableView(tableName: "test-search", rows: rows, onPlay: play)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
         }
@@ -68,13 +68,22 @@ private struct WorkbenchTestSearchView: View {
     }
 
     private var rows: [SubtitleTableRow] {
-        search.searchResults.map { result in
+        let start = TableRenderingPerformanceLogger.now()
+        let mappedRows = search.searchResults.map { result in
             SubtitleTableRow(
                 id: Int(result.entryID),
                 name: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath),
                 cues: subtitleDisplayLines(content: result.content, cueLines: result.cueLines).joined(separator: "\n")
             )
         }
+        TableRenderingPerformanceLogger.record(
+            event: "rows_mapped",
+            table: "test-search",
+            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
+            rowCount: mappedRows.count,
+            sourceCount: search.searchResults.count
+        )
+        return mappedRows
     }
 
     private func play(_ row: SubtitleTableRow) {
@@ -88,19 +97,28 @@ private struct WorkbenchTestShioriView: View {
     @EnvironmentObject private var shiori: ShioriStore
 
     var body: some View {
-        SubtitleTableView(rows: rows, onPlay: play)
+        SubtitleTableView(tableName: "test-shiori", rows: rows, onPlay: play)
             .padding(16)
             .task { appState.hydrateShiorisAsync() }
     }
 
     private var rows: [SubtitleTableRow] {
-        shiori.shioris.map { item in
+        let start = TableRenderingPerformanceLogger.now()
+        let mappedRows = shiori.shioris.map { item in
             SubtitleTableRow(
                 id: Int(item.id),
                 name: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: item.subtitlePath),
                 cues: subtitleDisplayLines(content: item.content, cueLines: item.cueLines).joined(separator: "\n")
             )
         }
+        TableRenderingPerformanceLogger.record(
+            event: "rows_mapped",
+            table: "test-shiori",
+            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
+            rowCount: mappedRows.count,
+            sourceCount: shiori.shioris.count
+        )
+        return mappedRows
     }
 
     private func play(_ row: SubtitleTableRow) {
