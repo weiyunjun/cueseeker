@@ -333,6 +333,7 @@ final class AppCoordinator: ObservableObject {
     var searchTask: Task<Void, Never>?
     var searchExactCompletionTask: Task<Void, Never>?
     var searchNavigationTask: Task<Void, Never>?
+    var searchNavigationVisibleWindowTask: Task<Void, Never>?
     var currentSubtitleEntriesTask: Task<Void, Never>?
     var databaseStorageStatsTask: Task<Void, Never>?
     var databaseCompactionTask: Task<Void, Never>?

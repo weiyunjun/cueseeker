@@ -97,3 +97,45 @@ Subtitles are connected in later steps.
 The playback side panel now has a reusable renderer foundation that separates
 scrollbar range from hosted row views. Existing UI behavior is not changed until
 the Search Results and Subtitles tabs are migrated onto this foundation.
+
+## Follow-up Step 2: Search Results Offset Window
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Connect the playback Search Results side-panel tab to the virtual list
+foundation. This step targets the blank-panel and sequential-loading behavior
+seen when dragging the side-panel scrollbar over large Search result sets.
+
+### Changes
+
+- Added Search store state for the side-panel visible result window, its start
+  index, total count, and row version.
+- Added a cancellable `searchNavigationVisibleWindowTask` owned by
+  `AppCoordinator`.
+- Added `loadSearchNavigationVisibleWindow(rows:)`, which loads the requested
+  visible row range by global Search rank using the cached result-ID index and
+  `searchIndexedVisiblePage`.
+- Kept playback previous/next navigation snapshot state separate from the
+  side-panel visible-window state, so scrolling the side panel does not mutate
+  the playback navigation anchor.
+- Replaced the Search side-panel `ScrollViewReader`/`LazyVStack` spacer path
+  with `PlaybackSidebarVirtualList`.
+- Search reset and Playback Quick Search submission now clear the side-panel
+  visible window and cancel stale loads.
+
+### Verification
+
+- Passed: `swift build`
+- Passed: `swift test --jobs 1 --filter Search`
+  - 57 Testing tests passed.
+
+### Outcome
+
+The Search Results side panel now maps scrollbar position to global result
+offset and requests the current visible window directly. It no longer renders
+giant SwiftUI spacer rows or depends on `ScrollViewReader.scrollTo` to reach the
+selected result.

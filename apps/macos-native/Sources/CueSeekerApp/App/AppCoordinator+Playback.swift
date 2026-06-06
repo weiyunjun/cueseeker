@@ -569,6 +569,7 @@ extension AppCoordinator {
         search.searchQuery = trimmedQuery
         search.searchNavigationSnapshot = nil
         search.searchNavigationResultGroups = []
+        search.resetSearchNavigationVisibleWindow()
         playback.markQuickSearchSubmitted(query: trimmedQuery, source: resultSource)
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
         return true

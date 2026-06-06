@@ -61,98 +61,62 @@ struct PlaybackSidebarShell: View {
     }
 
     private var searchResultsList: some View {
-        let rows = flattenedResultRows
-        return ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if virtualTopSearchRows > 0 {
-                        Color.clear.frame(
-                            height: CGFloat(virtualTopSearchRows) * Self.estimatedSearchResultRowHeight
-                        )
-                    }
-
-                    ForEach(rows, id: \.result.entryID) { row in
-                        PlaybackSidebarResultRow(
-                            rank: row.rank,
-                            result: row.result,
-                            query: search.searchQuery,
-                            isSelected: row.result.entryID
-                                == search.selectedSearchResult?.entryID,
-                            onOpen: { appState.openSearchResult(row.result) }
-                        )
-                        .id(row.result.entryID)
-                    }
-
-                    if virtualBottomSearchRows > 0 {
-                        Color.clear.frame(
-                            height: CGFloat(virtualBottomSearchRows) * Self.estimatedSearchResultRowHeight
-                        )
-                    }
-                }
-                .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(ScrollViewIntrospector { scrollView in
-                    configurePlaybackSidebarScrollView(scrollView)
-                })
+        PlaybackSidebarVirtualList(
+            rowCount: searchNavigationTotalCount,
+            rowHeight: Self.estimatedSearchResultRowHeight,
+            rowsVersion: search.searchNavigationVisibleRowsVersion,
+            scrollTargetRow: selectedSearchRank,
+            scrollTargetVersion: selectedSearchScrollTargetVersion,
+            onVisibleRowsChange: { rows in
+                appState.loadSearchNavigationVisibleWindow(rows: rows)
+            },
+            rowContent: { row in
+                searchResultRow(at: row)
             }
-            .onAppear { scrollSelectedIntoView(proxy) }
-            .onChange(of: search.selectedSearchResult?.entryID) { _ in
-                scrollSelectedIntoView(proxy)
-            }
-            .onChange(of: searchNavigationWindowIDs) { _ in
-                scrollSelectedIntoView(proxy)
-            }
-        }
+        )
     }
 
-    private func scrollSelectedIntoView(_ proxy: ScrollViewProxy) {
-        guard let id = search.selectedSearchResult?.entryID else {
-            return
+    private func searchResultRow(at row: Int) -> AnyView {
+        guard let result = search.searchNavigationVisibleResult(at: row) else {
+            return AnyView(Color.clear)
         }
 
-        withAnimation(.easeInOut(duration: 0.18)) {
-            proxy.scrollTo(id, anchor: .center)
-        }
+        return AnyView(
+            PlaybackSidebarResultRow(
+                rank: row + 1,
+                result: result,
+                query: search.searchQuery,
+                isSelected: result.entryID == search.selectedSearchResult?.entryID,
+                onOpen: { appState.openSearchResult(result) }
+            )
+            .frame(height: Self.estimatedSearchResultRowHeight, alignment: .top)
+            .clipped()
+        )
     }
 
-    /// The active Search result window with global one-based ranks to mirror
-    /// the prototype `.sidebar-list`.
-    private var flattenedResultRows: [(rank: Int, result: SubtitleSearchResult)] {
-        if let snapshot = search.searchNavigationSnapshot {
-            return snapshot.neighborhood
-                .sorted { $0.searchRank < $1.searchRank }
-                .map { (rank: $0.searchRank + 1, result: $0) }
-        }
-
-        var rows: [(rank: Int, result: SubtitleSearchResult)] = []
-        for group in search.searchNavigationResultGroups {
-            for result in group.results {
-                rows.append((rank: result.searchRank + 1, result: result))
-            }
-        }
-        return rows
+    private var searchNavigationTotalCount: Int {
+        max(
+            search.searchNavigationVisibleTotalCount,
+            search.searchNavigationSnapshot?.totalCount ?? 0,
+            search.searchResultTotalCount,
+            search.searchResults.count
+        )
     }
 
-    private var virtualTopSearchRows: Int {
-        guard let firstRank = flattenedResultRows.first?.result.searchRank else {
-            return 0
-        }
-        return max(0, firstRank)
-    }
-
-    private var virtualBottomSearchRows: Int {
-        let loadedRows = flattenedResultRows
-        guard let snapshot = search.searchNavigationSnapshot,
-              let lastRank = loadedRows.last?.result.searchRank
+    private var selectedSearchRank: Int? {
+        guard let selected = search.selectedSearchResult,
+              selected.searchRank >= 0
         else {
-            return 0
+            return nil
         }
-
-        return max(0, snapshot.totalCount - lastRank - 1)
+        return selected.searchRank
     }
 
-    private var searchNavigationWindowIDs: [Int64] {
-        flattenedResultRows.map(\.result.entryID)
+    private var selectedSearchScrollTargetVersion: Int {
+        guard let selected = search.selectedSearchResult else {
+            return 0
+        }
+        return selected.searchRank ^ Int(truncatingIfNeeded: selected.entryID)
     }
 
     private func sidebarTab(_ panel: PlaybackDrawerKind, title: String) -> some View {
