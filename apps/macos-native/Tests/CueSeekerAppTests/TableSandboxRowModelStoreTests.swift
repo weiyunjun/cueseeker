@@ -146,6 +146,38 @@ func tableSandboxRowModelStoreHydratesSparseVisibleSearchRows() {
     #expect(store.snapshot.update == .append(1_000_000..<1_000_002))
 }
 
+@MainActor
+@Test
+func tableSandboxRowModelStoreDoesNotShrinkAuthoritativeTotalDuringHydration() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+    let loadedResults = (0..<111).map { index in
+        searchResult(
+            id: Int64(index + 1),
+            path: path,
+            content: "loaded row \(index)",
+            cueLines: ["loaded row \(index)"]
+        )
+    }
+
+    store.updateSearchRows(
+        loadedResults,
+        totalRowCount: 1_335,
+        tableName: "test-search"
+    )
+    store.hydrateSearchRows(
+        [
+            searchResult(id: 112, path: path, content: "visible row", cueLines: ["visible row"]),
+        ],
+        startIndex: 111,
+        totalRowCount: 111,
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.totalRowCount == 1_335)
+    #expect(store.snapshot.row(at: 111)?.cues == "visible row")
+}
+
 private func searchResult(
     id: Int64,
     path: String,

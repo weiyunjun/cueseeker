@@ -140,7 +140,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         let references = referencesBySourceIndex.values.sorted { lhs, rhs in
             lhs.sourceIndex < rhs.sourceIndex
         }
-        let resolvedTotalRowCount = max(totalRowCount, (references.last?.sourceIndex ?? -1) + 1)
+        let resolvedTotalRowCount = max(snapshot.totalRowCount, totalRowCount, (references.last?.sourceIndex ?? -1) + 1)
         let update: TableSandboxRowsUpdate = .append(lowerChangedIndex..<upperChangedIndex)
         TableRenderingPerformanceLogger.record(
             event: "rows_hydrated",

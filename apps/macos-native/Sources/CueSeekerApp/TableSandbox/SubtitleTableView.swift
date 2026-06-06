@@ -16,7 +16,7 @@ enum SubtitleTableMetrics {
     static let maximumBodyLineCount = 6
 }
 
-// MARK: - Typography (aligned with the production search/Shiori cue text)
+// MARK: - Typography
 
 @MainActor
 enum SubtitleTableText {
@@ -46,9 +46,16 @@ enum SubtitleTableText {
             .foregroundColor: NSColor.secondaryLabelColor,
         ])
     }
+
+    static func header(_ text: String) -> NSAttributedString {
+        NSAttributedString(string: text, attributes: [
+            .font: headerFont,
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ])
+    }
 }
 
-// MARK: - TextKit layout (one stack per cell; reused for drawing + measurement)
+// MARK: - TextKit layout
 
 @MainActor
 final class SubtitleTextLayout {
@@ -79,137 +86,9 @@ final class SubtitleTextLayout {
         guard glyphRange.length > 0 else { return }
         layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: origin)
     }
-
-    var length: Int {
-        textStorage.length
-    }
-
-    /// Nearest insertion-point character index for a point in text-local
-    /// coordinates (already offset by the cell's content origin).
-    func characterIndex(forPoint point: CGPoint) -> Int {
-        guard textStorage.length > 0 else { return 0 }
-        var fraction: CGFloat = 0
-        let glyphIndex = layoutManager.glyphIndex(for: point, in: textContainer, fractionOfDistanceThroughGlyph: &fraction)
-        var characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
-        if fraction >= 0.5 {
-            characterIndex += 1
-        }
-        return min(max(0, characterIndex), textStorage.length)
-    }
-
-    /// Enclosing rects (text-local) for a character range, used to paint the
-    /// selection highlight behind the glyphs.
-    func selectionRects(forCharacterRange range: NSRange) -> [CGRect] {
-        guard range.length > 0 else { return [] }
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-        var rects: [CGRect] = []
-        layoutManager.enumerateEnclosingRects(
-            forGlyphRange: glyphRange,
-            withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-            in: textContainer
-        ) { rect, _ in
-            rects.append(rect)
-        }
-        return rects
-    }
 }
 
-// MARK: - Self-drawn text cell (foundation for custom selection in B2)
-
-class SubtitleTextCellView: NSView {
-    private let layout = SubtitleTextLayout()
-    private var attributed = NSAttributedString()
-    private var leadingInset = SubtitleTableMetrics.cellLeading
-    private var trailingInset = SubtitleTableMetrics.trailingInset
-    private var selectedRange: NSRange?
-
-    /// Document coordinates of this cell: row (-1 for the header) and column 0/1/2.
-    var rowIndex = 0
-    var columnIndex = 0
-
-    /// Header cells center their single line vertically; body cells stay top-aligned.
-    var centersVertically = false
-
-    weak var selectionHandler: SubtitleTableView.Coordinator?
-
-    override var isFlipped: Bool { true }
-
-    func configure(attributed: NSAttributedString, leading: CGFloat, trailing: CGFloat) {
-        self.attributed = attributed
-        self.leadingInset = leading
-        self.trailingInset = trailing
-        relayout()
-        needsDisplay = true
-    }
-
-    private var textWidth: CGFloat {
-        max(0, bounds.width - leadingInset - trailingInset)
-    }
-
-    private func relayout() {
-        layout.update(attributedString: attributed, width: textWidth)
-    }
-
-    override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
-        relayout()
-        needsDisplay = true
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        needsDisplay = true
-    }
-
-    private func contentOrigin() -> CGPoint {
-        let y: CGFloat = centersVertically
-            ? max(0, (bounds.height - layout.usedHeight) / 2)
-            : SubtitleTableMetrics.rowVerticalInset
-        return CGPoint(x: leadingInset, y: y)
-    }
-
-    var textLength: Int {
-        layout.length
-    }
-
-    func characterIndex(at point: CGPoint) -> Int {
-        let origin = contentOrigin()
-        return layout.characterIndex(forPoint: CGPoint(x: point.x - origin.x, y: point.y - origin.y))
-    }
-
-    func setSelectedRange(_ range: NSRange?) {
-        selectedRange = range
-        needsDisplay = true
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        let localPoint = convert(event.locationInWindow, from: nil)
-        let position = TableTextPosition(row: rowIndex, column: columnIndex, char: characterIndex(at: localPoint))
-        selectionHandler?.beginSelection(at: position)
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        selectionHandler?.updateSelection(with: event)
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        selectionHandler?.endSelection()
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        let origin = contentOrigin()
-        if let range = selectedRange, range.length > 0 {
-            NSColor.selectedTextBackgroundColor.setFill()
-            for rect in layout.selectionRects(forCharacterRange: range) {
-                rect.offsetBy(dx: origin.x, dy: origin.y).fill()
-            }
-        }
-        layout.draw(at: origin)
-    }
-}
-
-// MARK: - Hover Play/Copy buttons for the Cues cell
+// MARK: - Hover Play/Copy buttons
 
 private struct CueHoverButtons: View {
     var onPlay: () -> Void
@@ -245,137 +124,11 @@ private struct CueHoverButtons: View {
     }
 }
 
-/// Cues cell that overlays hover Play/Copy buttons at its left. Text selection
-/// and drawing are inherited from SubtitleTextCellView.
-final class SubtitleCuesCellView: SubtitleTextCellView {
-    private let buttonsHost: NSHostingView<CueHoverButtons>
-
-    override init(frame frameRect: NSRect) {
-        buttonsHost = NSHostingView(rootView: CueHoverButtons(onPlay: {}, onCopy: {}))
-        super.init(frame: frameRect)
-        buttonsHost.translatesAutoresizingMaskIntoConstraints = false
-        buttonsHost.isHidden = true
-        addSubview(buttonsHost)
-        NSLayoutConstraint.activate([
-            buttonsHost.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SubtitleTableMetrics.cellLeading),
-            buttonsHost.topAnchor.constraint(equalTo: topAnchor, constant: SubtitleTableMetrics.rowVerticalInset - 4),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    func setActions(onPlay: @escaping () -> Void, onCopy: @escaping () -> Void) {
-        buttonsHost.rootView = CueHoverButtons(onPlay: onPlay, onCopy: onCopy)
-    }
-
-    /// Visibility is driven centrally by the coordinator's single hovered row.
-    func setButtonsVisible(_ visible: Bool) {
-        buttonsHost.isHidden = !visible
-    }
-}
-
-// MARK: - Row view (hover + per-row separator)
-
-final class SubtitleTableRowView: NSTableRowView {
-    /// Driven centrally by the coordinator's single hovered row.
-    var isHovered = false {
-        didSet {
-            guard isHovered != oldValue else { return }
-            needsDisplay = true
-        }
-    }
-
-    override func drawBackground(in dirtyRect: NSRect) {
-        super.drawBackground(in: dirtyRect)
-        if isHovered {
-            NSColor.secondaryLabelColor.withAlphaComponent(0.06).setFill()
-            bounds.fill()
-        }
-        // Per-row bottom hairline so separators appear only between real rows.
-        NSColor.separatorColor.setStroke()
-        let y = bounds.maxY - 0.5
-        let path = NSBezierPath()
-        path.move(to: NSPoint(x: bounds.minX, y: y))
-        path.line(to: NSPoint(x: bounds.maxX, y: y))
-        path.lineWidth = 0.5
-        path.stroke()
-    }
-}
-
-// MARK: - Frozen header
-
-final class SubtitleTableHeaderView: NSView {
-    let cells: [SubtitleTextCellView]
-
-    override var isFlipped: Bool { true }
-
-    override init(frame frameRect: NSRect) {
-        let M = SubtitleTableMetrics.self
-        let index = SubtitleTableHeaderView.makeHeaderCell("#", column: 0, trailing: M.indexTrailingInset)
-        let name = SubtitleTableHeaderView.makeHeaderCell("Name", column: 1, trailing: M.trailingInset)
-        let cues = SubtitleTableHeaderView.makeHeaderCell("Cues", column: 2, trailing: M.trailingInset)
-        cells = [index, name, cues]
-        super.init(frame: frameRect)
-
-        cells.forEach { addSubview($0) }
-        NSLayoutConstraint.activate([
-            index.leadingAnchor.constraint(equalTo: leadingAnchor),
-            index.topAnchor.constraint(equalTo: topAnchor),
-            index.bottomAnchor.constraint(equalTo: bottomAnchor),
-            index.widthAnchor.constraint(equalToConstant: M.indexColumnWidth),
-
-            name.leadingAnchor.constraint(equalTo: index.trailingAnchor),
-            name.topAnchor.constraint(equalTo: topAnchor),
-            name.bottomAnchor.constraint(equalTo: bottomAnchor),
-            name.widthAnchor.constraint(equalToConstant: M.nameColumnWidth),
-
-            cues.leadingAnchor.constraint(equalTo: name.trailingAnchor),
-            cues.trailingAnchor.constraint(equalTo: trailingAnchor),
-            cues.topAnchor.constraint(equalTo: topAnchor),
-            cues.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    func columnIndex(forX x: CGFloat) -> Int {
-        let M = SubtitleTableMetrics.self
-        if x < M.indexColumnWidth { return 0 }
-        if x < M.indexColumnWidth + M.nameColumnWidth { return 1 }
-        return 2
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        NSColor.separatorColor.setStroke()
-        let y = bounds.maxY - 0.5
-        let path = NSBezierPath()
-        path.move(to: NSPoint(x: bounds.minX, y: y))
-        path.line(to: NSPoint(x: bounds.maxX, y: y))
-        path.lineWidth = 0.5
-        path.stroke()
-    }
-
-    private static func makeHeaderCell(_ title: String, column: Int, trailing: CGFloat) -> SubtitleTextCellView {
-        let cell = SubtitleTextCellView()
-        cell.translatesAutoresizingMaskIntoConstraints = false
-        cell.centersVertically = true
-        cell.rowIndex = -1
-        cell.columnIndex = column
-        let attributed = NSAttributedString(string: title, attributes: [
-            .font: SubtitleTableText.headerFont,
-            .foregroundColor: NSColor.secondaryLabelColor,
-        ])
-        cell.configure(attributed: attributed, leading: SubtitleTableMetrics.cellLeading, trailing: trailing)
-        return cell
-    }
-}
-
-// MARK: - Rounded container
+// MARK: - Container and header
 
 final class SubtitleTableContainerView: NSView {
+    var onLayout: (() -> Void)?
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -387,6 +140,11 @@ final class SubtitleTableContainerView: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layout() {
+        super.layout()
+        onLayout?()
+    }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
@@ -402,12 +160,59 @@ final class SubtitleTableContainerView: NSView {
     }
 }
 
-// MARK: - Table view (minimal subclass; selection added in B2)
+final class SubtitleVirtualTableHeaderView: NSView {
+    weak var coordinator: SubtitleTableView.Coordinator?
 
-final class SubtitleTableNSTableView: NSTableView {
-    weak var tableCoordinator: SubtitleTableView.Coordinator?
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let M = SubtitleTableMetrics.self
+        drawHeader("#", rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height), trailing: M.indexTrailingInset)
+        drawHeader("Name", rect: CGRect(x: M.indexColumnWidth, y: 0, width: M.nameColumnWidth, height: bounds.height), trailing: M.trailingInset)
+        drawHeader(
+            "Cues",
+            rect: CGRect(
+                x: M.indexColumnWidth + M.nameColumnWidth,
+                y: 0,
+                width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth),
+                height: bounds.height
+            ),
+            trailing: M.trailingInset
+        )
+
+        NSColor.separatorColor.setStroke()
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
+        path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
+        path.lineWidth = 0.5
+        path.stroke()
+    }
+
+    private func drawHeader(_ text: String, rect: CGRect, trailing: CGFloat) {
+        let attributed = SubtitleTableText.header(text)
+        let size = attributed.size()
+        let origin = CGPoint(
+            x: rect.minX + SubtitleTableMetrics.cellLeading,
+            y: rect.minY + max(0, (rect.height - size.height) / 2)
+        )
+        let clipped = CGRect(
+            x: origin.x,
+            y: origin.y,
+            width: max(0, rect.width - SubtitleTableMetrics.cellLeading - trailing),
+            height: size.height
+        )
+        attributed.draw(in: clipped)
+    }
+}
+
+// MARK: - Virtual document view
+
+final class SubtitleVirtualTableDocumentView: NSView {
+    weak var coordinator: SubtitleTableView.Coordinator?
     private var hoverTracking: NSTrackingArea?
 
+    override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
 
     override func updateTrackingAreas() {
@@ -425,52 +230,96 @@ final class SubtitleTableNSTableView: NSTableView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        tableCoordinator?.handleMouseHover(windowPoint: event.locationInWindow)
+        coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
     }
 
     override func mouseEntered(with event: NSEvent) {
-        tableCoordinator?.handleMouseHover(windowPoint: event.locationInWindow)
+        coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
     }
 
     override func mouseExited(with event: NSEvent) {
-        tableCoordinator?.clearHover()
+        coordinator?.clearHover()
     }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        tableCoordinator?.clearSelection()
         super.mouseDown(with: event)
     }
 
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let isCommand = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
-        guard isCommand, window?.firstResponder === self else {
-            return super.performKeyEquivalent(with: event)
-        }
-        switch event.charactersIgnoringModifiers {
-        case "a":
-            tableCoordinator?.selectAll()
-            return true
-        case "c":
-            tableCoordinator?.copySelection()
-            return true
-        default:
-            return super.performKeyEquivalent(with: event)
-        }
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        coordinator?.drawRows(in: dirtyRect)
     }
 }
 
-// MARK: - Document position (reading order across header + rows + columns)
+// MARK: - Height cache
 
-struct TableTextPosition: Comparable {
-    var row: Int     // -1 = header, 0..n-1 = data rows
-    var column: Int  // 0 = #, 1 = Name, 2 = Cues
-    var char: Int
+struct SubtitleVirtualRowHeightCache {
+    private var heights: [Int: CGFloat] = [:]
 
-    static func < (lhs: TableTextPosition, rhs: TableTextPosition) -> Bool {
-        if lhs.row != rhs.row { return lhs.row < rhs.row }
-        if lhs.column != rhs.column { return lhs.column < rhs.column }
-        return lhs.char < rhs.char
+    var count: Int {
+        heights.count
+    }
+
+    mutating func removeAll() {
+        heights.removeAll()
+    }
+
+    mutating func prune(rowCount: Int, isLoaded: (Int) -> Bool) {
+        heights = heights.filter { row, _ in
+            row >= 0 && row < rowCount && isLoaded(row)
+        }
+    }
+
+    func height(for row: Int, defaultHeight: CGFloat) -> CGFloat {
+        heights[row] ?? defaultHeight
+    }
+
+    mutating func setHeight(_ height: CGFloat, for row: Int, defaultHeight: CGFloat) -> Bool {
+        let normalized = max(defaultHeight, ceil(height))
+        let old = heights[row]
+        guard old != normalized else { return false }
+        if normalized == defaultHeight {
+            heights.removeValue(forKey: row)
+        } else {
+            heights[row] = normalized
+        }
+        return true
+    }
+
+    func yOffset(for row: Int, defaultHeight: CGFloat) -> CGFloat {
+        guard row > 0 else { return 0 }
+        var offset = CGFloat(row) * defaultHeight
+        for (index, height) in heights where index >= 0 && index < row {
+            offset += height - defaultHeight
+        }
+        return offset
+    }
+
+    func totalHeight(rowCount: Int, defaultHeight: CGFloat) -> CGFloat {
+        guard rowCount > 0 else { return 0 }
+        var height = CGFloat(rowCount) * defaultHeight
+        for (index, rowHeight) in heights where index >= 0 && index < rowCount {
+            height += rowHeight - defaultHeight
+        }
+        return max(0, height)
+    }
+
+    func rowIndex(atY y: CGFloat, rowCount: Int, defaultHeight: CGFloat) -> Int {
+        guard rowCount > 0 else { return 0 }
+        var low = 0
+        var high = rowCount
+        let target = max(0, y)
+        while low < high {
+            let mid = (low + high) / 2
+            let nextOffset = yOffset(for: mid + 1, defaultHeight: defaultHeight)
+            if nextOffset <= target {
+                low = mid + 1
+            } else {
+                high = mid
+            }
+        }
+        return min(max(0, low), rowCount - 1)
     }
 }
 
@@ -484,10 +333,6 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowsUpdate: TableSandboxRowsUpdate
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var onPlay: (SubtitleTableRow) -> Void
-
-    fileprivate static let indexColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.index")
-    fileprivate static let nameColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.name")
-    fileprivate static let cuesColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.cues")
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -503,12 +348,9 @@ struct SubtitleTableView: NSViewRepresentable {
     func makeNSView(context: Context) -> SubtitleTableContainerView {
         let container = SubtitleTableContainerView()
 
-        let header = SubtitleTableHeaderView()
+        let header = SubtitleVirtualTableHeaderView()
         header.translatesAutoresizingMaskIntoConstraints = false
-        context.coordinator.headerView = header
-        for cell in header.cells {
-            cell.selectionHandler = context.coordinator
-        }
+        header.coordinator = context.coordinator
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -517,50 +359,18 @@ struct SubtitleTableView: NSViewRepresentable {
         scrollView.drawsBackground = false
         scrollView.automaticallyAdjustsContentInsets = false
 
-        let table = SubtitleTableNSTableView()
-        table.tableCoordinator = context.coordinator
-        table.delegate = context.coordinator
-        table.dataSource = context.coordinator
-        table.style = .plain
-        table.headerView = nil
-        table.allowsColumnReordering = false
-        table.allowsColumnResizing = false
-        table.allowsColumnSelection = false
-        table.allowsEmptySelection = true
-        table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-        table.gridStyleMask = []
-        table.intercellSpacing = NSSize(width: 0, height: 0)
-        table.backgroundColor = .clear
-        table.selectionHighlightStyle = .none
-        table.postsFrameChangedNotifications = true
-        NotificationCenter.default.addObserver(
-            context.coordinator,
-            selector: #selector(Coordinator.tableFrameChanged),
-            name: NSView.frameDidChangeNotification,
-            object: table
-        )
-
-        let indexColumn = NSTableColumn(identifier: Self.indexColumnID)
-        indexColumn.width = SubtitleTableMetrics.indexColumnWidth
-        indexColumn.minWidth = SubtitleTableMetrics.indexColumnWidth
-        indexColumn.maxWidth = SubtitleTableMetrics.indexColumnWidth
-        table.addTableColumn(indexColumn)
-
-        let nameColumn = NSTableColumn(identifier: Self.nameColumnID)
-        nameColumn.width = SubtitleTableMetrics.nameColumnWidth
-        nameColumn.minWidth = SubtitleTableMetrics.nameColumnWidth
-        nameColumn.maxWidth = SubtitleTableMetrics.nameColumnWidth
-        table.addTableColumn(nameColumn)
-
-        let cuesColumn = NSTableColumn(identifier: Self.cuesColumnID)
-        cuesColumn.width = 400
-        cuesColumn.minWidth = 200
-        table.addTableColumn(cuesColumn)
-
-        scrollView.documentView = table
-        context.coordinator.tableView = table
-
+        let documentView = SubtitleVirtualTableDocumentView()
+        documentView.coordinator = context.coordinator
+        documentView.frame = CGRect(origin: .zero, size: CGSize(width: 1, height: 1))
+        scrollView.documentView = documentView
         scrollView.contentView.postsBoundsChangedNotifications = true
+
+        context.coordinator.attach(
+            container: container,
+            headerView: header,
+            scrollView: scrollView,
+            documentView: documentView
+        )
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.scrollContentDidChange),
@@ -582,8 +392,7 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
 
-        table.reloadData()
-        context.coordinator.scheduleVisibleHeightInvalidation(reason: "initial")
+        context.coordinator.resizeDocument()
         context.coordinator.notifyVisibleRowsChanged()
         return container
     }
@@ -603,48 +412,27 @@ struct SubtitleTableView: NSViewRepresentable {
     // MARK: Coordinator
 
     @MainActor
-    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    final class Coordinator: NSObject {
         private var tableName: String
         private var rowCount: Int
         private var rowProvider: (Int) -> SubtitleTableRow?
         private var rowsVersion: Int
         private var onVisibleRowsChange: (Range<Int>) -> Void
         private var onPlay: (SubtitleTableRow) -> Void
-        weak var tableView: NSTableView?
-        weak var headerView: SubtitleTableHeaderView?
 
-        private var anchor: TableTextPosition?
-        private var focus: TableTextPosition?
-        private var autoscrollTask: Task<Void, Never>?
-        private var lastDragEvent: NSEvent?
+        private weak var container: SubtitleTableContainerView?
+        private weak var headerView: SubtitleVirtualTableHeaderView?
+        private weak var scrollView: NSScrollView?
+        private weak var documentView: SubtitleVirtualTableDocumentView?
+        private var buttonsHost: NSHostingView<CueHoverButtons>?
 
-        private var hoveredRow: Int?
-        private var lastMouseWindowPoint: CGPoint?
-
+        private let textLayout = SubtitleTextLayout()
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
-        private var rowHeightCache = SubtitleTableRowHeightCache()
-        private var exactHeightWindow: SubtitleTableHeightInvalidationWindow?
-        private var lastInvalidatedExactHeightRange: Range<Int>?
-        private var lastInvalidatedExactHeightWidth: Int?
-        private var lastInvalidatedExactHeightRowsVersion: Int?
-        private var heightMeasurementBatchCount = 0
-        private var heightMeasurementBatchTotalMilliseconds = 0.0
-        private var heightMeasurementBatchMaxMilliseconds = 0.0
-        private var heightMeasurementBatchCacheHits = 0
-        private var heightMeasurementBatchCacheMisses = 0
-        private var heightEstimateBatchCount = 0
-        private var cellConfigurationBatchCount = 0
-        private lazy var heightInvalidationScheduler = SubtitleTableHeightInvalidationScheduler { [weak self] reason in
-            self?.invalidateVisibleRowHeights(reason: reason)
-        }
+        private var rowHeightCache = SubtitleVirtualRowHeightCache()
+        private var pendingResize = false
+        private var hoveredRow: Int?
 
-        private static let performanceLogBatchSize = 25
-        private static let heightEstimateLogBatchSize = 250
-        private static let heightInvalidationOverscanRows = 30
-
-        /// Minimum content height = exactly one body line (no inter-line spacing),
-        /// so a single-line row is one line tall, not two.
         private lazy var singleLineFloor: CGFloat = {
             let measurer = SubtitleTextLayout()
             measurer.update(
@@ -653,11 +441,6 @@ struct SubtitleTableView: NSViewRepresentable {
             )
             return measurer.usedHeight
         }()
-
-        private static let indexCellID = NSUserInterfaceItemIdentifier("SubtitleTable.indexCell")
-        private static let nameCellID = NSUserInterfaceItemIdentifier("SubtitleTable.nameCell")
-        private static let cuesCellID = NSUserInterfaceItemIdentifier("SubtitleTable.cuesCell")
-        private static let rowViewID = NSUserInterfaceItemIdentifier("SubtitleTable.rowView")
 
         init(
             tableName: String,
@@ -679,6 +462,28 @@ struct SubtitleTableView: NSViewRepresentable {
             NotificationCenter.default.removeObserver(self)
         }
 
+        func attach(
+            container: SubtitleTableContainerView,
+            headerView: SubtitleVirtualTableHeaderView,
+            scrollView: NSScrollView,
+            documentView: SubtitleVirtualTableDocumentView
+        ) {
+            self.container = container
+            self.headerView = headerView
+            self.scrollView = scrollView
+            self.documentView = documentView
+
+            let buttonsHost = NSHostingView(rootView: CueHoverButtons(onPlay: {}, onCopy: {}))
+            buttonsHost.isHidden = true
+            buttonsHost.translatesAutoresizingMaskIntoConstraints = true
+            documentView.addSubview(buttonsHost)
+            self.buttonsHost = buttonsHost
+
+            container.onLayout = { [weak self] in
+                self?.resizeDocument()
+            }
+        }
+
         func update(
             tableName: String,
             rowCount: Int,
@@ -689,423 +494,29 @@ struct SubtitleTableView: NSViewRepresentable {
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
-            self.onPlay = onPlay
             self.rowProvider = rowProvider
             self.onVisibleRowsChange = onVisibleRowsChange
+            self.onPlay = onPlay
+
             let nextRowCount = max(0, rowCount)
-            let oldRowCount = self.rowCount
-            let oldTableRowCount = tableView?.numberOfRows
-            let compareStart = TableRenderingPerformanceLogger.now()
-            let rowsChanged = rowsVersion != self.rowsVersion || nextRowCount != self.rowCount
-            TableRenderingPerformanceLogger.record(
-                event: "rows_compared",
-                table: tableName,
-                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: compareStart),
-                oldRowCount: oldRowCount,
-                newRowCount: nextRowCount,
-                changed: rowsChanged
-            )
-            guard rowsChanged else { return }
+            let changed = nextRowCount != self.rowCount || rowsVersion != self.rowsVersion
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
-            applyRowsUpdate(rowsUpdate, oldRowCount: oldRowCount, oldTableRowCount: oldTableRowCount)
-        }
 
-        private func applyRowsUpdate(
-            _ rowsUpdate: TableSandboxRowsUpdate,
-            oldRowCount: Int,
-            oldTableRowCount: Int?
-        ) {
-            switch rowsUpdate {
-            case .none:
-                TableRenderingPerformanceLogger.record(
-                    event: "rows_update_skipped",
-                    table: tableName,
-                    reason: rowsUpdate.reason,
-                    rowCount: rowCount,
-                    oldRowCount: oldRowCount,
-                    newRowCount: rowCount
-                )
-
-            case .append(let range) where canInsertRows(
-                range,
-                oldRowCount: oldRowCount,
-                oldTableRowCount: oldTableRowCount
-            ):
-                insertRows(range, oldRowCount: oldRowCount)
-
-            case .append(let range) where canReloadLoadedRows(range, oldTableRowCount: oldTableRowCount):
-                reloadLoadedRows(range, oldRowCount: oldRowCount)
-
-            case .append:
-                reloadRows(oldRowCount: oldRowCount, reason: "append_fallback")
-
-            case .reload:
-                reloadRows(oldRowCount: oldRowCount, reason: rowsUpdate.reason)
+            rowHeightCache.prune(rowCount: nextRowCount) { [rowProvider] row in
+                rowProvider(row) != nil
+            }
+            resizeDocument()
+            headerView?.needsDisplay = true
+            documentView?.needsDisplay = true
+            layoutHoverButtons()
+            if changed {
+                notifyVisibleRowsChanged()
             }
         }
 
-        private func canInsertRows(
-            _ range: Range<Int>,
-            oldRowCount: Int,
-            oldTableRowCount: Int?
-        ) -> Bool {
-            guard tableView != nil else { return false }
-            return range.lowerBound == oldRowCount
-                && range.upperBound == rowCount
-                && range.lowerBound < range.upperBound
-                && oldTableRowCount == oldRowCount
-        }
-
-        private func canReloadLoadedRows(_ range: Range<Int>, oldTableRowCount: Int?) -> Bool {
-            guard tableView != nil else { return false }
-            return range.lowerBound < range.upperBound
-                && range.upperBound <= rowCount
-                && oldTableRowCount == rowCount
-        }
-
-        private func insertRows(_ range: Range<Int>, oldRowCount: Int) {
-            guard let tableView else { return }
-            let insertStart = TableRenderingPerformanceLogger.now()
-            tableView.insertRows(at: IndexSet(integersIn: range), withAnimation: [])
-            TableRenderingPerformanceLogger.record(
-                event: "insert_rows",
-                table: tableName,
-                reason: "append",
-                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: insertStart),
-                rowCount: rowCount,
-                oldRowCount: oldRowCount,
-                newRowCount: rowCount,
-                insertedRows: range.count
-            )
-            scheduleVisibleHeightInvalidation(reason: "rows_appended")
-        }
-
-        private func reloadLoadedRows(_ range: Range<Int>, oldRowCount: Int) {
-            guard let tableView else { return }
-            let reloadStart = TableRenderingPerformanceLogger.now()
-            tableView.reloadData(
-                forRowIndexes: IndexSet(integersIn: range),
-                columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns)
-            )
-            TableRenderingPerformanceLogger.record(
-                event: "reload_loaded_rows",
-                table: tableName,
-                reason: "append_visible_models",
-                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: reloadStart),
-                rowCount: rowCount,
-                oldRowCount: oldRowCount,
-                newRowCount: rowCount
-            )
-            scheduleVisibleHeightInvalidation(reason: "rows_appended")
-        }
-
-        private func reloadRows(oldRowCount: Int, reason: String) {
-            pruneLoadedRowHeights()
-            resetHeightInvalidationWindow()
-            // New data invalidates any selection/hover that referenced old rows;
-            // clearing avoids stale indices (e.g. cmd+C going out of bounds).
-            anchor = nil
-            focus = nil
-            hoveredRow = nil
-            let reloadStart = TableRenderingPerformanceLogger.now()
-            tableView?.reloadData()
-            TableRenderingPerformanceLogger.record(
-                event: "reload_data",
-                table: tableName,
-                reason: reason,
-                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: reloadStart),
-                rowCount: rowCount,
-                oldRowCount: oldRowCount,
-                newRowCount: rowCount
-            )
-            scheduleVisibleHeightInvalidation(reason: "rows_changed")
-        }
-
-        @objc func tableFrameChanged() {
-            scheduleVisibleHeightInvalidation(reason: "frame_changed")
-            notifyVisibleRowsChanged()
-        }
-
-        // MARK: Row heights
-
-        func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-            guard shouldMeasureExactHeight(row) else {
-                recordEstimatedHeight()
-                return SubtitleTableMetrics.estimatedRowHeight
-            }
-
-            let measurementStart = TableRenderingPerformanceLogger.now()
-            guard let model = rowModel(at: row) else {
-                recordEstimatedHeight()
-                return SubtitleTableMetrics.estimatedRowHeight
-            }
-            let M = SubtitleTableMetrics.self
-
-            let nameWidth = M.nameColumnWidth - M.cellLeading - M.trailingInset
-            let cuesWidth = cuesColumnWidth(in: tableView) - M.cellLeading - M.trailingInset
-
-            let lookup = rowHeightCache.lookup(rowIndex: row, row: model, nameWidth: nameWidth, cuesWidth: cuesWidth) {
-                nameMeasurer.update(attributedString: SubtitleTableText.body(model.name), width: nameWidth)
-                cuesMeasurer.update(attributedString: SubtitleTableText.body(model.cues), width: cuesWidth)
-
-                let content = max(nameMeasurer.usedHeight, cuesMeasurer.usedHeight, singleLineFloor)
-                return content + 2 * M.rowVerticalInset
-            }
-            recordHeightMeasurement(
-                TableRenderingPerformanceLogger.elapsedMilliseconds(since: measurementStart),
-                width: cuesWidth,
-                isCacheHit: lookup.isCacheHit
-            )
-            return lookup.height
-        }
-
-        private func shouldMeasureExactHeight(_ row: Int) -> Bool {
-            exactHeightWindow?.range.contains(row) ?? false
-        }
-
-        private func resetHeightInvalidationWindow() {
-            exactHeightWindow = nil
-            lastInvalidatedExactHeightRange = nil
-            lastInvalidatedExactHeightWidth = nil
-            lastInvalidatedExactHeightRowsVersion = nil
-        }
-
-        func scheduleVisibleHeightInvalidation(reason: String) {
-            heightInvalidationScheduler.schedule(reason: reason)
-        }
-
-        private func invalidateVisibleRowHeights(reason: String) {
-            guard let tableView, tableView.numberOfRows > 0 else {
-                exactHeightWindow = nil
-                return
-            }
-
-            let visibleRows = visibleRowsForHeightInvalidation(in: tableView)
-            guard let window = SubtitleTableHeightInvalidationWindow.make(
-                visibleRows: visibleRows,
-                rowCount: tableView.numberOfRows,
-                overscan: Self.heightInvalidationOverscanRows
-            ) else {
-                return
-            }
-
-            let cuesWidth = cuesColumnWidth(in: tableView) - SubtitleTableMetrics.cellLeading - SubtitleTableMetrics.trailingInset
-            let cuesWidthKey = SubtitleTableRowHeightCache.widthKey(cuesWidth)
-            exactHeightWindow = window
-
-            guard lastInvalidatedExactHeightRange != window.range
-                || lastInvalidatedExactHeightWidth != cuesWidthKey
-                || lastInvalidatedExactHeightRowsVersion != rowsVersion
-            else {
-                return
-            }
-
-            let invalidationStart = TableRenderingPerformanceLogger.now()
-            lastInvalidatedExactHeightRange = window.range
-            lastInvalidatedExactHeightWidth = cuesWidthKey
-            lastInvalidatedExactHeightRowsVersion = rowsVersion
-            tableView.noteHeightOfRows(withIndexesChanged: window.indexSet)
-            TableRenderingPerformanceLogger.record(
-                event: "height_invalidated_visible",
-                table: tableName,
-                reason: reason,
-                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: invalidationStart),
-                rowCount: tableView.numberOfRows,
-                visibleRows: window.visibleCount,
-                measuredRows: window.invalidatedCount,
-                width: Double(cuesWidth)
-            )
-        }
-
-        private func visibleRowsForHeightInvalidation(in tableView: NSTableView) -> NSRange {
-            let visibleRows = tableView.rows(in: tableView.visibleRect)
-            guard visibleRows.length == 0 else {
-                return visibleRows
-            }
-
-            let fallbackCount = max(
-                1,
-                Int(ceil(tableView.visibleRect.height / SubtitleTableMetrics.estimatedRowHeight))
-            )
-            return NSRange(location: 0, length: min(tableView.numberOfRows, fallbackCount))
-        }
-
-        func notifyVisibleRowsChanged() {
-            guard let tableView,
-                  let visibleRows = visibleRowRange(in: tableView)
-            else {
-                return
-            }
-            onVisibleRowsChange(visibleRows)
-        }
-
-        private func visibleRowRange(in tableView: NSTableView) -> Range<Int>? {
-            guard tableView.numberOfRows > 0 else { return nil }
-            let visibleRows = visibleRowsForHeightInvalidation(in: tableView)
-            guard visibleRows.length > 0 else { return nil }
-            let lowerBound = max(0, min(tableView.numberOfRows, visibleRows.location))
-            let upperBound = max(lowerBound, min(tableView.numberOfRows, visibleRows.location + visibleRows.length))
-            return lowerBound < upperBound ? lowerBound..<upperBound : nil
-        }
-
-        private func cuesColumnWidth(in tableView: NSTableView) -> CGFloat {
-            if let column = tableView.tableColumns.first(where: { $0.identifier == SubtitleTableView.cuesColumnID }) {
-                return column.width
-            }
-            return max(0, tableView.bounds.width - SubtitleTableMetrics.indexColumnWidth - SubtitleTableMetrics.nameColumnWidth)
-        }
-
-        // MARK: Selection
-
-        private func orderedSelection() -> (start: TableTextPosition, end: TableTextPosition)? {
-            guard let anchor, let focus else { return nil }
-            return anchor <= focus ? (anchor, focus) : (focus, anchor)
-        }
-
-        func selectAll() {
-            let headerLength = (cellFullText(row: -1, column: 2) as NSString).length
-            let start = TableTextPosition(row: -1, column: 0, char: 0)
-            let end: TableTextPosition
-            if rowCount == 0 {
-                end = TableTextPosition(row: -1, column: 2, char: headerLength)
-            } else {
-                let last = rowCount - 1
-                end = TableTextPosition(row: last, column: 2, char: cellTextLength(row: last, column: 2))
-            }
-            anchor = start
-            focus = end
-            refreshSelectionHighlights()
-        }
-
-        func clearSelection() {
-            anchor = nil
-            focus = nil
-            refreshSelectionHighlights()
-        }
-
-        func beginSelection(at position: TableTextPosition) {
-            tableView?.window?.makeFirstResponder(tableView)
-            anchor = position
-            focus = position
-            refreshSelectionHighlights()
-        }
-
-        func updateSelection(with event: NSEvent) {
-            lastDragEvent = event
-            applyDragSelection(event)
-            if autoscrollTask == nil {
-                autoscrollTask = Task { [weak self] in
-                    while !Task.isCancelled {
-                        try? await Task.sleep(nanoseconds: 50_000_000)
-                        guard let self, let event = self.lastDragEvent else { break }
-                        self.applyDragSelection(event)
-                    }
-                }
-            }
-        }
-
-        private func applyDragSelection(_ event: NSEvent) {
-            tableView?.autoscroll(with: event)
-            guard let position = position(atWindowPoint: event.locationInWindow) else { return }
-            focus = position
-            refreshSelectionHighlights()
-        }
-
-        func endSelection() {
-            autoscrollTask?.cancel()
-            autoscrollTask = nil
-            lastDragEvent = nil
-        }
-
-        func copySelection() {
-            guard let selection = orderedSelection(), selection.start < selection.end else { return }
-            var lines: [String] = []
-            for row in selection.start.row...selection.end.row {
-                var columns: [String] = []
-                for column in 0..<3 {
-                    let full = cellFullText(row: row, column: column) as NSString
-                    if let range = cellRange(row: row, column: column, length: full.length, selection: selection) {
-                        columns.append(full.substring(with: range).replacingOccurrences(of: "\n", with: " "))
-                    } else {
-                        columns.append("")
-                    }
-                }
-                lines.append(columns.joined(separator: "\t"))
-            }
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
-        }
-
-        private func position(atWindowPoint windowPoint: CGPoint) -> TableTextPosition? {
-            if let headerView {
-                let hp = headerView.convert(windowPoint, from: nil)
-                if hp.y >= headerView.bounds.minY, hp.y <= headerView.bounds.maxY {
-                    let column = headerView.columnIndex(forX: hp.x)
-                    let cell = headerView.cells[column]
-                    return TableTextPosition(row: -1, column: column, char: cell.characterIndex(at: cell.convert(windowPoint, from: nil)))
-                }
-            }
-            guard let tableView else { return nil }
-            let tp = tableView.convert(windowPoint, from: nil)
-            let rowCount = tableView.numberOfRows
-            guard rowCount > 0 else { return nil }
-
-            var row = tableView.row(at: tp)
-            if row < 0 {
-                if tp.y < 0 {
-                    row = 0
-                } else {
-                    let last = rowCount - 1
-                    return TableTextPosition(row: last, column: 2, char: cellTextLength(row: last, column: 2))
-                }
-            }
-
-            var column = tableView.column(at: tp)
-            if column < 0 {
-                column = tp.x < 0 ? 0 : 2
-            }
-            column = min(max(0, column), 2)
-
-            let char: Int
-            if let cell = tableView.view(atColumn: column, row: row, makeIfNecessary: false) as? SubtitleTextCellView {
-                char = cell.characterIndex(at: cell.convert(windowPoint, from: nil))
-            } else {
-                char = 0
-            }
-            return TableTextPosition(row: row, column: column, char: char)
-        }
-
-        func refreshSelectionHighlights() {
-            let selection = orderedSelection()
-            if let headerView {
-                for cell in headerView.cells {
-                    cell.setSelectedRange(cellRange(row: -1, column: cell.columnIndex, length: cell.textLength, selection: selection))
-                }
-            }
-            guard let tableView else { return }
-            let visible = tableView.rows(in: tableView.visibleRect)
-            guard visible.length > 0 else { return }
-            for row in visible.location..<(visible.location + visible.length) {
-                for column in 0..<3 {
-                    if let cell = tableView.view(atColumn: column, row: row, makeIfNecessary: false) as? SubtitleTextCellView {
-                        cell.setSelectedRange(cellRange(row: row, column: column, length: cell.textLength, selection: selection))
-                    }
-                }
-            }
-        }
-
-        private func cellRange(row: Int, column: Int, length: Int, selection: (start: TableTextPosition, end: TableTextPosition)?) -> NSRange? {
-            guard let selection else { return nil }
-            let cellStart = TableTextPosition(row: row, column: column, char: 0)
-            let cellEnd = TableTextPosition(row: row, column: column, char: length)
-            if cellEnd < selection.start || selection.end < cellStart { return nil }
-            let lower = (selection.start.row == row && selection.start.column == column) ? selection.start.char : 0
-            let upper = (selection.end.row == row && selection.end.column == column) ? selection.end.char : length
-            let lo = min(max(0, lower), length)
-            let hi = min(max(lo, upper), length)
-            return hi > lo ? NSRange(location: lo, length: hi - lo) : nil
+        func numberOfRowsForTesting() -> Int {
+            rowCount
         }
 
         func cellFullText(row: Int, column: Int) -> String {
@@ -1114,237 +525,242 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             guard row >= 0, row < rowCount else { return "" }
             guard column != 0 else { return "\(row + 1)" }
-            guard let model = rowModel(at: row) else { return "" }
+            guard let model = rowProvider(row) else { return "" }
             switch column {
             case 1: return model.name
             default: return model.cues
             }
         }
 
-        private func cellTextLength(row: Int, column: Int) -> Int {
-            (cellFullText(row: row, column: column) as NSString).length
+        func resizeDocument() {
+            guard let scrollView, let documentView else { return }
+            let width = max(scrollView.contentSize.width, scrollView.bounds.width)
+            let height = max(
+                scrollView.contentSize.height,
+                rowHeightCache.totalHeight(rowCount: rowCount, defaultHeight: SubtitleTableMetrics.estimatedRowHeight)
+            )
+            let nextSize = CGSize(width: width, height: max(1, height))
+            guard documentView.frame.size != nextSize else { return }
+            documentView.setFrameSize(nextSize)
         }
 
-        private func rowModel(at row: Int) -> SubtitleTableRow? {
-            guard row >= 0, row < rowCount else { return nil }
-            return rowProvider(row)
+        func notifyVisibleRowsChanged() {
+            guard let range = visibleRowRange() else { return }
+            onVisibleRowsChange(range)
         }
 
-        private func pruneLoadedRowHeights() {
-            rowHeightCache.prune(rowCount: rowCount, rowProvider: rowProvider)
+        @objc func scrollContentDidChange() {
+            notifyVisibleRowsChanged()
+            layoutHoverButtons()
         }
 
-        // MARK: Data source / delegate
-
-        func numberOfRows(in tableView: NSTableView) -> Int {
-            rowCount
+        func drawRows(in dirtyRect: CGRect) {
+            guard let documentView else { return }
+            documentView.effectiveAppearance.performAsCurrentDrawingAppearance {
+                drawRowsNow(in: dirtyRect)
+            }
         }
 
-        func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
-            false
+        private func drawRowsNow(in dirtyRect: CGRect) {
+            guard rowCount > 0,
+                  let documentView,
+                  let range = visibleRowRange(in: dirtyRect)
+            else {
+                return
+            }
+
+            for row in range {
+                let rowRect = rectForRow(row, width: documentView.bounds.width)
+                drawRowBackground(row: row, rect: rowRect)
+                drawCellTexts(row: row, rowRect: rowRect)
+            }
         }
 
-        func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-            let rowView = (tableView.makeView(withIdentifier: Self.rowViewID, owner: nil) as? SubtitleTableRowView) ?? {
-                let view = SubtitleTableRowView()
-                view.identifier = Self.rowViewID
-                return view
-            }()
-            rowView.isHovered = isRowHovered(row)
-            return rowView
+        private func drawRowBackground(row: Int, rect: CGRect) {
+            if hoveredRow == row {
+                NSColor.secondaryLabelColor.withAlphaComponent(0.06).setFill()
+                rect.fill()
+            }
+
+            NSColor.separatorColor.setStroke()
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: rect.minX, y: rect.maxY - 0.5))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - 0.5))
+            path.lineWidth = 0.5
+            path.stroke()
         }
 
-        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-            guard let columnID = tableColumn?.identifier else { return nil }
-            let model = rowModel(at: row)
+        private func drawCellTexts(row: Int, rowRect: CGRect) {
             let M = SubtitleTableMetrics.self
+            let model = rowProvider(row)
 
-            switch columnID {
-            case SubtitleTableView.indexColumnID:
-                let cell = dequeueTextCell(tableView, id: Self.indexCellID)
-                cell.configure(attributed: SubtitleTableText.index(row + 1), leading: M.cellLeading, trailing: M.indexTrailingInset)
-                prepare(cell, row: row, column: 0)
-                recordCellConfiguration()
-                return cell
+            drawIndex(row + 1, in: CGRect(x: 0, y: rowRect.minY, width: M.indexColumnWidth, height: rowRect.height))
+            drawBody(
+                model?.name ?? "",
+                in: CGRect(x: M.indexColumnWidth, y: rowRect.minY, width: M.nameColumnWidth, height: rowRect.height),
+                trailing: M.trailingInset
+            )
+            drawBody(
+                model?.cues ?? "",
+                in: CGRect(
+                    x: M.indexColumnWidth + M.nameColumnWidth,
+                    y: rowRect.minY,
+                    width: max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth),
+                    height: rowRect.height
+                ),
+                trailing: M.trailingInset
+            )
+        }
 
-            case SubtitleTableView.nameColumnID:
-                let cell = dequeueTextCell(tableView, id: Self.nameCellID)
-                cell.configure(attributed: SubtitleTableText.body(model?.name ?? ""), leading: M.cellLeading, trailing: M.trailingInset)
-                prepare(cell, row: row, column: 1)
-                recordCellConfiguration()
-                return cell
+        private func drawIndex(_ number: Int, in rect: CGRect) {
+            let M = SubtitleTableMetrics.self
+            textLayout.update(
+                attributedString: SubtitleTableText.index(number),
+                width: max(0, rect.width - M.cellLeading - M.indexTrailingInset)
+            )
+            textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: rect.minY + M.rowVerticalInset))
+        }
 
-            case SubtitleTableView.cuesColumnID:
-                let cell = dequeueCuesCell(tableView)
-                cell.configure(attributed: SubtitleTableText.body(model?.cues ?? ""), leading: M.cellLeading, trailing: M.trailingInset)
-                prepare(cell, row: row, column: 2)
-                cell.setActions(
-                    onPlay: { [weak self] in self?.playRow(row) },
-                    onCopy: { [weak self] in self?.copyRow(row) }
-                )
-                cell.setButtonsVisible(isRowHovered(row))
-                recordCellConfiguration()
-                return cell
+        private func drawBody(_ text: String, in rect: CGRect, trailing: CGFloat) {
+            let M = SubtitleTableMetrics.self
+            guard !text.isEmpty else { return }
+            textLayout.update(
+                attributedString: SubtitleTableText.body(text),
+                width: max(0, rect.width - M.cellLeading - trailing)
+            )
+            textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: rect.minY + M.rowVerticalInset))
+        }
 
-            default:
-                return nil
+        private func heightForRow(_ row: Int, width: CGFloat) -> CGFloat {
+            let cached = rowHeightCache.height(for: row, defaultHeight: SubtitleTableMetrics.estimatedRowHeight)
+            guard let model = rowProvider(row) else { return cached }
+
+            let M = SubtitleTableMetrics.self
+            let nameWidth = M.nameColumnWidth - M.cellLeading - M.trailingInset
+            let cuesWidth = max(0, width - M.indexColumnWidth - M.nameColumnWidth - M.cellLeading - M.trailingInset)
+            nameMeasurer.update(attributedString: SubtitleTableText.body(model.name), width: nameWidth)
+            cuesMeasurer.update(attributedString: SubtitleTableText.body(model.cues), width: cuesWidth)
+            let contentHeight = max(nameMeasurer.usedHeight, cuesMeasurer.usedHeight, singleLineFloor)
+            let measured = contentHeight + 2 * M.rowVerticalInset
+
+            if rowHeightCache.setHeight(measured, for: row, defaultHeight: M.estimatedRowHeight) {
+                scheduleResizeAfterDrawing()
+            }
+            return rowHeightCache.height(for: row, defaultHeight: M.estimatedRowHeight)
+        }
+
+        private func rectForRow(_ row: Int, width: CGFloat) -> CGRect {
+            let y = rowHeightCache.yOffset(for: row, defaultHeight: SubtitleTableMetrics.estimatedRowHeight)
+            let height = heightForRow(row, width: width)
+            return CGRect(x: 0, y: y, width: width, height: height)
+        }
+
+        private func visibleRowRange() -> Range<Int>? {
+            guard let scrollView else { return nil }
+            return visibleRowRange(in: scrollView.contentView.bounds)
+        }
+
+        private func visibleRowRange(in rect: CGRect) -> Range<Int>? {
+            guard rowCount > 0 else { return nil }
+            let lower = rowHeightCache.rowIndex(
+                atY: rect.minY,
+                rowCount: rowCount,
+                defaultHeight: SubtitleTableMetrics.estimatedRowHeight
+            )
+            let upper = rowHeightCache.rowIndex(
+                atY: max(rect.minY, rect.maxY),
+                rowCount: rowCount,
+                defaultHeight: SubtitleTableMetrics.estimatedRowHeight
+            )
+            let overscan = 4
+            let lowerBound = max(0, lower - overscan)
+            let upperBound = min(rowCount, upper + overscan + 1)
+            return lowerBound < upperBound ? lowerBound..<upperBound : nil
+        }
+
+        private func rowAtDocumentPoint(_ point: CGPoint) -> Int? {
+            guard rowCount > 0 else { return nil }
+            let row = rowHeightCache.rowIndex(
+                atY: point.y,
+                rowCount: rowCount,
+                defaultHeight: SubtitleTableMetrics.estimatedRowHeight
+            )
+            let rect = rectForRow(row, width: documentView?.bounds.width ?? 0)
+            return rect.contains(point) ? row : nil
+        }
+
+        func handleMouseHover(windowPoint: CGPoint) {
+            guard let documentView else { return }
+            let point = documentView.convert(windowPoint, from: nil)
+            guard documentView.visibleRect.contains(point) else {
+                clearHover()
+                return
+            }
+            updateHoveredRow(rowAtDocumentPoint(point))
+        }
+
+        func clearHover() {
+            updateHoveredRow(nil)
+        }
+
+        private func updateHoveredRow(_ newRow: Int?) {
+            guard newRow != hoveredRow else { return }
+            let oldRow = hoveredRow
+            hoveredRow = newRow
+            invalidateRows([oldRow, newRow])
+            layoutHoverButtons()
+        }
+
+        private func invalidateRows(_ rows: [Int?]) {
+            guard let documentView else { return }
+            for row in rows.compactMap({ $0 }) where row >= 0 && row < rowCount {
+                documentView.setNeedsDisplay(rectForRow(row, width: documentView.bounds.width))
             }
         }
 
-        private func prepare(_ cell: SubtitleTextCellView, row: Int, column: Int) {
-            cell.rowIndex = row
-            cell.columnIndex = column
-            cell.selectionHandler = self
-            cell.setSelectedRange(cellRange(row: row, column: column, length: cell.textLength, selection: orderedSelection()))
-        }
-
-        private func dequeueTextCell(_ tableView: NSTableView, id: NSUserInterfaceItemIdentifier) -> SubtitleTextCellView {
-            if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? SubtitleTextCellView {
-                return reused
-            }
-            let cell = SubtitleTextCellView()
-            cell.identifier = id
-            return cell
-        }
-
-        private func dequeueCuesCell(_ tableView: NSTableView) -> SubtitleCuesCellView {
-            if let reused = tableView.makeView(withIdentifier: Self.cuesCellID, owner: nil) as? SubtitleCuesCellView {
-                return reused
-            }
-            let cell = SubtitleCuesCellView()
-            cell.identifier = Self.cuesCellID
-            return cell
-        }
-
-        private func recordHeightMeasurement(_ elapsedMilliseconds: Double, width: CGFloat, isCacheHit: Bool) {
-            guard TableRenderingPerformanceLogger.isEnabled else { return }
-
-            heightMeasurementBatchCount += 1
-            heightMeasurementBatchTotalMilliseconds += elapsedMilliseconds
-            heightMeasurementBatchMaxMilliseconds = max(heightMeasurementBatchMaxMilliseconds, elapsedMilliseconds)
-            if isCacheHit {
-                heightMeasurementBatchCacheHits += 1
-            } else {
-                heightMeasurementBatchCacheMisses += 1
-            }
-
-            guard heightMeasurementBatchCount >= Self.performanceLogBatchSize else {
+        private func layoutHoverButtons() {
+            guard let buttonsHost, let documentView, let hoveredRow,
+                  hoveredRow >= 0,
+                  hoveredRow < rowCount,
+                  let model = rowProvider(hoveredRow)
+            else {
+                buttonsHost?.isHidden = true
                 return
             }
 
-            TableRenderingPerformanceLogger.record(
-                event: "height_measure_batch",
-                table: tableName,
-                totalMilliseconds: heightMeasurementBatchTotalMilliseconds,
-                maxMilliseconds: heightMeasurementBatchMaxMilliseconds,
-                rowCount: rowCount,
-                measuredRows: heightMeasurementBatchCount,
-                cacheHits: heightMeasurementBatchCacheHits,
-                cacheMisses: heightMeasurementBatchCacheMisses,
-                width: Double(width)
+            buttonsHost.rootView = CueHoverButtons(
+                onPlay: { [weak self] in self?.playRow(hoveredRow) },
+                onCopy: { [weak self] in self?.copyRow(hoveredRow) }
             )
-            heightMeasurementBatchCount = 0
-            heightMeasurementBatchTotalMilliseconds = 0
-            heightMeasurementBatchMaxMilliseconds = 0
-            heightMeasurementBatchCacheHits = 0
-            heightMeasurementBatchCacheMisses = 0
+            let rowRect = rectForRow(hoveredRow, width: documentView.bounds.width)
+            let x = SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading
+            let y = rowRect.minY + SubtitleTableMetrics.rowVerticalInset - 4
+            buttonsHost.frame = CGRect(x: x, y: y, width: 120, height: 28)
+            buttonsHost.isHidden = model.cues.isEmpty
         }
 
-        private func recordEstimatedHeight() {
-            guard TableRenderingPerformanceLogger.isEnabled else { return }
-
-            heightEstimateBatchCount += 1
-            guard heightEstimateBatchCount >= Self.heightEstimateLogBatchSize else {
-                return
-            }
-
-            TableRenderingPerformanceLogger.record(
-                event: "height_estimate_batch",
-                table: tableName,
-                rowCount: rowCount,
-                estimatedRows: heightEstimateBatchCount
-            )
-            heightEstimateBatchCount = 0
-        }
-
-        private func recordCellConfiguration() {
-            guard TableRenderingPerformanceLogger.isEnabled else { return }
-
-            cellConfigurationBatchCount += 1
-            guard cellConfigurationBatchCount >= Self.performanceLogBatchSize else {
-                return
-            }
-
-            TableRenderingPerformanceLogger.record(
-                event: "cell_configure_batch",
-                table: tableName,
-                rowCount: rowCount,
-                configuredCells: cellConfigurationBatchCount
-            )
-            cellConfigurationBatchCount = 0
-        }
-
-        func playRow(_ row: Int) {
-            guard let model = rowModel(at: row) else { return }
+        private func playRow(_ row: Int) {
+            guard let model = rowProvider(row) else { return }
             onPlay(model)
         }
 
-        func copyRow(_ row: Int) {
-            guard let model = rowModel(at: row) else { return }
+        private func copyRow(_ row: Int) {
+            guard let model = rowProvider(row) else { return }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(model.cues, forType: .string)
         }
 
-        // MARK: Hover (single source of truth)
-
-        func handleMouseHover(windowPoint: CGPoint) {
-            lastMouseWindowPoint = windowPoint
-            updateHoveredRow(rowUnderCursor(windowPoint: windowPoint))
-        }
-
-        func clearHover() {
-            lastMouseWindowPoint = nil
-            updateHoveredRow(nil)
-        }
-
-        @objc func scrollContentDidChange() {
-            scheduleVisibleHeightInvalidation(reason: "scroll")
-            notifyVisibleRowsChanged()
-            guard let lastMouseWindowPoint else { return }
-            updateHoveredRow(rowUnderCursor(windowPoint: lastMouseWindowPoint))
-        }
-
-        func isRowHovered(_ row: Int) -> Bool {
-            hoveredRow == row
-        }
-
-        private func rowUnderCursor(windowPoint: CGPoint) -> Int? {
-            guard let tableView else { return nil }
-            let point = tableView.convert(windowPoint, from: nil)
-            guard tableView.visibleRect.contains(point) else { return nil }
-            let row = tableView.row(at: point)
-            return row >= 0 ? row : nil
-        }
-
-        private func updateHoveredRow(_ newRow: Int?) {
-            guard newRow != hoveredRow else { return }
-            if let old = hoveredRow {
-                applyHover(row: old, hovered: false)
-            }
-            hoveredRow = newRow
-            if let new = hoveredRow {
-                applyHover(row: new, hovered: true)
-            }
-        }
-
-        private func applyHover(row: Int, hovered: Bool) {
-            guard let tableView, row >= 0, row < tableView.numberOfRows else { return }
-            if let rowView = tableView.rowView(atRow: row, makeIfNecessary: false) as? SubtitleTableRowView {
-                rowView.isHovered = hovered
-            }
-            if let cues = tableView.view(atColumn: 2, row: row, makeIfNecessary: false) as? SubtitleCuesCellView {
-                cues.setButtonsVisible(hovered)
+        private func scheduleResizeAfterDrawing() {
+            guard !pendingResize else { return }
+            pendingResize = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.pendingResize = false
+                self.resizeDocument()
+                self.documentView?.needsDisplay = true
+                self.layoutHoverButtons()
+                self.notifyVisibleRowsChanged()
             }
         }
     }

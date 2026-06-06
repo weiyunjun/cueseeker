@@ -98,7 +98,7 @@ private struct WorkbenchTestSearchView: View {
                 rowStore.hydrateSearchRows(
                     page.results,
                     startIndex: page.range.lowerBound,
-                    totalRowCount: page.totalRowCount,
+                    totalRowCount: max(search.searchResultTotalCount, rowStore.snapshot.totalRowCount),
                     tableName: "test-search"
                 )
             }

@@ -1,4 +1,4 @@
-import AppKit
+import CoreGraphics
 import Testing
 @testable import CueSeekerApp
 
@@ -16,10 +16,20 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
-    let tableView = NSTableView()
 
-    #expect(coordinator.numberOfRows(in: tableView) == 2_000_000)
+    #expect(coordinator.numberOfRowsForTesting() == 2_000_000)
     #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 0) == "1000001")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 2) == "")
+}
+
+@Test
+func subtitleVirtualRowHeightCacheStoresSparseHighRowOverrides() {
+    var cache = SubtitleVirtualRowHeightCache()
+
+    let changed = cache.setHeight(CGFloat(120), for: 2_000_000, defaultHeight: CGFloat(56))
+    #expect(changed)
+    #expect(cache.count == 1)
+    #expect(cache.height(for: 2_000_000, defaultHeight: CGFloat(56)) == CGFloat(120))
+    #expect(cache.height(for: 1_999_999, defaultHeight: CGFloat(56)) == CGFloat(56))
 }
