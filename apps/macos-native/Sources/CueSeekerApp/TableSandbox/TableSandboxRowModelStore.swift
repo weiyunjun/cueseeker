@@ -6,6 +6,23 @@ struct TableSandboxRowsSnapshot {
     var rows: [SubtitleTableRow] = []
     var version = 0
     var update = TableSandboxRowsUpdate.none
+    var references: [TableSandboxRowReference] = []
+    var totalRowCount = 0
+
+    var loadedReferenceCount: Int {
+        references.count
+    }
+}
+
+struct TableSandboxRowReference: Equatable {
+    enum Source: Equatable {
+        case search
+        case shiori
+    }
+
+    let source: Source
+    let sourceIndex: Int
+    let id: Int
 }
 
 @MainActor
@@ -22,11 +39,18 @@ final class TableSandboxRowModelStore: ObservableObject {
         self.displayTitleResolver = displayTitleResolver
     }
 
-    func updateSearchRows(_ results: [SubtitleSearchResult], tableName: String) {
+    func updateSearchRows(
+        _ results: [SubtitleSearchResult],
+        totalRowCount: Int? = nil,
+        tableName: String
+    ) {
         let start = TableRenderingPerformanceLogger.now()
         var nextRowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
         nextRowsByKey.reserveCapacity(results.count)
         var prefixUnchanged = results.count >= snapshot.rows.count
+        let references = results.enumerated().map { index, result in
+            TableSandboxRowReference(source: .search, sourceIndex: index, id: Int(result.entryID))
+        }
 
         let rows = results.enumerated().map { index, result in
             let key = RowCacheKey(
@@ -61,6 +85,8 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         apply(
             rows,
+            references: references,
+            totalRowCount: max(totalRowCount ?? results.count, results.count),
             nextRowsByKey: nextRowsByKey,
             tableName: tableName,
             sourceCount: results.count,
@@ -74,6 +100,9 @@ final class TableSandboxRowModelStore: ObservableObject {
         var nextRowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
         nextRowsByKey.reserveCapacity(shioris.count)
         var prefixUnchanged = shioris.count >= snapshot.rows.count
+        let references = shioris.enumerated().map { index, item in
+            TableSandboxRowReference(source: .shiori, sourceIndex: index, id: Int(item.id))
+        }
 
         let rows = shioris.enumerated().map { index, item in
             let key = RowCacheKey(
@@ -108,6 +137,8 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         apply(
             rows,
+            references: references,
+            totalRowCount: shioris.count,
             nextRowsByKey: nextRowsByKey,
             tableName: tableName,
             sourceCount: shioris.count,
@@ -118,14 +149,19 @@ final class TableSandboxRowModelStore: ObservableObject {
 
     private func apply(
         _ rows: [SubtitleTableRow],
+        references: [TableSandboxRowReference],
+        totalRowCount: Int,
         nextRowsByKey: [RowCacheKey: SubtitleTableRow],
         tableName: String,
         sourceCount: Int,
         prefixUnchanged: Bool,
         start: UInt64
     ) {
-        let update = rowsUpdate(for: rows, prefixUnchanged: prefixUnchanged)
-        let changed = update != .none
+        let rowsUpdate = rowsUpdate(for: rows, prefixUnchanged: prefixUnchanged)
+        let metadataChanged = references != snapshot.references
+            || totalRowCount != snapshot.totalRowCount
+        let update = rowsUpdate == .none && metadataChanged ? .reload : rowsUpdate
+        let changed = update != .none || metadataChanged
         rowsByKey = nextRowsByKey
         TableRenderingPerformanceLogger.record(
             event: "rows_mapped",
@@ -144,7 +180,9 @@ final class TableSandboxRowModelStore: ObservableObject {
         snapshot = TableSandboxRowsSnapshot(
             rows: rows,
             version: snapshot.version + 1,
-            update: update
+            update: update,
+            references: references,
+            totalRowCount: totalRowCount
         )
     }
 

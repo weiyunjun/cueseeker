@@ -81,6 +81,33 @@ func tableSandboxRowModelStoreMarksAppendedSearchRows() {
     #expect(store.snapshot.rows.map(\.id) == [1, 2, 3, 4])
 }
 
+@MainActor
+@Test
+func tableSandboxRowModelStoreTracksVirtualSearchTotalWithoutMaterializingUnloadedRows() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+    let loadedResults = (0..<100).map { index in
+        searchResult(
+            id: Int64(index + 1),
+            path: path,
+            content: "loaded row \(index)",
+            cueLines: ["loaded row \(index)"]
+        )
+    }
+
+    store.updateSearchRows(
+        loadedResults,
+        totalRowCount: 2_000_000,
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.totalRowCount == 2_000_000)
+    #expect(store.snapshot.loadedReferenceCount == 100)
+    #expect(store.snapshot.rows.count == 100)
+    #expect(store.snapshot.references.first == TableSandboxRowReference(source: .search, sourceIndex: 0, id: 1))
+    #expect(store.snapshot.references.last == TableSandboxRowReference(source: .search, sourceIndex: 99, id: 100))
+}
+
 private func searchResult(
     id: Int64,
     path: String,

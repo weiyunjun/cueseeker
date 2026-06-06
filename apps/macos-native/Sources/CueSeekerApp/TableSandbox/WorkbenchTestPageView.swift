@@ -4,7 +4,8 @@ import CueSeekerCore
 /// Table-style UI sandbox pages, reachable only through the top-bar test icons
 /// so production views stay untouched. Library stays blank per requirement;
 /// Search/Shiori host the AppKit table on real data. Play reuses the production
-/// open entries; the table renders results as they arrive (no lazy loading).
+/// open entries; the table uses virtual result metadata so the UI does not
+/// materialize every possible search hit before rendering.
 struct WorkbenchTestPageView: View {
     let page: WorkbenchTestPage
 
@@ -63,21 +64,17 @@ private struct WorkbenchTestSearchView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
         }
-        // Eagerly load every page (Excel-style: all rows loaded, only the
-        // visible ones rendered), so the table reaches results beyond page 1.
         .onAppear { updateRows(search.searchResults) }
         .onReceive(search.$searchResults) { updateRows($0) }
-        .onChange(of: search.isSearching) { _ in loadAllRemaining() }
-        .onChange(of: search.searchResults.count) { _ in loadAllRemaining() }
+        .onChange(of: search.searchResultTotalCount) { _ in updateRows(search.searchResults) }
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
-        rowStore.updateSearchRows(results, tableName: "test-search")
-    }
-
-    private func loadAllRemaining() {
-        guard search.hasMoreSearchResults, !search.isSearching else { return }
-        appState.loadMoreSearchResultsIfNeeded()
+        rowStore.updateSearchRows(
+            results,
+            totalRowCount: search.searchResultTotalCount,
+            tableName: "test-search"
+        )
     }
 
     private func play(_ row: SubtitleTableRow) {
