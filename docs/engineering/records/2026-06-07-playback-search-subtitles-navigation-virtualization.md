@@ -246,3 +246,15 @@ lookup does not linearly scan every cue on each playback time refresh.
 Opening an SRT-backed playback item no longer performs full subtitle-entry
 hydration on the main playback-opening path. Once the background track is ready,
 active subtitle text lookup is indexed by time rather than a full-array scan.
+
+## Final Verification
+
+Date: 2026-06-07
+
+- Passed: `swift test --jobs 1`
+  - 7 XCTest tests passed.
+  - 232 Testing tests passed.
+
+The five requested implementation steps are complete in code. Human end-to-end
+acceptance is still required for subjective scrollbar smoothness and playback
+feel on large real-world Search/SRT/ASS datasets.
