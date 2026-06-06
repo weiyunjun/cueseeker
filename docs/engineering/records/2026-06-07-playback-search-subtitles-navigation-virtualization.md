@@ -64,3 +64,36 @@ index for active-cue lookup and hydrates only a bounded row window.
 
 Human end-to-end acceptance is still required for the subjective macOS playback
 side-panel scroll and next-result feel.
+
+## Follow-up Step 1: Sidebar Virtual List Foundation
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Start the five-step follow-up requested after the requirement was extended to
+cover playback shortcut focus and the SRT playback subtitle path. This step adds
+the reusable side-panel virtual list foundation only; Search Results and
+Subtitles are connected in later steps.
+
+### Changes
+
+- Added `PlaybackSidebarVirtualList`, an AppKit-backed virtual list for playback
+  side-panel rows.
+- The list keeps an `NSScrollView` document height for the scrollbar while only
+  hosting SwiftUI row views for the visible row range plus overscan.
+- The list reports visible row ranges and supports centered row scroll targets,
+  so Search and Subtitles can later load content by offset instead of relying on
+  SwiftUI spacer rows and `ScrollViewReader.scrollTo`.
+
+### Verification
+
+- Passed: `swift build`
+
+### Outcome
+
+The playback side panel now has a reusable renderer foundation that separates
+scrollbar range from hosted row views. Existing UI behavior is not changed until
+the Search Results and Subtitles tabs are migrated onto this foundation.
