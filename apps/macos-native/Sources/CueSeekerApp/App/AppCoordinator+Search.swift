@@ -857,7 +857,7 @@ extension AppCoordinator {
         searchNavigationTask = Task { [weak self] in
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
-                    try database.searchNavigationSnapshot(
+                    try database.searchNavigationSnapshotFromResultIDIndex(
                         trimmedQuery,
                         under: folders,
                         languageFilter: languageFilter,
@@ -878,12 +878,26 @@ extension AppCoordinator {
                     return
                 }
 
-                self.applySearchNavigationSnapshot(snapshot)
+                let resolvedSnapshot = snapshot ?? self.loadedSearchNavigationSnapshot(
+                    anchor: anchor,
+                    radius: panelRadius
+                )
+                guard let resolvedSnapshot else {
+                    if let direction {
+                        self.playback.playbackViewModel?.showSearchNavigationFeedback(
+                            direction: direction,
+                            hasResult: false
+                        )
+                    }
+                    return
+                }
+
+                self.applySearchNavigationSnapshot(resolvedSnapshot)
                 let target: SubtitleSearchResult? = switch direction {
                 case .previous:
-                    snapshot.previous
+                    resolvedSnapshot.previous
                 case .next:
-                    snapshot.next
+                    resolvedSnapshot.next
                 case nil:
                     nil
                 }
@@ -914,9 +928,58 @@ extension AppCoordinator {
 
         return SearchNavigationAnchor(
             selectedEntryID: search.selectedSearchResult?.entryID,
+            selectedSearchRank: search.selectedSearchResult?.searchRank,
             videoPath: currentPlaybackVideoPath,
             subtitlePath: currentPlaybackSubtitlePath,
             currentMilliseconds: milliseconds
+        )
+    }
+
+    func loadedSearchNavigationSnapshot(
+        anchor: SearchNavigationAnchor,
+        radius: Int
+    ) -> SearchNavigationSnapshot? {
+        let loadedResults = search.searchResults.sorted { lhs, rhs in
+            lhs.searchRank < rhs.searchRank
+        }
+        guard !loadedResults.isEmpty else {
+            return nil
+        }
+
+        let currentIndex: Int?
+        if let selectedEntryID = anchor.selectedEntryID {
+            currentIndex = loadedResults.firstIndex { $0.entryID == selectedEntryID }
+        } else if let selectedSearchRank = anchor.selectedSearchRank {
+            currentIndex = loadedResults.firstIndex { $0.searchRank == selectedSearchRank }
+        } else {
+            currentIndex = nil
+        }
+
+        let boundedRadius = max(1, radius)
+        let neighborhood: [SubtitleSearchResult]
+        if let currentIndex {
+            let lowerBound = max(0, currentIndex - boundedRadius)
+            let upperBound = min(loadedResults.count, currentIndex + boundedRadius + 1)
+            neighborhood = Array(loadedResults[lowerBound..<upperBound])
+        } else {
+            neighborhood = Array(loadedResults.prefix((boundedRadius * 2) + 1))
+        }
+
+        let previous = currentIndex.flatMap { index in
+            index > 0 ? loadedResults[index - 1] : nil
+        }
+        let current = currentIndex.map { loadedResults[$0] }
+        let next = currentIndex.flatMap { index in
+            index + 1 < loadedResults.count ? loadedResults[index + 1] : nil
+        }
+
+        return SearchNavigationSnapshot(
+            totalCount: max(search.searchResultTotalCount, loadedResults.count),
+            currentIndex: current?.searchRank,
+            neighborhood: neighborhood,
+            previous: previous,
+            current: current,
+            next: next
         )
     }
 

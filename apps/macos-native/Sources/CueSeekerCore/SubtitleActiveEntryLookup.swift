@@ -9,8 +9,20 @@ public struct SubtitleActiveEntryLookup: Sendable {
     private let records: [Record]
 
     public init(entries: [SubtitleDatabaseEntry] = []) {
+        self.init(
+            entryIndex: entries.map {
+                SubtitleDatabaseEntryIndexItem(
+                    id: $0.id,
+                    startMilliseconds: $0.startMilliseconds,
+                    endMilliseconds: $0.endMilliseconds
+                )
+            }
+        )
+    }
+
+    public init(entryIndex: [SubtitleDatabaseEntryIndexItem]) {
         var maxEndMilliseconds = Int.min
-        records = entries
+        records = entryIndex
             .sorted { lhs, rhs in
                 if lhs.startMilliseconds == rhs.startMilliseconds {
                     lhs.id < rhs.id

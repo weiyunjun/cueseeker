@@ -14,6 +14,18 @@ public struct SubtitleDatabaseEntry: Equatable, Sendable {
     public let content: String
 }
 
+public struct SubtitleDatabaseEntryIndexItem: Equatable, Sendable {
+    public let id: Int64
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+
+    public init(id: Int64, startMilliseconds: Int, endMilliseconds: Int) {
+        self.id = id
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = endMilliseconds
+    }
+}
+
 public struct SubtitleSearchResult: Equatable, Sendable {
     public let entryID: Int64
     public let subtitlePath: String
@@ -651,17 +663,20 @@ private final class SearchResultIDIndexCache: @unchecked Sendable {
 
 public struct SearchNavigationAnchor: Equatable, Sendable {
     public let selectedEntryID: Int64?
+    public let selectedSearchRank: Int?
     public let videoPath: String?
     public let subtitlePath: String?
     public let currentMilliseconds: Int
 
     public init(
         selectedEntryID: Int64?,
+        selectedSearchRank: Int? = nil,
         videoPath: String?,
         subtitlePath: String?,
         currentMilliseconds: Int
     ) {
         self.selectedEntryID = selectedEntryID
+        self.selectedSearchRank = selectedSearchRank
         self.videoPath = videoPath
         self.subtitlePath = subtitlePath
         self.currentMilliseconds = max(0, currentMilliseconds)
@@ -675,6 +690,22 @@ public struct SearchNavigationSnapshot: Equatable, Sendable {
     public let previous: SubtitleSearchResult?
     public let current: SubtitleSearchResult?
     public let next: SubtitleSearchResult?
+
+    public init(
+        totalCount: Int,
+        currentIndex: Int?,
+        neighborhood: [SubtitleSearchResult],
+        previous: SubtitleSearchResult?,
+        current: SubtitleSearchResult?,
+        next: SubtitleSearchResult?
+    ) {
+        self.totalCount = totalCount
+        self.currentIndex = currentIndex
+        self.neighborhood = neighborhood
+        self.previous = previous
+        self.current = current
+        self.next = next
+    }
 
     public var currentPosition: Int? {
         currentIndex.map { $0 + 1 }
@@ -1812,10 +1843,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     public func entries(forSubtitleFile subtitleFile: URL) throws -> [SubtitleDatabaseEntry] {
+        try entries(forSubtitleFile: subtitleFile, limit: Int.max, offset: 0)
+    }
+
+    public func subtitleEntryIndex(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> [SubtitleDatabaseEntryIndexItem] {
         let statement = try database.prepare(
             """
-            SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.seq, g.start_time, g.end_time, g.start_ms, g.end_ms, g.search_content
+            SELECT g.id, g.start_ms, g.end_ms
             FROM subtitle_cue_groups g
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
@@ -1826,6 +1862,48 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
 
         try statement.bind(subtitleFile.path, at: 1)
+
+        var index: [SubtitleDatabaseEntryIndexItem] = []
+        while try statement.step() {
+            index.append(
+                SubtitleDatabaseEntryIndexItem(
+                    id: statement.int64Column(0),
+                    startMilliseconds: statement.intColumn(1),
+                    endMilliseconds: statement.intColumn(2)
+                )
+            )
+        }
+
+        return index
+    }
+
+    public func entries(
+        forSubtitleFile subtitleFile: URL,
+        limit: Int,
+        offset: Int
+    ) throws -> [SubtitleDatabaseEntry] {
+        let requestedLimit = max(0, limit)
+        guard requestedLimit > 0 else {
+            return []
+        }
+
+        let statement = try database.prepare(
+            """
+            SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                   g.seq, g.start_time, g.end_time, g.start_ms, g.end_ms, g.search_content
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY g.start_ms ASC, g.id ASC
+            LIMIT ? OFFSET ?;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(requestedLimit, at: 2)
+        try statement.bind(max(0, offset), at: 3)
 
         var entries: [SubtitleDatabaseEntry] = []
         while try statement.step() {
@@ -2372,6 +2450,37 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
+    private func cachedSearchResultIDIndex(
+        _ query: String,
+        under folders: [URL]? = nil,
+        inSubtitlePath subtitlePath: String? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all
+    ) -> SearchResultIDIndex? {
+        let subtitlePathFilter = subtitlePath
+        guard subtitlePathFilter?.isEmpty != true else {
+            return nil
+        }
+
+        let pathPrefixes: [String]?
+        if let folders {
+            let prefixes = Self.folderPathPrefixes(for: folders)
+            guard !prefixes.isEmpty else {
+                return nil
+            }
+            pathPrefixes = prefixes
+        } else {
+            pathPrefixes = nil
+        }
+
+        let indexKey = SearchResultIDIndexCacheKey(
+            query: query,
+            pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
+            subtitlePath: subtitlePathFilter,
+            languageFilter: languageFilter
+        )
+        return searchResultIDIndexCache.index(for: indexKey)
+    }
+
     public func searchResultIDIndexWindow(
         _ query: String,
         limit: Int = 50,
@@ -2395,7 +2504,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        let pathPrefixes: [String]?
         if let folders {
             let prefixes = Self.folderPathPrefixes(for: folders)
             guard !prefixes.isEmpty else {
@@ -2409,18 +2517,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     nextCursor: nil
                 )
             }
-            pathPrefixes = prefixes
-        } else {
-            pathPrefixes = nil
         }
 
-        let indexKey = SearchResultIDIndexCacheKey(
-            query: query,
-            pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
-            subtitlePath: subtitlePathFilter,
+        guard let resultIDIndex = cachedSearchResultIDIndex(
+            query,
+            under: folders,
+            inSubtitlePath: subtitlePath,
             languageFilter: languageFilter
-        )
-        guard let resultIDIndex = searchResultIDIndexCache.index(for: indexKey) else {
+        ) else {
             return nil
         }
 
@@ -2519,6 +2623,84 @@ public final class SubtitleDatabase: @unchecked Sendable {
             pageMode: .visibleWindow,
             orderSource: "resultIDIndex",
             materializedOrderRows: results.count
+        )
+    }
+
+    public func searchNavigationSnapshotFromResultIDIndex(
+        _ query: String,
+        under folders: [URL]? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all,
+        anchor: SearchNavigationAnchor,
+        radius: Int = 1
+    ) throws -> SearchNavigationSnapshot? {
+        guard let resultIDIndex = cachedSearchResultIDIndex(
+            query,
+            under: folders,
+            languageFilter: languageFilter
+        ) else {
+            return nil
+        }
+
+        let totalCount = resultIDIndex.countSnapshot.knownResultCount
+        guard totalCount > 0 else {
+            return SearchNavigationSnapshot(
+                totalCount: 0,
+                currentIndex: nil,
+                neighborhood: [],
+                previous: nil,
+                current: nil,
+                next: nil
+            )
+        }
+
+        let currentIndex = Self.searchNavigationIndex(
+            in: resultIDIndex.cueGroupIDs,
+            anchor: anchor
+        )
+        let boundedRadius = max(1, radius)
+        let lowerBound: Int
+        let upperBound: Int
+        if let currentIndex {
+            lowerBound = max(0, currentIndex - boundedRadius)
+            upperBound = min(totalCount, currentIndex + boundedRadius + 1)
+        } else {
+            lowerBound = 0
+            upperBound = min(totalCount, (boundedRadius * 2) + 1)
+        }
+
+        let window = SubtitleSearchResultIDIndexWindow(
+            cueGroupIDs: Array(resultIDIndex.cueGroupIDs[lowerBound..<upperBound]),
+            offset: lowerBound,
+            totalCount: totalCount,
+            fileSummaries: resultIDIndex.fileSummaries,
+            countSnapshot: resultIDIndex.countSnapshot,
+            appliedCursor: SubtitleSearchCursor(offset: lowerBound),
+            nextCursor: upperBound < totalCount ? SubtitleSearchCursor(offset: upperBound) : nil
+        )
+        guard let page = try searchIndexedVisiblePage(from: window) else {
+            return nil
+        }
+
+        let previous = currentIndex.flatMap { index -> SubtitleSearchResult? in
+            let localIndex = index - 1 - lowerBound
+            return page.results.indices.contains(localIndex) ? page.results[localIndex] : nil
+        }
+        let current = currentIndex.flatMap { index -> SubtitleSearchResult? in
+            let localIndex = index - lowerBound
+            return page.results.indices.contains(localIndex) ? page.results[localIndex] : nil
+        }
+        let next = currentIndex.flatMap { index -> SubtitleSearchResult? in
+            let localIndex = index + 1 - lowerBound
+            return page.results.indices.contains(localIndex) ? page.results[localIndex] : nil
+        }
+
+        return SearchNavigationSnapshot(
+            totalCount: totalCount,
+            currentIndex: currentIndex,
+            neighborhood: page.results,
+            previous: previous,
+            current: current,
+            next: next
         )
     }
 
@@ -4074,6 +4256,31 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         if let selectedEntryID = anchor.selectedEntryID,
            let selectedIndex = results.firstIndex(where: { $0.entryID == selectedEntryID }) {
+            return selectedIndex
+        }
+
+        return nil
+    }
+
+    private static func searchNavigationIndex(
+        in cueGroupIDs: [Int64],
+        anchor: SearchNavigationAnchor
+    ) -> Int? {
+        if let selectedEntryID = anchor.selectedEntryID,
+           let selectedSearchRank = anchor.selectedSearchRank,
+           cueGroupIDs.indices.contains(selectedSearchRank),
+           cueGroupIDs[selectedSearchRank] == selectedEntryID {
+            return selectedSearchRank
+        }
+
+        if anchor.selectedEntryID == nil,
+           let selectedSearchRank = anchor.selectedSearchRank,
+           cueGroupIDs.indices.contains(selectedSearchRank) {
+            return selectedSearchRank
+        }
+
+        if let selectedEntryID = anchor.selectedEntryID,
+           let selectedIndex = cueGroupIDs.firstIndex(of: selectedEntryID) {
             return selectedIndex
         }
 

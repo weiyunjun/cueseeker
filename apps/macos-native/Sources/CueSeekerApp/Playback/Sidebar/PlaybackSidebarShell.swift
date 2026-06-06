@@ -3,6 +3,8 @@ import CueSeekerCore
 import SwiftUI
 
 struct PlaybackSidebarShell: View {
+    private static let estimatedSearchResultRowHeight: CGFloat = 76
+
     @ObservedObject var appState: AppCoordinator
     @Binding var activePanel: PlaybackDrawerKind
     @EnvironmentObject private var search: SearchStore
@@ -63,6 +65,12 @@ struct PlaybackSidebarShell: View {
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: true) {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    if virtualTopSearchRows > 0 {
+                        Color.clear.frame(
+                            height: CGFloat(virtualTopSearchRows) * Self.estimatedSearchResultRowHeight
+                        )
+                    }
+
                     ForEach(rows, id: \.result.entryID) { row in
                         PlaybackSidebarResultRow(
                             rank: row.rank,
@@ -74,6 +82,12 @@ struct PlaybackSidebarShell: View {
                         )
                         .id(row.result.entryID)
                     }
+
+                    if virtualBottomSearchRows > 0 {
+                        Color.clear.frame(
+                            height: CGFloat(virtualBottomSearchRows) * Self.estimatedSearchResultRowHeight
+                        )
+                    }
                 }
                 .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,6 +97,9 @@ struct PlaybackSidebarShell: View {
             }
             .onAppear { scrollSelectedIntoView(proxy) }
             .onChange(of: search.selectedSearchResult?.entryID) { _ in
+                scrollSelectedIntoView(proxy)
+            }
+            .onChange(of: searchNavigationWindowIDs) { _ in
                 scrollSelectedIntoView(proxy)
             }
         }
@@ -98,20 +115,44 @@ struct PlaybackSidebarShell: View {
         }
     }
 
-    /// The complete active Search result order, flattened across file groups
-    /// with a global one-based rank to mirror the prototype `.sidebar-list`.
-    /// Reads only the published navigation groups, so result-to-result jumps
-    /// never clear the list while the current Search result list is valid.
+    /// The active Search result window with global one-based ranks to mirror
+    /// the prototype `.sidebar-list`.
     private var flattenedResultRows: [(rank: Int, result: SubtitleSearchResult)] {
+        if let snapshot = search.searchNavigationSnapshot {
+            return snapshot.neighborhood
+                .sorted { $0.searchRank < $1.searchRank }
+                .map { (rank: $0.searchRank + 1, result: $0) }
+        }
+
         var rows: [(rank: Int, result: SubtitleSearchResult)] = []
-        var rank = 1
         for group in search.searchNavigationResultGroups {
             for result in group.results {
-                rows.append((rank: rank, result: result))
-                rank += 1
+                rows.append((rank: result.searchRank + 1, result: result))
             }
         }
         return rows
+    }
+
+    private var virtualTopSearchRows: Int {
+        guard let firstRank = flattenedResultRows.first?.result.searchRank else {
+            return 0
+        }
+        return max(0, firstRank)
+    }
+
+    private var virtualBottomSearchRows: Int {
+        let loadedRows = flattenedResultRows
+        guard let snapshot = search.searchNavigationSnapshot,
+              let lastRank = loadedRows.last?.result.searchRank
+        else {
+            return 0
+        }
+
+        return max(0, snapshot.totalCount - lastRank - 1)
+    }
+
+    private var searchNavigationWindowIDs: [Int64] {
+        flattenedResultRows.map(\.result.entryID)
     }
 
     private func sidebarTab(_ panel: PlaybackDrawerKind, title: String) -> some View {
@@ -154,7 +195,9 @@ struct PlaybackSidebarShell: View {
                 ?? (groupedCount > 0 ? groupedCount : fallbackCount)
             return "\(count) \(count == 1 ? "result" : "results")"
         case .subtitles:
-            let count = playback.currentSubtitleEntries.count
+            let count = playback.currentSubtitleEntryTotalCount > 0
+                ? playback.currentSubtitleEntryTotalCount
+                : playback.currentSubtitleEntries.count
             return "\(count) \(count == 1 ? "subtitle" : "subtitles")"
         }
     }

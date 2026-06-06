@@ -5,6 +5,8 @@ import SwiftUI
 /// order. Observes the view model so the active-cue selection follows the
 /// rate-limited displayed time (not the frame-cadence clock).
 struct PlaybackSubtitlesList: View {
+    private static let estimatedSubtitleRowHeight: CGFloat = 58
+
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var viewModel: PlaybackViewModel
     @EnvironmentObject private var playback: PlaybackStore
@@ -26,6 +28,12 @@ struct PlaybackSubtitlesList: View {
         return ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: true) {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    if virtualTopRows > 0 {
+                        Color.clear.frame(
+                            height: CGFloat(virtualTopRows) * Self.estimatedSubtitleRowHeight
+                        )
+                    }
+
                     ForEach(entries, id: \.id) { entry in
                         PlaybackSidebarSubtitleRow(
                             entry: entry,
@@ -38,6 +46,12 @@ struct PlaybackSubtitlesList: View {
                         )
                         .id(entry.id)
                     }
+
+                    if virtualBottomRows > 0 {
+                        Color.clear.frame(
+                            height: CGFloat(virtualBottomRows) * Self.estimatedSubtitleRowHeight
+                        )
+                    }
                 }
                 .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -45,11 +59,35 @@ struct PlaybackSubtitlesList: View {
                     configurePlaybackSidebarScrollView(scrollView)
                 })
             }
-            .onAppear { scrollActiveIntoView(proxy, id: activeID) }
+            .onAppear {
+                appState.loadCurrentSubtitleEntriesAroundActiveCue(activeID)
+                scrollActiveIntoView(proxy, id: activeID)
+            }
             .onChange(of: activeID) { newValue in
+                appState.loadCurrentSubtitleEntriesAroundActiveCue(newValue)
                 scrollActiveIntoView(proxy, id: newValue)
             }
+            .onChange(of: subtitleWindowIDs) { _ in
+                scrollActiveIntoView(proxy, id: activeID)
+            }
         }
+    }
+
+    private var virtualTopRows: Int {
+        max(0, playback.currentSubtitleEntryWindowStartIndex)
+    }
+
+    private var virtualBottomRows: Int {
+        max(
+            0,
+            playback.currentSubtitleEntryTotalCount
+                - playback.currentSubtitleEntryWindowStartIndex
+                - playback.currentSubtitleEntries.count
+        )
+    }
+
+    private var subtitleWindowIDs: [Int64] {
+        playback.currentSubtitleEntries.map(\.id)
     }
 
     private func scrollActiveIntoView(_ proxy: ScrollViewProxy, id: Int64?) {

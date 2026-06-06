@@ -312,6 +312,50 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
 }
 
 @Test
+func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/WindowedSubtitles.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/WindowedSubtitles.mkv")
+    let entries = (0..<6).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: String(format: "00:00:%02d,000", index),
+            endTimecode: String(format: "00:00:%02d,500", index),
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Current subtitle row \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+
+    let index = try database.subtitleEntryIndex(forSubtitleFile: subtitleFile)
+    #expect(index.count == 6)
+    #expect(index.map(\.startMilliseconds) == [0, 1_000, 2_000, 3_000, 4_000, 5_000])
+
+    let lookup = SubtitleActiveEntryLookup(entryIndex: index)
+    #expect(lookup.activeEntryID(atMilliseconds: 2_250) == index[2].id)
+
+    let window = try database.entries(forSubtitleFile: subtitleFile, limit: 2, offset: 3)
+    #expect(window.map(\.content) == [
+        "Current subtitle row 3",
+        "Current subtitle row 4",
+    ])
+    #expect(try database.entries(forSubtitleFile: subtitleFile, limit: 0, offset: 3).isEmpty)
+}
+
+@Test
 func persistsSRTLanguageAnalysisWithCueGroupLanguages() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -836,6 +880,77 @@ func searchExactPageCachesResultIDIndexForVisibleWindows() throws {
         "Shared indexed window 5",
     ])
     #expect(indexedPage.results.map(\.searchRank) == [4, 5])
+}
+
+@Test
+func searchNavigationSnapshotUsesCachedResultIDIndexWindow() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/IndexedNavigation.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/IndexedNavigation.mkv")
+    let entries = (0..<8).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: String(format: "00:00:%02d,000", index),
+            endTimecode: String(format: "00:00:%02d,500", index),
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Shared indexed navigation \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+
+    let missingSnapshot = try database.searchNavigationSnapshotFromResultIDIndex(
+        "shared",
+        anchor: SearchNavigationAnchor(
+            selectedEntryID: 4,
+            selectedSearchRank: 3,
+            videoPath: videoFile.path,
+            subtitlePath: subtitleFile.path,
+            currentMilliseconds: 3_000
+        ),
+        radius: 1
+    )
+    #expect(missingSnapshot == nil)
+
+    _ = try database.searchPage("shared", limit: 2)
+    let window = try #require(database.searchResultIDIndexWindow(
+        "shared",
+        limit: 1,
+        cursor: SubtitleSearchCursor(offset: 4)
+    ))
+    let indexedPage = try #require(try database.searchIndexedVisiblePage(from: window))
+    let selected = try #require(indexedPage.results.first)
+
+    let snapshot = try #require(try database.searchNavigationSnapshotFromResultIDIndex(
+        "shared",
+        anchor: SearchNavigationAnchor(
+            selectedEntryID: selected.entryID,
+            selectedSearchRank: selected.searchRank,
+            videoPath: selected.videoPath,
+            subtitlePath: selected.subtitlePath,
+            currentMilliseconds: selected.startMilliseconds
+        ),
+        radius: 1
+    ))
+
+    #expect(snapshot.totalCount == 8)
+    #expect(snapshot.currentIndex == 4)
+    #expect(snapshot.previous?.content == "Shared indexed navigation 3")
+    #expect(snapshot.current?.content == "Shared indexed navigation 4")
+    #expect(snapshot.next?.content == "Shared indexed navigation 5")
+    #expect(snapshot.neighborhood.map(\.searchRank) == [3, 4, 5])
 }
 
 @Test

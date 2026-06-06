@@ -21,7 +21,8 @@ final class AppCoordinator: ObservableObject {
     static let searchPageSize = 100
     static let searchPrefetchThreshold = 10
     static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
-    static let searchNavigationPanelRadius = 10_000
+    static let searchNavigationPanelRadius = 120
+    nonisolated static let playbackSubtitleWindowRadius = 80
     static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
     static let databaseCompactionMinimumFreelistRatio = 0.25
     static let aiChunkingPromptAwareCacheClearKey = "aiChunkingPromptAwareCacheCleared"

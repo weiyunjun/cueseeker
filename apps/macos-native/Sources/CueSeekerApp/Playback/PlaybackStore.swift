@@ -83,6 +83,9 @@ final class PlaybackStore: ObservableObject {
     private let userDefaults: UserDefaults
 
     @Published var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
+    @Published var currentSubtitleEntryIndex: [SubtitleDatabaseEntryIndexItem] = []
+    @Published var currentSubtitleEntryWindowStartIndex = 0
+    @Published var currentSubtitleEntryTotalCount = 0
     @Published var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
@@ -135,6 +138,10 @@ final class PlaybackStore: ObservableObject {
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
         isPlaybackSidePanelVisible = userDefaults.object(forKey: Self.sidePanelVisibleKey) as? Bool ?? false
+    }
+
+    var currentSubtitleEntryWindowRange: Range<Int> {
+        currentSubtitleEntryWindowStartIndex..<(currentSubtitleEntryWindowStartIndex + currentSubtitleEntries.count)
     }
 
     func setQuickSearchDraft(_ draft: String) {
