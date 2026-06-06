@@ -21,6 +21,7 @@ private struct TableRenderingPerformanceEntry: Encodable, Sendable {
     let cacheHits: Int?
     let cacheMisses: Int?
     let estimatedRows: Int?
+    let insertedRows: Int?
     let width: Double?
     let changed: Bool?
 }
@@ -130,6 +131,7 @@ enum TableRenderingPerformanceLogger {
         cacheHits: Int? = nil,
         cacheMisses: Int? = nil,
         estimatedRows: Int? = nil,
+        insertedRows: Int? = nil,
         width: Double? = nil,
         changed: Bool? = nil
     ) {
@@ -156,6 +158,7 @@ enum TableRenderingPerformanceLogger {
             cacheHits: cacheHits,
             cacheMisses: cacheMisses,
             estimatedRows: estimatedRows,
+            insertedRows: insertedRows,
             width: width,
             changed: changed
         ))

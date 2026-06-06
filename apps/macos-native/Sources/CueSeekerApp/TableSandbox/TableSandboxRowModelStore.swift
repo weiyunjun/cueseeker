@@ -5,6 +5,7 @@ import CueSeekerCore
 struct TableSandboxRowsSnapshot {
     var rows: [SubtitleTableRow] = []
     var version = 0
+    var update = TableSandboxRowsUpdate.none
 }
 
 @MainActor
@@ -25,8 +26,9 @@ final class TableSandboxRowModelStore: ObservableObject {
         let start = TableRenderingPerformanceLogger.now()
         var nextRowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
         nextRowsByKey.reserveCapacity(results.count)
+        var prefixUnchanged = results.count >= snapshot.rows.count
 
-        let rows = results.map { result in
+        let rows = results.enumerated().map { index, result in
             let key = RowCacheKey(
                 id: Int(result.entryID),
                 subtitlePath: result.subtitlePath,
@@ -36,9 +38,15 @@ final class TableSandboxRowModelStore: ObservableObject {
 
             if let cached = rowsByKey[key] {
                 nextRowsByKey[key] = cached
+                if index < snapshot.rows.count, cached.id != snapshot.rows[index].id {
+                    prefixUnchanged = false
+                }
                 return cached
             }
 
+            if index < snapshot.rows.count {
+                prefixUnchanged = false
+            }
             let row = SubtitleTableRow(
                 id: key.id,
                 name: displayTitle(forSubtitlePath: result.subtitlePath),
@@ -56,6 +64,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             nextRowsByKey: nextRowsByKey,
             tableName: tableName,
             sourceCount: results.count,
+            prefixUnchanged: prefixUnchanged,
             start: start
         )
     }
@@ -64,8 +73,9 @@ final class TableSandboxRowModelStore: ObservableObject {
         let start = TableRenderingPerformanceLogger.now()
         var nextRowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
         nextRowsByKey.reserveCapacity(shioris.count)
+        var prefixUnchanged = shioris.count >= snapshot.rows.count
 
-        let rows = shioris.map { item in
+        let rows = shioris.enumerated().map { index, item in
             let key = RowCacheKey(
                 id: Int(item.id),
                 subtitlePath: item.subtitlePath,
@@ -75,9 +85,15 @@ final class TableSandboxRowModelStore: ObservableObject {
 
             if let cached = rowsByKey[key] {
                 nextRowsByKey[key] = cached
+                if index < snapshot.rows.count, cached.id != snapshot.rows[index].id {
+                    prefixUnchanged = false
+                }
                 return cached
             }
 
+            if index < snapshot.rows.count {
+                prefixUnchanged = false
+            }
             let row = SubtitleTableRow(
                 id: key.id,
                 name: displayTitle(forSubtitlePath: item.subtitlePath),
@@ -95,6 +111,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             nextRowsByKey: nextRowsByKey,
             tableName: tableName,
             sourceCount: shioris.count,
+            prefixUnchanged: prefixUnchanged,
             start: start
         )
     }
@@ -104,13 +121,16 @@ final class TableSandboxRowModelStore: ObservableObject {
         nextRowsByKey: [RowCacheKey: SubtitleTableRow],
         tableName: String,
         sourceCount: Int,
+        prefixUnchanged: Bool,
         start: UInt64
     ) {
-        let changed = rows != snapshot.rows
+        let update = rowsUpdate(for: rows, prefixUnchanged: prefixUnchanged)
+        let changed = update != .none
         rowsByKey = nextRowsByKey
         TableRenderingPerformanceLogger.record(
             event: "rows_mapped",
             table: tableName,
+            reason: update.reason,
             elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
             rowCount: rows.count,
             sourceCount: sourceCount,
@@ -123,8 +143,21 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         snapshot = TableSandboxRowsSnapshot(
             rows: rows,
-            version: snapshot.version + 1
+            version: snapshot.version + 1,
+            update: update
         )
+    }
+
+    private func rowsUpdate(for rows: [SubtitleTableRow], prefixUnchanged: Bool) -> TableSandboxRowsUpdate {
+        if rows.count == snapshot.rows.count, prefixUnchanged {
+            return .none
+        }
+
+        if rows.count > snapshot.rows.count, prefixUnchanged {
+            return .append(snapshot.rows.count..<rows.count)
+        }
+
+        return .reload
     }
 
     private func displayTitle(forSubtitlePath subtitlePath: String) -> String {

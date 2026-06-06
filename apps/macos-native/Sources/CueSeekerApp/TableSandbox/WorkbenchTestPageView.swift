@@ -57,6 +57,7 @@ private struct WorkbenchTestSearchView: View {
                 tableName: "test-search",
                 rows: rowStore.snapshot.rows,
                 rowsVersion: rowStore.snapshot.version,
+                rowsUpdate: rowStore.snapshot.update,
                 onPlay: play
             )
                 .padding(.horizontal, 16)
@@ -95,6 +96,7 @@ private struct WorkbenchTestShioriView: View {
             tableName: "test-shiori",
             rows: rowStore.snapshot.rows,
             rowsVersion: rowStore.snapshot.version,
+            rowsUpdate: rowStore.snapshot.update,
             onPlay: play
         )
             .padding(16)

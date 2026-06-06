@@ -479,6 +479,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var tableName: String
     var rows: [SubtitleTableRow]
     var rowsVersion: Int
+    var rowsUpdate: TableSandboxRowsUpdate
     var onPlay: (SubtitleTableRow) -> Void
 
     fileprivate static let indexColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.index")
@@ -577,7 +578,13 @@ struct SubtitleTableView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: SubtitleTableContainerView, context: Context) {
-        context.coordinator.update(tableName: tableName, rows: rows, rowsVersion: rowsVersion, onPlay: onPlay)
+        context.coordinator.update(
+            tableName: tableName,
+            rows: rows,
+            rowsVersion: rowsVersion,
+            rowsUpdate: rowsUpdate,
+            onPlay: onPlay
+        )
     }
 
     // MARK: Coordinator
@@ -645,10 +652,17 @@ struct SubtitleTableView: NSViewRepresentable {
             NotificationCenter.default.removeObserver(self)
         }
 
-        func update(tableName: String, rows: [SubtitleTableRow], rowsVersion: Int, onPlay: @escaping (SubtitleTableRow) -> Void) {
+        func update(
+            tableName: String,
+            rows: [SubtitleTableRow],
+            rowsVersion: Int,
+            rowsUpdate: TableSandboxRowsUpdate,
+            onPlay: @escaping (SubtitleTableRow) -> Void
+        ) {
             self.tableName = tableName
             self.onPlay = onPlay
             let oldRowCount = self.rows.count
+            let oldTableRowCount = tableView?.numberOfRows
             let compareStart = TableRenderingPerformanceLogger.now()
             let rowsChanged = rowsVersion != self.rowsVersion
             TableRenderingPerformanceLogger.record(
@@ -662,6 +676,70 @@ struct SubtitleTableView: NSViewRepresentable {
             guard rowsChanged else { return }
             self.rows = rows
             self.rowsVersion = rowsVersion
+            applyRowsUpdate(rowsUpdate, oldRowCount: oldRowCount, oldTableRowCount: oldTableRowCount)
+        }
+
+        private func applyRowsUpdate(
+            _ rowsUpdate: TableSandboxRowsUpdate,
+            oldRowCount: Int,
+            oldTableRowCount: Int?
+        ) {
+            switch rowsUpdate {
+            case .none:
+                TableRenderingPerformanceLogger.record(
+                    event: "rows_update_skipped",
+                    table: tableName,
+                    reason: rowsUpdate.reason,
+                    rowCount: rows.count,
+                    oldRowCount: oldRowCount,
+                    newRowCount: rows.count
+                )
+
+            case .append(let range) where canInsertRows(
+                range,
+                oldRowCount: oldRowCount,
+                oldTableRowCount: oldTableRowCount
+            ):
+                insertRows(range, oldRowCount: oldRowCount)
+
+            case .append:
+                reloadRows(oldRowCount: oldRowCount, reason: "append_fallback")
+
+            case .reload:
+                reloadRows(oldRowCount: oldRowCount, reason: rowsUpdate.reason)
+            }
+        }
+
+        private func canInsertRows(
+            _ range: Range<Int>,
+            oldRowCount: Int,
+            oldTableRowCount: Int?
+        ) -> Bool {
+            guard tableView != nil else { return false }
+            return range.lowerBound == oldRowCount
+                && range.upperBound == rows.count
+                && range.lowerBound < range.upperBound
+                && oldTableRowCount == oldRowCount
+        }
+
+        private func insertRows(_ range: Range<Int>, oldRowCount: Int) {
+            guard let tableView else { return }
+            let insertStart = TableRenderingPerformanceLogger.now()
+            tableView.insertRows(at: IndexSet(integersIn: range), withAnimation: [])
+            TableRenderingPerformanceLogger.record(
+                event: "insert_rows",
+                table: tableName,
+                reason: "append",
+                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: insertStart),
+                rowCount: rows.count,
+                oldRowCount: oldRowCount,
+                newRowCount: rows.count,
+                insertedRows: range.count
+            )
+            scheduleVisibleHeightInvalidation(reason: "rows_appended")
+        }
+
+        private func reloadRows(oldRowCount: Int, reason: String) {
             rowHeightCache.prune(to: rows)
             resetHeightInvalidationWindow()
             // New data invalidates any selection/hover that referenced old rows;
@@ -674,6 +752,7 @@ struct SubtitleTableView: NSViewRepresentable {
             TableRenderingPerformanceLogger.record(
                 event: "reload_data",
                 table: tableName,
+                reason: reason,
                 elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: reloadStart),
                 rowCount: rows.count,
                 oldRowCount: oldRowCount,

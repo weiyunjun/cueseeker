@@ -21,6 +21,7 @@ func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
     store.updateSearchRows(results, tableName: "test-search")
 
     #expect(store.snapshot.version == 1)
+    #expect(store.snapshot.update == .append(0..<2))
     #expect(store.snapshot.rows.count == 2)
     #expect(store.snapshot.rows[0].name == "Resolved episode-01.ass")
     #expect(store.snapshot.rows[0].cues == "line one\nline two")
@@ -29,6 +30,7 @@ func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
     store.updateSearchRows(results, tableName: "test-search")
 
     #expect(store.snapshot.version == 1)
+    #expect(store.snapshot.update == .append(0..<2))
     #expect(resolvedPaths == [path])
 }
 
@@ -51,8 +53,32 @@ func tableSandboxRowModelStoreUpdatesVersionWhenRowContentChangesWithoutReResolv
     ], tableName: "test-search")
 
     #expect(store.snapshot.version == 2)
+    #expect(store.snapshot.update == .reload)
     #expect(store.snapshot.rows.map(\.cues) == ["new"])
     #expect(resolvedPaths == [path])
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreMarksAppendedSearchRows() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows([
+        searchResult(id: 1, path: path, content: "one", cueLines: ["one"]),
+        searchResult(id: 2, path: path, content: "two", cueLines: ["two"]),
+    ], tableName: "test-search")
+
+    store.updateSearchRows([
+        searchResult(id: 1, path: path, content: "one", cueLines: ["one"]),
+        searchResult(id: 2, path: path, content: "two", cueLines: ["two"]),
+        searchResult(id: 3, path: path, content: "three", cueLines: ["three"]),
+        searchResult(id: 4, path: path, content: "four", cueLines: ["four"]),
+    ], tableName: "test-search")
+
+    #expect(store.snapshot.version == 2)
+    #expect(store.snapshot.update == .append(2..<4))
+    #expect(store.snapshot.rows.map(\.id) == [1, 2, 3, 4])
 }
 
 private func searchResult(
