@@ -335,6 +335,7 @@ final class AppCoordinator: ObservableObject {
     var searchNavigationTask: Task<Void, Never>?
     var searchNavigationVisibleWindowTask: Task<Void, Never>?
     var currentSubtitleEntriesTask: Task<Void, Never>?
+    var playbackSubtitleCuesTask: Task<Void, Never>?
     var databaseStorageStatsTask: Task<Void, Never>?
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?

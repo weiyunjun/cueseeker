@@ -71,7 +71,8 @@ extension AppCoordinator {
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
         playback.playbackStatus = .opening
-        let subtitleCues = playbackSubtitleCues(for: shiori)
+        playbackSubtitleCuesTask?.cancel()
+        let subtitleCues = initialPlaybackSubtitleCues(for: shiori)
         playback.playbackViewModel?.setSubtitleCues(
             subtitleCues,
             currentTimeMilliseconds: shiori.startMilliseconds
@@ -97,7 +98,13 @@ extension AppCoordinator {
 
             try player.setPaused(false)
             playback.playbackStatus = .playing
+            startPlaybackSubtitleCuesLoad(
+                forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
+                format: shiori.subtitleFormat,
+                videoPath: shiori.videoPath
+            )
         } catch {
+            playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }

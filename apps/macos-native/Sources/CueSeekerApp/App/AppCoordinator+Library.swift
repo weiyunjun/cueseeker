@@ -194,8 +194,9 @@ extension AppCoordinator {
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none
         playback.playbackStatus = .opening
+        playbackSubtitleCuesTask?.cancel()
         let startMilliseconds = libraryResumePositionMilliseconds(for: video)
-        let subtitleCues = playbackSubtitleCues(
+        let subtitleCues = initialPlaybackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: video.subtitlePath),
             format: video.subtitleFormat,
             fallbackStartMilliseconds: startMilliseconds,
@@ -230,8 +231,14 @@ extension AppCoordinator {
 
             try player.setPaused(false)
             playback.playbackStatus = .playing
+            startPlaybackSubtitleCuesLoad(
+                forSubtitleFile: URL(fileURLWithPath: video.subtitlePath),
+                format: video.subtitleFormat,
+                videoPath: video.videoPath
+            )
             startLibraryPlaybackHistoryTracking(videoPath: video.videoPath)
         } catch {
+            playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }

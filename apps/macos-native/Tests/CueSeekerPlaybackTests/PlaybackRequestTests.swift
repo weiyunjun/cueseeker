@@ -565,6 +565,21 @@ func playbackSubtitleTrackJoinsOverlappingCues() {
 }
 
 @Test
+func playbackSubtitleTrackFindsLateCueInLargeTrack() {
+    let cues = (0..<10_000).map { index in
+        PlaybackSubtitleCue(
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Cue \(index)"
+        )
+    }
+    let track = PlaybackSubtitleTrack(cues: cues)
+
+    #expect(track.activeText(at: 9_876.2) == "Cue 9876")
+    #expect(track.activeText(at: 9_876.6) == nil)
+}
+
+@Test
 @MainActor
 func playbackPlayerStoresNonDefaultNativeSpeed() throws {
     let player = PlaybackPlayer()

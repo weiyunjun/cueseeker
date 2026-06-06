@@ -20,9 +20,11 @@ public struct PlaybackSubtitleTrack: Equatable, Sendable {
     public static let empty = PlaybackSubtitleTrack(cues: [])
 
     public let cues: [PlaybackSubtitleCue]
+    private let cueStartMilliseconds: [Int]
+    private let prefixMaximumEndMilliseconds: [Int]
 
     public init(cues: [PlaybackSubtitleCue]) {
-        self.cues = cues
+        let sortedCues = cues
             .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .sorted {
                 if $0.startMilliseconds == $1.startMilliseconds {
@@ -31,6 +33,14 @@ public struct PlaybackSubtitleTrack: Equatable, Sendable {
 
                 return $0.startMilliseconds < $1.startMilliseconds
             }
+        self.cues = sortedCues
+        cueStartMilliseconds = sortedCues.map(\.startMilliseconds)
+
+        var maximumEndMilliseconds = 0
+        prefixMaximumEndMilliseconds = sortedCues.map { cue in
+            maximumEndMilliseconds = max(maximumEndMilliseconds, cue.endMilliseconds)
+            return maximumEndMilliseconds
+        }
     }
 
     public func activeText(at seconds: Double) -> String? {
@@ -39,14 +49,34 @@ public struct PlaybackSubtitleTrack: Equatable, Sendable {
         }
 
         let milliseconds = max(0, Int((seconds * 1_000).rounded(.down)))
-        let activeTexts = cues
-            .filter { $0.isActive(atMilliseconds: milliseconds) }
-            .map(\.text)
+        var activeTexts: [String] = []
+        var index = upperBoundStartMilliseconds(milliseconds) - 1
+        while index >= 0, prefixMaximumEndMilliseconds[index] > milliseconds {
+            let cue = cues[index]
+            if cue.isActive(atMilliseconds: milliseconds) {
+                activeTexts.append(cue.text)
+            }
+            index -= 1
+        }
 
         guard !activeTexts.isEmpty else {
             return nil
         }
 
-        return activeTexts.joined(separator: "\n")
+        return activeTexts.reversed().joined(separator: "\n")
+    }
+
+    private func upperBoundStartMilliseconds(_ milliseconds: Int) -> Int {
+        var lowerBound = 0
+        var upperBound = cueStartMilliseconds.count
+        while lowerBound < upperBound {
+            let midpoint = lowerBound + (upperBound - lowerBound) / 2
+            if cueStartMilliseconds[midpoint] <= milliseconds {
+                lowerBound = midpoint + 1
+            } else {
+                upperBound = midpoint
+            }
+        }
+        return lowerBound
     }
 }

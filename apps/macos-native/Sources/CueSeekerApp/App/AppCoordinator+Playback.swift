@@ -237,7 +237,8 @@ extension AppCoordinator {
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
         playback.playbackStatus = .opening
-        let subtitleCues = playbackSubtitleCues(for: result)
+        playbackSubtitleCuesTask?.cancel()
+        let subtitleCues = initialPlaybackSubtitleCues(for: result)
         playback.playbackViewModel?.setSubtitleCues(
             subtitleCues,
             currentTimeMilliseconds: result.startMilliseconds
@@ -263,8 +264,14 @@ extension AppCoordinator {
 
             try player.setPaused(false)
             playback.playbackStatus = .playing
+            startPlaybackSubtitleCuesLoad(
+                forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+                format: result.subtitleFormat,
+                videoPath: result.videoPath
+            )
             refreshSearchNavigationSnapshot()
         } catch {
+            playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }
@@ -1362,6 +1369,8 @@ extension AppCoordinator {
             stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()
             try player?.stop()
+            playbackSubtitleCuesTask?.cancel()
+            playbackSubtitleCuesTask = nil
             playback.playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
             search.selectedSearchResult = nil
@@ -1448,8 +1457,8 @@ extension AppCoordinator {
         playback.currentSubtitleEntryRowsVersion += 1
     }
 
-    func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
-        playbackSubtitleCues(
+    func initialPlaybackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {
+        initialPlaybackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
             format: result.subtitleFormat,
             fallbackStartMilliseconds: result.startMilliseconds,
@@ -1458,8 +1467,8 @@ extension AppCoordinator {
         )
     }
 
-    func playbackSubtitleCues(for shiori: Shiori) -> [PlaybackSubtitleCue] {
-        playbackSubtitleCues(
+    func initialPlaybackSubtitleCues(for shiori: Shiori) -> [PlaybackSubtitleCue] {
+        initialPlaybackSubtitleCues(
             forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
             format: shiori.subtitleFormat,
             fallbackStartMilliseconds: shiori.startMilliseconds,
@@ -1468,7 +1477,7 @@ extension AppCoordinator {
         )
     }
 
-    func playbackSubtitleCues(
+    func initialPlaybackSubtitleCues(
         forSubtitleFile subtitleFile: URL,
         format: SubtitleFormat,
         fallbackStartMilliseconds: Int,
@@ -1477,29 +1486,6 @@ extension AppCoordinator {
     ) -> [PlaybackSubtitleCue] {
         guard format == .srt else {
             return []
-        }
-
-        guard let database = subtitleDatabase else {
-            return []
-        }
-
-        do {
-            let entries = try database.entries(
-                forSubtitleFile: subtitleFile
-            )
-            let cues = entries.map {
-                PlaybackSubtitleCue(
-                    startMilliseconds: $0.startMilliseconds,
-                    endMilliseconds: $0.endMilliseconds,
-                    text: $0.content
-                )
-            }
-
-            if !cues.isEmpty {
-                return cues
-            }
-        } catch {
-            print("Failed to load playback subtitle track: \(error)")
         }
 
         guard !fallbackContent.isEmpty else {
@@ -1513,6 +1499,51 @@ extension AppCoordinator {
                 text: fallbackContent
             )
         ]
+    }
+
+    func startPlaybackSubtitleCuesLoad(
+        forSubtitleFile subtitleFile: URL,
+        format: SubtitleFormat,
+        videoPath: String
+    ) {
+        playbackSubtitleCuesTask?.cancel()
+
+        guard format == .srt,
+              let database = subtitleDatabase
+        else {
+            return
+        }
+
+        let subtitlePath = subtitleFile.path
+        playbackSubtitleCuesTask = Task { [weak self] in
+            do {
+                let cues = try await Task.detached(priority: .utility) {
+                    try database.entries(forSubtitleFile: subtitleFile).map {
+                        PlaybackSubtitleCue(
+                            startMilliseconds: $0.startMilliseconds,
+                            endMilliseconds: $0.endMilliseconds,
+                            text: $0.content
+                        )
+                    }
+                }.value
+
+                guard !Task.isCancelled,
+                      !cues.isEmpty,
+                      let self,
+                      self.currentPlaybackVideoPath == videoPath,
+                      self.currentPlaybackSubtitlePath == subtitlePath
+                else {
+                    return
+                }
+
+                self.playback.playbackViewModel?.setSubtitleCues(cues)
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+                print("Failed to load playback subtitle track: \(error)")
+            }
+        }
     }
 
     func playbackSubtitleSource(for result: SubtitleSearchResult) -> PlaybackSubtitleSource? {

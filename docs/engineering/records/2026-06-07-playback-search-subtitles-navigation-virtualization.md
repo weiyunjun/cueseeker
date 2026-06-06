@@ -207,3 +207,42 @@ including the test Search table.
 Opening a Search result no longer leaves the previous Search input or test table
 focus as the active responder, which keeps playback keyboard shortcuts available
 after entering playback from the test Search table.
+
+## Follow-up Step 5: SRT Playback Subtitle Path
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Optimize the playback-surface SRT subtitle cue path so opening a video does not
+synchronously read the full subtitle file into playback cues and active subtitle
+lookup does not linearly scan every cue on each playback time refresh.
+
+### Changes
+
+- Search, Shiori, and Library playback now set only an initial SRT fallback cue
+  before opening playback.
+- Full SRT cue loading now runs in a cancellable background task after playback
+  opens.
+- Background SRT cue loads are guarded by the current video/subtitle path before
+  updating the `PlaybackViewModel`, preventing stale task writeback.
+- Playback stop and database reindexing cancel the background SRT cue task.
+- `PlaybackSubtitleTrack.activeText(at:)` now uses a start-time binary search
+  plus prefix maximum end times instead of filtering the full cue array.
+- Added a large-track subtitle lookup test to cover late-cue lookup behavior.
+
+### Verification
+
+- Passed: `swift build`
+- Passed: `swift test --jobs 1 --filter playbackSubtitleTrack`
+  - 3 Testing tests passed.
+- Passed: `swift test --jobs 1 --filter Playback`
+  - 70 Testing tests passed.
+
+### Outcome
+
+Opening an SRT-backed playback item no longer performs full subtitle-entry
+hydration on the main playback-opening path. Once the background track is ready,
+active subtitle text lookup is indexed by time rather than a full-array scan.
