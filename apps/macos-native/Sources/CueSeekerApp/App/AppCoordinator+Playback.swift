@@ -316,11 +316,11 @@ extension AppCoordinator {
 
     func refreshCurrentSubtitleEntries() {
         currentSubtitleEntriesTask?.cancel()
+        applyCurrentSubtitleEntries([])
 
         guard let currentPlaybackSubtitlePath,
               let database = subtitleDatabase
         else {
-            applyCurrentSubtitleEntries([])
             return
         }
 
@@ -436,6 +436,67 @@ extension AppCoordinator {
                 }
 
                 print("Failed to load current subtitle entries: \(error)")
+            }
+        }
+    }
+
+    func loadCurrentSubtitleEntriesWindow(rows requestedRows: Range<Int>) {
+        guard let currentPlaybackSubtitlePath,
+              let database = subtitleDatabase,
+              !playback.currentSubtitleEntryIndex.isEmpty
+        else {
+            return
+        }
+
+        let totalCount = playback.currentSubtitleEntryIndex.count
+        let lowerBound = min(max(0, requestedRows.lowerBound), totalCount)
+        let upperBound = min(max(lowerBound, requestedRows.upperBound), totalCount)
+        guard lowerBound < upperBound else {
+            return
+        }
+
+        let requestedRange = lowerBound..<upperBound
+        let currentRange = playback.currentSubtitleEntryWindowRange
+        if currentRange.lowerBound <= requestedRange.lowerBound
+            && requestedRange.upperBound <= currentRange.upperBound {
+            return
+        }
+
+        currentSubtitleEntriesTask?.cancel()
+        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
+        let index = playback.currentSubtitleEntryIndex
+        currentSubtitleEntriesTask = Task { [weak self] in
+            do {
+                let entries = try await Task.detached(priority: .userInitiated) {
+                    try database.entries(
+                        forSubtitleFile: subtitleFile,
+                        limit: requestedRange.count,
+                        offset: requestedRange.lowerBound
+                    )
+                }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                guard self?.currentPlaybackSubtitlePath == subtitleFile.path else {
+                    return
+                }
+
+                self?.applyCurrentSubtitleWindow(
+                    PlaybackSubtitleWindowLoad(
+                        subtitlePath: subtitleFile.path,
+                        index: index,
+                        windowStartIndex: requestedRange.lowerBound,
+                        entries: entries
+                    )
+                )
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                print("Failed to load current subtitle entries window: \(error)")
             }
         }
     }
@@ -1369,6 +1430,7 @@ extension AppCoordinator {
         }
         playback.currentSubtitleEntryWindowStartIndex = 0
         playback.currentSubtitleEntryTotalCount = entries.count
+        playback.currentSubtitleEntryRowsVersion += 1
     }
 
     func applyCurrentSubtitleWindow(_ window: PlaybackSubtitleWindowLoad) {
@@ -1377,6 +1439,7 @@ extension AppCoordinator {
         playback.currentSubtitleEntryWindowStartIndex = window.windowStartIndex
         playback.currentSubtitleEntryTotalCount = window.index.count
         playback.currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entryIndex: window.index)
+        playback.currentSubtitleEntryRowsVersion += 1
     }
 
     func playbackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {

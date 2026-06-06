@@ -11,10 +11,6 @@ struct PlaybackSubtitlesList: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @EnvironmentObject private var playback: PlaybackStore
 
-    private var orderedEntries: [SubtitleDatabaseEntry] {
-        playback.currentSubtitleEntries
-    }
-
     /// The cue active at the current displayed time: the entry that contains
     /// it, otherwise the last entry that has already started (handles gaps).
     private var activeEntryID: Int64? {
@@ -23,81 +19,60 @@ struct PlaybackSubtitlesList: View {
     }
 
     var body: some View {
-        let entries = orderedEntries
-        let activeID = activeEntryID
-        return ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if virtualTopRows > 0 {
-                        Color.clear.frame(
-                            height: CGFloat(virtualTopRows) * Self.estimatedSubtitleRowHeight
-                        )
-                    }
-
-                    ForEach(entries, id: \.id) { entry in
-                        PlaybackSidebarSubtitleRow(
-                            entry: entry,
-                            isSelected: entry.id == activeID,
-                            onSeek: {
-                                appState.seekCurrentPlayback(
-                                    toMilliseconds: entry.startMilliseconds
-                                )
-                            }
-                        )
-                        .id(entry.id)
-                    }
-
-                    if virtualBottomRows > 0 {
-                        Color.clear.frame(
-                            height: CGFloat(virtualBottomRows) * Self.estimatedSubtitleRowHeight
-                        )
-                    }
-                }
-                .padding(EdgeInsets(top: 6, leading: 8, bottom: 14, trailing: 8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(ScrollViewIntrospector { scrollView in
-                    configurePlaybackSidebarScrollView(scrollView)
-                })
+        PlaybackSidebarVirtualList(
+            rowCount: subtitleTotalCount,
+            rowHeight: Self.estimatedSubtitleRowHeight,
+            rowsVersion: playback.currentSubtitleEntryRowsVersion,
+            scrollTargetRow: activeEntryIndex,
+            scrollTargetVersion: activeEntryScrollTargetVersion,
+            onVisibleRowsChange: { rows in
+                appState.loadCurrentSubtitleEntriesWindow(rows: rows)
+            },
+            rowContent: { row in
+                subtitleRow(at: row)
             }
-            .onAppear {
-                appState.loadCurrentSubtitleEntriesAroundActiveCue(activeID)
-                scrollActiveIntoView(proxy, id: activeID)
-            }
-            .onChange(of: activeID) { newValue in
-                appState.loadCurrentSubtitleEntriesAroundActiveCue(newValue)
-                scrollActiveIntoView(proxy, id: newValue)
-            }
-            .onChange(of: subtitleWindowIDs) { _ in
-                scrollActiveIntoView(proxy, id: activeID)
-            }
-        }
-    }
-
-    private var virtualTopRows: Int {
-        max(0, playback.currentSubtitleEntryWindowStartIndex)
-    }
-
-    private var virtualBottomRows: Int {
-        max(
-            0,
-            playback.currentSubtitleEntryTotalCount
-                - playback.currentSubtitleEntryWindowStartIndex
-                - playback.currentSubtitleEntries.count
         )
+        .onAppear {
+            if playback.currentSubtitleEntryIndex.isEmpty {
+                appState.refreshCurrentSubtitleEntries()
+            }
+        }
     }
 
-    private var subtitleWindowIDs: [Int64] {
-        playback.currentSubtitleEntries.map(\.id)
+    private var subtitleTotalCount: Int {
+        max(playback.currentSubtitleEntryTotalCount, playback.currentSubtitleEntryIndex.count)
     }
 
-    private func scrollActiveIntoView(_ proxy: ScrollViewProxy, id: Int64?) {
-        guard let id else {
-            return
+    private var activeEntryIndex: Int? {
+        guard let activeEntryID else {
+            return nil
+        }
+        return playback.currentSubtitleEntryIndex.firstIndex { $0.id == activeEntryID }
+    }
+
+    private var activeEntryScrollTargetVersion: Int {
+        guard let activeEntryID, let activeEntryIndex else {
+            return 0
+        }
+        return activeEntryIndex ^ Int(truncatingIfNeeded: activeEntryID)
+    }
+
+    private func subtitleRow(at row: Int) -> AnyView {
+        guard let entry = playback.currentSubtitleEntry(at: row) else {
+            return AnyView(Color.clear)
         }
 
-        withAnimation(.easeInOut(duration: 0.18)) {
-            proxy.scrollTo(id, anchor: .center)
-        }
+        return AnyView(
+            PlaybackSidebarSubtitleRow(
+                entry: entry,
+                isSelected: entry.id == activeEntryID,
+                onSeek: {
+                    appState.seekCurrentPlayback(toMilliseconds: entry.startMilliseconds)
+                }
+            )
+            .frame(height: Self.estimatedSubtitleRowHeight, alignment: .top)
+            .clipped()
+        )
     }
 }
 

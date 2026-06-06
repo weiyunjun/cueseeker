@@ -139,3 +139,41 @@ The Search Results side panel now maps scrollbar position to global result
 offset and requests the current visible window directly. It no longer renders
 giant SwiftUI spacer rows or depends on `ScrollViewReader.scrollTo` to reach the
 selected result.
+
+## Follow-up Step 3: Current Subtitles Offset Window
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Connect the playback Subtitles side-panel tab to the virtual list foundation.
+This step targets fast scrollbar dragging in the current-video subtitle list and
+removes the same spacer/scroll-to coupling that affected Search Results.
+
+### Changes
+
+- Added a subtitle row version and row lookup helper to `PlaybackStore`.
+- Added `loadCurrentSubtitleEntriesWindow(rows:)`, which loads the requested
+  current-video subtitle row range using `entries(forSubtitleFile:limit:offset:)`.
+- The current-video subtitle refresh now clears the old window before loading a
+  new subtitle file window so stale indexes cannot drive a new video's side
+  panel.
+- Replaced the Subtitles side-panel `ScrollViewReader`/`LazyVStack` spacer path
+  with `PlaybackSidebarVirtualList`.
+- The Subtitles tab now maps each virtual row to the subtitle file's global
+  cue index and requests visible windows by offset.
+
+### Verification
+
+- Passed: `swift build`
+- Passed: `swift test --jobs 1 --filter Playback`
+  - 69 Testing tests passed.
+- Passed: `swift test --jobs 1 --filter subtitleEntryIndexAndWindowLoadCurrentSubtitleRows`
+
+### Outcome
+
+The current-video Subtitles side panel now loads the current visible subtitle
+window by offset instead of scrolling through placeholder spacer rows. Fast
+scrollbar movement can request the destination window directly.
