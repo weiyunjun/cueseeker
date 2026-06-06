@@ -29,6 +29,7 @@ struct WorkbenchTestPageView: View {
 private struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
+    @StateObject private var rowStore = TableSandboxRowModelStore()
     @State private var query = ""
 
     var body: some View {
@@ -52,38 +53,30 @@ private struct WorkbenchTestSearchView: View {
             )
             .padding(16)
 
-            SubtitleTableView(tableName: "test-search", rows: rows, onPlay: play)
+            SubtitleTableView(
+                tableName: "test-search",
+                rows: rowStore.snapshot.rows,
+                rowsVersion: rowStore.snapshot.version,
+                onPlay: play
+            )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
         }
         // Eagerly load every page (Excel-style: all rows loaded, only the
         // visible ones rendered), so the table reaches results beyond page 1.
+        .onAppear { updateRows(search.searchResults) }
+        .onReceive(search.$searchResults) { updateRows($0) }
         .onChange(of: search.isSearching) { _ in loadAllRemaining() }
         .onChange(of: search.searchResults.count) { _ in loadAllRemaining() }
+    }
+
+    private func updateRows(_ results: [SubtitleSearchResult]) {
+        rowStore.updateSearchRows(results, tableName: "test-search")
     }
 
     private func loadAllRemaining() {
         guard search.hasMoreSearchResults, !search.isSearching else { return }
         appState.loadMoreSearchResultsIfNeeded()
-    }
-
-    private var rows: [SubtitleTableRow] {
-        let start = TableRenderingPerformanceLogger.now()
-        let mappedRows = search.searchResults.map { result in
-            SubtitleTableRow(
-                id: Int(result.entryID),
-                name: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath),
-                cues: subtitleDisplayLines(content: result.content, cueLines: result.cueLines).joined(separator: "\n")
-            )
-        }
-        TableRenderingPerformanceLogger.record(
-            event: "rows_mapped",
-            table: "test-search",
-            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
-            rowCount: mappedRows.count,
-            sourceCount: search.searchResults.count
-        )
-        return mappedRows
     }
 
     private func play(_ row: SubtitleTableRow) {
@@ -95,30 +88,23 @@ private struct WorkbenchTestSearchView: View {
 private struct WorkbenchTestShioriView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var shiori: ShioriStore
+    @StateObject private var rowStore = TableSandboxRowModelStore()
 
     var body: some View {
-        SubtitleTableView(tableName: "test-shiori", rows: rows, onPlay: play)
+        SubtitleTableView(
+            tableName: "test-shiori",
+            rows: rowStore.snapshot.rows,
+            rowsVersion: rowStore.snapshot.version,
+            onPlay: play
+        )
             .padding(16)
+            .onAppear { updateRows(shiori.shioris) }
+            .onReceive(shiori.$shioris) { updateRows($0) }
             .task { appState.hydrateShiorisAsync() }
     }
 
-    private var rows: [SubtitleTableRow] {
-        let start = TableRenderingPerformanceLogger.now()
-        let mappedRows = shiori.shioris.map { item in
-            SubtitleTableRow(
-                id: Int(item.id),
-                name: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: item.subtitlePath),
-                cues: subtitleDisplayLines(content: item.content, cueLines: item.cueLines).joined(separator: "\n")
-            )
-        }
-        TableRenderingPerformanceLogger.record(
-            event: "rows_mapped",
-            table: "test-shiori",
-            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
-            rowCount: mappedRows.count,
-            sourceCount: shiori.shioris.count
-        )
-        return mappedRows
+    private func updateRows(_ shioris: [Shiori]) {
+        rowStore.updateShioriRows(shioris, tableName: "test-shiori")
     }
 
     private func play(_ row: SubtitleTableRow) {

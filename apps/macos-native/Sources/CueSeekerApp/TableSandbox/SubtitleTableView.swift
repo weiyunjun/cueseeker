@@ -477,6 +477,7 @@ struct TableTextPosition: Comparable {
 struct SubtitleTableView: NSViewRepresentable {
     var tableName: String
     var rows: [SubtitleTableRow]
+    var rowsVersion: Int
     var onPlay: (SubtitleTableRow) -> Void
 
     fileprivate static let indexColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.index")
@@ -484,7 +485,7 @@ struct SubtitleTableView: NSViewRepresentable {
     fileprivate static let cuesColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.cues")
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(tableName: tableName, rows: rows, onPlay: onPlay)
+        Coordinator(tableName: tableName, rows: rows, rowsVersion: rowsVersion, onPlay: onPlay)
     }
 
     func makeNSView(context: Context) -> SubtitleTableContainerView {
@@ -574,7 +575,7 @@ struct SubtitleTableView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: SubtitleTableContainerView, context: Context) {
-        context.coordinator.update(tableName: tableName, rows: rows, onPlay: onPlay)
+        context.coordinator.update(tableName: tableName, rows: rows, rowsVersion: rowsVersion, onPlay: onPlay)
     }
 
     // MARK: Coordinator
@@ -583,6 +584,7 @@ struct SubtitleTableView: NSViewRepresentable {
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
         private var tableName: String
         private var rows: [SubtitleTableRow]
+        private var rowsVersion: Int
         private var onPlay: (SubtitleTableRow) -> Void
         weak var tableView: NSTableView?
         weak var headerView: SubtitleTableHeaderView?
@@ -620,9 +622,10 @@ struct SubtitleTableView: NSViewRepresentable {
         private static let cuesCellID = NSUserInterfaceItemIdentifier("SubtitleTable.cuesCell")
         private static let rowViewID = NSUserInterfaceItemIdentifier("SubtitleTable.rowView")
 
-        init(tableName: String, rows: [SubtitleTableRow], onPlay: @escaping (SubtitleTableRow) -> Void) {
+        init(tableName: String, rows: [SubtitleTableRow], rowsVersion: Int, onPlay: @escaping (SubtitleTableRow) -> Void) {
             self.tableName = tableName
             self.rows = rows
+            self.rowsVersion = rowsVersion
             self.onPlay = onPlay
         }
 
@@ -630,12 +633,12 @@ struct SubtitleTableView: NSViewRepresentable {
             NotificationCenter.default.removeObserver(self)
         }
 
-        func update(tableName: String, rows: [SubtitleTableRow], onPlay: @escaping (SubtitleTableRow) -> Void) {
+        func update(tableName: String, rows: [SubtitleTableRow], rowsVersion: Int, onPlay: @escaping (SubtitleTableRow) -> Void) {
             self.tableName = tableName
             self.onPlay = onPlay
             let oldRowCount = self.rows.count
             let compareStart = TableRenderingPerformanceLogger.now()
-            let rowsChanged = rows != self.rows
+            let rowsChanged = rowsVersion != self.rowsVersion
             TableRenderingPerformanceLogger.record(
                 event: "rows_compared",
                 table: tableName,
@@ -646,6 +649,7 @@ struct SubtitleTableView: NSViewRepresentable {
             )
             guard rowsChanged else { return }
             self.rows = rows
+            self.rowsVersion = rowsVersion
             // New data invalidates any selection/hover that referenced old rows;
             // clearing avoids stale indices (e.g. cmd+C going out of bounds).
             anchor = nil
