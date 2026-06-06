@@ -24,12 +24,14 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
 }
 
 @Test
-func subtitleVirtualRowHeightCacheStoresSparseHighRowOverrides() {
+func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()
 
     let changed = cache.setHeight(CGFloat(120), for: 2_000_000, defaultHeight: CGFloat(56))
-    #expect(changed)
-    #expect(cache.count == 1)
-    #expect(cache.height(for: 2_000_000, defaultHeight: CGFloat(56)) == CGFloat(120))
+    #expect(!changed)
+    #expect(cache.count == 0)
+    #expect(cache.height(for: 2_000_000, defaultHeight: CGFloat(56)) == CGFloat(56))
     #expect(cache.height(for: 1_999_999, defaultHeight: CGFloat(56)) == CGFloat(56))
+    #expect(cache.rowIndex(atY: CGFloat(112), rowCount: 2_000_000, defaultHeight: CGFloat(56)) == 2)
+    #expect(cache.totalHeight(rowCount: 2_000_000, defaultHeight: CGFloat(56)) == CGFloat(112_000_000))
 }

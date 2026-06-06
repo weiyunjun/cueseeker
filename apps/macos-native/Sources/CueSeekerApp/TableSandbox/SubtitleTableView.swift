@@ -272,54 +272,28 @@ struct SubtitleVirtualRowHeightCache {
     }
 
     func height(for row: Int, defaultHeight: CGFloat) -> CGFloat {
-        heights[row] ?? defaultHeight
+        defaultHeight
     }
 
     mutating func setHeight(_ height: CGFloat, for row: Int, defaultHeight: CGFloat) -> Bool {
-        let normalized = max(defaultHeight, ceil(height))
-        let old = heights[row]
-        guard old != normalized else { return false }
-        if normalized == defaultHeight {
-            heights.removeValue(forKey: row)
-        } else {
-            heights[row] = normalized
-        }
-        return true
+        _ = height
+        _ = row
+        _ = defaultHeight
+        return false
     }
 
     func yOffset(for row: Int, defaultHeight: CGFloat) -> CGFloat {
-        guard row > 0 else { return 0 }
-        var offset = CGFloat(row) * defaultHeight
-        for (index, height) in heights where index >= 0 && index < row {
-            offset += height - defaultHeight
-        }
-        return offset
+        CGFloat(max(0, row)) * defaultHeight
     }
 
     func totalHeight(rowCount: Int, defaultHeight: CGFloat) -> CGFloat {
-        guard rowCount > 0 else { return 0 }
-        var height = CGFloat(rowCount) * defaultHeight
-        for (index, rowHeight) in heights where index >= 0 && index < rowCount {
-            height += rowHeight - defaultHeight
-        }
-        return max(0, height)
+        CGFloat(max(0, rowCount)) * defaultHeight
     }
 
     func rowIndex(atY y: CGFloat, rowCount: Int, defaultHeight: CGFloat) -> Int {
         guard rowCount > 0 else { return 0 }
-        var low = 0
-        var high = rowCount
-        let target = max(0, y)
-        while low < high {
-            let mid = (low + high) / 2
-            let nextOffset = yOffset(for: mid + 1, defaultHeight: defaultHeight)
-            if nextOffset <= target {
-                low = mid + 1
-            } else {
-                high = mid
-            }
-        }
-        return min(max(0, low), rowCount - 1)
+        let row = Int((max(0, y) / max(1, defaultHeight)).rounded(.down))
+        return min(max(0, row), rowCount - 1)
     }
 }
 
@@ -427,20 +401,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var buttonsHost: NSHostingView<CueHoverButtons>?
 
         private let textLayout = SubtitleTextLayout()
-        private let nameMeasurer = SubtitleTextLayout()
-        private let cuesMeasurer = SubtitleTextLayout()
         private var rowHeightCache = SubtitleVirtualRowHeightCache()
-        private var pendingResize = false
         private var hoveredRow: Int?
-
-        private lazy var singleLineFloor: CGFloat = {
-            let measurer = SubtitleTextLayout()
-            measurer.update(
-                attributedString: NSAttributedString(string: "Ag", attributes: [.font: SubtitleTableText.bodyFont]),
-                width: .greatestFiniteMagnitude
-            )
-            return measurer.usedHeight
-        }()
 
         init(
             tableName: String,
@@ -537,7 +499,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let width = max(scrollView.contentSize.width, scrollView.bounds.width)
             let height = max(
                 scrollView.contentSize.height,
-                rowHeightCache.totalHeight(rowCount: rowCount, defaultHeight: SubtitleTableMetrics.estimatedRowHeight)
+                CGFloat(rowCount) * SubtitleTableMetrics.estimatedRowHeight
             )
             let nextSize = CGSize(width: width, height: max(1, height))
             guard documentView.frame.size != nextSize else { return }
@@ -624,29 +586,20 @@ struct SubtitleTableView: NSViewRepresentable {
         private func drawBody(_ text: String, in rect: CGRect, trailing: CGFloat) {
             let M = SubtitleTableMetrics.self
             guard !text.isEmpty else { return }
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath.clip(rect)
             textLayout.update(
                 attributedString: SubtitleTableText.body(text),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
             textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: rect.minY + M.rowVerticalInset))
+            NSGraphicsContext.restoreGraphicsState()
         }
 
         private func heightForRow(_ row: Int, width: CGFloat) -> CGFloat {
-            let cached = rowHeightCache.height(for: row, defaultHeight: SubtitleTableMetrics.estimatedRowHeight)
-            guard let model = rowProvider(row) else { return cached }
-
-            let M = SubtitleTableMetrics.self
-            let nameWidth = M.nameColumnWidth - M.cellLeading - M.trailingInset
-            let cuesWidth = max(0, width - M.indexColumnWidth - M.nameColumnWidth - M.cellLeading - M.trailingInset)
-            nameMeasurer.update(attributedString: SubtitleTableText.body(model.name), width: nameWidth)
-            cuesMeasurer.update(attributedString: SubtitleTableText.body(model.cues), width: cuesWidth)
-            let contentHeight = max(nameMeasurer.usedHeight, cuesMeasurer.usedHeight, singleLineFloor)
-            let measured = contentHeight + 2 * M.rowVerticalInset
-
-            if rowHeightCache.setHeight(measured, for: row, defaultHeight: M.estimatedRowHeight) {
-                scheduleResizeAfterDrawing()
-            }
-            return rowHeightCache.height(for: row, defaultHeight: M.estimatedRowHeight)
+            _ = row
+            _ = width
+            return SubtitleTableMetrics.estimatedRowHeight
         }
 
         private func rectForRow(_ row: Int, width: CGFloat) -> CGRect {
@@ -752,16 +705,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func scheduleResizeAfterDrawing() {
-            guard !pendingResize else { return }
-            pendingResize = true
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.pendingResize = false
-                self.resizeDocument()
-                self.documentView?.needsDisplay = true
-                self.layoutHoverButtons()
-                self.notifyVisibleRowsChanged()
-            }
+            resizeDocument()
         }
     }
 }

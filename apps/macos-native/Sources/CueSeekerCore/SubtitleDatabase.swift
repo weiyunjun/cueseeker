@@ -471,6 +471,34 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     }
 }
 
+public struct SubtitleSearchResultIDIndexWindow: Equatable, Sendable {
+    public let cueGroupIDs: [Int64]
+    public let offset: Int
+    public let totalCount: Int
+    public let fileSummaries: [SubtitleSearchFileSummary]
+    public let countSnapshot: SubtitleSearchCountSnapshot
+    public let appliedCursor: SubtitleSearchCursor
+    public let nextCursor: SubtitleSearchCursor?
+
+    public init(
+        cueGroupIDs: [Int64],
+        offset: Int,
+        totalCount: Int,
+        fileSummaries: [SubtitleSearchFileSummary],
+        countSnapshot: SubtitleSearchCountSnapshot,
+        appliedCursor: SubtitleSearchCursor,
+        nextCursor: SubtitleSearchCursor?
+    ) {
+        self.cueGroupIDs = cueGroupIDs
+        self.offset = offset
+        self.totalCount = totalCount
+        self.fileSummaries = fileSummaries
+        self.countSnapshot = countSnapshot
+        self.appliedCursor = appliedCursor
+        self.nextCursor = nextCursor
+    }
+}
+
 private struct SearchResultCacheKey: Hashable, Sendable {
     let query: String
     let limit: Int
@@ -479,6 +507,19 @@ private struct SearchResultCacheKey: Hashable, Sendable {
     let pathPrefixes: [String]?
     let subtitlePath: String?
     let languageFilter: SubtitleSearchLanguageFilter
+}
+
+private struct SearchResultIDIndexCacheKey: Hashable, Sendable {
+    let query: String
+    let pathPrefixes: [String]?
+    let subtitlePath: String?
+    let languageFilter: SubtitleSearchLanguageFilter
+}
+
+private struct SearchResultIDIndex: Sendable {
+    let cueGroupIDs: [Int64]
+    let fileSummaries: [SubtitleSearchFileSummary]
+    let countSnapshot: SubtitleSearchCountSnapshot
 }
 
 private final class SearchResultPageCache: @unchecked Sendable {
@@ -554,6 +595,57 @@ private final class SearchResultPageCache: @unchecked Sendable {
             stores: stores,
             invalidations: invalidations
         )
+    }
+}
+
+private final class SearchResultIDIndexCache: @unchecked Sendable {
+    private let maxEntries: Int
+    private let lock = NSLock()
+    private var indexes: [SearchResultIDIndexCacheKey: SearchResultIDIndex] = [:]
+    private var keys: [SearchResultIDIndexCacheKey] = []
+
+    init(maxEntries: Int) {
+        self.maxEntries = max(1, maxEntries)
+    }
+
+    func index(for key: SearchResultIDIndexCacheKey) -> SearchResultIDIndex? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let index = indexes[key] else {
+            return nil
+        }
+        if let keyIndex = keys.firstIndex(of: key) {
+            keys.remove(at: keyIndex)
+        }
+        keys.append(key)
+        return index
+    }
+
+    func store(_ index: SearchResultIDIndex, for key: SearchResultIDIndexCacheKey) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if indexes[key] == nil {
+            keys.append(key)
+        } else if let keyIndex = keys.firstIndex(of: key) {
+            keys.remove(at: keyIndex)
+            keys.append(key)
+        }
+
+        indexes[key] = index
+        while keys.count > maxEntries, let first = keys.first {
+            keys.removeFirst()
+            indexes.removeValue(forKey: first)
+        }
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        indexes.removeAll()
+        keys.removeAll()
     }
 }
 
@@ -735,11 +827,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
     private static let exactSearchCandidateBatchMinimum = 5_000
     private static let maxSearchResultCacheEntries = 64
+    private static let maxSearchResultIDIndexCacheEntries = 2
     private static let maxCachedSearchPageLimit = 500
 
     private let path: URL
     private let database: SQLiteDatabase
     private let searchResultCache = SearchResultPageCache(maxEntries: maxSearchResultCacheEntries)
+    private let searchResultIDIndexCache = SearchResultIDIndexCache(
+        maxEntries: maxSearchResultIDIndexCacheEntries
+    )
 
     public init(path: URL) throws {
         self.path = path
@@ -766,6 +862,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     public func clearSearchResultCache() {
         searchResultCache.removeAll()
+        searchResultIDIndexCache.removeAll()
     }
 
     public func searchResultCacheStats() -> SubtitleSearchResultCacheStats {
@@ -2275,6 +2372,156 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
+    public func searchResultIDIndexWindow(
+        _ query: String,
+        limit: Int = 50,
+        cursor: SubtitleSearchCursor?,
+        under folders: [URL]? = nil,
+        inSubtitlePath subtitlePath: String? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all,
+        minimumKnownResultCount: Int? = nil
+    ) -> SubtitleSearchResultIDIndexWindow? {
+        let appliedCursor = cursor ?? .start
+        let subtitlePathFilter = subtitlePath
+        guard subtitlePathFilter?.isEmpty != true else {
+            return SubtitleSearchResultIDIndexWindow(
+                cueGroupIDs: [],
+                offset: 0,
+                totalCount: 0,
+                fileSummaries: [],
+                countSnapshot: .exact(totalCount: 0, fileSummaryCount: 0),
+                appliedCursor: appliedCursor,
+                nextCursor: nil
+            )
+        }
+
+        let pathPrefixes: [String]?
+        if let folders {
+            let prefixes = Self.folderPathPrefixes(for: folders)
+            guard !prefixes.isEmpty else {
+                return SubtitleSearchResultIDIndexWindow(
+                    cueGroupIDs: [],
+                    offset: 0,
+                    totalCount: 0,
+                    fileSummaries: [],
+                    countSnapshot: .exact(totalCount: 0, fileSummaryCount: 0),
+                    appliedCursor: appliedCursor,
+                    nextCursor: nil
+                )
+            }
+            pathPrefixes = prefixes
+        } else {
+            pathPrefixes = nil
+        }
+
+        let indexKey = SearchResultIDIndexCacheKey(
+            query: query,
+            pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
+            subtitlePath: subtitlePathFilter,
+            languageFilter: languageFilter
+        )
+        guard let resultIDIndex = searchResultIDIndexCache.index(for: indexKey) else {
+            return nil
+        }
+
+        let totalCount = resultIDIndex.countSnapshot.knownResultCount
+        if let minimumKnownResultCount,
+           totalCount < minimumKnownResultCount {
+            return nil
+        }
+
+        let requestedLimit = max(0, limit)
+        let offset = min(appliedCursor.offset, totalCount)
+        let pageCount = min(requestedLimit, max(0, totalCount - offset))
+        guard pageCount > 0 else {
+            return SubtitleSearchResultIDIndexWindow(
+                cueGroupIDs: [],
+                offset: offset,
+                totalCount: totalCount,
+                fileSummaries: resultIDIndex.fileSummaries,
+                countSnapshot: resultIDIndex.countSnapshot,
+                appliedCursor: appliedCursor,
+                nextCursor: nil
+            )
+        }
+
+        let upperBound = offset + pageCount
+        return SubtitleSearchResultIDIndexWindow(
+            cueGroupIDs: Array(resultIDIndex.cueGroupIDs[offset..<upperBound]),
+            offset: offset,
+            totalCount: totalCount,
+            fileSummaries: resultIDIndex.fileSummaries,
+            countSnapshot: resultIDIndex.countSnapshot,
+            appliedCursor: appliedCursor,
+            nextCursor: upperBound < totalCount ? SubtitleSearchCursor(offset: upperBound) : nil
+        )
+    }
+
+    public func searchIndexedVisiblePage(
+        from indexWindow: SubtitleSearchResultIDIndexWindow
+    ) throws -> SubtitleSearchPage? {
+        guard !indexWindow.cueGroupIDs.isEmpty else {
+            return SubtitleSearchPage(
+                results: [],
+                totalCount: indexWindow.totalCount,
+                fileSummaries: indexWindow.fileSummaries,
+                countSnapshot: indexWindow.countSnapshot,
+                appliedCursor: indexWindow.appliedCursor,
+                nextCursor: indexWindow.nextCursor,
+                pageMode: .visibleWindow,
+                orderSource: "resultIDIndex",
+                materializedOrderRows: 0
+            )
+        }
+
+        try Task.checkCancellation()
+        let candidatesByCueGroupID = try searchCandidates(forCueGroupIDs: indexWindow.cueGroupIDs)
+        try Task.checkCancellation()
+        guard indexWindow.cueGroupIDs.allSatisfy({ candidatesByCueGroupID[$0] != nil }) else {
+            return nil
+        }
+
+        let orderedCandidates = indexWindow.cueGroupIDs.compactMap { candidatesByCueGroupID[$0] }
+        let multiLineCueGroupIDs = orderedCandidates
+            .filter { $0.lineCount > 1 }
+            .map(\.cueGroupID)
+        let linesByCueGroupID = try cueLines(forCueGroupIDs: multiLineCueGroupIDs)
+        try Task.checkCancellation()
+
+        var results: [SubtitleSearchResult] = []
+        results.reserveCapacity(orderedCandidates.count)
+        for (index, candidate) in orderedCandidates.enumerated() {
+            try Task.checkCancellation()
+            let lines = linesByCueGroupID[candidate.cueGroupID] ?? []
+            let lineContents = lines.isEmpty ? [candidate.searchContent] : lines.map(\.content)
+            var result = SubtitleSearchResult(
+                entryID: candidate.cueGroupID,
+                subtitlePath: candidate.subtitlePath,
+                subtitleFormat: candidate.subtitleFormat,
+                videoPath: candidate.videoPath,
+                videoName: candidate.videoName,
+                startMilliseconds: candidate.startMilliseconds,
+                endMilliseconds: candidate.endMilliseconds,
+                content: candidate.searchContent,
+                cueLines: lineContents
+            )
+            result.searchRank = indexWindow.offset + index
+            results.append(result)
+        }
+
+        return SubtitleSearchPage(
+            results: results,
+            totalCount: indexWindow.totalCount,
+            fileSummaries: indexWindow.fileSummaries,
+            countSnapshot: indexWindow.countSnapshot,
+            appliedCursor: indexWindow.appliedCursor,
+            nextCursor: indexWindow.nextCursor,
+            pageMode: .visibleWindow,
+            orderSource: "resultIDIndex",
+            materializedOrderRows: results.count
+        )
+    }
+
     public func searchPage(
         _ query: String,
         limit: Int = 50,
@@ -2370,6 +2617,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
             limit: limit,
             offset: offset,
             mode: mode,
+            pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
+            subtitlePath: subtitlePathFilter,
+            languageFilter: languageFilter
+        )
+        let indexKey = SearchResultIDIndexCacheKey(
+            query: query,
             pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
             subtitlePath: subtitlePathFilter,
             languageFilter: languageFilter
@@ -2815,6 +3068,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let countSnapshot = SubtitleSearchCountSnapshot.exact(
                 totalCount: sortedResults.count,
                 fileSummaryCount: fileSummaries.count
+            )
+            searchResultIDIndexCache.store(
+                SearchResultIDIndex(
+                    cueGroupIDs: sortedOrderedResults.map { $0.result.entryID },
+                    fileSummaries: fileSummaries,
+                    countSnapshot: countSnapshot
+                ),
+                for: indexKey
             )
             emit(
                 "file_summaries",
@@ -5062,6 +5323,57 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return lines
+    }
+
+    private func searchCandidates(forCueGroupIDs cueGroupIDs: [Int64]) throws -> [Int64: SearchCandidate] {
+        guard !cueGroupIDs.isEmpty else {
+            return [:]
+        }
+
+        let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
+        let statement = try database.prepare(
+            """
+            SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                   g.start_ms, g.end_ms, g.search_content, g.line_count,
+                   sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            WHERE g.id IN (\(placeholders));
+            """
+        )
+
+        for (offset, cueGroupID) in cueGroupIDs.enumerated() {
+            try statement.bind(cueGroupID, at: Int32(offset + 1))
+        }
+
+        var candidates: [Int64: SearchCandidate] = [:]
+        candidates.reserveCapacity(cueGroupIDs.count)
+        while try statement.step() {
+            let cueGroupID = statement.int64Column(0)
+            candidates[cueGroupID] = SearchCandidate(
+                cueGroupID: cueGroupID,
+                subtitleFileID: statement.int64Column(1),
+                subtitlePath: statement.stringColumn(2),
+                subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt,
+                videoPath: statement.stringColumn(4),
+                videoName: statement.stringColumn(5),
+                startMilliseconds: statement.intColumn(6),
+                endMilliseconds: statement.intColumn(7),
+                searchContent: statement.stringColumn(8),
+                lineCount: statement.intColumn(9),
+                order: SearchResultOrder(
+                    subtitleFileName: statement.stringColumn(10),
+                    displayTitle: statement.stringColumn(11),
+                    folderOrder: statement.intColumn(12),
+                    fileOrder: statement.intColumn(13)
+                )
+            )
+        }
+
+        return candidates
     }
 
     private func cueLines(forCueGroupIDs cueGroupIDs: [Int64]) throws -> [Int64: [SubtitleCueLine]] {

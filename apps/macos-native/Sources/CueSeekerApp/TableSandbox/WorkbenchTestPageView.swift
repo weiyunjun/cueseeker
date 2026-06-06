@@ -31,8 +31,13 @@ private struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
     @StateObject private var rowStore = TableSandboxRowModelStore()
-    @StateObject private var visibleHydrator = TableSandboxVisibleSearchHydrator()
+    @StateObject private var visibleHydrator = TableSandboxVisibleSearchHydrator(
+        debounceNanoseconds: 16_000_000,
+        prefetchPageCount: 0,
+        smallResultEagerLoadThreshold: 0
+    )
     @State private var query = ""
+    @State private var lastVisibleRows: Range<Int>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -71,10 +76,15 @@ private struct WorkbenchTestSearchView: View {
         .onReceive(search.$searchResults) { updateRows($0) }
         .onChange(of: search.searchQuery) { _ in
             visibleHydrator.reset()
+            lastVisibleRows = nil
         }
         .onChange(of: search.searchResultTotalCount) { _ in
-            visibleHydrator.reset()
             updateRows(search.searchResults)
+            hydrateLastVisibleRowsIfNeeded()
+        }
+        .onChange(of: search.searchCountState) { _ in
+            updateRows(search.searchResults)
+            hydrateLastVisibleRowsIfNeeded()
         }
         .onDisappear { visibleHydrator.cancel() }
     }
@@ -109,6 +119,7 @@ private struct WorkbenchTestSearchView: View {
     }
 
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
+        lastVisibleRows = visibleRows
         visibleHydrator.schedule(
             visibleRows: visibleRows,
             totalRowCount: rowStore.snapshot.totalRowCount,
@@ -118,6 +129,13 @@ private struct WorkbenchTestSearchView: View {
             },
             apply: applyHydrationPage
         )
+    }
+
+    private func hydrateLastVisibleRowsIfNeeded() {
+        guard let lastVisibleRows else {
+            return
+        }
+        hydrateVisibleRows(lastVisibleRows)
     }
 
     private func applyHydrationPage(_ page: TableSandboxSearchHydrationPage) {

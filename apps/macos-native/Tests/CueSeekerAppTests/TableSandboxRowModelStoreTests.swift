@@ -204,6 +204,68 @@ func tableSandboxRowModelStoreCachesHydratedSearchResultsForActions() {
     #expect(store.snapshot.searchResult(entryID: 301)?.content == "hydrated row")
 }
 
+@MainActor
+@Test
+func tableSandboxRowModelStorePrunesHydratedSearchRowsAroundVisibleWindow() {
+    let store = TableSandboxRowModelStore(maximumHydratedSearchRows: 4) { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows(
+        (0..<4).map { index in
+            searchResult(
+                id: Int64(index + 1),
+                path: path,
+                content: "prefix row \(index)",
+                cueLines: ["prefix row \(index)"]
+            )
+        },
+        totalRowCount: 1_000,
+        tableName: "test-search"
+    )
+    store.hydrateSearchRows(
+        [
+            searchResult(id: 501, path: path, content: "visible one", cueLines: ["visible one"]),
+            searchResult(id: 502, path: path, content: "visible two", cueLines: ["visible two"]),
+        ],
+        startIndex: 500,
+        totalRowCount: 1_000,
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.totalRowCount == 1_000)
+    #expect(store.snapshot.loadedReferenceCount == 4)
+    #expect(store.snapshot.row(at: 500)?.cues == "visible one")
+    #expect(store.snapshot.row(at: 501)?.cues == "visible two")
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreLimitsTableDisplayTextBudget() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/effects.ass"
+    let longLine = String(repeating: "x", count: TableSandboxDisplayTextBudget.maximumCharactersPerLine + 20)
+    let cueLines = (0..<(TableSandboxDisplayTextBudget.maximumLines + 4)).map { index in
+        index == 0 ? longLine : "line \(index)"
+    }
+
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 1,
+                path: path,
+                content: cueLines.joined(separator: "\n"),
+                cueLines: cueLines
+            )
+        ],
+        tableName: "test-search"
+    )
+
+    let row = store.snapshot.row(at: 0)
+    let displayLines = row?.cues.components(separatedBy: "\n") ?? []
+    #expect(displayLines.count == TableSandboxDisplayTextBudget.maximumLines)
+    #expect(displayLines.first?.count == TableSandboxDisplayTextBudget.maximumCharactersPerLine + 3)
+}
+
 private func searchResult(
     id: Int64,
     path: String,

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CueSeekerApp
 
@@ -29,7 +30,7 @@ func tableSandboxVisibleSearchHydratorSkipsAlreadyLoadedRows() async throws {
 
 @MainActor
 @Test
-func tableSandboxVisibleSearchHydratorStartsViewportRequestsWithoutCancellingEarlierScrolls() async throws {
+func tableSandboxVisibleSearchHydratorCancelsObsoleteViewportRequests() async throws {
     let hydrator = TableSandboxVisibleSearchHydrator(
         overscanRows: 0,
         maxHydrationRows: 20,
@@ -38,6 +39,7 @@ func tableSandboxVisibleSearchHydratorStartsViewportRequestsWithoutCancellingEar
     )
     var loadedRanges: [String] = []
     var appliedRanges: [String] = []
+    let cancelledRanges = RangeRecorder()
 
     hydrator.schedule(
         visibleRows: 0..<10,
@@ -45,13 +47,21 @@ func tableSandboxVisibleSearchHydratorStartsViewportRequestsWithoutCancellingEar
         isRowLoaded: { _ in false },
         load: { range in
             loadedRanges.append(rangeDescription(range))
-            try? await Task.sleep(nanoseconds: 20_000_000)
+            await withTaskCancellationHandler {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            } onCancel: {
+                cancelledRanges.append(rangeDescription(range))
+            }
+            guard !Task.isCancelled else {
+                return nil
+            }
             return TableSandboxSearchHydrationPage(range: range, results: [], totalRowCount: 200)
         },
         apply: { page in
             appliedRanges.append(rangeDescription(page.range))
         }
     )
+    try await Task.sleep(nanoseconds: 10_000_000)
     hydrator.schedule(
         visibleRows: 100..<110,
         totalRowCount: 200,
@@ -65,15 +75,16 @@ func tableSandboxVisibleSearchHydratorStartsViewportRequestsWithoutCancellingEar
         }
     )
 
-    try await Task.sleep(nanoseconds: 80_000_000)
+    try await Task.sleep(nanoseconds: 140_000_000)
 
     #expect(Set(loadedRanges) == Set(["0..<20", "100..<120"]))
-    #expect(Set(appliedRanges) == Set(["0..<20", "100..<120"]))
+    #expect(Set(cancelledRanges.values) == Set(["0..<20"]))
+    #expect(Set(appliedRanges) == Set(["100..<120"]))
 }
 
 @MainActor
 @Test
-func tableSandboxVisibleSearchHydratorEagerlyCompletesSmallResultSets() async throws {
+func tableSandboxVisibleSearchHydratorDoesNotEagerlyCompleteSmallResultSets() async throws {
     let hydrator = TableSandboxVisibleSearchHydrator(
         overscanRows: 0,
         maxHydrationRows: 100,
@@ -96,12 +107,12 @@ func tableSandboxVisibleSearchHydratorEagerlyCompletesSmallResultSets() async th
 
     try await Task.sleep(nanoseconds: 60_000_000)
 
-    #expect(Set(loadedRanges) == Set(["100..<200", "200..<290"]))
+    #expect(loadedRanges.isEmpty)
 }
 
 @MainActor
 @Test
-func tableSandboxVisibleSearchHydratorPrefetchesAdjacentPages() async throws {
+func tableSandboxVisibleSearchHydratorOnlyLoadsVisiblePages() async throws {
     let hydrator = TableSandboxVisibleSearchHydrator(
         overscanRows: 0,
         maxHydrationRows: 100,
@@ -124,9 +135,26 @@ func tableSandboxVisibleSearchHydratorPrefetchesAdjacentPages() async throws {
 
     try await Task.sleep(nanoseconds: 60_000_000)
 
-    #expect(Set(loadedRanges) == Set(["0..<100", "100..<200", "200..<300"]))
+    #expect(Set(loadedRanges) == Set(["100..<200"]))
 }
 
 private func rangeDescription(_ range: Range<Int>) -> String {
     "\(range.lowerBound)..<\(range.upperBound)"
+}
+
+private final class RangeRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var values: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func append(_ value: String) {
+        lock.lock()
+        storage.append(value)
+        lock.unlock()
+    }
 }

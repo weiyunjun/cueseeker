@@ -37,15 +37,22 @@ struct TableSandboxRowReference: Equatable {
 
 @MainActor
 final class TableSandboxRowModelStore: ObservableObject {
+    static let defaultMaximumHydratedSearchRows = 2_000
+
     @Published private(set) var snapshot = TableSandboxRowsSnapshot()
 
     private var rowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
     private var displayTitlesBySubtitlePath: [String: String] = [:]
     private let displayTitleResolver: (String) -> String
+    private let maximumHydratedSearchRows: Int
 
-    init(displayTitleResolver: @escaping (String) -> String = {
-        SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: $0)
-    }) {
+    init(
+        maximumHydratedSearchRows: Int = defaultMaximumHydratedSearchRows,
+        displayTitleResolver: @escaping (String) -> String = {
+            SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: $0)
+        }
+    ) {
+        self.maximumHydratedSearchRows = max(1, maximumHydratedSearchRows)
         self.displayTitleResolver = displayTitleResolver
     }
 
@@ -84,10 +91,10 @@ final class TableSandboxRowModelStore: ObservableObject {
             let row = SubtitleTableRow(
                 id: key.id,
                 name: displayTitle(forSubtitlePath: result.subtitlePath),
-                cues: subtitleDisplayLines(
+                cues: tableSandboxDisplayText(
                     content: result.content,
                     cueLines: result.cueLines
-                ).joined(separator: "\n")
+                )
             )
             nextRowsByKey[key] = row
             return row
@@ -148,6 +155,14 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         guard let lowerChangedIndex, let upperChangedIndex else { return }
 
+        let hydratedRange = startIndex..<(startIndex + results.count)
+        pruneHydratedSearchRowsIfNeeded(
+            keepingPriorityRange: hydratedRange,
+            rowsBySourceIndex: &nextRowsBySourceIndex,
+            searchResultsByEntryID: &nextSearchResultsByEntryID,
+            referencesBySourceIndex: &referencesBySourceIndex
+        )
+
         let references = referencesBySourceIndex.values.sorted { lhs, rhs in
             lhs.sourceIndex < rhs.sourceIndex
         }
@@ -205,10 +220,10 @@ final class TableSandboxRowModelStore: ObservableObject {
             let row = SubtitleTableRow(
                 id: key.id,
                 name: displayTitle(forSubtitlePath: item.subtitlePath),
-                cues: subtitleDisplayLines(
+                cues: tableSandboxDisplayText(
                     content: item.content,
                     cueLines: item.cueLines
-                ).joined(separator: "\n")
+                )
             )
             nextRowsByKey[key] = row
             return row
@@ -301,13 +316,46 @@ final class TableSandboxRowModelStore: ObservableObject {
         let row = SubtitleTableRow(
             id: key.id,
             name: displayTitle(forSubtitlePath: result.subtitlePath),
-            cues: subtitleDisplayLines(
+            cues: tableSandboxDisplayText(
                 content: result.content,
                 cueLines: result.cueLines
-            ).joined(separator: "\n")
+            )
         )
         rowsByKey[key] = row
         return row
+    }
+
+    private func pruneHydratedSearchRowsIfNeeded(
+        keepingPriorityRange priorityRange: Range<Int>,
+        rowsBySourceIndex: inout [Int: SubtitleTableRow],
+        searchResultsByEntryID: inout [Int: SubtitleSearchResult],
+        referencesBySourceIndex: inout [Int: TableSandboxRowReference]
+    ) {
+        guard rowsBySourceIndex.count > maximumHydratedSearchRows else {
+            return
+        }
+
+        let center = priorityRange.lowerBound + max(0, priorityRange.count / 2)
+        let keptIndexes = Set(rowsBySourceIndex.keys.sorted { lhs, rhs in
+            let lhsPriority = priorityRange.contains(lhs)
+            let rhsPriority = priorityRange.contains(rhs)
+            if lhsPriority != rhsPriority {
+                return lhsPriority
+            }
+
+            let lhsDistance = abs(lhs - center)
+            let rhsDistance = abs(rhs - center)
+            if lhsDistance != rhsDistance {
+                return lhsDistance < rhsDistance
+            }
+
+            return lhs < rhs
+        }.prefix(maximumHydratedSearchRows))
+
+        rowsBySourceIndex = rowsBySourceIndex.filter { keptIndexes.contains($0.key) }
+        referencesBySourceIndex = referencesBySourceIndex.filter { keptIndexes.contains($0.key) }
+        let keptEntryIDs = Set(referencesBySourceIndex.values.map(\.id))
+        searchResultsByEntryID = searchResultsByEntryID.filter { keptEntryIDs.contains($0.key) }
     }
 
     private func contiguousPrefixRows(from rowsBySourceIndex: [Int: SubtitleTableRow]) -> [SubtitleTableRow] {
@@ -336,4 +384,29 @@ private struct RowCacheKey: Hashable {
     let subtitlePath: String
     let content: String
     let cueLines: [String]
+}
+
+enum TableSandboxDisplayTextBudget {
+    static let maximumLines = 6
+    static let maximumCharactersPerLine = 500
+}
+
+private func tableSandboxDisplayText(content: String, cueLines: [String]) -> String {
+    subtitleDisplayLines(content: content, cueLines: cueLines)
+        .prefix(TableSandboxDisplayTextBudget.maximumLines)
+        .map(truncateTableSandboxDisplayLine)
+        .joined(separator: "\n")
+}
+
+private func truncateTableSandboxDisplayLine(_ line: String) -> String {
+    guard line.count > TableSandboxDisplayTextBudget.maximumCharactersPerLine else {
+        return line
+    }
+
+    let end = line.index(
+        line.startIndex,
+        offsetBy: TableSandboxDisplayTextBudget.maximumCharactersPerLine,
+        limitedBy: line.endIndex
+    ) ?? line.endIndex
+    return String(line[..<end]) + "..."
 }

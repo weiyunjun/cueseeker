@@ -84,6 +84,7 @@ extension AppCoordinator {
         else {
             return nil
         }
+        let searchDatabaseURL = databaseURL
 
         let totalCount = search.searchResultTotalCount
         guard totalCount > 0 else { return nil }
@@ -93,17 +94,24 @@ extension AppCoordinator {
         guard lowerBound < upperBound else { return nil }
 
         do {
+            guard let indexWindow = database.searchResultIDIndexWindow(
+                trimmedQuery,
+                limit: upperBound - lowerBound,
+                cursor: SubtitleSearchCursor(offset: lowerBound),
+                under: folders,
+                languageFilter: languageFilter,
+                minimumKnownResultCount: upperBound
+            ) else {
+                return nil
+            }
+
             let page = try await Task.detached(priority: .userInitiated) {
-                try database.searchVisiblePage(
-                    trimmedQuery,
-                    limit: upperBound - lowerBound,
-                    cursor: SubtitleSearchCursor(offset: lowerBound),
-                    under: folders,
-                    languageFilter: languageFilter
-                )
+                let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
+                return try pageDatabase.searchIndexedVisiblePage(from: indexWindow)
             }.value
 
             guard !Task.isCancelled,
+                  let page,
                   search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                   indexing.selectedFolders.map(\.path) == folders.map(\.path),
                   settings.primarySearchLanguage.searchLanguageFilter == languageFilter

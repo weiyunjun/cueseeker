@@ -31,12 +31,15 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
     private let prefetchPageCount: Int
     private let smallResultEagerLoadThreshold: Int
     private let maxBackgroundLoads: Int
+    private let debounceNanoseconds: UInt64
     private var pendingRequests: [Int: PendingRequest] = [:]
     private var inFlightRequests: [Int: ActiveRequest] = [:]
+    private var viewportDebounceTask: Task<Void, Never>?
     private var isRowLoaded: ((Int) -> Bool)?
     private var load: ((Range<Int>) async -> TableSandboxSearchHydrationPage?)?
     private var apply: ((TableSandboxSearchHydrationPage) -> Void)?
     private var generation = 0
+    private var viewportDebounceGeneration = 0
     private var sequence = 0
 
     init(
@@ -48,7 +51,7 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
         smallResultEagerLoadThreshold: Int = 2_000,
         maxBackgroundLoads: Int = 2
     ) {
-        _ = debounceNanoseconds
+        self.debounceNanoseconds = debounceNanoseconds
         let resolvedPageSize = max(1, pageSize ?? maxHydrationRows)
         self.pageSize = resolvedPageSize
         self.prefetchPageCount = max(0, prefetchPageCount ?? Int(ceil(Double(overscanRows) / Double(resolvedPageSize))))
@@ -62,6 +65,9 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
 
     func reset() {
         generation += 1
+        viewportDebounceGeneration += 1
+        viewportDebounceTask?.cancel()
+        viewportDebounceTask = nil
         pendingRequests.removeAll()
         inFlightRequests.values.forEach { $0.task.cancel() }
         inFlightRequests.removeAll()
@@ -84,10 +90,40 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
             return
         }
 
-        enqueuePages(overlapping: clampedVisibleRows, totalRowCount: totalRowCount, priority: .viewport)
-        enqueuePrefetchPages(around: clampedVisibleRows, totalRowCount: totalRowCount)
-        enqueueSmallResultCompletion(totalRowCount: totalRowCount)
-        drainBackgroundQueue(totalRowCount: totalRowCount)
+        cancelRequestsOutsideFocusedPages(around: clampedVisibleRows, totalRowCount: totalRowCount)
+        if debounceNanoseconds > 0 {
+            scheduleDebouncedViewport(clampedVisibleRows, totalRowCount: totalRowCount)
+            return
+        }
+        startViewport(clampedVisibleRows, totalRowCount: totalRowCount)
+    }
+
+    private func scheduleDebouncedViewport(_ visibleRows: Range<Int>, totalRowCount: Int) {
+        viewportDebounceGeneration += 1
+        let requestGeneration = generation
+        let requestDebounceGeneration = viewportDebounceGeneration
+        let delay = debounceNanoseconds
+        viewportDebounceTask?.cancel()
+        viewportDebounceTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: delay)
+            } catch {
+                return
+            }
+            guard let self,
+                  !Task.isCancelled,
+                  self.generation == requestGeneration,
+                  self.viewportDebounceGeneration == requestDebounceGeneration
+            else {
+                return
+            }
+            self.viewportDebounceTask = nil
+            self.startViewport(visibleRows, totalRowCount: totalRowCount)
+        }
+    }
+
+    private func startViewport(_ visibleRows: Range<Int>, totalRowCount: Int) {
+        enqueuePages(overlapping: visibleRows, totalRowCount: totalRowCount, priority: .viewport)
     }
 
     func scheduleInitialCompletion(
@@ -97,8 +133,7 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
         apply: @escaping (TableSandboxSearchHydrationPage) -> Void
     ) {
         configure(isRowLoaded: isRowLoaded, load: load, apply: apply)
-        enqueueSmallResultCompletion(totalRowCount: totalRowCount)
-        drainBackgroundQueue(totalRowCount: totalRowCount)
+        _ = totalRowCount
     }
 
     private func configure(
@@ -141,6 +176,25 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
                 enqueuePage(after, totalRowCount: totalRowCount, priority: .prefetch)
             }
         }
+    }
+
+    private func cancelRequestsOutsideFocusedPages(around visibleRows: Range<Int>, totalRowCount: Int) {
+        let focusedPages = focusedPageSet(around: visibleRows, totalRowCount: totalRowCount)
+        pendingRequests = pendingRequests.filter { page, _ in
+            focusedPages.contains(page)
+        }
+        let obsoletePages = inFlightRequests.keys.filter { !focusedPages.contains($0) }
+        for page in obsoletePages {
+            inFlightRequests[page]?.task.cancel()
+            inFlightRequests.removeValue(forKey: page)
+        }
+    }
+
+    private func focusedPageSet(around visibleRows: Range<Int>, totalRowCount: Int) -> Set<Int> {
+        guard let visiblePages = pageIndexes(overlapping: visibleRows, totalRowCount: totalRowCount) else {
+            return []
+        }
+        return Set(visiblePages)
     }
 
     private func enqueueSmallResultCompletion(totalRowCount: Int) {
@@ -226,7 +280,7 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
             return
         }
         inFlightRequests.removeValue(forKey: page)
-        drainBackgroundQueue(totalRowCount: totalRowCount)
+        _ = totalRowCount
     }
 
     private var backgroundInFlightCount: Int {

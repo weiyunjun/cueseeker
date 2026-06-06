@@ -779,6 +779,66 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
 }
 
 @Test
+func searchExactPageCachesResultIDIndexForVisibleWindows() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/IndexedWindow.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/IndexedWindow.mkv")
+    let entries = (0..<8).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: String(format: "00:00:%02d,000", index),
+            endTimecode: String(format: "00:00:%02d,500", index),
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Shared indexed window \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+
+    #expect(database.searchResultIDIndexWindow(
+        "shared",
+        limit: 2,
+        cursor: SubtitleSearchCursor(offset: 4),
+        minimumKnownResultCount: 6
+    ) == nil)
+
+    let exactPage = try database.searchPage("shared", limit: 2)
+    #expect(exactPage.totalCount == 8)
+
+    let window = try #require(database.searchResultIDIndexWindow(
+        "shared",
+        limit: 2,
+        cursor: SubtitleSearchCursor(offset: 4),
+        minimumKnownResultCount: 6
+    ))
+    let indexedPage = try #require(try database.searchIndexedVisiblePage(from: window))
+
+    #expect(indexedPage.pageMode == .visibleWindow)
+    #expect(indexedPage.countState == .exact)
+    #expect(indexedPage.totalCount == 8)
+    #expect(indexedPage.nextCursor?.offset == 6)
+    #expect(indexedPage.orderSource == "resultIDIndex")
+    #expect(indexedPage.materializedOrderRows == 2)
+    #expect(indexedPage.results.map(\.content) == [
+        "Shared indexed window 4",
+        "Shared indexed window 5",
+    ])
+    #expect(indexedPage.results.map(\.searchRank) == [4, 5])
+}
+
+@Test
 func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
