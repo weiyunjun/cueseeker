@@ -268,6 +268,12 @@ current playback time.
   that cue back to the cached global result rank.
 - The selected result/rank remains the fallback when no playback-time match is
   available.
+- The playback Search Results side panel now uses the navigation snapshot's
+  current result/index as its selected row and scroll target before falling
+  back to the originally selected Search result.
+- Applying a Search navigation snapshot also seeds the side-panel visible window
+  from the snapshot neighborhood so the right sidebar display moves with the
+  same playback-time anchor as previous/next navigation.
 - Added a regression test covering playback moving from an earlier selected
   Search result to a later matching cue in the same video.
 
@@ -278,13 +284,18 @@ current playback time.
   - 57 Testing tests passed.
 - Passed: `swift test --jobs 1 --filter PlaybackNavigation`
   - 14 Testing tests passed.
+- Follow-up side-panel display synchronization passed: `swift build`,
+  `swift test --jobs 1 --filter Search`, and
+  `swift test --jobs 1 --filter PlaybackNavigation`.
 
 ### Outcome
 
 The cached result-ID navigation path now preserves the previous time-based
 playback anchor behavior. When playback has naturally advanced to a later
 matching Search result in the same video, previous/next navigation uses that
-current playback position instead of the originally clicked result.
+current playback position instead of the originally clicked result. The
+right-side Search Results panel now follows the same snapshot for highlight and
+scroll position.
 
 ## Final Verification
 

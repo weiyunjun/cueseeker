@@ -65,8 +65,8 @@ struct PlaybackSidebarShell: View {
             rowCount: searchNavigationTotalCount,
             rowHeight: Self.estimatedSearchResultRowHeight,
             rowsVersion: search.searchNavigationVisibleRowsVersion,
-            scrollTargetRow: selectedSearchRank,
-            scrollTargetVersion: selectedSearchScrollTargetVersion,
+            scrollTargetRow: activeSearchRank,
+            scrollTargetVersion: activeSearchScrollTargetVersion,
             onVisibleRowsChange: { rows in
                 appState.loadSearchNavigationVisibleWindow(rows: rows)
             },
@@ -86,7 +86,7 @@ struct PlaybackSidebarShell: View {
                 rank: row + 1,
                 result: result,
                 query: search.searchQuery,
-                isSelected: result.entryID == search.selectedSearchResult?.entryID,
+                isSelected: isActiveSearchResult(result),
                 onOpen: { appState.openSearchResult(result) }
             )
             .frame(height: Self.estimatedSearchResultRowHeight, alignment: .top)
@@ -103,7 +103,11 @@ struct PlaybackSidebarShell: View {
         )
     }
 
-    private var selectedSearchRank: Int? {
+    private var activeSearchRank: Int? {
+        if let currentIndex = search.searchNavigationSnapshot?.currentIndex {
+            return currentIndex
+        }
+
         guard let selected = search.selectedSearchResult,
               selected.searchRank >= 0
         else {
@@ -112,11 +116,25 @@ struct PlaybackSidebarShell: View {
         return selected.searchRank
     }
 
-    private var selectedSearchScrollTargetVersion: Int {
+    private var activeSearchScrollTargetVersion: Int {
+        if let snapshot = search.searchNavigationSnapshot,
+           let currentIndex = snapshot.currentIndex {
+            let currentID = snapshot.current?.entryID ?? -1
+            return currentIndex ^ Int(truncatingIfNeeded: currentID)
+        }
+
         guard let selected = search.selectedSearchResult else {
             return 0
         }
         return selected.searchRank ^ Int(truncatingIfNeeded: selected.entryID)
+    }
+
+    private func isActiveSearchResult(_ result: SubtitleSearchResult) -> Bool {
+        if let current = search.searchNavigationSnapshot?.current {
+            return result.entryID == current.entryID
+        }
+
+        return result.entryID == search.selectedSearchResult?.entryID
     }
 
     private func sidebarTab(_ panel: PlaybackDrawerKind, title: String) -> some View {

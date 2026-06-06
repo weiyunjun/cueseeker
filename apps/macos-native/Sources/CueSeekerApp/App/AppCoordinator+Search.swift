@@ -1126,6 +1126,13 @@ extension AppCoordinator {
 
     func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
         search.searchNavigationSnapshot = snapshot
+        if let firstRank = snapshot.neighborhood.first?.searchRank {
+            search.applySearchNavigationVisibleWindow(
+                snapshot.neighborhood,
+                startIndex: firstRank,
+                totalCount: snapshot.totalCount
+            )
+        }
         let paths = Set(snapshot.neighborhood.map(\.subtitlePath))
         let summaries = search.searchFileSummaries.filter { paths.contains($0.subtitlePath) }
         search.searchNavigationResultGroups = Self.makeSearchResultGroups(
