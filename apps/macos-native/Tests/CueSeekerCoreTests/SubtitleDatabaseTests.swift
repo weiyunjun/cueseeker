@@ -951,6 +951,31 @@ func searchNavigationSnapshotUsesCachedResultIDIndexWindow() throws {
     #expect(snapshot.current?.content == "Shared indexed navigation 4")
     #expect(snapshot.next?.content == "Shared indexed navigation 5")
     #expect(snapshot.neighborhood.map(\.searchRank) == [3, 4, 5])
+
+    let earlierWindow = try #require(database.searchResultIDIndexWindow(
+        "shared",
+        limit: 1,
+        cursor: SubtitleSearchCursor(offset: 1)
+    ))
+    let earlierPage = try #require(try database.searchIndexedVisiblePage(from: earlierWindow))
+    let earlierSelected = try #require(earlierPage.results.first)
+
+    let timeAnchoredSnapshot = try #require(try database.searchNavigationSnapshotFromResultIDIndex(
+        "shared",
+        anchor: SearchNavigationAnchor(
+            selectedEntryID: earlierSelected.entryID,
+            selectedSearchRank: earlierSelected.searchRank,
+            videoPath: earlierSelected.videoPath,
+            subtitlePath: earlierSelected.subtitlePath,
+            currentMilliseconds: 4_100
+        ),
+        radius: 1
+    ))
+
+    #expect(timeAnchoredSnapshot.currentIndex == 4)
+    #expect(timeAnchoredSnapshot.previous?.content == "Shared indexed navigation 3")
+    #expect(timeAnchoredSnapshot.current?.content == "Shared indexed navigation 4")
+    #expect(timeAnchoredSnapshot.next?.content == "Shared indexed navigation 5")
 }
 
 @Test

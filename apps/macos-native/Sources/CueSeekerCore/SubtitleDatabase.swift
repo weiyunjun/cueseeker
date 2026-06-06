@@ -857,6 +857,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
     private static let exactSearchCandidateBatchMinimum = 5_000
+    private static let searchNavigationPlaybackAnchorBatchLimit = 64
     private static let maxSearchResultCacheEntries = 64
     private static let maxSearchResultIDIndexCacheEntries = 2
     private static let maxCachedSearchPageLimit = 500
@@ -2653,7 +2654,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        let currentIndex = Self.searchNavigationIndex(
+        let currentIndex = try searchNavigationPlaybackTimeIndex(
+            query,
+            resultIDIndex: resultIDIndex,
+            under: folders,
+            languageFilter: languageFilter,
+            anchor: anchor
+        ) ?? Self.searchNavigationIndex(
             in: resultIDIndex.cueGroupIDs,
             anchor: anchor
         )
@@ -2702,6 +2709,210 @@ public final class SubtitleDatabase: @unchecked Sendable {
             current: current,
             next: next
         )
+    }
+
+    private func searchNavigationPlaybackTimeIndex(
+        _ query: String,
+        resultIDIndex: SearchResultIDIndex,
+        under folders: [URL]?,
+        languageFilter: SubtitleSearchLanguageFilter,
+        anchor: SearchNavigationAnchor
+    ) throws -> Int? {
+        guard let videoPath = anchor.videoPath,
+              let subtitlePath = anchor.subtitlePath,
+              let plan = Self.searchQueryPlan(
+                  for: query,
+                  limit: Self.searchNavigationPlaybackAnchorBatchLimit
+              )
+        else {
+            return nil
+        }
+
+        let pathPrefixes: [String]?
+        if let folders {
+            let prefixes = Self.folderPathPrefixes(for: folders)
+            guard !prefixes.isEmpty else {
+                return nil
+            }
+            pathPrefixes = prefixes
+        } else {
+            pathPrefixes = nil
+        }
+
+        try requireCompleteSearchOrderRows(
+            pathPrefixes: pathPrefixes,
+            subtitlePath: subtitlePath
+        )
+
+        let scopeCondition = pathPrefixes.map {
+            let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
+                .joined(separator: " OR ")
+            return "AND (\(conditions))"
+        } ?? ""
+        let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
+        let languageFilterCodeSet = Set(languageFilterCodes)
+        let filtersByMatchingLineLanguage = !languageFilterCodeSet.isEmpty
+        let languageConditionCodes = languageFilterCodes.contains(.unknown) ? [] : languageFilterCodes
+        let languageCondition: String
+        if languageConditionCodes.isEmpty {
+            languageCondition = ""
+        } else {
+            let placeholders = Array(repeating: "?", count: languageConditionCodes.count)
+                .joined(separator: ", ")
+            languageCondition = """
+            AND (
+                EXISTS (
+                    SELECT 1
+                    FROM subtitle_cue_group_languages cgl
+                    WHERE cgl.cue_group_id = g.id
+                      AND cgl.language_code IN (\(placeholders))
+                )
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM subtitle_cue_group_languages cgl_missing
+                    WHERE cgl_missing.cue_group_id = g.id
+                )
+            )
+            """
+        }
+
+        let statement = try database.prepare(
+            """
+            SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                   g.start_ms, g.end_ms, g.search_content, g.line_count,
+                   sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
+            FROM subtitle_cue_groups_fts f
+            JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            WHERE subtitle_cue_groups_fts MATCH ?
+            \(scopeCondition)
+              AND sf.subtitle_path = ?
+              AND vf.path = ?
+              AND g.start_ms <= ?
+            \(languageCondition)
+            ORDER BY g.start_ms DESC, g.id DESC
+            LIMIT ? OFFSET ?;
+            """
+        )
+
+        var candidateOffset = 0
+        var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
+
+        while true {
+            try Task.checkCancellation()
+            try statement.reset()
+            try statement.clearBindings()
+
+            try statement.bind(plan.ftsQuery, at: 1)
+            var bindIndex: Int32 = 2
+            if let pathPrefixes {
+                for prefix in pathPrefixes {
+                    try statement.bind(prefix, at: bindIndex)
+                    bindIndex += 1
+                    try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+                    bindIndex += 1
+                }
+            }
+            try statement.bind(subtitlePath, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(videoPath, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(anchor.currentMilliseconds, at: bindIndex)
+            bindIndex += 1
+            for languageCode in languageConditionCodes {
+                try statement.bind(languageCode.rawValue, at: bindIndex)
+                bindIndex += 1
+            }
+            try statement.bind(Self.searchNavigationPlaybackAnchorBatchLimit, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(candidateOffset, at: bindIndex)
+
+            var candidates: [SearchCandidate] = []
+            while try statement.step() {
+                candidates.append(
+                    SearchCandidate(
+                        cueGroupID: statement.int64Column(0),
+                        subtitleFileID: statement.int64Column(1),
+                        subtitlePath: statement.stringColumn(2),
+                        subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt,
+                        videoPath: statement.stringColumn(4),
+                        videoName: statement.stringColumn(5),
+                        startMilliseconds: statement.intColumn(6),
+                        endMilliseconds: statement.intColumn(7),
+                        searchContent: statement.stringColumn(8),
+                        lineCount: statement.intColumn(9),
+                        order: SearchResultOrder(
+                            subtitleFileName: statement.stringColumn(10),
+                            displayTitle: statement.stringColumn(11),
+                            folderOrder: statement.intColumn(12),
+                            fileOrder: statement.intColumn(13)
+                        )
+                    )
+                )
+            }
+
+            guard !candidates.isEmpty else {
+                return nil
+            }
+
+            let lineFilteredCueGroupIDs = candidates
+                .filter {
+                    $0.lineCount > 1 || (filtersByMatchingLineLanguage && $0.subtitleFormat == .ass)
+                }
+                .map(\.cueGroupID)
+            let linesByCueGroupID = try cueLines(forCueGroupIDs: lineFilteredCueGroupIDs)
+            var fallbackLanguageCueGroupIDs: [Int64] = []
+            if filtersByMatchingLineLanguage {
+                fallbackLanguageCueGroupIDs.reserveCapacity(candidates.count)
+                for candidate in candidates {
+                    let languageDetections: SearchLanguageDetections
+                    if let cached = languageDetectionsBySubtitleFileID[candidate.subtitleFileID] {
+                        languageDetections = cached
+                    } else {
+                        let loaded = try searchLanguageDetections(forSubtitleFileID: candidate.subtitleFileID)
+                        languageDetectionsBySubtitleFileID[candidate.subtitleFileID] = loaded
+                        languageDetections = loaded
+                    }
+                    if !languageDetections.hasAnyDetection {
+                        fallbackLanguageCueGroupIDs.append(candidate.cueGroupID)
+                    }
+                }
+            }
+            let languagesByCueGroupID = try cueGroupLanguages(forCueGroupIDs: fallbackLanguageCueGroupIDs)
+
+            for candidate in candidates {
+                let lines = linesByCueGroupID[candidate.cueGroupID] ?? []
+                let lineContents = lines.isEmpty ? [candidate.searchContent] : lines.map(\.content)
+                let languageDetections = filtersByMatchingLineLanguage
+                    ? languageDetectionsBySubtitleFileID[candidate.subtitleFileID]
+                    : nil
+                guard searchResult(
+                    for: candidate,
+                    lines: lines,
+                    fallbackLineContents: lineContents,
+                    matching: plan,
+                    languageFilterCodes: languageFilterCodeSet,
+                    languageDetections: languageDetections,
+                    cueGroupLanguages: languagesByCueGroupID[candidate.cueGroupID] ?? []
+                ) != nil else {
+                    continue
+                }
+
+                return Self.searchNavigationIndex(
+                    of: candidate.cueGroupID,
+                    in: resultIDIndex.cueGroupIDs,
+                    preferredSearchRank: anchor.selectedSearchRank
+                )
+            }
+
+            candidateOffset += candidates.count
+            if candidates.count < Self.searchNavigationPlaybackAnchorBatchLimit {
+                return nil
+            }
+        }
     }
 
     public func searchPage(
@@ -4285,6 +4496,41 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return nil
+    }
+
+    private static func searchNavigationIndex(
+        of cueGroupID: Int64,
+        in cueGroupIDs: [Int64],
+        preferredSearchRank: Int?
+    ) -> Int? {
+        if let preferredSearchRank,
+           cueGroupIDs.indices.contains(preferredSearchRank),
+           cueGroupIDs[preferredSearchRank] == cueGroupID {
+            return preferredSearchRank
+        }
+
+        if let preferredSearchRank,
+           cueGroupIDs.indices.contains(preferredSearchRank) {
+            var lowerIndex = preferredSearchRank - 1
+            var upperIndex = preferredSearchRank + 1
+            while lowerIndex >= 0 || upperIndex < cueGroupIDs.count {
+                if upperIndex < cueGroupIDs.count {
+                    if cueGroupIDs[upperIndex] == cueGroupID {
+                        return upperIndex
+                    }
+                    upperIndex += 1
+                }
+
+                if lowerIndex >= 0 {
+                    if cueGroupIDs[lowerIndex] == cueGroupID {
+                        return lowerIndex
+                    }
+                    lowerIndex -= 1
+                }
+            }
+        }
+
+        return cueGroupIDs.firstIndex(of: cueGroupID)
     }
 
     private static func fileSummaries(for results: [OrderedSearchResult]) -> [SubtitleSearchFileSummary] {

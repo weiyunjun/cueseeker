@@ -247,6 +247,45 @@ Opening an SRT-backed playback item no longer performs full subtitle-entry
 hydration on the main playback-opening path. Once the background track is ready,
 active subtitle text lookup is indexed by time rather than a full-array scan.
 
+## Regression Fix: Search Navigation Time Anchor
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Fix the Search previous/next regression where the result-ID index navigation
+path anchored only to the originally selected result/rank and ignored the
+current playback time.
+
+### Changes
+
+- Restored time-first navigation anchoring for
+  `searchNavigationSnapshotFromResultIDIndex`.
+- The result-ID path now resolves the latest matching cue in the current
+  playback video/subtitle at or before the displayed playback time, then maps
+  that cue back to the cached global result rank.
+- The selected result/rank remains the fallback when no playback-time match is
+  available.
+- Added a regression test covering playback moving from an earlier selected
+  Search result to a later matching cue in the same video.
+
+### Verification
+
+- Passed: `swift test --jobs 1 --filter searchNavigationSnapshotUsesCachedResultIDIndexWindow`
+- Passed: `swift test --jobs 1 --filter Search`
+  - 57 Testing tests passed.
+- Passed: `swift test --jobs 1 --filter PlaybackNavigation`
+  - 14 Testing tests passed.
+
+### Outcome
+
+The cached result-ID navigation path now preserves the previous time-based
+playback anchor behavior. When playback has naturally advanced to a later
+matching Search result in the same video, previous/next navigation uses that
+current playback position instead of the originally clicked result.
+
 ## Final Verification
 
 Date: 2026-06-07
