@@ -13,6 +13,7 @@ enum SubtitleTableMetrics {
     static let headerHeight: CGFloat = 34
     static let cornerRadius: CGFloat = 10
     static let estimatedRowHeight: CGFloat = 56
+    static let maximumBodyLineCount = 6
 }
 
 // MARK: - Typography (aligned with the production search/Shiori cue text)
@@ -55,9 +56,9 @@ final class SubtitleTextLayout {
     private let layoutManager = NSLayoutManager()
     private let textContainer = NSTextContainer()
 
-    init() {
+    init(maximumNumberOfLines: Int = SubtitleTableMetrics.maximumBodyLineCount) {
         textContainer.lineFragmentPadding = 0
-        textContainer.maximumNumberOfLines = 0
+        textContainer.maximumNumberOfLines = maximumNumberOfLines
         layoutManager.usesFontLeading = true
         layoutManager.addTextContainer(textContainer)
         textStorage.addLayoutManager(layoutManager)
