@@ -69,7 +69,13 @@ private struct WorkbenchTestSearchView: View {
         }
         .onAppear { updateRows(search.searchResults) }
         .onReceive(search.$searchResults) { updateRows($0) }
-        .onChange(of: search.searchResultTotalCount) { _ in updateRows(search.searchResults) }
+        .onChange(of: search.searchQuery) { _ in
+            visibleHydrator.reset()
+        }
+        .onChange(of: search.searchResultTotalCount) { _ in
+            visibleHydrator.reset()
+            updateRows(search.searchResults)
+        }
         .onDisappear { visibleHydrator.cancel() }
     }
 
@@ -79,11 +85,27 @@ private struct WorkbenchTestSearchView: View {
             totalRowCount: search.searchResultTotalCount,
             tableName: "test-search"
         )
+        hydrateInitialRowsIfNeeded()
     }
 
     private func play(_ row: SubtitleTableRow) {
-        guard let result = search.searchResults.first(where: { Int($0.entryID) == row.id }) else { return }
+        guard let result = rowStore.snapshot.searchResult(entryID: row.id)
+            ?? search.searchResults.first(where: { Int($0.entryID) == row.id })
+        else {
+            return
+        }
         appState.openSearchResult(result)
+    }
+
+    private func hydrateInitialRowsIfNeeded() {
+        visibleHydrator.scheduleInitialCompletion(
+            totalRowCount: rowStore.snapshot.totalRowCount,
+            isRowLoaded: { rowStore.snapshot.row(at: $0) != nil },
+            load: { range in
+                await appState.loadTableSandboxSearchRows(range: range)
+            },
+            apply: applyHydrationPage
+        )
     }
 
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
@@ -94,14 +116,16 @@ private struct WorkbenchTestSearchView: View {
             load: { range in
                 await appState.loadTableSandboxSearchRows(range: range)
             },
-            apply: { page in
-                rowStore.hydrateSearchRows(
-                    page.results,
-                    startIndex: page.range.lowerBound,
-                    totalRowCount: max(search.searchResultTotalCount, rowStore.snapshot.totalRowCount),
-                    tableName: "test-search"
-                )
-            }
+            apply: applyHydrationPage
+        )
+    }
+
+    private func applyHydrationPage(_ page: TableSandboxSearchHydrationPage) {
+        rowStore.hydrateSearchRows(
+            page.results,
+            startIndex: page.range.lowerBound,
+            totalRowCount: max(search.searchResultTotalCount, rowStore.snapshot.totalRowCount),
+            tableName: "test-search"
         )
     }
 }

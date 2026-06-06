@@ -5,6 +5,7 @@ import CueSeekerCore
 struct TableSandboxRowsSnapshot {
     var rows: [SubtitleTableRow] = []
     var rowsBySourceIndex: [Int: SubtitleTableRow] = [:]
+    var searchResultsByEntryID: [Int: SubtitleSearchResult] = [:]
     var version = 0
     var update = TableSandboxRowsUpdate.none
     var references: [TableSandboxRowReference] = []
@@ -16,6 +17,10 @@ struct TableSandboxRowsSnapshot {
 
     func row(at index: Int) -> SubtitleTableRow? {
         rowsBySourceIndex[index]
+    }
+
+    func searchResult(entryID: Int) -> SubtitleSearchResult? {
+        searchResultsByEntryID[entryID]
     }
 }
 
@@ -90,10 +95,14 @@ final class TableSandboxRowModelStore: ObservableObject {
         let rowsBySourceIndex = Dictionary(uniqueKeysWithValues: rows.enumerated().map { index, row in
             (index, row)
         })
+        let searchResultsByEntryID = Dictionary(uniqueKeysWithValues: results.map { result in
+            (Int(result.entryID), result)
+        })
 
         apply(
             rows,
             rowsBySourceIndex: rowsBySourceIndex,
+            searchResultsByEntryID: searchResultsByEntryID,
             references: references,
             totalRowCount: max(totalRowCount ?? results.count, results.count),
             nextRowsByKey: nextRowsByKey,
@@ -114,6 +123,7 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         let start = TableRenderingPerformanceLogger.now()
         var nextRowsBySourceIndex = snapshot.rowsBySourceIndex
+        var nextSearchResultsByEntryID = snapshot.searchResultsByEntryID
         var referencesBySourceIndex = Dictionary(uniqueKeysWithValues: snapshot.references.map { reference in
             (reference.sourceIndex, reference)
         })
@@ -128,6 +138,7 @@ final class TableSandboxRowModelStore: ObservableObject {
                 upperChangedIndex = max(upperChangedIndex ?? sourceIndex + 1, sourceIndex + 1)
             }
             nextRowsBySourceIndex[sourceIndex] = row
+            nextSearchResultsByEntryID[Int(result.entryID)] = result
             referencesBySourceIndex[sourceIndex] = TableSandboxRowReference(
                 source: .search,
                 sourceIndex: sourceIndex,
@@ -155,6 +166,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         snapshot = TableSandboxRowsSnapshot(
             rows: contiguousPrefixRows(from: nextRowsBySourceIndex),
             rowsBySourceIndex: nextRowsBySourceIndex,
+            searchResultsByEntryID: nextSearchResultsByEntryID,
             version: snapshot.version + 1,
             update: update,
             references: references,
@@ -208,6 +220,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         apply(
             rows,
             rowsBySourceIndex: rowsBySourceIndex,
+            searchResultsByEntryID: [:],
             references: references,
             totalRowCount: shioris.count,
             nextRowsByKey: nextRowsByKey,
@@ -221,6 +234,7 @@ final class TableSandboxRowModelStore: ObservableObject {
     private func apply(
         _ rows: [SubtitleTableRow],
         rowsBySourceIndex: [Int: SubtitleTableRow],
+        searchResultsByEntryID: [Int: SubtitleSearchResult],
         references: [TableSandboxRowReference],
         totalRowCount: Int,
         nextRowsByKey: [RowCacheKey: SubtitleTableRow],
@@ -252,6 +266,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         snapshot = TableSandboxRowsSnapshot(
             rows: rows,
             rowsBySourceIndex: rowsBySourceIndex,
+            searchResultsByEntryID: searchResultsByEntryID,
             version: snapshot.version + 1,
             update: update,
             references: references,

@@ -178,6 +178,32 @@ func tableSandboxRowModelStoreDoesNotShrinkAuthoritativeTotalDuringHydration() {
     #expect(store.snapshot.row(at: 111)?.cues == "visible row")
 }
 
+@MainActor
+@Test
+func tableSandboxRowModelStoreCachesHydratedSearchResultsForActions() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows(
+        [
+            searchResult(id: 1, path: path, content: "loaded row", cueLines: ["loaded row"]),
+        ],
+        totalRowCount: 500,
+        tableName: "test-search"
+    )
+    store.hydrateSearchRows(
+        [
+            searchResult(id: 301, path: path, content: "hydrated row", cueLines: ["hydrated row"]),
+        ],
+        startIndex: 300,
+        totalRowCount: 500,
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.searchResult(entryID: 1)?.content == "loaded row")
+    #expect(store.snapshot.searchResult(entryID: 301)?.content == "hydrated row")
+}
+
 private func searchResult(
     id: Int64,
     path: String,

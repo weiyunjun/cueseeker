@@ -5,9 +5,9 @@ import Testing
 @Test
 func tableSandboxVisibleSearchHydratorSkipsAlreadyLoadedRows() async throws {
     let hydrator = TableSandboxVisibleSearchHydrator(
-        debounceNanoseconds: 0,
         overscanRows: 0,
-        maxHydrationRows: 20
+        maxHydrationRows: 20,
+        smallResultEagerLoadThreshold: 0
     )
     var loadCount = 0
 
@@ -29,12 +29,14 @@ func tableSandboxVisibleSearchHydratorSkipsAlreadyLoadedRows() async throws {
 
 @MainActor
 @Test
-func tableSandboxVisibleSearchHydratorCancelsStaleRequests() async throws {
+func tableSandboxVisibleSearchHydratorStartsViewportRequestsWithoutCancellingEarlierScrolls() async throws {
     let hydrator = TableSandboxVisibleSearchHydrator(
-        debounceNanoseconds: 20_000_000,
         overscanRows: 0,
-        maxHydrationRows: 20
+        maxHydrationRows: 20,
+        smallResultEagerLoadThreshold: 0,
+        maxBackgroundLoads: 1
     )
+    var loadedRanges: [String] = []
     var appliedRanges: [String] = []
 
     hydrator.schedule(
@@ -42,10 +44,12 @@ func tableSandboxVisibleSearchHydratorCancelsStaleRequests() async throws {
         totalRowCount: 200,
         isRowLoaded: { _ in false },
         load: { range in
-            TableSandboxSearchHydrationPage(range: range, results: [], totalRowCount: 200)
+            loadedRanges.append(rangeDescription(range))
+            try? await Task.sleep(nanoseconds: 20_000_000)
+            return TableSandboxSearchHydrationPage(range: range, results: [], totalRowCount: 200)
         },
         apply: { page in
-            appliedRanges.append("\(page.range.lowerBound)..<\(page.range.upperBound)")
+            appliedRanges.append(rangeDescription(page.range))
         }
     )
     hydrator.schedule(
@@ -53,14 +57,76 @@ func tableSandboxVisibleSearchHydratorCancelsStaleRequests() async throws {
         totalRowCount: 200,
         isRowLoaded: { _ in false },
         load: { range in
-            TableSandboxSearchHydrationPage(range: range, results: [], totalRowCount: 200)
+            loadedRanges.append(rangeDescription(range))
+            return TableSandboxSearchHydrationPage(range: range, results: [], totalRowCount: 200)
         },
         apply: { page in
-            appliedRanges.append("\(page.range.lowerBound)..<\(page.range.upperBound)")
+            appliedRanges.append(rangeDescription(page.range))
         }
     )
 
     try await Task.sleep(nanoseconds: 80_000_000)
 
-    #expect(appliedRanges == ["100..<110"])
+    #expect(Set(loadedRanges) == Set(["0..<20", "100..<120"]))
+    #expect(Set(appliedRanges) == Set(["0..<20", "100..<120"]))
+}
+
+@MainActor
+@Test
+func tableSandboxVisibleSearchHydratorEagerlyCompletesSmallResultSets() async throws {
+    let hydrator = TableSandboxVisibleSearchHydrator(
+        overscanRows: 0,
+        maxHydrationRows: 100,
+        smallResultEagerLoadThreshold: 500,
+        maxBackgroundLoads: 4
+    )
+    var loadedRows = Set(0..<100)
+    var loadedRanges: [String] = []
+
+    hydrator.scheduleInitialCompletion(
+        totalRowCount: 290,
+        isRowLoaded: { loadedRows.contains($0) },
+        load: { range in
+            loadedRanges.append(rangeDescription(range))
+            loadedRows.formUnion(range)
+            return TableSandboxSearchHydrationPage(range: range, results: [], totalRowCount: 290)
+        },
+        apply: { _ in }
+    )
+
+    try await Task.sleep(nanoseconds: 60_000_000)
+
+    #expect(Set(loadedRanges) == Set(["100..<200", "200..<290"]))
+}
+
+@MainActor
+@Test
+func tableSandboxVisibleSearchHydratorPrefetchesAdjacentPages() async throws {
+    let hydrator = TableSandboxVisibleSearchHydrator(
+        overscanRows: 0,
+        maxHydrationRows: 100,
+        prefetchPageCount: 1,
+        smallResultEagerLoadThreshold: 0,
+        maxBackgroundLoads: 4
+    )
+    var loadedRanges: [String] = []
+
+    hydrator.schedule(
+        visibleRows: 100..<110,
+        totalRowCount: 300,
+        isRowLoaded: { _ in false },
+        load: { range in
+            loadedRanges.append(rangeDescription(range))
+            return TableSandboxSearchHydrationPage(range: range, results: [], totalRowCount: 300)
+        },
+        apply: { _ in }
+    )
+
+    try await Task.sleep(nanoseconds: 60_000_000)
+
+    #expect(Set(loadedRanges) == Set(["0..<100", "100..<200", "200..<300"]))
+}
+
+private func rangeDescription(_ range: Range<Int>) -> String {
+    "\(range.lowerBound)..<\(range.upperBound)"
 }
