@@ -620,6 +620,9 @@ struct SubtitleTableView: NSViewRepresentable {
         private var heightMeasurementBatchCacheMisses = 0
         private var heightEstimateBatchCount = 0
         private var cellConfigurationBatchCount = 0
+        private lazy var heightInvalidationScheduler = SubtitleTableHeightInvalidationScheduler { [weak self] reason in
+            self?.invalidateVisibleRowHeights(reason: reason)
+        }
 
         private static let performanceLogBatchSize = 25
         private static let heightEstimateLogBatchSize = 250
@@ -762,7 +765,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         @objc func tableFrameChanged() {
-            invalidateVisibleRowHeights(reason: "frame_changed")
+            scheduleVisibleHeightInvalidation(reason: "frame_changed")
         }
 
         // MARK: Row heights
@@ -807,9 +810,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func scheduleVisibleHeightInvalidation(reason: String) {
-            Task { @MainActor [weak self] in
-                self?.invalidateVisibleRowHeights(reason: reason)
-            }
+            heightInvalidationScheduler.schedule(reason: reason)
         }
 
         private func invalidateVisibleRowHeights(reason: String) {
@@ -1219,7 +1220,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         @objc func scrollContentDidChange() {
-            invalidateVisibleRowHeights(reason: "scroll")
+            scheduleVisibleHeightInvalidation(reason: "scroll")
             guard let lastMouseWindowPoint else { return }
             updateHoveredRow(rowUnderCursor(windowPoint: lastMouseWindowPoint))
         }
