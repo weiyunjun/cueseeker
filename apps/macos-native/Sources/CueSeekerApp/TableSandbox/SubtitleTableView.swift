@@ -482,6 +482,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowProvider: (Int) -> SubtitleTableRow?
     var rowsVersion: Int
     var rowsUpdate: TableSandboxRowsUpdate
+    var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var onPlay: (SubtitleTableRow) -> Void
 
     fileprivate static let indexColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.index")
@@ -494,6 +495,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowCount: rowCount,
             rowProvider: rowProvider,
             rowsVersion: rowsVersion,
+            onVisibleRowsChange: onVisibleRowsChange,
             onPlay: onPlay
         )
     }
@@ -582,6 +584,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         table.reloadData()
         context.coordinator.scheduleVisibleHeightInvalidation(reason: "initial")
+        context.coordinator.notifyVisibleRowsChanged()
         return container
     }
 
@@ -592,6 +595,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowProvider: rowProvider,
             rowsVersion: rowsVersion,
             rowsUpdate: rowsUpdate,
+            onVisibleRowsChange: onVisibleRowsChange,
             onPlay: onPlay
         )
     }
@@ -604,6 +608,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rowCount: Int
         private var rowProvider: (Int) -> SubtitleTableRow?
         private var rowsVersion: Int
+        private var onVisibleRowsChange: (Range<Int>) -> Void
         private var onPlay: (SubtitleTableRow) -> Void
         weak var tableView: NSTableView?
         weak var headerView: SubtitleTableHeaderView?
@@ -659,12 +664,14 @@ struct SubtitleTableView: NSViewRepresentable {
             rowCount: Int,
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
+            onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
             self.rowCount = max(0, rowCount)
             self.rowProvider = rowProvider
             self.rowsVersion = rowsVersion
+            self.onVisibleRowsChange = onVisibleRowsChange
             self.onPlay = onPlay
         }
 
@@ -678,11 +685,13 @@ struct SubtitleTableView: NSViewRepresentable {
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
             rowsUpdate: TableSandboxRowsUpdate,
+            onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
             self.onPlay = onPlay
             self.rowProvider = rowProvider
+            self.onVisibleRowsChange = onVisibleRowsChange
             let nextRowCount = max(0, rowCount)
             let oldRowCount = self.rowCount
             let oldTableRowCount = tableView?.numberOfRows
@@ -815,6 +824,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @objc func tableFrameChanged() {
             scheduleVisibleHeightInvalidation(reason: "frame_changed")
+            notifyVisibleRowsChanged()
         }
 
         // MARK: Row heights
@@ -919,6 +929,24 @@ struct SubtitleTableView: NSViewRepresentable {
                 Int(ceil(tableView.visibleRect.height / SubtitleTableMetrics.estimatedRowHeight))
             )
             return NSRange(location: 0, length: min(tableView.numberOfRows, fallbackCount))
+        }
+
+        func notifyVisibleRowsChanged() {
+            guard let tableView,
+                  let visibleRows = visibleRowRange(in: tableView)
+            else {
+                return
+            }
+            onVisibleRowsChange(visibleRows)
+        }
+
+        private func visibleRowRange(in tableView: NSTableView) -> Range<Int>? {
+            guard tableView.numberOfRows > 0 else { return nil }
+            let visibleRows = visibleRowsForHeightInvalidation(in: tableView)
+            guard visibleRows.length > 0 else { return nil }
+            let lowerBound = max(0, min(tableView.numberOfRows, visibleRows.location))
+            let upperBound = max(lowerBound, min(tableView.numberOfRows, visibleRows.location + visibleRows.length))
+            return lowerBound < upperBound ? lowerBound..<upperBound : nil
         }
 
         private func cuesColumnWidth(in tableView: NSTableView) -> CGFloat {
@@ -1282,6 +1310,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @objc func scrollContentDidChange() {
             scheduleVisibleHeightInvalidation(reason: "scroll")
+            notifyVisibleRowsChanged()
             guard let lastMouseWindowPoint else { return }
             updateHoveredRow(rowUnderCursor(windowPoint: lastMouseWindowPoint))
         }

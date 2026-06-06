@@ -13,6 +13,7 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
             index == 0 ? loadedRow : nil
         },
         rowsVersion: 1,
+        onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
     let tableView = NSTableView()

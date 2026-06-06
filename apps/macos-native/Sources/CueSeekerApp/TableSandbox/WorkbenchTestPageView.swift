@@ -31,6 +31,7 @@ private struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
     @StateObject private var rowStore = TableSandboxRowModelStore()
+    @StateObject private var visibleHydrator = TableSandboxVisibleSearchHydrator()
     @State private var query = ""
 
     var body: some View {
@@ -60,6 +61,7 @@ private struct WorkbenchTestSearchView: View {
                 rowProvider: { rowStore.snapshot.row(at: $0) },
                 rowsVersion: rowStore.snapshot.version,
                 rowsUpdate: rowStore.snapshot.update,
+                onVisibleRowsChange: hydrateVisibleRows,
                 onPlay: play
             )
                 .padding(.horizontal, 16)
@@ -68,6 +70,7 @@ private struct WorkbenchTestSearchView: View {
         .onAppear { updateRows(search.searchResults) }
         .onReceive(search.$searchResults) { updateRows($0) }
         .onChange(of: search.searchResultTotalCount) { _ in updateRows(search.searchResults) }
+        .onDisappear { visibleHydrator.cancel() }
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
@@ -81,6 +84,25 @@ private struct WorkbenchTestSearchView: View {
     private func play(_ row: SubtitleTableRow) {
         guard let result = search.searchResults.first(where: { Int($0.entryID) == row.id }) else { return }
         appState.openSearchResult(result)
+    }
+
+    private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
+        visibleHydrator.schedule(
+            visibleRows: visibleRows,
+            totalRowCount: rowStore.snapshot.totalRowCount,
+            isRowLoaded: { rowStore.snapshot.row(at: $0) != nil },
+            load: { range in
+                await appState.loadTableSandboxSearchRows(range: range)
+            },
+            apply: { page in
+                rowStore.hydrateSearchRows(
+                    page.results,
+                    startIndex: page.range.lowerBound,
+                    totalRowCount: page.totalRowCount,
+                    tableName: "test-search"
+                )
+            }
+        )
     }
 }
 
@@ -96,6 +118,7 @@ private struct WorkbenchTestShioriView: View {
             rowProvider: { rowStore.snapshot.row(at: $0) },
             rowsVersion: rowStore.snapshot.version,
             rowsUpdate: rowStore.snapshot.update,
+            onVisibleRowsChange: { _ in },
             onPlay: play
         )
             .padding(16)

@@ -73,6 +73,54 @@ extension AppCoordinator {
         )
     }
 
+    func loadTableSandboxSearchRows(range: Range<Int>) async -> TableSandboxSearchHydrationPage? {
+        let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let folders = indexing.selectedFolders
+        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
+
+        guard !trimmedQuery.isEmpty,
+              !folders.isEmpty,
+              let database = subtitleDatabase
+        else {
+            return nil
+        }
+
+        let totalCount = search.searchResultTotalCount
+        guard totalCount > 0 else { return nil }
+
+        let lowerBound = min(max(0, range.lowerBound), totalCount)
+        let upperBound = min(max(lowerBound, range.upperBound), totalCount)
+        guard lowerBound < upperBound else { return nil }
+
+        do {
+            let page = try await Task.detached(priority: .userInitiated) {
+                try database.searchVisiblePage(
+                    trimmedQuery,
+                    limit: upperBound - lowerBound,
+                    cursor: SubtitleSearchCursor(offset: lowerBound),
+                    under: folders,
+                    languageFilter: languageFilter
+                )
+            }.value
+
+            guard !Task.isCancelled,
+                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                  indexing.selectedFolders.map(\.path) == folders.map(\.path),
+                  settings.primarySearchLanguage.searchLanguageFilter == languageFilter
+            else {
+                return nil
+            }
+
+            return TableSandboxSearchHydrationPage(
+                range: lowerBound..<(lowerBound + page.results.count),
+                results: page.results,
+                totalRowCount: page.totalCount
+            )
+        } catch {
+            return nil
+        }
+    }
+
     func toggleSearchResultGroup(_ subtitlePath: String) {
         let hasLoadedRows = searchResultGroupHasLoadedRows(subtitlePath)
         UIInvalidationProbe.mark(

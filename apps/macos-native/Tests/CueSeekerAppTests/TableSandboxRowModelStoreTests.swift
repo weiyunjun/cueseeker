@@ -108,6 +108,44 @@ func tableSandboxRowModelStoreTracksVirtualSearchTotalWithoutMaterializingUnload
     #expect(store.snapshot.references.last == TableSandboxRowReference(source: .search, sourceIndex: 99, id: 100))
 }
 
+@MainActor
+@Test
+func tableSandboxRowModelStoreHydratesSparseVisibleSearchRows() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+    let loadedResults = (0..<100).map { index in
+        searchResult(
+            id: Int64(index + 1),
+            path: path,
+            content: "loaded row \(index)",
+            cueLines: ["loaded row \(index)"]
+        )
+    }
+    store.updateSearchRows(
+        loadedResults,
+        totalRowCount: 2_000_000,
+        tableName: "test-search"
+    )
+
+    store.hydrateSearchRows(
+        [
+            searchResult(id: 1_000_001, path: path, content: "jumped row one", cueLines: ["jumped row one"]),
+            searchResult(id: 1_000_002, path: path, content: "jumped row two", cueLines: ["jumped row two"]),
+        ],
+        startIndex: 1_000_000,
+        totalRowCount: 2_000_000,
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.totalRowCount == 2_000_000)
+    #expect(store.snapshot.loadedReferenceCount == 102)
+    #expect(store.snapshot.rows.count == 100)
+    #expect(store.snapshot.row(at: 99)?.cues == "loaded row 99")
+    #expect(store.snapshot.row(at: 100) == nil)
+    #expect(store.snapshot.row(at: 1_000_000)?.cues == "jumped row one")
+    #expect(store.snapshot.update == .append(1_000_000..<1_000_002))
+}
+
 private func searchResult(
     id: Int64,
     path: String,
