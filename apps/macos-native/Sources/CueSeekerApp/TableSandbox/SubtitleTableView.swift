@@ -478,7 +478,8 @@ struct TableTextPosition: Comparable {
 
 struct SubtitleTableView: NSViewRepresentable {
     var tableName: String
-    var rows: [SubtitleTableRow]
+    var rowCount: Int
+    var rowProvider: (Int) -> SubtitleTableRow?
     var rowsVersion: Int
     var rowsUpdate: TableSandboxRowsUpdate
     var onPlay: (SubtitleTableRow) -> Void
@@ -488,7 +489,13 @@ struct SubtitleTableView: NSViewRepresentable {
     fileprivate static let cuesColumnID = NSUserInterfaceItemIdentifier("SubtitleTable.cues")
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(tableName: tableName, rows: rows, rowsVersion: rowsVersion, onPlay: onPlay)
+        Coordinator(
+            tableName: tableName,
+            rowCount: rowCount,
+            rowProvider: rowProvider,
+            rowsVersion: rowsVersion,
+            onPlay: onPlay
+        )
     }
 
     func makeNSView(context: Context) -> SubtitleTableContainerView {
@@ -581,7 +588,8 @@ struct SubtitleTableView: NSViewRepresentable {
     func updateNSView(_ nsView: SubtitleTableContainerView, context: Context) {
         context.coordinator.update(
             tableName: tableName,
-            rows: rows,
+            rowCount: rowCount,
+            rowProvider: rowProvider,
             rowsVersion: rowsVersion,
             rowsUpdate: rowsUpdate,
             onPlay: onPlay
@@ -593,7 +601,8 @@ struct SubtitleTableView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
         private var tableName: String
-        private var rows: [SubtitleTableRow]
+        private var rowCount: Int
+        private var rowProvider: (Int) -> SubtitleTableRow?
         private var rowsVersion: Int
         private var onPlay: (SubtitleTableRow) -> Void
         weak var tableView: NSTableView?
@@ -645,9 +654,16 @@ struct SubtitleTableView: NSViewRepresentable {
         private static let cuesCellID = NSUserInterfaceItemIdentifier("SubtitleTable.cuesCell")
         private static let rowViewID = NSUserInterfaceItemIdentifier("SubtitleTable.rowView")
 
-        init(tableName: String, rows: [SubtitleTableRow], rowsVersion: Int, onPlay: @escaping (SubtitleTableRow) -> Void) {
+        init(
+            tableName: String,
+            rowCount: Int,
+            rowProvider: @escaping (Int) -> SubtitleTableRow?,
+            rowsVersion: Int,
+            onPlay: @escaping (SubtitleTableRow) -> Void
+        ) {
             self.tableName = tableName
-            self.rows = rows
+            self.rowCount = max(0, rowCount)
+            self.rowProvider = rowProvider
             self.rowsVersion = rowsVersion
             self.onPlay = onPlay
         }
@@ -658,27 +674,30 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func update(
             tableName: String,
-            rows: [SubtitleTableRow],
+            rowCount: Int,
+            rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
             rowsUpdate: TableSandboxRowsUpdate,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
             self.onPlay = onPlay
-            let oldRowCount = self.rows.count
+            self.rowProvider = rowProvider
+            let nextRowCount = max(0, rowCount)
+            let oldRowCount = self.rowCount
             let oldTableRowCount = tableView?.numberOfRows
             let compareStart = TableRenderingPerformanceLogger.now()
-            let rowsChanged = rowsVersion != self.rowsVersion
+            let rowsChanged = rowsVersion != self.rowsVersion || nextRowCount != self.rowCount
             TableRenderingPerformanceLogger.record(
                 event: "rows_compared",
                 table: tableName,
                 elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: compareStart),
                 oldRowCount: oldRowCount,
-                newRowCount: rows.count,
+                newRowCount: nextRowCount,
                 changed: rowsChanged
             )
             guard rowsChanged else { return }
-            self.rows = rows
+            self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
             applyRowsUpdate(rowsUpdate, oldRowCount: oldRowCount, oldTableRowCount: oldTableRowCount)
         }
@@ -694,9 +713,9 @@ struct SubtitleTableView: NSViewRepresentable {
                     event: "rows_update_skipped",
                     table: tableName,
                     reason: rowsUpdate.reason,
-                    rowCount: rows.count,
+                    rowCount: rowCount,
                     oldRowCount: oldRowCount,
-                    newRowCount: rows.count
+                    newRowCount: rowCount
                 )
 
             case .append(let range) where canInsertRows(
@@ -705,6 +724,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 oldTableRowCount: oldTableRowCount
             ):
                 insertRows(range, oldRowCount: oldRowCount)
+
+            case .append(let range) where canReloadLoadedRows(range, oldTableRowCount: oldTableRowCount):
+                reloadLoadedRows(range, oldRowCount: oldRowCount)
 
             case .append:
                 reloadRows(oldRowCount: oldRowCount, reason: "append_fallback")
@@ -721,9 +743,16 @@ struct SubtitleTableView: NSViewRepresentable {
         ) -> Bool {
             guard tableView != nil else { return false }
             return range.lowerBound == oldRowCount
-                && range.upperBound == rows.count
+                && range.upperBound == rowCount
                 && range.lowerBound < range.upperBound
                 && oldTableRowCount == oldRowCount
+        }
+
+        private func canReloadLoadedRows(_ range: Range<Int>, oldTableRowCount: Int?) -> Bool {
+            guard tableView != nil else { return false }
+            return range.lowerBound < range.upperBound
+                && range.upperBound <= rowCount
+                && oldTableRowCount == rowCount
         }
 
         private func insertRows(_ range: Range<Int>, oldRowCount: Int) {
@@ -735,16 +764,35 @@ struct SubtitleTableView: NSViewRepresentable {
                 table: tableName,
                 reason: "append",
                 elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: insertStart),
-                rowCount: rows.count,
+                rowCount: rowCount,
                 oldRowCount: oldRowCount,
-                newRowCount: rows.count,
+                newRowCount: rowCount,
                 insertedRows: range.count
             )
             scheduleVisibleHeightInvalidation(reason: "rows_appended")
         }
 
+        private func reloadLoadedRows(_ range: Range<Int>, oldRowCount: Int) {
+            guard let tableView else { return }
+            let reloadStart = TableRenderingPerformanceLogger.now()
+            tableView.reloadData(
+                forRowIndexes: IndexSet(integersIn: range),
+                columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns)
+            )
+            TableRenderingPerformanceLogger.record(
+                event: "reload_loaded_rows",
+                table: tableName,
+                reason: "append_visible_models",
+                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: reloadStart),
+                rowCount: rowCount,
+                oldRowCount: oldRowCount,
+                newRowCount: rowCount
+            )
+            scheduleVisibleHeightInvalidation(reason: "rows_appended")
+        }
+
         private func reloadRows(oldRowCount: Int, reason: String) {
-            rowHeightCache.prune(to: rows)
+            pruneLoadedRowHeights()
             resetHeightInvalidationWindow()
             // New data invalidates any selection/hover that referenced old rows;
             // clearing avoids stale indices (e.g. cmd+C going out of bounds).
@@ -758,9 +806,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 table: tableName,
                 reason: reason,
                 elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: reloadStart),
-                rowCount: rows.count,
+                rowCount: rowCount,
                 oldRowCount: oldRowCount,
-                newRowCount: rows.count
+                newRowCount: rowCount
             )
             scheduleVisibleHeightInvalidation(reason: "rows_changed")
         }
@@ -778,7 +826,10 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             let measurementStart = TableRenderingPerformanceLogger.now()
-            let model = rows[row]
+            guard let model = rowModel(at: row) else {
+                recordEstimatedHeight()
+                return SubtitleTableMetrics.estimatedRowHeight
+            }
             let M = SubtitleTableMetrics.self
 
             let nameWidth = M.nameColumnWidth - M.cellLeading - M.trailingInset
@@ -888,10 +939,10 @@ struct SubtitleTableView: NSViewRepresentable {
             let headerLength = (cellFullText(row: -1, column: 2) as NSString).length
             let start = TableTextPosition(row: -1, column: 0, char: 0)
             let end: TableTextPosition
-            if rows.isEmpty {
+            if rowCount == 0 {
                 end = TableTextPosition(row: -1, column: 2, char: headerLength)
             } else {
-                let last = rows.count - 1
+                let last = rowCount - 1
                 end = TableTextPosition(row: last, column: 2, char: cellTextLength(row: last, column: 2))
             }
             anchor = start
@@ -1033,10 +1084,10 @@ struct SubtitleTableView: NSViewRepresentable {
             if row == -1 {
                 return ["#", "Name", "Cues"][column]
             }
-            guard rows.indices.contains(row) else { return "" }
-            let model = rows[row]
+            guard row >= 0, row < rowCount else { return "" }
+            guard column != 0 else { return "\(row + 1)" }
+            guard let model = rowModel(at: row) else { return "" }
             switch column {
-            case 0: return "\(row + 1)"
             case 1: return model.name
             default: return model.cues
             }
@@ -1046,10 +1097,19 @@ struct SubtitleTableView: NSViewRepresentable {
             (cellFullText(row: row, column: column) as NSString).length
         }
 
+        private func rowModel(at row: Int) -> SubtitleTableRow? {
+            guard row >= 0, row < rowCount else { return nil }
+            return rowProvider(row)
+        }
+
+        private func pruneLoadedRowHeights() {
+            rowHeightCache.prune(rowCount: rowCount, rowProvider: rowProvider)
+        }
+
         // MARK: Data source / delegate
 
         func numberOfRows(in tableView: NSTableView) -> Int {
-            rows.count
+            rowCount
         }
 
         func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
@@ -1068,7 +1128,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let columnID = tableColumn?.identifier else { return nil }
-            let model = rows[row]
+            let model = rowModel(at: row)
             let M = SubtitleTableMetrics.self
 
             switch columnID {
@@ -1081,14 +1141,14 @@ struct SubtitleTableView: NSViewRepresentable {
 
             case SubtitleTableView.nameColumnID:
                 let cell = dequeueTextCell(tableView, id: Self.nameCellID)
-                cell.configure(attributed: SubtitleTableText.body(model.name), leading: M.cellLeading, trailing: M.trailingInset)
+                cell.configure(attributed: SubtitleTableText.body(model?.name ?? ""), leading: M.cellLeading, trailing: M.trailingInset)
                 prepare(cell, row: row, column: 1)
                 recordCellConfiguration()
                 return cell
 
             case SubtitleTableView.cuesColumnID:
                 let cell = dequeueCuesCell(tableView)
-                cell.configure(attributed: SubtitleTableText.body(model.cues), leading: M.cellLeading, trailing: M.trailingInset)
+                cell.configure(attributed: SubtitleTableText.body(model?.cues ?? ""), leading: M.cellLeading, trailing: M.trailingInset)
                 prepare(cell, row: row, column: 2)
                 cell.setActions(
                     onPlay: { [weak self] in self?.playRow(row) },
@@ -1149,7 +1209,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 table: tableName,
                 totalMilliseconds: heightMeasurementBatchTotalMilliseconds,
                 maxMilliseconds: heightMeasurementBatchMaxMilliseconds,
-                rowCount: rows.count,
+                rowCount: rowCount,
                 measuredRows: heightMeasurementBatchCount,
                 cacheHits: heightMeasurementBatchCacheHits,
                 cacheMisses: heightMeasurementBatchCacheMisses,
@@ -1173,7 +1233,7 @@ struct SubtitleTableView: NSViewRepresentable {
             TableRenderingPerformanceLogger.record(
                 event: "height_estimate_batch",
                 table: tableName,
-                rowCount: rows.count,
+                rowCount: rowCount,
                 estimatedRows: heightEstimateBatchCount
             )
             heightEstimateBatchCount = 0
@@ -1190,22 +1250,22 @@ struct SubtitleTableView: NSViewRepresentable {
             TableRenderingPerformanceLogger.record(
                 event: "cell_configure_batch",
                 table: tableName,
-                rowCount: rows.count,
+                rowCount: rowCount,
                 configuredCells: cellConfigurationBatchCount
             )
             cellConfigurationBatchCount = 0
         }
 
         func playRow(_ row: Int) {
-            guard rows.indices.contains(row) else { return }
-            onPlay(rows[row])
+            guard let model = rowModel(at: row) else { return }
+            onPlay(model)
         }
 
         func copyRow(_ row: Int) {
-            guard rows.indices.contains(row) else { return }
+            guard let model = rowModel(at: row) else { return }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(rows[row].cues, forType: .string)
+            pasteboard.setString(model.cues, forType: .string)
         }
 
         // MARK: Hover (single source of truth)

@@ -6,10 +6,10 @@ struct SubtitleTableRowHeightCacheLookup {
 }
 
 struct SubtitleTableRowHeightCache {
-    private var entries: [CacheEntry?] = []
+    private var entries: [Int: CacheEntry] = [:]
 
     var count: Int {
-        entries.reduce(0) { $0 + ($1 == nil ? 0 : 1) }
+        entries.count
     }
 
     mutating func lookup(
@@ -22,10 +22,6 @@ struct SubtitleTableRowHeightCache {
         guard rowIndex >= 0 else {
             let height = compute()
             return SubtitleTableRowHeightCacheLookup(height: height, isCacheHit: false)
-        }
-
-        if rowIndex >= entries.count {
-            entries.append(contentsOf: repeatElement(nil, count: rowIndex - entries.count + 1))
         }
 
         let nameWidthKey = Self.widthKey(nameWidth)
@@ -49,15 +45,18 @@ struct SubtitleTableRowHeightCache {
     }
 
     mutating func prune(to rows: [SubtitleTableRow]) {
-        if entries.count > rows.count {
-            entries.removeSubrange(rows.count..<entries.count)
+        prune(rowCount: rows.count) { index in
+            guard rows.indices.contains(index) else { return nil }
+            return rows[index]
         }
+    }
 
-        for index in rows.indices {
-            guard index < entries.count, let entry = entries[index] else { continue }
-            if !entry.matches(row: rows[index]) {
-                entries[index] = nil
+    mutating func prune(rowCount: Int, rowProvider: (Int) -> SubtitleTableRow?) {
+        entries = entries.filter { index, entry in
+            guard index >= 0, index < rowCount, let row = rowProvider(index) else {
+                return false
             }
+            return entry.matches(row: row)
         }
     }
 

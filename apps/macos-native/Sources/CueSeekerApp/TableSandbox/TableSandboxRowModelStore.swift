@@ -12,6 +12,11 @@ struct TableSandboxRowsSnapshot {
     var loadedReferenceCount: Int {
         references.count
     }
+
+    func row(at index: Int) -> SubtitleTableRow? {
+        guard rows.indices.contains(index) else { return nil }
+        return rows[index]
+    }
 }
 
 struct TableSandboxRowReference: Equatable {

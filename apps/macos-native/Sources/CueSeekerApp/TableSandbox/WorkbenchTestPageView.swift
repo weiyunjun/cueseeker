@@ -56,7 +56,8 @@ private struct WorkbenchTestSearchView: View {
 
             SubtitleTableView(
                 tableName: "test-search",
-                rows: rowStore.snapshot.rows,
+                rowCount: rowStore.snapshot.totalRowCount,
+                rowProvider: { rowStore.snapshot.row(at: $0) },
                 rowsVersion: rowStore.snapshot.version,
                 rowsUpdate: rowStore.snapshot.update,
                 onPlay: play
@@ -91,7 +92,8 @@ private struct WorkbenchTestShioriView: View {
     var body: some View {
         SubtitleTableView(
             tableName: "test-shiori",
-            rows: rowStore.snapshot.rows,
+            rowCount: rowStore.snapshot.totalRowCount,
+            rowProvider: { rowStore.snapshot.row(at: $0) },
             rowsVersion: rowStore.snapshot.version,
             rowsUpdate: rowStore.snapshot.update,
             onPlay: play

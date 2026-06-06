@@ -66,3 +66,26 @@ func subtitleTableRowHeightCachePrunesRowsNotInSnapshot() {
     #expect(cache.lookup(rowIndex: 0, row: kept, nameWidth: 214, cuesWidth: 640) { CGFloat(99) }.isCacheHit)
     #expect(!cache.lookup(rowIndex: 1, row: removed, nameWidth: 214, cuesWidth: 640) { CGFloat(100) }.isCacheHit)
 }
+
+@Test
+func subtitleTableRowHeightCacheStoresSparseRowIndexes() {
+    var cache = SubtitleTableRowHeightCache()
+    let row = SubtitleTableRow(id: 2_000_001, name: "Episode 2000001", cues: "line")
+    var computeCount = 0
+
+    let first = cache.lookup(rowIndex: 2_000_000, row: row, nameWidth: 214, cuesWidth: 640) {
+        computeCount += 1
+        return 42
+    }
+    let second = cache.lookup(rowIndex: 2_000_000, row: row, nameWidth: 214, cuesWidth: 640) {
+        computeCount += 1
+        return 99
+    }
+
+    #expect(cache.count == 1)
+    #expect(first.height == 42)
+    #expect(!first.isCacheHit)
+    #expect(second.height == 42)
+    #expect(second.isCacheHit)
+    #expect(computeCount == 1)
+}
