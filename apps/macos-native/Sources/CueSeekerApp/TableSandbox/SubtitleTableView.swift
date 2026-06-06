@@ -599,9 +599,13 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
+        private var rowHeightCache = SubtitleTableRowHeightCache()
+        private var lastInvalidatedCuesWidth: Int?
         private var heightMeasurementBatchCount = 0
         private var heightMeasurementBatchTotalMilliseconds = 0.0
         private var heightMeasurementBatchMaxMilliseconds = 0.0
+        private var heightMeasurementBatchCacheHits = 0
+        private var heightMeasurementBatchCacheMisses = 0
         private var cellConfigurationBatchCount = 0
 
         private static let performanceLogBatchSize = 25
@@ -650,6 +654,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard rowsChanged else { return }
             self.rows = rows
             self.rowsVersion = rowsVersion
+            rowHeightCache.prune(to: rows)
             // New data invalidates any selection/hover that referenced old rows;
             // clearing avoids stale indices (e.g. cmd+C going out of bounds).
             anchor = nil
@@ -669,6 +674,19 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @objc func tableFrameChanged() {
             guard let tableView, tableView.numberOfRows > 0 else { return }
+            let cuesWidth = cuesColumnWidth(in: tableView) - SubtitleTableMetrics.cellLeading - SubtitleTableMetrics.trailingInset
+            let cuesWidthKey = SubtitleTableRowHeightCache.widthKey(cuesWidth)
+            guard cuesWidthKey != lastInvalidatedCuesWidth else {
+                TableRenderingPerformanceLogger.record(
+                    event: "height_invalidation_skipped",
+                    table: tableName,
+                    rowCount: tableView.numberOfRows,
+                    width: Double(cuesWidth)
+                )
+                return
+            }
+
+            lastInvalidatedCuesWidth = cuesWidthKey
             tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
             TableRenderingPerformanceLogger.record(
                 event: "height_invalidated_all",
@@ -688,16 +706,19 @@ struct SubtitleTableView: NSViewRepresentable {
             let nameWidth = M.nameColumnWidth - M.cellLeading - M.trailingInset
             let cuesWidth = cuesColumnWidth(in: tableView) - M.cellLeading - M.trailingInset
 
-            nameMeasurer.update(attributedString: SubtitleTableText.body(model.name), width: nameWidth)
-            cuesMeasurer.update(attributedString: SubtitleTableText.body(model.cues), width: cuesWidth)
+            let lookup = rowHeightCache.lookup(rowIndex: row, row: model, nameWidth: nameWidth, cuesWidth: cuesWidth) {
+                nameMeasurer.update(attributedString: SubtitleTableText.body(model.name), width: nameWidth)
+                cuesMeasurer.update(attributedString: SubtitleTableText.body(model.cues), width: cuesWidth)
 
-            let content = max(nameMeasurer.usedHeight, cuesMeasurer.usedHeight, singleLineFloor)
-            let height = content + 2 * M.rowVerticalInset
+                let content = max(nameMeasurer.usedHeight, cuesMeasurer.usedHeight, singleLineFloor)
+                return content + 2 * M.rowVerticalInset
+            }
             recordHeightMeasurement(
                 TableRenderingPerformanceLogger.elapsedMilliseconds(since: measurementStart),
-                width: cuesWidth
+                width: cuesWidth,
+                isCacheHit: lookup.isCacheHit
             )
-            return height
+            return lookup.height
         }
 
         private func cuesColumnWidth(in tableView: NSTableView) -> CGFloat {
@@ -958,12 +979,17 @@ struct SubtitleTableView: NSViewRepresentable {
             return cell
         }
 
-        private func recordHeightMeasurement(_ elapsedMilliseconds: Double, width: CGFloat) {
+        private func recordHeightMeasurement(_ elapsedMilliseconds: Double, width: CGFloat, isCacheHit: Bool) {
             guard TableRenderingPerformanceLogger.isEnabled else { return }
 
             heightMeasurementBatchCount += 1
             heightMeasurementBatchTotalMilliseconds += elapsedMilliseconds
             heightMeasurementBatchMaxMilliseconds = max(heightMeasurementBatchMaxMilliseconds, elapsedMilliseconds)
+            if isCacheHit {
+                heightMeasurementBatchCacheHits += 1
+            } else {
+                heightMeasurementBatchCacheMisses += 1
+            }
 
             guard heightMeasurementBatchCount >= Self.performanceLogBatchSize else {
                 return
@@ -976,11 +1002,15 @@ struct SubtitleTableView: NSViewRepresentable {
                 maxMilliseconds: heightMeasurementBatchMaxMilliseconds,
                 rowCount: rows.count,
                 measuredRows: heightMeasurementBatchCount,
+                cacheHits: heightMeasurementBatchCacheHits,
+                cacheMisses: heightMeasurementBatchCacheMisses,
                 width: Double(width)
             )
             heightMeasurementBatchCount = 0
             heightMeasurementBatchTotalMilliseconds = 0
             heightMeasurementBatchMaxMilliseconds = 0
+            heightMeasurementBatchCacheHits = 0
+            heightMeasurementBatchCacheMisses = 0
         }
 
         private func recordCellConfiguration() {

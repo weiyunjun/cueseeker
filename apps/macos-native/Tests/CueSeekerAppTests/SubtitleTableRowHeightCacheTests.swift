@@ -1,0 +1,68 @@
+import AppKit
+import Testing
+@testable import CueSeekerApp
+
+@Test
+func subtitleTableRowHeightCacheReusesHeightForSameRowAndWidths() {
+    var cache = SubtitleTableRowHeightCache()
+    let row = SubtitleTableRow(id: 1, name: "Episode 01", cues: "line one\nline two")
+    var computeCount = 0
+
+    let first = cache.lookup(rowIndex: 0, row: row, nameWidth: 214, cuesWidth: 640) {
+        computeCount += 1
+        return 42
+    }
+    let second = cache.lookup(rowIndex: 0, row: row, nameWidth: 214, cuesWidth: 640) {
+        computeCount += 1
+        return 99
+    }
+
+    #expect(first.height == 42)
+    #expect(!first.isCacheHit)
+    #expect(second.height == 42)
+    #expect(second.isCacheHit)
+    #expect(computeCount == 1)
+}
+
+@Test
+func subtitleTableRowHeightCacheMissesWhenWidthOrContentChanges() {
+    var cache = SubtitleTableRowHeightCache()
+    let row = SubtitleTableRow(id: 1, name: "Episode 01", cues: "line one")
+    _ = cache.lookup(rowIndex: 0, row: row, nameWidth: 214, cuesWidth: 640) { CGFloat(42) }
+
+    var computeCount = 0
+    let differentWidth = cache.lookup(rowIndex: 0, row: row, nameWidth: 214, cuesWidth: 641) {
+        computeCount += 1
+        return 50
+    }
+    let changedContent = cache.lookup(
+        rowIndex: 0,
+        row: SubtitleTableRow(id: 1, name: "Episode 01", cues: "line one\nline two"),
+        nameWidth: 214,
+        cuesWidth: 640
+    ) {
+        computeCount += 1
+        return 60
+    }
+
+    #expect(!differentWidth.isCacheHit)
+    #expect(differentWidth.height == 50)
+    #expect(!changedContent.isCacheHit)
+    #expect(changedContent.height == 60)
+    #expect(computeCount == 2)
+}
+
+@Test
+func subtitleTableRowHeightCachePrunesRowsNotInSnapshot() {
+    var cache = SubtitleTableRowHeightCache()
+    let kept = SubtitleTableRow(id: 1, name: "Episode 01", cues: "line one")
+    let removed = SubtitleTableRow(id: 2, name: "Episode 02", cues: "line two")
+    _ = cache.lookup(rowIndex: 0, row: kept, nameWidth: 214, cuesWidth: 640) { CGFloat(42) }
+    _ = cache.lookup(rowIndex: 1, row: removed, nameWidth: 214, cuesWidth: 640) { CGFloat(50) }
+
+    cache.prune(to: [kept])
+
+    #expect(cache.count == 1)
+    #expect(cache.lookup(rowIndex: 0, row: kept, nameWidth: 214, cuesWidth: 640) { CGFloat(99) }.isCacheHit)
+    #expect(!cache.lookup(rowIndex: 1, row: removed, nameWidth: 214, cuesWidth: 640) { CGFloat(100) }.isCacheHit)
+}
