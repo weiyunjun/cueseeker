@@ -7,6 +7,7 @@ private struct TableRenderingPerformanceEntry: Encodable, Sendable {
     let sequence: UInt64
     let event: String
     let table: String
+    let reason: String?
     let elapsedMilliseconds: Double?
     let totalMilliseconds: Double?
     let maxMilliseconds: Double?
@@ -19,6 +20,7 @@ private struct TableRenderingPerformanceEntry: Encodable, Sendable {
     let configuredCells: Int?
     let cacheHits: Int?
     let cacheMisses: Int?
+    let estimatedRows: Int?
     let width: Double?
     let changed: Bool?
 }
@@ -114,6 +116,7 @@ enum TableRenderingPerformanceLogger {
     static func record(
         event: String,
         table: String,
+        reason: String? = nil,
         elapsedMilliseconds: Double? = nil,
         totalMilliseconds: Double? = nil,
         maxMilliseconds: Double? = nil,
@@ -126,6 +129,7 @@ enum TableRenderingPerformanceLogger {
         configuredCells: Int? = nil,
         cacheHits: Int? = nil,
         cacheMisses: Int? = nil,
+        estimatedRows: Int? = nil,
         width: Double? = nil,
         changed: Bool? = nil
     ) {
@@ -138,6 +142,7 @@ enum TableRenderingPerformanceLogger {
             sequence: state.allocateSequence(),
             event: event,
             table: table,
+            reason: reason,
             elapsedMilliseconds: elapsedMilliseconds,
             totalMilliseconds: totalMilliseconds,
             maxMilliseconds: maxMilliseconds,
@@ -150,6 +155,7 @@ enum TableRenderingPerformanceLogger {
             configuredCells: configuredCells,
             cacheHits: cacheHits,
             cacheMisses: cacheMisses,
+            estimatedRows: estimatedRows,
             width: width,
             changed: changed
         ))

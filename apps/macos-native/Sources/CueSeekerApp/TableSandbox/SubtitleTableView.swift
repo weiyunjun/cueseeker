@@ -12,6 +12,7 @@ enum SubtitleTableMetrics {
     static let rowVerticalInset: CGFloat = 9
     static let headerHeight: CGFloat = 34
     static let cornerRadius: CGFloat = 10
+    static let estimatedRowHeight: CGFloat = 56
 }
 
 // MARK: - Typography (aligned with the production search/Shiori cue text)
@@ -571,6 +572,7 @@ struct SubtitleTableView: NSViewRepresentable {
         ])
 
         table.reloadData()
+        context.coordinator.scheduleVisibleHeightInvalidation(reason: "initial")
         return container
     }
 
@@ -600,15 +602,21 @@ struct SubtitleTableView: NSViewRepresentable {
         private let nameMeasurer = SubtitleTextLayout()
         private let cuesMeasurer = SubtitleTextLayout()
         private var rowHeightCache = SubtitleTableRowHeightCache()
-        private var lastInvalidatedCuesWidth: Int?
+        private var exactHeightWindow: SubtitleTableHeightInvalidationWindow?
+        private var lastInvalidatedExactHeightRange: Range<Int>?
+        private var lastInvalidatedExactHeightWidth: Int?
+        private var lastInvalidatedExactHeightRowsVersion: Int?
         private var heightMeasurementBatchCount = 0
         private var heightMeasurementBatchTotalMilliseconds = 0.0
         private var heightMeasurementBatchMaxMilliseconds = 0.0
         private var heightMeasurementBatchCacheHits = 0
         private var heightMeasurementBatchCacheMisses = 0
+        private var heightEstimateBatchCount = 0
         private var cellConfigurationBatchCount = 0
 
         private static let performanceLogBatchSize = 25
+        private static let heightEstimateLogBatchSize = 250
+        private static let heightInvalidationOverscanRows = 30
 
         /// Minimum content height = exactly one body line (no inter-line spacing),
         /// so a single-line row is one line tall, not two.
@@ -655,6 +663,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.rows = rows
             self.rowsVersion = rowsVersion
             rowHeightCache.prune(to: rows)
+            resetHeightInvalidationWindow()
             // New data invalidates any selection/hover that referenced old rows;
             // clearing avoids stale indices (e.g. cmd+C going out of bounds).
             anchor = nil
@@ -670,35 +679,21 @@ struct SubtitleTableView: NSViewRepresentable {
                 oldRowCount: oldRowCount,
                 newRowCount: rows.count
             )
+            scheduleVisibleHeightInvalidation(reason: "rows_changed")
         }
 
         @objc func tableFrameChanged() {
-            guard let tableView, tableView.numberOfRows > 0 else { return }
-            let cuesWidth = cuesColumnWidth(in: tableView) - SubtitleTableMetrics.cellLeading - SubtitleTableMetrics.trailingInset
-            let cuesWidthKey = SubtitleTableRowHeightCache.widthKey(cuesWidth)
-            guard cuesWidthKey != lastInvalidatedCuesWidth else {
-                TableRenderingPerformanceLogger.record(
-                    event: "height_invalidation_skipped",
-                    table: tableName,
-                    rowCount: tableView.numberOfRows,
-                    width: Double(cuesWidth)
-                )
-                return
-            }
-
-            lastInvalidatedCuesWidth = cuesWidthKey
-            tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
-            TableRenderingPerformanceLogger.record(
-                event: "height_invalidated_all",
-                table: tableName,
-                rowCount: tableView.numberOfRows,
-                width: Double(tableView.bounds.width)
-            )
+            invalidateVisibleRowHeights(reason: "frame_changed")
         }
 
         // MARK: Row heights
 
         func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+            guard shouldMeasureExactHeight(row) else {
+                recordEstimatedHeight()
+                return SubtitleTableMetrics.estimatedRowHeight
+            }
+
             let measurementStart = TableRenderingPerformanceLogger.now()
             let model = rows[row]
             let M = SubtitleTableMetrics.self
@@ -719,6 +714,79 @@ struct SubtitleTableView: NSViewRepresentable {
                 isCacheHit: lookup.isCacheHit
             )
             return lookup.height
+        }
+
+        private func shouldMeasureExactHeight(_ row: Int) -> Bool {
+            exactHeightWindow?.range.contains(row) ?? false
+        }
+
+        private func resetHeightInvalidationWindow() {
+            exactHeightWindow = nil
+            lastInvalidatedExactHeightRange = nil
+            lastInvalidatedExactHeightWidth = nil
+            lastInvalidatedExactHeightRowsVersion = nil
+        }
+
+        func scheduleVisibleHeightInvalidation(reason: String) {
+            Task { @MainActor [weak self] in
+                self?.invalidateVisibleRowHeights(reason: reason)
+            }
+        }
+
+        private func invalidateVisibleRowHeights(reason: String) {
+            guard let tableView, tableView.numberOfRows > 0 else {
+                exactHeightWindow = nil
+                return
+            }
+
+            let visibleRows = visibleRowsForHeightInvalidation(in: tableView)
+            guard let window = SubtitleTableHeightInvalidationWindow.make(
+                visibleRows: visibleRows,
+                rowCount: tableView.numberOfRows,
+                overscan: Self.heightInvalidationOverscanRows
+            ) else {
+                return
+            }
+
+            let cuesWidth = cuesColumnWidth(in: tableView) - SubtitleTableMetrics.cellLeading - SubtitleTableMetrics.trailingInset
+            let cuesWidthKey = SubtitleTableRowHeightCache.widthKey(cuesWidth)
+            exactHeightWindow = window
+
+            guard lastInvalidatedExactHeightRange != window.range
+                || lastInvalidatedExactHeightWidth != cuesWidthKey
+                || lastInvalidatedExactHeightRowsVersion != rowsVersion
+            else {
+                return
+            }
+
+            let invalidationStart = TableRenderingPerformanceLogger.now()
+            lastInvalidatedExactHeightRange = window.range
+            lastInvalidatedExactHeightWidth = cuesWidthKey
+            lastInvalidatedExactHeightRowsVersion = rowsVersion
+            tableView.noteHeightOfRows(withIndexesChanged: window.indexSet)
+            TableRenderingPerformanceLogger.record(
+                event: "height_invalidated_visible",
+                table: tableName,
+                reason: reason,
+                elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: invalidationStart),
+                rowCount: tableView.numberOfRows,
+                visibleRows: window.visibleCount,
+                measuredRows: window.invalidatedCount,
+                width: Double(cuesWidth)
+            )
+        }
+
+        private func visibleRowsForHeightInvalidation(in tableView: NSTableView) -> NSRange {
+            let visibleRows = tableView.rows(in: tableView.visibleRect)
+            guard visibleRows.length == 0 else {
+                return visibleRows
+            }
+
+            let fallbackCount = max(
+                1,
+                Int(ceil(tableView.visibleRect.height / SubtitleTableMetrics.estimatedRowHeight))
+            )
+            return NSRange(location: 0, length: min(tableView.numberOfRows, fallbackCount))
         }
 
         private func cuesColumnWidth(in tableView: NSTableView) -> CGFloat {
@@ -1013,6 +1081,23 @@ struct SubtitleTableView: NSViewRepresentable {
             heightMeasurementBatchCacheMisses = 0
         }
 
+        private func recordEstimatedHeight() {
+            guard TableRenderingPerformanceLogger.isEnabled else { return }
+
+            heightEstimateBatchCount += 1
+            guard heightEstimateBatchCount >= Self.heightEstimateLogBatchSize else {
+                return
+            }
+
+            TableRenderingPerformanceLogger.record(
+                event: "height_estimate_batch",
+                table: tableName,
+                rowCount: rows.count,
+                estimatedRows: heightEstimateBatchCount
+            )
+            heightEstimateBatchCount = 0
+        }
+
         private func recordCellConfiguration() {
             guard TableRenderingPerformanceLogger.isEnabled else { return }
 
@@ -1055,6 +1140,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         @objc func scrollContentDidChange() {
+            invalidateVisibleRowHeights(reason: "scroll")
             guard let lastMouseWindowPoint else { return }
             updateHoveredRow(rowUnderCursor(windowPoint: lastMouseWindowPoint))
         }
