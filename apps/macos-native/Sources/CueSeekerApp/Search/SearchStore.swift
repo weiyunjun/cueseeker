@@ -22,6 +22,8 @@ final class SearchStore: ObservableObject {
     @Published var searchNavigationVisibleWindowStartIndex = 0
     @Published var searchNavigationVisibleTotalCount = 0
     @Published var searchNavigationVisibleRowsVersion = 0
+    @Published var activeSearchNavigationEntryID: Int64?
+    @Published var activeSearchNavigationRank: Int?
     @Published var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
 
@@ -80,6 +82,89 @@ final class SearchStore: ObservableObject {
         searchNavigationVisibleResults = []
         searchNavigationVisibleWindowStartIndex = 0
         searchNavigationVisibleTotalCount = 0
+        activeSearchNavigationEntryID = nil
+        activeSearchNavigationRank = nil
         searchNavigationVisibleRowsVersion += 1
+    }
+
+    func applyActiveSearchNavigationResult(_ result: SubtitleSearchResult?) {
+        activeSearchNavigationEntryID = result?.entryID
+        activeSearchNavigationRank = result?.searchRank
+    }
+
+    func updateActiveSearchNavigationResult(
+        videoPath: String?,
+        subtitlePath: String?,
+        currentMilliseconds: Int
+    ) {
+        let result = activeSearchNavigationResult(
+            videoPath: videoPath,
+            subtitlePath: subtitlePath,
+            currentMilliseconds: currentMilliseconds
+        )
+        let nextEntryID = result?.entryID
+        let nextRank = result?.searchRank
+        guard activeSearchNavigationEntryID != nextEntryID
+            || activeSearchNavigationRank != nextRank
+        else {
+            return
+        }
+
+        activeSearchNavigationEntryID = nextEntryID
+        activeSearchNavigationRank = nextRank
+    }
+
+    func activeSearchNavigationResult(
+        videoPath: String?,
+        subtitlePath: String?,
+        currentMilliseconds: Int
+    ) -> SubtitleSearchResult? {
+        guard let videoPath else {
+            return searchNavigationSnapshot?.current ?? selectedSearchResult
+        }
+
+        let normalizedVideoPath = Self.normalizedPath(videoPath)
+        let normalizedSubtitlePath = subtitlePath.map(Self.normalizedPath)
+        let boundedMilliseconds = max(0, currentMilliseconds)
+        let candidates = loadedSearchNavigationCandidates()
+
+        return candidates
+            .filter { result in
+                Self.normalizedPath(result.videoPath) == normalizedVideoPath
+                    && (
+                        normalizedSubtitlePath == nil
+                            || Self.normalizedPath(result.subtitlePath) == normalizedSubtitlePath
+                    )
+                    && result.startMilliseconds <= boundedMilliseconds
+            }
+            .max { lhs, rhs in
+                if lhs.startMilliseconds != rhs.startMilliseconds {
+                    return lhs.startMilliseconds < rhs.startMilliseconds
+                }
+                return lhs.searchRank < rhs.searchRank
+            }
+            ?? searchNavigationSnapshot?.current
+            ?? selectedSearchResult
+    }
+
+    private func loadedSearchNavigationCandidates() -> [SubtitleSearchResult] {
+        var resultsByEntryID: [Int64: SubtitleSearchResult] = [:]
+        for result in searchNavigationSnapshot?.neighborhood ?? [] {
+            resultsByEntryID[result.entryID] = result
+        }
+        for result in searchNavigationVisibleResults {
+            resultsByEntryID[result.entryID] = result
+        }
+        if let current = searchNavigationSnapshot?.current {
+            resultsByEntryID[current.entryID] = current
+        }
+        if let selectedSearchResult {
+            resultsByEntryID[selectedSearchResult.entryID] = selectedSearchResult
+        }
+        return Array(resultsByEntryID.values)
+    }
+
+    private static func normalizedPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.path
     }
 }

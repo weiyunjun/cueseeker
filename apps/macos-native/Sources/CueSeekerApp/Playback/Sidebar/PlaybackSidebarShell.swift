@@ -104,6 +104,10 @@ struct PlaybackSidebarShell: View {
     }
 
     private var activeSearchRank: Int? {
+        if let activeRank = search.activeSearchNavigationRank {
+            return activeRank
+        }
+
         if let currentIndex = search.searchNavigationSnapshot?.currentIndex {
             return currentIndex
         }
@@ -117,6 +121,11 @@ struct PlaybackSidebarShell: View {
     }
 
     private var activeSearchScrollTargetVersion: Int {
+        if let activeRank = search.activeSearchNavigationRank,
+           let activeEntryID = search.activeSearchNavigationEntryID {
+            return activeRank ^ Int(truncatingIfNeeded: activeEntryID)
+        }
+
         if let snapshot = search.searchNavigationSnapshot,
            let currentIndex = snapshot.currentIndex {
             let currentID = snapshot.current?.entryID ?? -1
@@ -130,6 +139,10 @@ struct PlaybackSidebarShell: View {
     }
 
     private func isActiveSearchResult(_ result: SubtitleSearchResult) -> Bool {
+        if let activeEntryID = search.activeSearchNavigationEntryID {
+            return result.entryID == activeEntryID
+        }
+
         if let current = search.searchNavigationSnapshot?.current {
             return result.entryID == current.entryID
         }

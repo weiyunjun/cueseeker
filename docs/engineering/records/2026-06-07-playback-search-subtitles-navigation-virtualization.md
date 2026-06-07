@@ -297,6 +297,56 @@ current playback position instead of the originally clicked result. The
 right-side Search Results panel now follows the same snapshot for highlight and
 scroll position.
 
+## Regression Fix: Search Sidebar Active Highlight
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Fix the Search Results side-panel highlight regression without reconnecting the
+heavy sidebar virtual list to the full playback view model. The fix targets the
+case where playback naturally advances from one Search hit to the next in the
+same video, but the side panel keeps highlighting the originally opened result.
+
+### Changes
+
+- Added lightweight active Search navigation state to `SearchStore`.
+- The active Search result is derived from already loaded navigation rows and
+  the current playback time, matching the Core time-anchor rule for loaded
+  windows.
+- The active state publishes only when the active entry/rank changes, so normal
+  playback ticks do not repeatedly invalidate the Search side-panel list.
+- Added a zero-size playback-page observer that updates the active Search
+  navigation state without passing `PlaybackViewModel` into the sidebar list.
+- The Search Results side panel now reads the active entry/rank before falling
+  back to the navigation snapshot or originally selected Search result.
+
+### Verification
+
+- Passed: `swift build`
+- Passed:
+  `swift test --jobs 1 --filter activeSearchNavigationResultFollowsPlaybackTimeWithinLoadedWindow`
+- Passed:
+  `swift test --jobs 1 --filter activeSearchNavigationResultDoesNotPublishWhenResultIsUnchanged`
+- Passed: `swift test --jobs 1 --filter Search`
+  - 59 Testing tests passed.
+- Passed: `swift test --jobs 1 --filter PlaybackNavigation`
+  - 14 Testing tests passed.
+
+An initial targeted test compile failed because the test attempted to construct
+`SubtitleSearchResult` with Core's internal memberwise initializer. The test was
+changed to build fixtures through the public SQLite search path. One
+`PlaybackNavigation` attempt failed before running tests due to a macOS
+`posix_spawn` resource error; the retry succeeded.
+
+### Outcome
+
+The right-side Search Results panel can follow playback-time advancement within
+the loaded Search navigation window without making normal playback ticks rebuild
+the virtualized sidebar rows.
+
 ## Final Verification
 
 Date: 2026-06-07

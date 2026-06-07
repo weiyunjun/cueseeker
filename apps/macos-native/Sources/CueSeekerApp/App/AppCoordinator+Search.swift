@@ -985,6 +985,7 @@ extension AppCoordinator {
         else {
             search.searchNavigationSnapshot = nil
             search.searchNavigationResultGroups = []
+            search.applyActiveSearchNavigationResult(nil)
             if let direction {
                 playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
@@ -1057,6 +1058,7 @@ extension AppCoordinator {
                 print("Failed to load Search navigation snapshot: \(error)")
                 self?.search.searchNavigationSnapshot = nil
                 self?.search.searchNavigationResultGroups = []
+                self?.search.applyActiveSearchNavigationResult(nil)
             }
         }
     }
@@ -1126,6 +1128,7 @@ extension AppCoordinator {
 
     func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
         search.searchNavigationSnapshot = snapshot
+        search.applyActiveSearchNavigationResult(snapshot.current)
         if let firstRank = snapshot.neighborhood.first?.searchRank {
             search.applySearchNavigationVisibleWindow(
                 snapshot.neighborhood,
@@ -1141,6 +1144,21 @@ extension AppCoordinator {
             expandedRowsByPath: [:],
             collapsedGroupPaths: [],
             includesSummaryOnlyGroups: false
+        )
+    }
+
+    func updateActiveSearchNavigationResult(currentMilliseconds: Int) {
+        guard isSearchPlaybackActive,
+              search.searchNavigationSnapshot != nil
+        else {
+            search.applyActiveSearchNavigationResult(nil)
+            return
+        }
+
+        search.updateActiveSearchNavigationResult(
+            videoPath: currentPlaybackVideoPath,
+            subtitlePath: currentPlaybackSubtitlePath,
+            currentMilliseconds: currentMilliseconds
         )
     }
 
