@@ -119,6 +119,12 @@ private struct AppTopBar: View {
                             systemImage: "bookmark.circle",
                             help: "Test Shiori"
                         )
+
+                        TopbarTestButton(
+                            page: .searchUI,
+                            systemImage: "tablecells",
+                            help: "Test Search UI"
+                        )
                     }
                 }
             }

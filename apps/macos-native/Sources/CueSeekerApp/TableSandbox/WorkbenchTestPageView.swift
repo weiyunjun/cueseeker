@@ -3,9 +3,10 @@ import CueSeekerCore
 
 /// Table-style UI sandbox pages, reachable only through the top-bar test icons
 /// so production views stay untouched. Library stays blank per requirement;
-/// Search/Shiori host the AppKit table on real data. Play reuses the production
-/// open entries; the table uses virtual result metadata so the UI does not
-/// materialize every possible search hit before rendering.
+/// Search/Shiori host the AppKit table on real data. Search UI is a separate
+/// schema-driven alignment surface with fake data in later steps. Play reuses
+/// the production open entries; the table uses virtual result metadata so the
+/// UI does not materialize every possible search hit before rendering.
 struct WorkbenchTestPageView: View {
     let page: WorkbenchTestPage
 
@@ -21,6 +22,8 @@ struct WorkbenchTestPageView: View {
                 WorkbenchTestSearchView()
             case .shiori:
                 WorkbenchTestShioriView()
+            case .searchUI:
+                SchemaWorkbenchPage()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

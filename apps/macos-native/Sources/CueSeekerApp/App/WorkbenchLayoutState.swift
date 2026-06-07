@@ -16,6 +16,7 @@ enum WorkbenchTestPage: String, CaseIterable {
     case library
     case search
     case shiori
+    case searchUI
 }
 
 @MainActor
