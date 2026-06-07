@@ -32,7 +32,10 @@ struct SchemaWorkbenchPage: View {
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, 12)
 
-                WorkbenchDataTable()
+                WorkbenchDataTable(
+                    columns: Self.tableColumns,
+                    rows: Self.tableRows
+                )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, SchemaWorkbenchStyle.pageBottomPadding)
                     .frame(maxHeight: .infinity)
@@ -102,6 +105,135 @@ struct SchemaWorkbenchPage: View {
 
     private func togglePopover(_ popover: SchemaWorkbenchPopover) {
         openPopover = openPopover == popover ? nil : popover
+    }
+
+    private static let tableColumns: [WorkbenchTableColumn] = [
+        WorkbenchTableColumn(
+            id: "rowNumber",
+            title: "#",
+            kind: .rowNumber,
+            width: .fixed(54)
+        ),
+        WorkbenchTableColumn(
+            id: "name",
+            title: "Name",
+            kind: .text,
+            width: .fixed(260)
+        ),
+        WorkbenchTableColumn(
+            id: "cues",
+            title: "Cues",
+            kind: .text,
+            width: .flexible(min: 360)
+        ),
+        WorkbenchTableColumn(
+            id: "language",
+            title: "Language",
+            kind: .multiSelect,
+            width: .fixed(200)
+        ),
+        WorkbenchTableColumn(
+            id: "speaker",
+            title: "Speaker",
+            kind: .text,
+            width: .fixed(180)
+        ),
+    ]
+
+    private static let tableRows: [WorkbenchTableRow] = [
+        tableRow(
+            1,
+            name: "Ave Mujica - 01",
+            cues: "母親担心 月曜日会为我们的她做醒\n大丈夫月の光迎えにしてくれますわ",
+            speaker: "丰川祥子"
+        ),
+        tableRow(
+            2,
+            name: "Ave Mujica - 01",
+            cues: "没问题的 波を跳踊的侍轻视我\n大丈夫あなたの言葉こそ航標よ",
+            speaker: "若叶睦"
+        ),
+        tableRow(
+            3,
+            name: "Ave Mujica - 01",
+            cues: "枠　言渡迷　没问题吧\n枠　言渡迷　大丈夫",
+            speaker: "高松灯"
+        ),
+        tableRow(
+            4,
+            name: "Ave Mujica - 01",
+            cues: "当然没问题\n大丈夫に決まっているでしょう",
+            speaker: "千早爱音"
+        ),
+        tableRow(
+            5,
+            name: "Ave Mujica - 02",
+            cues: "小初 你没事吧\nういちゃん　大丈夫",
+            speaker: "长崎素世"
+        ),
+        tableRow(
+            6,
+            name: "Ave Mujica - 02",
+            cues: "我没事\n私は大丈夫だよ",
+            speaker: "丰川祥子"
+        ),
+        tableRow(
+            7,
+            name: "Ave Mujica - 03",
+            cues: "应该没问题吧\n大丈夫かなぁ",
+            speaker: "若叶睦"
+        ),
+        tableRow(
+            8,
+            name: "Ave Mujica - 03",
+            cues: "所以已经没事了\nだから　もう大丈夫",
+            speaker: "高松灯"
+        ),
+        tableRow(
+            9,
+            name: "Ave Mujica - 04",
+            cues: "没有害怕也没关系对吧\nギターなんてなくても大丈夫だったでしょう",
+            speaker: "千早爱音"
+        ),
+        tableRow(
+            10,
+            name: "Ave Mujica - 05",
+            cues: "小睦别看很心 虽然美不会有事吧\n睦ちゃんすごい叫んでたけど　大丈夫かな",
+            speaker: "长崎素世"
+        ),
+        tableRow(
+            11,
+            name: "Ave Mujica - 05",
+            cues: "灯灯 你还好吗\nともらん　大丈夫",
+            speaker: "丰川祥子"
+        ),
+        tableRow(
+            12,
+            name: "Ave Mujica - 06",
+            cues: "没事的 我会从一切恐怖的东西那里保护你\n大丈夫　怖いことからは全部　私が守ってあげる",
+            speaker: "若叶睦"
+        ),
+    ]
+
+    private static func tableRow(
+        _ rowNumber: Int,
+        name: String,
+        cues: String,
+        speaker: String
+    ) -> WorkbenchTableRow {
+        WorkbenchTableRow(
+            id: "mock-\(rowNumber)",
+            cells: [
+                "rowNumber": .rowNumber(rowNumber),
+                "name": .text(name),
+                "cues": .text(cues),
+                "language": .multiSelect([
+                    WorkbenchMultiSelectOption(title: "中文", style: .pink),
+                    WorkbenchMultiSelectOption(title: "日本語", style: .blue),
+                ]),
+                "speaker": .text(speaker),
+            ]
+        )
     }
 }
 
@@ -316,113 +448,6 @@ private struct FilterRuleRow: View {
 
             WorkbenchIconButton(systemImage: "trash")
                 .frame(width: 40)
-        }
-    }
-}
-
-private struct WorkbenchDataTable: View {
-    private let columns = ["#", "Name", "Cues", "Language", "Speaker"]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            tableHeader
-
-            VStack(spacing: 0) {
-                ForEach(0..<10, id: \.self) { _ in
-                    tablePlaceholderRow
-                }
-
-                Spacer(minLength: 0)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(WorkbenchControlColors.surfaceFill)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: SchemaWorkbenchStyle.tableCornerRadius,
-                style: .continuous
-            )
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: SchemaWorkbenchStyle.tableCornerRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                WorkbenchControlColors.border,
-                lineWidth: SchemaWorkbenchStyle.hairlineWidth
-            )
-        )
-    }
-
-    private var tableHeader: some View {
-        HStack(spacing: 0) {
-            ForEach(columns, id: \.self) { column in
-                headerCell(column)
-            }
-        }
-        .frame(height: 44)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(WorkbenchControlColors.border)
-                .frame(height: SchemaWorkbenchStyle.hairlineWidth)
-        }
-    }
-
-    private var tablePlaceholderRow: some View {
-        HStack(spacing: 0) {
-            rowCell(columnWidth: 54, barWidth: 14, opacity: 0.16)
-            rowCell(columnWidth: 260, barWidth: 170, opacity: 0.12)
-            rowCell(columnWidth: nil, barWidth: nil, opacity: 0.10)
-            rowCell(columnWidth: 200, barWidth: 112, opacity: 0.12)
-            rowCell(columnWidth: 180, barWidth: 104, opacity: 0.12)
-        }
-        .frame(height: 42)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(WorkbenchControlColors.border.opacity(0.55))
-                .frame(height: SchemaWorkbenchStyle.hairlineWidth)
-        }
-    }
-
-    @ViewBuilder
-    private func headerCell(_ column: String) -> some View {
-        let content = Text(column)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(WorkbenchControlColors.primaryText)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, column == "#" ? 16 : 12)
-
-        if let width = columnWidth(for: column) {
-            content.frame(width: width, alignment: .leading)
-        } else {
-            content.frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    @ViewBuilder
-    private func rowCell(columnWidth: CGFloat?, barWidth: CGFloat?, opacity: Double) -> some View {
-        let content = Rectangle()
-            .fill(WorkbenchControlColors.primaryText.opacity(opacity))
-            .frame(width: barWidth, height: 10)
-            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-            .frame(maxWidth: barWidth == nil ? .infinity : barWidth, alignment: .leading)
-            .padding(.horizontal, columnWidth == 54 ? 16 : 12)
-
-        if let columnWidth {
-            content.frame(width: columnWidth, alignment: .leading)
-        } else {
-            content.frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func columnWidth(for column: String) -> CGFloat? {
-        switch column {
-        case "#": return 54
-        case "Name": return 260
-        case "Language": return 200
-        case "Speaker": return 180
-        default: return nil
         }
     }
 }
