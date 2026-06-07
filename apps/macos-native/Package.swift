@@ -5,9 +5,25 @@ import Foundation
 
 let homebrewRoot = "/opt/homebrew"
 let localPatchedFFmpegRoot = "/private/tmp/cueseeker-ffmpeg-8.1-patched"
-let defaultFFmpegRoot = FileManager.default.fileExists(
-    atPath: "\(localPatchedFFmpegRoot)/lib/libavformat.dylib"
-) ? localPatchedFFmpegRoot : homebrewRoot
+
+func isUsableFFmpegRoot(_ root: String) -> Bool {
+    [
+        "\(root)/include/libavformat/avformat.h",
+        "\(root)/include/libavcodec/avcodec.h",
+        "\(root)/include/libavutil/avutil.h",
+        "\(root)/include/libswresample/swresample.h",
+        "\(root)/include/libswscale/swscale.h",
+        "\(root)/lib/libavformat.dylib",
+        "\(root)/lib/libavcodec.dylib",
+        "\(root)/lib/libavutil.dylib",
+        "\(root)/lib/libswresample.dylib",
+        "\(root)/lib/libswscale.dylib",
+    ].allSatisfy { FileManager.default.fileExists(atPath: $0) }
+}
+
+let defaultFFmpegRoot = isUsableFFmpegRoot(localPatchedFFmpegRoot)
+    ? localPatchedFFmpegRoot
+    : homebrewRoot
 let ffmpegRoot = Context.environment["CUESEEKER_FFMPEG_ROOT"] ?? defaultFFmpegRoot
 let ffmpegIncludePath = "\(ffmpegRoot)/include"
 let ffmpegLibraryPath = "\(ffmpegRoot)/lib"
