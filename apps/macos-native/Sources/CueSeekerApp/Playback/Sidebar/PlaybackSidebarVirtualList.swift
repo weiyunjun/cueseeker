@@ -4,6 +4,7 @@ import SwiftUI
 struct PlaybackSidebarVirtualList: NSViewRepresentable {
     var rowCount: Int
     var rowHeight: CGFloat
+    var rowHeightForRow: ((Int, CGFloat) -> CGFloat)? = nil
     var rowsVersion: Int
     var scrollTargetRow: Int?
     var scrollTargetVersion: Int
@@ -16,6 +17,7 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
         Coordinator(
             rowCount: rowCount,
             rowHeight: rowHeight,
+            rowHeightForRow: rowHeightForRow,
             rowsVersion: rowsVersion,
             scrollTargetRow: scrollTargetRow,
             scrollTargetVersion: scrollTargetVersion,
@@ -58,6 +60,7 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
         context.coordinator.update(
             rowCount: rowCount,
             rowHeight: rowHeight,
+            rowHeightForRow: rowHeightForRow,
             rowsVersion: rowsVersion,
             scrollTargetRow: scrollTargetRow,
             scrollTargetVersion: scrollTargetVersion,
@@ -73,6 +76,7 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
     final class Coordinator: NSObject {
         private var rowCount: Int
         private var rowHeight: CGFloat
+        private var rowHeightForRow: ((Int, CGFloat) -> CGFloat)?
         private var rowsVersion: Int
         private var scrollTargetRow: Int?
         private var scrollTargetVersion: Int
@@ -87,10 +91,15 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
         private var lastVisibleRows: Range<Int>?
         private var lastAppliedScrollTargetRow: Int?
         private var lastAppliedScrollTargetVersion: Int?
+        private var rowOffsetCache: [CGFloat] = []
+        private var rowOffsetCacheRowCount = -1
+        private var rowOffsetCacheRowsVersion = -1
+        private var rowOffsetCacheWidth: CGFloat = -1
 
         init(
             rowCount: Int,
             rowHeight: CGFloat,
+            rowHeightForRow: ((Int, CGFloat) -> CGFloat)?,
             rowsVersion: Int,
             scrollTargetRow: Int?,
             scrollTargetVersion: Int,
@@ -101,6 +110,7 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
         ) {
             self.rowCount = max(0, rowCount)
             self.rowHeight = max(1, rowHeight)
+            self.rowHeightForRow = rowHeightForRow
             self.rowsVersion = rowsVersion
             self.scrollTargetRow = scrollTargetRow
             self.scrollTargetVersion = scrollTargetVersion
@@ -125,6 +135,7 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
         func update(
             rowCount: Int,
             rowHeight: CGFloat,
+            rowHeightForRow: ((Int, CGFloat) -> CGFloat)?,
             rowsVersion: Int,
             scrollTargetRow: Int?,
             scrollTargetVersion: Int,
@@ -141,6 +152,7 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
 
             self.rowCount = nextRowCount
             self.rowHeight = nextRowHeight
+            self.rowHeightForRow = rowHeightForRow
             self.rowsVersion = rowsVersion
             self.scrollTargetRow = scrollTargetRow
             self.scrollTargetVersion = scrollTargetVersion
@@ -149,6 +161,9 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
             self.onVisibleRowsChange = onVisibleRowsChange
             self.rowContent = rowContent
 
+            if rowsChanged {
+                invalidateRowGeometryCache()
+            }
             resizeDocument()
             if rowsChanged {
                 rowHosts.values.forEach { $0.removeFromSuperview() }
@@ -165,9 +180,10 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
         func resizeDocument() {
             guard let scrollView, let documentView else { return }
             let width = max(scrollView.contentSize.width, scrollView.bounds.width)
+            let rowWidth = max(0, width - leadingInset - trailingInset)
             let height = max(
                 scrollView.contentSize.height,
-                topInset + CGFloat(rowCount) * rowHeight + bottomInset
+                documentHeight(rowWidth: rowWidth)
             )
             let nextSize = CGSize(width: width, height: max(1, height))
             guard documentView.frame.size != nextSize else { return }
@@ -224,10 +240,11 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
 
             resizeDocument()
             let contentHeight = scrollView.contentView.bounds.height
+            let rowWidth = currentRowWidth()
             let targetY = topInset
-                + CGFloat(row) * rowHeight
-                - max(0, (contentHeight - rowHeight) / 2)
-            let maxY = max(0, documentHeight - contentHeight)
+                + rowTop(row, rowWidth: rowWidth)
+                - max(0, (contentHeight - effectiveRowHeight(row, rowWidth: rowWidth)) / 2)
+            let maxY = max(0, documentHeight(rowWidth: rowWidth) - contentHeight)
             let clampedY = min(max(0, targetY), maxY)
             scrollView.contentView.scroll(to: NSPoint(x: 0, y: clampedY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
@@ -244,26 +261,35 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
             }
 
             let rect = scrollView.contentView.bounds
-            let lower = rowIndex(atY: rect.minY)
-            let upper = rowIndex(atY: max(rect.minY, rect.maxY))
+            let rowWidth = currentRowWidth()
+            let lower = rowIndex(atY: rect.minY, rowWidth: rowWidth)
+            let upper = rowIndex(atY: max(rect.minY, rect.maxY), rowWidth: rowWidth)
             let lowerBound = max(0, lower - overscanRows)
             let upperBound = min(rowCount, upper + overscanRows + 1)
             return lowerBound < upperBound ? lowerBound..<upperBound : 0..<0
         }
 
-        private func rowIndex(atY y: CGFloat) -> Int {
+        private func rowIndex(atY y: CGFloat, rowWidth: CGFloat) -> Int {
             guard rowCount > 0 else { return 0 }
             let normalizedY = max(0, y - topInset)
-            let row = Int((normalizedY / rowHeight).rounded(.down))
+            guard rowHeightForRow != nil else {
+                let row = Int((normalizedY / rowHeight).rounded(.down))
+                return min(max(0, row), rowCount - 1)
+            }
+
+            let offsets = rowOffsets(rowWidth: rowWidth)
+            let insertionIndex = firstRowOffsetIndex(greaterThan: normalizedY, in: offsets)
+            let row = insertionIndex - 1
             return min(max(0, row), rowCount - 1)
         }
 
         private func rowFrame(_ row: Int, width: CGFloat) -> CGRect {
-            CGRect(
+            let rowWidth = max(0, width - leadingInset - trailingInset)
+            return CGRect(
                 x: leadingInset,
-                y: topInset + CGFloat(row) * rowHeight,
-                width: max(0, width - leadingInset - trailingInset),
-                height: rowHeight
+                y: topInset + rowTop(row, rowWidth: rowWidth),
+                width: rowWidth,
+                height: effectiveRowHeight(row, rowWidth: rowWidth)
             )
         }
 
@@ -272,8 +298,89 @@ struct PlaybackSidebarVirtualList: NSViewRepresentable {
             return min(max(0, scrollTargetRow), rowCount - 1)
         }
 
-        private var documentHeight: CGFloat {
-            topInset + CGFloat(rowCount) * rowHeight + bottomInset
+        private func rowTop(_ row: Int, rowWidth: CGFloat) -> CGFloat {
+            guard rowHeightForRow != nil else {
+                return CGFloat(row) * rowHeight
+            }
+            let offsets = rowOffsets(rowWidth: rowWidth)
+            guard offsets.indices.contains(row) else {
+                return 0
+            }
+            return offsets[row]
+        }
+
+        private func effectiveRowHeight(_ row: Int, rowWidth: CGFloat) -> CGFloat {
+            guard row >= 0, row < rowCount else {
+                return rowHeight
+            }
+            return rawRowHeight(row, rowWidth: rowWidth)
+        }
+
+        private func rawRowHeight(_ row: Int, rowWidth: CGFloat) -> CGFloat {
+            guard let rowHeightForRow else {
+                return rowHeight
+            }
+            return max(1, rowHeightForRow(row, rowWidth))
+        }
+
+        private func documentHeight(rowWidth: CGFloat) -> CGFloat {
+            guard rowHeightForRow != nil else {
+                return topInset + CGFloat(rowCount) * rowHeight + bottomInset
+            }
+            return topInset + (rowOffsets(rowWidth: rowWidth).last ?? 0) + bottomInset
+        }
+
+        private func rowOffsets(rowWidth: CGFloat) -> [CGFloat] {
+            let width = max(1, rowWidth)
+            if rowOffsetCacheRowCount == rowCount,
+               rowOffsetCacheRowsVersion == rowsVersion,
+               abs(rowOffsetCacheWidth - width) < 0.5 {
+                return rowOffsetCache
+            }
+
+            var offsets: [CGFloat] = []
+            offsets.reserveCapacity(rowCount + 1)
+            var nextOffset: CGFloat = 0
+            for row in 0..<rowCount {
+                offsets.append(nextOffset)
+                nextOffset += rawRowHeight(row, rowWidth: width)
+            }
+            offsets.append(nextOffset)
+
+            rowOffsetCache = offsets
+            rowOffsetCacheRowCount = rowCount
+            rowOffsetCacheRowsVersion = rowsVersion
+            rowOffsetCacheWidth = width
+            return offsets
+        }
+
+        private func invalidateRowGeometryCache() {
+            rowOffsetCache = []
+            rowOffsetCacheRowCount = -1
+            rowOffsetCacheRowsVersion = -1
+            rowOffsetCacheWidth = -1
+        }
+
+        private func firstRowOffsetIndex(greaterThan y: CGFloat, in offsets: [CGFloat]) -> Int {
+            var lowerBound = 0
+            var upperBound = offsets.count
+            while lowerBound < upperBound {
+                let middle = lowerBound + (upperBound - lowerBound) / 2
+                if offsets[middle] > y {
+                    upperBound = middle
+                } else {
+                    lowerBound = middle + 1
+                }
+            }
+            return lowerBound
+        }
+
+        private func currentRowWidth() -> CGFloat {
+            guard let scrollView else {
+                return max(1, rowHeight)
+            }
+            let width = max(scrollView.contentSize.width, scrollView.bounds.width)
+            return max(1, width - leadingInset - trailingInset)
         }
 
         private var topInset: CGFloat {

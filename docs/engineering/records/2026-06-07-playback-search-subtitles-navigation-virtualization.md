@@ -347,6 +347,50 @@ The right-side Search Results panel can follow playback-time advancement within
 the loaded Search navigation window without making normal playback ticks rebuild
 the virtualized sidebar rows.
 
+## Regression Fix: Subtitle Sidebar Row Height
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Fix the current-video Subtitles side-panel regression where rows were forced
+into a fixed 58px height and clipped, hiding bilingual or otherwise multi-line
+subtitle content.
+
+### Changes
+
+- Extended `PlaybackSidebarVirtualList` with an optional per-row height
+  provider while preserving the fixed-height path used by Search Results.
+- Subtitles rows now use measured content height for loaded rows and the old
+  58px value only as the minimum/fallback height.
+- Removed the fixed-height clipping from `PlaybackSubtitlesList` rows so
+  bilingual subtitle lines can be shown completely.
+- Added row-height metric tests for multi-line and wrapped subtitle text.
+
+### Verification
+
+- Passed: `swift build`
+- Passed:
+  `swift test --jobs 1 --filter PlaybackSidebarSubtitleRowMetrics`
+  - 2 Testing tests passed.
+- Passed: `swift test --jobs 1 --filter Playback`
+  - 73 Testing tests passed.
+- Passed: `swift test --jobs 1 --filter Search`
+  - 59 Testing tests passed.
+
+An initial build failed before verification because the first implementation
+used an unavailable `partitioningIndex` helper, stored non-Sendable `NSFont`
+values in static properties, and missed an explicit `return` in the row-frame
+helper. Those compile issues were fixed before the passing verification above.
+
+### Outcome
+
+The Subtitles tab keeps virtualized rendering, but loaded rows can now expand
+to the measured subtitle content height instead of clipping to the old fixed
+58px row height. Search Results keeps its fixed-height virtualized path.
+
 ## Final Verification
 
 Date: 2026-06-07

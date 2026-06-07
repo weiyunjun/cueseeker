@@ -1,3 +1,4 @@
+import AppKit
 import CueSeekerCore
 import SwiftUI
 
@@ -22,6 +23,9 @@ struct PlaybackSubtitlesList: View {
         PlaybackSidebarVirtualList(
             rowCount: subtitleTotalCount,
             rowHeight: Self.estimatedSubtitleRowHeight,
+            rowHeightForRow: { row, width in
+                subtitleRowHeight(at: row, rowWidth: width)
+            },
             rowsVersion: playback.currentSubtitleEntryRowsVersion,
             scrollTargetRow: activeEntryIndex,
             scrollTargetVersion: activeEntryScrollTargetVersion,
@@ -70,9 +74,57 @@ struct PlaybackSubtitlesList: View {
                     appState.seekCurrentPlayback(toMilliseconds: entry.startMilliseconds)
                 }
             )
-            .frame(height: Self.estimatedSubtitleRowHeight, alignment: .top)
-            .clipped()
         )
+    }
+
+    private func subtitleRowHeight(at row: Int, rowWidth: CGFloat) -> CGFloat {
+        guard let entry = playback.currentSubtitleEntry(at: row) else {
+            return Self.estimatedSubtitleRowHeight
+        }
+
+        return PlaybackSidebarSubtitleRowMetrics.rowHeight(
+            forDisplayLines: subtitleDisplayLines(content: entry.content, cueLines: []),
+            rowWidth: rowWidth
+        )
+    }
+}
+
+enum PlaybackSidebarSubtitleRowMetrics {
+    static let minimumRowHeight: CGFloat = 58
+    private static let horizontalPadding: CGFloat = 22
+    private static let verticalPadding: CGFloat = 22
+    private static let rowSpacing: CGFloat = 4
+    private static var metadataFont: NSFont {
+        NSFont.systemFont(ofSize: 11.5, weight: .regular)
+    }
+
+    private static var contentFont: NSFont {
+        NSFont.systemFont(ofSize: 12.5, weight: .regular)
+    }
+
+    static func rowHeight(forDisplayLines displayLines: [String], rowWidth: CGFloat) -> CGFloat {
+        let lines = displayLines.isEmpty ? [""] : displayLines
+        let textWidth = max(1, rowWidth - horizontalPadding)
+        let metadataHeight = ceil(metadataFont.ascender - metadataFont.descender + metadataFont.leading)
+        let contentHeight = lines.reduce(CGFloat(0)) { height, line in
+            height + measuredTextHeight(line, width: textWidth)
+        }
+        let spacingHeight = CGFloat(lines.count) * rowSpacing
+        let measuredHeight = metadataHeight + contentHeight + spacingHeight + verticalPadding
+        return max(minimumRowHeight, ceil(measuredHeight))
+    }
+
+    private static func measuredTextHeight(_ text: String, width: CGFloat) -> CGFloat {
+        let measuredText = text.isEmpty ? " " : text
+        let attributed = NSAttributedString(
+            string: measuredText,
+            attributes: [.font: contentFont]
+        )
+        let rect = attributed.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        return max(ceil(rect.height), ceil(contentFont.ascender - contentFont.descender + contentFont.leading))
     }
 }
 
