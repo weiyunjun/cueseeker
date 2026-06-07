@@ -1,18 +1,34 @@
 import SwiftUI
 
 struct SchemaWorkbenchPage: View {
+    @State private var openPopover: SchemaWorkbenchPopover?
+
     var body: some View {
         ZStack {
             SchemaWorkbenchStyle.pageBackground
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                SearchCommandBar()
+                SearchCommandBar(
+                    onViewMenu: {
+                        togglePopover(.columnVisibility)
+                    }
+                )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
                     .padding(.bottom, 12)
 
-                FilterControlBar()
+                FilterControlBar(
+                    onFilterSets: {
+                        togglePopover(.filterSets)
+                    },
+                    onFilterBuilder: {
+                        togglePopover(.filterBuilder)
+                    },
+                    onReset: {
+                        openPopover = nil
+                    }
+                )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, 12)
 
@@ -21,9 +37,78 @@ struct SchemaWorkbenchPage: View {
                     .padding(.bottom, SchemaWorkbenchStyle.pageBottomPadding)
                     .frame(maxHeight: .infinity)
             }
+
+            overlayLayer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    @ViewBuilder
+    private var overlayLayer: some View {
+        if let openPopover {
+            GeometryReader { geometry in
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            self.openPopover = nil
+                        }
+
+                    popoverView(openPopover, geometry: geometry)
+                }
+            }
+            .zIndex(10)
+        }
+    }
+
+    @ViewBuilder
+    private func popoverView(
+        _ popover: SchemaWorkbenchPopover,
+        geometry: GeometryProxy
+    ) -> some View {
+        switch popover {
+        case .columnVisibility:
+            ColumnVisibilityPopover {
+                openPopover = nil
+            }
+            .frame(width: 220)
+            .offset(
+                x: max(
+                    SchemaWorkbenchStyle.pageHorizontalPadding,
+                    geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220
+                ),
+                y: SchemaWorkbenchStyle.viewPopoverTop
+            )
+        case .filterSets:
+            FilterSetPopover {
+                openPopover = nil
+            }
+            .frame(width: 260)
+            .offset(
+                x: SchemaWorkbenchStyle.pageHorizontalPadding,
+                y: SchemaWorkbenchStyle.filterPopoverTop
+            )
+        case .filterBuilder:
+            FilterBuilderPopover {
+                openPopover = nil
+            }
+            .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
+            .offset(
+                x: SchemaWorkbenchStyle.pageHorizontalPadding,
+                y: SchemaWorkbenchStyle.filterPopoverTop
+            )
+        }
+    }
+
+    private func togglePopover(_ popover: SchemaWorkbenchPopover) {
+        openPopover = openPopover == popover ? nil : popover
+    }
+}
+
+private enum SchemaWorkbenchPopover: Equatable {
+    case columnVisibility
+    case filterSets
+    case filterBuilder
 }
 
 private enum SchemaWorkbenchStyle {
@@ -32,6 +117,14 @@ private enum SchemaWorkbenchStyle {
     static let pageBottomPadding: CGFloat = 14
     static let tableCornerRadius: CGFloat = 8
     static let hairlineWidth: CGFloat = 0.5
+    static let rowGap: CGFloat = 12
+
+    static let viewPopoverTop = pageTopPadding + WorkbenchControlMetrics.searchFieldHeight + 8
+    static let filterPopoverTop = pageTopPadding
+        + WorkbenchControlMetrics.searchFieldHeight
+        + rowGap
+        + WorkbenchControlMetrics.controlHeight
+        + 8
 
     static let pageBackground = Color(
         red: 0.965,
@@ -41,6 +134,8 @@ private enum SchemaWorkbenchStyle {
 }
 
 private struct SearchCommandBar: View {
+    var onViewMenu: () -> Void
+
     var body: some View {
         HStack(spacing: 12) {
             WorkbenchSearchField(placeholder: "Search cues by name, lyrics, or keywords...")
@@ -49,7 +144,8 @@ private struct SearchCommandBar: View {
             WorkbenchToolbarButton(
                 title: "View",
                 systemImage: "slider.horizontal.3",
-                showsChevron: true
+                showsChevron: true,
+                action: onViewMenu
             )
             .frame(width: 110)
         }
@@ -58,32 +154,169 @@ private struct SearchCommandBar: View {
 }
 
 private struct FilterControlBar: View {
+    var onFilterSets: () -> Void
+    var onFilterBuilder: () -> Void
+    var onReset: () -> Void
+
     var body: some View {
         HStack(spacing: 10) {
             WorkbenchToolbarButton(
                 title: "Filter Sets",
                 systemImage: "line.3.horizontal.decrease",
-                showsChevron: true
+                showsChevron: true,
+                action: onFilterSets
             )
             .frame(width: 150)
 
             WorkbenchFilterChip(
                 systemImage: "line.3.horizontal.decrease",
                 title: "bangdream",
-                detail: "2 Filters"
+                detail: "2 Filters",
+                action: onFilterBuilder
             )
                 .frame(width: 190)
 
             WorkbenchToolbarButton(
                 title: "Reset",
                 systemImage: "xmark",
-                showsChevron: false
+                showsChevron: false,
+                action: onReset
             )
             .frame(width: 92)
 
             Spacer(minLength: 0)
         }
         .frame(height: WorkbenchControlMetrics.controlHeight)
+    }
+}
+
+private struct ColumnVisibilityPopover: View {
+    let onDismiss: () -> Void
+    private let columns = ["#", "Name", "Cues", "Language", "Speaker"]
+
+    var body: some View {
+        WorkbenchPopoverPanel {
+            VStack(spacing: 0) {
+                ForEach(columns, id: \.self) { column in
+                    WorkbenchPopoverRow(
+                        title: column,
+                        isSelected: true,
+                        action: onDismiss
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct FilterSetPopover: View {
+    let onDismiss: () -> Void
+    private let options = ["bangdream", "Ave Mujica", "Chinese Only", "Speaker Focus"]
+
+    var body: some View {
+        WorkbenchPopoverPanel {
+            VStack(spacing: 0) {
+                ForEach(options, id: \.self) { option in
+                    WorkbenchPopoverRow(
+                        title: option,
+                        isSelected: option == "bangdream",
+                        action: onDismiss
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct FilterBuilderPopover: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("New Filter Set")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(WorkbenchControlColors.primaryText)
+
+                    Spacer(minLength: 0)
+
+                    WorkbenchIconButton(systemImage: "xmark", action: onDismiss)
+                        .frame(width: 32, height: 32)
+                }
+
+                VStack(spacing: 12) {
+                    FilterRuleRow(prefix: "Where", joiner: nil)
+                    FilterRuleRow(prefix: nil, joiner: "and")
+                    FilterRuleRow(prefix: nil, joiner: "or")
+                }
+
+                HStack(spacing: 16) {
+                    Button(action: {}) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                            Text("New Filter")
+                        }
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundStyle(WorkbenchControlColors.primaryText)
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer(minLength: 0)
+                }
+
+                Button(action: onDismiss) {
+                    Text("Save Filter Set")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(WorkbenchControlColors.primaryText)
+                        .padding(.horizontal, 14)
+                        .frame(height: 36)
+                        .background(WorkbenchControlBackground())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(8)
+        }
+    }
+}
+
+private struct FilterRuleRow: View {
+    let prefix: String?
+    let joiner: String?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Group {
+                if let prefix {
+                    Text(prefix)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(WorkbenchControlColors.primaryText)
+                } else if let joiner {
+                    WorkbenchSelectField(title: joiner)
+                }
+            }
+            .frame(width: 58, alignment: .leading)
+
+            WorkbenchSelectField(title: "Name")
+            .frame(width: 110)
+
+            WorkbenchSelectField(title: "contains")
+            .frame(width: 150)
+
+            HStack {
+                Text("Enter a value...")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(WorkbenchControlColors.mutedText)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: WorkbenchControlMetrics.controlHeight)
+            .background(WorkbenchControlBackground())
+            .frame(maxWidth: .infinity)
+
+            WorkbenchIconButton(systemImage: "trash")
+                .frame(width: 40)
+        }
     }
 }
 

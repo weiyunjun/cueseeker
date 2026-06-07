@@ -43,8 +43,20 @@ struct WorkbenchToolbarButton: View {
     let title: String
     let systemImage: String
     var showsChevron = false
+    var action: (() -> Void)? = nil
 
     var body: some View {
+        if let action {
+            Button(action: action) {
+                label
+            }
+            .buttonStyle(.plain)
+        } else {
+            label
+        }
+    }
+
+    private var label: some View {
         HStack(spacing: 10) {
             Image(systemName: systemImage)
                 .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .medium))
@@ -70,8 +82,20 @@ struct WorkbenchFilterChip: View {
     let systemImage: String
     let title: String
     let detail: String?
+    var action: (() -> Void)? = nil
 
     var body: some View {
+        if let action {
+            Button(action: action) {
+                label
+            }
+            .buttonStyle(.plain)
+        } else {
+            label
+        }
+    }
+
+    private var label: some View {
         HStack(spacing: 10) {
             Image(systemName: systemImage)
                 .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .semibold))
@@ -106,6 +130,40 @@ struct WorkbenchFilterChip: View {
     }
 }
 
+struct WorkbenchSelectField: View {
+    let title: String
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        if let action {
+            Button(action: action) {
+                label
+            }
+            .buttonStyle(.plain)
+        } else {
+            label
+        }
+    }
+
+    private var label: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 14, weight: .regular))
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(WorkbenchControlColors.mutedText)
+        }
+        .foregroundStyle(WorkbenchControlColors.primaryText)
+        .padding(.horizontal, 12)
+        .frame(height: WorkbenchControlMetrics.controlHeight)
+        .background(WorkbenchControlBackground())
+    }
+}
+
 struct WorkbenchBadge: View {
     let title: String
     var foregroundColor = WorkbenchControlColors.activeBlue
@@ -128,8 +186,20 @@ struct WorkbenchPopoverRow: View {
     let title: String
     var isSelected = false
     var systemImage: String?
+    var action: (() -> Void)? = nil
 
     var body: some View {
+        if let action {
+            Button(action: action) {
+                label
+            }
+            .buttonStyle(.plain)
+        } else {
+            label
+        }
+    }
+
+    private var label: some View {
         HStack(spacing: 12) {
             if isSelected {
                 Image(systemName: "checkmark")
@@ -158,8 +228,20 @@ struct WorkbenchPopoverRow: View {
 
 struct WorkbenchIconButton: View {
     let systemImage: String
+    var action: (() -> Void)? = nil
 
     var body: some View {
+        if let action {
+            Button(action: action) {
+                label
+            }
+            .buttonStyle(.plain)
+        } else {
+            label
+        }
+    }
+
+    private var label: some View {
         Image(systemName: systemImage)
             .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .medium))
             .foregroundStyle(WorkbenchControlColors.primaryText)
@@ -168,6 +250,29 @@ struct WorkbenchIconButton: View {
                 height: WorkbenchControlMetrics.controlHeight
             )
             .background(WorkbenchControlBackground())
+    }
+}
+
+struct WorkbenchPopoverPanel<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(WorkbenchControlColors.surfaceFill)
+                    .shadow(
+                        color: Color.black.opacity(0.14),
+                        radius: 12,
+                        x: 0,
+                        y: 6
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(WorkbenchControlColors.border.opacity(0.75), lineWidth: 0.5)
+            )
     }
 }
 
