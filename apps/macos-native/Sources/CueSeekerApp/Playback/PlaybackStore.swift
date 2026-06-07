@@ -83,6 +83,7 @@ final class PlaybackStore: ObservableObject {
     private let userDefaults: UserDefaults
 
     @Published var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
+    @Published var currentSubtitleEntrySubtitlePath: String?
     @Published var currentSubtitleEntryIndex: [SubtitleDatabaseEntryIndexItem] = []
     @Published var currentSubtitleEntryWindowStartIndex = 0
     @Published var currentSubtitleEntryTotalCount = 0

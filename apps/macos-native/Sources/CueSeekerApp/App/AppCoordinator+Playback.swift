@@ -328,16 +328,35 @@ extension AppCoordinator {
     }
 
     func refreshCurrentSubtitleEntries() {
-        currentSubtitleEntriesTask?.cancel()
-        applyCurrentSubtitleEntries([])
-
         guard let currentPlaybackSubtitlePath,
               let database = subtitleDatabase
         else {
+            currentSubtitleEntriesTask?.cancel()
+            currentSubtitleEntriesTask = nil
+            currentSubtitleEntriesTaskSubtitlePath = nil
+            currentSubtitleEntriesTaskRequestID += 1
+            applyCurrentSubtitleEntries([], subtitlePath: nil)
             return
         }
 
         let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
+        let subtitlePath = subtitleFile.path
+        if playback.currentSubtitleEntrySubtitlePath == subtitlePath,
+           !playback.currentSubtitleEntryIndex.isEmpty {
+            return
+        }
+        if currentSubtitleEntriesTaskSubtitlePath == subtitlePath {
+            return
+        }
+
+        currentSubtitleEntriesTask?.cancel()
+        currentSubtitleEntriesTaskRequestID += 1
+        let requestID = currentSubtitleEntriesTaskRequestID
+        currentSubtitleEntriesTaskSubtitlePath = subtitlePath
+        if playback.currentSubtitleEntrySubtitlePath != subtitlePath {
+            applyCurrentSubtitleEntries([], subtitlePath: subtitlePath)
+        }
+
         currentSubtitleEntriesTask = Task { [weak self] in
             do {
                 let currentMilliseconds = await MainActor.run {
@@ -374,18 +393,27 @@ extension AppCoordinator {
                     return
                 }
 
-                guard self?.currentPlaybackSubtitlePath == window.subtitlePath else {
+                guard self?.currentSubtitleEntriesTaskRequestID == requestID,
+                      self?.currentPlaybackSubtitlePath == window.subtitlePath
+                else {
                     return
                 }
 
                 self?.applyCurrentSubtitleWindow(window)
+                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
                 print("Failed to load current subtitle entries: \(error)")
-                self?.applyCurrentSubtitleEntries([])
+                guard self?.currentSubtitleEntriesTaskRequestID == requestID,
+                      self?.currentPlaybackSubtitlePath == subtitlePath
+                else {
+                    return
+                }
+                self?.applyCurrentSubtitleEntries([], subtitlePath: subtitlePath)
+                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
             }
         }
     }
@@ -411,7 +439,10 @@ extension AppCoordinator {
         }
 
         currentSubtitleEntriesTask?.cancel()
+        currentSubtitleEntriesTaskRequestID += 1
+        let requestID = currentSubtitleEntriesTaskRequestID
         let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
+        currentSubtitleEntriesTaskSubtitlePath = subtitleFile.path
         let index = playback.currentSubtitleEntryIndex
         let windowStart = Self.playbackSubtitleWindowStart(
             around: activeIndex,
@@ -431,7 +462,9 @@ extension AppCoordinator {
                     return
                 }
 
-                guard self?.currentPlaybackSubtitlePath == subtitleFile.path else {
+                guard self?.currentSubtitleEntriesTaskRequestID == requestID,
+                      self?.currentPlaybackSubtitlePath == subtitleFile.path
+                else {
                     return
                 }
 
@@ -443,12 +476,14 @@ extension AppCoordinator {
                         entries: entries
                     )
                 )
+                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
                 print("Failed to load current subtitle entries: \(error)")
+                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
             }
         }
     }
@@ -476,7 +511,10 @@ extension AppCoordinator {
         }
 
         currentSubtitleEntriesTask?.cancel()
+        currentSubtitleEntriesTaskRequestID += 1
+        let requestID = currentSubtitleEntriesTaskRequestID
         let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
+        currentSubtitleEntriesTaskSubtitlePath = subtitleFile.path
         let index = playback.currentSubtitleEntryIndex
         currentSubtitleEntriesTask = Task { [weak self] in
             do {
@@ -492,7 +530,9 @@ extension AppCoordinator {
                     return
                 }
 
-                guard self?.currentPlaybackSubtitlePath == subtitleFile.path else {
+                guard self?.currentSubtitleEntriesTaskRequestID == requestID,
+                      self?.currentPlaybackSubtitlePath == subtitleFile.path
+                else {
                     return
                 }
 
@@ -504,12 +544,14 @@ extension AppCoordinator {
                         entries: entries
                     )
                 )
+                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
                 print("Failed to load current subtitle entries window: \(error)")
+                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
             }
         }
     }
@@ -1371,6 +1413,10 @@ extension AppCoordinator {
             try player?.stop()
             playbackSubtitleCuesTask?.cancel()
             playbackSubtitleCuesTask = nil
+            currentSubtitleEntriesTask?.cancel()
+            currentSubtitleEntriesTask = nil
+            currentSubtitleEntriesTaskSubtitlePath = nil
+            currentSubtitleEntriesTaskRequestID += 1
             playback.playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
             search.selectedSearchResult = nil
@@ -1383,6 +1429,7 @@ extension AppCoordinator {
             playback.resetQuickSearchSubtitleLineNavigation()
             playback.resetQuickSearchResultSelection()
             playback.resetQuickSearchAIState()
+            applyCurrentSubtitleEntries([], subtitlePath: nil)
             if let originatingMode = playbackOriginatingPanelMode {
                 workbenchLayout.selectPanelMode(originatingMode)
                 playbackOriginatingPanelMode = nil
@@ -1433,7 +1480,11 @@ extension AppCoordinator {
         return min(desiredStart, maxStart)
     }
 
-    func applyCurrentSubtitleEntries(_ entries: [SubtitleDatabaseEntry]) {
+    func applyCurrentSubtitleEntries(
+        _ entries: [SubtitleDatabaseEntry],
+        subtitlePath: String?
+    ) {
+        playback.currentSubtitleEntrySubtitlePath = subtitlePath
         playback.currentSubtitleEntries = entries
         playback.currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entries: entries)
         playback.currentSubtitleEntryIndex = entries.map {
@@ -1449,12 +1500,22 @@ extension AppCoordinator {
     }
 
     func applyCurrentSubtitleWindow(_ window: PlaybackSubtitleWindowLoad) {
+        playback.currentSubtitleEntrySubtitlePath = window.subtitlePath
         playback.currentSubtitleEntries = window.entries
         playback.currentSubtitleEntryIndex = window.index
         playback.currentSubtitleEntryWindowStartIndex = window.windowStartIndex
         playback.currentSubtitleEntryTotalCount = window.index.count
         playback.currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entryIndex: window.index)
         playback.currentSubtitleEntryRowsVersion += 1
+    }
+
+    func finishCurrentSubtitleEntriesTask(requestID: Int) {
+        guard currentSubtitleEntriesTaskRequestID == requestID else {
+            return
+        }
+
+        currentSubtitleEntriesTask = nil
+        currentSubtitleEntriesTaskSubtitlePath = nil
     }
 
     func initialPlaybackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {

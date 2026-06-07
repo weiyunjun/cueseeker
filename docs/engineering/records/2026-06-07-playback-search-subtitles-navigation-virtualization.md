@@ -391,6 +391,48 @@ The Subtitles tab keeps virtualized rendering, but loaded rows can now expand
 to the measured subtitle content height instead of clipping to the old fixed
 58px row height. Search Results keeps its fixed-height virtualized path.
 
+## Regression Fix: Subtitle Refresh Lifecycle
+
+Date: 2026-06-07
+
+Additional covering requirement commit: `51c762dc`
+
+### Scope
+
+Fix the Subtitles side-panel lifecycle regression where switching away from the
+Subtitles tab and then switching back called `refreshCurrentSubtitleEntries`,
+cleared the loaded window, and left the panel blank while the same subtitle
+path initialized again.
+
+### Changes
+
+- Playback now records the subtitle path that owns the current subtitle entry
+  index/window.
+- Current subtitle refresh is idempotent for the already loaded subtitle path:
+  it does not cancel a same-path load, clear existing entries, or rebuild the
+  same window.
+- Different subtitle paths still clear the old window before loading the new
+  path, so stale rows are not shown for a new video/subtitle.
+- Current subtitle entry tasks now carry a request id and subtitle path so
+  cancellation, stop playback, and database indexing cleanup reset lifecycle
+  state explicitly.
+- Added a regression test that loads a subtitle window, refreshes the same
+  subtitle path, and verifies the visible window and row version are preserved.
+
+### Verification
+
+- Passed: `swift build`
+- Passed:
+  `swift test --jobs 1 --filter refreshingLoadedCurrentSubtitlePathDoesNotClearVisibleWindow`
+- Passed: `swift test --jobs 1 --filter Playback`
+  - 74 Testing tests passed.
+
+### Outcome
+
+Switching back to the Subtitles tab no longer clears the already loaded
+same-path subtitle window or starts another initialization task. New
+video/subtitle paths still clear stale rows before loading the new window.
+
 ## Final Verification
 
 Date: 2026-06-07
