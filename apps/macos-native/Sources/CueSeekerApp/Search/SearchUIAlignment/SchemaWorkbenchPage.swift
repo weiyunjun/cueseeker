@@ -30,9 +30,6 @@ private enum SchemaWorkbenchStyle {
     static let pageHorizontalPadding: CGFloat = 12
     static let pageTopPadding: CGFloat = 10
     static let pageBottomPadding: CGFloat = 14
-    static let controlHeight: CGFloat = 46
-    static let compactControlHeight: CGFloat = 40
-    static let controlCornerRadius: CGFloat = 8
     static let tableCornerRadius: CGFloat = 8
     static let hairlineWidth: CGFloat = 0.5
 
@@ -41,61 +38,43 @@ private enum SchemaWorkbenchStyle {
         green: 0.965,
         blue: 0.958
     )
-    static let surfaceFill = Color(nsColor: .textBackgroundColor)
-    static let borderColor = Color(nsColor: .separatorColor)
-    static let mutedText = Color(nsColor: .secondaryLabelColor)
-    static let activeBlue = Color(red: 0.035, green: 0.412, blue: 0.957)
-    static let activeBlueFill = Color(red: 0.910, green: 0.952, blue: 1.0)
 }
 
 private struct SearchCommandBar: View {
     var body: some View {
         HStack(spacing: 12) {
-            searchField
+            WorkbenchSearchField(placeholder: "Search cues by name, lyrics, or keywords...")
                 .frame(maxWidth: .infinity)
 
-            toolbarButton(
+            WorkbenchToolbarButton(
                 title: "View",
                 systemImage: "slider.horizontal.3",
                 showsChevron: true
             )
             .frame(width: 110)
         }
-        .frame(height: SchemaWorkbenchStyle.controlHeight)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(SchemaWorkbenchStyle.mutedText)
-
-            Text("Search cues by name, lyrics, or keywords...")
-                .font(.system(size: 15, weight: .regular))
-                .foregroundStyle(SchemaWorkbenchStyle.mutedText)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .frame(height: SchemaWorkbenchStyle.controlHeight)
-        .background(controlBackground)
+        .frame(height: WorkbenchControlMetrics.searchFieldHeight)
     }
 }
 
 private struct FilterControlBar: View {
     var body: some View {
         HStack(spacing: 10) {
-            toolbarButton(
+            WorkbenchToolbarButton(
                 title: "Filter Sets",
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true
             )
             .frame(width: 150)
 
-            activeFilterChip
+            WorkbenchFilterChip(
+                systemImage: "line.3.horizontal.decrease",
+                title: "bangdream",
+                detail: "2 Filters"
+            )
                 .frame(width: 190)
 
-            toolbarButton(
+            WorkbenchToolbarButton(
                 title: "Reset",
                 systemImage: "xmark",
                 showsChevron: false
@@ -104,39 +83,7 @@ private struct FilterControlBar: View {
 
             Spacer(minLength: 0)
         }
-        .frame(height: SchemaWorkbenchStyle.compactControlHeight)
-    }
-
-    private var activeFilterChip: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 16, weight: .semibold))
-
-            Text("bangdream")
-                .font(.system(size: 15, weight: .regular))
-
-            Text("2 Filters")
-                .font(.system(size: 15, weight: .semibold))
-
-            Spacer(minLength: 0)
-        }
-        .foregroundStyle(SchemaWorkbenchStyle.activeBlue)
-        .padding(.horizontal, 14)
-        .frame(height: SchemaWorkbenchStyle.compactControlHeight)
-        .background(
-            RoundedRectangle(
-                cornerRadius: SchemaWorkbenchStyle.controlCornerRadius,
-                style: .continuous
-            )
-            .fill(SchemaWorkbenchStyle.activeBlueFill)
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: SchemaWorkbenchStyle.controlCornerRadius,
-                style: .continuous
-            )
-            .strokeBorder(SchemaWorkbenchStyle.activeBlue.opacity(0.24), lineWidth: 1)
-        )
+        .frame(height: WorkbenchControlMetrics.controlHeight)
     }
 }
 
@@ -156,7 +103,7 @@ private struct WorkbenchDataTable: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SchemaWorkbenchStyle.surfaceFill)
+        .background(WorkbenchControlColors.surfaceFill)
         .clipShape(
             RoundedRectangle(
                 cornerRadius: SchemaWorkbenchStyle.tableCornerRadius,
@@ -169,7 +116,7 @@ private struct WorkbenchDataTable: View {
                 style: .continuous
             )
             .strokeBorder(
-                SchemaWorkbenchStyle.borderColor,
+                WorkbenchControlColors.border,
                 lineWidth: SchemaWorkbenchStyle.hairlineWidth
             )
         )
@@ -184,7 +131,7 @@ private struct WorkbenchDataTable: View {
         .frame(height: 44)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(SchemaWorkbenchStyle.borderColor)
+                .fill(WorkbenchControlColors.border)
                 .frame(height: SchemaWorkbenchStyle.hairlineWidth)
         }
     }
@@ -200,7 +147,7 @@ private struct WorkbenchDataTable: View {
         .frame(height: 42)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(SchemaWorkbenchStyle.borderColor.opacity(0.55))
+                .fill(WorkbenchControlColors.border.opacity(0.55))
                 .frame(height: SchemaWorkbenchStyle.hairlineWidth)
         }
     }
@@ -209,7 +156,7 @@ private struct WorkbenchDataTable: View {
     private func headerCell(_ column: String) -> some View {
         let content = Text(column)
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Color(nsColor: .labelColor))
+            .foregroundStyle(WorkbenchControlColors.primaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, column == "#" ? 16 : 12)
 
@@ -223,7 +170,7 @@ private struct WorkbenchDataTable: View {
     @ViewBuilder
     private func rowCell(columnWidth: CGFloat?, barWidth: CGFloat?, opacity: Double) -> some View {
         let content = Rectangle()
-            .fill(Color(nsColor: .labelColor).opacity(opacity))
+            .fill(WorkbenchControlColors.primaryText.opacity(opacity))
             .frame(width: barWidth, height: 10)
             .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
             .frame(maxWidth: barWidth == nil ? .infinity : barWidth, alignment: .leading)
@@ -245,49 +192,4 @@ private struct WorkbenchDataTable: View {
         default: return nil
         }
     }
-}
-
-@MainActor
-private func toolbarButton(
-    title: String,
-    systemImage: String,
-    showsChevron: Bool
-) -> some View {
-    HStack(spacing: 10) {
-        Image(systemName: systemImage)
-            .font(.system(size: 16, weight: .medium))
-
-        Text(title)
-            .font(.system(size: 15, weight: .medium))
-
-        if showsChevron {
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(SchemaWorkbenchStyle.mutedText)
-        }
-    }
-    .foregroundStyle(Color(nsColor: .labelColor))
-    .padding(.horizontal, 14)
-    .frame(height: SchemaWorkbenchStyle.compactControlHeight)
-    .background(controlBackground)
-}
-
-@MainActor
-private var controlBackground: some View {
-    RoundedRectangle(
-        cornerRadius: SchemaWorkbenchStyle.controlCornerRadius,
-        style: .continuous
-    )
-    .fill(SchemaWorkbenchStyle.surfaceFill)
-    .overlay(
-        RoundedRectangle(
-            cornerRadius: SchemaWorkbenchStyle.controlCornerRadius,
-            style: .continuous
-        )
-        .strokeBorder(
-            SchemaWorkbenchStyle.borderColor,
-            lineWidth: SchemaWorkbenchStyle.hairlineWidth
-        )
-    )
 }
