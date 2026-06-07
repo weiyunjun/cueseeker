@@ -20,6 +20,12 @@ enum WorkbenchControlColors {
 
 struct WorkbenchSearchField: View {
     let placeholder: String
+    @Binding var text: String
+
+    init(placeholder: String, text: Binding<String>) {
+        self.placeholder = placeholder
+        _text = text
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -27,11 +33,10 @@ struct WorkbenchSearchField: View {
                 .font(.system(size: 18, weight: .regular))
                 .foregroundStyle(WorkbenchControlColors.mutedText)
 
-            Text(placeholder)
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .regular))
-                .foregroundStyle(WorkbenchControlColors.mutedText)
-
-            Spacer(minLength: 0)
+                .foregroundStyle(WorkbenchControlColors.primaryText)
         }
         .padding(.horizontal, 18)
         .frame(height: WorkbenchControlMetrics.searchFieldHeight)
@@ -146,6 +151,14 @@ struct WorkbenchSelectField: View {
     }
 
     private var label: some View {
+        WorkbenchSelectFieldLabel(title: title)
+    }
+}
+
+struct WorkbenchSelectFieldLabel: View {
+    let title: String
+
+    var body: some View {
         HStack(spacing: 8) {
             Text(title)
                 .font(.system(size: 14, weight: .regular))
@@ -161,6 +174,21 @@ struct WorkbenchSelectField: View {
         .padding(.horizontal, 12)
         .frame(height: WorkbenchControlMetrics.controlHeight)
         .background(WorkbenchControlBackground())
+    }
+}
+
+struct WorkbenchTextInputField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(.system(size: 14, weight: .regular))
+            .foregroundStyle(WorkbenchControlColors.primaryText)
+            .padding(.horizontal, 12)
+            .frame(height: WorkbenchControlMetrics.controlHeight)
+            .background(WorkbenchControlBackground())
     }
 }
 

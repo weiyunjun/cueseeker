@@ -2,6 +2,17 @@ import SwiftUI
 
 struct SchemaWorkbenchPage: View {
     @State private var openPopover: SchemaWorkbenchPopover?
+    @State private var searchDraft: String
+    @State private var visibleColumnIDs: Set<String>
+    @State private var activeFilterSetID: String?
+    @State private var filterRules: [SchemaWorkbenchFilterRule]
+
+    init() {
+        _searchDraft = State(initialValue: "")
+        _visibleColumnIDs = State(initialValue: Self.initialVisibleColumnIDs)
+        _activeFilterSetID = State(initialValue: Self.defaultFilterSetID)
+        _filterRules = State(initialValue: Self.defaultFilterRules)
+    }
 
     var body: some View {
         ZStack {
@@ -10,6 +21,7 @@ struct SchemaWorkbenchPage: View {
 
             VStack(spacing: 0) {
                 SearchCommandBar(
+                    searchDraft: $searchDraft,
                     onViewMenu: {
                         togglePopover(.columnVisibility)
                     }
@@ -19,21 +31,23 @@ struct SchemaWorkbenchPage: View {
                     .padding(.bottom, 12)
 
                 FilterControlBar(
+                    activeFilterSetName: activeFilterSetName,
+                    filterCount: filterRules.count,
                     onFilterSets: {
                         togglePopover(.filterSets)
                     },
                     onFilterBuilder: {
-                        togglePopover(.filterBuilder)
+                        openFilterBuilder()
                     },
                     onReset: {
-                        openPopover = nil
+                        resetFilters()
                     }
                 )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, 12)
 
                 WorkbenchDataTable(
-                    columns: Self.tableColumns,
+                    columns: visibleColumns,
                     rows: Self.tableRows
                 )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
@@ -71,9 +85,11 @@ struct SchemaWorkbenchPage: View {
     ) -> some View {
         switch popover {
         case .columnVisibility:
-            ColumnVisibilityPopover {
-                openPopover = nil
-            }
+            ColumnVisibilityPopover(
+                columns: Self.tableColumns,
+                visibleColumnIDs: visibleColumnIDs,
+                onToggleColumn: toggleColumnVisibility
+            )
             .frame(width: 220)
             .offset(
                 x: max(
@@ -83,18 +99,27 @@ struct SchemaWorkbenchPage: View {
                 y: SchemaWorkbenchStyle.viewPopoverTop
             )
         case .filterSets:
-            FilterSetPopover {
-                openPopover = nil
-            }
+            FilterSetPopover(
+                options: Self.filterSets,
+                activeFilterSetID: activeFilterSetID,
+                onSelect: selectFilterSet
+            )
             .frame(width: 260)
             .offset(
                 x: SchemaWorkbenchStyle.pageHorizontalPadding,
                 y: SchemaWorkbenchStyle.filterPopoverTop
             )
         case .filterBuilder:
-            FilterBuilderPopover {
-                openPopover = nil
-            }
+            FilterBuilderPopover(
+                columns: Self.tableColumns,
+                rules: $filterRules,
+                onSave: {
+                    openPopover = nil
+                },
+                onDismiss: {
+                    openPopover = nil
+                }
+            )
             .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
             .offset(
                 x: SchemaWorkbenchStyle.pageHorizontalPadding,
@@ -105,6 +130,54 @@ struct SchemaWorkbenchPage: View {
 
     private func togglePopover(_ popover: SchemaWorkbenchPopover) {
         openPopover = openPopover == popover ? nil : popover
+    }
+
+    private var visibleColumns: [WorkbenchTableColumn] {
+        Self.tableColumns.filter { visibleColumnIDs.contains($0.id) }
+    }
+
+    private var activeFilterSetName: String? {
+        guard let activeFilterSetID else {
+            return nil
+        }
+
+        return Self.filterSets.first { $0.id == activeFilterSetID }?.name
+    }
+
+    private func toggleColumnVisibility(_ columnID: String) {
+        if visibleColumnIDs.contains(columnID) {
+            visibleColumnIDs.remove(columnID)
+        } else {
+            visibleColumnIDs.insert(columnID)
+        }
+    }
+
+    private func selectFilterSet(_ filterSet: SchemaWorkbenchFilterSet) {
+        activeFilterSetID = filterSet.id
+        filterRules = filterSet.rules
+        openPopover = nil
+    }
+
+    private func openFilterBuilder() {
+        if filterRules.isEmpty {
+            activeFilterSetID = nil
+            filterRules = [
+                Self.makeFilterRule(
+                    join: nil,
+                    fieldID: "name",
+                    operatorID: .contains,
+                    value: ""
+                ),
+            ]
+        }
+
+        openPopover = .filterBuilder
+    }
+
+    private func resetFilters() {
+        activeFilterSetID = nil
+        filterRules = []
+        openPopover = nil
     }
 
     private static let tableColumns: [WorkbenchTableColumn] = [
@@ -139,6 +212,113 @@ struct SchemaWorkbenchPage: View {
             width: .fixed(180)
         ),
     ]
+
+    private static let initialVisibleColumnIDs = Set(tableColumns.map(\.id))
+
+    private static let defaultFilterSetID = "bangdream"
+
+    private static var defaultFilterRules: [SchemaWorkbenchFilterRule] {
+        filterSets.first { $0.id == defaultFilterSetID }?.rules ?? []
+    }
+
+    private static let filterSets: [SchemaWorkbenchFilterSet] = [
+        SchemaWorkbenchFilterSet(
+            id: "bangdream",
+            name: "bangdream",
+            rules: [
+                makeFilterRule(
+                    id: "bangdream-name",
+                    join: nil,
+                    fieldID: "name",
+                    operatorID: .contains,
+                    value: "Ave Mujica"
+                ),
+                makeFilterRule(
+                    id: "bangdream-language",
+                    join: .and,
+                    fieldID: "language",
+                    operatorID: .contains,
+                    value: "中文"
+                ),
+            ]
+        ),
+        SchemaWorkbenchFilterSet(
+            id: "ave-mujica",
+            name: "Ave Mujica",
+            rules: [
+                makeFilterRule(
+                    id: "ave-name",
+                    join: nil,
+                    fieldID: "name",
+                    operatorID: .contains,
+                    value: "Ave Mujica"
+                ),
+                makeFilterRule(
+                    id: "ave-speaker",
+                    join: .and,
+                    fieldID: "speaker",
+                    operatorID: .contains,
+                    value: "祥子"
+                ),
+            ]
+        ),
+        SchemaWorkbenchFilterSet(
+            id: "chinese-only",
+            name: "Chinese Only",
+            rules: [
+                makeFilterRule(
+                    id: "chinese-language",
+                    join: nil,
+                    fieldID: "language",
+                    operatorID: .contains,
+                    value: "中文"
+                ),
+            ]
+        ),
+        SchemaWorkbenchFilterSet(
+            id: "speaker-focus",
+            name: "Speaker Focus",
+            rules: [
+                makeFilterRule(
+                    id: "speaker-sakiko",
+                    join: nil,
+                    fieldID: "speaker",
+                    operatorID: .contains,
+                    value: "丰川祥子"
+                ),
+                makeFilterRule(
+                    id: "speaker-mutsumi",
+                    join: .or,
+                    fieldID: "speaker",
+                    operatorID: .contains,
+                    value: "若叶睦"
+                ),
+                makeFilterRule(
+                    id: "speaker-cues",
+                    join: .and,
+                    fieldID: "cues",
+                    operatorID: .contains,
+                    value: "大丈夫"
+                ),
+            ]
+        ),
+    ]
+
+    private static func makeFilterRule(
+        id: String = UUID().uuidString,
+        join: SchemaWorkbenchFilterJoin?,
+        fieldID: String,
+        operatorID: SchemaWorkbenchFilterOperatorID,
+        value: String
+    ) -> SchemaWorkbenchFilterRule {
+        SchemaWorkbenchFilterRule(
+            id: id,
+            join: join,
+            fieldID: fieldID,
+            operatorID: operatorID,
+            value: value
+        )
+    }
 
     private static let tableRows: [WorkbenchTableRow] = [
         tableRow(
@@ -243,6 +423,66 @@ private enum SchemaWorkbenchPopover: Equatable {
     case filterBuilder
 }
 
+private struct SchemaWorkbenchFilterSet: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let rules: [SchemaWorkbenchFilterRule]
+}
+
+private struct SchemaWorkbenchFilterRule: Identifiable, Equatable {
+    let id: String
+    var join: SchemaWorkbenchFilterJoin?
+    var fieldID: String
+    var operatorID: SchemaWorkbenchFilterOperatorID
+    var value: String
+}
+
+private enum SchemaWorkbenchFilterJoin: String, CaseIterable, Identifiable {
+    case and
+    case or
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        rawValue
+    }
+}
+
+private enum SchemaWorkbenchFilterOperatorID: String, Identifiable {
+    case contains
+    case equals
+    case startsWith
+    case greaterThan
+    case lessThan
+    case isEmpty
+    case isNotEmpty
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .contains:
+            return "contains"
+        case .equals:
+            return "equals"
+        case .startsWith:
+            return "starts with"
+        case .greaterThan:
+            return "is greater than"
+        case .lessThan:
+            return "is less than"
+        case .isEmpty:
+            return "is empty"
+        case .isNotEmpty:
+            return "is not empty"
+        }
+    }
+}
+
 private enum SchemaWorkbenchStyle {
     static let pageHorizontalPadding: CGFloat = 12
     static let pageTopPadding: CGFloat = 10
@@ -266,11 +506,15 @@ private enum SchemaWorkbenchStyle {
 }
 
 private struct SearchCommandBar: View {
+    @Binding var searchDraft: String
     var onViewMenu: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            WorkbenchSearchField(placeholder: "Search cues by name, lyrics, or keywords...")
+            WorkbenchSearchField(
+                placeholder: "Search cues by name, lyrics, or keywords...",
+                text: $searchDraft
+            )
                 .frame(maxWidth: .infinity)
 
             WorkbenchToolbarButton(
@@ -286,6 +530,8 @@ private struct SearchCommandBar: View {
 }
 
 private struct FilterControlBar: View {
+    let activeFilterSetName: String?
+    let filterCount: Int
     var onFilterSets: () -> Void
     var onFilterBuilder: () -> Void
     var onReset: () -> Void
@@ -300,21 +546,31 @@ private struct FilterControlBar: View {
             )
             .frame(width: 150)
 
-            WorkbenchFilterChip(
-                systemImage: "line.3.horizontal.decrease",
-                title: "bangdream",
-                detail: "2 Filters",
-                action: onFilterBuilder
-            )
-                .frame(width: 190)
+            if filterCount > 0 {
+                WorkbenchFilterChip(
+                    systemImage: "line.3.horizontal.decrease",
+                    title: activeFilterSetName ?? "\(filterCount) Filters",
+                    detail: activeFilterSetName == nil ? nil : "\(filterCount) Filters",
+                    action: onFilterBuilder
+                )
+                .frame(width: activeFilterSetName == nil ? 132 : 190)
 
-            WorkbenchToolbarButton(
-                title: "Reset",
-                systemImage: "xmark",
-                showsChevron: false,
-                action: onReset
-            )
-            .frame(width: 92)
+                WorkbenchToolbarButton(
+                    title: "Reset",
+                    systemImage: "xmark",
+                    showsChevron: false,
+                    action: onReset
+                )
+                .frame(width: 92)
+            } else {
+                WorkbenchToolbarButton(
+                    title: "New Filter Set",
+                    systemImage: "plus",
+                    showsChevron: false,
+                    action: onFilterBuilder
+                )
+                .frame(width: 170)
+            }
 
             Spacer(minLength: 0)
         }
@@ -323,17 +579,20 @@ private struct FilterControlBar: View {
 }
 
 private struct ColumnVisibilityPopover: View {
-    let onDismiss: () -> Void
-    private let columns = ["#", "Name", "Cues", "Language", "Speaker"]
+    let columns: [WorkbenchTableColumn]
+    let visibleColumnIDs: Set<String>
+    var onToggleColumn: (String) -> Void
 
     var body: some View {
         WorkbenchPopoverPanel {
             VStack(spacing: 0) {
-                ForEach(columns, id: \.self) { column in
+                ForEach(columns) { column in
                     WorkbenchPopoverRow(
-                        title: column,
-                        isSelected: true,
-                        action: onDismiss
+                        title: column.title,
+                        isSelected: visibleColumnIDs.contains(column.id),
+                        action: {
+                            onToggleColumn(column.id)
+                        }
                     )
                 }
             }
@@ -342,17 +601,20 @@ private struct ColumnVisibilityPopover: View {
 }
 
 private struct FilterSetPopover: View {
-    let onDismiss: () -> Void
-    private let options = ["bangdream", "Ave Mujica", "Chinese Only", "Speaker Focus"]
+    let options: [SchemaWorkbenchFilterSet]
+    let activeFilterSetID: String?
+    var onSelect: (SchemaWorkbenchFilterSet) -> Void
 
     var body: some View {
         WorkbenchPopoverPanel {
             VStack(spacing: 0) {
-                ForEach(options, id: \.self) { option in
+                ForEach(options) { option in
                     WorkbenchPopoverRow(
-                        title: option,
-                        isSelected: option == "bangdream",
-                        action: onDismiss
+                        title: option.name,
+                        isSelected: option.id == activeFilterSetID,
+                        action: {
+                            onSelect(option)
+                        }
                     )
                 }
             }
@@ -361,6 +623,9 @@ private struct FilterSetPopover: View {
 }
 
 private struct FilterBuilderPopover: View {
+    let columns: [WorkbenchTableColumn]
+    @Binding var rules: [SchemaWorkbenchFilterRule]
+    var onSave: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
@@ -378,13 +643,21 @@ private struct FilterBuilderPopover: View {
                 }
 
                 VStack(spacing: 12) {
-                    FilterRuleRow(prefix: "Where", joiner: nil)
-                    FilterRuleRow(prefix: nil, joiner: "and")
-                    FilterRuleRow(prefix: nil, joiner: "or")
+                    ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
+                        FilterRuleRow(
+                            rule: rule,
+                            isFirst: index == 0,
+                            columns: columns,
+                            onChange: updateRule,
+                            onDelete: {
+                                deleteRule(rule.id)
+                            }
+                        )
+                    }
                 }
 
                 HStack(spacing: 16) {
-                    Button(action: {}) {
+                    Button(action: addRule) {
                         HStack(spacing: 8) {
                             Image(systemName: "plus")
                             Text("New Filter")
@@ -397,7 +670,7 @@ private struct FilterBuilderPopover: View {
                     Spacer(minLength: 0)
                 }
 
-                Button(action: onDismiss) {
+                Button(action: onSave) {
                     Text("Save Filter Set")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(WorkbenchControlColors.primaryText)
@@ -410,44 +683,199 @@ private struct FilterBuilderPopover: View {
             .padding(8)
         }
     }
+
+    private func addRule() {
+        guard let firstColumn = columns.first else {
+            return
+        }
+
+        rules.append(
+            SchemaWorkbenchFilterRule(
+                id: UUID().uuidString,
+                join: rules.isEmpty ? nil : .and,
+                fieldID: firstColumn.id,
+                operatorID: FilterRuleRow.operators(for: firstColumn).first ?? .contains,
+                value: ""
+            )
+        )
+    }
+
+    private func updateRule(_ updatedRule: SchemaWorkbenchFilterRule) {
+        guard let index = rules.firstIndex(where: { $0.id == updatedRule.id }) else {
+            return
+        }
+
+        var normalizedRule = updatedRule
+        normalizedRule.join = index == 0 ? nil : (normalizedRule.join ?? .and)
+
+        if let column = columns.first(where: { $0.id == normalizedRule.fieldID }) {
+            let operators = FilterRuleRow.operators(for: column)
+            if !operators.contains(normalizedRule.operatorID) {
+                normalizedRule.operatorID = operators.first ?? .contains
+                normalizedRule.value = ""
+            }
+        }
+
+        rules[index] = normalizedRule
+    }
+
+    private func deleteRule(_ id: String) {
+        rules.removeAll { $0.id == id }
+
+        if rules.isEmpty {
+            addRule()
+        } else {
+            rules[0].join = nil
+        }
+    }
 }
 
 private struct FilterRuleRow: View {
-    let prefix: String?
-    let joiner: String?
+    let rule: SchemaWorkbenchFilterRule
+    let isFirst: Bool
+    let columns: [WorkbenchTableColumn]
+    var onChange: (SchemaWorkbenchFilterRule) -> Void
+    var onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
             Group {
-                if let prefix {
-                    Text(prefix)
+                if isFirst {
+                    Text("Where")
                         .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(WorkbenchControlColors.primaryText)
-                } else if let joiner {
-                    WorkbenchSelectField(title: joiner)
+                } else {
+                    WorkbenchMenuSelect(title: rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title) {
+                        ForEach(SchemaWorkbenchFilterJoin.allCases) { join in
+                            Button(join.title) {
+                                var updatedRule = rule
+                                updatedRule.join = join
+                                onChange(updatedRule)
+                            }
+                        }
+                    }
                 }
             }
             .frame(width: 58, alignment: .leading)
 
-            WorkbenchSelectField(title: "Name")
+            WorkbenchMenuSelect(title: selectedColumn?.title ?? "Field") {
+                ForEach(columns) { column in
+                    Button(column.title) {
+                        var updatedRule = rule
+                        updatedRule.fieldID = column.id
+                        updatedRule.operatorID = Self.operators(for: column).first ?? .contains
+                        updatedRule.value = ""
+                        onChange(updatedRule)
+                    }
+                }
+            }
             .frame(width: 110)
 
-            WorkbenchSelectField(title: "contains")
+            WorkbenchMenuSelect(title: rule.operatorID.title) {
+                ForEach(Self.operators(for: selectedColumn), id: \.id) { operatorID in
+                    Button(operatorID.title) {
+                        var updatedRule = rule
+                        updatedRule.operatorID = operatorID
+                        if Self.doesOperatorNeedNoValue(operatorID) {
+                            updatedRule.value = ""
+                        }
+                        onChange(updatedRule)
+                    }
+                }
+            }
             .frame(width: 150)
 
+            valueInput
+            .frame(maxWidth: .infinity)
+
+            WorkbenchIconButton(systemImage: "trash", action: onDelete)
+                .frame(width: 40)
+        }
+    }
+
+    @ViewBuilder
+    private var valueInput: some View {
+        if Self.doesOperatorNeedNoValue(rule.operatorID) {
             HStack {
-                Text("Enter a value...")
+                Text("No value needed")
                     .font(.system(size: 14, weight: .regular))
                     .foregroundStyle(WorkbenchControlColors.mutedText)
+
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12)
             .frame(height: WorkbenchControlMetrics.controlHeight)
             .background(WorkbenchControlBackground())
-            .frame(maxWidth: .infinity)
-
-            WorkbenchIconButton(systemImage: "trash")
-                .frame(width: 40)
+        } else if selectedColumn?.kind == .multiSelect {
+            WorkbenchMenuSelect(title: rule.value.isEmpty ? "Select value..." : rule.value) {
+                ForEach(Self.multiSelectValues, id: \.self) { value in
+                    Button(value) {
+                        var updatedRule = rule
+                        updatedRule.value = value
+                        onChange(updatedRule)
+                    }
+                }
+            }
+        } else {
+            WorkbenchTextInputField(
+                placeholder: valuePlaceholder,
+                text: Binding(
+                    get: {
+                        rule.value
+                    },
+                    set: { value in
+                        var updatedRule = rule
+                        updatedRule.value = value
+                        onChange(updatedRule)
+                    }
+                )
+            )
         }
+    }
+
+    private var selectedColumn: WorkbenchTableColumn? {
+        columns.first { $0.id == rule.fieldID }
+    }
+
+    private var valuePlaceholder: String {
+        switch selectedColumn?.kind {
+        case .rowNumber:
+            return "Enter number..."
+        case .multiSelect:
+            return "Select value..."
+        case .text, nil:
+            return "Enter a value..."
+        }
+    }
+
+    fileprivate static func operators(for column: WorkbenchTableColumn?) -> [SchemaWorkbenchFilterOperatorID] {
+        switch column?.kind {
+        case .rowNumber:
+            return [.equals, .greaterThan, .lessThan]
+        case .multiSelect:
+            return [.contains, .isEmpty, .isNotEmpty]
+        case .text, nil:
+            return [.contains, .equals, .startsWith, .isEmpty, .isNotEmpty]
+        }
+    }
+
+    private static func doesOperatorNeedNoValue(_ operatorID: SchemaWorkbenchFilterOperatorID) -> Bool {
+        operatorID == .isEmpty || operatorID == .isNotEmpty
+    }
+
+    private static let multiSelectValues = ["中文", "日本語"]
+}
+
+private struct WorkbenchMenuSelect<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Menu {
+            content()
+        } label: {
+            WorkbenchSelectFieldLabel(title: title)
+        }
+        .menuStyle(.borderlessButton)
     }
 }
