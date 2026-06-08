@@ -125,6 +125,12 @@ private struct AppTopBar: View {
                             systemImage: "tablecells",
                             help: "Test Search UI"
                         )
+
+                        TopbarTestButton(
+                            page: .search2,
+                            systemImage: "line.3.horizontal.decrease.circle",
+                            help: "Test Search 2"
+                        )
                     }
                 }
             }

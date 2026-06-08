@@ -24,6 +24,8 @@ struct WorkbenchTestPageView: View {
                 WorkbenchTestShioriView()
             case .searchUI:
                 SchemaWorkbenchPage()
+            case .search2:
+                WorkbenchTestSearch2View()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

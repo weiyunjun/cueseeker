@@ -21,10 +21,16 @@ enum WorkbenchControlColors {
 struct WorkbenchSearchField: View {
     let placeholder: String
     @Binding var text: String
+    var onSubmit: (() -> Void)?
 
-    init(placeholder: String, text: Binding<String>) {
+    init(
+        placeholder: String,
+        text: Binding<String>,
+        onSubmit: (() -> Void)? = nil
+    ) {
         self.placeholder = placeholder
         _text = text
+        self.onSubmit = onSubmit
     }
 
     var body: some View {
@@ -37,6 +43,9 @@ struct WorkbenchSearchField: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .regular))
                 .foregroundStyle(WorkbenchControlColors.primaryText)
+                .onSubmit {
+                    onSubmit?()
+                }
         }
         .padding(.horizontal, 18)
         .frame(height: WorkbenchControlMetrics.searchFieldHeight)
