@@ -9,7 +9,6 @@ enum WorkbenchTableColumnKind: Equatable {
 enum WorkbenchTableColumnWidth: Equatable {
     case fixed(CGFloat)
     case flexible(min: CGFloat)
-    case weighted(min: CGFloat, weight: CGFloat)
 }
 
 struct WorkbenchTableColumn: Identifiable, Equatable {
@@ -74,23 +73,25 @@ struct WorkbenchDataTable: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let resolvedColumns = WorkbenchResolvedTableColumn.resolve(
+            let layout = WorkbenchResolvedTableLayout.resolve(
                 columns,
                 totalWidth: geometry.size.width
             )
 
             VStack(spacing: 0) {
-                header(columns: resolvedColumns)
+                header(layout: layout)
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(rows) { row in
                             WorkbenchDataTableRow(
-                                columns: resolvedColumns,
+                                layout: layout,
                                 row: row
                             )
                         }
                     }
+                    .frame(width: layout.contentWidth, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
                 .scrollIndicators(.visible)
             }
@@ -116,9 +117,9 @@ struct WorkbenchDataTable: View {
         )
     }
 
-    private func header(columns: [WorkbenchResolvedTableColumn]) -> some View {
+    private func header(layout: WorkbenchResolvedTableLayout) -> some View {
         HStack(spacing: 0) {
-            ForEach(columns) { column in
+            ForEach(layout.columns) { column in
                 columnFrame(column) {
                     Text(column.column.title)
                         .font(.system(size: 13, weight: .semibold))
@@ -128,6 +129,8 @@ struct WorkbenchDataTable: View {
                 }
             }
         }
+        .frame(width: layout.contentWidth, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchTableMetrics.headerHeight)
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -138,12 +141,12 @@ struct WorkbenchDataTable: View {
 }
 
 private struct WorkbenchDataTableRow: View {
-    let columns: [WorkbenchResolvedTableColumn]
+    let layout: WorkbenchResolvedTableLayout
     let row: WorkbenchTableRow
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(columns) { column in
+            ForEach(layout.columns) { column in
                 columnFrame(column) {
                     WorkbenchDataTableCell(
                         column: column.column,
@@ -152,6 +155,7 @@ private struct WorkbenchDataTableRow: View {
                 }
             }
         }
+        .frame(width: layout.contentWidth, alignment: .topLeading)
         .frame(minHeight: WorkbenchTableMetrics.rowMinHeight, alignment: .top)
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -240,71 +244,73 @@ private struct WorkbenchResolvedTableColumn: Identifiable {
     var id: String {
         column.id
     }
+}
+
+private struct WorkbenchResolvedTableLayout {
+    let columns: [WorkbenchResolvedTableColumn]
+    let contentWidth: CGFloat
 
     static func resolve(
         _ columns: [WorkbenchTableColumn],
         totalWidth: CGFloat
-    ) -> [WorkbenchResolvedTableColumn] {
-        let weightedColumns = columns.compactMap { column -> (column: WorkbenchTableColumn, min: CGFloat, weight: CGFloat)? in
-            switch column.width {
-            case .fixed:
-                return nil
-            case .flexible(let minWidth):
-                return (column, minWidth, 1)
-            case .weighted(let minWidth, let weight):
-                return (column, minWidth, max(0, weight))
-            }
-        }
-
+    ) -> WorkbenchResolvedTableLayout {
         let fixedTotal = columns.reduce(CGFloat.zero) { total, column in
             switch column.width {
             case .fixed(let width):
                 return total + width
-            case .flexible, .weighted:
+            case .flexible:
                 return total
             }
         }
-
-        let weightedMinTotal = weightedColumns.reduce(CGFloat.zero) { total, item in
-            total + item.min
+        let flexibleMinTotal = columns.reduce(CGFloat.zero) { total, column in
+            switch column.width {
+            case .fixed:
+                return total
+            case .flexible(let minWidth):
+                return total + minWidth
+            }
         }
-        let weightedTotal = weightedColumns.reduce(CGFloat.zero) { total, item in
-            total + item.weight
+        let minimumContentWidth = fixedTotal + flexibleMinTotal
+        let contentWidth = max(totalWidth, minimumContentWidth)
+        let flexibleCount = columns.reduce(CGFloat.zero) { total, column in
+            switch column.width {
+            case .fixed:
+                return total
+            case .flexible:
+                return total + 1
+            }
         }
-        let extraWidth = max(0, totalWidth - fixedTotal - weightedMinTotal)
+        let extraWidth = max(0, contentWidth - minimumContentWidth)
 
-        return columns.map { column in
-            WorkbenchResolvedTableColumn(
-                column: column,
-                width: resolvedWidth(
-                    for: column,
-                    extraWidth: extraWidth,
-                    weightedTotal: weightedTotal
+        return WorkbenchResolvedTableLayout(
+            columns: columns.map { column in
+                WorkbenchResolvedTableColumn(
+                    column: column,
+                    width: resolvedWidth(
+                        for: column,
+                        extraWidth: extraWidth,
+                        flexibleCount: flexibleCount
+                    )
                 )
-            )
-        }
+            },
+            contentWidth: contentWidth
+        )
     }
 
     private static func resolvedWidth(
         for column: WorkbenchTableColumn,
         extraWidth: CGFloat,
-        weightedTotal: CGFloat
+        flexibleCount: CGFloat
     ) -> CGFloat {
         switch column.width {
         case .fixed(let width):
             return width
         case .flexible(let minWidth):
-            guard weightedTotal > 0 else {
+            guard flexibleCount > 0 else {
                 return minWidth
             }
 
-            return minWidth + extraWidth / weightedTotal
-        case .weighted(let minWidth, let weight):
-            guard weightedTotal > 0 else {
-                return minWidth
-            }
-
-            return minWidth + extraWidth * max(0, weight) / weightedTotal
+            return minWidth + extraWidth / flexibleCount
         }
     }
 }

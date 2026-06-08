@@ -194,19 +194,19 @@ struct SchemaWorkbenchPage: View {
             id: "cues",
             title: "Cues",
             kind: .text,
-            width: .weighted(min: 580, weight: 3)
+            width: .flexible(min: 580)
         ),
         WorkbenchTableColumn(
             id: "language",
             title: "Language",
             kind: .multiSelect,
-            width: .weighted(min: 230, weight: 2.5)
+            width: .fixed(230)
         ),
         WorkbenchTableColumn(
             id: "speaker",
             title: "Speaker",
             kind: .text,
-            width: .weighted(min: 220, weight: 0.5)
+            width: .fixed(220)
         ),
     ]
 
