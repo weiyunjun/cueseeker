@@ -28,8 +28,31 @@ Planned implementation steps:
 
 ## Verification
 
-Pending implementation.
+- `swift test` passed from `apps/macos-native`.
+- `swift build` passed from `apps/macos-native`.
+- Focused coverage added:
+  - `SubtitleSearchFilterSetTests` for operator availability, empty value skip,
+    string matching, string-set matching, and set-level And/Or behavior.
+  - `SubtitleDatabaseTests` for Display, Cues, Language, exact counts, indexed
+    windows, and filter-specific cache key behavior.
+  - `SchemaWorkbenchFilterRulesTests` for no preset Filter Sets and UI-to-core
+    rule conversion.
 
 ## Outcome
 
-Pending implementation.
+Implemented the requested Filter Set behavior for the Test Search 2 flow:
+
+- Filter Set rules are modeled in `CueSeekerCore`.
+- Database search applies Filter Sets before producing result counts, cursors,
+  file summaries, and result-ID index windows.
+- Search page and result-ID index cache keys include the active Filter Set
+  signature.
+- App search, exact completion, table hydration, grouped load-more, and search
+  navigation use the active Filter Set and reject stale async results when the
+  Filter Set changes.
+- The Filter Set UI starts without presets, saves sets only for the current
+  page session, clears active/draft filters on Reset, hides the old `New Filter
+  Set` title, propagates the second rule's join to later rules, renders later
+  joins as static labels, excludes `#` from filtering, and scrolls the Test
+  Search 2 table back to the top when the effective Filter Set changes.
+- App restart persistence and rename behavior were intentionally not added.
