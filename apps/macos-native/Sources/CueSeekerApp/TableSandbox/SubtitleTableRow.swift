@@ -9,6 +9,14 @@ struct SubtitleTableRow: Identifiable, Equatable {
     /// Merged subtitle text for one timestamp. Bilingual entries keep one line
     /// per language, joined with "\n", so the cell wraps to multiple lines.
     let cues: String
+    let tags: [WorkbenchTag]
+
+    init(id: Int, name: String, cues: String, tags: [WorkbenchTag] = []) {
+        self.id = id
+        self.name = name
+        self.cues = cues
+        self.tags = tags
+    }
 }
 
 enum SubtitleTableSampleData {

@@ -6,6 +6,7 @@ import SwiftUI
 enum SubtitleTableMetrics {
     static let indexColumnWidth: CGFloat = 50
     static let nameColumnWidth: CGFloat = 240
+    static let languageColumnWidth: CGFloat = 160
     static let cellLeading: CGFloat = 12
     static let trailingInset: CGFloat = 14
     static let indexTrailingInset: CGFloat = 6
@@ -16,6 +17,11 @@ enum SubtitleTableMetrics {
     static let cornerRadius: CGFloat = 10
     static let estimatedRowHeight: CGFloat = 56
     static let maximumBodyLineCount = 6
+    static let tagHeight: CGFloat = 22
+    static let tagHorizontalInset: CGFloat = 8
+    static let tagCornerRadius: CGFloat = 6
+    static let tagHorizontalSpacing: CGFloat = 6
+    static let tagVerticalSpacing: CGFloat = 4
 }
 
 // MARK: - Typography
@@ -25,6 +31,7 @@ enum SubtitleTableText {
     static let bodyFont = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
     static let indexFont = NSFont.systemFont(ofSize: 12, weight: .regular)
     static let headerFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+    static let tagFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
     static let lineSpacing: CGFloat = 4
 
     static func bodyParagraphStyle() -> NSParagraphStyle {
@@ -53,6 +60,13 @@ enum SubtitleTableText {
         NSAttributedString(string: text, attributes: [
             .font: headerFont,
             .foregroundColor: NSColor.labelColor,
+        ])
+    }
+
+    static func tag(_ tag: WorkbenchTag) -> NSAttributedString {
+        NSAttributedString(string: tag.label, attributes: [
+            .font: tagFont,
+            .foregroundColor: tag.colorID.appKitForegroundColor,
         ])
     }
 }
@@ -170,6 +184,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         let M = SubtitleTableMetrics.self
+        let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
+        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
         drawHeader(
             "#",
             rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height),
@@ -187,12 +203,25 @@ final class SubtitleVirtualTableHeaderView: NSView {
             rect: CGRect(
                 x: M.indexColumnWidth + M.nameColumnWidth,
                 y: 0,
-                width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth),
+                width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth - languageWidth),
                 height: bounds.height
             ),
             leading: M.headerHorizontalInset,
             trailing: M.trailingInset
         )
+        if showsLanguageColumn {
+            drawHeader(
+                "Language",
+                rect: CGRect(
+                    x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - M.languageColumnWidth),
+                    y: 0,
+                    width: M.languageColumnWidth,
+                    height: bounds.height
+                ),
+                leading: M.headerHorizontalInset,
+                trailing: M.trailingInset
+            )
+        }
 
         NSColor.separatorColor.setStroke()
         let path = NSBezierPath()
@@ -318,6 +347,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowProvider: (Int) -> SubtitleTableRow?
     var rowsVersion: Int
     var rowsUpdate: TableSandboxRowsUpdate
+    var showsLanguageColumn = false
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var onPlay: (SubtitleTableRow) -> Void
 
@@ -327,6 +357,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowCount: rowCount,
             rowProvider: rowProvider,
             rowsVersion: rowsVersion,
+            showsLanguageColumn: showsLanguageColumn,
             onVisibleRowsChange: onVisibleRowsChange,
             onPlay: onPlay
         )
@@ -391,6 +422,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowProvider: rowProvider,
             rowsVersion: rowsVersion,
             rowsUpdate: rowsUpdate,
+            showsLanguageColumn: showsLanguageColumn,
             onVisibleRowsChange: onVisibleRowsChange,
             onPlay: onPlay
         )
@@ -404,6 +436,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rowCount: Int
         private var rowProvider: (Int) -> SubtitleTableRow?
         private var rowsVersion: Int
+        private var showsLanguageColumn: Bool
         private var onVisibleRowsChange: (Range<Int>) -> Void
         private var onPlay: (SubtitleTableRow) -> Void
 
@@ -422,6 +455,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowCount: Int,
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
+            showsLanguageColumn: Bool = false,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
@@ -429,6 +463,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.rowCount = max(0, rowCount)
             self.rowProvider = rowProvider
             self.rowsVersion = rowsVersion
+            self.showsLanguageColumn = showsLanguageColumn
             self.onVisibleRowsChange = onVisibleRowsChange
             self.onPlay = onPlay
         }
@@ -465,11 +500,14 @@ struct SubtitleTableView: NSViewRepresentable {
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
             rowsUpdate: TableSandboxRowsUpdate,
+            showsLanguageColumn: Bool,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
             self.rowProvider = rowProvider
+            let languageColumnChanged = showsLanguageColumn != self.showsLanguageColumn
+            self.showsLanguageColumn = showsLanguageColumn
             self.onVisibleRowsChange = onVisibleRowsChange
             self.onPlay = onPlay
 
@@ -485,9 +523,13 @@ struct SubtitleTableView: NSViewRepresentable {
             headerView?.needsDisplay = true
             documentView?.needsDisplay = true
             layoutHoverButtons()
-            if changed {
+            if changed || languageColumnChanged {
                 notifyVisibleRowsChanged()
             }
+        }
+
+        func showsLanguageColumnForRendering() -> Bool {
+            showsLanguageColumn
         }
 
         func numberOfRowsForTesting() -> Int {
@@ -496,14 +538,17 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func cellFullText(row: Int, column: Int) -> String {
             if row == -1 {
-                return ["#", "Name", "Cues"][column]
+                let headers = showsLanguageColumn ? ["#", "Name", "Cues", "Language"] : ["#", "Name", "Cues"]
+                return headers.indices.contains(column) ? headers[column] : ""
             }
             guard row >= 0, row < rowCount else { return "" }
             guard column != 0 else { return "\(row + 1)" }
             guard let model = rowProvider(row) else { return "" }
             switch column {
             case 1: return model.name
-            default: return model.cues
+            case 2: return model.cues
+            case 3 where showsLanguageColumn: return model.tags.map(\.label).joined(separator: ", ")
+            default: return ""
             }
         }
 
@@ -568,6 +613,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private func drawCellTexts(row: Int, rowRect: CGRect) {
             let M = SubtitleTableMetrics.self
             let model = rowProvider(row)
+            let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+            let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - languageWidth)
 
             drawIndex(row + 1, in: CGRect(x: 0, y: rowRect.minY, width: M.indexColumnWidth, height: rowRect.height))
             drawBody(
@@ -580,11 +627,23 @@ struct SubtitleTableView: NSViewRepresentable {
                 in: CGRect(
                     x: M.indexColumnWidth + M.nameColumnWidth,
                     y: rowRect.minY,
-                    width: max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth),
+                    width: cuesWidth,
                     height: rowRect.height
                 ),
                 trailing: M.trailingInset
             )
+            if showsLanguageColumn {
+                drawTags(
+                    model?.tags ?? [],
+                    in: CGRect(
+                        x: max(M.indexColumnWidth + M.nameColumnWidth, rowRect.width - M.languageColumnWidth),
+                        y: rowRect.minY,
+                        width: M.languageColumnWidth,
+                        height: rowRect.height
+                    ),
+                    trailing: M.trailingInset
+                )
+            }
         }
 
         private func drawIndex(_ number: Int, in rect: CGRect) {
@@ -606,6 +665,52 @@ struct SubtitleTableView: NSViewRepresentable {
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
             textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: rect.minY + M.rowVerticalInset))
+            NSGraphicsContext.restoreGraphicsState()
+        }
+
+        private func drawTags(_ tags: [WorkbenchTag], in rect: CGRect, trailing: CGFloat) {
+            let M = SubtitleTableMetrics.self
+            guard !tags.isEmpty else { return }
+
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath.clip(rect)
+
+            var x = rect.minX + M.cellLeading
+            var y = rect.minY + M.rowVerticalInset - 1
+            let maxX = rect.maxX - trailing
+            let maxY = rect.maxY - M.rowVerticalInset
+
+            for tag in tags {
+                let attributed = SubtitleTableText.tag(tag)
+                let textSize = attributed.size()
+                let tagWidth = ceil(textSize.width) + 2 * M.tagHorizontalInset
+                if x > rect.minX + M.cellLeading, x + tagWidth > maxX {
+                    x = rect.minX + M.cellLeading
+                    y += M.tagHeight + M.tagVerticalSpacing
+                }
+                guard y + M.tagHeight <= maxY else {
+                    break
+                }
+
+                let tagRect = CGRect(x: x, y: y, width: min(tagWidth, max(0, maxX - x)), height: M.tagHeight)
+                let path = NSBezierPath(
+                    roundedRect: tagRect,
+                    xRadius: M.tagCornerRadius,
+                    yRadius: M.tagCornerRadius
+                )
+                tag.colorID.appKitFillColor.setFill()
+                path.fill()
+
+                let textRect = CGRect(
+                    x: tagRect.minX + M.tagHorizontalInset,
+                    y: tagRect.minY + max(0, (tagRect.height - textSize.height) / 2),
+                    width: max(0, tagRect.width - 2 * M.tagHorizontalInset),
+                    height: textSize.height
+                )
+                attributed.draw(in: textRect)
+                x += tagRect.width + M.tagHorizontalSpacing
+            }
+
             NSGraphicsContext.restoreGraphicsState()
         }
 

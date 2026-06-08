@@ -555,6 +555,52 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
 }
 
 @Test
+func searchResultsExposeCueGroupLanguages() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/LanguageResultTags.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/LanguageResultTags.mkv")
+    let entries = [
+        languageFilterTestEntry(sequenceNumber: 1, text: "Shared Japanese cue"),
+        languageFilterTestEntry(sequenceNumber: 2, text: "Shared Mixed cue")
+    ]
+    let analysis = SubtitleLanguageAnalysis(
+        format: .srt,
+        fileDetection: nil,
+        styleDetections: [:],
+        cueGroupLanguages: [
+            [.japanese],
+            [.simplifiedChinese, .japanese]
+        ]
+    )
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries,
+        languageAnalysis: analysis
+    )
+
+    let exactPage = try database.searchPage("shared", limit: 10)
+    #expect(exactPage.results.map(\.languages) == [
+        [.japanese],
+        [.japanese, .simplifiedChinese]
+    ])
+
+    let visiblePage = try database.searchVisiblePage("shared", limit: 2, cursor: .start)
+    #expect(visiblePage.results.map(\.languages) == [
+        [.japanese],
+        [.japanese, .simplifiedChinese]
+    ])
+}
+
+@Test
 func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

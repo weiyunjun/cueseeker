@@ -74,7 +74,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 id: Int(result.entryID),
                 subtitlePath: result.subtitlePath,
                 content: result.content,
-                cueLines: result.cueLines
+                cueLines: result.cueLines,
+                languages: result.languages
             )
 
             if let cached = rowsByKey[key] {
@@ -94,7 +95,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 cues: tableSandboxDisplayText(
                     content: result.content,
                     cueLines: result.cueLines
-                )
+                ),
+                tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages)
             )
             nextRowsByKey[key] = row
             return row
@@ -203,7 +205,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 id: Int(item.id),
                 subtitlePath: item.subtitlePath,
                 content: item.content,
-                cueLines: item.cueLines
+                cueLines: item.cueLines,
+                languages: []
             )
 
             if let cached = rowsByKey[key] {
@@ -306,7 +309,8 @@ final class TableSandboxRowModelStore: ObservableObject {
             id: Int(result.entryID),
             subtitlePath: result.subtitlePath,
             content: result.content,
-            cueLines: result.cueLines
+            cueLines: result.cueLines,
+            languages: result.languages
         )
 
         if let cached = rowsByKey[key] {
@@ -319,7 +323,8 @@ final class TableSandboxRowModelStore: ObservableObject {
             cues: tableSandboxDisplayText(
                 content: result.content,
                 cueLines: result.cueLines
-            )
+            ),
+            tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages)
         )
         rowsByKey[key] = row
         return row
@@ -384,6 +389,7 @@ private struct RowCacheKey: Hashable {
     let subtitlePath: String
     let content: String
     let cueLines: [String]
+    let languages: Set<SubtitleLanguageCode>
 }
 
 enum TableSandboxDisplayTextBudget {

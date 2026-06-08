@@ -266,11 +266,37 @@ func tableSandboxRowModelStoreLimitsTableDisplayTextBudget() {
     #expect(displayLines.first?.count == TableSandboxDisplayTextBudget.maximumCharactersPerLine + 3)
 }
 
+@MainActor
+@Test
+func tableSandboxRowModelStoreMapsSearchLanguagesToDefaultBlueTags() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 1,
+                path: path,
+                content: "bilingual row",
+                cueLines: ["bilingual row"],
+                languages: [.japanese, .simplifiedChinese]
+            )
+        ],
+        tableName: "test-search"
+    )
+
+    let tags = store.snapshot.row(at: 0)?.tags ?? []
+    #expect(tags.map(\.key) == ["zh-hans", "jp"])
+    #expect(tags.map(\.label) == ["zh-hans", "jp"])
+    #expect(tags.map(\.colorID) == [.blue, .blue])
+}
+
 private func searchResult(
     id: Int64,
     path: String,
     content: String,
-    cueLines: [String]
+    cueLines: [String],
+    languages: Set<SubtitleLanguageCode> = [.unknown]
 ) -> SubtitleSearchResult {
     SubtitleSearchResult(
         entryID: id,
@@ -281,6 +307,7 @@ private func searchResult(
         startMilliseconds: 1_000,
         endMilliseconds: 2_000,
         content: content,
-        cueLines: cueLines
+        cueLines: cueLines,
+        languages: languages
     )
 }
