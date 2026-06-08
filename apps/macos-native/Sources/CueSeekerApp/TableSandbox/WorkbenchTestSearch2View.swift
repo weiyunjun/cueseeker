@@ -41,6 +41,7 @@ struct WorkbenchTestSearch2View: View {
                 rowProvider: { rowStore.snapshot.row(at: $0) },
                 rowsVersion: rowStore.snapshot.version,
                 rowsUpdate: rowStore.snapshot.update,
+                displayTitleHeader: "Display Title",
                 showsLanguageColumn: true,
                 onVisibleRowsChange: hydrateVisibleRows,
                 onPlay: play

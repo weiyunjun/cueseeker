@@ -32,6 +32,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let subtitleFormat: SubtitleFormat
     public let videoPath: String
     public let videoName: String
+    public let displayTitle: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
     public let content: String
@@ -45,6 +46,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         subtitleFormat: SubtitleFormat,
         videoPath: String,
         videoName: String,
+        displayTitle: String = "",
         startMilliseconds: Int,
         endMilliseconds: Int,
         content: String,
@@ -57,6 +59,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         self.subtitleFormat = subtitleFormat
         self.videoPath = videoPath
         self.videoName = videoName
+        self.displayTitle = displayTitle
         self.startMilliseconds = startMilliseconds
         self.endMilliseconds = endMilliseconds
         self.content = content
@@ -2633,6 +2636,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 subtitleFormat: candidate.subtitleFormat,
                 videoPath: candidate.videoPath,
                 videoName: candidate.videoName,
+                displayTitle: candidate.order.displayTitle,
                 startMilliseconds: candidate.startMilliseconds,
                 endMilliseconds: candidate.endMilliseconds,
                 content: candidate.searchContent,
@@ -4418,6 +4422,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 subtitleFormat: candidate.subtitleFormat,
                 videoPath: candidate.videoPath,
                 videoName: candidate.videoName,
+                displayTitle: candidate.order.displayTitle,
                 startMilliseconds: candidate.startMilliseconds,
                 endMilliseconds: candidate.endMilliseconds,
                 content: candidate.searchContent,

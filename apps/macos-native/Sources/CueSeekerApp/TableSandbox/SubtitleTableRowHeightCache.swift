@@ -35,7 +35,7 @@ struct SubtitleTableRowHeightCache {
         let height = compute()
         entries[rowIndex] = CacheEntry(
             rowID: row.id,
-            name: row.name,
+            displayTitle: row.displayTitle,
             cues: row.cues,
             nameWidth: nameWidthKey,
             cuesWidth: cuesWidthKey,
@@ -67,7 +67,7 @@ struct SubtitleTableRowHeightCache {
 
 private struct CacheEntry {
     let rowID: Int
-    let name: String
+    let displayTitle: String
     let cues: String
     let nameWidth: Int
     let cuesWidth: Int
@@ -81,7 +81,7 @@ private struct CacheEntry {
 
     func matches(row: SubtitleTableRow) -> Bool {
         rowID == row.id
-            && name == row.name
+            && displayTitle == row.displayTitle
             && cues == row.cues
     }
 }

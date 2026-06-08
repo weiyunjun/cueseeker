@@ -2,18 +2,18 @@ import Foundation
 
 /// Row view-model for the table sandbox. Phase B feeds this from static sample
 /// data; Phase C will map it from real search results / Shiori entries
-/// (name = contract alias, cues = merged same-timestamp subtitle text).
+/// (displayTitle = user-facing subtitle title, cues = merged same-timestamp subtitle text).
 struct SubtitleTableRow: Identifiable, Equatable {
     let id: Int
-    let name: String
+    let displayTitle: String
     /// Merged subtitle text for one timestamp. Bilingual entries keep one line
     /// per language, joined with "\n", so the cell wraps to multiple lines.
     let cues: String
     let tags: [WorkbenchTag]
 
-    init(id: Int, name: String, cues: String, tags: [WorkbenchTag] = []) {
+    init(id: Int, displayTitle: String, cues: String, tags: [WorkbenchTag] = []) {
         self.id = id
-        self.name = name
+        self.displayTitle = displayTitle
         self.cues = cues
         self.tags = tags
     }
@@ -62,7 +62,7 @@ enum SubtitleTableSampleData {
         var id = 1
         for _ in 0..<10 {
             for entry in base {
-                result.append(SubtitleTableRow(id: id, name: entry.name, cues: entry.cues))
+                result.append(SubtitleTableRow(id: id, displayTitle: entry.name, cues: entry.cues))
                 id += 1
             }
         }

@@ -588,12 +588,20 @@ func searchResultsExposeCueGroupLanguages() throws {
     )
 
     let exactPage = try database.searchPage("shared", limit: 10)
+    #expect(exactPage.results.map(\.displayTitle) == [
+        "LanguageResultTags.srt",
+        "LanguageResultTags.srt"
+    ])
     #expect(exactPage.results.map(\.languages) == [
         [.japanese],
         [.japanese, .simplifiedChinese]
     ])
 
     let visiblePage = try database.searchVisiblePage("shared", limit: 2, cursor: .start)
+    #expect(visiblePage.results.map(\.displayTitle) == [
+        "LanguageResultTags.srt",
+        "LanguageResultTags.srt"
+    ])
     #expect(visiblePage.results.map(\.languages) == [
         [.japanese],
         [.japanese, .simplifiedChinese]
@@ -1919,6 +1927,7 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
 
     #expect(page.fileSummaries.map(\.subtitleFileName) == ["aa2.ass", "aa11.ass"])
     #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["葬送的芙莉莲 - 02", "葬送的芙莉莲 - 03"])
+    #expect(page.results.map(\.displayTitle) == ["葬送的芙莉莲 - 02", "葬送的芙莉莲 - 03"])
     #expect(page.results.map(\.content) == ["Shared second", "Shared eleventh"])
     #expect(sortFields["orderSource"] == "ftsRowid")
     #expect(sortFields["materializedOrderRows"] == "2")

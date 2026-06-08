@@ -23,7 +23,7 @@ func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
     #expect(store.snapshot.version == 1)
     #expect(store.snapshot.update == .append(0..<2))
     #expect(store.snapshot.rows.count == 2)
-    #expect(store.snapshot.rows[0].name == "Resolved episode-01.ass")
+    #expect(store.snapshot.rows[0].displayTitle == "Resolved episode-01.ass")
     #expect(store.snapshot.rows[0].cues == "line one\nline two")
     #expect(resolvedPaths == [path])
 
@@ -32,6 +32,33 @@ func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
     #expect(store.snapshot.version == 1)
     #expect(store.snapshot.update == .append(0..<2))
     #expect(resolvedPaths == [path])
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreUsesSearchDisplayTitleWithoutResolvingPath() {
+    var resolvedPaths: [String] = []
+    let store = TableSandboxRowModelStore { path in
+        resolvedPaths.append(path)
+        return "Resolved \(URL(fileURLWithPath: path).lastPathComponent)"
+    }
+
+    let path = "/tmp/CueSeeker/Ave Mujica/episode-01.ass"
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 1,
+                path: path,
+                displayTitle: "Ave Mujica - 01",
+                content: "line",
+                cueLines: ["line"]
+            )
+        ],
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.rows[0].displayTitle == "Ave Mujica - 01")
+    #expect(resolvedPaths.isEmpty)
 }
 
 @MainActor
@@ -294,6 +321,7 @@ func tableSandboxRowModelStoreMapsSearchLanguagesToDefaultBlueTags() {
 private func searchResult(
     id: Int64,
     path: String,
+    displayTitle: String = "",
     content: String,
     cueLines: [String],
     languages: Set<SubtitleLanguageCode> = [.unknown]
@@ -304,6 +332,7 @@ private func searchResult(
         subtitleFormat: .ass,
         videoPath: path.replacingOccurrences(of: ".ass", with: ".mkv"),
         videoName: "episode.mkv",
+        displayTitle: displayTitle,
         startMilliseconds: 1_000,
         endMilliseconds: 2_000,
         content: content,

@@ -70,9 +70,11 @@ final class TableSandboxRowModelStore: ObservableObject {
         }
 
         let rows = results.enumerated().map { index, result in
+            let displayTitle = searchDisplayTitle(for: result)
             let key = RowCacheKey(
                 id: Int(result.entryID),
                 subtitlePath: result.subtitlePath,
+                displayTitle: displayTitle,
                 content: result.content,
                 cueLines: result.cueLines,
                 languages: result.languages
@@ -91,7 +93,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             }
             let row = SubtitleTableRow(
                 id: key.id,
-                name: displayTitle(forSubtitlePath: result.subtitlePath),
+                displayTitle: displayTitle,
                 cues: tableSandboxDisplayText(
                     content: result.content,
                     cueLines: result.cueLines
@@ -201,9 +203,11 @@ final class TableSandboxRowModelStore: ObservableObject {
         }
 
         let rows = shioris.enumerated().map { index, item in
+            let displayTitle = displayTitle(forSubtitlePath: item.subtitlePath)
             let key = RowCacheKey(
                 id: Int(item.id),
                 subtitlePath: item.subtitlePath,
+                displayTitle: displayTitle,
                 content: item.content,
                 cueLines: item.cueLines,
                 languages: []
@@ -222,7 +226,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             }
             let row = SubtitleTableRow(
                 id: key.id,
-                name: displayTitle(forSubtitlePath: item.subtitlePath),
+                displayTitle: displayTitle,
                 cues: tableSandboxDisplayText(
                     content: item.content,
                     cueLines: item.cueLines
@@ -305,9 +309,11 @@ final class TableSandboxRowModelStore: ObservableObject {
     }
 
     private func searchRow(for result: SubtitleSearchResult) -> SubtitleTableRow {
+        let displayTitle = searchDisplayTitle(for: result)
         let key = RowCacheKey(
             id: Int(result.entryID),
             subtitlePath: result.subtitlePath,
+            displayTitle: displayTitle,
             content: result.content,
             cueLines: result.cueLines,
             languages: result.languages
@@ -319,7 +325,7 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         let row = SubtitleTableRow(
             id: key.id,
-            name: displayTitle(forSubtitlePath: result.subtitlePath),
+            displayTitle: displayTitle,
             cues: tableSandboxDisplayText(
                 content: result.content,
                 cueLines: result.cueLines
@@ -328,6 +334,14 @@ final class TableSandboxRowModelStore: ObservableObject {
         )
         rowsByKey[key] = row
         return row
+    }
+
+    private func searchDisplayTitle(for result: SubtitleSearchResult) -> String {
+        guard !result.displayTitle.isEmpty else {
+            return displayTitle(forSubtitlePath: result.subtitlePath)
+        }
+
+        return result.displayTitle
     }
 
     private func pruneHydratedSearchRowsIfNeeded(
@@ -387,6 +401,7 @@ final class TableSandboxRowModelStore: ObservableObject {
 private struct RowCacheKey: Hashable {
     let id: Int
     let subtitlePath: String
+    let displayTitle: String
     let content: String
     let cueLines: [String]
     let languages: Set<SubtitleLanguageCode>
