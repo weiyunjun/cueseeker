@@ -10,7 +10,9 @@ enum SubtitleTableMetrics {
     static let trailingInset: CGFloat = 14
     static let indexTrailingInset: CGFloat = 6
     static let rowVerticalInset: CGFloat = 9
-    static let headerHeight: CGFloat = 34
+    static let headerHeight: CGFloat = 44
+    static let headerHorizontalInset: CGFloat = 12
+    static let indexHeaderHorizontalInset: CGFloat = 16
     static let cornerRadius: CGFloat = 10
     static let estimatedRowHeight: CGFloat = 56
     static let maximumBodyLineCount = 6
@@ -22,7 +24,7 @@ enum SubtitleTableMetrics {
 enum SubtitleTableText {
     static let bodyFont = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
     static let indexFont = NSFont.systemFont(ofSize: 12, weight: .regular)
-    static let headerFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+    static let headerFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
     static let lineSpacing: CGFloat = 4
 
     static func bodyParagraphStyle() -> NSParagraphStyle {
@@ -50,7 +52,7 @@ enum SubtitleTableText {
     static func header(_ text: String) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
             .font: headerFont,
-            .foregroundColor: NSColor.secondaryLabelColor,
+            .foregroundColor: NSColor.labelColor,
         ])
     }
 }
@@ -168,8 +170,18 @@ final class SubtitleVirtualTableHeaderView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         let M = SubtitleTableMetrics.self
-        drawHeader("#", rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height), trailing: M.indexTrailingInset)
-        drawHeader("Name", rect: CGRect(x: M.indexColumnWidth, y: 0, width: M.nameColumnWidth, height: bounds.height), trailing: M.trailingInset)
+        drawHeader(
+            "#",
+            rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height),
+            leading: M.indexHeaderHorizontalInset,
+            trailing: M.indexTrailingInset
+        )
+        drawHeader(
+            "Name",
+            rect: CGRect(x: M.indexColumnWidth, y: 0, width: M.nameColumnWidth, height: bounds.height),
+            leading: M.headerHorizontalInset,
+            trailing: M.trailingInset
+        )
         drawHeader(
             "Cues",
             rect: CGRect(
@@ -178,6 +190,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth),
                 height: bounds.height
             ),
+            leading: M.headerHorizontalInset,
             trailing: M.trailingInset
         )
 
@@ -189,17 +202,17 @@ final class SubtitleVirtualTableHeaderView: NSView {
         path.stroke()
     }
 
-    private func drawHeader(_ text: String, rect: CGRect, trailing: CGFloat) {
+    private func drawHeader(_ text: String, rect: CGRect, leading: CGFloat, trailing: CGFloat) {
         let attributed = SubtitleTableText.header(text)
         let size = attributed.size()
         let origin = CGPoint(
-            x: rect.minX + SubtitleTableMetrics.cellLeading,
+            x: rect.minX + leading,
             y: rect.minY + max(0, (rect.height - size.height) / 2)
         )
         let clipped = CGRect(
             x: origin.x,
             y: origin.y,
-            width: max(0, rect.width - SubtitleTableMetrics.cellLeading - trailing),
+            width: max(0, rect.width - leading - trailing),
             height: size.height
         )
         attributed.draw(in: clipped)
