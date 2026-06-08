@@ -68,6 +68,8 @@ struct WorkbenchToolbarButton: View {
 
             Text(title)
                 .font(.system(size: 15, weight: .medium))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
 
             if showsChevron {
                 Spacer(minLength: 0)
@@ -80,6 +82,36 @@ struct WorkbenchToolbarButton: View {
         .padding(.horizontal, 14)
         .frame(height: WorkbenchControlMetrics.controlHeight)
         .background(WorkbenchControlBackground())
+        .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+struct WorkbenchButton: View {
+    let title: String
+    var systemImage: String?
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .regular))
+                }
+
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .foregroundStyle(WorkbenchControlColors.primaryText)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
+            .background(WorkbenchControlBackground())
+            .fixedSize(horizontal: true, vertical: false)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -96,9 +128,12 @@ struct WorkbenchPlainActionButton: View {
 
                 Text(title)
                     .font(.system(size: 15, weight: .regular))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundStyle(WorkbenchControlColors.primaryText)
             .frame(height: WorkbenchControlMetrics.controlHeight)
+            .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -129,10 +164,14 @@ struct WorkbenchFilterChip: View {
 
             Text(title)
                 .font(.system(size: 15, weight: .regular))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
 
             if let detail {
                 Text(detail)
                     .font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
 
             Spacer(minLength: 0)
@@ -140,6 +179,7 @@ struct WorkbenchFilterChip: View {
         .foregroundStyle(WorkbenchControlColors.activeBlue)
         .padding(.horizontal, 14)
         .frame(height: WorkbenchControlMetrics.controlHeight)
+        .fixedSize(horizontal: true, vertical: false)
         .background(
             RoundedRectangle(
                 cornerRadius: WorkbenchControlMetrics.cornerRadius,
@@ -154,26 +194,6 @@ struct WorkbenchFilterChip: View {
             )
             .strokeBorder(WorkbenchControlColors.activeBlue.opacity(0.24), lineWidth: 1)
         )
-    }
-}
-
-struct WorkbenchSelectField: View {
-    let title: String
-    var action: (() -> Void)? = nil
-
-    var body: some View {
-        if let action {
-            Button(action: action) {
-                label
-            }
-            .buttonStyle(.plain)
-        } else {
-            label
-        }
-    }
-
-    private var label: some View {
-        WorkbenchSelectFieldLabel(title: title)
     }
 }
 
@@ -214,6 +234,24 @@ struct WorkbenchTextInputField: View {
     }
 }
 
+struct WorkbenchReadonlyField: View {
+    let title: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(WorkbenchControlColors.mutedText)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: WorkbenchControlMetrics.controlHeight)
+        .background(WorkbenchControlBackground())
+    }
+}
+
 struct WorkbenchDropdownChoice: Identifiable, Equatable {
     let id: String
     let title: String
@@ -221,40 +259,20 @@ struct WorkbenchDropdownChoice: Identifiable, Equatable {
 
 struct WorkbenchInlineDropdown: View {
     let title: String
-    let choices: [WorkbenchDropdownChoice]
-    let selectedID: String?
-    var onSelect: (WorkbenchDropdownChoice) -> Void
-    @State private var isOpen = false
+    var isOpen = false
+    var action: () -> Void
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Button {
-                isOpen.toggle()
-            } label: {
-                WorkbenchSelectFieldLabel(title: title)
-            }
-            .buttonStyle(.plain)
-            .zIndex(1)
-
-            if isOpen {
-                WorkbenchDropdownPanel(
-                    choices: choices,
-                    selectedID: selectedID,
-                    onSelect: { choice in
-                        onSelect(choice)
-                        isOpen = false
-                    }
-                )
-                .offset(y: WorkbenchControlMetrics.controlHeight + 4)
-                .zIndex(2)
-            }
+        Button(action: action) {
+            WorkbenchSelectFieldLabel(title: title)
         }
+        .buttonStyle(.plain)
         .frame(height: WorkbenchControlMetrics.controlHeight, alignment: .topLeading)
         .zIndex(isOpen ? 100 : 0)
     }
 }
 
-private struct WorkbenchDropdownPanel: View {
+struct WorkbenchDropdownPanel: View {
     let choices: [WorkbenchDropdownChoice]
     let selectedID: String?
     var onSelect: (WorkbenchDropdownChoice) -> Void
