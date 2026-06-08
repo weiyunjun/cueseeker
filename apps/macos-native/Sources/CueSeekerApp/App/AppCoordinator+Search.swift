@@ -193,6 +193,24 @@ extension AppCoordinator {
         }
     }
 
+    func applyTableSandboxAllCueSearchContext(_ page: TableSandboxSearchHydrationPage) {
+        search.searchStatus = .completed
+        search.searchResults = page.results
+        search.searchResultTotalCount = page.totalRowCount
+        search.searchCountState = .exact
+        search.searchKnownResultCount = page.totalRowCount
+        search.searchKnownFileCount = 0
+        search.hasMoreSearchResults = page.range.upperBound < page.totalRowCount
+        nextGlobalSearchCursor = search.hasMoreSearchResults
+            ? SubtitleSearchCursor(offset: page.range.upperBound)
+            : nil
+        search.applySearchNavigationVisibleWindow(
+            page.results,
+            startIndex: page.range.lowerBound,
+            totalCount: page.totalRowCount
+        )
+    }
+
     func loadSearchNavigationVisibleWindow(rows requestedRows: Range<Int>) {
         let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let folders = indexing.selectedFolders
@@ -202,8 +220,7 @@ extension AppCoordinator {
         let filterSignature = filterSet.cacheSignature
         let totalCount = searchNavigationTotalCount
 
-        guard !trimmedQuery.isEmpty,
-              !folders.isEmpty,
+        guard !folders.isEmpty,
               totalCount > 0,
               let database = subtitleDatabase
         else {
@@ -231,6 +248,26 @@ extension AppCoordinator {
         }
 
         searchNavigationVisibleWindowTask?.cancel()
+        if trimmedQuery.isEmpty {
+            searchNavigationVisibleWindowTask = Task { [weak self] in
+                guard let self,
+                      let page = await self.loadTableSandboxAllCueRows(range: requestedRange)
+                else {
+                    return
+                }
+
+                guard !Task.isCancelled,
+                      self.indexing.selectedFolders.map(\.path) == folderPaths,
+                      self.search.activeFilterSetSignature == filterSignature
+                else {
+                    return
+                }
+
+                self.applyTableSandboxAllCueSearchContext(page)
+            }
+            return
+        }
+
         let searchDatabaseURL = databaseURL
         searchNavigationVisibleWindowTask = Task { [weak self] in
             do {
@@ -1068,8 +1105,7 @@ extension AppCoordinator {
         searchNavigationTask?.cancel()
 
         let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty,
-              !indexing.selectedFolders.isEmpty,
+        guard !indexing.selectedFolders.isEmpty,
               let database = subtitleDatabase
         else {
             search.searchNavigationSnapshot = nil
@@ -1084,6 +1120,15 @@ extension AppCoordinator {
         let folders = indexing.selectedFolders
         let anchor = currentSearchNavigationAnchor()
         let panelRadius = Self.searchNavigationPanelRadius
+        if trimmedQuery.isEmpty {
+            loadAllCueSearchNavigationSnapshot(
+                opening: direction,
+                anchor: anchor,
+                radius: panelRadius
+            )
+            return
+        }
+
         let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         let filterSet = search.activeFilterSet
         let filterSignature = filterSet.cacheSignature
@@ -1153,6 +1198,79 @@ extension AppCoordinator {
                 self?.search.searchNavigationSnapshot = nil
                 self?.search.searchNavigationResultGroups = []
                 self?.search.applyActiveSearchNavigationResult(nil)
+            }
+        }
+    }
+
+    private func loadAllCueSearchNavigationSnapshot(
+        opening direction: SearchResultNavigationDirection?,
+        anchor: SearchNavigationAnchor,
+        radius: Int
+    ) {
+        let totalCount = searchNavigationTotalCount
+        guard totalCount > 0 else {
+            search.searchNavigationSnapshot = nil
+            search.searchNavigationResultGroups = []
+            search.applyActiveSearchNavigationResult(nil)
+            if let direction {
+                playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
+            }
+            return
+        }
+
+        let boundedRadius = max(1, radius)
+        let anchorRank = anchor.selectedSearchRank.map { min(max(0, $0), totalCount - 1) }
+        let lowerBound: Int
+        let upperBound: Int
+        if let anchorRank {
+            lowerBound = max(0, anchorRank - boundedRadius)
+            upperBound = min(totalCount, anchorRank + boundedRadius + 1)
+        } else {
+            lowerBound = 0
+            upperBound = min(totalCount, (boundedRadius * 2) + 1)
+        }
+        let requestedRange = lowerBound..<upperBound
+
+        searchNavigationTask = Task { [weak self] in
+            guard let self,
+                  let page = await self.loadTableSandboxAllCueRows(range: requestedRange)
+            else {
+                return
+            }
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            self.applyTableSandboxAllCueSearchContext(page)
+            guard let resolvedSnapshot = self.loadedSearchNavigationSnapshot(
+                anchor: anchor,
+                radius: boundedRadius
+            ) else {
+                if let direction {
+                    self.playback.playbackViewModel?.showSearchNavigationFeedback(
+                        direction: direction,
+                        hasResult: false
+                    )
+                }
+                return
+            }
+
+            self.applySearchNavigationSnapshot(resolvedSnapshot)
+            let target: SubtitleSearchResult? = switch direction {
+            case .previous:
+                resolvedSnapshot.previous
+            case .next:
+                resolvedSnapshot.next
+            case nil:
+                nil
+            }
+
+            if let target, let direction {
+                self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: true)
+                self.openSearchResult(target)
+            } else if let direction {
+                self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
         }
     }

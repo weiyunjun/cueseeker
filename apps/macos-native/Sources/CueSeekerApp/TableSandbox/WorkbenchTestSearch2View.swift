@@ -103,6 +103,9 @@ struct WorkbenchTestSearch2View: View {
         search.searchQuery = ""
         search.searchResults = []
         search.searchResultTotalCount = 0
+        search.searchNavigationSnapshot = nil
+        search.searchNavigationResultGroups = []
+        search.resetSearchNavigationVisibleWindow()
         search.hasMoreSearchResults = false
         loadAllCueRows(resetScroll: true)
     }
@@ -164,6 +167,7 @@ struct WorkbenchTestSearch2View: View {
                 rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search-2")
                 return
             }
+            appState.applyTableSandboxAllCueSearchContext(page)
             rowStore.updateSearchRows(
                 page.results,
                 totalRowCount: page.totalRowCount,
@@ -188,6 +192,9 @@ struct WorkbenchTestSearch2View: View {
     }
 
     private func applyHydrationPage(_ page: TableSandboxSearchHydrationPage) {
+        if isAllCuesMode {
+            appState.applyTableSandboxAllCueSearchContext(page)
+        }
         rowStore.hydrateSearchRows(
             page.results,
             startIndex: page.range.lowerBound,

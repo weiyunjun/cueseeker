@@ -11,6 +11,8 @@ Implement the Test Search 2 Speaker-column validation path:
 - allow Test Search 2 to show all cue rows when the search query is empty;
 - add a Speaker string-set field and table column;
 - support Speaker Filter Set rules;
+- keep the playback Search Results list bound to Speaker-filtered Test Search 2
+  results;
 - import the local MyGO Speaker test data into the local CueSeeker SQLite
   database for validation.
 
@@ -28,7 +30,10 @@ Implement the Test Search 2 Speaker-column validation path:
    cue lines for rows in the requested visible window.
 5. Added a Speaker column to the AppKit virtual table and mapped Speaker values
    to purple workbench tags.
-6. Imported `/Users/weiyunjun/Documents/work/mygo_speaker_export/final`
+6. Fed the Test Search 2 all-cues page into the global Search context so the
+   playback Search Results sidebar and adjacent-result navigation can use the
+   Speaker-filtered result set even when the search query is empty.
+7. Imported `/Users/weiyunjun/Documents/work/mygo_speaker_export/final`
    Speaker data into the local app database
    `/Users/weiyunjun/Library/Application Support/CueSeeker/CueSeeker.sqlite`.
 
@@ -44,8 +49,9 @@ Implement the Test Search 2 Speaker-column validation path:
   - per-episode imported row counts match the database `Dial_JP` row counts.
 - Focused tests passed:
   - `swift test --filter 'SubtitleSearchFilterSet|SchemaWorkbenchFilterRules|TableSandboxRowModelStore|SubtitleTableVirtualRow|allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers'`
+  - `swift test --filter 'SearchStore|TableSandbox|allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers'`
 - Full package tests passed:
-  - `swift test` (256 Swift Testing tests and 7 XCTest tests passed)
+  - `swift test` (258 Swift Testing tests and 7 XCTest tests passed)
 
 ## Outcome
 
