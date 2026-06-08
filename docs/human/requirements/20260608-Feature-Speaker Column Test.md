@@ -4,6 +4,7 @@ main
 1. 在Test Search 2中，取消必须输入搜索词才显示结果的限制，无搜索词时显示所有cues的结果，按照默认顺序排序。
 2. Test Search 2页面的表格新增Speaker列，数据类型为字符串的集合
 3. 数据库操作，写入测试数据，然后快速验证一下Speaker本身的有效性。
+4. 点击筛选Speaker后的结果，也要可以进入筛选后结果的播放列表。
 ### 测试数据
 路径：
 /Users/weiyunjun/Documents/work/mygo_speaker_export/final
