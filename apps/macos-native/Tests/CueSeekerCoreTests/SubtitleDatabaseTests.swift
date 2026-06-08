@@ -877,6 +877,165 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
 }
 
 @Test
+func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Alpha.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Alpha.mkv"),
+        entries: [
+            languageFilterTestEntry(sequenceNumber: 1, text: "Shared display alpha")
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Beta.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Beta.mkv"),
+        entries: [
+            languageFilterTestEntry(sequenceNumber: 1, text: "Shared display beta")
+        ]
+    )
+
+    let filterSet = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .display,
+            operatorID: .contains,
+            value: "Beta"
+        )
+    ])
+    let page = try database.searchPage("shared", limit: 10, filterSet: filterSet)
+
+    #expect(page.totalCount == 1)
+    #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["Beta.srt"])
+    #expect(page.results.map(\.content) == ["Shared display beta"])
+}
+
+@Test
+func searchFilterSetAppliesToExactPagesAndIndexedWindows() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/FilteredWindow.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/FilteredWindow.mkv")
+    let entries = (0..<6).map { index in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: String(format: "00:00:%02d,000", index),
+            endTimecode: String(format: "00:00:%02d,500", index),
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: index.isMultiple(of: 2)
+                ? "Shared filtered keep \(index)"
+                : "Shared filtered drop \(index)"
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries
+    )
+
+    let filterSet = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .cues,
+            operatorID: .contains,
+            value: "keep"
+        )
+    ])
+
+    let exactPage = try database.searchPage("shared", limit: 2, filterSet: filterSet)
+    #expect(exactPage.totalCount == 3)
+    #expect(exactPage.nextCursor?.offset == 2)
+    #expect(exactPage.results.map(\.content) == [
+        "Shared filtered keep 0",
+        "Shared filtered keep 2"
+    ])
+
+    #expect(database.searchResultIDIndexWindow(
+        "shared",
+        limit: 1,
+        cursor: .start,
+        minimumKnownResultCount: 4
+    ) == nil)
+
+    let window = try #require(database.searchResultIDIndexWindow(
+        "shared",
+        limit: 1,
+        cursor: SubtitleSearchCursor(offset: 2),
+        filterSet: filterSet,
+        minimumKnownResultCount: 3
+    ))
+    let indexedPage = try #require(try database.searchIndexedVisiblePage(from: window))
+
+    #expect(indexedPage.totalCount == 3)
+    #expect(indexedPage.nextCursor == nil)
+    #expect(indexedPage.results.map(\.content) == ["Shared filtered keep 4"])
+    #expect(indexedPage.results.map(\.searchRank) == [2])
+}
+
+@Test
+func searchFilterSetMatchesLanguageCollectionValues() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/FilterLanguages.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/FilterLanguages.mkv")
+    let entries = [
+        languageFilterTestEntry(sequenceNumber: 1, text: "Shared Japanese filter"),
+        languageFilterTestEntry(sequenceNumber: 2, text: "Shared English filter"),
+        languageFilterTestEntry(sequenceNumber: 3, text: "Shared Mixed filter")
+    ]
+    let analysis = SubtitleLanguageAnalysis(
+        format: .srt,
+        fileDetection: nil,
+        styleDetections: [:],
+        cueGroupLanguages: [
+            [.japanese],
+            [.english],
+            [.simplifiedChinese, .japanese]
+        ]
+    )
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: entries,
+        languageAnalysis: analysis
+    )
+
+    let filterSet = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .language,
+            operatorID: .contains,
+            value: "ja"
+        )
+    ])
+    let page = try database.searchPage("shared", limit: 10, filterSet: filterSet)
+
+    #expect(page.totalCount == 2)
+    #expect(page.results.map(\.content) == [
+        "Shared Japanese filter",
+        "Shared Mixed filter"
+    ])
+}
+
+@Test
 func searchExactPageCachesResultIDIndexForVisibleWindows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
