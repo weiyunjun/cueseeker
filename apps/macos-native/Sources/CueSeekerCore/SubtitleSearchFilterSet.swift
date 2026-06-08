@@ -28,14 +28,14 @@ public struct SubtitleSearchFilterSet: Codable, Equatable, Hashable, Sendable {
         return "\(resolvedJoin.rawValue):" + ruleSignatures.joined(separator: "\u{1e}")
     }
 
-    public func matches(display: String, cues: String, languages: [String]) -> Bool {
+    public func matches(display: String, cues: String, languages: [String], speakers: [String] = []) -> Bool {
         let activeRules = activeRules
         guard !activeRules.isEmpty else {
             return true
         }
 
         let results = activeRules.map { rule in
-            rule.matches(display: display, cues: cues, languages: languages)
+            rule.matches(display: display, cues: cues, languages: languages, speakers: speakers)
         }
 
         switch resolvedJoin {
@@ -77,12 +77,12 @@ public struct SubtitleSearchFilterRule: Codable, Equatable, Hashable, Sendable {
         !operatorID.requiresValue || !value.isEmpty
     }
 
-    public func matches(display: String, cues: String, languages: [String]) -> Bool {
+    public func matches(display: String, cues: String, languages: [String], speakers: [String] = []) -> Bool {
         switch field.dataType {
         case .string:
             return matchesString(stringValue(forDisplay: display, cues: cues))
         case .stringSet:
-            return matchesStringSet(languages)
+            return matchesStringSet(stringSetValue(forLanguages: languages, speakers: speakers))
         case .number:
             return false
         }
@@ -103,8 +103,19 @@ public struct SubtitleSearchFilterRule: Codable, Equatable, Hashable, Sendable {
             return display
         case .cues:
             return cues
-        case .language:
+        case .language, .speaker:
             return ""
+        }
+    }
+
+    private func stringSetValue(forLanguages languages: [String], speakers: [String]) -> [String] {
+        switch field {
+        case .language:
+            return languages
+        case .speaker:
+            return speakers
+        case .display, .cues:
+            return []
         }
     }
 
@@ -164,12 +175,13 @@ public enum SubtitleSearchFilterField: String, Codable, CaseIterable, Hashable, 
     case display
     case cues
     case language
+    case speaker
 
     public var dataType: SubtitleSearchFilterDataType {
         switch self {
         case .display, .cues:
             return .string
-        case .language:
+        case .language, .speaker:
             return .stringSet
         }
     }

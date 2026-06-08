@@ -151,6 +151,48 @@ extension AppCoordinator {
         }
     }
 
+    func loadTableSandboxAllCueRows(range: Range<Int>) async -> TableSandboxSearchHydrationPage? {
+        let folders = indexing.selectedFolders
+        let filterSet = search.activeFilterSet
+        let filterSignature = filterSet.cacheSignature
+        guard !folders.isEmpty,
+              subtitleDatabase != nil
+        else {
+            return nil
+        }
+        let searchDatabaseURL = databaseURL
+        let lowerBound = max(0, range.lowerBound)
+        let upperBound = max(lowerBound, range.upperBound)
+        guard lowerBound < upperBound else { return nil }
+
+        do {
+            let page = try await Task.detached(priority: .userInitiated) {
+                let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
+                return try pageDatabase.allCueGroupsVisiblePage(
+                    limit: upperBound - lowerBound,
+                    cursor: SubtitleSearchCursor(offset: lowerBound),
+                    under: folders,
+                    filterSet: filterSet
+                )
+            }.value
+
+            guard !Task.isCancelled,
+                  indexing.selectedFolders.map(\.path) == folders.map(\.path),
+                  search.activeFilterSetSignature == filterSignature
+            else {
+                return nil
+            }
+
+            return TableSandboxSearchHydrationPage(
+                range: lowerBound..<(lowerBound + page.results.count),
+                results: page.results,
+                totalRowCount: page.totalCount
+            )
+        } catch {
+            return nil
+        }
+    }
+
     func loadSearchNavigationVisibleWindow(rows requestedRows: Range<Int>) {
         let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let folders = indexing.selectedFolders

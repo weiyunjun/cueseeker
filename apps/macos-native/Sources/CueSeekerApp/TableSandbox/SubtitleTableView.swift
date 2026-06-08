@@ -6,6 +6,7 @@ import SwiftUI
 enum SubtitleTableMetrics {
     static let indexColumnWidth: CGFloat = 50
     static let nameColumnWidth: CGFloat = 240
+    static let speakerColumnWidth: CGFloat = 180
     static let languageColumnWidth: CGFloat = 160
     static let cellLeading: CGFloat = 12
     static let trailingInset: CGFloat = 14
@@ -185,7 +186,9 @@ final class SubtitleVirtualTableHeaderView: NSView {
         super.draw(dirtyRect)
         let M = SubtitleTableMetrics.self
         let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
+        let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
         drawHeader(
             "#",
             rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height),
@@ -203,12 +206,25 @@ final class SubtitleVirtualTableHeaderView: NSView {
             rect: CGRect(
                 x: M.indexColumnWidth + M.nameColumnWidth,
                 y: 0,
-                width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth - languageWidth),
+                width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth),
                 height: bounds.height
             ),
             leading: M.headerHorizontalInset,
             trailing: M.trailingInset
         )
+        if showsSpeakerColumn {
+            drawHeader(
+                "Speaker",
+                rect: CGRect(
+                    x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - languageWidth - M.speakerColumnWidth),
+                    y: 0,
+                    width: M.speakerColumnWidth,
+                    height: bounds.height
+                ),
+                leading: M.headerHorizontalInset,
+                trailing: M.trailingInset
+            )
+        }
         if showsLanguageColumn {
             drawHeader(
                 "Language",
@@ -349,6 +365,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowsUpdate: TableSandboxRowsUpdate
     var displayTitleHeader = "Name"
     var showsLanguageColumn = false
+    var showsSpeakerColumn = false
     var scrollResetToken = 0
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var onPlay: (SubtitleTableRow) -> Void
@@ -361,6 +378,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsVersion: rowsVersion,
             displayTitleHeader: displayTitleHeader,
             showsLanguageColumn: showsLanguageColumn,
+            showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
             onVisibleRowsChange: onVisibleRowsChange,
             onPlay: onPlay
@@ -428,6 +446,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsUpdate: rowsUpdate,
             displayTitleHeader: displayTitleHeader,
             showsLanguageColumn: showsLanguageColumn,
+            showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
             onVisibleRowsChange: onVisibleRowsChange,
             onPlay: onPlay
@@ -444,6 +463,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rowsVersion: Int
         private var displayTitleHeader: String
         private var showsLanguageColumn: Bool
+        private var showsSpeakerColumn: Bool
         private var scrollResetToken: Int
         private var onVisibleRowsChange: (Range<Int>) -> Void
         private var onPlay: (SubtitleTableRow) -> Void
@@ -465,6 +485,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsVersion: Int,
             displayTitleHeader: String = "Name",
             showsLanguageColumn: Bool = false,
+            showsSpeakerColumn: Bool = false,
             scrollResetToken: Int = 0,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
@@ -475,6 +496,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.rowsVersion = rowsVersion
             self.displayTitleHeader = displayTitleHeader
             self.showsLanguageColumn = showsLanguageColumn
+            self.showsSpeakerColumn = showsSpeakerColumn
             self.scrollResetToken = scrollResetToken
             self.onVisibleRowsChange = onVisibleRowsChange
             self.onPlay = onPlay
@@ -514,6 +536,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsUpdate: TableSandboxRowsUpdate,
             displayTitleHeader: String,
             showsLanguageColumn: Bool,
+            showsSpeakerColumn: Bool,
             scrollResetToken: Int,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
@@ -523,6 +546,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.displayTitleHeader = displayTitleHeader
             let languageColumnChanged = showsLanguageColumn != self.showsLanguageColumn
             self.showsLanguageColumn = showsLanguageColumn
+            let speakerColumnChanged = showsSpeakerColumn != self.showsSpeakerColumn
+            self.showsSpeakerColumn = showsSpeakerColumn
             let shouldScrollToTop = scrollResetToken != self.scrollResetToken
             self.scrollResetToken = scrollResetToken
             self.onVisibleRowsChange = onVisibleRowsChange
@@ -543,13 +568,17 @@ struct SubtitleTableView: NSViewRepresentable {
             if shouldScrollToTop {
                 scrollToTop()
             }
-            if changed || languageColumnChanged {
+            if changed || languageColumnChanged || speakerColumnChanged {
                 notifyVisibleRowsChanged()
             }
         }
 
         func showsLanguageColumnForRendering() -> Bool {
             showsLanguageColumn
+        }
+
+        func showsSpeakerColumnForRendering() -> Bool {
+            showsSpeakerColumn
         }
 
         func displayTitleHeaderForRendering() -> String {
@@ -562,18 +591,35 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func cellFullText(row: Int, column: Int) -> String {
             if row == -1 {
-                let headers = showsLanguageColumn ? ["#", displayTitleHeader, "Cues", "Language"] : ["#", displayTitleHeader, "Cues"]
+                var headers = ["#", displayTitleHeader, "Cues"]
+                if showsSpeakerColumn {
+                    headers.append("Speaker")
+                }
+                if showsLanguageColumn {
+                    headers.append("Language")
+                }
                 return headers.indices.contains(column) ? headers[column] : ""
             }
             guard row >= 0, row < rowCount else { return "" }
             guard column != 0 else { return "\(row + 1)" }
             guard let model = rowProvider(row) else { return "" }
-            switch column {
-            case 1: return model.displayTitle
-            case 2: return model.cues
-            case 3 where showsLanguageColumn: return model.tags.map(\.label).joined(separator: ", ")
-            default: return ""
+            if column == 1 {
+                return model.displayTitle
             }
+            if column == 2 {
+                return model.cues
+            }
+            var nextColumn = 3
+            if showsSpeakerColumn {
+                if column == nextColumn {
+                    return model.speakerTags.map(\.label).joined(separator: ", ")
+                }
+                nextColumn += 1
+            }
+            if showsLanguageColumn, column == nextColumn {
+                return model.tags.map(\.label).joined(separator: ", ")
+            }
+            return ""
         }
 
         func resizeDocument() {
@@ -649,7 +695,8 @@ struct SubtitleTableView: NSViewRepresentable {
             let M = SubtitleTableMetrics.self
             let model = rowProvider(row)
             let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-            let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - languageWidth)
+            let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+            let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
 
             drawIndex(row + 1, in: CGRect(x: 0, y: rowRect.minY, width: M.indexColumnWidth, height: rowRect.height))
             drawBody(
@@ -667,6 +714,18 @@ struct SubtitleTableView: NSViewRepresentable {
                 ),
                 trailing: M.trailingInset
             )
+            if showsSpeakerColumn {
+                drawTags(
+                    model?.speakerTags ?? [],
+                    in: CGRect(
+                        x: max(M.indexColumnWidth + M.nameColumnWidth, rowRect.width - languageWidth - M.speakerColumnWidth),
+                        y: rowRect.minY,
+                        width: M.speakerColumnWidth,
+                        height: rowRect.height
+                    ),
+                    trailing: M.trailingInset
+                )
+            }
             if showsLanguageColumn {
                 drawTags(
                     model?.tags ?? [],

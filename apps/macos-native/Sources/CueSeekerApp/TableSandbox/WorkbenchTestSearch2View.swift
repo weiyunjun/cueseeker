@@ -35,7 +35,7 @@ struct WorkbenchTestSearch2View: View {
             filterSets: $settingsStore.searchFilterSets,
             columns: SchemaWorkbenchSearchDefaults.columns,
             onSearchSubmit: {
-                appState.submitTopbarSearch(searchDraft)
+                submitSearchDraft()
             }
         ) { _ in
             SubtitleTableView(
@@ -46,6 +46,7 @@ struct WorkbenchTestSearch2View: View {
                 rowsUpdate: rowStore.snapshot.update,
                 displayTitleHeader: "Display Title",
                 showsLanguageColumn: true,
+                showsSpeakerColumn: true,
                 scrollResetToken: tableScrollResetToken,
                 onVisibleRowsChange: hydrateVisibleRows,
                 onPlay: play
@@ -54,26 +55,56 @@ struct WorkbenchTestSearch2View: View {
         .onAppear {
             searchDraft = search.searchQuery
             applyFilterRules(filterRules, force: true)
-            updateRows(search.searchResults)
+            if isAllCuesMode {
+                loadAllCueRows(resetScroll: false)
+            } else {
+                updateRows(search.searchResults)
+            }
         }
         .onChange(of: filterRules) { newValue in
             applyFilterRules(newValue)
         }
-        .onReceive(search.$searchResults) { updateRows($0) }
+        .onReceive(search.$searchResults) {
+            guard !isAllCuesMode else { return }
+            updateRows($0)
+        }
         .onChange(of: search.searchQuery) { newValue in
             searchDraft = newValue
             visibleHydrator.reset()
             lastVisibleRows = nil
+            if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                loadAllCueRows(resetScroll: true)
+            }
         }
         .onChange(of: search.searchResultTotalCount) { _ in
+            guard !isAllCuesMode else { return }
             updateRows(search.searchResults)
             hydrateLastVisibleRowsIfNeeded()
         }
         .onChange(of: search.searchCountState) { _ in
+            guard !isAllCuesMode else { return }
             updateRows(search.searchResults)
             hydrateLastVisibleRowsIfNeeded()
         }
         .onDisappear { visibleHydrator.cancel() }
+    }
+
+    private var isAllCuesMode: Bool {
+        search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func submitSearchDraft() {
+        let trimmedDraft = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedDraft.isEmpty else {
+            appState.submitTopbarSearch(searchDraft)
+            return
+        }
+
+        search.searchQuery = ""
+        search.searchResults = []
+        search.searchResultTotalCount = 0
+        search.hasMoreSearchResults = false
+        loadAllCueRows(resetScroll: true)
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
@@ -99,7 +130,7 @@ struct WorkbenchTestSearch2View: View {
             totalRowCount: rowStore.snapshot.totalRowCount,
             isRowLoaded: { rowStore.snapshot.row(at: $0) != nil },
             load: { range in
-                await appState.loadTableSandboxSearchRows(range: range)
+                await loadRows(range: range)
             },
             apply: applyHydrationPage
         )
@@ -112,10 +143,41 @@ struct WorkbenchTestSearch2View: View {
             totalRowCount: rowStore.snapshot.totalRowCount,
             isRowLoaded: { rowStore.snapshot.row(at: $0) != nil },
             load: { range in
-                await appState.loadTableSandboxSearchRows(range: range)
+                await loadRows(range: range)
             },
             apply: applyHydrationPage
         )
+    }
+
+    private func loadAllCueRows(resetScroll: Bool) {
+        visibleHydrator.reset()
+        lastVisibleRows = nil
+        if resetScroll {
+            tableScrollResetToken += 1
+        }
+
+        Task { @MainActor in
+            guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return
+            }
+            guard let page = await appState.loadTableSandboxAllCueRows(range: 0..<240) else {
+                rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search-2")
+                return
+            }
+            rowStore.updateSearchRows(
+                page.results,
+                totalRowCount: page.totalRowCount,
+                tableName: "test-search-2"
+            )
+            hydrateLastVisibleRowsIfNeeded()
+        }
+    }
+
+    private func loadRows(range: Range<Int>) async -> TableSandboxSearchHydrationPage? {
+        if isAllCuesMode {
+            return await appState.loadTableSandboxAllCueRows(range: range)
+        }
+        return await appState.loadTableSandboxSearchRows(range: range)
     }
 
     private func hydrateLastVisibleRowsIfNeeded() {
@@ -129,7 +191,7 @@ struct WorkbenchTestSearch2View: View {
         rowStore.hydrateSearchRows(
             page.results,
             startIndex: page.range.lowerBound,
-            totalRowCount: max(search.searchResultTotalCount, rowStore.snapshot.totalRowCount),
+            totalRowCount: max(page.totalRowCount, rowStore.snapshot.totalRowCount),
             tableName: "test-search-2"
         )
     }
@@ -146,5 +208,8 @@ struct WorkbenchTestSearch2View: View {
         lastVisibleRows = nil
         tableScrollResetToken += 1
         appState.updateSearchFilterSet(filterSet)
+        if isAllCuesMode {
+            loadAllCueRows(resetScroll: false)
+        }
     }
 }

@@ -318,13 +318,39 @@ func tableSandboxRowModelStoreMapsSearchLanguagesToDefaultBlueTags() {
     #expect(tags.map(\.colorID) == [.blue, .blue])
 }
 
+@MainActor
+@Test
+func tableSandboxRowModelStoreMapsSearchSpeakersToTags() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 1,
+                path: path,
+                content: "speaker row",
+                cueLines: ["speaker row"],
+                speakers: ["高松灯", "长崎素世"]
+            )
+        ],
+        tableName: "test-search"
+    )
+
+    let tags = store.snapshot.row(at: 0)?.speakerTags ?? []
+    #expect(tags.map(\.key) == ["长崎素世", "高松灯"])
+    #expect(tags.map(\.label) == ["长崎素世", "高松灯"])
+    #expect(tags.map(\.colorID) == [.purple, .purple])
+}
+
 private func searchResult(
     id: Int64,
     path: String,
     displayTitle: String = "",
     content: String,
     cueLines: [String],
-    languages: Set<SubtitleLanguageCode> = [.unknown]
+    languages: Set<SubtitleLanguageCode> = [.unknown],
+    speakers: Set<String> = []
 ) -> SubtitleSearchResult {
     SubtitleSearchResult(
         entryID: id,
@@ -337,6 +363,7 @@ private func searchResult(
         endMilliseconds: 2_000,
         content: content,
         cueLines: cueLines,
-        languages: languages
+        languages: languages,
+        speakers: speakers
     )
 }

@@ -77,7 +77,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 displayTitle: displayTitle,
                 content: result.content,
                 cueLines: result.cueLines,
-                languages: result.languages
+                languages: result.languages,
+                speakers: result.speakers
             )
 
             if let cached = rowsByKey[key] {
@@ -98,7 +99,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                     content: result.content,
                     cueLines: result.cueLines
                 ),
-                tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages)
+                tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages),
+                speakerTags: tableSandboxSpeakerTags(for: result.speakers)
             )
             nextRowsByKey[key] = row
             return row
@@ -210,7 +212,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 displayTitle: displayTitle,
                 content: item.content,
                 cueLines: item.cueLines,
-                languages: []
+                languages: [],
+                speakers: []
             )
 
             if let cached = rowsByKey[key] {
@@ -316,7 +319,8 @@ final class TableSandboxRowModelStore: ObservableObject {
             displayTitle: displayTitle,
             content: result.content,
             cueLines: result.cueLines,
-            languages: result.languages
+            languages: result.languages,
+            speakers: result.speakers
         )
 
         if let cached = rowsByKey[key] {
@@ -330,7 +334,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 content: result.content,
                 cueLines: result.cueLines
             ),
-            tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages)
+            tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages),
+            speakerTags: tableSandboxSpeakerTags(for: result.speakers)
         )
         rowsByKey[key] = row
         return row
@@ -405,6 +410,7 @@ private struct RowCacheKey: Hashable {
     let content: String
     let cueLines: [String]
     let languages: Set<SubtitleLanguageCode>
+    let speakers: Set<String>
 }
 
 enum TableSandboxDisplayTextBudget {
@@ -417,6 +423,13 @@ private func tableSandboxDisplayText(content: String, cueLines: [String]) -> Str
         .prefix(TableSandboxDisplayTextBudget.maximumLines)
         .map(truncateTableSandboxDisplayLine)
         .joined(separator: "\n")
+}
+
+private func tableSandboxSpeakerTags(for speakers: Set<String>) -> [WorkbenchTag] {
+    speakers
+        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        .sorted()
+        .map { WorkbenchTag(key: $0, colorID: .purple) }
 }
 
 private func truncateTableSandboxDisplayLine(_ line: String) -> String {

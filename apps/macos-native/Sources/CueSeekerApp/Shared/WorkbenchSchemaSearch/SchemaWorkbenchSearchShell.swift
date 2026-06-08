@@ -49,6 +49,8 @@ private extension SubtitleSearchFilterField {
             self = .cues
         case "language":
             self = .language
+        case "speaker":
+            self = .speaker
         default:
             return nil
         }
@@ -177,6 +179,12 @@ enum SchemaWorkbenchSearchDefaults {
             title: "Cues",
             kind: .text,
             width: .flexible(min: 580)
+        ),
+        WorkbenchTableColumn(
+            id: "speaker",
+            title: "Speaker",
+            kind: .multiSelect,
+            width: .fixed(230)
         ),
         WorkbenchTableColumn(
             id: "language",

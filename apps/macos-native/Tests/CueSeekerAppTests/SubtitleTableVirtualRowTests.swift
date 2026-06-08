@@ -12,6 +12,9 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
         tags: [
             WorkbenchTag(key: "zh-hans"),
             WorkbenchTag(key: "jp"),
+        ],
+        speakerTags: [
+            WorkbenchTag(key: "高松灯"),
         ]
     )
     let coordinator = SubtitleTableView.Coordinator(
@@ -23,19 +26,23 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
+        showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
 
     #expect(coordinator.numberOfRowsForTesting() == 2_000_000)
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
-    #expect(coordinator.cellFullText(row: -1, column: 3) == "Language")
+    #expect(coordinator.cellFullText(row: -1, column: 3) == "Speaker")
+    #expect(coordinator.cellFullText(row: -1, column: 4) == "Language")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
     #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
-    #expect(coordinator.cellFullText(row: 0, column: 3) == "zh-hans, jp")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "高松灯")
+    #expect(coordinator.cellFullText(row: 0, column: 4) == "zh-hans, jp")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 0) == "1000001")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 2) == "")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 3) == "")
+    #expect(coordinator.cellFullText(row: 1_000_000, column: 4) == "")
 }
 
 @Test

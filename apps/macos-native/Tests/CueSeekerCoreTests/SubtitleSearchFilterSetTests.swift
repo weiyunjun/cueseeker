@@ -101,6 +101,28 @@ func filterSetEvaluatesLanguageStringSetOperators() {
 }
 
 @Test
+func filterSetEvaluatesSpeakerStringSetOperators() {
+    let containsTomori = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .speaker,
+            operatorID: .contains,
+            value: "高松灯"
+        ),
+    ])
+    let speakerIsNotEmpty = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .speaker,
+            operatorID: .isNotEmpty
+        ),
+    ])
+
+    #expect(containsTomori.matches(display: "", cues: "", languages: [], speakers: ["高松灯", "千早爱音"]))
+    #expect(!containsTomori.matches(display: "", cues: "", languages: [], speakers: ["千早爱音"]))
+    #expect(speakerIsNotEmpty.matches(display: "", cues: "", languages: [], speakers: ["高松灯"]))
+    #expect(!speakerIsNotEmpty.matches(display: "", cues: "", languages: [], speakers: []))
+}
+
+@Test
 func filterSetCacheSignatureIgnoresStringValueCase() {
     let uppercaseFilterSet = SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(

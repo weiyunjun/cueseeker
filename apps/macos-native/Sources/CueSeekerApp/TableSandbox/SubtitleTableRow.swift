@@ -10,12 +10,20 @@ struct SubtitleTableRow: Identifiable, Equatable {
     /// per language, joined with "\n", so the cell wraps to multiple lines.
     let cues: String
     let tags: [WorkbenchTag]
+    let speakerTags: [WorkbenchTag]
 
-    init(id: Int, displayTitle: String, cues: String, tags: [WorkbenchTag] = []) {
+    init(
+        id: Int,
+        displayTitle: String,
+        cues: String,
+        tags: [WorkbenchTag] = [],
+        speakerTags: [WorkbenchTag] = []
+    ) {
         self.id = id
         self.displayTitle = displayTitle
         self.cues = cues
         self.tags = tags
+        self.speakerTags = speakerTags
     }
 }
 

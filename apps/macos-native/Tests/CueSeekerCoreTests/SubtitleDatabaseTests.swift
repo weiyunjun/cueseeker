@@ -55,6 +55,75 @@ func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
 }
 
 @Test
+func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerTest.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/SpeakerTest.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:01,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 1_500,
+                text: "first cue"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:02,000",
+                endTimecode: "00:00:02,500",
+                startMilliseconds: 2_000,
+                endMilliseconds: 2_500,
+                text: "second cue"
+            ),
+        ]
+    )
+    try executeSQLite(
+        at: databaseURL,
+        """
+        INSERT INTO subtitle_cue_line_speakers(cue_line_id, cue_group_id, speaker, speaker_key)
+        SELECT l.id, l.cue_group_id, '高松灯', '高松灯'
+        FROM subtitle_cue_lines l
+        JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+        WHERE g.search_content = 'second cue';
+        """
+    )
+
+    let page = try database.allCueGroupsVisiblePage(limit: 10, cursor: .start)
+
+    #expect(page.totalCount == 2)
+    #expect(page.results.map(\.content) == ["first cue", "second cue"])
+    #expect(page.results[0].speakers == [])
+    #expect(page.results[1].speakers == ["高松灯"])
+
+    let speakerPage = try database.allCueGroupsVisiblePage(
+        limit: 10,
+        cursor: .start,
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(
+                    field: .speaker,
+                    operatorID: .contains,
+                    value: "高松灯"
+                )
+            ]
+        )
+    )
+    #expect(speakerPage.totalCount == 1)
+    #expect(speakerPage.results.map(\.content) == ["second cue"])
+}
+
+@Test
 func reportsStorageStatsAndCompactsFreelistPages() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -25,12 +25,19 @@ func schemaWorkbenchFilterRulesConvertToCoreFilterSet() {
             operatorID: .contains,
             value: "ja"
         ),
+        SchemaWorkbenchSearchDefaults.makeFilterRule(
+            join: .and,
+            fieldID: "speaker",
+            operatorID: .contains,
+            value: "高松灯"
+        ),
     ]
     let filterSet = rules.subtitleSearchFilterSet
 
-    #expect(filterSet.matches(display: "Ave Mujica", cues: "", languages: ["ja"]))
-    #expect(!filterSet.matches(display: "Ave Mujica", cues: "", languages: ["en"]))
-    #expect(!filterSet.matches(display: "MyGO", cues: "", languages: ["ja"]))
+    #expect(filterSet.matches(display: "Ave Mujica", cues: "", languages: ["ja"], speakers: ["高松灯"]))
+    #expect(!filterSet.matches(display: "Ave Mujica", cues: "", languages: ["en"], speakers: ["高松灯"]))
+    #expect(!filterSet.matches(display: "MyGO", cues: "", languages: ["ja"], speakers: ["高松灯"]))
+    #expect(!filterSet.matches(display: "Ave Mujica", cues: "", languages: ["ja"], speakers: ["千早爱音"]))
 }
 
 @Test
