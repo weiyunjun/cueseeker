@@ -83,6 +83,28 @@ struct WorkbenchToolbarButton: View {
     }
 }
 
+struct WorkbenchPlainActionButton: View {
+    let title: String
+    let systemImage: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .regular))
+
+                Text(title)
+                    .font(.system(size: 15, weight: .regular))
+            }
+            .foregroundStyle(WorkbenchControlColors.primaryText)
+            .frame(height: WorkbenchControlMetrics.controlHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct WorkbenchFilterChip: View {
     let systemImage: String
     let title: String
@@ -192,6 +214,69 @@ struct WorkbenchTextInputField: View {
     }
 }
 
+struct WorkbenchDropdownChoice: Identifiable, Equatable {
+    let id: String
+    let title: String
+}
+
+struct WorkbenchInlineDropdown: View {
+    let title: String
+    let choices: [WorkbenchDropdownChoice]
+    let selectedID: String?
+    var onSelect: (WorkbenchDropdownChoice) -> Void
+    @State private var isOpen = false
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Button {
+                isOpen.toggle()
+            } label: {
+                WorkbenchSelectFieldLabel(title: title)
+            }
+            .buttonStyle(.plain)
+            .zIndex(1)
+
+            if isOpen {
+                WorkbenchDropdownPanel(
+                    choices: choices,
+                    selectedID: selectedID,
+                    onSelect: { choice in
+                        onSelect(choice)
+                        isOpen = false
+                    }
+                )
+                .offset(y: WorkbenchControlMetrics.controlHeight + 4)
+                .zIndex(2)
+            }
+        }
+        .frame(height: WorkbenchControlMetrics.controlHeight, alignment: .topLeading)
+        .zIndex(isOpen ? 100 : 0)
+    }
+}
+
+private struct WorkbenchDropdownPanel: View {
+    let choices: [WorkbenchDropdownChoice]
+    let selectedID: String?
+    var onSelect: (WorkbenchDropdownChoice) -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel {
+            VStack(spacing: 0) {
+                ForEach(choices) { choice in
+                    WorkbenchPopoverRow(
+                        title: choice.title,
+                        isSelected: choice.id == selectedID,
+                        isHighlighted: choice.id == selectedID,
+                        action: {
+                            onSelect(choice)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
 struct WorkbenchBadge: View {
     let title: String
     var foregroundColor = WorkbenchControlColors.activeBlue
@@ -213,8 +298,10 @@ struct WorkbenchBadge: View {
 struct WorkbenchPopoverRow: View {
     let title: String
     var isSelected = false
+    var isHighlighted = false
     var systemImage: String?
     var action: (() -> Void)? = nil
+    @State private var isHovered = false
 
     var body: some View {
         if let action {
@@ -250,7 +337,20 @@ struct WorkbenchPopoverRow: View {
         .foregroundStyle(WorkbenchControlColors.primaryText)
         .padding(.horizontal, 12)
         .frame(height: 40)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(rowBackground)
+        )
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+    }
+
+    private var rowBackground: Color {
+        if isHighlighted || isHovered {
+            return WorkbenchControlColors.hoverFill
+        }
+
+        return .clear
     }
 }
 

@@ -115,9 +115,6 @@ struct SchemaWorkbenchPage: View {
                 rules: $filterRules,
                 onSave: {
                     openPopover = nil
-                },
-                onDismiss: {
-                    openPopover = nil
                 }
             )
             .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
@@ -185,31 +182,31 @@ struct SchemaWorkbenchPage: View {
             id: "rowNumber",
             title: "#",
             kind: .rowNumber,
-            width: .fixed(54)
+            width: .fixed(84)
         ),
         WorkbenchTableColumn(
             id: "name",
             title: "Name",
             kind: .text,
-            width: .fixed(260)
+            width: .fixed(300)
         ),
         WorkbenchTableColumn(
             id: "cues",
             title: "Cues",
             kind: .text,
-            width: .flexible(min: 360)
+            width: .weighted(min: 580, weight: 3)
         ),
         WorkbenchTableColumn(
             id: "language",
             title: "Language",
             kind: .multiSelect,
-            width: .fixed(200)
+            width: .weighted(min: 230, weight: 2.5)
         ),
         WorkbenchTableColumn(
             id: "speaker",
             title: "Speaker",
             kind: .text,
-            width: .fixed(180)
+            width: .weighted(min: 220, weight: 0.5)
         ),
     ]
 
@@ -452,10 +449,9 @@ private enum SchemaWorkbenchFilterJoin: String, CaseIterable, Identifiable {
 
 private enum SchemaWorkbenchFilterOperatorID: String, Identifiable {
     case contains
-    case equals
-    case startsWith
-    case greaterThan
-    case lessThan
+    case doesNotContain
+    case `is`
+    case isNot
     case isEmpty
     case isNotEmpty
 
@@ -467,14 +463,12 @@ private enum SchemaWorkbenchFilterOperatorID: String, Identifiable {
         switch self {
         case .contains:
             return "contains"
-        case .equals:
-            return "equals"
-        case .startsWith:
-            return "starts with"
-        case .greaterThan:
-            return "is greater than"
-        case .lessThan:
-            return "is less than"
+        case .doesNotContain:
+            return "does not contain"
+        case .is:
+            return "is"
+        case .isNot:
+            return "is not"
         case .isEmpty:
             return "is empty"
         case .isNotEmpty:
@@ -563,10 +557,9 @@ private struct FilterControlBar: View {
                 )
                 .frame(width: 92)
             } else {
-                WorkbenchToolbarButton(
+                WorkbenchPlainActionButton(
                     title: "New Filter Set",
                     systemImage: "plus",
-                    showsChevron: false,
                     action: onFilterBuilder
                 )
                 .frame(width: 170)
@@ -612,6 +605,7 @@ private struct FilterSetPopover: View {
                     WorkbenchPopoverRow(
                         title: option.name,
                         isSelected: option.id == activeFilterSetID,
+                        isHighlighted: option.id == activeFilterSetID,
                         action: {
                             onSelect(option)
                         }
@@ -626,21 +620,13 @@ private struct FilterBuilderPopover: View {
     let columns: [WorkbenchTableColumn]
     @Binding var rules: [SchemaWorkbenchFilterRule]
     var onSave: () -> Void
-    let onDismiss: () -> Void
 
     var body: some View {
         WorkbenchPopoverPanel {
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("New Filter Set")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(WorkbenchControlColors.primaryText)
-
-                    Spacer(minLength: 0)
-
-                    WorkbenchIconButton(systemImage: "xmark", action: onDismiss)
-                        .frame(width: 32, height: 32)
-                }
+                Text("New Filter Set")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(WorkbenchControlColors.primaryText)
 
                 VStack(spacing: 12) {
                     ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
@@ -653,6 +639,7 @@ private struct FilterBuilderPopover: View {
                                 deleteRule(rule.id)
                             }
                         )
+                        .zIndex(Double(rules.count - index))
                     }
                 }
 
@@ -745,48 +732,34 @@ private struct FilterRuleRow: View {
                         .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(WorkbenchControlColors.primaryText)
                 } else {
-                    WorkbenchMenuSelect(title: rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title) {
-                        ForEach(SchemaWorkbenchFilterJoin.allCases) { join in
-                            Button(join.title) {
-                                var updatedRule = rule
-                                updatedRule.join = join
-                                onChange(updatedRule)
-                            }
-                        }
-                    }
+                    WorkbenchInlineDropdown(
+                        title: rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title,
+                        choices: Self.joinChoices,
+                        selectedID: rule.join?.id ?? SchemaWorkbenchFilterJoin.and.id,
+                        onSelect: selectJoin
+                    )
                 }
             }
             .frame(width: 58, alignment: .leading)
 
-            WorkbenchMenuSelect(title: selectedColumn?.title ?? "Field") {
-                ForEach(columns) { column in
-                    Button(column.title) {
-                        var updatedRule = rule
-                        updatedRule.fieldID = column.id
-                        updatedRule.operatorID = Self.operators(for: column).first ?? .contains
-                        updatedRule.value = ""
-                        onChange(updatedRule)
-                    }
-                }
-            }
+            WorkbenchInlineDropdown(
+                title: selectedColumn?.title ?? "Field",
+                choices: fieldChoices,
+                selectedID: rule.fieldID,
+                onSelect: selectField
+            )
             .frame(width: 110)
 
-            WorkbenchMenuSelect(title: rule.operatorID.title) {
-                ForEach(Self.operators(for: selectedColumn), id: \.id) { operatorID in
-                    Button(operatorID.title) {
-                        var updatedRule = rule
-                        updatedRule.operatorID = operatorID
-                        if Self.doesOperatorNeedNoValue(operatorID) {
-                            updatedRule.value = ""
-                        }
-                        onChange(updatedRule)
-                    }
-                }
-            }
+            WorkbenchInlineDropdown(
+                title: rule.operatorID.title,
+                choices: operatorChoices,
+                selectedID: rule.operatorID.id,
+                onSelect: selectOperator
+            )
             .frame(width: 150)
 
             valueInput
-            .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity)
 
             WorkbenchIconButton(systemImage: "trash", action: onDelete)
                 .frame(width: 40)
@@ -807,15 +780,12 @@ private struct FilterRuleRow: View {
             .frame(height: WorkbenchControlMetrics.controlHeight)
             .background(WorkbenchControlBackground())
         } else if selectedColumn?.kind == .multiSelect {
-            WorkbenchMenuSelect(title: rule.value.isEmpty ? "Select value..." : rule.value) {
-                ForEach(Self.multiSelectValues, id: \.self) { value in
-                    Button(value) {
-                        var updatedRule = rule
-                        updatedRule.value = value
-                        onChange(updatedRule)
-                    }
-                }
-            }
+            WorkbenchInlineDropdown(
+                title: rule.value.isEmpty ? "Select value..." : rule.value,
+                choices: Self.multiSelectChoices,
+                selectedID: rule.value.isEmpty ? nil : rule.value,
+                onSelect: selectMultiSelectValue
+            )
         } else {
             WorkbenchTextInputField(
                 placeholder: valuePlaceholder,
@@ -837,6 +807,18 @@ private struct FilterRuleRow: View {
         columns.first { $0.id == rule.fieldID }
     }
 
+    private var fieldChoices: [WorkbenchDropdownChoice] {
+        columns.map { column in
+            WorkbenchDropdownChoice(id: column.id, title: column.title)
+        }
+    }
+
+    private var operatorChoices: [WorkbenchDropdownChoice] {
+        Self.operators(for: selectedColumn).map { operatorID in
+            WorkbenchDropdownChoice(id: operatorID.id, title: operatorID.title)
+        }
+    }
+
     private var valuePlaceholder: String {
         switch selectedColumn?.kind {
         case .rowNumber:
@@ -848,14 +830,55 @@ private struct FilterRuleRow: View {
         }
     }
 
+    private func selectJoin(_ choice: WorkbenchDropdownChoice) {
+        guard let join = SchemaWorkbenchFilterJoin(rawValue: choice.id) else {
+            return
+        }
+
+        var updatedRule = rule
+        updatedRule.join = join
+        onChange(updatedRule)
+    }
+
+    private func selectField(_ choice: WorkbenchDropdownChoice) {
+        guard let column = columns.first(where: { $0.id == choice.id }) else {
+            return
+        }
+
+        var updatedRule = rule
+        updatedRule.fieldID = column.id
+        updatedRule.operatorID = Self.operators(for: column).first ?? .contains
+        updatedRule.value = ""
+        onChange(updatedRule)
+    }
+
+    private func selectOperator(_ choice: WorkbenchDropdownChoice) {
+        guard let operatorID = SchemaWorkbenchFilterOperatorID(rawValue: choice.id) else {
+            return
+        }
+
+        var updatedRule = rule
+        updatedRule.operatorID = operatorID
+        if Self.doesOperatorNeedNoValue(operatorID) {
+            updatedRule.value = ""
+        }
+        onChange(updatedRule)
+    }
+
+    private func selectMultiSelectValue(_ choice: WorkbenchDropdownChoice) {
+        var updatedRule = rule
+        updatedRule.value = choice.id
+        onChange(updatedRule)
+    }
+
     fileprivate static func operators(for column: WorkbenchTableColumn?) -> [SchemaWorkbenchFilterOperatorID] {
         switch column?.kind {
         case .rowNumber:
-            return [.equals, .greaterThan, .lessThan]
+            return [.is, .isNot, .isEmpty, .isNotEmpty]
         case .multiSelect:
-            return [.contains, .isEmpty, .isNotEmpty]
+            return [.contains, .doesNotContain, .is, .isNot, .isEmpty, .isNotEmpty]
         case .text, nil:
-            return [.contains, .equals, .startsWith, .isEmpty, .isNotEmpty]
+            return [.contains, .doesNotContain, .is, .isNot, .isEmpty, .isNotEmpty]
         }
     }
 
@@ -863,19 +886,11 @@ private struct FilterRuleRow: View {
         operatorID == .isEmpty || operatorID == .isNotEmpty
     }
 
-    private static let multiSelectValues = ["中文", "日本語"]
-}
+    private static let joinChoices = SchemaWorkbenchFilterJoin.allCases.map { join in
+        WorkbenchDropdownChoice(id: join.id, title: join.title)
+    }
 
-private struct WorkbenchMenuSelect<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        Menu {
-            content()
-        } label: {
-            WorkbenchSelectFieldLabel(title: title)
-        }
-        .menuStyle(.borderlessButton)
+    private static let multiSelectChoices = ["中文", "日本語"].map { value in
+        WorkbenchDropdownChoice(id: value, title: value)
     }
 }
