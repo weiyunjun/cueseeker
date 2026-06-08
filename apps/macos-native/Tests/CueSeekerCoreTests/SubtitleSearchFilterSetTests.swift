@@ -61,9 +61,19 @@ func filterSetEvaluatesStringOperators() {
     ])
 
     #expect(displayContains.matches(display: "Ave Mujica", cues: "", languages: []))
+    #expect(displayContains.matches(display: "AVE MUJICA", cues: "", languages: []))
     #expect(!displayContains.matches(display: "MyGO", cues: "", languages: []))
     #expect(cuesDoesNotContain.matches(display: "", cues: "今日はいい天気", languages: []))
     #expect(!cuesDoesNotContain.matches(display: "", cues: "大丈夫だよ", languages: []))
+
+    let displayIs = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .display,
+            operatorID: .is,
+            value: "ave mujica"
+        ),
+    ])
+    #expect(displayIs.matches(display: "Ave Mujica", cues: "", languages: []))
 }
 
 @Test
@@ -84,9 +94,30 @@ func filterSetEvaluatesLanguageStringSetOperators() {
     ])
 
     #expect(containsJapanese.matches(display: "", cues: "", languages: ["ja", "zh-Hans"]))
+    #expect(containsJapanese.matches(display: "", cues: "", languages: ["JA-JP", "zh-Hans"]))
     #expect(!containsJapanese.matches(display: "", cues: "", languages: ["en"]))
     #expect(excludesEnglish.matches(display: "", cues: "", languages: ["ja"]))
-    #expect(!excludesEnglish.matches(display: "", cues: "", languages: ["en", "ja"]))
+    #expect(!excludesEnglish.matches(display: "", cues: "", languages: ["EN", "ja"]))
+}
+
+@Test
+func filterSetCacheSignatureIgnoresStringValueCase() {
+    let uppercaseFilterSet = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .display,
+            operatorID: .contains,
+            value: "MUJICA"
+        ),
+    ])
+    let lowercaseFilterSet = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .display,
+            operatorID: .contains,
+            value: "mujica"
+        ),
+    ])
+
+    #expect(uppercaseFilterSet.cacheSignature == lowercaseFilterSet.cacheSignature)
 }
 
 @Test

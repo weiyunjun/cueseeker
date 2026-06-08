@@ -21,7 +21,7 @@ public struct SubtitleSearchFilterSet: Codable, Equatable, Hashable, Sendable {
                 rule.join?.rawValue ?? "",
                 rule.field.rawValue,
                 rule.operatorID.rawValue,
-                rule.value,
+                rule.signatureValue,
             ].joined(separator: "\u{1f}")
         }
 
@@ -88,6 +88,15 @@ public struct SubtitleSearchFilterRule: Codable, Equatable, Hashable, Sendable {
         }
     }
 
+    fileprivate var signatureValue: String {
+        switch field.dataType {
+        case .string, .stringSet:
+            return value.lowercased()
+        case .number:
+            return value
+        }
+    }
+
     private func stringValue(forDisplay display: String, cues: String) -> String {
         switch field {
         case .display:
@@ -102,13 +111,13 @@ public struct SubtitleSearchFilterRule: Codable, Equatable, Hashable, Sendable {
     private func matchesString(_ candidate: String) -> Bool {
         switch operatorID {
         case .is:
-            return candidate == value
+            return candidate.compare(value, options: [.caseInsensitive]) == .orderedSame
         case .isNot:
-            return candidate != value
+            return candidate.compare(value, options: [.caseInsensitive]) != .orderedSame
         case .contains:
-            return candidate.contains(value)
+            return candidate.range(of: value, options: [.caseInsensitive]) != nil
         case .doesNotContain:
-            return !candidate.contains(value)
+            return candidate.range(of: value, options: [.caseInsensitive]) == nil
         case .isEmpty:
             return candidate.isEmpty
         case .isNotEmpty:
@@ -126,9 +135,9 @@ public struct SubtitleSearchFilterRule: Codable, Equatable, Hashable, Sendable {
     private func matchesStringSet(_ candidates: [String]) -> Bool {
         switch operatorID {
         case .contains:
-            return candidates.contains { $0.contains(value) }
+            return candidates.contains { $0.range(of: value, options: [.caseInsensitive]) != nil }
         case .doesNotContain:
-            return !candidates.contains { $0.contains(value) }
+            return !candidates.contains { $0.range(of: value, options: [.caseInsensitive]) != nil }
         case .isEmpty:
             return candidates.isEmpty
         case .isNotEmpty:

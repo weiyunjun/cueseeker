@@ -10,6 +10,7 @@ final class SettingsStore: ObservableObject {
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
+    private static let searchFilterSetsKey = "searchFilterSets"
     private static let aiChunkingEnabledKey = "aiChunkingEnabled"
     private static let aiChunkingTranslationLanguageKey = "aiChunkingTranslationLanguage"
     private static let aiChunkingPromptTemplateKey = "aiChunkingPromptTemplate"
@@ -47,6 +48,12 @@ final class SettingsStore: ObservableObject {
                 searchFTSVocabularyDiagnosticsEnabled,
                 forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
             )
+        }
+    }
+
+    @Published var searchFilterSets: [SchemaWorkbenchFilterSet] {
+        didSet {
+            Self.saveSearchFilterSets(searchFilterSets, to: userDefaults)
         }
     }
 
@@ -98,6 +105,7 @@ final class SettingsStore: ObservableObject {
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
         )
+        self.searchFilterSets = Self.loadSearchFilterSets(from: userDefaults)
         self.aiChunkingEnabled = userDefaults.bool(forKey: Self.aiChunkingEnabledKey)
         self.aiChunkingTranslationLanguage = Self.loadAIChunkingTranslationLanguage(from: userDefaults)
         self.aiChunkingPromptTemplate = Self.loadAIChunkingPromptTemplate(from: userDefaults)
@@ -184,6 +192,27 @@ final class SettingsStore: ObservableObject {
             return .auto
         }
         return mode
+    }
+
+    private static func loadSearchFilterSets(from userDefaults: UserDefaults) -> [SchemaWorkbenchFilterSet] {
+        guard let data = userDefaults.data(forKey: searchFilterSetsKey),
+              let filterSets = try? JSONDecoder().decode([SchemaWorkbenchFilterSet].self, from: data)
+        else {
+            return []
+        }
+
+        return filterSets
+    }
+
+    private static func saveSearchFilterSets(
+        _ filterSets: [SchemaWorkbenchFilterSet],
+        to userDefaults: UserDefaults
+    ) {
+        guard let data = try? JSONEncoder().encode(filterSets) else {
+            return
+        }
+
+        userDefaults.set(data, forKey: searchFilterSetsKey)
     }
 
     private static func loadAIChunkingTranslationLanguage(from userDefaults: UserDefaults) -> AIChunkingTranslationLanguage {

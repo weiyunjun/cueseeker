@@ -4,6 +4,7 @@ import CueSeekerCore
 struct WorkbenchTestSearch2View: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
+    @EnvironmentObject private var settingsStore: SettingsStore
     @StateObject private var rowStore = TableSandboxRowModelStore()
     @StateObject private var visibleHydrator = TableSandboxVisibleSearchHydrator(
         debounceNanoseconds: 16_000_000,
@@ -14,7 +15,6 @@ struct WorkbenchTestSearch2View: View {
     @State private var visibleColumnIDs: Set<String>
     @State private var activeFilterSetID: String?
     @State private var filterRules: [SchemaWorkbenchFilterRule]
-    @State private var filterSets: [SchemaWorkbenchFilterSet]
     @State private var lastVisibleRows: Range<Int>?
     @State private var appliedFilterSignature = ""
     @State private var tableScrollResetToken = 0
@@ -24,7 +24,6 @@ struct WorkbenchTestSearch2View: View {
         _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
         _activeFilterSetID = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterSetID)
         _filterRules = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterRules)
-        _filterSets = State(initialValue: SchemaWorkbenchSearchDefaults.filterSets)
     }
 
     var body: some View {
@@ -33,7 +32,7 @@ struct WorkbenchTestSearch2View: View {
             visibleColumnIDs: $visibleColumnIDs,
             activeFilterSetID: $activeFilterSetID,
             filterRules: $filterRules,
-            filterSets: $filterSets,
+            filterSets: $settingsStore.searchFilterSets,
             columns: SchemaWorkbenchSearchDefaults.columns,
             onSearchSubmit: {
                 appState.submitTopbarSearch(searchDraft)

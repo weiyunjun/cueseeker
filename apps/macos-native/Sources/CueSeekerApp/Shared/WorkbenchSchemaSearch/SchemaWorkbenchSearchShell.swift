@@ -7,13 +7,13 @@ enum SchemaWorkbenchPopover: Equatable {
     case filterBuilder
 }
 
-struct SchemaWorkbenchFilterSet: Identifiable, Equatable {
+struct SchemaWorkbenchFilterSet: Identifiable, Equatable, Codable {
     let id: String
     let name: String
     let rules: [SchemaWorkbenchFilterRule]
 }
 
-struct SchemaWorkbenchFilterRule: Identifiable, Equatable {
+struct SchemaWorkbenchFilterRule: Identifiable, Equatable, Codable {
     let id: String
     var join: SchemaWorkbenchFilterJoin?
     var fieldID: String
@@ -55,7 +55,7 @@ private extension SubtitleSearchFilterField {
     }
 }
 
-enum SchemaWorkbenchFilterJoin: String, CaseIterable, Identifiable {
+enum SchemaWorkbenchFilterJoin: String, CaseIterable, Identifiable, Codable {
     case and
     case or
 
@@ -77,7 +77,7 @@ enum SchemaWorkbenchFilterJoin: String, CaseIterable, Identifiable {
     }
 }
 
-enum SchemaWorkbenchFilterOperatorID: String, Identifiable {
+enum SchemaWorkbenchFilterOperatorID: String, Identifiable, Codable {
     case contains
     case doesNotContain
     case `is`
@@ -410,15 +410,17 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     private func saveFilterSet() {
         let normalizedRules = normalizedFilterRules(filterRules)
-        let nextNumber = filterSets.count + 1
-        let id = "filter-set-\(nextNumber)-\(UUID().uuidString)"
-        let filterSet = SchemaWorkbenchFilterSet(
-            id: id,
-            name: "Filter Set \(nextNumber)",
-            rules: normalizedRules
+        let saveResult = SchemaWorkbenchFilterSetSaveAction.save(
+            rules: normalizedRules,
+            activeFilterSetID: activeFilterSetID,
+            existingFilterSets: filterSets,
+            makeID: { number in
+                "filter-set-\(number)-\(UUID().uuidString)"
+            }
         )
-        filterSets.append(filterSet)
-        activeFilterSetID = id
+
+        filterSets = saveResult.filterSets
+        activeFilterSetID = saveResult.activeFilterSetID
         filterRules = normalizedRules
         openPopover = nil
     }
@@ -458,6 +460,53 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         }
 
         return normalizedRules
+    }
+}
+
+struct SchemaWorkbenchFilterSetSaveResult: Equatable {
+    let filterSets: [SchemaWorkbenchFilterSet]
+    let activeFilterSetID: String
+}
+
+enum SchemaWorkbenchFilterSetSaveAction {
+    static func save(
+        rules: [SchemaWorkbenchFilterRule],
+        activeFilterSetID: String?,
+        existingFilterSets: [SchemaWorkbenchFilterSet],
+        makeID: (Int) -> String
+    ) -> SchemaWorkbenchFilterSetSaveResult {
+        if let activeFilterSetID,
+           let activeIndex = existingFilterSets.firstIndex(where: { $0.id == activeFilterSetID })
+        {
+            var filterSets = existingFilterSets
+            let activeFilterSet = filterSets[activeIndex]
+            filterSets[activeIndex] = SchemaWorkbenchFilterSet(
+                id: activeFilterSet.id,
+                name: activeFilterSet.name,
+                rules: rules
+            )
+
+            return SchemaWorkbenchFilterSetSaveResult(
+                filterSets: filterSets,
+                activeFilterSetID: activeFilterSet.id
+            )
+        }
+
+        var filterSets = existingFilterSets
+        let nextNumber = filterSets.count + 1
+        let id = makeID(nextNumber)
+        filterSets.append(
+            SchemaWorkbenchFilterSet(
+                id: id,
+                name: "Filter Set \(nextNumber)",
+                rules: rules
+            )
+        )
+
+        return SchemaWorkbenchFilterSetSaveResult(
+            filterSets: filterSets,
+            activeFilterSetID: id
+        )
     }
 }
 
