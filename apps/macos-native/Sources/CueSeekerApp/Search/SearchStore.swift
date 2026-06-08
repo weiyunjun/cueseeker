@@ -12,6 +12,7 @@ final class SearchStore: ObservableObject {
     @Published var searchKnownResultCount = 0
     @Published var searchKnownFileCount = 0
     @Published var hasMoreSearchResults = false
+    @Published var activeFilterSet = SubtitleSearchFilterSet()
     @Published var collapsedSearchResultGroupPaths: Set<String> = []
     @Published var searchResultPresentationState: SearchResultPresentationState = .initial
     @Published var searchResultGroups: [SearchResultFileGroup] = []
@@ -53,6 +54,10 @@ final class SearchStore: ObservableObject {
 
     var shouldShowSearchGlobalLoadMoreTrigger: Bool {
         searchResultPresentationState != .collapsed && hasMoreSearchResults
+    }
+
+    var activeFilterSetSignature: String {
+        activeFilterSet.cacheSignature
     }
 
     var searchNavigationVisibleWindowRange: Range<Int> {
