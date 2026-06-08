@@ -349,6 +349,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowsUpdate: TableSandboxRowsUpdate
     var displayTitleHeader = "Name"
     var showsLanguageColumn = false
+    var scrollResetToken = 0
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var onPlay: (SubtitleTableRow) -> Void
 
@@ -360,6 +361,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsVersion: rowsVersion,
             displayTitleHeader: displayTitleHeader,
             showsLanguageColumn: showsLanguageColumn,
+            scrollResetToken: scrollResetToken,
             onVisibleRowsChange: onVisibleRowsChange,
             onPlay: onPlay
         )
@@ -426,6 +428,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsUpdate: rowsUpdate,
             displayTitleHeader: displayTitleHeader,
             showsLanguageColumn: showsLanguageColumn,
+            scrollResetToken: scrollResetToken,
             onVisibleRowsChange: onVisibleRowsChange,
             onPlay: onPlay
         )
@@ -441,6 +444,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rowsVersion: Int
         private var displayTitleHeader: String
         private var showsLanguageColumn: Bool
+        private var scrollResetToken: Int
         private var onVisibleRowsChange: (Range<Int>) -> Void
         private var onPlay: (SubtitleTableRow) -> Void
 
@@ -461,6 +465,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsVersion: Int,
             displayTitleHeader: String = "Name",
             showsLanguageColumn: Bool = false,
+            scrollResetToken: Int = 0,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
@@ -470,6 +475,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.rowsVersion = rowsVersion
             self.displayTitleHeader = displayTitleHeader
             self.showsLanguageColumn = showsLanguageColumn
+            self.scrollResetToken = scrollResetToken
             self.onVisibleRowsChange = onVisibleRowsChange
             self.onPlay = onPlay
         }
@@ -508,6 +514,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsUpdate: TableSandboxRowsUpdate,
             displayTitleHeader: String,
             showsLanguageColumn: Bool,
+            scrollResetToken: Int,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
@@ -516,6 +523,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.displayTitleHeader = displayTitleHeader
             let languageColumnChanged = showsLanguageColumn != self.showsLanguageColumn
             self.showsLanguageColumn = showsLanguageColumn
+            let shouldScrollToTop = scrollResetToken != self.scrollResetToken
+            self.scrollResetToken = scrollResetToken
             self.onVisibleRowsChange = onVisibleRowsChange
             self.onPlay = onPlay
 
@@ -531,6 +540,9 @@ struct SubtitleTableView: NSViewRepresentable {
             headerView?.needsDisplay = true
             documentView?.needsDisplay = true
             layoutHoverButtons()
+            if shouldScrollToTop {
+                scrollToTop()
+            }
             if changed || languageColumnChanged {
                 notifyVisibleRowsChanged()
             }
@@ -579,6 +591,17 @@ struct SubtitleTableView: NSViewRepresentable {
         func notifyVisibleRowsChanged() {
             guard let range = visibleRowRange() else { return }
             onVisibleRowsChange(range)
+        }
+
+        func scrollToTop() {
+            guard let scrollView else {
+                return
+            }
+
+            scrollView.contentView.scroll(to: .zero)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            documentView?.needsDisplay = true
+            notifyVisibleRowsChanged()
         }
 
         @objc func scrollContentDidChange() {

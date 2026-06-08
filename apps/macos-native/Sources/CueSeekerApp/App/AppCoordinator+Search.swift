@@ -24,11 +24,13 @@ extension AppCoordinator {
     }
 
     func updateSearchFilterSet(_ filterSet: SubtitleSearchFilterSet) {
-        guard search.activeFilterSet != filterSet else {
+        let previousSignature = search.activeFilterSetSignature
+        search.activeFilterSet = filterSet
+
+        guard previousSignature != filterSet.cacheSignature else {
             return
         }
 
-        search.activeFilterSet = filterSet
         refreshCurrentSearch(clearExistingResults: true)
     }
 

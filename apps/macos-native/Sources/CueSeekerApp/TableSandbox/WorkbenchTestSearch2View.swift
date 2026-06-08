@@ -14,13 +14,17 @@ struct WorkbenchTestSearch2View: View {
     @State private var visibleColumnIDs: Set<String>
     @State private var activeFilterSetID: String?
     @State private var filterRules: [SchemaWorkbenchFilterRule]
+    @State private var filterSets: [SchemaWorkbenchFilterSet]
     @State private var lastVisibleRows: Range<Int>?
+    @State private var appliedFilterSignature = ""
+    @State private var tableScrollResetToken = 0
 
     init() {
         _searchDraft = State(initialValue: "")
         _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
         _activeFilterSetID = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterSetID)
         _filterRules = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterRules)
+        _filterSets = State(initialValue: SchemaWorkbenchSearchDefaults.filterSets)
     }
 
     var body: some View {
@@ -29,8 +33,8 @@ struct WorkbenchTestSearch2View: View {
             visibleColumnIDs: $visibleColumnIDs,
             activeFilterSetID: $activeFilterSetID,
             filterRules: $filterRules,
+            filterSets: $filterSets,
             columns: SchemaWorkbenchSearchDefaults.columns,
-            filterSets: SchemaWorkbenchSearchDefaults.filterSets,
             onSearchSubmit: {
                 appState.submitTopbarSearch(searchDraft)
             }
@@ -43,13 +47,18 @@ struct WorkbenchTestSearch2View: View {
                 rowsUpdate: rowStore.snapshot.update,
                 displayTitleHeader: "Display Title",
                 showsLanguageColumn: true,
+                scrollResetToken: tableScrollResetToken,
                 onVisibleRowsChange: hydrateVisibleRows,
                 onPlay: play
             )
         }
         .onAppear {
             searchDraft = search.searchQuery
+            applyFilterRules(filterRules, force: true)
             updateRows(search.searchResults)
+        }
+        .onChange(of: filterRules) { newValue in
+            applyFilterRules(newValue)
         }
         .onReceive(search.$searchResults) { updateRows($0) }
         .onChange(of: search.searchQuery) { newValue in
@@ -124,5 +133,19 @@ struct WorkbenchTestSearch2View: View {
             totalRowCount: max(search.searchResultTotalCount, rowStore.snapshot.totalRowCount),
             tableName: "test-search-2"
         )
+    }
+
+    private func applyFilterRules(_ rules: [SchemaWorkbenchFilterRule], force: Bool = false) {
+        let filterSet = rules.subtitleSearchFilterSet
+        let nextSignature = filterSet.cacheSignature
+        guard force || nextSignature != appliedFilterSignature else {
+            return
+        }
+
+        appliedFilterSignature = nextSignature
+        visibleHydrator.reset()
+        lastVisibleRows = nil
+        tableScrollResetToken += 1
+        appState.updateSearchFilterSet(filterSet)
     }
 }

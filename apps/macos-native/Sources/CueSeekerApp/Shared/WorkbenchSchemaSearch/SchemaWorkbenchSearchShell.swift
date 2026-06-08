@@ -1,4 +1,5 @@
 import SwiftUI
+import CueSeekerCore
 
 enum SchemaWorkbenchPopover: Equatable {
     case columnVisibility
@@ -20,6 +21,40 @@ struct SchemaWorkbenchFilterRule: Identifiable, Equatable {
     var value: String
 }
 
+extension Array where Element == SchemaWorkbenchFilterRule {
+    var subtitleSearchFilterSet: SubtitleSearchFilterSet {
+        SubtitleSearchFilterSet(
+            rules: compactMap { rule in
+                guard let field = SubtitleSearchFilterField(workbenchFieldID: rule.fieldID) else {
+                    return nil
+                }
+
+                return SubtitleSearchFilterRule(
+                    join: rule.join?.coreJoin,
+                    field: field,
+                    operatorID: rule.operatorID.coreOperator,
+                    value: rule.value
+                )
+            }
+        )
+    }
+}
+
+private extension SubtitleSearchFilterField {
+    init?(workbenchFieldID: String) {
+        switch workbenchFieldID {
+        case "display":
+            self = .display
+        case "cues":
+            self = .cues
+        case "language":
+            self = .language
+        default:
+            return nil
+        }
+    }
+}
+
 enum SchemaWorkbenchFilterJoin: String, CaseIterable, Identifiable {
     case and
     case or
@@ -31,6 +66,15 @@ enum SchemaWorkbenchFilterJoin: String, CaseIterable, Identifiable {
     var title: String {
         rawValue
     }
+
+    var coreJoin: SubtitleSearchFilterJoin {
+        switch self {
+        case .and:
+            return .and
+        case .or:
+            return .or
+        }
+    }
 }
 
 enum SchemaWorkbenchFilterOperatorID: String, Identifiable {
@@ -40,6 +84,12 @@ enum SchemaWorkbenchFilterOperatorID: String, Identifiable {
     case isNot
     case isEmpty
     case isNotEmpty
+    case equals
+    case doesNotEqual
+    case greaterThan
+    case greaterThanOrEqualTo
+    case lessThan
+    case lessThanOrEqualTo
 
     var id: String {
         rawValue
@@ -59,7 +109,52 @@ enum SchemaWorkbenchFilterOperatorID: String, Identifiable {
             return "is empty"
         case .isNotEmpty:
             return "is not empty"
+        case .equals:
+            return "equals"
+        case .doesNotEqual:
+            return "does not equal"
+        case .greaterThan:
+            return "greater than"
+        case .greaterThanOrEqualTo:
+            return "greater than or equal to"
+        case .lessThan:
+            return "less than"
+        case .lessThanOrEqualTo:
+            return "less than or equal to"
         }
+    }
+
+    var coreOperator: SubtitleSearchFilterOperator {
+        switch self {
+        case .contains:
+            return .contains
+        case .doesNotContain:
+            return .doesNotContain
+        case .is:
+            return .is
+        case .isNot:
+            return .isNot
+        case .isEmpty:
+            return .isEmpty
+        case .isNotEmpty:
+            return .isNotEmpty
+        case .equals:
+            return .equals
+        case .doesNotEqual:
+            return .doesNotEqual
+        case .greaterThan:
+            return .greaterThan
+        case .greaterThanOrEqualTo:
+            return .greaterThanOrEqualTo
+        case .lessThan:
+            return .lessThan
+        case .lessThanOrEqualTo:
+            return .lessThanOrEqualTo
+        }
+    }
+
+    init?(_ coreOperator: SubtitleSearchFilterOperator) {
+        self.init(rawValue: coreOperator.rawValue)
     }
 }
 
@@ -72,8 +167,8 @@ enum SchemaWorkbenchSearchDefaults {
             width: .fixed(84)
         ),
         WorkbenchTableColumn(
-            id: "name",
-            title: "Name",
+            id: "display",
+            title: "Display",
             kind: .text,
             width: .fixed(300)
         ),
@@ -89,104 +184,17 @@ enum SchemaWorkbenchSearchDefaults {
             kind: .multiSelect,
             width: .fixed(230)
         ),
-        WorkbenchTableColumn(
-            id: "speaker",
-            title: "Speaker",
-            kind: .text,
-            width: .fixed(220)
-        ),
     ]
 
     static let initialVisibleColumnIDs = Set(columns.map(\.id))
 
-    static let defaultFilterSetID = "bangdream"
+    static let defaultFilterSetID: String? = nil
 
     static var defaultFilterRules: [SchemaWorkbenchFilterRule] {
-        filterSets.first { $0.id == defaultFilterSetID }?.rules ?? []
+        []
     }
 
-    static let filterSets: [SchemaWorkbenchFilterSet] = [
-        SchemaWorkbenchFilterSet(
-            id: "bangdream",
-            name: "bangdream",
-            rules: [
-                makeFilterRule(
-                    id: "bangdream-name",
-                    join: nil,
-                    fieldID: "name",
-                    operatorID: .contains,
-                    value: "Ave Mujica"
-                ),
-                makeFilterRule(
-                    id: "bangdream-language",
-                    join: .and,
-                    fieldID: "language",
-                    operatorID: .contains,
-                    value: "中文"
-                ),
-            ]
-        ),
-        SchemaWorkbenchFilterSet(
-            id: "ave-mujica",
-            name: "Ave Mujica",
-            rules: [
-                makeFilterRule(
-                    id: "ave-name",
-                    join: nil,
-                    fieldID: "name",
-                    operatorID: .contains,
-                    value: "Ave Mujica"
-                ),
-                makeFilterRule(
-                    id: "ave-speaker",
-                    join: .and,
-                    fieldID: "speaker",
-                    operatorID: .contains,
-                    value: "祥子"
-                ),
-            ]
-        ),
-        SchemaWorkbenchFilterSet(
-            id: "chinese-only",
-            name: "Chinese Only",
-            rules: [
-                makeFilterRule(
-                    id: "chinese-language",
-                    join: nil,
-                    fieldID: "language",
-                    operatorID: .contains,
-                    value: "中文"
-                ),
-            ]
-        ),
-        SchemaWorkbenchFilterSet(
-            id: "speaker-focus",
-            name: "Speaker Focus",
-            rules: [
-                makeFilterRule(
-                    id: "speaker-sakiko",
-                    join: nil,
-                    fieldID: "speaker",
-                    operatorID: .contains,
-                    value: "丰川祥子"
-                ),
-                makeFilterRule(
-                    id: "speaker-mutsumi",
-                    join: .or,
-                    fieldID: "speaker",
-                    operatorID: .contains,
-                    value: "若叶睦"
-                ),
-                makeFilterRule(
-                    id: "speaker-cues",
-                    join: .and,
-                    fieldID: "cues",
-                    operatorID: .contains,
-                    value: "大丈夫"
-                ),
-            ]
-        ),
-    ]
+    static let filterSets: [SchemaWorkbenchFilterSet] = []
 
     static func makeFilterRule(
         id: String = UUID().uuidString,
@@ -210,9 +218,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @Binding var visibleColumnIDs: Set<String>
     @Binding var activeFilterSetID: String?
     @Binding var filterRules: [SchemaWorkbenchFilterRule]
+    @Binding var filterSets: [SchemaWorkbenchFilterSet]
 
     let columns: [WorkbenchTableColumn]
-    let filterSets: [SchemaWorkbenchFilterSet]
     let searchPlaceholder: String
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
@@ -224,8 +232,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         visibleColumnIDs: Binding<Set<String>>,
         activeFilterSetID: Binding<String?>,
         filterRules: Binding<[SchemaWorkbenchFilterRule]>,
+        filterSets: Binding<[SchemaWorkbenchFilterSet]>,
         columns: [WorkbenchTableColumn],
-        filterSets: [SchemaWorkbenchFilterSet],
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
@@ -234,8 +242,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         _visibleColumnIDs = visibleColumnIDs
         _activeFilterSetID = activeFilterSetID
         _filterRules = filterRules
+        _filterSets = filterSets
         self.columns = columns
-        self.filterSets = filterSets
         self.searchPlaceholder = searchPlaceholder
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
@@ -337,7 +345,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 columns: columns,
                 rules: $filterRules,
                 onSave: {
-                    openPopover = nil
+                    saveFilterSet()
                 }
             )
             .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
@@ -374,12 +382,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     private func selectFilterSet(_ filterSet: SchemaWorkbenchFilterSet) {
         activeFilterSetID = filterSet.id
-        filterRules = filterSet.rules
+        filterRules = normalizedFilterRules(filterSet.rules)
         openPopover = nil
     }
 
     private func openFilterBuilder() {
-        if filterRules.isEmpty, let firstColumn = columns.first {
+        if filterRules.isEmpty, let firstColumn = filterableColumns.first {
             activeFilterSetID = nil
             filterRules = [
                 SchemaWorkbenchSearchDefaults.makeFilterRule(
@@ -398,6 +406,58 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         activeFilterSetID = nil
         filterRules = []
         openPopover = nil
+    }
+
+    private func saveFilterSet() {
+        let normalizedRules = normalizedFilterRules(filterRules)
+        let nextNumber = filterSets.count + 1
+        let id = "filter-set-\(nextNumber)-\(UUID().uuidString)"
+        let filterSet = SchemaWorkbenchFilterSet(
+            id: id,
+            name: "Filter Set \(nextNumber)",
+            rules: normalizedRules
+        )
+        filterSets.append(filterSet)
+        activeFilterSetID = id
+        filterRules = normalizedRules
+        openPopover = nil
+    }
+
+    private var filterableColumns: [WorkbenchTableColumn] {
+        columns.filter { $0.kind != .rowNumber }
+    }
+
+    private func normalizedFilterRules(_ sourceRules: [SchemaWorkbenchFilterRule]) -> [SchemaWorkbenchFilterRule] {
+        guard !sourceRules.isEmpty else {
+            return []
+        }
+
+        var normalizedRules = sourceRules
+        let fallbackColumn = filterableColumns.first
+        let resolvedJoin = normalizedRules.dropFirst().first?.join ?? .and
+        for index in normalizedRules.indices {
+            if index == 0 {
+                normalizedRules[index].join = nil
+            } else {
+                normalizedRules[index].join = resolvedJoin
+            }
+
+            let column = filterableColumns.first { $0.id == normalizedRules[index].fieldID } ?? fallbackColumn
+            if let column {
+                normalizedRules[index].fieldID = column.id
+                let operators = SchemaWorkbenchFilterRuleRow.operators(for: column)
+                if !operators.contains(normalizedRules[index].operatorID) {
+                    normalizedRules[index].operatorID = operators.first ?? .contains
+                    normalizedRules[index].value = ""
+                }
+            }
+
+            if SchemaWorkbenchFilterRuleRow.doesOperatorNeedNoValue(normalizedRules[index].operatorID) {
+                normalizedRules[index].value = ""
+            }
+        }
+
+        return normalizedRules
     }
 }
 
@@ -609,15 +669,11 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
         ZStack(alignment: .topLeading) {
             WorkbenchPopoverPanel {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("New Filter Set")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(WorkbenchControlColors.primaryText)
-
                     VStack(spacing: FilterBuilderLayout.rowSpacing) {
                         ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
                             SchemaWorkbenchFilterRuleRow(
                                 rule: rule,
-                                isFirst: index == 0,
+                                rowIndex: index,
                                 columns: columns,
                                 openDropdown: openDropdown,
                                 onToggleDropdown: toggleDropdown,
@@ -754,14 +810,15 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
     }
 
     private func addRule() {
-        guard let firstColumn = columns.first else {
+        guard let firstColumn = filterableColumns.first else {
             return
         }
 
+        let resolvedJoin = rules.count <= 1 ? SchemaWorkbenchFilterJoin.and : (rules.dropFirst().first?.join ?? .and)
         rules.append(
             SchemaWorkbenchFilterRule(
                 id: UUID().uuidString,
-                join: rules.isEmpty ? nil : .and,
+                join: rules.isEmpty ? nil : resolvedJoin,
                 fieldID: firstColumn.id,
                 operatorID: SchemaWorkbenchFilterRuleRow.operators(for: firstColumn).first ?? .contains,
                 value: ""
@@ -774,18 +831,33 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
             return
         }
 
-        var normalizedRule = updatedRule
-        normalizedRule.join = index == 0 ? nil : (normalizedRule.join ?? .and)
+        rules[index] = updatedRule
+        normalizeRules()
+    }
 
-        if let column = columns.first(where: { $0.id == normalizedRule.fieldID }) {
-            let operators = SchemaWorkbenchFilterRuleRow.operators(for: column)
-            if !operators.contains(normalizedRule.operatorID) {
-                normalizedRule.operatorID = operators.first ?? .contains
-                normalizedRule.value = ""
-            }
+    private func normalizeRules() {
+        guard !rules.isEmpty else {
+            return
         }
 
-        rules[index] = normalizedRule
+        let resolvedJoin = rules.dropFirst().first?.join ?? .and
+        for index in rules.indices {
+            rules[index].join = index == 0 ? nil : resolvedJoin
+
+            let column = filterableColumns.first { $0.id == rules[index].fieldID } ?? filterableColumns.first
+            if let column {
+                rules[index].fieldID = column.id
+                let operators = SchemaWorkbenchFilterRuleRow.operators(for: column)
+                if !operators.contains(rules[index].operatorID) {
+                    rules[index].operatorID = operators.first ?? .contains
+                    rules[index].value = ""
+                }
+            }
+
+            if SchemaWorkbenchFilterRuleRow.doesOperatorNeedNoValue(rules[index].operatorID) {
+                rules[index].value = ""
+            }
+        }
     }
 
     private func deleteRule(_ id: String) {
@@ -794,14 +866,18 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
         if rules.isEmpty {
             addRule()
         } else {
-            rules[0].join = nil
+            normalizeRules()
         }
     }
 
     private var fieldChoices: [WorkbenchDropdownChoice] {
-        columns.map { column in
+        filterableColumns.map { column in
             WorkbenchDropdownChoice(id: column.id, title: column.title)
         }
+    }
+
+    private var filterableColumns: [WorkbenchTableColumn] {
+        columns.filter { $0.kind != .rowNumber }
     }
 
     private func operatorChoices(for rule: SchemaWorkbenchFilterRule) -> [WorkbenchDropdownChoice] {
@@ -816,14 +892,12 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
         WorkbenchDropdownChoice(id: join.id, title: join.title)
     }
 
-    private static let multiSelectChoices = ["中文", "日本語"].map { value in
-        WorkbenchDropdownChoice(id: value, title: value)
-    }
+    private static let multiSelectChoices: [WorkbenchDropdownChoice] = []
 }
 
 private struct SchemaWorkbenchFilterRuleRow: View {
     let rule: SchemaWorkbenchFilterRule
-    let isFirst: Bool
+    let rowIndex: Int
     let columns: [WorkbenchTableColumn]
     let openDropdown: FilterBuilderDropdownID?
     var onToggleDropdown: (FilterBuilderDropdownID) -> Void
@@ -833,11 +907,11 @@ private struct SchemaWorkbenchFilterRuleRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Group {
-                if isFirst {
+                if rowIndex == 0 {
                     Text("Where")
                         .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(WorkbenchControlColors.primaryText)
-                } else {
+                } else if rowIndex == 1 {
                     WorkbenchInlineDropdown(
                         title: rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title,
                         isOpen: isDropdownOpen(.join),
@@ -845,6 +919,10 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                             onToggleDropdown(dropdownID(.join))
                         }
                     )
+                } else {
+                    Text(rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(WorkbenchControlColors.primaryText)
                 }
             }
             .frame(width: 58, alignment: .leading)
@@ -879,14 +957,6 @@ private struct SchemaWorkbenchFilterRuleRow: View {
     private var valueInput: some View {
         if Self.doesOperatorNeedNoValue(rule.operatorID) {
             WorkbenchReadonlyField(title: "No value needed")
-        } else if selectedColumn?.kind == .multiSelect {
-            WorkbenchInlineDropdown(
-                title: rule.value.isEmpty ? "Select value..." : rule.value,
-                isOpen: isDropdownOpen(.value),
-                action: {
-                    onToggleDropdown(dropdownID(.value))
-                }
-            )
         } else {
             WorkbenchTextInputField(
                 placeholder: valuePlaceholder,
@@ -896,7 +966,7 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                     },
                     set: { value in
                         var updatedRule = rule
-                        updatedRule.value = value
+                        updatedRule.value = sanitizedInput(value)
                         onChange(updatedRule)
                     }
                 )
@@ -913,10 +983,18 @@ private struct SchemaWorkbenchFilterRuleRow: View {
         case .rowNumber:
             return "Enter number..."
         case .multiSelect:
-            return "Select value..."
+            return "Enter a value..."
         case .text, nil:
             return "Enter a value..."
         }
+    }
+
+    private func sanitizedInput(_ value: String) -> String {
+        guard selectedColumn?.kind == .rowNumber else {
+            return value
+        }
+
+        return String(value.filter { $0.isNumber })
     }
 
     private func isDropdownOpen(_ kind: FilterBuilderDropdownKind) -> Bool {
@@ -930,9 +1008,18 @@ private struct SchemaWorkbenchFilterRuleRow: View {
     fileprivate static func operators(for column: WorkbenchTableColumn?) -> [SchemaWorkbenchFilterOperatorID] {
         switch column?.kind {
         case .rowNumber:
-            return [.is, .isNot, .isEmpty, .isNotEmpty]
+            return [
+                .equals,
+                .doesNotEqual,
+                .greaterThan,
+                .greaterThanOrEqualTo,
+                .lessThan,
+                .lessThanOrEqualTo,
+                .isEmpty,
+                .isNotEmpty,
+            ]
         case .multiSelect:
-            return [.contains, .doesNotContain, .is, .isNot, .isEmpty, .isNotEmpty]
+            return [.contains, .doesNotContain, .isEmpty, .isNotEmpty]
         case .text, nil:
             return [.contains, .doesNotContain, .is, .isNot, .isEmpty, .isNotEmpty]
         }
