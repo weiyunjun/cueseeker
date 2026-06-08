@@ -16,9 +16,6 @@ struct SchemaWorkbenchPage: View {
 
     var body: some View {
         ZStack {
-            SchemaWorkbenchStyle.pageBackground
-                .ignoresSafeArea()
-
             VStack(spacing: 0) {
                 SearchCommandBar(
                     searchDraft: $searchDraft,
@@ -558,12 +555,6 @@ private enum SchemaWorkbenchStyle {
         + rowGap
         + WorkbenchControlMetrics.controlHeight
         + 8
-
-    static let pageBackground = Color(
-        red: 0.965,
-        green: 0.965,
-        blue: 0.958
-    )
 }
 
 private struct SearchCommandBar: View {
