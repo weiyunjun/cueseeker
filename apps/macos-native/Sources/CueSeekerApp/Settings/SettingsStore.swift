@@ -10,6 +10,7 @@ final class SettingsStore: ObservableObject {
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let autoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
+    private static let playbackSpeakerDisplayEnabledKey = "playbackSpeakerDisplayEnabled"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let searchFilterSetsKey = "searchFilterSets"
@@ -48,6 +49,12 @@ final class SettingsStore: ObservableObject {
     }
 
     @Published private(set) var autoPlayCueSequenceGapMilliseconds: Int
+
+    @Published var playbackSpeakerDisplayEnabled: Bool {
+        didSet {
+            userDefaults.set(playbackSpeakerDisplayEnabled, forKey: Self.playbackSpeakerDisplayEnabledKey)
+        }
+    }
 
     @Published var searchE2ELoggingEnabled: Bool {
         didSet {
@@ -104,6 +111,7 @@ final class SettingsStore: ObservableObject {
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.autoPlayCueSequenceEnabledKey: false,
             Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoPlayCueSequenceGapDefaultMilliseconds,
+            Self.playbackSpeakerDisplayEnabledKey: false,
             Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
             Self.aiChunkingEnabledKey: false,
@@ -118,6 +126,7 @@ final class SettingsStore: ObservableObject {
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         self.autoPlayCueSequenceEnabled = userDefaults.bool(forKey: Self.autoPlayCueSequenceEnabledKey)
         self.autoPlayCueSequenceGapMilliseconds = Self.loadAutoPlayCueSequenceGapMilliseconds(from: userDefaults)
+        self.playbackSpeakerDisplayEnabled = userDefaults.bool(forKey: Self.playbackSpeakerDisplayEnabledKey)
         self.searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey

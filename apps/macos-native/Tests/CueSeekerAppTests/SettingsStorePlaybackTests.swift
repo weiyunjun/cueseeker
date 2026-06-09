@@ -14,6 +14,7 @@ func settingsStoreDefaultsCueSequenceAutoPlaySettings() {
 
         #expect(!store.autoPlayCueSequenceEnabled)
         #expect(store.autoPlayCueSequenceGapMilliseconds == 500)
+        #expect(!store.playbackSpeakerDisplayEnabled)
     }
 }
 
@@ -28,6 +29,7 @@ func settingsStorePersistsCueSequenceAutoPlaySettings() {
 
         store.autoPlayCueSequenceEnabled = true
         store.setAutoPlayCueSequenceGapMilliseconds(750)
+        store.playbackSpeakerDisplayEnabled = true
 
         let reloadedStore = SettingsStore(
             userDefaults: userDefaults,
@@ -36,6 +38,7 @@ func settingsStorePersistsCueSequenceAutoPlaySettings() {
 
         #expect(reloadedStore.autoPlayCueSequenceEnabled)
         #expect(reloadedStore.autoPlayCueSequenceGapMilliseconds == 750)
+        #expect(reloadedStore.playbackSpeakerDisplayEnabled)
     }
 }
 
