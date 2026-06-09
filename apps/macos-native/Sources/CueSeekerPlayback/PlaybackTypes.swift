@@ -5,6 +5,17 @@ public enum PlaybackPropertyValue: Sendable, Equatable {
     case bool(Bool)
 }
 
+public struct PlaybackSegment: Equatable, Sendable {
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+
+    public init(startMilliseconds: Int, endMilliseconds: Int) {
+        let startMilliseconds = max(0, startMilliseconds)
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = max(startMilliseconds, endMilliseconds)
+    }
+}
+
 public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Equatable {
     case hardware
     case software
@@ -86,11 +97,13 @@ public struct PlaybackSubtitleTimeWindow: Equatable, Sendable {
 public struct PlaybackRequest: Equatable, Sendable {
     public let videoURL: URL
     public let startMilliseconds: Int
+    public let segmentEndMilliseconds: Int?
     public let subtitleSource: PlaybackSubtitleSource?
 
     public init(
         videoURL: URL,
         startMilliseconds: Int,
+        segmentEndMilliseconds: Int? = nil,
         subtitleSource: PlaybackSubtitleSource? = nil
     ) throws {
         guard videoURL.isFileURL else {
@@ -101,8 +114,12 @@ public struct PlaybackRequest: Equatable, Sendable {
             throw PlaybackError.missingVideoFile(videoURL.path)
         }
 
+        let safeStartMilliseconds = max(0, startMilliseconds)
         self.videoURL = videoURL
-        self.startMilliseconds = max(0, startMilliseconds)
+        self.startMilliseconds = safeStartMilliseconds
+        self.segmentEndMilliseconds = segmentEndMilliseconds.map {
+            max(safeStartMilliseconds, $0)
+        }
         self.subtitleSource = subtitleSource?.fillingMatchedVideoURL(videoURL.standardizedFileURL)
     }
 }

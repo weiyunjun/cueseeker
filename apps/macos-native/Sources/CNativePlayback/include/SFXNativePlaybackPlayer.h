@@ -12,12 +12,16 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 };
 
 @protocol SFXNativePlaybackPlayerDelegate <NSObject>
+@required
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
-               didUpdateTime:(double)time
-                    duration:(double)duration
-                     playing:(BOOL)playing;
+	               didUpdateTime:(double)time
+	                    duration:(double)duration
+	                     playing:(BOOL)playing;
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
-        didFailWithMessage:(NSString *)message;
+	        didFailWithMessage:(NSString *)message;
+@optional
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+didFinishSegmentAtMilliseconds:(NSInteger)endMilliseconds;
 @end
 
 @interface SFXNativePlaybackPlayer : NSObject
@@ -39,9 +43,20 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
-           error:(NSError **)error;
+	           error:(NSError **)error;
+- (BOOL)openPath:(NSString *)path
+startMilliseconds:(NSInteger)startMilliseconds
+ endMilliseconds:(NSInteger)endMilliseconds
+	           error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+	      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+	                     error:(NSError **)error;
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+           endMilliseconds:(NSInteger)endMilliseconds
+                     error:(NSError **)error;
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+           endMilliseconds:(NSInteger)endMilliseconds
       pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
                      error:(NSError **)error;
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error;

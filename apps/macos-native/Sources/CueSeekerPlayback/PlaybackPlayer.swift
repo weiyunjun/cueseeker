@@ -6,6 +6,11 @@ import QuartzCore
 public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?)
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String)
+    func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int)
+}
+
+public extension PlaybackPlayerDelegate {
+    func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {}
 }
 
 public final class PlaybackPlayer: NSObject, @unchecked Sendable {
@@ -39,10 +44,18 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public func open(_ request: PlaybackRequest) throws {
         currentRequest = request
         nativePlayer.playbackRate = Float(storedSpeed)
-        try nativePlayer.openPath(
-            request.videoURL.path,
-            startMilliseconds: request.startMilliseconds
-        )
+        if let segmentEndMilliseconds = request.segmentEndMilliseconds {
+            try nativePlayer.openPath(
+                request.videoURL.path,
+                startMilliseconds: request.startMilliseconds,
+                endMilliseconds: segmentEndMilliseconds
+            )
+        } else {
+            try nativePlayer.openPath(
+                request.videoURL.path,
+                startMilliseconds: request.startMilliseconds
+            )
+        }
         currentVideoURL = request.videoURL.standardizedFileURL
         loadSubtitleSource(request.subtitleSource)
         Task { @MainActor in
@@ -56,6 +69,14 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         updateASSSubtitleTime(milliseconds: max(0, milliseconds))
     }
 
+    public func seek(to segment: PlaybackSegment) throws {
+        try nativePlayer.seek(
+            toMilliseconds: segment.startMilliseconds,
+            endMilliseconds: segment.endMilliseconds
+        )
+        updateASSSubtitleTime(milliseconds: segment.startMilliseconds)
+    }
+
     public func seek(toMilliseconds milliseconds: Int, pauseAfterFirstFrame: Bool) throws {
         let safeMilliseconds = max(0, milliseconds)
         try nativePlayer.seek(
@@ -63,6 +84,15 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             pauseAfterFirstFrame: pauseAfterFirstFrame
         )
         updateASSSubtitleTime(milliseconds: safeMilliseconds)
+    }
+
+    public func seek(to segment: PlaybackSegment, pauseAfterFirstFrame: Bool) throws {
+        try nativePlayer.seek(
+            toMilliseconds: segment.startMilliseconds,
+            endMilliseconds: segment.endMilliseconds,
+            pauseAfterFirstFrame: pauseAfterFirstFrame
+        )
+        updateASSSubtitleTime(milliseconds: segment.startMilliseconds)
     }
 
     public func beginTimelineScrubbing() throws {
@@ -282,6 +312,13 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         didFailWithMessage message: String
     ) {
         delegate?.player(self, didFailWithMessage: message)
+    }
+
+    public func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didFinishSegmentAtMilliseconds endMilliseconds: Int
+    ) {
+        delegate?.player(self, didFinishSegmentAtMilliseconds: endMilliseconds)
     }
 }
 
