@@ -856,6 +856,8 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    NSError *_seekRequestError;
 	    BOOL _segmentEndReached;
 	    BOOL _segmentFinishNotified;
+    BOOL _segmentWaitingForAudioCompletion;
+    BOOL _segmentAudioPlaybackCompleted;
 	    atomic_bool _cancelled;
 	    atomic_bool _segmentEnding;
 	    atomic_bool _finishingForAutomaticRecycle;
@@ -910,6 +912,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     _lastScheduledAudioEndMilliseconds = -1;
     _lastFinishedSegmentEndMilliseconds = -1;
     _packetQueueCondition = [[NSCondition alloc] init];
+    _segmentWaitingForAudioCompletion = NO;
+    _segmentAudioPlaybackCompleted = NO;
 	    atomic_init(&_cancelled, false);
 	    atomic_init(&_segmentEnding, false);
 	    atomic_init(&_finishingForAutomaticRecycle, false);
@@ -1025,6 +1029,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         _currentTime = _segmentEndSeconds;
     }
 
+    [self setSegmentAudioDrainWaiting:waitingForAudioCompletion];
     atomic_store(&_segmentEnding, true);
     atomic_store(&_playing, false);
     [_packetQueueCondition lock];
@@ -1034,6 +1039,40 @@ static int SFXOutputChannelCount(int inputChannels) {
     if (shouldScheduleClockNotification) {
         [self notifySegmentFinishedAfterMediaClockDelay];
     }
+}
+
+- (void)setSegmentAudioDrainWaiting:(BOOL)waiting {
+    [_packetQueueCondition lock];
+    _segmentWaitingForAudioCompletion = waiting;
+    _segmentAudioPlaybackCompleted = !waiting;
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+}
+
+- (void)markSegmentAudioDrainCompleted {
+    [_packetQueueCondition lock];
+    _segmentAudioPlaybackCompleted = YES;
+    _segmentWaitingForAudioCompletion = NO;
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+}
+
+- (void)resetSegmentAudioDrainState {
+    [_packetQueueCondition lock];
+    _segmentWaitingForAudioCompletion = NO;
+    _segmentAudioPlaybackCompleted = NO;
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+}
+
+- (void)waitForSegmentAudioDrainIfNeeded {
+    [_packetQueueCondition lock];
+    while (_segmentWaitingForAudioCompletion
+           && !_segmentAudioPlaybackCompleted
+           && !atomic_load(&_cancelled)) {
+        [_packetQueueCondition wait];
+    }
+    [_packetQueueCondition unlock];
 }
 
 - (void)notifySegmentFinishedAfterMediaClockDelay {
@@ -1423,6 +1462,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     dispatch_async(_decodeQueue, ^{
         @autoreleasepool {
             [self decodeLoop];
+            [self waitForSegmentAudioDrainIfNeeded];
             [self teardown];
         }
     });
@@ -1926,6 +1966,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     [self clearPendingPixelBufferSubmission];
+    [self resetSegmentAudioDrainState];
     AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
     AVAudioPlayerNode *audioPlayer = _audioPlayer;
     [audioPlayer stop];
@@ -2107,6 +2148,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)checkVideoStarvation {
     if (atomic_load(&_cancelled)
         || atomic_load(&_paused)
+        || atomic_load(&_segmentEnding)
         || atomic_load(&_finishingForAutomaticRecycle)) {
         return;
     }
@@ -2857,7 +2899,11 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     if (isFinalSegmentBuffer) {
         [self markSegmentBoundaryReachedWaitingForAudioCompletion:YES];
         __weak typeof(self) weakSelf = self;
-        [_audioPlayer scheduleBuffer:buffer completionHandler:^{
+        [_audioPlayer scheduleBuffer:buffer
+               completionCallbackType:AVAudioPlayerNodeCompletionDataPlayedBack
+                     completionHandler:^(AVAudioPlayerNodeCompletionCallbackType callbackType) {
+            (void)callbackType;
+            [weakSelf markSegmentAudioDrainCompleted];
             [weakSelf notifySegmentFinishedIfNeeded];
         }];
     } else {
