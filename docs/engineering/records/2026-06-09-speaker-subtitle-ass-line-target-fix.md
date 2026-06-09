@@ -1,5 +1,13 @@
 # Speaker Subtitle ASS Line Target Fix
 
+Superseded by:
+
+- `docs/engineering/records/2026-06-09-speaker-subtitle-ass-visible-line-fix.md`
+
+The line-level playback path recorded here was removed because it placed
+speaker prefixes on the imported speaker line rather than the first visible ASS
+subtitle line, making speaker prefixes disappear from normal playback views.
+
 Human requirement:
 
 - `docs/human/requirements/20260609-Feature-Show Speaker in Subtitle Test.md`

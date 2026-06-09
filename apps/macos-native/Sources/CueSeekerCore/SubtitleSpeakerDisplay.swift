@@ -63,32 +63,6 @@ public struct SubtitleSpeakerDisplayCue: Equatable, Sendable {
             }
     }
 
-    public static func targetCues(
-        records: [SubtitleCueLineRecord],
-        speakersByCueLineID: [Int64: Set<String>]
-    ) -> [SubtitleSpeakerDisplayCue] {
-        records
-            .compactMap { record -> SubtitleSpeakerDisplayCue? in
-                guard let speakers = speakersByCueLineID[record.id],
-                      !speakers.isEmpty,
-                      !record.line.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                else {
-                    return nil
-                }
-
-                return SubtitleSpeakerDisplayCue(
-                    cueGroupID: record.cueGroupID,
-                    startMilliseconds: record.line.startMilliseconds,
-                    endMilliseconds: record.line.endMilliseconds,
-                    sourceStyle: record.line.sourceStyle,
-                    sourceLayer: record.line.sourceLayer,
-                    cleanText: record.line.content,
-                    speakers: speakers
-                )
-            }
-            .sorted(by: targetCueSort)
-    }
-
     private static func targetLineSort(_ lhs: SubtitleCueLineRecord, _ rhs: SubtitleCueLineRecord) -> Bool {
         if lhs.line.displayOrder != rhs.line.displayOrder {
             return lhs.line.displayOrder < rhs.line.displayOrder
@@ -98,26 +72,6 @@ public struct SubtitleSpeakerDisplayCue: Equatable, Sendable {
         }
 
         return lhs.id < rhs.id
-    }
-
-    private static func targetCueSort(_ lhs: SubtitleSpeakerDisplayCue, _ rhs: SubtitleSpeakerDisplayCue) -> Bool {
-        if lhs.startMilliseconds != rhs.startMilliseconds {
-            return lhs.startMilliseconds < rhs.startMilliseconds
-        }
-        if lhs.cueGroupID != rhs.cueGroupID {
-            return lhs.cueGroupID < rhs.cueGroupID
-        }
-        if lhs.endMilliseconds != rhs.endMilliseconds {
-            return lhs.endMilliseconds < rhs.endMilliseconds
-        }
-        if lhs.sourceLayer != rhs.sourceLayer {
-            return (lhs.sourceLayer ?? Int.min) < (rhs.sourceLayer ?? Int.min)
-        }
-        if lhs.sourceStyle != rhs.sourceStyle {
-            return (lhs.sourceStyle ?? "") < (rhs.sourceStyle ?? "")
-        }
-
-        return lhs.cleanText < rhs.cleanText
     }
 }
 

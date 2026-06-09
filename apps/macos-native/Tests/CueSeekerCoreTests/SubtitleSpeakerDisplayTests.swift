@@ -50,36 +50,6 @@ func speakerDisplayTargetCuesUseFirstDisplayLineWithGroupSpeakers() {
 }
 
 @Test
-func speakerDisplayTargetCuesUseAssignedCueLineSpeakers() {
-    let records = [
-        speakerDisplayLineRecord(
-            id: 1,
-            cueGroupID: 42,
-            content: "中文",
-            style: "Dial_CH",
-            displayOrder: 0
-        ),
-        speakerDisplayLineRecord(
-            id: 2,
-            cueGroupID: 42,
-            content: "日本語",
-            style: "Dial_JP",
-            displayOrder: 1
-        )
-    ]
-
-    let cues = SubtitleSpeakerDisplayCue.targetCues(
-        records: records,
-        speakersByCueLineID: [2: ["高松灯"]]
-    )
-
-    #expect(cues.count == 1)
-    #expect(cues.first?.cleanText == "日本語")
-    #expect(cues.first?.sourceStyle == "Dial_JP")
-    #expect(cues.first?.speakers == ["高松灯"])
-}
-
-@Test
 func assSpeakerDisplayRewriterPrefixesMatchingDialogueTextOnly() {
     let script = """
     [Script Info]
@@ -106,6 +76,44 @@ func assSpeakerDisplayRewriterPrefixesMatchingDialogueTextOnly() {
 
     #expect(rewritten.contains("Dialogue: 0,0:00:01.00,0:00:02.00,JP,,0,0,0,,{\\an2}长崎素世,疑似高松灯: こんにちは"))
     #expect(rewritten.contains("Dialogue: 0,0:00:03.00,0:00:04.00,JP,,0,0,0,,さようなら"))
+}
+
+@Test
+func assSpeakerDisplayPrefixesFirstVisibleBilingualDialogueLine() {
+    let script = """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:02.00,Dial_CH,,0,0,0,,小祥
+    Dialogue: 0,0:00:01.00,0:00:02.00,Dial_JP,,0,0,0,,祥ちゃん
+    """
+    let records = [
+        speakerDisplayLineRecord(
+            id: 1,
+            cueGroupID: 42,
+            content: "小祥",
+            style: "Dial_CH",
+            displayOrder: 0
+        ),
+        speakerDisplayLineRecord(
+            id: 2,
+            cueGroupID: 42,
+            content: "祥ちゃん",
+            style: "Dial_JP",
+            displayOrder: 1
+        )
+    ]
+    let cues = SubtitleSpeakerDisplayCue.targetCues(
+        records: records,
+        speakersByCueGroupID: [42: ["长崎素世"]]
+    )
+
+    let rewritten = ASSSpeakerDisplayRewriter.rewrite(script: script, cues: cues)
+
+    #expect(rewritten.contains("Dialogue: 0,0:00:01.00,0:00:02.00,Dial_CH,,0,0,0,,长崎素世: 小祥"))
+    #expect(rewritten.contains("Dialogue: 0,0:00:01.00,0:00:02.00,Dial_JP,,0,0,0,,祥ちゃん"))
 }
 
 private func speakerDisplayLineRecord(
