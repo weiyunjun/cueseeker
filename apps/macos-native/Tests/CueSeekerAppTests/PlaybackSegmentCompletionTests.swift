@@ -27,6 +27,33 @@ func playbackViewModelForwardsSegmentCompletion() async {
 
 @MainActor
 @Test
+func playbackViewModelHoldsSubtitlePresentationAtCueInteriorTimestamp() {
+    let player = PlaybackPlayer()
+    let viewModel = PlaybackViewModel(player: player)
+    viewModel.setSubtitleCues(
+        [
+            PlaybackSubtitleCue(
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_500,
+                text: "hello"
+            )
+        ],
+        currentTimeMilliseconds: 2_500
+    )
+
+    #expect(viewModel.activeSubtitleText == nil)
+
+    viewModel.holdSubtitlePresentation(atMilliseconds: 2_499)
+
+    #expect(viewModel.activeSubtitleText == "hello")
+
+    viewModel.clearSubtitlePresentationHold()
+
+    #expect(viewModel.activeSubtitleText == nil)
+}
+
+@MainActor
+@Test
 func appCoordinatorMarksSearchCueSegmentFinishedAsPaused() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.activePlaybackSource = .search
@@ -47,6 +74,52 @@ func appCoordinatorMarksSearchCueSegmentFinishedAsPaused() async throws {
 
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueSegmentFinished)
+    }
+}
+
+@MainActor
+@Test
+func appCoordinatorHoldsSearchCueSubtitleDuringAutoSwitchGap() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.ensurePlayerInitialized()
+        app.settings.autoPlayCueSequenceEnabled = true
+        let result = SubtitleSearchResult(
+            entryID: 1,
+            subtitlePath: "/Media/Segment.srt",
+            subtitleFormat: .srt,
+            videoPath: "/Media/Segment.mkv",
+            videoName: "Segment",
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500,
+            content: "hello",
+            cueLines: ["hello"]
+        )
+        app.activePlaybackSource = .search
+        app.playback.playbackStatus = .playing
+        app.search.selectedSearchResult = result
+        app.playback.playbackViewModel?.setSubtitleCues(
+            [
+                PlaybackSubtitleCue(
+                    startMilliseconds: result.startMilliseconds,
+                    endMilliseconds: result.endMilliseconds,
+                    text: result.content
+                )
+            ],
+            currentTimeMilliseconds: result.endMilliseconds
+        )
+
+        #expect(app.playback.playbackViewModel?.activeSubtitleText == nil)
+
+        app.handlePlaybackSegmentFinished(endMilliseconds: result.endMilliseconds)
+
+        #expect(app.playback.playbackStatus == .paused)
+        #expect(app.currentCueSegmentFinished)
+        #expect(app.playback.playbackViewModel?.activeSubtitleText == "hello")
+
+        app.settings.autoPlayCueSequenceEnabled = false
+        await Task.yield()
+
+        #expect(app.playback.playbackViewModel?.activeSubtitleText == nil)
     }
 }
 

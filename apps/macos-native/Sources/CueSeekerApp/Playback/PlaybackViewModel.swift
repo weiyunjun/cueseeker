@@ -76,6 +76,7 @@ public final class PlaybackViewModel: ObservableObject {
     private var accumulatedRewindSeconds = 0
     private var lastNonzeroVolume = 100.0
     private var subtitleTrack = PlaybackSubtitleTrack.empty
+    private var subtitlePresentationHoldMilliseconds: Int?
     private var lastDisplayedCurrentTimePublishTimestamp: TimeInterval = 0
     private var timelineScrubbingWasPlaying: Bool?
     private var protectedSeekTargetTime: Double?
@@ -137,6 +138,7 @@ public final class PlaybackViewModel: ObservableObject {
             return
         }
 
+        clearSubtitlePresentationHold()
         timelineScrubbingWasPlaying = isPlaying
         clearProtectedSeekTarget()
 
@@ -207,6 +209,7 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     private func performSeek(to seconds: Double, resetsAccumulatedFeedback: Bool) {
+        clearSubtitlePresentationHold()
         let targetTime = clampedPlaybackTime(seconds)
         let previousTime = currentTime
         let shouldResumePlayback = isPlaying
@@ -370,6 +373,7 @@ public final class PlaybackViewModel: ObservableObject {
         _ cues: [PlaybackSubtitleCue],
         currentTimeMilliseconds: Int? = nil
     ) {
+        clearSubtitlePresentationHold()
         subtitleTrack = PlaybackSubtitleTrack(cues: cues)
         if let currentTimeMilliseconds {
             updatePlaybackTime(
@@ -381,7 +385,25 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     public func clearSubtitleCues() {
+        clearSubtitlePresentationHold()
         subtitleTrack = .empty
+        refreshActiveSubtitleText()
+    }
+
+    public func holdSubtitlePresentation(atMilliseconds milliseconds: Int) {
+        let safeMilliseconds = max(0, milliseconds)
+        subtitlePresentationHoldMilliseconds = safeMilliseconds
+        player.holdSubtitlePresentation(atMilliseconds: safeMilliseconds)
+        refreshActiveSubtitleText()
+    }
+
+    public func clearSubtitlePresentationHold() {
+        guard subtitlePresentationHoldMilliseconds != nil else {
+            return
+        }
+
+        subtitlePresentationHoldMilliseconds = nil
+        player.clearSubtitlePresentationHold()
         refreshActiveSubtitleText()
     }
 
@@ -541,7 +563,8 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     private func refreshActiveSubtitleText() {
-        let nextText = areSubtitlesVisible ? subtitleTrack.activeText(at: currentTime) : nil
+        let subtitleTime = subtitlePresentationHoldMilliseconds.map { Double($0) / 1_000 } ?? currentTime
+        let nextText = areSubtitlesVisible ? subtitleTrack.activeText(at: subtitleTime) : nil
         if activeSubtitleText != nextText {
             activeSubtitleText = nextText
         }

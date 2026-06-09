@@ -217,6 +217,9 @@ extension AppCoordinator {
             return
         }
 
+        cancelAutoPlayCueSequenceTask()
+        currentCueSegmentFinished = false
+        clearCueSubtitlePresentationHold()
         playbackViewModel.seek(to: Double(max(0, milliseconds)) / 1_000)
     }
 
@@ -309,6 +312,7 @@ extension AppCoordinator {
     func pausePlayback() {
         do {
             cancelAutoPlayCueSequenceTask()
+            clearCueSubtitlePresentationHold()
             try player?.setPaused(true)
             if hasPlaybackSelection {
                 playback.playbackStatus = .paused
@@ -346,18 +350,21 @@ extension AppCoordinator {
             return
         }
 
+        holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
         scheduleAutoPlayCueSequence()
     }
 
     func beginCueSegmentPlayback() {
         cueSegmentPlaybackGeneration += 1
         currentCueSegmentFinished = false
+        clearCueSubtitlePresentationHold()
         cancelAutoPlayCueSequenceTask()
     }
 
     func clearCueSegmentPlayback() {
         cueSegmentPlaybackGeneration += 1
         currentCueSegmentFinished = false
+        clearCueSubtitlePresentationHold()
         cancelAutoPlayCueSequenceTask()
     }
 
@@ -375,6 +382,58 @@ extension AppCoordinator {
         case .library, .none:
             return false
         }
+    }
+
+    func cueSubtitlePresentationHoldMilliseconds(
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) -> Int {
+        let segment = PlaybackSegment(
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        )
+        guard segment.endMilliseconds > segment.startMilliseconds else {
+            return segment.startMilliseconds
+        }
+
+        return max(segment.startMilliseconds, segment.endMilliseconds - 1)
+    }
+
+    func clearCueSubtitlePresentationHold() {
+        playback.playbackViewModel?.clearSubtitlePresentationHold()
+    }
+
+    private func holdCurrentCueSubtitlePresentation(matchingEndMilliseconds endMilliseconds: Int) {
+        let holdMilliseconds: Int? = switch activePlaybackSource {
+        case .search:
+            if let result = search.selectedSearchResult,
+               result.endMilliseconds == endMilliseconds {
+                cueSubtitlePresentationHoldMilliseconds(
+                    startMilliseconds: result.startMilliseconds,
+                    endMilliseconds: result.endMilliseconds
+                )
+            } else {
+                nil
+            }
+        case .shiori:
+            if let shiori = shiori.selectedShiori,
+               shiori.endMilliseconds == endMilliseconds {
+                cueSubtitlePresentationHoldMilliseconds(
+                    startMilliseconds: shiori.startMilliseconds,
+                    endMilliseconds: shiori.endMilliseconds
+                )
+            } else {
+                nil
+            }
+        case .library, .none:
+            nil
+        }
+
+        guard let holdMilliseconds else {
+            return
+        }
+
+        playback.playbackViewModel?.holdSubtitlePresentation(atMilliseconds: holdMilliseconds)
     }
 
     @discardableResult

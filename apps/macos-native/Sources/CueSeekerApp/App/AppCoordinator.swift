@@ -430,6 +430,18 @@ final class AppCoordinator: ObservableObject {
                 self?.refreshCurrentPlaybackSubtitleDisplay()
             }
             .store(in: &settingsCancellables)
+
+        settings.$autoPlayCueSequenceEnabled
+            .dropFirst()
+            .sink { [weak self] isEnabled in
+                guard let self, !isEnabled else {
+                    return
+                }
+
+                self.cancelAutoPlayCueSequenceTask()
+                self.clearCueSubtitlePresentationHold()
+            }
+            .store(in: &settingsCancellables)
     }
 
     nonisolated private static func runCancellableDetached<T: Sendable>(
