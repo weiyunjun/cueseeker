@@ -1911,10 +1911,10 @@ extension AppCoordinator {
 
         do {
             let records = try subtitleDatabase.cueLineRecords(forSubtitleFile: subtitleFile)
-            let speakersByCueGroupID = try subtitleDatabase.speakersByCueGroupID(forSubtitleFile: subtitleFile)
+            let speakersByCueLineID = try subtitleDatabase.speakersByCueLineID(forSubtitleFile: subtitleFile)
             let cues = SubtitleSpeakerDisplayCue.targetCues(
                 records: records,
-                speakersByCueGroupID: speakersByCueGroupID
+                speakersByCueLineID: speakersByCueLineID
             )
             SubtitleSpeakerDisplayDiagnostics.log(
                 "app.assSpeakerDisplayCues.loaded",
@@ -1922,7 +1922,7 @@ extension AppCoordinator {
                     "subtitle": subtitleFile.lastPathComponent,
                     "subtitlePath": subtitleFile.path,
                     "recordCount": "\(records.count)",
-                    "speakerGroupCount": "\(speakersByCueGroupID.count)",
+                    "speakerLineCount": "\(speakersByCueLineID.count)",
                     "speakerCueCount": "\(cues.count)",
                     "firstCue": cues.first.map { "\($0.startMilliseconds)-\($0.endMilliseconds):\($0.sourceStyle ?? ""):\($0.cleanText)" } ?? ""
                 ]

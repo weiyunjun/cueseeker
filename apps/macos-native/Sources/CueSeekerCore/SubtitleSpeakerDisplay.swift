@@ -98,40 +98,37 @@ public struct SubtitleSpeakerDisplayCue: Equatable, Sendable {
 
     public static func targetCues(
         records: [SubtitleCueLineRecord],
-        speakersByCueGroupID: [Int64: Set<String>]
+        speakersByCueLineID: [Int64: Set<String>]
     ) -> [SubtitleSpeakerDisplayCue] {
-        Dictionary(grouping: records, by: \.cueGroupID)
-            .compactMap { cueGroupID, groupRecords -> SubtitleSpeakerDisplayCue? in
-                guard let speakers = speakersByCueGroupID[cueGroupID],
+        records
+            .sorted(by: targetLineSort)
+            .compactMap { record -> SubtitleSpeakerDisplayCue? in
+                guard let speakers = speakersByCueLineID[record.id],
                       !speakers.isEmpty,
-                      let target = groupRecords
-                        .filter({ !$0.line.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
-                        .sorted(by: targetLineSort)
-                        .first
+                      !record.line.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 else {
                     return nil
                 }
 
                 return SubtitleSpeakerDisplayCue(
-                    cueGroupID: cueGroupID,
-                    startMilliseconds: target.line.startMilliseconds,
-                    endMilliseconds: target.line.endMilliseconds,
-                    sourceStyle: target.line.sourceStyle,
-                    sourceLayer: target.line.sourceLayer,
-                    cleanText: target.line.content,
+                    cueGroupID: record.cueGroupID,
+                    startMilliseconds: record.line.startMilliseconds,
+                    endMilliseconds: record.line.endMilliseconds,
+                    sourceStyle: record.line.sourceStyle,
+                    sourceLayer: record.line.sourceLayer,
+                    cleanText: record.line.content,
                     speakers: speakers
                 )
-            }
-            .sorted {
-                if $0.startMilliseconds == $1.startMilliseconds {
-                    return $0.cueGroupID < $1.cueGroupID
-                }
-
-                return $0.startMilliseconds < $1.startMilliseconds
             }
     }
 
     private static func targetLineSort(_ lhs: SubtitleCueLineRecord, _ rhs: SubtitleCueLineRecord) -> Bool {
+        if lhs.line.startMilliseconds != rhs.line.startMilliseconds {
+            return lhs.line.startMilliseconds < rhs.line.startMilliseconds
+        }
+        if lhs.cueGroupID != rhs.cueGroupID {
+            return lhs.cueGroupID < rhs.cueGroupID
+        }
         if lhs.line.displayOrder != rhs.line.displayOrder {
             return lhs.line.displayOrder < rhs.line.displayOrder
         }

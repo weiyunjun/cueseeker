@@ -23,7 +23,7 @@ func speakerDisplayPreservesLeadingASSOverrideTags() {
 }
 
 @Test
-func speakerDisplayTargetCuesUseFirstDisplayLineWithGroupSpeakers() {
+func speakerDisplayTargetCuesUseSpeakerLineAssignments() {
     let records = [
         speakerDisplayLineRecord(
             id: 2,
@@ -41,11 +41,12 @@ func speakerDisplayTargetCuesUseFirstDisplayLineWithGroupSpeakers() {
 
     let cues = SubtitleSpeakerDisplayCue.targetCues(
         records: records,
-        speakersByCueGroupID: [42: ["高松灯"]]
+        speakersByCueLineID: [2: ["高松灯"]]
     )
 
     #expect(cues.count == 1)
-    #expect(cues.first?.cleanText == "中文")
+    #expect(cues.first?.cleanText == "日本語")
+    #expect(cues.first?.sourceStyle == "JP")
     #expect(cues.first?.speakers == ["高松灯"])
 }
 
@@ -79,7 +80,7 @@ func assSpeakerDisplayRewriterPrefixesMatchingDialogueTextOnly() {
 }
 
 @Test
-func assSpeakerDisplayPrefixesFirstVisibleBilingualDialogueLine() {
+func assSpeakerDisplayPrefixesAssignedBilingualDialogueLine() {
     let script = """
     [Script Info]
     ScriptType: v4.00+
@@ -107,13 +108,13 @@ func assSpeakerDisplayPrefixesFirstVisibleBilingualDialogueLine() {
     ]
     let cues = SubtitleSpeakerDisplayCue.targetCues(
         records: records,
-        speakersByCueGroupID: [42: ["长崎素世"]]
+        speakersByCueLineID: [2: ["长崎素世"]]
     )
 
     let rewritten = ASSSpeakerDisplayRewriter.rewrite(script: script, cues: cues)
 
-    #expect(rewritten.contains("Dialogue: 0,0:00:01.00,0:00:02.00,Dial_CH,,0,0,0,,长崎素世: 小祥"))
-    #expect(rewritten.contains("Dialogue: 0,0:00:01.00,0:00:02.00,Dial_JP,,0,0,0,,祥ちゃん"))
+    #expect(rewritten.contains("Dialogue: 0,0:00:01.00,0:00:02.00,Dial_CH,,0,0,0,,小祥"))
+    #expect(rewritten.contains("Dialogue: 0,0:00:01.00,0:00:02.00,Dial_JP,,0,0,0,,长崎素世: 祥ちゃん"))
 }
 
 @Test
@@ -161,16 +162,17 @@ func assSpeakerDisplayRewriterHandlesCRLFScripts() {
             cueGroupID: 42,
             startMilliseconds: 31_240,
             endMilliseconds: 32_010,
-            sourceStyle: "Dial_CH",
-            sourceLayer: 1,
-            cleanText: "小祥",
+            sourceStyle: "Dial_JP",
+            sourceLayer: 0,
+            cleanText: "祥ちゃん",
             speakers: ["长崎素世"]
         )
     ]
 
     let rewritten = ASSSpeakerDisplayRewriter.rewrite(script: script, cues: cues)
 
-    #expect(rewritten.contains("Dialogue: 1,0:00:31.24,0:00:32.01,Dial_CH,,0,0,0,,长崎素世: 小祥"))
+    #expect(rewritten.contains("Dialogue: 0,0:00:31.24,0:00:32.01,Dial_JP,,0,0,0,,长崎素世: 祥ちゃん"))
+    #expect(rewritten.contains("Dialogue: 1,0:00:31.24,0:00:32.01,Dial_CH,,0,0,0,,小祥"))
     #expect(rewritten.contains("\r\n"))
 }
 
