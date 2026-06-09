@@ -1,5 +1,6 @@
 import AppKit
 import CNativePlayback
+import CueSeekerCore
 import Foundation
 import QuartzCore
 
@@ -136,6 +137,15 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             }
             return
         }
+
+        SubtitleSpeakerDisplayDiagnostics.log(
+            "player.assSubtitleSource.loadRequested",
+            fields: [
+                "subtitle": source.url.lastPathComponent,
+                "subtitlePath": source.url.path,
+                "speakerCueCount": "\(source.speakerDisplayCues.count)"
+            ]
+        )
 
         Task { @MainActor in
             guard self.activeSubtitleSource == source,

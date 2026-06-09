@@ -1,5 +1,73 @@
 import Foundation
 
+public enum SubtitleSpeakerDisplayDiagnostics {
+    public static func log(_ event: String, fields: [String: String] = [:]) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let entry = fields.merging([
+            "event": event,
+            "timestamp": timestamp
+        ]) { current, _ in current }
+        queue.async {
+            write(entry)
+        }
+    }
+
+    private static let queue = DispatchQueue(label: "app.cueseeker.speaker-subtitle-diagnostics")
+
+    private static func write(_ entry: [String: String]) {
+        do {
+            let directory = logDirectoryURL()
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let fileURL = directory.appendingPathComponent("speaker-subtitle-\(dateStamp()).jsonl")
+            let data = try JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys])
+            guard let line = String(data: data, encoding: .utf8)?.appending("\n"),
+                  let lineData = line.data(using: .utf8)
+            else {
+                return
+            }
+
+            if !FileManager.default.fileExists(atPath: fileURL.path) {
+                FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+            }
+            let handle = try FileHandle(forWritingTo: fileURL)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: lineData)
+            try handle.close()
+        } catch {
+            print("Failed to write speaker subtitle diagnostics: \(error)")
+        }
+    }
+
+    private static func logDirectoryURL() -> URL {
+        projectRootURL()
+            .appendingPathComponent("logs", isDirectory: true)
+            .appendingPathComponent("speaker-subtitle", isDirectory: true)
+    }
+
+    private static func projectRootURL() -> URL {
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while directory.path != "/" {
+            let macOSPackageURL = directory
+                .appendingPathComponent("apps", isDirectory: true)
+                .appendingPathComponent("macos-native", isDirectory: true)
+            if FileManager.default.fileExists(atPath: macOSPackageURL.path) {
+                return directory
+            }
+            directory.deleteLastPathComponent()
+        }
+
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+    }
+
+    private static func dateStamp() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }
+}
+
 public struct SubtitleSpeakerDisplayCue: Equatable, Sendable {
     public let cueGroupID: Int64
     public let startMilliseconds: Int

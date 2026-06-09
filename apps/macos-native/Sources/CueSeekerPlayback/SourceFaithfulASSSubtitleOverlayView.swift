@@ -96,6 +96,17 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 self.frameHeight = frameHeight
                 self.activeRenderSegmentWindow = nil
                 self.speakerDisplayCues = source.speakerDisplayCues
+                SubtitleSpeakerDisplayDiagnostics.log(
+                    "renderer.assSource.load",
+                    fields: [
+                        "subtitle": source.url.lastPathComponent,
+                        "subtitlePath": sourcePath,
+                        "speakerCueCount": "\(source.speakerDisplayCues.count)",
+                        "frameWidth": "\(frameWidth)",
+                        "frameHeight": "\(frameHeight)",
+                        "initialTimestampMilliseconds": "\(initialTimestampMilliseconds)"
+                    ]
+                )
                 self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
                     sourcePath: sourcePath,
                     renderCacheDatabaseURL: renderCacheDatabaseURL
@@ -232,6 +243,16 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         let speakerRewrittenScript = ASSSpeakerDisplayRewriter.rewrite(
             script: script,
             cues: speakerDisplayCues
+        )
+        SubtitleSpeakerDisplayDiagnostics.log(
+            "renderer.assScript.rewrite",
+            fields: [
+                "subtitlePath": sourcePath ?? "",
+                "speakerCueCount": "\(speakerDisplayCues.count)",
+                "changed": "\(speakerRewrittenScript != script)",
+                "scriptBytes": "\(script.lengthOfBytes(using: .utf8))",
+                "rewrittenBytes": "\(speakerRewrittenScript.lengthOfBytes(using: .utf8))"
+            ]
         )
         return ASSFontAliasResolver.shared.rewriteRenderScript(
             speakerRewrittenScript,
