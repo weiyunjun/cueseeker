@@ -856,6 +856,8 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    NSError *_seekRequestError;
 	    BOOL _segmentEndReached;
 	    BOOL _segmentFinishNotified;
+    BOOL _segmentAudioBoundaryReached;
+    BOOL _segmentVideoBoundaryReached;
     BOOL _segmentWaitingForAudioCompletion;
     BOOL _segmentAudioPlaybackCompleted;
 	    atomic_bool _cancelled;
@@ -912,6 +914,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     _lastScheduledAudioEndMilliseconds = -1;
     _lastFinishedSegmentEndMilliseconds = -1;
     _packetQueueCondition = [[NSCondition alloc] init];
+    _segmentAudioBoundaryReached = NO;
+    _segmentVideoBoundaryReached = NO;
     _segmentWaitingForAudioCompletion = NO;
     _segmentAudioPlaybackCompleted = NO;
 	    atomic_init(&_cancelled, false);
@@ -1015,61 +1019,145 @@ static int SFXOutputChannelCount(int inputChannels) {
     return (NSInteger)llround(_segmentEndSeconds * 1000.0);
 }
 
-- (void)markSegmentBoundaryReachedWaitingForAudioCompletion:(BOOL)waitingForAudioCompletion {
+- (BOOL)segmentAudioBoundarySatisfiedLocked {
+    return _segmentAudioBoundaryReached
+        || _audioCodecContext == NULL
+        || _pauseAfterFirstFrame;
+}
+
+- (BOOL)segmentVideoBoundarySatisfiedLocked {
+    return _segmentVideoBoundaryReached || _videoCodecContext == NULL;
+}
+
+- (BOOL)segmentAudioBoundaryReached {
+    @synchronized (self) {
+        return _segmentAudioBoundaryReached;
+    }
+}
+
+- (BOOL)segmentVideoBoundaryReached {
+    @synchronized (self) {
+        return _segmentVideoBoundaryReached;
+    }
+}
+
+- (BOOL)isSegmentBoundaryDrainInProgress {
+    @synchronized (self) {
+        return _segmentAudioBoundaryReached || _segmentVideoBoundaryReached;
+    }
+}
+
+- (void)markSegmentAudioBoundaryReachedWaitingForPlayback:(BOOL)waitingForPlayback {
     if (![self hasActiveSegmentEnd] || atomic_load(&_cancelled)) {
         return;
     }
 
-    BOOL shouldScheduleClockNotification = !waitingForAudioCompletion;
     @synchronized (self) {
-        if (_segmentEndReached) {
+        if (_segmentAudioBoundaryReached) {
             return;
         }
-        _segmentEndReached = YES;
-        _currentTime = _segmentEndSeconds;
+        _segmentAudioBoundaryReached = YES;
+        _segmentWaitingForAudioCompletion = waitingForPlayback;
+        _segmentAudioPlaybackCompleted = !waitingForPlayback;
     }
 
-    [self setSegmentAudioDrainWaiting:waitingForAudioCompletion];
+    [_packetQueueCondition lock];
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+    [self finishSegmentBoundaryIfReadySchedulingClockNotification:!waitingForPlayback];
+}
+
+- (void)markSegmentVideoBoundaryReached {
+    if (![self hasActiveSegmentEnd] || atomic_load(&_cancelled)) {
+        return;
+    }
+
+    @synchronized (self) {
+        if (_segmentVideoBoundaryReached) {
+            return;
+        }
+        _segmentVideoBoundaryReached = YES;
+    }
+
+    [_packetQueueCondition lock];
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+    [self finishSegmentBoundaryIfReadySchedulingClockNotification:YES];
+}
+
+- (void)markSegmentAudioDrainCompleted {
+    @synchronized (self) {
+        _segmentAudioPlaybackCompleted = YES;
+        _segmentWaitingForAudioCompletion = NO;
+    }
+
+    [_packetQueueCondition lock];
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+    [self finishSegmentBoundaryIfReadySchedulingClockNotification:NO];
+}
+
+- (void)resetSegmentBoundaryState {
+    @synchronized (self) {
+        _segmentAudioBoundaryReached = NO;
+        _segmentVideoBoundaryReached = NO;
+        _segmentWaitingForAudioCompletion = NO;
+        _segmentAudioPlaybackCompleted = NO;
+    }
+
+    [_packetQueueCondition lock];
+    [_packetQueueCondition broadcast];
+    [_packetQueueCondition unlock];
+}
+
+- (void)finishSegmentBoundaryIfReadySchedulingClockNotification:(BOOL)scheduleClockNotification {
+    if (![self hasActiveSegmentEnd] || atomic_load(&_cancelled)) {
+        return;
+    }
+
+    BOOL shouldNotify = NO;
+    @synchronized (self) {
+        if (_segmentEndReached || _segmentFinishNotified) {
+            return;
+        }
+        if (![self segmentAudioBoundarySatisfiedLocked]
+            || ![self segmentVideoBoundarySatisfiedLocked]
+            || (_segmentWaitingForAudioCompletion && !_segmentAudioPlaybackCompleted)) {
+            return;
+        }
+
+        _segmentEndReached = YES;
+        _currentTime = _segmentEndSeconds;
+        shouldNotify = YES;
+    }
+
     atomic_store(&_segmentEnding, true);
     atomic_store(&_playing, false);
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
 
-    if (shouldScheduleClockNotification) {
-        [self notifySegmentFinishedAfterMediaClockDelay];
+    if (!shouldNotify) {
+        return;
     }
-}
 
-- (void)setSegmentAudioDrainWaiting:(BOOL)waiting {
-    [_packetQueueCondition lock];
-    _segmentWaitingForAudioCompletion = waiting;
-    _segmentAudioPlaybackCompleted = !waiting;
-    [_packetQueueCondition broadcast];
-    [_packetQueueCondition unlock];
-}
-
-- (void)markSegmentAudioDrainCompleted {
-    [_packetQueueCondition lock];
-    _segmentAudioPlaybackCompleted = YES;
-    _segmentWaitingForAudioCompletion = NO;
-    [_packetQueueCondition broadcast];
-    [_packetQueueCondition unlock];
-}
-
-- (void)resetSegmentAudioDrainState {
-    [_packetQueueCondition lock];
-    _segmentWaitingForAudioCompletion = NO;
-    _segmentAudioPlaybackCompleted = NO;
-    [_packetQueueCondition broadcast];
-    [_packetQueueCondition unlock];
+    if (scheduleClockNotification) {
+        [self notifySegmentFinishedAfterMediaClockDelay];
+    } else {
+        [self notifySegmentFinishedIfNeeded];
+    }
 }
 
 - (void)waitForSegmentAudioDrainIfNeeded {
     [_packetQueueCondition lock];
-    while (_segmentWaitingForAudioCompletion
-           && !_segmentAudioPlaybackCompleted
-           && !atomic_load(&_cancelled)) {
+    while (!atomic_load(&_cancelled)) {
+        BOOL shouldWait = NO;
+        @synchronized (self) {
+            shouldWait = _segmentWaitingForAudioCompletion && !_segmentAudioPlaybackCompleted;
+        }
+        if (!shouldWait) {
+            break;
+        }
         [_packetQueueCondition wait];
     }
     [_packetQueueCondition unlock];
@@ -1966,7 +2054,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     [self clearPendingPixelBufferSubmission];
-    [self resetSegmentAudioDrainState];
+    [self resetSegmentBoundaryState];
     AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
     AVAudioPlayerNode *audioPlayer = _audioPlayer;
     [audioPlayer stop];
@@ -2038,6 +2126,10 @@ static int SFXOutputChannelCount(int inputChannels) {
 
         AVPacket *packet = queuedPacket->packet;
         if (packet->stream_index == _audioStreamIndex && _audioCodecContext != NULL) {
+            if ([self segmentAudioBoundaryReached]) {
+                SFXFreeQueuedPacket(queuedPacket);
+                continue;
+            }
             if (!_pauseAfterFirstFrame || _didPauseAfterFirstFrame) {
                 [self handleAudioPacket:packet];
             }
@@ -2046,6 +2138,10 @@ static int SFXOutputChannelCount(int inputChannels) {
         }
 
         if (packet->stream_index == _videoStreamIndex) {
+            if ([self segmentVideoBoundaryReached]) {
+                SFXFreeQueuedPacket(queuedPacket);
+                continue;
+            }
             [self handleVideoPacket:packet];
         }
 
@@ -2149,6 +2245,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     if (atomic_load(&_cancelled)
         || atomic_load(&_paused)
         || atomic_load(&_segmentEnding)
+        || [self isSegmentBoundaryDrainInProgress]
         || atomic_load(&_finishingForAutomaticRecycle)) {
         return;
     }
@@ -2428,9 +2525,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
         double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream);
         if ([self mediaSecondsReachedSegmentEnd:mediaSeconds]) {
-            if (_audioCodecContext == NULL || _pauseAfterFirstFrame) {
-                [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
-            }
+            [self markSegmentVideoBoundaryReached];
             av_frame_unref(_videoFrame);
             break;
         }
@@ -2839,10 +2934,14 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
     int scheduledSampleCount = frame->nb_samples;
     BOOL isFinalSegmentBuffer = NO;
+    if ([self hasActiveSegmentEnd] && [self segmentAudioBoundaryReached]) {
+        return SFXAudioScheduleResultSegmentBoundaryReached;
+    }
+
     if ([self hasActiveSegmentEnd] && mediaSeconds >= 0) {
         double remainingSeconds = _segmentEndSeconds - mediaSeconds;
         if (remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds) {
-            [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
+            [self markSegmentAudioBoundaryReachedWaitingForPlayback:NO];
             return SFXAudioScheduleResultSegmentBoundaryReached;
         }
 
@@ -2855,7 +2954,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         if (mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds) {
             int segmentSampleCount = (int)floor(remainingSeconds * (double)sampleRate + SFXSegmentBoundaryEpsilonSeconds);
             if (segmentSampleCount <= 0) {
-                [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
+                [self markSegmentAudioBoundaryReachedWaitingForPlayback:NO];
                 return SFXAudioScheduleResultSegmentBoundaryReached;
             }
             scheduledSampleCount = MIN(frame->nb_samples, segmentSampleCount);
@@ -2897,7 +2996,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     }
 
     if (isFinalSegmentBuffer) {
-        [self markSegmentBoundaryReachedWaitingForAudioCompletion:YES];
+        [self markSegmentAudioBoundaryReachedWaitingForPlayback:YES];
         __weak typeof(self) weakSelf = self;
         [_audioPlayer scheduleBuffer:buffer
                completionCallbackType:AVAudioPlayerNodeCompletionDataPlayedBack

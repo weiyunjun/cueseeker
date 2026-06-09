@@ -363,7 +363,15 @@ private final class NativePlayerSeekProbeRunner {
         let lastAudioEndMilliseconds = player.nativeLastScheduledAudioEndMilliseconds
         let nativeFinishCount = player.nativeSegmentFinishNotificationCount
         let nativeFinishedEndMilliseconds = player.nativeLastFinishedSegmentEndMilliseconds
-        let videoOK = lastVideoFrameMilliseconds < 0 || lastVideoFrameMilliseconds < endMilliseconds
+        let videoEndGapMilliseconds = lastVideoFrameMilliseconds < 0
+            ? 0
+            : endMilliseconds - lastVideoFrameMilliseconds
+        let videoEndToleranceMilliseconds = 100
+        let videoOK = lastVideoFrameMilliseconds < 0
+            || (
+                lastVideoFrameMilliseconds < endMilliseconds
+                    && videoEndGapMilliseconds <= videoEndToleranceMilliseconds
+            )
         let audioOK = lastAudioEndMilliseconds < 0 || lastAudioEndMilliseconds <= endMilliseconds
         let endEventOK = nativeFinishCount == 1
             && nativeFinishedEndMilliseconds == endMilliseconds
@@ -377,14 +385,14 @@ private final class NativePlayerSeekProbeRunner {
         if passed || elapsed >= config.segmentTimeoutSeconds {
             let status = passed ? "pass" : "fail"
             print(
-                "PLAYER_SEGMENT_RESULT status=\(status) start_ms=\(Int((config.startSeconds * 1000).rounded())) end_ms=\(endMilliseconds) elapsed_ms=\(format(elapsed * 1000)) current=\(format(player.currentTime))s last_video_ms=\(lastVideoFrameMilliseconds) last_audio_start_ms=\(lastAudioStartMilliseconds) last_audio_end_ms=\(lastAudioEndMilliseconds) delegate_segment_count=\(snapshot.segmentFinishCount) native_segment_count=\(nativeFinishCount) playing=\(player.isPlaying ? "yes" : "no") failures=\(snapshot.failures.count)"
+                "PLAYER_SEGMENT_RESULT status=\(status) start_ms=\(Int((config.startSeconds * 1000).rounded())) end_ms=\(endMilliseconds) elapsed_ms=\(format(elapsed * 1000)) current=\(format(player.currentTime))s last_video_ms=\(lastVideoFrameMilliseconds) last_video_gap_ms=\(videoEndGapMilliseconds) last_audio_start_ms=\(lastAudioStartMilliseconds) last_audio_end_ms=\(lastAudioEndMilliseconds) delegate_segment_count=\(snapshot.segmentFinishCount) native_segment_count=\(nativeFinishCount) playing=\(player.isPlaying ? "yes" : "no") failures=\(snapshot.failures.count)"
             )
             if !passed {
                 if !segmentFinished {
                     failures.append("segment did not finish exactly once before timeout")
                 }
                 if !videoOK {
-                    failures.append("last submitted video frame \(lastVideoFrameMilliseconds)ms is not before segment end \(endMilliseconds)ms")
+                    failures.append("last submitted video frame \(lastVideoFrameMilliseconds)ms is not within \(videoEndToleranceMilliseconds)ms before segment end \(endMilliseconds)ms")
                 }
                 if !audioOK {
                     failures.append("last scheduled audio end \(lastAudioEndMilliseconds)ms exceeds segment end \(endMilliseconds)ms")
