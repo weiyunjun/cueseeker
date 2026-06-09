@@ -423,6 +423,13 @@ final class AppCoordinator: ObservableObject {
                 self?.refreshCurrentSearch(clearExistingResults: true)
             }
             .store(in: &settingsCancellables)
+
+        settings.$playbackSpeakerDisplayEnabled
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.refreshCurrentPlaybackSubtitleDisplay()
+            }
+            .store(in: &settingsCancellables)
     }
 
     nonisolated private static func runCancellableDetached<T: Sendable>(

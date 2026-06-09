@@ -1,4 +1,5 @@
 import Foundation
+import CueSeekerCore
 
 public enum PlaybackPropertyValue: Sendable, Equatable {
     case double(Double)
@@ -40,19 +41,22 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let matchedVideoURL: URL?
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
     public let renderCacheDatabaseURL: URL?
+    public let speakerDisplayCues: [SubtitleSpeakerDisplayCue]
 
     public init(
         url: URL,
         format: PlaybackSubtitleSourceFormat,
         matchedVideoURL: URL? = nil,
         preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
-        renderCacheDatabaseURL: URL? = nil
+        renderCacheDatabaseURL: URL? = nil,
+        speakerDisplayCues: [SubtitleSpeakerDisplayCue] = []
     ) {
         self.url = url
         self.format = format
         self.matchedVideoURL = matchedVideoURL
         self.preparationTimeWindow = preparationTimeWindow
         self.renderCacheDatabaseURL = renderCacheDatabaseURL
+        self.speakerDisplayCues = speakerDisplayCues
     }
 
     public func fillingMatchedVideoURL(_ fallbackVideoURL: URL) -> PlaybackSubtitleSource {
@@ -65,7 +69,8 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
             format: format,
             matchedVideoURL: fallbackVideoURL,
             preparationTimeWindow: preparationTimeWindow,
-            renderCacheDatabaseURL: renderCacheDatabaseURL
+            renderCacheDatabaseURL: renderCacheDatabaseURL,
+            speakerDisplayCues: speakerDisplayCues
         )
     }
 }

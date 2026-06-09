@@ -1664,7 +1664,8 @@ extension AppCoordinator {
             format: result.subtitleFormat,
             fallbackStartMilliseconds: result.startMilliseconds,
             fallbackEndMilliseconds: result.endMilliseconds,
-            fallbackContent: result.content
+            fallbackContent: result.content,
+            fallbackCueGroupID: result.entryID
         )
     }
 
@@ -1674,7 +1675,8 @@ extension AppCoordinator {
             format: shiori.subtitleFormat,
             fallbackStartMilliseconds: shiori.startMilliseconds,
             fallbackEndMilliseconds: shiori.endMilliseconds,
-            fallbackContent: shiori.content
+            fallbackContent: shiori.content,
+            fallbackCueGroupID: nil
         )
     }
 
@@ -1683,7 +1685,8 @@ extension AppCoordinator {
         format: SubtitleFormat,
         fallbackStartMilliseconds: Int,
         fallbackEndMilliseconds: Int,
-        fallbackContent: String
+        fallbackContent: String,
+        fallbackCueGroupID: Int64?
     ) -> [PlaybackSubtitleCue] {
         guard format == .srt else {
             return []
@@ -1693,11 +1696,13 @@ extension AppCoordinator {
             return []
         }
 
+        let speakersByCueGroupID = playbackSpeakersByCueGroupID(forSubtitleFile: subtitleFile)
+        let speakers = fallbackCueGroupID.flatMap { speakersByCueGroupID[$0] } ?? []
         return [
             PlaybackSubtitleCue(
                 startMilliseconds: fallbackStartMilliseconds,
                 endMilliseconds: fallbackEndMilliseconds,
-                text: fallbackContent
+                text: playbackSubtitleText(fallbackContent, speakers: speakers)
             )
         ]
     }
@@ -1716,14 +1721,25 @@ extension AppCoordinator {
         }
 
         let subtitlePath = subtitleFile.path
+        let speakerDisplayEnabled = settings.playbackSpeakerDisplayEnabled
         playbackSubtitleCuesTask = Task { [weak self] in
             do {
                 let cues = try await Task.detached(priority: .utility) {
-                    try database.entries(forSubtitleFile: subtitleFile).map {
-                        PlaybackSubtitleCue(
+                    let speakersByCueGroupID: [Int64: Set<String>]
+                    if speakerDisplayEnabled {
+                        speakersByCueGroupID = (try? database.speakersByCueGroupID(forSubtitleFile: subtitleFile)) ?? [:]
+                    } else {
+                        speakersByCueGroupID = [:]
+                    }
+
+                    return try database.entries(forSubtitleFile: subtitleFile).map {
+                        let speakers = speakersByCueGroupID[$0.id] ?? []
+                        return PlaybackSubtitleCue(
                             startMilliseconds: $0.startMilliseconds,
                             endMilliseconds: $0.endMilliseconds,
-                            text: $0.content
+                            text: speakerDisplayEnabled
+                                ? SubtitleSpeakerDisplayFormatter.prefixedText($0.content, speakers: speakers)
+                                : $0.content
                         )
                     }
                 }.value
@@ -1748,40 +1764,22 @@ extension AppCoordinator {
     }
 
     func playbackSubtitleSource(for result: SubtitleSearchResult) -> PlaybackSubtitleSource? {
-        guard result.subtitleFormat == .ass else {
-            return nil
-        }
-
-        let subtitleURL = URL(fileURLWithPath: result.subtitlePath)
-        let videoURL = URL(fileURLWithPath: result.videoPath)
-
-        return PlaybackSubtitleSource(
-            url: subtitleURL,
-            format: .ass,
-            matchedVideoURL: videoURL,
-            preparationTimeWindow: playbackSubtitleTimeWindow(for: result),
-            renderCacheDatabaseURL: databaseURL
+        playbackSubtitleSource(
+            forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+            format: result.subtitleFormat,
+            videoPath: result.videoPath,
+            startingAtMilliseconds: result.startMilliseconds,
+            fallbackEndMilliseconds: result.endMilliseconds
         )
     }
 
     func playbackSubtitleSource(for shiori: Shiori) -> PlaybackSubtitleSource? {
-        guard shiori.subtitleFormat == .ass else {
-            return nil
-        }
-
-        let subtitleURL = URL(fileURLWithPath: shiori.subtitlePath)
-        let videoURL = URL(fileURLWithPath: shiori.videoPath)
-
-        return PlaybackSubtitleSource(
-            url: subtitleURL,
-            format: .ass,
-            matchedVideoURL: videoURL,
-            preparationTimeWindow: playbackSubtitleTimeWindow(
-                forSubtitleFile: subtitleURL,
-                startingAtMilliseconds: shiori.startMilliseconds,
-                fallbackEndMilliseconds: shiori.endMilliseconds
-            ),
-            renderCacheDatabaseURL: databaseURL
+        playbackSubtitleSource(
+            forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
+            format: shiori.subtitleFormat,
+            videoPath: shiori.videoPath,
+            startingAtMilliseconds: shiori.startMilliseconds,
+            fallbackEndMilliseconds: shiori.endMilliseconds
         )
     }
 
@@ -1789,12 +1787,27 @@ extension AppCoordinator {
         for video: LibraryVideo,
         startingAtMilliseconds startMilliseconds: Int
     ) -> PlaybackSubtitleSource? {
-        guard video.subtitleFormat == .ass else {
+        playbackSubtitleSource(
+            forSubtitleFile: URL(fileURLWithPath: video.subtitlePath),
+            format: video.subtitleFormat,
+            videoPath: video.videoPath,
+            startingAtMilliseconds: startMilliseconds,
+            fallbackEndMilliseconds: startMilliseconds
+        )
+    }
+
+    func playbackSubtitleSource(
+        forSubtitleFile subtitleURL: URL,
+        format: SubtitleFormat,
+        videoPath: String,
+        startingAtMilliseconds startMilliseconds: Int,
+        fallbackEndMilliseconds: Int
+    ) -> PlaybackSubtitleSource? {
+        guard format == .ass else {
             return nil
         }
 
-        let subtitleURL = URL(fileURLWithPath: video.subtitlePath)
-        let videoURL = URL(fileURLWithPath: video.videoPath)
+        let videoURL = URL(fileURLWithPath: videoPath)
 
         return PlaybackSubtitleSource(
             url: subtitleURL,
@@ -1803,10 +1816,86 @@ extension AppCoordinator {
             preparationTimeWindow: playbackSubtitleTimeWindow(
                 forSubtitleFile: subtitleURL,
                 startingAtMilliseconds: startMilliseconds,
-                fallbackEndMilliseconds: startMilliseconds
+                fallbackEndMilliseconds: fallbackEndMilliseconds
             ),
-            renderCacheDatabaseURL: databaseURL
+            renderCacheDatabaseURL: databaseURL,
+            speakerDisplayCues: playbackSpeakerDisplayCues(forSubtitleFile: subtitleURL)
         )
+    }
+
+    func refreshCurrentPlaybackSubtitleDisplay() {
+        guard let currentPlaybackSubtitlePath,
+              let currentPlaybackSubtitleFormat,
+              let currentPlaybackVideoPath
+        else {
+            return
+        }
+
+        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
+        let currentMilliseconds = max(
+            0,
+            Int(((playback.playbackViewModel?.currentTime ?? 0) * 1_000).rounded(.down))
+        )
+
+        switch currentPlaybackSubtitleFormat {
+        case .srt:
+            startPlaybackSubtitleCuesLoad(
+                forSubtitleFile: subtitleFile,
+                format: currentPlaybackSubtitleFormat,
+                videoPath: currentPlaybackVideoPath
+            )
+        case .ass:
+            player?.loadSubtitleSource(
+                playbackSubtitleSource(
+                    forSubtitleFile: subtitleFile,
+                    format: currentPlaybackSubtitleFormat,
+                    videoPath: currentPlaybackVideoPath,
+                    startingAtMilliseconds: currentMilliseconds,
+                    fallbackEndMilliseconds: currentMilliseconds
+                )
+            )
+        }
+    }
+
+    func playbackSpeakersByCueGroupID(forSubtitleFile subtitleFile: URL) -> [Int64: Set<String>] {
+        guard settings.playbackSpeakerDisplayEnabled,
+              let subtitleDatabase
+        else {
+            return [:]
+        }
+
+        do {
+            return try subtitleDatabase.speakersByCueGroupID(forSubtitleFile: subtitleFile)
+        } catch {
+            print("Failed to load playback speaker labels: \(error)")
+            return [:]
+        }
+    }
+
+    func playbackSpeakerDisplayCues(forSubtitleFile subtitleFile: URL) -> [SubtitleSpeakerDisplayCue] {
+        guard settings.playbackSpeakerDisplayEnabled,
+              let subtitleDatabase
+        else {
+            return []
+        }
+
+        do {
+            return SubtitleSpeakerDisplayCue.targetCues(
+                records: try subtitleDatabase.cueLineRecords(forSubtitleFile: subtitleFile),
+                speakersByCueGroupID: try subtitleDatabase.speakersByCueGroupID(forSubtitleFile: subtitleFile)
+            )
+        } catch {
+            print("Failed to load ASS playback speaker labels: \(error)")
+            return []
+        }
+    }
+
+    func playbackSubtitleText(_ text: String, speakers: Set<String>) -> String {
+        guard settings.playbackSpeakerDisplayEnabled else {
+            return text
+        }
+
+        return SubtitleSpeakerDisplayFormatter.prefixedText(text, speakers: speakers)
     }
 
     func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {

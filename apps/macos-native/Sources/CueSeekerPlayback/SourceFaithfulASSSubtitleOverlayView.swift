@@ -72,6 +72,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var frameHeight = 0
     private var activeRenderSegmentWindow: PlaybackSubtitleTimeWindow?
     private var requestedFontNames: [String]?
+    private var speakerDisplayCues: [SubtitleSpeakerDisplayCue] = []
 
     func load(
         source: PlaybackSubtitleSource,
@@ -94,6 +95,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
                 self.activeRenderSegmentWindow = nil
+                self.speakerDisplayCues = source.speakerDisplayCues
                 self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
                     sourcePath: sourcePath,
                     renderCacheDatabaseURL: renderCacheDatabaseURL
@@ -125,6 +127,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             self.frameHeight = 0
             self.activeRenderSegmentWindow = nil
             self.requestedFontNames = nil
+            self.speakerDisplayCues = []
             completion?()
         }
     }
@@ -226,8 +229,12 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     }
 
     private func rewriteRenderScript(_ script: String) -> String {
-        ASSFontAliasResolver.shared.rewriteRenderScript(
-            script,
+        let speakerRewrittenScript = ASSSpeakerDisplayRewriter.rewrite(
+            script: script,
+            cues: speakerDisplayCues
+        )
+        return ASSFontAliasResolver.shared.rewriteRenderScript(
+            speakerRewrittenScript,
             requestedFontNames: requestedFontNames
         )
     }

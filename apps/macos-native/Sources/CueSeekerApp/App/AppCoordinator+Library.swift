@@ -202,7 +202,8 @@ extension AppCoordinator {
             format: video.subtitleFormat,
             fallbackStartMilliseconds: startMilliseconds,
             fallbackEndMilliseconds: startMilliseconds,
-            fallbackContent: ""
+            fallbackContent: "",
+            fallbackCueGroupID: nil
         )
         playback.playbackViewModel?.setSubtitleCues(
             subtitleCues,
