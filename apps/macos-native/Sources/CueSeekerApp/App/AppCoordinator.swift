@@ -352,6 +352,9 @@ final class AppCoordinator: ObservableObject {
     var quickSearchSearchContextWasMutated = false
     var activePlaybackSource: ActivePlaybackSource = .none
     var playbackOriginatingPanelMode: WorkbenchPanelMode?
+    var currentCueSegmentFinished = false
+    var cueSegmentPlaybackGeneration = 0
+    var autoPlayCueSequenceTask: Task<Void, Never>?
     var loadedGlobalSearchResultCount = 0
     var lastSearchCountProgressUpdate: UInt64 = 0
     var nextGlobalSearchCursor: SubtitleSearchCursor?

@@ -85,6 +85,7 @@ public final class PlaybackViewModel: ObservableObject {
     private let onLastNonzeroVolumeChanged: (Double) -> Void
     private let onPlaybackSpeedChanged: (Double) -> Void
     private let onSubtitlesVisibleChanged: (Bool) -> Void
+    private let onSegmentFinished: (Int) -> Void
 
     public init(
         player: PlaybackPlayer,
@@ -95,13 +96,15 @@ public final class PlaybackViewModel: ObservableObject {
         onVolumeChanged: @escaping (Double) -> Void = { _ in },
         onLastNonzeroVolumeChanged: @escaping (Double) -> Void = { _ in },
         onPlaybackSpeedChanged: @escaping (Double) -> Void = { _ in },
-        onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in }
+        onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in },
+        onSegmentFinished: @escaping (Int) -> Void = { _ in }
     ) {
         self.player = player
         self.onVolumeChanged = onVolumeChanged
         self.onLastNonzeroVolumeChanged = onLastNonzeroVolumeChanged
         self.onPlaybackSpeedChanged = onPlaybackSpeedChanged
         self.onSubtitlesVisibleChanged = onSubtitlesVisibleChanged
+        self.onSegmentFinished = onSegmentFinished
 
         volume = Self.clampedVolume(initialVolume)
         lastNonzeroVolume = Self.restorableVolume(
@@ -723,5 +726,13 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
 
     nonisolated public func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
         print("Native playback failed: \(message)")
+    }
+
+    nonisolated public func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {
+        Task { @MainActor in
+            self.isPlaying = false
+            self.publishDisplayedCurrentTimeIfNeeded(force: true)
+            self.onSegmentFinished(endMilliseconds)
+        }
     }
 }

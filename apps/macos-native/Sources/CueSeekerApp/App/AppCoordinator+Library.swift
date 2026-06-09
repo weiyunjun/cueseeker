@@ -191,6 +191,7 @@ extension AppCoordinator {
 
     func play(_ video: LibraryVideo) {
         ensurePlayerInitialized()
+        clearCueSegmentPlayback()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none
         playback.playbackStatus = .opening

@@ -54,6 +54,8 @@ extension AppCoordinator {
         if recordsNavigationHistory {
             recordPlaybackNavigationEntry(playbackNavigationPayload(for: shiori))
         }
+        cancelAutoPlayCueSequenceTask()
+        currentCueSegmentFinished = false
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil
@@ -67,6 +69,7 @@ extension AppCoordinator {
 
     func play(_ shiori: Shiori) {
         ensurePlayerInitialized()
+        beginCueSegmentPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori

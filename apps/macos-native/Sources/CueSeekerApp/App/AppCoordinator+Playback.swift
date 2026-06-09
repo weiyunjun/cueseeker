@@ -163,6 +163,9 @@ extension AppCoordinator {
             },
             onSubtitlesVisibleChanged: { [weak self] isVisible in
                 self?.userDefaults.set(isVisible, forKey: Self.playbackSubtitlesVisibleKey)
+            },
+            onSegmentFinished: { [weak self] endMilliseconds in
+                self?.handlePlaybackSegmentFinished(endMilliseconds: endMilliseconds)
             }
         )
     }
@@ -186,6 +189,8 @@ extension AppCoordinator {
         if recordsNavigationHistory {
             recordPlaybackNavigationEntry(playbackNavigationPayload(for: result))
         }
+        cancelAutoPlayCueSequenceTask()
+        currentCueSegmentFinished = false
         activePlaybackSource = .search
         workbenchLayout.selectPanelMode(.search)
         search.selectedSearchResult = result
@@ -233,6 +238,7 @@ extension AppCoordinator {
 
     func play(_ result: SubtitleSearchResult) {
         ensurePlayerInitialized()
+        beginCueSegmentPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
@@ -284,6 +290,7 @@ extension AppCoordinator {
 
     func pausePlayback() {
         do {
+            cancelAutoPlayCueSequenceTask()
             try player?.setPaused(true)
             if hasPlaybackSelection {
                 playback.playbackStatus = .paused
@@ -295,6 +302,10 @@ extension AppCoordinator {
     }
 
     func resumePlayback() {
+        if replayFinishedCueSegmentIfNeeded() {
+            return
+        }
+
         do {
             try player?.setPaused(false)
             if hasPlaybackSelection {
@@ -302,6 +313,112 @@ extension AppCoordinator {
             }
         } catch {
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
+        }
+    }
+
+    func handlePlaybackSegmentFinished(endMilliseconds: Int) {
+        guard isCurrentCueSegmentEnd(endMilliseconds) else {
+            return
+        }
+
+        currentCueSegmentFinished = true
+        playback.playbackStatus = .paused
+
+        guard settings.autoPlayCueSequenceEnabled else {
+            return
+        }
+
+        scheduleAutoPlayCueSequence()
+    }
+
+    func beginCueSegmentPlayback() {
+        cueSegmentPlaybackGeneration += 1
+        currentCueSegmentFinished = false
+        cancelAutoPlayCueSequenceTask()
+    }
+
+    func clearCueSegmentPlayback() {
+        cueSegmentPlaybackGeneration += 1
+        currentCueSegmentFinished = false
+        cancelAutoPlayCueSequenceTask()
+    }
+
+    func cancelAutoPlayCueSequenceTask() {
+        autoPlayCueSequenceTask?.cancel()
+        autoPlayCueSequenceTask = nil
+    }
+
+    private func isCurrentCueSegmentEnd(_ endMilliseconds: Int) -> Bool {
+        switch activePlaybackSource {
+        case .search:
+            return search.selectedSearchResult?.endMilliseconds == endMilliseconds
+        case .shiori:
+            return shiori.selectedShiori?.endMilliseconds == endMilliseconds
+        case .library, .none:
+            return false
+        }
+    }
+
+    @discardableResult
+    private func replayFinishedCueSegmentIfNeeded() -> Bool {
+        guard currentCueSegmentFinished else {
+            return false
+        }
+
+        cancelAutoPlayCueSequenceTask()
+        switch activePlaybackSource {
+        case .search:
+            guard let selectedSearchResult = search.selectedSearchResult else {
+                return false
+            }
+            play(selectedSearchResult)
+            return true
+        case .shiori:
+            guard let selectedShiori = shiori.selectedShiori else {
+                return false
+            }
+            play(selectedShiori)
+            return true
+        case .library, .none:
+            return false
+        }
+    }
+
+    private func scheduleAutoPlayCueSequence() {
+        let generation = cueSegmentPlaybackGeneration
+        let source = activePlaybackSource
+        let gapMilliseconds = settings.autoPlayCueSequenceGapMilliseconds
+
+        cancelAutoPlayCueSequenceTask()
+        autoPlayCueSequenceTask = Task { [weak self] in
+            if gapMilliseconds > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(gapMilliseconds) * 1_000_000)
+            }
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard let self,
+                      self.cueSegmentPlaybackGeneration == generation,
+                      self.currentCueSegmentFinished,
+                      self.activePlaybackSource == source,
+                      self.settings.autoPlayCueSequenceEnabled
+                else {
+                    return
+                }
+
+                self.autoPlayCueSequenceTask = nil
+                switch source {
+                case .search:
+                    self.openAdjacentSearchResult(.next)
+                case .shiori:
+                    self.openNextShiori()
+                case .library, .none:
+                    break
+                }
+            }
         }
     }
 
