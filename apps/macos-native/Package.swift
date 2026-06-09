@@ -40,7 +40,8 @@ let package = Package(
         .executable(name: "NativePlayerSeekProbe", targets: ["NativePlayerSeekProbe"]),
         .executable(name: "ASSRenderingProbe", targets: ["ASSRenderingProbe"]),
         .executable(name: "PlaybackSyncProbe", targets: ["PlaybackSyncProbe"]),
-        .executable(name: "SearchBench", targets: ["SearchBench"])
+        .executable(name: "SearchBench", targets: ["SearchBench"]),
+        .executable(name: "SpeakerImport", targets: ["SpeakerImport"])
     ],
     targets: [
         .target(
@@ -161,6 +162,11 @@ let package = Package(
             dependencies: ["CueSeekerCore"],
             path: "Sources/SearchBench",
             exclude: ["TestThumbnails.swift"]
+        ),
+        .executableTarget(
+            name: "SpeakerImport",
+            dependencies: ["CueSeekerCore"],
+            path: "Sources/SpeakerImport"
         ),
         .testTarget(
             name: "CueSeekerCoreTests",
