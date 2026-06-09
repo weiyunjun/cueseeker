@@ -14,7 +14,7 @@ struct SettingsPlayCategory: View {
             }
 
             HStack(spacing: 16) {
-                Text("Auto-play Search Result or Shiori Cues")
+                Text("Auto Switch to Next Search Result or Shiori Cues")
                     .font(.headline)
 
                 Spacer()
@@ -25,7 +25,7 @@ struct SettingsPlayCategory: View {
             }
 
             HStack(spacing: 16) {
-                Text("Auto-play Gap")
+                Text("Auto Switch Gap")
                     .font(.headline)
 
                 Spacer()

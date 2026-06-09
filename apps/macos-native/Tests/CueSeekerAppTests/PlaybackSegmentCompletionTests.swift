@@ -51,6 +51,26 @@ func appCoordinatorMarksSearchCueSegmentFinishedAsPaused() async throws {
 }
 
 @MainActor
+@Test
+func appCoordinatorOnlyBoundsCuePlaybackWhenAutoSwitchIsEnabled() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        #expect(app.autoSwitchCuePlaybackSegment(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ) == nil)
+
+        app.settings.autoPlayCueSequenceEnabled = true
+        let segment = try #require(app.autoSwitchCuePlaybackSegment(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ))
+
+        #expect(segment.startMilliseconds == 1_000)
+        #expect(segment.endMilliseconds == 2_500)
+    }
+}
+
+@MainActor
 private func withTemporarySegmentCompletionApp(
     _ body: @MainActor (AppCoordinator, SubtitleDatabase) async throws -> Void
 ) async throws {

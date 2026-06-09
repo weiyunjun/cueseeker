@@ -251,14 +251,14 @@ extension AppCoordinator {
         )
 
         do {
-            let segment = PlaybackSegment(
+            let segment = autoSwitchCuePlaybackSegment(
                 startMilliseconds: result.startMilliseconds,
                 endMilliseconds: result.endMilliseconds
             )
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: result.videoPath),
-                startMilliseconds: segment.startMilliseconds,
-                segmentEndMilliseconds: segment.endMilliseconds,
+                startMilliseconds: result.startMilliseconds,
+                segmentEndMilliseconds: segment?.endMilliseconds,
                 subtitleSource: playbackSubtitleSource(for: result)
             )
 
@@ -268,7 +268,11 @@ extension AppCoordinator {
 
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
                 player.loadSubtitleSource(request.subtitleSource)
-                try player.seek(to: segment)
+                if let segment {
+                    try player.seek(to: segment)
+                } else {
+                    try player.seek(toMilliseconds: result.startMilliseconds)
+                }
             } else {
                 try player.open(request)
             }
@@ -286,6 +290,20 @@ extension AppCoordinator {
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
         }
+    }
+
+    func autoSwitchCuePlaybackSegment(
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) -> PlaybackSegment? {
+        guard settings.autoPlayCueSequenceEnabled else {
+            return nil
+        }
+
+        return PlaybackSegment(
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        )
     }
 
     func pausePlayback() {
