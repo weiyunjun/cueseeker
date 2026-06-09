@@ -6,3 +6,4 @@ main
 4. 第二个选项是，Auto Switch Gap，搜索结果列表或收藏列表之间的额外间隔。一个只允许输入数字的输入框，默认500ms，最小可以输入0ms，最大可以输入10000ms，输入框右侧会有ms的单位）。
 5. 目前视频有缓冲功能，只针对当前视频，当Auto Switch to Next Search Result or Shiori Cues开启后，仍然遵循目前的规则，暂时不改。
 6. 本次需求本质上是把过去需要手动按D键或点下一个按钮的操作，简化为了自动操作，并添加了一个额外特性（Auto Switch Gap）。
+7. Auto Switch Gap 期间应保留刚播放完 cue 的字幕显示，直到切到下一条或用户中断。
