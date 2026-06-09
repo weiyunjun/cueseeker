@@ -79,9 +79,14 @@ extension AppCoordinator {
         )
 
         do {
+            let segment = PlaybackSegment(
+                startMilliseconds: shiori.startMilliseconds,
+                endMilliseconds: shiori.endMilliseconds
+            )
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: shiori.videoPath),
-                startMilliseconds: shiori.startMilliseconds,
+                startMilliseconds: segment.startMilliseconds,
+                segmentEndMilliseconds: segment.endMilliseconds,
                 subtitleSource: playbackSubtitleSource(for: shiori)
             )
 
@@ -91,7 +96,7 @@ extension AppCoordinator {
 
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
                 player.loadSubtitleSource(request.subtitleSource)
-                try player.seek(toMilliseconds: request.startMilliseconds)
+                try player.seek(to: segment)
             } else {
                 try player.open(request)
             }

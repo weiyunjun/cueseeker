@@ -245,9 +245,14 @@ extension AppCoordinator {
         )
 
         do {
+            let segment = PlaybackSegment(
+                startMilliseconds: result.startMilliseconds,
+                endMilliseconds: result.endMilliseconds
+            )
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: result.videoPath),
-                startMilliseconds: result.startMilliseconds,
+                startMilliseconds: segment.startMilliseconds,
+                segmentEndMilliseconds: segment.endMilliseconds,
                 subtitleSource: playbackSubtitleSource(for: result)
             )
 
@@ -257,7 +262,7 @@ extension AppCoordinator {
 
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
                 player.loadSubtitleSource(request.subtitleSource)
-                try player.seek(toMilliseconds: request.startMilliseconds)
+                try player.seek(to: segment)
             } else {
                 try player.open(request)
             }
