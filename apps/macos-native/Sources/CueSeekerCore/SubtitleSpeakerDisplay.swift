@@ -217,7 +217,7 @@ public enum ASSSpeakerDisplayRewriter {
 
         var remainingSpeakersByKey = Dictionary(grouping: cues, by: DialogueKey.init)
             .mapValues { $0.map(\.speakers) }
-        var context = RewriteContext()
+        var context = RewriteContext(debugTargetKey: cues.first.map(DialogueKey.init))
         var rewritten = ""
 
         for (line, terminator) in script.assLinesWithTerminators() {
@@ -229,6 +229,25 @@ public enum ASSSpeakerDisplayRewriter {
             rewritten += nextLine
             rewritten += terminator
         }
+
+        let remainingCueCount = remainingSpeakersByKey.values.reduce(0) { partialResult, speakerQueues in
+            partialResult + speakerQueues.count
+        }
+        SubtitleSpeakerDisplayDiagnostics.log(
+            "core.assRewriter.summary",
+            fields: [
+                "cueCount": "\(cues.count)",
+                "initialKeyCount": "\(Dictionary(grouping: cues, by: DialogueKey.init).count)",
+                "parsedDialogueCount": "\(context.parsedDialogueCount)",
+                "unparsedDialogueCount": "\(context.unparsedDialogueCount)",
+                "matchedDialogueCount": "\(context.matchedDialogueCount)",
+                "remainingCueCount": "\(remainingCueCount)",
+                "firstCueKey": context.debugTargetKey?.debugDescription ?? "",
+                "firstCueTimeKeys": context.debugTargetTimeKeys.joined(separator: " | "),
+                "firstParsedKey": context.firstParsedKey?.debugDescription ?? "",
+                "firstUnparsedDialogue": context.firstUnparsedDialogue ?? ""
+            ]
+        )
 
         return rewritten
     }
@@ -256,14 +275,33 @@ public enum ASSSpeakerDisplayRewriter {
             return line
         }
 
-        guard lowercased.hasPrefix("dialogue:"),
-              let parsed = parseDialogue(line: line, eventFormat: context.eventFormat),
-              var speakerQueue = remainingSpeakersByKey[parsed.key],
+        guard lowercased.hasPrefix("dialogue:") else {
+            return line
+        }
+
+        guard let parsed = parseDialogue(line: line, eventFormat: context.eventFormat) else {
+            context.unparsedDialogueCount += 1
+            if context.firstUnparsedDialogue == nil {
+                context.firstUnparsedDialogue = String(line.prefix(180))
+            }
+            return line
+        }
+
+        context.parsedDialogueCount += 1
+        context.firstParsedKey = context.firstParsedKey ?? parsed.key
+        if let debugTargetKey = context.debugTargetKey,
+           parsed.key.hasSameTiming(as: debugTargetKey),
+           context.debugTargetTimeKeys.count < 8 {
+            context.debugTargetTimeKeys.append(parsed.key.debugDescription)
+        }
+
+        guard var speakerQueue = remainingSpeakersByKey[parsed.key],
               !speakerQueue.isEmpty
         else {
             return line
         }
 
+        context.matchedDialogueCount += 1
         let speakers = speakerQueue.removeFirst()
         remainingSpeakersByKey[parsed.key] = speakerQueue
         var fields = parsed.fields
@@ -359,6 +397,17 @@ public enum ASSSpeakerDisplayRewriter {
 
         var isInEventsSection = false
         var eventFormat = defaultEventFormat
+        let debugTargetKey: DialogueKey?
+        var parsedDialogueCount = 0
+        var unparsedDialogueCount = 0
+        var matchedDialogueCount = 0
+        var firstParsedKey: DialogueKey?
+        var firstUnparsedDialogue: String?
+        var debugTargetTimeKeys: [String] = []
+
+        init(debugTargetKey: DialogueKey? = nil) {
+            self.debugTargetKey = debugTargetKey
+        }
     }
 
     private struct DialogueKey: Hashable {
@@ -391,6 +440,17 @@ public enum ASSSpeakerDisplayRewriter {
                 cleanText: cue.cleanText
             )
         }
+
+        var debugDescription: String {
+            let style = sourceStyle ?? ""
+            let layer = sourceLayer.map(String.init) ?? ""
+            return "\(startMilliseconds)-\(endMilliseconds):\(style):\(layer):\(cleanText)"
+        }
+
+        func hasSameTiming(as other: DialogueKey) -> Bool {
+            startMilliseconds == other.startMilliseconds
+                && endMilliseconds == other.endMilliseconds
+        }
     }
 
     private struct ParsedDialogue {
@@ -403,33 +463,26 @@ public enum ASSSpeakerDisplayRewriter {
 
 private extension String {
     func assLinesWithTerminators() -> [(line: String, terminator: String)] {
+        let nsString = self as NSString
         var result: [(line: String, terminator: String)] = []
-        var lineStart = startIndex
+        var position = 0
 
-        while lineStart < endIndex {
-            guard let newlineIndex = self[lineStart...].firstIndex(of: "\n") else {
-                result.append((String(self[lineStart...]), ""))
-                return result
-            }
+        while position < nsString.length {
+            var lineStart = 0
+            var lineEnd = 0
+            var contentsEnd = 0
+            nsString.getLineStart(
+                &lineStart,
+                end: &lineEnd,
+                contentsEnd: &contentsEnd,
+                for: NSRange(location: position, length: 0)
+            )
 
-            let lineEnd: String.Index
-            let terminator: String
-            if newlineIndex > lineStart {
-                let beforeNewline = index(before: newlineIndex)
-                if self[beforeNewline] == "\r" {
-                    lineEnd = beforeNewline
-                    terminator = "\r\n"
-                } else {
-                    lineEnd = newlineIndex
-                    terminator = "\n"
-                }
-            } else {
-                lineEnd = newlineIndex
-                terminator = "\n"
-            }
-
-            result.append((String(self[lineStart..<lineEnd]), terminator))
-            lineStart = index(after: newlineIndex)
+            result.append((
+                line: nsString.substring(with: NSRange(location: lineStart, length: contentsEnd - lineStart)),
+                terminator: nsString.substring(with: NSRange(location: contentsEnd, length: lineEnd - contentsEnd))
+            ))
+            position = lineEnd
         }
 
         return result

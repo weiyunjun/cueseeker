@@ -116,6 +116,64 @@ func assSpeakerDisplayPrefixesFirstVisibleBilingualDialogueLine() {
     #expect(rewritten.contains("Dialogue: 0,0:00:01.00,0:00:02.00,Dial_JP,,0,0,0,,祥ちゃん"))
 }
 
+@Test
+func assSpeakerDisplayPrefixesLayerOneBilingualDialogueLine() {
+    let script = """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Comment: 0,0:00:00.00,0:00:00.00,Default,,0,0,0,,Dialogue
+    Dialogue: 0,0:00:31.24,0:00:32.01,Dial_JP,,0,0,0,,祥ちゃん
+    Dialogue: 1,0:00:31.24,0:00:32.01,Dial_CH,,0,0,0,,小祥
+    """
+    let cues = [
+        SubtitleSpeakerDisplayCue(
+            cueGroupID: 42,
+            startMilliseconds: 31_240,
+            endMilliseconds: 32_010,
+            sourceStyle: "Dial_CH",
+            sourceLayer: 1,
+            cleanText: "小祥",
+            speakers: ["长崎素世"]
+        )
+    ]
+
+    let rewritten = ASSSpeakerDisplayRewriter.rewrite(script: script, cues: cues)
+
+    #expect(rewritten.contains("Dialogue: 1,0:00:31.24,0:00:32.01,Dial_CH,,0,0,0,,长崎素世: 小祥"))
+}
+
+@Test
+func assSpeakerDisplayRewriterHandlesCRLFScripts() {
+    let script = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+        "Dialogue: 0,0:00:31.24,0:00:32.01,Dial_JP,,0,0,0,,祥ちゃん",
+        "Dialogue: 1,0:00:31.24,0:00:32.01,Dial_CH,,0,0,0,,小祥"
+    ].joined(separator: "\r\n")
+    let cues = [
+        SubtitleSpeakerDisplayCue(
+            cueGroupID: 42,
+            startMilliseconds: 31_240,
+            endMilliseconds: 32_010,
+            sourceStyle: "Dial_CH",
+            sourceLayer: 1,
+            cleanText: "小祥",
+            speakers: ["长崎素世"]
+        )
+    ]
+
+    let rewritten = ASSSpeakerDisplayRewriter.rewrite(script: script, cues: cues)
+
+    #expect(rewritten.contains("Dialogue: 1,0:00:31.24,0:00:32.01,Dial_CH,,0,0,0,,长崎素世: 小祥"))
+    #expect(rewritten.contains("\r\n"))
+}
+
 private func speakerDisplayLineRecord(
     id: Int64,
     cueGroupID: Int64,
