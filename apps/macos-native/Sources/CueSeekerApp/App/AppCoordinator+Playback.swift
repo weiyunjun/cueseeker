@@ -1882,7 +1882,7 @@ extension AppCoordinator {
         do {
             return SubtitleSpeakerDisplayCue.targetCues(
                 records: try subtitleDatabase.cueLineRecords(forSubtitleFile: subtitleFile),
-                speakersByCueGroupID: try subtitleDatabase.speakersByCueGroupID(forSubtitleFile: subtitleFile)
+                speakersByCueLineID: try subtitleDatabase.speakersByCueLineID(forSubtitleFile: subtitleFile)
             )
         } catch {
             print("Failed to load ASS playback speaker labels: \(error)")

@@ -50,6 +50,36 @@ func speakerDisplayTargetCuesUseFirstDisplayLineWithGroupSpeakers() {
 }
 
 @Test
+func speakerDisplayTargetCuesUseAssignedCueLineSpeakers() {
+    let records = [
+        speakerDisplayLineRecord(
+            id: 1,
+            cueGroupID: 42,
+            content: "中文",
+            style: "Dial_CH",
+            displayOrder: 0
+        ),
+        speakerDisplayLineRecord(
+            id: 2,
+            cueGroupID: 42,
+            content: "日本語",
+            style: "Dial_JP",
+            displayOrder: 1
+        )
+    ]
+
+    let cues = SubtitleSpeakerDisplayCue.targetCues(
+        records: records,
+        speakersByCueLineID: [2: ["高松灯"]]
+    )
+
+    #expect(cues.count == 1)
+    #expect(cues.first?.cleanText == "日本語")
+    #expect(cues.first?.sourceStyle == "Dial_JP")
+    #expect(cues.first?.speakers == ["高松灯"])
+}
+
+@Test
 func assSpeakerDisplayRewriterPrefixesMatchingDialogueTextOnly() {
     let script = """
     [Script Info]
@@ -82,6 +112,7 @@ private func speakerDisplayLineRecord(
     id: Int64,
     cueGroupID: Int64,
     content: String,
+    style: String = "JP",
     displayOrder: Int
 ) -> SubtitleCueLineRecord {
     SubtitleCueLineRecord(
@@ -90,7 +121,7 @@ private func speakerDisplayLineRecord(
         line: SubtitleCueLine(
             eventIndex: Int(id),
             sourceFormat: .ass,
-            sourceStyle: "JP",
+            sourceStyle: style,
             sourceLayer: 0,
             startTimecode: "0:00:01.00",
             endTimecode: "0:00:02.00",
