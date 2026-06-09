@@ -8,6 +8,8 @@ final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
     private static let primarySearchLanguageKey = "primarySearchLanguage"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
+    private static let autoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
+    private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let searchFilterSetsKey = "searchFilterSets"
@@ -16,6 +18,9 @@ final class SettingsStore: ObservableObject {
     private static let aiChunkingPromptTemplateKey = "aiChunkingPromptTemplate"
     private static let aiChunkingPromptDefaultVersionKey = "aiChunkingPromptDefaultVersion"
     private static let aiChunkingPromptDefaultVersion = "20260528-multi-plan-merge"
+    static let autoPlayCueSequenceGapDefaultMilliseconds = 500
+    static let autoPlayCueSequenceGapMinimumMilliseconds = 0
+    static let autoPlayCueSequenceGapMaximumMilliseconds = 10_000
 
     @Published var appAppearanceMode: AppAppearanceMode {
         didSet {
@@ -35,6 +40,14 @@ final class SettingsStore: ObservableObject {
             userDefaults.set(playbackDecodeMode.rawValue, forKey: Self.playbackDecodeModeKey)
         }
     }
+
+    @Published var autoPlayCueSequenceEnabled: Bool {
+        didSet {
+            userDefaults.set(autoPlayCueSequenceEnabled, forKey: Self.autoPlayCueSequenceEnabledKey)
+        }
+    }
+
+    @Published private(set) var autoPlayCueSequenceGapMilliseconds: Int
 
     @Published var searchE2ELoggingEnabled: Bool {
         didSet {
@@ -89,6 +102,8 @@ final class SettingsStore: ObservableObject {
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
             Self.primarySearchLanguageKey: PrimarySearchLanguage.defaultValue.rawValue,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
+            Self.autoPlayCueSequenceEnabledKey: false,
+            Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoPlayCueSequenceGapDefaultMilliseconds,
             Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
             Self.aiChunkingEnabledKey: false,
@@ -101,6 +116,8 @@ final class SettingsStore: ObservableObject {
         self.appAppearanceMode = loadedAppearance
         self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
+        self.autoPlayCueSequenceEnabled = userDefaults.bool(forKey: Self.autoPlayCueSequenceEnabledKey)
+        self.autoPlayCueSequenceGapMilliseconds = Self.loadAutoPlayCueSequenceGapMilliseconds(from: userDefaults)
         self.searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
@@ -160,6 +177,14 @@ final class SettingsStore: ObservableObject {
         userDefaults.set(Self.aiChunkingPromptDefaultVersion, forKey: Self.aiChunkingPromptDefaultVersionKey)
     }
 
+    func setAutoPlayCueSequenceGapMilliseconds(_ milliseconds: Int) {
+        autoPlayCueSequenceGapMilliseconds = Self.clampedAutoPlayCueSequenceGapMilliseconds(milliseconds)
+        userDefaults.set(
+            autoPlayCueSequenceGapMilliseconds,
+            forKey: Self.autoPlayCueSequenceGapMillisecondsKey
+        )
+    }
+
     var aiChunkingPromptConfiguration: AIChunkingPromptConfiguration {
         AIChunkingPromptConfiguration(
             template: aiChunkingPromptTemplate,
@@ -192,6 +217,19 @@ final class SettingsStore: ObservableObject {
             return .auto
         }
         return mode
+    }
+
+    private static func loadAutoPlayCueSequenceGapMilliseconds(from userDefaults: UserDefaults) -> Int {
+        clampedAutoPlayCueSequenceGapMilliseconds(
+            userDefaults.integer(forKey: autoPlayCueSequenceGapMillisecondsKey)
+        )
+    }
+
+    static func clampedAutoPlayCueSequenceGapMilliseconds(_ milliseconds: Int) -> Int {
+        min(
+            max(milliseconds, autoPlayCueSequenceGapMinimumMilliseconds),
+            autoPlayCueSequenceGapMaximumMilliseconds
+        )
     }
 
     private static func loadSearchFilterSets(from userDefaults: UserDefaults) -> [SchemaWorkbenchFilterSet] {

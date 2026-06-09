@@ -2,6 +2,7 @@ import SwiftUI
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case library
+    case play
     case appearance
     case decode
     case maintenance
@@ -14,6 +15,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .library:
             "Library"
+        case .play:
+            "Play"
         case .appearance:
             "Appearance"
         case .decode:
@@ -31,6 +34,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .library:
             "folder"
+        case .play:
+            "play.fill"
         case .appearance:
             "circle.lefthalf.filled"
         case .decode:
@@ -110,6 +115,8 @@ struct SettingsView: View {
         switch selectedCategory {
         case .library:
             SettingsLibraryCategory()
+        case .play:
+            SettingsPlayCategory()
         case .appearance:
             SettingsAppearanceCategory()
         case .decode:
