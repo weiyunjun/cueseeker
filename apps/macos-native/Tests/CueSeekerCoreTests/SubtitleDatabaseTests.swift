@@ -88,15 +88,13 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
             ),
         ]
     )
-    try executeSQLite(
-        at: databaseURL,
-        """
-        INSERT INTO subtitle_cue_line_speakers(cue_line_id, cue_group_id, speaker, speaker_key)
-        SELECT l.id, l.cue_group_id, '高松灯', '高松灯'
-        FROM subtitle_cue_lines l
-        JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-        WHERE g.search_content = 'second cue';
-        """
+    let cueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let secondCueLine = try #require(cueLines.first { $0.line.content == "second cue" })
+    try database.replaceCueLineSpeakers(
+        forSubtitleFile: subtitleFile,
+        assignments: [
+            SubtitleCueLineSpeakerAssignment(cueLineID: secondCueLine.id, speakers: ["高松灯"])
+        ]
     )
 
     let page = try database.allCueGroupsVisiblePage(limit: 10, cursor: .start)
@@ -121,6 +119,84 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
     )
     #expect(speakerPage.totalCount == 1)
     #expect(speakerPage.results.map(\.content) == ["second cue"])
+}
+
+@Test
+func replacesCueLineSpeakersAsStringSets() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerSetTest.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/SpeakerSetTest.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:01,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 1_500,
+                text: "first cue"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:02,000",
+                endTimecode: "00:00:02,500",
+                startMilliseconds: 2_000,
+                endMilliseconds: 2_500,
+                text: "second cue"
+            ),
+        ]
+    )
+
+    let cueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let firstCueLine = try #require(cueLines.first { $0.line.content == "first cue" })
+    let secondCueLine = try #require(cueLines.first { $0.line.content == "second cue" })
+
+    try database.replaceCueLineSpeakers(
+        forSubtitleFile: subtitleFile,
+        assignments: [
+            SubtitleCueLineSpeakerAssignment(
+                cueLineID: firstCueLine.id,
+                speakers: ["高松灯", "疑似长崎素世", "  "]
+            ),
+            SubtitleCueLineSpeakerAssignment(
+                cueLineID: secondCueLine.id,
+                speakers: ["千早爱音"]
+            )
+        ]
+    )
+
+    #expect(try database.speakersByCueLineID(forSubtitleFile: subtitleFile) == [
+        firstCueLine.id: ["高松灯", "疑似长崎素世"],
+        secondCueLine.id: ["千早爱音"]
+    ])
+    #expect(try database.speakersByCueGroupID(forSubtitleFile: subtitleFile) == [
+        firstCueLine.cueGroupID: ["高松灯", "疑似长崎素世"],
+        secondCueLine.cueGroupID: ["千早爱音"]
+    ])
+
+    try database.replaceCueLineSpeakers(
+        forSubtitleFile: subtitleFile,
+        assignments: [
+            SubtitleCueLineSpeakerAssignment(cueLineID: secondCueLine.id, speakers: ["椎名立希"])
+        ]
+    )
+
+    #expect(try database.speakersByCueLineID(forSubtitleFile: subtitleFile) == [
+        secondCueLine.id: ["椎名立希"]
+    ])
+
+    try database.clearCueLineSpeakers(forSubtitleFile: subtitleFile)
+
+    #expect(try database.speakersByCueLineID(forSubtitleFile: subtitleFile).isEmpty)
 }
 
 @Test

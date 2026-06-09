@@ -757,6 +757,28 @@ public struct SubtitleCueTiming: Equatable, Sendable {
     }
 }
 
+public struct SubtitleCueLineRecord: Equatable, Sendable {
+    public let id: Int64
+    public let cueGroupID: Int64
+    public let line: SubtitleCueLine
+
+    public init(id: Int64, cueGroupID: Int64, line: SubtitleCueLine) {
+        self.id = id
+        self.cueGroupID = cueGroupID
+        self.line = line
+    }
+}
+
+public struct SubtitleCueLineSpeakerAssignment: Equatable, Sendable {
+    public let cueLineID: Int64
+    public let speakers: Set<String>
+
+    public init(cueLineID: Int64, speakers: Set<String>) {
+        self.cueLineID = cueLineID
+        self.speakers = speakers
+    }
+}
+
 public struct SubtitleCueTextSelection: Equatable, Sendable {
     public let cueGroupID: Int64
     public let startMilliseconds: Int
@@ -1980,6 +2002,124 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return entries
+    }
+
+    public func cueLineRecords(forSubtitleFile subtitleFile: URL) throws -> [SubtitleCueLineRecord] {
+        let statement = try database.prepare(
+            """
+            SELECT l.id, l.cue_group_id, l.event_index, l.source_format,
+                   l.source_style, l.source_layer, l.start_time, l.end_time,
+                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+                   l.display_order
+            FROM subtitle_cue_lines l
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY g.start_ms ASC, g.id ASC, l.display_order ASC, l.event_index ASC, l.id ASC;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+
+        var records: [SubtitleCueLineRecord] = []
+        while try statement.step() {
+            records.append(cueLineRecord(from: statement))
+        }
+        return records
+    }
+
+    public func speakersByCueLineID(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> [Int64: Set<String>] {
+        let statement = try database.prepare(
+            """
+            SELECT l.id, s.speaker
+            FROM subtitle_cue_line_speakers s
+            JOIN subtitle_cue_lines l ON l.id = s.cue_line_id
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY l.id ASC, s.speaker_key ASC;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+
+        var speakersByCueLineID: [Int64: Set<String>] = [:]
+        while try statement.step() {
+            speakersByCueLineID[statement.int64Column(0), default: []].insert(statement.stringColumn(1))
+        }
+        return speakersByCueLineID
+    }
+
+    public func speakersByCueGroupID(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> [Int64: Set<String>] {
+        let statement = try database.prepare(
+            """
+            SELECT g.id, s.speaker
+            FROM subtitle_cue_line_speakers s
+            JOIN subtitle_cue_lines l ON l.id = s.cue_line_id
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            GROUP BY g.id, s.speaker_key, s.speaker
+            ORDER BY g.id ASC, s.speaker_key ASC;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+
+        var speakersByCueGroupID: [Int64: Set<String>] = [:]
+        while try statement.step() {
+            speakersByCueGroupID[statement.int64Column(0), default: []].insert(statement.stringColumn(1))
+        }
+        return speakersByCueGroupID
+    }
+
+    public func replaceCueLineSpeakers(
+        forSubtitleFile subtitleFile: URL,
+        assignments: [SubtitleCueLineSpeakerAssignment]
+    ) throws {
+        let cueGroupIDsByLineID = try cueGroupIDsByCueLineID(forSubtitleFile: subtitleFile)
+        let assignedLineIDs = Set(assignments.map(\.cueLineID))
+        guard assignedLineIDs.isSubset(of: Set(cueGroupIDsByLineID.keys)) else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Speaker assignments contain cue lines outside subtitle file: \(subtitleFile.path)"
+            )
+        }
+
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            try clearCueLineSpeakersInCurrentTransaction(forSubtitleFile: subtitleFile)
+            for assignment in assignments {
+                guard let cueGroupID = cueGroupIDsByLineID[assignment.cueLineID] else {
+                    continue
+                }
+                try insertCueLineSpeakers(
+                    cueLineID: assignment.cueLineID,
+                    cueGroupID: cueGroupID,
+                    speakers: assignment.speakers
+                )
+            }
+            try database.execute("COMMIT")
+            clearSearchResultCache()
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func clearCueLineSpeakers(forSubtitleFile subtitleFile: URL) throws {
+        try database.execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            try clearCueLineSpeakersInCurrentTransaction(forSubtitleFile: subtitleFile)
+            try database.execute("COMMIT")
+            clearSearchResultCache()
+        } catch {
+            try? database.execute("ROLLBACK")
+            throw error
+        }
     }
 
     public func languageDetections(
@@ -5681,6 +5821,87 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    private func cueGroupIDsByCueLineID(forSubtitleFile subtitleFile: URL) throws -> [Int64: Int64] {
+        let statement = try database.prepare(
+            """
+            SELECT l.id, l.cue_group_id
+            FROM subtitle_cue_lines l
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+
+        var cueGroupIDsByLineID: [Int64: Int64] = [:]
+        while try statement.step() {
+            cueGroupIDsByLineID[statement.int64Column(0)] = statement.int64Column(1)
+        }
+        return cueGroupIDsByLineID
+    }
+
+    private func clearCueLineSpeakersInCurrentTransaction(forSubtitleFile subtitleFile: URL) throws {
+        let statement = try database.prepare(
+            """
+            DELETE FROM subtitle_cue_line_speakers
+            WHERE cue_line_id IN (
+                SELECT l.id
+                FROM subtitle_cue_lines l
+                JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                WHERE sf.subtitle_path = ?
+            );
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.run()
+    }
+
+    private func insertCueLineSpeakers(
+        cueLineID: Int64,
+        cueGroupID: Int64,
+        speakers: Set<String>
+    ) throws {
+        let normalizedSpeakers = Self.normalizedSpeakerValues(speakers)
+        guard !normalizedSpeakers.isEmpty else {
+            return
+        }
+
+        let statement = try database.prepare(
+            """
+            INSERT OR REPLACE INTO subtitle_cue_line_speakers(
+                cue_line_id,
+                cue_group_id,
+                speaker,
+                speaker_key
+            )
+            VALUES (?, ?, ?, ?);
+            """
+        )
+
+        for speaker in normalizedSpeakers {
+            try statement.reset()
+            try statement.clearBindings()
+            try statement.bind(cueLineID, at: 1)
+            try statement.bind(cueGroupID, at: 2)
+            try statement.bind(speaker, at: 3)
+            try statement.bind(Self.speakerKey(for: speaker), at: 4)
+            try statement.run()
+        }
+    }
+
+    private static func normalizedSpeakerValues(_ speakers: Set<String>) -> [String] {
+        speakers
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted()
+    }
+
+    private static func speakerKey(for speaker: String) -> String {
+        speaker.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func validateLanguageAnalysis(
         _ languageAnalysis: SubtitleLanguageAnalysis?,
         format: SubtitleFormat,
@@ -6468,6 +6689,27 @@ public final class SubtitleDatabase: @unchecked Sendable {
             startMilliseconds: statement.intColumn(8),
             endMilliseconds: statement.intColumn(9),
             content: statement.stringColumn(10)
+        )
+    }
+
+    private func cueLineRecord(from statement: SQLiteStatement) -> SubtitleCueLineRecord {
+        SubtitleCueLineRecord(
+            id: statement.int64Column(0),
+            cueGroupID: statement.int64Column(1),
+            line: SubtitleCueLine(
+                eventIndex: statement.intColumn(2),
+                sourceFormat: SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt,
+                sourceStyle: statement.nullableStringColumn(4),
+                sourceLayer: statement.nullableIntColumn(5),
+                startTimecode: statement.stringColumn(6),
+                endTimecode: statement.stringColumn(7),
+                startMilliseconds: statement.intColumn(8),
+                endMilliseconds: statement.intColumn(9),
+                content: statement.stringColumn(10),
+                displayX: statement.nullableDoubleColumn(11),
+                displayY: statement.nullableDoubleColumn(12),
+                displayOrder: statement.intColumn(13)
+            )
         )
     }
 
