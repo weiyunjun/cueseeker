@@ -749,6 +749,11 @@ static int SFXOutputChannelCount(int inputChannels) {
 @property (nonatomic, readonly) NSInteger videoHeight;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
 @property (nonatomic, readonly) NSUInteger presentedVideoFrameCount;
+@property (nonatomic, readonly) NSInteger lastSubmittedVideoFrameMilliseconds;
+@property (nonatomic, readonly) NSInteger lastScheduledAudioStartMilliseconds;
+@property (nonatomic, readonly) NSInteger lastScheduledAudioEndMilliseconds;
+@property (nonatomic, readonly) NSUInteger segmentFinishNotificationCount;
+@property (nonatomic, readonly) NSInteger lastFinishedSegmentEndMilliseconds;
 @property (nonatomic, readonly, getter=isFinished) BOOL finished;
 @end
 
@@ -821,6 +826,11 @@ static int SFXOutputChannelCount(int inputChannels) {
     CMTime _pendingDisplayPresentationTime;
     NSInteger _pendingDisplayAutomaticRecycleMilliseconds;
     NSUInteger _presentedVideoFrameCount;
+    NSInteger _lastSubmittedVideoFrameMilliseconds;
+    NSInteger _lastScheduledAudioStartMilliseconds;
+    NSInteger _lastScheduledAudioEndMilliseconds;
+    NSUInteger _segmentFinishNotificationCount;
+    NSInteger _lastFinishedSegmentEndMilliseconds;
 
     BOOL _flushDisplayBeforeStart;
     BOOL _flushDisplayOnFirstFrame;
@@ -895,6 +905,10 @@ static int SFXOutputChannelCount(int inputChannels) {
     _displaySubmissionLock = [[NSLock alloc] init];
     _pendingDisplayPresentationTime = kCMTimeInvalid;
     _pendingDisplayAutomaticRecycleMilliseconds = -1;
+    _lastSubmittedVideoFrameMilliseconds = -1;
+    _lastScheduledAudioStartMilliseconds = -1;
+    _lastScheduledAudioEndMilliseconds = -1;
+    _lastFinishedSegmentEndMilliseconds = -1;
     _packetQueueCondition = [[NSCondition alloc] init];
 	    atomic_init(&_cancelled, false);
 	    atomic_init(&_segmentEnding, false);
@@ -943,6 +957,36 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (NSUInteger)presentedVideoFrameCount {
     @synchronized (self) {
         return _presentedVideoFrameCount;
+    }
+}
+
+- (NSInteger)lastSubmittedVideoFrameMilliseconds {
+    @synchronized (self) {
+        return _lastSubmittedVideoFrameMilliseconds;
+    }
+}
+
+- (NSInteger)lastScheduledAudioStartMilliseconds {
+    @synchronized (self) {
+        return _lastScheduledAudioStartMilliseconds;
+    }
+}
+
+- (NSInteger)lastScheduledAudioEndMilliseconds {
+    @synchronized (self) {
+        return _lastScheduledAudioEndMilliseconds;
+    }
+}
+
+- (NSUInteger)segmentFinishNotificationCount {
+    @synchronized (self) {
+        return _segmentFinishNotificationCount;
+    }
+}
+
+- (NSInteger)lastFinishedSegmentEndMilliseconds {
+    @synchronized (self) {
+        return _lastFinishedSegmentEndMilliseconds;
     }
 }
 
@@ -1026,6 +1070,8 @@ static int SFXOutputChannelCount(int inputChannels) {
         _segmentFinishNotified = YES;
         _currentTime = _segmentEndSeconds;
         endMilliseconds = [self segmentEndMilliseconds];
+        _segmentFinishNotificationCount += 1;
+        _lastFinishedSegmentEndMilliseconds = endMilliseconds;
     }
 
     atomic_store(&_playing, false);
@@ -2338,23 +2384,25 @@ static int SFXOutputChannelCount(int inputChannels) {
             continue;
         }
 
-	        double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream);
-	        if ([self mediaSecondsReachedSegmentEnd:mediaSeconds]) {
-	            if (_audioCodecContext == NULL || _pauseAfterFirstFrame) {
-	                [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
-	            }
-	            av_frame_unref(_videoFrame);
-	            break;
-	        }
+        double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream);
+        if ([self mediaSecondsReachedSegmentEnd:mediaSeconds]) {
+            if (_audioCodecContext == NULL || _pauseAfterFirstFrame) {
+                [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
+            }
+            av_frame_unref(_videoFrame);
+            break;
+        }
 
-	        CMTime presentationTime = SFXFramePresentationTime(_videoFrame, videoStream);
+        CMTime presentationTime = SFXFramePresentationTime(_videoFrame, videoStream);
         NSInteger automaticRecycleMilliseconds = -1;
+        BOOL submittedVideoFrame = NO;
         if (_videoFrame->format == SFXHardwarePixelFormat) {
             [self paceVideoFrame:_videoFrame stream:videoStream];
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
             [self enqueuePixelBuffer:pixelBuffer
                      presentationTime:presentationTime
              automaticRecycleMilliseconds:automaticRecycleMilliseconds];
+            submittedVideoFrame = YES;
         } else if (!_usingHardwareDecode) {
             [self paceVideoFrame:_videoFrame stream:videoStream];
             CVPixelBufferRef pixelBuffer = [self copyPixelBufferForSoftwareFrame:_videoFrame];
@@ -2374,11 +2422,15 @@ static int SFXOutputChannelCount(int inputChannels) {
                      presentationTime:presentationTime
              automaticRecycleMilliseconds:automaticRecycleMilliseconds];
             CVPixelBufferRelease(pixelBuffer);
+            submittedVideoFrame = YES;
         }
 
         if (mediaSeconds >= 0) {
             @synchronized (self) {
                 _currentTime = mediaSeconds;
+                if (submittedVideoFrame) {
+                    _lastSubmittedVideoFrameMilliseconds = (NSInteger)llround(mediaSeconds * 1000.0);
+                }
             }
             [self notifyTimeIfNeeded:NO];
         }
@@ -2734,70 +2786,83 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 }
 
 - (SFXAudioScheduleResult)scheduleAudioFrame:(const AVFrame *)frame mediaSeconds:(double)mediaSeconds {
-	    if (_audioPlayer == nil || _audioFormat == nil || frame->format != AV_SAMPLE_FMT_FLTP) {
-	        return SFXAudioScheduleResultNotScheduled;
-	    }
+    if (_audioPlayer == nil || _audioFormat == nil || frame->format != AV_SAMPLE_FMT_FLTP) {
+        return SFXAudioScheduleResultNotScheduled;
+    }
 
-	    int channels = frame->ch_layout.nb_channels;
-	    if (channels <= 0 || channels > (int)_audioFormat.channelCount) {
-	        return SFXAudioScheduleResultNotScheduled;
-	    }
+    int channels = frame->ch_layout.nb_channels;
+    if (channels <= 0 || channels > (int)_audioFormat.channelCount) {
+        return SFXAudioScheduleResultNotScheduled;
+    }
 
-	    int scheduledSampleCount = frame->nb_samples;
-	    BOOL isFinalSegmentBuffer = NO;
-	    if ([self hasActiveSegmentEnd] && mediaSeconds >= 0) {
-	        double remainingSeconds = _segmentEndSeconds - mediaSeconds;
-	        if (remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds) {
-	            [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
-	            return SFXAudioScheduleResultSegmentBoundaryReached;
-	        }
+    int scheduledSampleCount = frame->nb_samples;
+    BOOL isFinalSegmentBuffer = NO;
+    if ([self hasActiveSegmentEnd] && mediaSeconds >= 0) {
+        double remainingSeconds = _segmentEndSeconds - mediaSeconds;
+        if (remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds) {
+            [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
+            return SFXAudioScheduleResultSegmentBoundaryReached;
+        }
 
-	        int sampleRate = [self audioFrameSampleRate:frame];
-	        double frameDuration = sampleRate > 0 ? (double)frame->nb_samples / (double)sampleRate : 0;
-	        if (sampleRate <= 0) {
-	            return SFXAudioScheduleResultNotScheduled;
-	        }
+        int sampleRate = [self audioFrameSampleRate:frame];
+        double frameDuration = sampleRate > 0 ? (double)frame->nb_samples / (double)sampleRate : 0;
+        if (sampleRate <= 0) {
+            return SFXAudioScheduleResultNotScheduled;
+        }
 
-	        if (mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds) {
-	            int segmentSampleCount = (int)floor(remainingSeconds * (double)sampleRate + SFXSegmentBoundaryEpsilonSeconds);
-	            if (segmentSampleCount <= 0) {
-	                [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
-	                return SFXAudioScheduleResultSegmentBoundaryReached;
-	            }
-	            scheduledSampleCount = MIN(frame->nb_samples, segmentSampleCount);
-	            isFinalSegmentBuffer = YES;
-	        }
-	    }
+        if (mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds) {
+            int segmentSampleCount = (int)floor(remainingSeconds * (double)sampleRate + SFXSegmentBoundaryEpsilonSeconds);
+            if (segmentSampleCount <= 0) {
+                [self markSegmentBoundaryReachedWaitingForAudioCompletion:NO];
+                return SFXAudioScheduleResultSegmentBoundaryReached;
+            }
+            scheduledSampleCount = MIN(frame->nb_samples, segmentSampleCount);
+            isFinalSegmentBuffer = YES;
+        }
+    }
 
-	    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc]
-	        initWithPCMFormat:_audioFormat
-	        frameCapacity:(AVAudioFrameCount)scheduledSampleCount
-	    ];
-	    if (buffer == nil || buffer.floatChannelData == NULL) {
-	        return SFXAudioScheduleResultNotScheduled;
-	    }
+    int sampleRate = [self audioFrameSampleRate:frame];
+    if (sampleRate <= 0) {
+        return SFXAudioScheduleResultNotScheduled;
+    }
 
-	    buffer.frameLength = (AVAudioFrameCount)scheduledSampleCount;
-	    for (int channel = 0; channel < channels; channel++) {
-	        memcpy(
-	            buffer.floatChannelData[channel],
-	            frame->extended_data[channel],
-	            sizeof(float) * (size_t)scheduledSampleCount
-	        );
-	    }
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc]
+        initWithPCMFormat:_audioFormat
+        frameCapacity:(AVAudioFrameCount)scheduledSampleCount
+    ];
+    if (buffer == nil || buffer.floatChannelData == NULL) {
+        return SFXAudioScheduleResultNotScheduled;
+    }
 
-	    SFXAudioScheduleResult result = isFinalSegmentBuffer
-	        ? SFXAudioScheduleResultScheduledFinalSegmentBuffer
-	        : SFXAudioScheduleResultScheduled;
-	    if (isFinalSegmentBuffer) {
-	        [self markSegmentBoundaryReachedWaitingForAudioCompletion:YES];
-	        __weak typeof(self) weakSelf = self;
-	        [_audioPlayer scheduleBuffer:buffer completionHandler:^{
-	            [weakSelf notifySegmentFinishedIfNeeded];
-	        }];
-	    } else {
-	        [_audioPlayer scheduleBuffer:buffer completionHandler:nil];
-	    }
+    buffer.frameLength = (AVAudioFrameCount)scheduledSampleCount;
+    for (int channel = 0; channel < channels; channel++) {
+        memcpy(
+            buffer.floatChannelData[channel],
+            frame->extended_data[channel],
+            sizeof(float) * (size_t)scheduledSampleCount
+        );
+    }
+
+    SFXAudioScheduleResult result = isFinalSegmentBuffer
+        ? SFXAudioScheduleResultScheduledFinalSegmentBuffer
+        : SFXAudioScheduleResultScheduled;
+    if (mediaSeconds >= 0) {
+        double scheduledEndSeconds = mediaSeconds + ((double)scheduledSampleCount / (double)sampleRate);
+        @synchronized (self) {
+            _lastScheduledAudioStartMilliseconds = (NSInteger)llround(mediaSeconds * 1000.0);
+            _lastScheduledAudioEndMilliseconds = (NSInteger)llround(scheduledEndSeconds * 1000.0);
+        }
+    }
+
+    if (isFinalSegmentBuffer) {
+        [self markSegmentBoundaryReachedWaitingForAudioCompletion:YES];
+        __weak typeof(self) weakSelf = self;
+        [_audioPlayer scheduleBuffer:buffer completionHandler:^{
+            [weakSelf notifySegmentFinishedIfNeeded];
+        }];
+    } else {
+        [_audioPlayer scheduleBuffer:buffer completionHandler:nil];
+    }
 
     if (!_audioPlayerStarted) {
         if (mediaSeconds >= 0) {
@@ -2812,12 +2877,12 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
         _audioPlayerStarted = YES;
         AVAudioPlayerNode *audioPlayer = _audioPlayer;
-	        dispatch_async(dispatch_get_main_queue(), ^{
-	            [audioPlayer play];
-	        });
-	    }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [audioPlayer play];
+        });
+    }
 
-	    return result;
+    return result;
 }
 
 - (void)notifyTimeIfNeeded:(BOOL)force {
@@ -2958,6 +3023,26 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (NSUInteger)nativePresentedVideoFrameCount {
     return _session.presentedVideoFrameCount;
+}
+
+- (NSInteger)nativeLastSubmittedVideoFrameMilliseconds {
+    return _session.lastSubmittedVideoFrameMilliseconds;
+}
+
+- (NSInteger)nativeLastScheduledAudioStartMilliseconds {
+    return _session.lastScheduledAudioStartMilliseconds;
+}
+
+- (NSInteger)nativeLastScheduledAudioEndMilliseconds {
+    return _session.lastScheduledAudioEndMilliseconds;
+}
+
+- (NSUInteger)nativeSegmentFinishNotificationCount {
+    return _session.segmentFinishNotificationCount;
+}
+
+- (NSInteger)nativeLastFinishedSegmentEndMilliseconds {
+    return _session.lastFinishedSegmentEndMilliseconds;
 }
 
 - (float)volume {
