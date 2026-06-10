@@ -267,6 +267,17 @@ Rules:
   uncommitted, the AI must report the blocker. It may help review or commit
   human-owned documentation when explicitly asked, but it must not modify files
   outside `docs/human/` until the covering human-owned document is committed.
+- The AI must not use an older human-owned requirement as authority for a new
+  regression fix, same-area follow-up, build behavior change, runtime dependency
+  change, or scope expansion unless that older document explicitly covers the
+  requested work. New regressions and new implementation requests require their
+  own current human-owned requirement or design document before dependent
+  changes proceed.
+- Build and dependency fixes must preserve existing build override semantics
+  unless the human-owned requirement explicitly asks to change them. If a fix
+  changes compiler include paths, linker search paths, runtime library roots, or
+  fallback dependency selection, verification must check the actual linked or
+  loaded dependency, not only that compilation succeeds.
 - For every AI-performed change outside `docs/human/`, the AI must create or
   update a matching implementation record under `docs/engineering/records/`.
   The record must identify the relevant `docs/human/` document and summarize
