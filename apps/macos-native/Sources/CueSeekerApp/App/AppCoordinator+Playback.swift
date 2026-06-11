@@ -271,7 +271,6 @@ extension AppCoordinator {
                 format: result.subtitleFormat,
                 videoPath: result.videoPath
             )
-            refreshSearchNavigationSnapshot()
         } catch {
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()

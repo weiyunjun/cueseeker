@@ -43,12 +43,6 @@ struct PlaybackPageView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .background(Color.black)
-        .onAppear {
-            refreshSidebarData()
-        }
-        .onChange(of: appState.currentPlaybackSubtitlePath) { _ in
-            refreshSidebarData()
-        }
     }
 
     @ViewBuilder
@@ -111,10 +105,6 @@ struct PlaybackPageView: View {
         }
     }
 
-    private func refreshSidebarData() {
-        appState.refreshSearchNavigationSnapshot()
-        appState.refreshCurrentSubtitleEntries()
-    }
 }
 
 private struct PlaybackSearchNavigationTimeObserver: View {
