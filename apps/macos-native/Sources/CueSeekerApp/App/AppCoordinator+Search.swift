@@ -6,12 +6,6 @@ private struct SearchPageLoad: Sendable {
     let databaseSearchMilliseconds: Double
 }
 
-private struct SearchNavigationVisibleWindowLoad {
-    let range: Range<Int>
-    let results: [SubtitleSearchResult]
-    let totalCount: Int
-}
-
 @MainActor
 extension AppCoordinator {
     func updateSearchQuery(_ query: String) {
@@ -46,8 +40,6 @@ extension AppCoordinator {
         workbenchLayout.selectPanelMode(.search)
         search.searchQuery = trimmedQuery
         search.searchNavigationSnapshot = nil
-        search.searchNavigationResultGroups = []
-        search.resetSearchNavigationVisibleWindow()
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
     }
 
@@ -204,167 +196,13 @@ extension AppCoordinator {
         nextGlobalSearchCursor = search.hasMoreSearchResults
             ? SubtitleSearchCursor(offset: page.range.upperBound)
             : nil
-        search.applySearchNavigationVisibleWindow(
-            page.results,
-            startIndex: page.range.lowerBound,
-            totalCount: page.totalRowCount
-        )
-    }
-
-    func loadSearchNavigationVisibleWindow(rows requestedRows: Range<Int>) {
-        let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let folders = indexing.selectedFolders
-        let folderPaths = folders.map(\.path)
-        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
-        let filterSet = search.activeFilterSet
-        let filterSignature = filterSet.cacheSignature
-        let totalCount = searchNavigationTotalCount
-
-        guard !folders.isEmpty,
-              totalCount > 0,
-              let database = subtitleDatabase
-        else {
-            searchNavigationVisibleWindowTask?.cancel()
-            search.resetSearchNavigationVisibleWindow()
-            return
-        }
-
-        let lowerBound = min(max(0, requestedRows.lowerBound), totalCount)
-        let upperBound = min(max(lowerBound, requestedRows.upperBound), totalCount)
-        guard lowerBound < upperBound else {
-            return
-        }
-
-        let requestedRange = lowerBound..<upperBound
-        let currentRange = search.searchNavigationVisibleWindowRange
-        if currentRange.lowerBound <= requestedRange.lowerBound
-            && requestedRange.upperBound <= currentRange.upperBound {
-            return
-        }
-
-        if let loadedWindow = loadedSearchNavigationVisibleWindow(range: requestedRange) {
-            applySearchNavigationVisibleWindow(loadedWindow)
-            return
-        }
-
-        searchNavigationVisibleWindowTask?.cancel()
-        if trimmedQuery.isEmpty {
-            searchNavigationVisibleWindowTask = Task { [weak self] in
-                guard let self,
-                      let page = await self.loadTableSandboxAllCueRows(range: requestedRange)
-                else {
-                    return
-                }
-
-                guard !Task.isCancelled,
-                      self.indexing.selectedFolders.map(\.path) == folderPaths,
-                      self.search.activeFilterSetSignature == filterSignature
-                else {
-                    return
-                }
-
-                self.applyTableSandboxAllCueSearchContext(page)
-            }
-            return
-        }
-
-        let searchDatabaseURL = databaseURL
-        searchNavigationVisibleWindowTask = Task { [weak self] in
-            do {
-                guard let indexWindow = database.searchResultIDIndexWindow(
-                    trimmedQuery,
-                    limit: requestedRange.count,
-                    cursor: SubtitleSearchCursor(offset: requestedRange.lowerBound),
-                    under: folders,
-                    languageFilter: languageFilter,
-                    filterSet: filterSet,
-                    minimumKnownResultCount: requestedRange.upperBound
-                ) else {
-                    return
-                }
-
-                let page = try await Task.detached(priority: .userInitiated) {
-                    let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
-                    return try pageDatabase.searchIndexedVisiblePage(from: indexWindow)
-                }.value
-
-                guard !Task.isCancelled,
-                      let page
-                else {
-                    return
-                }
-
-                let window = SearchNavigationVisibleWindowLoad(
-                    range: requestedRange.lowerBound..<(requestedRange.lowerBound + page.results.count),
-                    results: page.results,
-                    totalCount: page.totalCount
-                )
-
-                guard let self,
-                      self.search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
-                      self.indexing.selectedFolders.map(\.path) == folderPaths,
-                      self.settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
-                      self.search.activeFilterSetSignature == filterSignature
-                else {
-                    return
-                }
-
-                self.applySearchNavigationVisibleWindow(window)
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-                print("Failed to load Search navigation visible window: \(error)")
-            }
-        }
     }
 
     var searchNavigationTotalCount: Int {
         max(
-            search.searchNavigationVisibleTotalCount,
             search.searchNavigationSnapshot?.totalCount ?? 0,
             search.searchResultTotalCount,
             search.searchResults.count
-        )
-    }
-
-    private func loadedSearchNavigationVisibleWindow(
-        range: Range<Int>
-    ) -> SearchNavigationVisibleWindowLoad? {
-        let loadedResults = search.searchResults.sorted { lhs, rhs in
-            lhs.searchRank < rhs.searchRank
-        }
-        guard !loadedResults.isEmpty else {
-            return nil
-        }
-
-        var rowsByRank: [Int: SubtitleSearchResult] = [:]
-        for result in loadedResults {
-            rowsByRank[result.searchRank] = result
-        }
-        var results: [SubtitleSearchResult] = []
-        results.reserveCapacity(range.count)
-        for row in range {
-            guard let result = rowsByRank[row] else {
-                return nil
-            }
-            results.append(result)
-        }
-
-        return SearchNavigationVisibleWindowLoad(
-            range: range,
-            results: results,
-            totalCount: searchNavigationTotalCount
-        )
-    }
-
-    private func applySearchNavigationVisibleWindow(
-        _ window: SearchNavigationVisibleWindowLoad
-    ) {
-        search.applySearchNavigationVisibleWindow(
-            window.results,
-            startIndex: window.range.lowerBound,
-            totalCount: window.totalCount
         )
     }
 
@@ -1109,8 +947,6 @@ extension AppCoordinator {
               let database = subtitleDatabase
         else {
             search.searchNavigationSnapshot = nil
-            search.searchNavigationResultGroups = []
-            search.applyActiveSearchNavigationResult(nil)
             if let direction {
                 playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
@@ -1196,8 +1032,6 @@ extension AppCoordinator {
 
                 print("Failed to load Search navigation snapshot: \(error)")
                 self?.search.searchNavigationSnapshot = nil
-                self?.search.searchNavigationResultGroups = []
-                self?.search.applyActiveSearchNavigationResult(nil)
             }
         }
     }
@@ -1210,8 +1044,6 @@ extension AppCoordinator {
         let totalCount = searchNavigationTotalCount
         guard totalCount > 0 else {
             search.searchNavigationSnapshot = nil
-            search.searchNavigationResultGroups = []
-            search.applyActiveSearchNavigationResult(nil)
             if let direction {
                 playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
@@ -1340,38 +1172,6 @@ extension AppCoordinator {
 
     func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
         search.searchNavigationSnapshot = snapshot
-        search.applyActiveSearchNavigationResult(snapshot.current)
-        if let firstRank = snapshot.neighborhood.first?.searchRank {
-            search.applySearchNavigationVisibleWindow(
-                snapshot.neighborhood,
-                startIndex: firstRank,
-                totalCount: snapshot.totalCount
-            )
-        }
-        let paths = Set(snapshot.neighborhood.map(\.subtitlePath))
-        let summaries = search.searchFileSummaries.filter { paths.contains($0.subtitlePath) }
-        search.searchNavigationResultGroups = Self.makeSearchResultGroups(
-            results: snapshot.neighborhood,
-            fileSummaries: summaries,
-            expandedRowsByPath: [:],
-            collapsedGroupPaths: [],
-            includesSummaryOnlyGroups: false
-        )
-    }
-
-    func updateActiveSearchNavigationResult(currentMilliseconds: Int) {
-        guard isSearchPlaybackActive,
-              search.searchNavigationSnapshot != nil
-        else {
-            search.applyActiveSearchNavigationResult(nil)
-            return
-        }
-
-        search.updateActiveSearchNavigationResult(
-            videoPath: currentPlaybackVideoPath,
-            subtitlePath: currentPlaybackSubtitlePath,
-            currentMilliseconds: currentMilliseconds
-        )
     }
 
     func revealInitialSearchResultGroupPage(for subtitlePath: String) {
@@ -1605,8 +1405,6 @@ extension AppCoordinator {
         searchExactCompletionTask?.cancel()
         searchExactCompletionTask = nil
         searchNavigationTask?.cancel()
-        searchNavigationVisibleWindowTask?.cancel()
-        searchNavigationVisibleWindowTask = nil
         search.searchResults = []
         search.searchResultTotalCount = 0
         search.searchFileSummaries = []
@@ -1621,8 +1419,6 @@ extension AppCoordinator {
         loadedGlobalSearchResultCount = 0
         nextGlobalSearchCursor = nil
         search.searchNavigationSnapshot = nil
-        search.searchNavigationResultGroups = []
-        search.resetSearchNavigationVisibleWindow()
         rebuildSearchResultGroups()
     }
 

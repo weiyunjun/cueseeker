@@ -81,10 +81,6 @@ struct PlaybackFeedbackOverlay: View {
                     .font(.system(size: size, weight: .semibold))
                     .foregroundColor(.white)
                     .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
-            case .sidebar(let isOpen):
-                PlaybackSidebarIconView(isOpen: isOpen, size: size)
-                    .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
             }
         }
     }

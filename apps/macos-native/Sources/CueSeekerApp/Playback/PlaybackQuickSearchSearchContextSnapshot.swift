@@ -18,7 +18,6 @@ struct PlaybackQuickSearchSearchContextSnapshot {
     let searchResultGroups: [SearchResultFileGroup]
     let renderedSearchResultCount: Int
     let searchNavigationSnapshot: SearchNavigationSnapshot?
-    let searchNavigationResultGroups: [SearchResultFileGroup]
     let expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]]
     let selectedSearchResult: SubtitleSearchResult?
     let loadedGlobalSearchResultCount: Int
@@ -43,7 +42,6 @@ struct PlaybackQuickSearchSearchContextSnapshot {
         searchResultGroups = appState.search.searchResultGroups
         renderedSearchResultCount = appState.search.renderedSearchResultCount
         searchNavigationSnapshot = appState.search.searchNavigationSnapshot
-        searchNavigationResultGroups = appState.search.searchNavigationResultGroups
         expandedSearchResultGroupRowsByPath = appState.search.expandedSearchResultGroupRowsByPath
         selectedSearchResult = appState.search.selectedSearchResult
         loadedGlobalSearchResultCount = appState.loadedGlobalSearchResultCount
@@ -69,7 +67,6 @@ struct PlaybackQuickSearchSearchContextSnapshot {
         appState.search.searchResultGroups = searchResultGroups
         appState.search.renderedSearchResultCount = renderedSearchResultCount
         appState.search.searchNavigationSnapshot = searchNavigationSnapshot
-        appState.search.searchNavigationResultGroups = searchNavigationResultGroups
         appState.search.expandedSearchResultGroupRowsByPath = expandedSearchResultGroupRowsByPath
         appState.search.selectedSearchResult = selectedSearchResult
         appState.loadedGlobalSearchResultCount = loadedGlobalSearchResultCount

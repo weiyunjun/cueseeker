@@ -99,11 +99,6 @@ enum SearchResultNavigationDirection: Equatable {
     case next
 }
 
-enum PlaybackDrawerKind: Equatable {
-    case results
-    case subtitles
-}
-
 enum AppAppearanceMode: String, CaseIterable, Identifiable {
     case light
     case dark

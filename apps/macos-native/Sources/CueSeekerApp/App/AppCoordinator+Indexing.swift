@@ -352,10 +352,6 @@ extension AppCoordinator {
         searchExactCompletionTask = nil
         searchNavigationTask?.cancel()
         searchNavigationTask = nil
-        currentSubtitleEntriesTask?.cancel()
-        currentSubtitleEntriesTask = nil
-        currentSubtitleEntriesTaskSubtitlePath = nil
-        currentSubtitleEntriesTaskRequestID += 1
         playbackSubtitleCuesTask?.cancel()
         playbackSubtitleCuesTask = nil
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()

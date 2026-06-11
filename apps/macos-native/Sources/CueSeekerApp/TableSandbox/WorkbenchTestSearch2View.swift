@@ -104,8 +104,6 @@ struct WorkbenchTestSearch2View: View {
         search.searchResults = []
         search.searchResultTotalCount = 0
         search.searchNavigationSnapshot = nil
-        search.searchNavigationResultGroups = []
-        search.resetSearchNavigationVisibleWindow()
         search.hasMoreSearchResults = false
         loadAllCueRows(resetScroll: true)
     }

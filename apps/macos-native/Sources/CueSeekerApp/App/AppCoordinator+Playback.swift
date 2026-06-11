@@ -8,13 +8,6 @@ private enum PlaybackQuickSearchAIChunkingRequestReason: String {
     case manualRefresh = "manual_refresh"
 }
 
-struct PlaybackSubtitleWindowLoad: Sendable {
-    let subtitlePath: String
-    let index: [SubtitleDatabaseEntryIndexItem]
-    let windowStartIndex: Int
-    let entries: [SubtitleDatabaseEntry]
-}
-
 @MainActor
 extension AppCoordinator {
     func togglePlaybackFullscreenFromUser() {
@@ -509,235 +502,6 @@ extension AppCoordinator {
         playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
     }
 
-    func refreshCurrentSubtitleEntries() {
-        guard let currentPlaybackSubtitlePath,
-              let database = subtitleDatabase
-        else {
-            currentSubtitleEntriesTask?.cancel()
-            currentSubtitleEntriesTask = nil
-            currentSubtitleEntriesTaskSubtitlePath = nil
-            currentSubtitleEntriesTaskRequestID += 1
-            applyCurrentSubtitleEntries([], subtitlePath: nil)
-            return
-        }
-
-        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
-        let subtitlePath = subtitleFile.path
-        if playback.currentSubtitleEntrySubtitlePath == subtitlePath,
-           !playback.currentSubtitleEntryIndex.isEmpty {
-            return
-        }
-        if currentSubtitleEntriesTaskSubtitlePath == subtitlePath {
-            return
-        }
-
-        currentSubtitleEntriesTask?.cancel()
-        currentSubtitleEntriesTaskRequestID += 1
-        let requestID = currentSubtitleEntriesTaskRequestID
-        currentSubtitleEntriesTaskSubtitlePath = subtitlePath
-        if playback.currentSubtitleEntrySubtitlePath != subtitlePath {
-            applyCurrentSubtitleEntries([], subtitlePath: subtitlePath)
-        }
-
-        currentSubtitleEntriesTask = Task { [weak self] in
-            do {
-                let currentMilliseconds = await MainActor.run {
-                    max(
-                        0,
-                        Int(((self?.playback.playbackViewModel?.displayedCurrentTime ?? 0) * 1_000).rounded(.down))
-                    )
-                }
-                let window = try await Task.detached(priority: .userInitiated) {
-                    let index = try database.subtitleEntryIndex(forSubtitleFile: subtitleFile)
-                    let lookup = SubtitleActiveEntryLookup(entryIndex: index)
-                    let activeID = lookup.activeEntryID(atMilliseconds: currentMilliseconds)
-                    let activeIndex = activeID.flatMap { id in
-                        index.firstIndex { $0.id == id }
-                    } ?? 0
-                    let windowStart = Self.playbackSubtitleWindowStart(
-                        around: activeIndex,
-                        totalCount: index.count
-                    )
-                    let entries = try database.entries(
-                        forSubtitleFile: subtitleFile,
-                        limit: Self.playbackSubtitleWindowLimit,
-                        offset: windowStart
-                    )
-                    return PlaybackSubtitleWindowLoad(
-                        subtitlePath: subtitleFile.path,
-                        index: index,
-                        windowStartIndex: windowStart,
-                        entries: entries
-                    )
-                }.value
-
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                guard self?.currentSubtitleEntriesTaskRequestID == requestID,
-                      self?.currentPlaybackSubtitlePath == window.subtitlePath
-                else {
-                    return
-                }
-
-                self?.applyCurrentSubtitleWindow(window)
-                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                print("Failed to load current subtitle entries: \(error)")
-                guard self?.currentSubtitleEntriesTaskRequestID == requestID,
-                      self?.currentPlaybackSubtitlePath == subtitlePath
-                else {
-                    return
-                }
-                self?.applyCurrentSubtitleEntries([], subtitlePath: subtitlePath)
-                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
-            }
-        }
-    }
-
-    func loadCurrentSubtitleEntriesAroundActiveCue(_ entryID: Int64?) {
-        guard let entryID,
-              let currentPlaybackSubtitlePath,
-              let database = subtitleDatabase,
-              !playback.currentSubtitleEntryIndex.isEmpty
-        else {
-            return
-        }
-
-        let currentRange = playback.currentSubtitleEntryWindowRange
-        if playback.currentSubtitleEntries.contains(where: { $0.id == entryID }) {
-            return
-        }
-
-        guard let activeIndex = playback.currentSubtitleEntryIndex.firstIndex(where: { $0.id == entryID }),
-              !currentRange.contains(activeIndex)
-        else {
-            return
-        }
-
-        currentSubtitleEntriesTask?.cancel()
-        currentSubtitleEntriesTaskRequestID += 1
-        let requestID = currentSubtitleEntriesTaskRequestID
-        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
-        currentSubtitleEntriesTaskSubtitlePath = subtitleFile.path
-        let index = playback.currentSubtitleEntryIndex
-        let windowStart = Self.playbackSubtitleWindowStart(
-            around: activeIndex,
-            totalCount: index.count
-        )
-        currentSubtitleEntriesTask = Task { [weak self] in
-            do {
-                let entries = try await Task.detached(priority: .userInitiated) {
-                    try database.entries(
-                        forSubtitleFile: subtitleFile,
-                        limit: Self.playbackSubtitleWindowLimit,
-                        offset: windowStart
-                    )
-                }.value
-
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                guard self?.currentSubtitleEntriesTaskRequestID == requestID,
-                      self?.currentPlaybackSubtitlePath == subtitleFile.path
-                else {
-                    return
-                }
-
-                self?.applyCurrentSubtitleWindow(
-                    PlaybackSubtitleWindowLoad(
-                        subtitlePath: subtitleFile.path,
-                        index: index,
-                        windowStartIndex: windowStart,
-                        entries: entries
-                    )
-                )
-                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                print("Failed to load current subtitle entries: \(error)")
-                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
-            }
-        }
-    }
-
-    func loadCurrentSubtitleEntriesWindow(rows requestedRows: Range<Int>) {
-        guard let currentPlaybackSubtitlePath,
-              let database = subtitleDatabase,
-              !playback.currentSubtitleEntryIndex.isEmpty
-        else {
-            return
-        }
-
-        let totalCount = playback.currentSubtitleEntryIndex.count
-        let lowerBound = min(max(0, requestedRows.lowerBound), totalCount)
-        let upperBound = min(max(lowerBound, requestedRows.upperBound), totalCount)
-        guard lowerBound < upperBound else {
-            return
-        }
-
-        let requestedRange = lowerBound..<upperBound
-        let currentRange = playback.currentSubtitleEntryWindowRange
-        if currentRange.lowerBound <= requestedRange.lowerBound
-            && requestedRange.upperBound <= currentRange.upperBound {
-            return
-        }
-
-        currentSubtitleEntriesTask?.cancel()
-        currentSubtitleEntriesTaskRequestID += 1
-        let requestID = currentSubtitleEntriesTaskRequestID
-        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
-        currentSubtitleEntriesTaskSubtitlePath = subtitleFile.path
-        let index = playback.currentSubtitleEntryIndex
-        currentSubtitleEntriesTask = Task { [weak self] in
-            do {
-                let entries = try await Task.detached(priority: .userInitiated) {
-                    try database.entries(
-                        forSubtitleFile: subtitleFile,
-                        limit: requestedRange.count,
-                        offset: requestedRange.lowerBound
-                    )
-                }.value
-
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                guard self?.currentSubtitleEntriesTaskRequestID == requestID,
-                      self?.currentPlaybackSubtitlePath == subtitleFile.path
-                else {
-                    return
-                }
-
-                self?.applyCurrentSubtitleWindow(
-                    PlaybackSubtitleWindowLoad(
-                        subtitlePath: subtitleFile.path,
-                        index: index,
-                        windowStartIndex: requestedRange.lowerBound,
-                        entries: entries
-                    )
-                )
-                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                print("Failed to load current subtitle entries window: \(error)")
-                self?.finishCurrentSubtitleEntriesTask(requestID: requestID)
-            }
-        }
-    }
-
     @discardableResult
     func copyCurrentSubtitleToClipboard() -> Bool {
         guard let playbackViewModel = playback.playbackViewModel else {
@@ -866,8 +630,6 @@ extension AppCoordinator {
         workbenchLayout.selectPanelMode(.search)
         search.searchQuery = trimmedQuery
         search.searchNavigationSnapshot = nil
-        search.searchNavigationResultGroups = []
-        search.resetSearchNavigationVisibleWindow()
         playback.markQuickSearchSubmitted(query: trimmedQuery, source: resultSource)
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
         return true
@@ -1222,9 +984,7 @@ extension AppCoordinator {
     }
 
     private func configurePlaybackQuickSearchSubtitleLineSelection() {
-        let candidates = currentPlaybackQuickSearchLineCandidates()
-        let selectedIndex = currentPlaybackQuickSearchInitialLineIndex(in: candidates)
-        playback.setQuickSearchSubtitleLineCandidates(candidates, selectedIndex: selectedIndex)
+        playback.setQuickSearchSubtitleLineCandidates([], selectedIndex: nil)
     }
 
     private func configurePlaybackQuickSearchAIEntry() {
@@ -1547,43 +1307,6 @@ extension AppCoordinator {
         cancelSearchResultGroupTasks()
     }
 
-    private func currentPlaybackQuickSearchInitialLineIndex(
-        in candidates: [PlaybackQuickSearchLineCandidate]
-    ) -> Int? {
-        guard let playbackViewModel = playback.playbackViewModel else {
-            return nil
-        }
-
-        let milliseconds = max(0, Int((playbackViewModel.displayedCurrentTime * 1_000).rounded(.down)))
-        guard let entryID = playback.currentSubtitleEntryLookup.activeEntryID(atMilliseconds: milliseconds),
-              let selectedIndex = candidates.lastIndex(where: { $0.entryID == entryID })
-        else {
-            return nil
-        }
-
-        return selectedIndex
-    }
-
-    private func currentPlaybackQuickSearchLineCandidates() -> [PlaybackQuickSearchLineCandidate] {
-        playback.currentSubtitleEntries.enumerated().flatMap { entryIndex, entry in
-            subtitleDisplayLines(content: entry.content, cueLines: [])
-                .enumerated()
-                .compactMap { lineIndex, line in
-                    let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else {
-                        return nil
-                    }
-
-                    return PlaybackQuickSearchLineCandidate(
-                        entryID: entry.id,
-                        entryIndex: entryIndex,
-                        lineIndex: lineIndex,
-                        text: text
-                    )
-                }
-        }
-    }
-
     func stopPlayback() {
         do {
             cancelPlaybackQuickSearchAIChunking()
@@ -1595,10 +1318,6 @@ extension AppCoordinator {
             try player?.stop()
             playbackSubtitleCuesTask?.cancel()
             playbackSubtitleCuesTask = nil
-            currentSubtitleEntriesTask?.cancel()
-            currentSubtitleEntriesTask = nil
-            currentSubtitleEntriesTaskSubtitlePath = nil
-            currentSubtitleEntriesTaskRequestID += 1
             playback.playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
             search.selectedSearchResult = nil
@@ -1611,7 +1330,6 @@ extension AppCoordinator {
             playback.resetQuickSearchSubtitleLineNavigation()
             playback.resetQuickSearchResultSelection()
             playback.resetQuickSearchAIState()
-            applyCurrentSubtitleEntries([], subtitlePath: nil)
             if let originatingMode = playbackOriginatingPanelMode {
                 workbenchLayout.selectPanelMode(originatingMode)
                 playbackOriginatingPanelMode = nil
@@ -1646,58 +1364,6 @@ extension AppCoordinator {
         NSWorkspace.shared.activateFileViewerSelecting([
             URL(fileURLWithPath: path)
         ])
-    }
-
-    nonisolated static var playbackSubtitleWindowLimit: Int {
-        (playbackSubtitleWindowRadius * 2) + 1
-    }
-
-    nonisolated static func playbackSubtitleWindowStart(around index: Int, totalCount: Int) -> Int {
-        guard totalCount > 0 else {
-            return 0
-        }
-
-        let desiredStart = max(0, index - playbackSubtitleWindowRadius)
-        let maxStart = max(0, totalCount - playbackSubtitleWindowLimit)
-        return min(desiredStart, maxStart)
-    }
-
-    func applyCurrentSubtitleEntries(
-        _ entries: [SubtitleDatabaseEntry],
-        subtitlePath: String?
-    ) {
-        playback.currentSubtitleEntrySubtitlePath = subtitlePath
-        playback.currentSubtitleEntries = entries
-        playback.currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entries: entries)
-        playback.currentSubtitleEntryIndex = entries.map {
-            SubtitleDatabaseEntryIndexItem(
-                id: $0.id,
-                startMilliseconds: $0.startMilliseconds,
-                endMilliseconds: $0.endMilliseconds
-            )
-        }
-        playback.currentSubtitleEntryWindowStartIndex = 0
-        playback.currentSubtitleEntryTotalCount = entries.count
-        playback.currentSubtitleEntryRowsVersion += 1
-    }
-
-    func applyCurrentSubtitleWindow(_ window: PlaybackSubtitleWindowLoad) {
-        playback.currentSubtitleEntrySubtitlePath = window.subtitlePath
-        playback.currentSubtitleEntries = window.entries
-        playback.currentSubtitleEntryIndex = window.index
-        playback.currentSubtitleEntryWindowStartIndex = window.windowStartIndex
-        playback.currentSubtitleEntryTotalCount = window.index.count
-        playback.currentSubtitleEntryLookup = SubtitleActiveEntryLookup(entryIndex: window.index)
-        playback.currentSubtitleEntryRowsVersion += 1
-    }
-
-    func finishCurrentSubtitleEntriesTask(requestID: Int) {
-        guard currentSubtitleEntriesTaskRequestID == requestID else {
-            return
-        }
-
-        currentSubtitleEntriesTask = nil
-        currentSubtitleEntriesTaskSubtitlePath = nil
     }
 
     func initialPlaybackSubtitleCues(for result: SubtitleSearchResult) -> [PlaybackSubtitleCue] {

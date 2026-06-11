@@ -32,10 +32,6 @@ struct PlaybackPageView: View {
                     PlaybackFeedbackLayer(viewModel: viewModel)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .allowsHitTesting(false)
-
-                    PlaybackSearchNavigationTimeObserver(appState: appState, viewModel: viewModel)
-                        .frame(width: 0, height: 0)
-                        .allowsHitTesting(false)
                 }
 
                 quickSearchOverlay(in: geometry.size)
@@ -105,28 +101,4 @@ struct PlaybackPageView: View {
         }
     }
 
-}
-
-private struct PlaybackSearchNavigationTimeObserver: View {
-    let appState: AppCoordinator
-    @ObservedObject var viewModel: PlaybackViewModel
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onAppear {
-                updateActiveSearchNavigationResult()
-            }
-            .onChange(of: viewModel.displayedCurrentTime) { _ in
-                updateActiveSearchNavigationResult()
-            }
-    }
-
-    private func updateActiveSearchNavigationResult() {
-        let milliseconds = max(
-            0,
-            Int((viewModel.displayedCurrentTime * 1_000).rounded(.down))
-        )
-        appState.updateActiveSearchNavigationResult(currentMilliseconds: milliseconds)
-    }
 }

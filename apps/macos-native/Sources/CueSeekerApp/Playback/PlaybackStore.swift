@@ -78,13 +78,6 @@ enum PlaybackQuickSearchChunkCountState: Equatable {
 
 @MainActor
 final class PlaybackStore: ObservableObject {
-    @Published var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
-    @Published var currentSubtitleEntrySubtitlePath: String?
-    @Published var currentSubtitleEntryIndex: [SubtitleDatabaseEntryIndexItem] = []
-    @Published var currentSubtitleEntryWindowStartIndex = 0
-    @Published var currentSubtitleEntryTotalCount = 0
-    @Published var currentSubtitleEntryRowsVersion = 0
-    @Published var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = false
@@ -130,18 +123,6 @@ final class PlaybackStore: ObservableObject {
     private var quickSearchAIOptionsSnapshot: PlaybackQuickSearchAIOptionsSnapshot?
 
     init(userDefaults _: UserDefaults) {}
-
-    var currentSubtitleEntryWindowRange: Range<Int> {
-        currentSubtitleEntryWindowStartIndex..<(currentSubtitleEntryWindowStartIndex + currentSubtitleEntries.count)
-    }
-
-    func currentSubtitleEntry(at row: Int) -> SubtitleDatabaseEntry? {
-        let localIndex = row - currentSubtitleEntryWindowStartIndex
-        guard localIndex >= 0, localIndex < currentSubtitleEntries.count else {
-            return nil
-        }
-        return currentSubtitleEntries[localIndex]
-    }
 
     func setQuickSearchDraft(_ draft: String) {
         resetQuickSearchResultSelection()

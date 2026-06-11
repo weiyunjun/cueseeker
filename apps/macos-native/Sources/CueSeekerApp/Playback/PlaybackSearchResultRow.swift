@@ -1,10 +1,8 @@
 import CueSeekerCore
 import SwiftUI
 
-/// One Search Results row in the overlay panel, mirroring the prototype
-/// `.sidebar-row`: a meta line (global rank + timestamp) above the cue lines,
-/// with query-match highlighting reused from the info-page Search renderer.
-struct PlaybackSidebarResultRow: View {
+/// Compact playback search-result row used by the Quick Search overlay.
+struct PlaybackSearchResultRow: View {
     let rank: Int
     let result: SubtitleSearchResult
     let query: String

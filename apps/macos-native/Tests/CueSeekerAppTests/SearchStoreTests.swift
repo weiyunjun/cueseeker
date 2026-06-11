@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import AppKit
 import Testing
@@ -7,72 +6,7 @@ import CueSeekerCore
 
 @MainActor
 @Test
-func activeSearchNavigationResultFollowsPlaybackTimeWithinLoadedWindow() throws {
-    let store = SearchStore()
-    let results = try makeSearchResults()
-    let first = try #require(results.first { $0.content == "今日 first" })
-    let second = try #require(results.first { $0.content == "今日 second" })
-    let otherVideo = try #require(results.first { $0.content == "今日 other" })
-
-    store.selectedSearchResult = first
-    store.searchNavigationSnapshot = SearchNavigationSnapshot(
-        totalCount: 3,
-        currentIndex: first.searchRank,
-        neighborhood: [first, second, otherVideo],
-        previous: nil,
-        current: first,
-        next: second
-    )
-    store.applySearchNavigationVisibleWindow(
-        [first, second, otherVideo],
-        startIndex: 0,
-        totalCount: 3
-    )
-
-    store.updateActiveSearchNavigationResult(
-        videoPath: first.videoPath,
-        subtitlePath: first.subtitlePath,
-        currentMilliseconds: 3_250
-    )
-
-    #expect(store.activeSearchNavigationEntryID == second.entryID)
-    #expect(store.activeSearchNavigationRank == second.searchRank)
-}
-
-@MainActor
-@Test
-func activeSearchNavigationResultDoesNotPublishWhenResultIsUnchanged() throws {
-    let store = SearchStore()
-    let result = try #require(try makeSearchResults().first { $0.content == "今日 first" })
-    store.selectedSearchResult = result
-    store.searchNavigationSnapshot = SearchNavigationSnapshot(
-        totalCount: 1,
-        currentIndex: result.searchRank,
-        neighborhood: [result],
-        previous: nil,
-        current: result,
-        next: nil
-    )
-    store.applyActiveSearchNavigationResult(result)
-
-    var publishedChangeCount = 0
-    let cancellable = store.objectWillChange.sink {
-        publishedChangeCount += 1
-    }
-
-    store.updateActiveSearchNavigationResult(
-        videoPath: result.videoPath,
-        subtitlePath: result.subtitlePath,
-        currentMilliseconds: 1_250
-    )
-
-    #expect(publishedChangeCount == 0)
-    _ = cancellable
-}
-
-@MainActor
-@Test
-func tableSandboxAllCueContextFeedsPlaybackSearchNavigationWindow() throws {
+func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
     let suiteName = "CueSeekerTableSandboxSearchContextTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
@@ -106,9 +40,6 @@ func tableSandboxAllCueContextFeedsPlaybackSearchNavigationWindow() throws {
     #expect(app.search.searchKnownResultCount == 42)
     #expect(app.search.hasMoreSearchResults)
     #expect(app.nextGlobalSearchCursor?.offset == 11)
-    #expect(app.search.searchNavigationVisibleWindowStartIndex == 10)
-    #expect(app.search.searchNavigationVisibleTotalCount == 42)
-    #expect(app.search.searchNavigationVisibleResult(at: 10) == result)
 }
 
 @MainActor
@@ -189,7 +120,6 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
     #expect(snapshot.current?.entryID == selected.entryID)
     #expect(snapshot.previous?.content == "before selected")
     #expect(snapshot.next?.content == "after selected")
-    #expect(app.search.searchNavigationVisibleResult(at: selected.searchRank)?.entryID == selected.entryID)
 }
 
 private func makeSearchResults() throws -> [SubtitleSearchResult] {

@@ -31,7 +31,6 @@ enum PlaybackChromeButtonKind {
 enum PlaybackChromeIcon {
     case system(String)
     case copy
-    case sidebar(isOpen: Bool)
 }
 
 struct PlaybackChromeIconButton: View {
@@ -121,49 +120,7 @@ private struct PlaybackChromeIconView: View {
         case .copy:
             Image(systemName: "doc.on.doc")
                 .font(.system(size: size, weight: .semibold))
-        case .sidebar(let isOpen):
-            PlaybackSidebarIconView(isOpen: isOpen, size: size)
         }
-    }
-}
-
-struct PlaybackSidebarIconView: View {
-    let isOpen: Bool
-    let size: CGFloat
-
-    var body: some View {
-        ZStack {
-            // Outer rounded rectangle outline (always drawn) using strokeBorder for perfect boundary alignment
-            RoundedRectangle(cornerRadius: 3.2)
-                .strokeBorder(lineWidth: 2.0)
-
-            // Vertical dividing line (always drawn)
-            GeometryReader { geo in
-                Path { path in
-                    let x = geo.size.width * 0.68
-                    path.move(to: CGPoint(x: x, y: 0))
-                    path.addLine(to: CGPoint(x: x, y: geo.size.height))
-                }
-                .stroke(lineWidth: 2.0)
-            }
-
-            // If open, fill the right chamber solid white
-            if isOpen {
-                RoundedRectangle(cornerRadius: 3.2)
-                    .mask(
-                        GeometryReader { geo in
-                            HStack(spacing: 0) {
-                                Spacer(minLength: 0)
-                                // Add 1.0px to overlap the dividing line completely to prevent sub-pixel seams
-                                Rectangle()
-                                    .frame(width: geo.size.width * 0.32 + 1.0, height: geo.size.height)
-                            }
-                        }
-                    )
-            }
-        }
-        .compositingGroup()
-        .frame(width: size, height: size)
     }
 }
 

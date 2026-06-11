@@ -445,7 +445,7 @@ struct PlaybackQuickSearchOverlay: View {
                     ScrollView(.vertical, showsIndicators: true) {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(Array(results.enumerated()), id: \.element.entryID) { index, result in
-                                PlaybackSidebarResultRow(
+                                PlaybackSearchResultRow(
                                     rank: index + 1,
                                     result: result,
                                     query: submittedQuery ?? "",
