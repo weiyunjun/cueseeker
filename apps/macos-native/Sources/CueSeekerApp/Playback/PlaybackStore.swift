@@ -78,10 +78,6 @@ enum PlaybackQuickSearchChunkCountState: Equatable {
 
 @MainActor
 final class PlaybackStore: ObservableObject {
-    private static let sidePanelVisibleKey = "playbackSidePanelVisible"
-
-    private let userDefaults: UserDefaults
-
     @Published var currentSubtitleEntries: [SubtitleDatabaseEntry] = []
     @Published var currentSubtitleEntrySubtitlePath: String?
     @Published var currentSubtitleEntryIndex: [SubtitleDatabaseEntryIndexItem] = []
@@ -91,11 +87,7 @@ final class PlaybackStore: ObservableObject {
     @Published var currentSubtitleEntryLookup = SubtitleActiveEntryLookup()
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
-    @Published var isPlaybackSidePanelVisible: Bool {
-        didSet {
-            userDefaults.set(isPlaybackSidePanelVisible, forKey: Self.sidePanelVisibleKey)
-        }
-    }
+    @Published var isPlaybackSidePanelVisible = false
     @Published var isTimelineScrubbing = false
     @Published var timelineScrubTime: Double?
     @Published var playbackViewModel: PlaybackViewModel?
@@ -137,10 +129,7 @@ final class PlaybackStore: ObservableObject {
     private var isApplyingQuickSearchDraftUpdate = false
     private var quickSearchAIOptionsSnapshot: PlaybackQuickSearchAIOptionsSnapshot?
 
-    init(userDefaults: UserDefaults) {
-        self.userDefaults = userDefaults
-        isPlaybackSidePanelVisible = userDefaults.object(forKey: Self.sidePanelVisibleKey) as? Bool ?? false
-    }
+    init(userDefaults _: UserDefaults) {}
 
     var currentSubtitleEntryWindowRange: Range<Int> {
         currentSubtitleEntryWindowStartIndex..<(currentSubtitleEntryWindowStartIndex + currentSubtitleEntries.count)

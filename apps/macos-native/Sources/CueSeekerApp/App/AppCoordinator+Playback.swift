@@ -40,22 +40,6 @@ extension AppCoordinator {
         }
     }
 
-    func togglePlaybackSidePanelFromUser() {
-        guard hasPlaybackSelection else {
-            return
-        }
-
-        // The overlay panel floats over the video and never resizes it, so
-        // this toggle is NOT a video-size-changing command: it must not pass
-        // through the serialized resize gate (it must never be swallowed by
-        // the rapid-repeat guard or serialized with fullscreen/zoom) and must
-        // not animate as a video-size transition or mutate
-        // playback.isPlaybackSurfaceExpanded (architecture §7.1, doc 12 §11). The
-        // panel's own ~180 ms show/hide animation is owned by PlaybackPageView.
-        playback.isPlaybackSidePanelVisible.toggle()
-        playback.playbackViewModel?.showSidebarFeedback(isVisible: playback.isPlaybackSidePanelVisible)
-    }
-
     func exitPlaybackFullscreenFromUser() {
         guard playbackFullscreenManager.isFullscreen else {
             return

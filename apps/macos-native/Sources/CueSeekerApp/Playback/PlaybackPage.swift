@@ -6,7 +6,6 @@ struct PlaybackPageView: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppCoordinator
     let onClose: () -> Void
-    @State private var activePanel: PlaybackDrawerKind = .results
     @EnvironmentObject private var playback: PlaybackStore
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var search: SearchStore
@@ -15,9 +14,8 @@ struct PlaybackPageView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            // The video stage fills the whole window. The overlay panel floats
-            // above it (centered, prototype geometry) and never squeezes it, so
-            // toggling the panel cannot resize the video stage or disturb seek.
+            // The video stage fills the whole window so playback geometry is
+            // independent from auxiliary overlays.
             ZStack(alignment: .top) {
                 PlaybackVideoStage(
                     playbackSurface: playbackSurface,
@@ -27,10 +25,7 @@ struct PlaybackPageView: View {
                 )
                 .frame(width: geometry.size.width, height: geometry.size.height)
 
-                overlayPanel(in: geometry.size)
-
-                // The feedback HUD renders above the overlay panel and is
-                // centered within the full-window black video base
+                // The feedback HUD is centered within the full-window black video base
                 // (doc 12 §11/§13.4). It is the SwiftUI feedback layer only;
                 // the native render/seek path is untouched.
                 if let viewModel = playback.playbackViewModel {
@@ -54,40 +49,6 @@ struct PlaybackPageView: View {
         .onChange(of: appState.currentPlaybackSubtitlePath) { _ in
             refreshSidebarData()
         }
-    }
-
-    @ViewBuilder
-    private func overlayPanel(in size: CGSize) -> some View {
-        let visible = playback.isPlaybackSidePanelVisible
-        let panelWidth = min(
-            PlaybackOverlayPanelMetrics.maxWidth,
-            max(0, size.width - 40)
-        )
-        let panelHeight = max(
-            0,
-            size.height
-                - PlaybackOverlayPanelMetrics.topInset
-                - PlaybackOverlayPanelMetrics.bottomInset
-        )
-
-        PlaybackSidebarShell(appState: appState, activePanel: $activePanel)
-            .frame(width: panelWidth, height: panelHeight)
-            .background(PlaybackTheme.cinematicBacking)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
-            )
-            .shadow(color: Color.black.opacity(0.42), radius: 24, x: 0, y: 12)
-            .opacity(visible ? 1 : 0)
-            .scaleEffect(visible ? 1 : 0.98)
-            .position(
-                x: size.width - 20 - panelWidth / 2,
-                y: PlaybackOverlayPanelMetrics.topInset + panelHeight / 2
-            )
-            .offset(y: visible ? 0 : 10)
-            .allowsHitTesting(visible)
-            .animation(.easeInOut(duration: 0.18), value: visible)
     }
 
     @ViewBuilder

@@ -10,9 +10,6 @@ struct PlaybackChromeControls {
     let goNext: () -> Void
     let toggleShiori: () -> Void
     let copySubtitle: () -> Void
-    let isSidePanelVisible: Bool
-    let canToggleSidePanel: Bool
-    let toggleSidePanel: () -> Void
     let isFullscreen: Bool
     let isFullscreenToggleDisabled: Bool
     let toggleFullscreen: () -> Void
@@ -36,9 +33,6 @@ extension PlaybackChromeControls {
             copySubtitle: {
                 _ = appState.copyCurrentSubtitleToClipboard()
             },
-            isSidePanelVisible: appState.playback.isPlaybackSidePanelVisible,
-            canToggleSidePanel: appState.hasPlaybackSelection,
-            toggleSidePanel: appState.togglePlaybackSidePanelFromUser,
             isFullscreen: appState.playbackFullscreenManager.isFullscreen,
             isFullscreenToggleDisabled: appState.isPlaybackFullscreenToggleDisabled,
             toggleFullscreen: fullscreenAction ?? {
@@ -261,17 +255,6 @@ struct PlaybackChromeView: View {
                     hasPersistentBase: false,
                     accessibilityLabel: "Subtitles",
                     action: viewModel.toggleSubtitles
-                )
-
-                PlaybackChromeIconButton(
-                    icon: .sidebar(isOpen: controls.isSidePanelVisible),
-                    kind: .transport,
-                    isSelected: false,
-                    isDisabled: !controls.canToggleSidePanel,
-                    suppressesInteraction: playback.isTimelineScrubbing,
-                    hasPersistentBase: false,
-                    accessibilityLabel: "Results panel",
-                    action: controls.toggleSidePanel
                 )
             }
             .frame(height: 40)
