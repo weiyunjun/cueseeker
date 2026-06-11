@@ -288,6 +288,16 @@ Rules:
 - Unless the user explicitly asks for a detailed explanation, AI responses
   should be concise and clear, with the most important conclusions emphasized in
   bold so the answer is easy to scan.
+- When explaining a bug, regression, fix plan, or implementation approach, the
+  AI must use outcome-oriented engineering communication before naming code
+  symbols. The explanation should answer, as applicable: why the bug happened,
+  what mechanism the fix uses, how the change prevents recurrence, whether the
+  approach conflicts with existing design direction, and which execution steps
+  are needed with the purpose of each step.
+- Code identifiers, file paths, function names, variable names, and line numbers
+  are supporting evidence only. They must not replace the causal explanation,
+  and they should normally appear after the human-readable engineering summary
+  unless the user explicitly asks only for code locations.
 - When an implementation step has an agreed benchmark or acceptance metric, and
   the measured result is a regression or does not support the stated goal, the
   AI must stop and report the result before continuing to the next step. It
