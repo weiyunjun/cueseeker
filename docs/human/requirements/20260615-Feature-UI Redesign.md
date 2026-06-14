@@ -98,6 +98,7 @@ main
 --size-checkbox: 16px
 --size-inline-clear-button: 32px
 --size-inline-clear-icon: 20px
+--size-inline-clear-symbol-font-size-macos: 11pt
 --size-control-icon: 20px
 --size-icon-button: 40px
 --size-row-action-button: 36px
@@ -188,6 +189,8 @@ Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
 #### Content
 Icon: x
 Icon Size: --size-inline-clear-icon
+Native macOS Symbol: SF Symbol xmark, bold
+Native macOS Symbol Font Size: --size-inline-clear-symbol-font-size-macos
 Icon Default: --color-icon-default
 Icon Disabled: --color-icon-disabled
 
