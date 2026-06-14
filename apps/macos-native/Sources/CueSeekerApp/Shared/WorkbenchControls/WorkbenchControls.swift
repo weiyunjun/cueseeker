@@ -252,6 +252,63 @@ struct WorkbenchPlainActionButton: View {
     }
 }
 
+struct WorkbenchFilterPanelTriggerButton: View {
+    let title: String
+    var isEnabled: Bool = true
+    var onTrigger: () -> Void
+    var onClear: () -> Void
+
+    @State private var isHovered = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: onTrigger) {
+                HStack(spacing: 8) {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text(title)
+                        .font(.system(size: 15, weight: .medium))
+                }
+                .foregroundStyle(isEnabled ? Color(hex: "#0040FF") : Color(hex: "#98A2B3"))
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!isEnabled)
+
+            WorkbenchInlineClearButton(
+                isEnabled: isEnabled,
+                isActiveContext: true,
+                action: onClear
+            )
+            .padding(.trailing, 8)
+        }
+        .frame(height: 48)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isEnabled ? (isHovered ? Color(hex: "#E1EBFF") : Color(hex: "#EBF5FF")) : Color(hex: "#F3F4F6"))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(isEnabled ? Color(hex: "#0040FF") : Color(hex: "#E5E7EB"), lineWidth: 1)
+        )
+        .focused($isFocused)
+        .onHover { isHovered = $0 }
+        .overlay(
+            Group {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                        .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
+                        .padding(-3)
+                }
+            }
+        )
+    }
+}
+
 struct WorkbenchFilterChip: View {
     let systemImage: String
     let title: String

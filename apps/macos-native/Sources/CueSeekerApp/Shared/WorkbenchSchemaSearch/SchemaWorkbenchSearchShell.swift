@@ -279,6 +279,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 SchemaWorkbenchFilterControlBar(
                     activeFilterSetName: activeFilterSetName,
                     filterCount: filterRules.count,
+                    isRedesign: isRedesign,
                     onFilterSets: {
                         togglePopover(.filterSets)
                     },
@@ -643,6 +644,7 @@ struct SchemaWorkbenchSearchCommandBar: View {
 struct SchemaWorkbenchFilterControlBar: View {
     let activeFilterSetName: String?
     let filterCount: Int
+    var isRedesign: Bool = false
     var onFilterSets: () -> Void
     var onFilterBuilder: () -> Void
     var onReset: () -> Void
@@ -657,19 +659,27 @@ struct SchemaWorkbenchFilterControlBar: View {
             )
 
             if filterCount > 0 {
-                WorkbenchFilterChip(
-                    systemImage: "line.3.horizontal.decrease",
-                    title: activeFilterSetName ?? "\(filterCount) Filters",
-                    detail: activeFilterSetName == nil ? nil : "\(filterCount) Filters",
-                    action: onFilterBuilder
-                )
+                if isRedesign {
+                    WorkbenchFilterPanelTriggerButton(
+                        title: activeFilterSetName ?? "\(filterCount) Filters",
+                        onTrigger: onFilterBuilder,
+                        onClear: onReset
+                    )
+                } else {
+                    WorkbenchFilterChip(
+                        systemImage: "line.3.horizontal.decrease",
+                        title: activeFilterSetName ?? "\(filterCount) Filters",
+                        detail: activeFilterSetName == nil ? nil : "\(filterCount) Filters",
+                        action: onFilterBuilder
+                    )
 
-                WorkbenchToolbarButton(
-                    title: "Reset",
-                    systemImage: "xmark",
-                    showsChevron: false,
-                    action: onReset
-                )
+                    WorkbenchToolbarButton(
+                        title: "Reset",
+                        systemImage: "xmark",
+                        showsChevron: false,
+                        action: onReset
+                    )
+                }
             } else {
                 WorkbenchPlainActionButton(
                     title: "New Filter Set",
