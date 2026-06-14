@@ -55,7 +55,7 @@ struct WorkbenchInlineClearButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .frame(width: 20, height: 20)
                 .foregroundStyle(isEnabled ? Color(hex: "#667085") : Color(hex: "#98A2B3"))
                 .frame(width: 32, height: 32)
