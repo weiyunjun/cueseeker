@@ -339,7 +339,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     SchemaWorkbenchStyle.pageHorizontalPadding,
                     geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220
                 ),
-                y: SchemaWorkbenchStyle.viewPopoverTop
+                y: SchemaWorkbenchStyle.viewPopoverTop(isRedesign: isRedesign)
             )
         case .filterSets:
             SchemaWorkbenchFilterSetPopover(
@@ -350,7 +350,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             .frame(width: 260)
             .offset(
                 x: SchemaWorkbenchStyle.pageHorizontalPadding,
-                y: SchemaWorkbenchStyle.filterPopoverTop
+                y: SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
             )
         case .filterBuilder:
             SchemaWorkbenchFilterBuilderPopover(
@@ -363,7 +363,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
             .offset(
                 x: SchemaWorkbenchStyle.pageHorizontalPadding,
-                y: SchemaWorkbenchStyle.filterPopoverTop
+                y: SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
             )
         }
     }
@@ -597,12 +597,19 @@ enum SchemaWorkbenchStyle {
     static let hairlineWidth: CGFloat = 0.5
     static let rowGap: CGFloat = 12
 
-    static let viewPopoverTop = pageTopPadding + WorkbenchControlMetrics.searchFieldHeight + 8
-    static let filterPopoverTop = pageTopPadding
-        + WorkbenchControlMetrics.searchFieldHeight
-        + rowGap
-        + WorkbenchControlMetrics.controlHeight
-        + 8
+    static func viewPopoverTop(isRedesign: Bool) -> CGFloat {
+        let searchHeight = isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight
+        return pageTopPadding + searchHeight + 8
+    }
+
+    static func filterPopoverTop(isRedesign: Bool) -> CGFloat {
+        let searchHeight = isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight
+        return pageTopPadding
+            + searchHeight
+            + rowGap
+            + WorkbenchControlMetrics.controlHeight
+            + 8
+    }
 }
 
 struct SchemaWorkbenchSearchCommandBar: View {
