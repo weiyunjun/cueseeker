@@ -34,6 +34,7 @@ struct WorkbenchTestSearch2View: View {
             filterRules: $filterRules,
             filterSets: $settingsStore.searchFilterSets,
             columns: SchemaWorkbenchSearchDefaults.columns,
+            isRedesign: true,
             onSearchSubmit: {
                 submitSearchDraft()
             }

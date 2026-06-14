@@ -230,6 +230,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
+    let isRedesign: Bool
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
@@ -243,6 +244,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         filterSets: Binding<[SchemaWorkbenchFilterSet]>,
         columns: [WorkbenchTableColumn],
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
+        isRedesign: Bool = false,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
@@ -253,6 +255,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         _filterSets = filterSets
         self.columns = columns
         self.searchPlaceholder = searchPlaceholder
+        self.isRedesign = isRedesign
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
     }
@@ -263,6 +266,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 SchemaWorkbenchSearchCommandBar(
                     placeholder: searchPlaceholder,
                     searchDraft: $searchDraft,
+                    isRedesign: isRedesign,
                     onSubmit: onSearchSubmit,
                     onViewMenu: {
                         togglePopover(.columnVisibility)
@@ -604,6 +608,7 @@ enum SchemaWorkbenchStyle {
 struct SchemaWorkbenchSearchCommandBar: View {
     let placeholder: String
     @Binding var searchDraft: String
+    var isRedesign: Bool = false
     var onSubmit: (() -> Void)?
     var onViewMenu: () -> Void
 
@@ -612,6 +617,7 @@ struct SchemaWorkbenchSearchCommandBar: View {
             WorkbenchSearchField(
                 placeholder: placeholder,
                 text: $searchDraft,
+                isRedesign: isRedesign,
                 onSubmit: onSubmit
             )
             .frame(maxWidth: .infinity)
@@ -623,7 +629,7 @@ struct SchemaWorkbenchSearchCommandBar: View {
                 action: onViewMenu
             )
         }
-        .frame(height: WorkbenchControlMetrics.searchFieldHeight)
+        .frame(height: isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight)
     }
 }
 

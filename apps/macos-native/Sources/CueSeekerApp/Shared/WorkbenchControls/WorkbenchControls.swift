@@ -18,38 +18,142 @@ enum WorkbenchControlColors {
     static let hoverFill = Color(nsColor: .labelColor).opacity(0.06)
 }
 
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
+struct WorkbenchInlineClearButton: View {
+    var isEnabled: Bool = true
+    var isActiveContext: Bool = false
+    var action: () -> Void
+
+    @State private var isHovered = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 20, height: 20)
+                .foregroundStyle(isEnabled ? Color(hex: "#667085") : Color(hex: "#98A2B3"))
+                .frame(width: 32, height: 32)
+                .background(
+                    Group {
+                        if isEnabled && isHovered {
+                            RoundedRectangle(cornerRadius: 9999, style: .continuous)
+                                .fill(isActiveContext ? Color(hex: "#D8E8FD") : Color(hex: "#F3F4F6"))
+                        }
+                    }
+                )
+        }
+        .buttonStyle(.plain)
+        .focused($isFocused)
+        .onHover { isHovered = $0 }
+        .overlay(
+            Group {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: 9999, style: .continuous)
+                        .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
+                        .padding(-3)
+                }
+            }
+        )
+    }
+}
+
 struct WorkbenchSearchField: View {
     let placeholder: String
     @Binding var text: String
+    var isRedesign: Bool
     var onSubmit: (() -> Void)?
+
+    @FocusState private var isFocused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     init(
         placeholder: String,
         text: Binding<String>,
+        isRedesign: Bool = false,
         onSubmit: (() -> Void)? = nil
     ) {
         self.placeholder = placeholder
         _text = text
+        self.isRedesign = isRedesign
         self.onSubmit = onSubmit
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: isRedesign ? 12 : 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(WorkbenchControlColors.mutedText)
+                .font(.system(size: isRedesign ? 20 : 18, weight: .regular))
+                .foregroundStyle(isRedesign ? (isEnabled ? Color(hex: "#667085") : Color(hex: "#98A2B3")) : WorkbenchControlColors.mutedText)
 
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .regular))
-                .foregroundStyle(WorkbenchControlColors.primaryText)
-                .onSubmit {
-                    onSubmit?()
+            ZStack(alignment: .leading) {
+                if text.isEmpty {
+                    Text(placeholder)
+                        .font(.system(size: isRedesign ? 16 : 15, weight: .regular))
+                        .foregroundStyle(isRedesign ? Color(hex: "#98A2B3") : WorkbenchControlColors.mutedText)
                 }
+                TextField("", text: $text)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: isRedesign ? 16 : 15, weight: .regular))
+                    .foregroundStyle(isRedesign ? (isEnabled ? Color(hex: "#0F172A") : Color(hex: "#98A2B3")) : WorkbenchControlColors.primaryText)
+                    .focused($isFocused)
+                    .onSubmit {
+                        onSubmit?()
+                    }
+            }
+
+            if isRedesign && !text.isEmpty {
+                WorkbenchInlineClearButton(isEnabled: isEnabled, isActiveContext: false) {
+                    text = ""
+                }
+            }
         }
-        .padding(.horizontal, 18)
-        .frame(height: WorkbenchControlMetrics.searchFieldHeight)
-        .background(WorkbenchControlBackground())
+        .padding(.horizontal, isRedesign ? 16 : 18)
+        .frame(height: isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight)
+        .background(
+            RoundedRectangle(cornerRadius: isRedesign ? 9999 : WorkbenchControlMetrics.cornerRadius, style: .continuous)
+                .fill(isRedesign ? (isEnabled ? Color(hex: "#FFFFFF") : Color(hex: "#F3F4F6")) : WorkbenchControlColors.surfaceFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: isRedesign ? 9999 : WorkbenchControlMetrics.cornerRadius, style: .continuous)
+                .strokeBorder(
+                    isRedesign ? (isFocused ? Color(hex: "#3B82F6") : Color(hex: "#E5E7EB")) : WorkbenchControlColors.border,
+                    lineWidth: isRedesign ? 1.0 : WorkbenchControlMetrics.hairlineWidth
+                )
+        )
+        .overlay(
+            Group {
+                if isRedesign && isFocused {
+                    RoundedRectangle(cornerRadius: 9999 + 3, style: .continuous)
+                        .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
+                        .padding(-3)
+                }
+            }
+        )
     }
 }
 

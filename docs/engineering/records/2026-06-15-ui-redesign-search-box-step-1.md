@@ -1,0 +1,26 @@
+# UI Redesign Search Box Step 1
+
+Human requirement:
+
+- `docs/human/requirements/20260615-Feature-UI Redesign.md`
+
+## Scope
+
+This record covers the implementation of Component 2.1 (Search Box) and Component 2.2 (Inline Clear Button) of the UI Redesign. It updates the native macOS search layout controls to support dynamic redesign configuration.
+
+## Changes
+
+- Added `Color(hex:)` initializer to `Color` in [WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) to support Hex Color definitions.
+- Created `WorkbenchInlineClearButton` in [WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) to provide the 32px clear button styling, background hovers, and focus rings.
+- Updated `WorkbenchSearchField` in [WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) to support `isRedesign` with custom 48px height, 9999px capsule corner radius, colors, focus borders, focus rings, and conditional placement of the clear button.
+- Updated `SchemaWorkbenchSearchShell` and `SchemaWorkbenchSearchCommandBar` in [SchemaWorkbenchSearchShell.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchSchemaSearch/SchemaWorkbenchSearchShell.swift) to accept and pass through `isRedesign: Bool`.
+- Activated `isRedesign: true` in `WorkbenchTestSearch2View` in [WorkbenchTestSearch2View.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/TableSandbox/WorkbenchTestSearch2View.swift) to apply the redesign styling.
+
+## Verification
+
+- Compiled application successfully via `swift build --product CueSeeker`.
+- All 270 unit tests executed successfully via `swift test --jobs 1 --quiet`.
+
+## Outcome
+
+- The Search Box in `Test Search 2` now renders with capsule corners, custom height (48px), dynamic hover/disabled/focused background/border colors, focus rings, and an inline clear button matching the UI requirements.
