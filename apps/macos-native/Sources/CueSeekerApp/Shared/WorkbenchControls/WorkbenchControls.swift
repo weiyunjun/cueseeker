@@ -110,20 +110,18 @@ struct WorkbenchSearchField: View {
                 .font(.system(size: isRedesign ? 20 : 18, weight: .regular))
                 .foregroundStyle(isRedesign ? (isEnabled ? Color(hex: "#667085") : Color(hex: "#98A2B3")) : WorkbenchControlColors.mutedText)
 
-            ZStack(alignment: .leading) {
-                if text.isEmpty {
-                    Text(placeholder)
-                        .font(.system(size: isRedesign ? 16 : 15, weight: .regular))
-                        .foregroundStyle(isRedesign ? Color(hex: "#98A2B3") : WorkbenchControlColors.mutedText)
-                }
-                TextField("", text: $text)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: isRedesign ? 16 : 15, weight: .regular))
-                    .foregroundStyle(isRedesign ? (isEnabled ? Color(hex: "#0F172A") : Color(hex: "#98A2B3")) : WorkbenchControlColors.primaryText)
-                    .focused($isFocused)
-                    .onSubmit {
-                        onSubmit?()
-                    }
+            TextField(
+                "",
+                text: $text,
+                prompt: Text(placeholder)
+                    .foregroundColor(isRedesign ? Color(hex: "#98A2B3") : WorkbenchControlColors.mutedText)
+            )
+            .textFieldStyle(.plain)
+            .font(.system(size: isRedesign ? 16 : 15, weight: .regular))
+            .foregroundStyle(isRedesign ? (isEnabled ? Color(hex: "#0F172A") : Color(hex: "#98A2B3")) : WorkbenchControlColors.primaryText)
+            .focused($isFocused)
+            .onSubmit {
+                onSubmit?()
             }
 
             if isRedesign && !text.isEmpty {
