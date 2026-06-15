@@ -651,6 +651,7 @@ struct SchemaWorkbenchFilterControlBar: View {
     var onReset: () -> Void
 
     var body: some View {
+        let filterCountText = filterCount == 1 ? "1 Filter" : "\(filterCount) Filters"
         HStack(spacing: 10) {
             WorkbenchToolbarButton(
                 title: "Filter Sets",
@@ -662,16 +663,16 @@ struct SchemaWorkbenchFilterControlBar: View {
             if filterCount > 0 {
                 if isRedesign {
                     WorkbenchFilterPanelTriggerButton(
-                        title: activeFilterSetName ?? "\(filterCount) Filters",
-                        detail: activeFilterSetName == nil ? nil : "\(filterCount) Filters",
+                        title: activeFilterSetName ?? filterCountText,
+                        detail: activeFilterSetName == nil ? nil : filterCountText,
                         onTrigger: onFilterBuilder,
                         onClear: onReset
                     )
                 } else {
                     WorkbenchFilterChip(
                         systemImage: "line.3.horizontal.decrease",
-                        title: activeFilterSetName ?? "\(filterCount) Filters",
-                        detail: activeFilterSetName == nil ? nil : "\(filterCount) Filters",
+                        title: activeFilterSetName ?? filterCountText,
+                        detail: activeFilterSetName == nil ? nil : filterCountText,
                         action: onFilterBuilder
                     )
 

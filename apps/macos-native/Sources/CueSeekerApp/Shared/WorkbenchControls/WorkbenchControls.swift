@@ -268,13 +268,15 @@ struct WorkbenchFilterPanelTriggerButton: View {
                 HStack(spacing: 8) {
                     Image(systemName: "line.3.horizontal.decrease")
                         .font(.system(size: 16, weight: .semibold))
-                    Text(title)
-                        .font(.system(size: 15, weight: .medium))
+                    if let detail {
+                        (Text(title).font(.system(size: 15, weight: .medium))
+                         + Text(" · ").font(.system(size: 15, weight: .medium))
+                         + Text(detail).font(.system(size: 15, weight: .semibold)))
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
-                    if let detail {
-                        Text(detail)
-                            .font(.system(size: 15, weight: .semibold))
+                    } else {
+                        Text(title)
+                            .font(.system(size: 15, weight: .medium))
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
                     }
