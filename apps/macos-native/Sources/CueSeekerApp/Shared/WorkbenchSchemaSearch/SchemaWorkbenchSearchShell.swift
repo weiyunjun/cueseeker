@@ -663,6 +663,7 @@ struct SchemaWorkbenchFilterControlBar: View {
                 if isRedesign {
                     WorkbenchFilterPanelTriggerButton(
                         title: activeFilterSetName ?? "\(filterCount) Filters",
+                        detail: activeFilterSetName == nil ? nil : "\(filterCount) Filters",
                         onTrigger: onFilterBuilder,
                         onClear: onReset
                     )

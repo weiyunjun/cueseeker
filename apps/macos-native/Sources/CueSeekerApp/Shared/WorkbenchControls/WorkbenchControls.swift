@@ -254,6 +254,7 @@ struct WorkbenchPlainActionButton: View {
 
 struct WorkbenchFilterPanelTriggerButton: View {
     let title: String
+    var detail: String? = nil
     var isEnabled: Bool = true
     var onTrigger: () -> Void
     var onClear: () -> Void
@@ -269,6 +270,14 @@ struct WorkbenchFilterPanelTriggerButton: View {
                         .font(.system(size: 16, weight: .semibold))
                     Text(title)
                         .font(.system(size: 15, weight: .medium))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    if let detail {
+                        Text(detail)
+                            .font(.system(size: 15, weight: .semibold))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                 }
                 .foregroundStyle(isEnabled ? Color(hex: "#0040FF") : Color(hex: "#98A2B3"))
                 .padding(.leading, 16)
