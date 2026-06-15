@@ -267,6 +267,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     placeholder: searchPlaceholder,
                     searchDraft: $searchDraft,
                     isRedesign: isRedesign,
+                    isViewMenuOpen: openPopover == .columnVisibility,
                     onSubmit: onSearchSubmit,
                     onViewMenu: {
                         togglePopover(.columnVisibility)
@@ -280,6 +281,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     activeFilterSetName: activeFilterSetName,
                     filterCount: filterRules.count,
                     isRedesign: isRedesign,
+                    isFilterSetsMenuOpen: openPopover == .filterSets,
+                    isFilterBuilderMenuOpen: openPopover == .filterBuilder,
                     onFilterSets: {
                         togglePopover(.filterSets)
                     },
@@ -618,6 +621,7 @@ struct SchemaWorkbenchSearchCommandBar: View {
     let placeholder: String
     @Binding var searchDraft: String
     var isRedesign: Bool = false
+    var isViewMenuOpen: Bool = false
     var onSubmit: (() -> Void)?
     var onViewMenu: () -> Void
 
@@ -636,6 +640,7 @@ struct SchemaWorkbenchSearchCommandBar: View {
                 systemImage: "slider.horizontal.3",
                 showsChevron: true,
                 isRedesign: isRedesign,
+                isMenuOpen: isViewMenuOpen,
                 action: onViewMenu
             )
         }
@@ -647,6 +652,8 @@ struct SchemaWorkbenchFilterControlBar: View {
     let activeFilterSetName: String?
     let filterCount: Int
     var isRedesign: Bool = false
+    var isFilterSetsMenuOpen: Bool = false
+    var isFilterBuilderMenuOpen: Bool = false
     var onFilterSets: () -> Void
     var onFilterBuilder: () -> Void
     var onReset: () -> Void
@@ -659,6 +666,7 @@ struct SchemaWorkbenchFilterControlBar: View {
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
                 isRedesign: isRedesign,
+                isMenuOpen: isFilterSetsMenuOpen,
                 action: onFilterSets
             )
 
@@ -667,6 +675,7 @@ struct SchemaWorkbenchFilterControlBar: View {
                     WorkbenchFilterPanelTriggerButton(
                         title: activeFilterSetName ?? filterCountText,
                         detail: activeFilterSetName == nil ? nil : filterCountText,
+                        isMenuOpen: isFilterBuilderMenuOpen,
                         onTrigger: onFilterBuilder,
                         onClear: onReset
                     )

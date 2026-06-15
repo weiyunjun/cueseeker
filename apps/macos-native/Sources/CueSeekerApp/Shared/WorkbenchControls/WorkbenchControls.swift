@@ -219,6 +219,7 @@ struct WorkbenchToolbarButton: View {
     let systemImage: String
     var showsChevron = false
     var isRedesign: Bool = false
+    var isMenuOpen: Bool = false
     var action: (() -> Void)? = nil
 
     @FocusState private var isFocused: Bool
@@ -272,7 +273,7 @@ struct WorkbenchToolbarButton: View {
             Group {
                 if isRedesign {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                        .fill(isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface)
+                        .fill((isHovered || isMenuOpen) ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface)
                 } else {
                     WorkbenchControlBackground()
                 }
@@ -282,7 +283,7 @@ struct WorkbenchToolbarButton: View {
             Group {
                 if isRedesign {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                        .strokeBorder(isHovered ? Color(hex: "#D1D5DB") : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                        .strokeBorder((isHovered || isMenuOpen) ? Color(hex: "#D1D5DB") : WorkbenchRedesignColors.borderControl, lineWidth: 1)
                 }
             }
         )
@@ -359,6 +360,7 @@ struct WorkbenchFilterPanelTriggerButton: View {
     let title: String
     var detail: String? = nil
     var isEnabled: Bool = true
+    var isMenuOpen: Bool = false
     var onTrigger: () -> Void
     var onClear: () -> Void
 
@@ -405,7 +407,7 @@ struct WorkbenchFilterPanelTriggerButton: View {
         .frame(height: WorkbenchControlMetrics.redesignHeight)
         .background(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.bgActiveHover : WorkbenchRedesignColors.bgActive) : WorkbenchRedesignColors.bgDisabled)
+                .fill(isEnabled ? ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.bgActiveHover : WorkbenchRedesignColors.bgActive) : WorkbenchRedesignColors.bgDisabled)
         )
         .overlay(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
