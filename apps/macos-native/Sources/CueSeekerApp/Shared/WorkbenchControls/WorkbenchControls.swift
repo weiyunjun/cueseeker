@@ -50,6 +50,7 @@ struct WorkbenchInlineClearButton: View {
     var action: () -> Void
 
     @State private var isHovered = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         Button(action: action) {
@@ -69,8 +70,18 @@ struct WorkbenchInlineClearButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
-        .focusable(false)
+        .focused($isFocused)
+        .disableFocusEffect()
         .onHover { isHovered = $0 }
+        .overlay(
+            Group {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: 9999, style: .continuous)
+                        .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
+                        .padding(-3)
+                }
+            }
+        )
     }
 }
 
@@ -250,7 +261,7 @@ struct WorkbenchFilterPanelTriggerButton: View {
     var onClear: () -> Void
 
     @State private var isHovered = false
-    @FocusState private var isFocused: Bool
+    @FocusState private var isMainButtonFocused: Bool
 
     var body: some View {
         HStack(spacing: 0) {
@@ -279,6 +290,7 @@ struct WorkbenchFilterPanelTriggerButton: View {
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
+            .focused($isMainButtonFocused)
             .disableFocusEffect()
 
             WorkbenchInlineClearButton(
@@ -297,11 +309,10 @@ struct WorkbenchFilterPanelTriggerButton: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(isEnabled ? Color(hex: "#0040FF") : Color(hex: "#E5E7EB"), lineWidth: 1)
         )
-        .focused($isFocused)
         .onHover { isHovered = $0 }
         .overlay(
             Group {
-                if isFocused {
+                if isMainButtonFocused {
                     RoundedRectangle(cornerRadius: 17, style: .continuous)
                         .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
                         .padding(-3)
