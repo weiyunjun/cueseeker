@@ -15,6 +15,7 @@ main
 这一部分记录实际对齐流程中遇到的问题和约束的标准。
 1. Focus效果，需要和# UI文档中保持一致。如果某个component没有Focus相关的token，需要禁用其Focus效果。
 2. 需要给## 1. Core Tokens 里的所有token，分配新的变量名。避免新的样式改动污染到旧的。
+3. 所有会打开 Popover / Menu / Dropdown / Panel 的触发控件，Open 状态必须复用 Hover 状态的外观。Open 不允许设计独立视觉；只要对应弹层处于打开状态，即使鼠标离开触发控件，触发控件也必须保持 Hover 外观。Hover 与 Open 同时存在时不叠加额外效果。涉及组件：2.3 Filter Panel Trigger Button、2.4 Select Trigger Button、2.5 Form Select Field、2.7 Logic Connector、2.11 Row Action Button、2.18 Sortable Header Cell。
 
 # Component修改方案
 
@@ -250,7 +251,7 @@ Radius: --radius-control
 Padding X: --padding-control-x
 Border Active: --color-border-active
 Background Active: --color-bg-active
-Hover Bg: --color-bg-active-hover
+Hover / Open Bg: --color-bg-active-hover
 Clear Hover Bg: --color-bg-active-clear-hover
 Disabled: --color-bg-disabled / --color-border-disabled / --color-text-disabled
 Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
@@ -263,7 +264,7 @@ Trailing Clear Button: Inline Clear Button
 
 #### Status
 Active Default
-Active Hover
+Active Hover / Open
 Clear Button Hover
 Disabled
 
@@ -758,12 +759,13 @@ Indicator Asc: arrow-up
 Indicator Desc: arrow-down
 
 #### Status
-Default
-Hover / Unsorted
-Sorted Asc
-Sorted Desc
-Menu Open
-Disabled / Not Sortable
+Interaction: Default
+Interaction: Hover
+Interaction: Menu Open
+Interaction: Disabled / Not Sortable
+Sort: Unsorted
+Sort: Sorted Asc
+Sort: Sorted Desc
 
 #### Cursor
 Not specified in image
