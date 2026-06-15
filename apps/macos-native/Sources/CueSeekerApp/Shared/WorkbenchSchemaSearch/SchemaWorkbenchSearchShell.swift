@@ -599,13 +599,13 @@ enum SchemaWorkbenchStyle {
     static let rowGap: CGFloat = 12
 
     static func viewPopoverTop(isRedesign: Bool) -> CGFloat {
-        let searchHeight = isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight
+        let searchHeight = isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight
         return pageTopPadding + searchHeight + 8
     }
 
     static func filterPopoverTop(isRedesign: Bool) -> CGFloat {
-        let searchHeight = isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight
-        let controlHeight = isRedesign ? 48 : WorkbenchControlMetrics.controlHeight
+        let searchHeight = isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight
+        let controlHeight = isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight
         return pageTopPadding
             + searchHeight
             + rowGap
@@ -638,7 +638,7 @@ struct SchemaWorkbenchSearchCommandBar: View {
                 action: onViewMenu
             )
         }
-        .frame(height: isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight)
     }
 }
 
@@ -693,7 +693,7 @@ struct SchemaWorkbenchFilterControlBar: View {
 
             Spacer(minLength: 0)
         }
-        .frame(height: isRedesign ? 48 : WorkbenchControlMetrics.controlHeight)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
     }
 }
 

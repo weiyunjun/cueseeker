@@ -6,6 +6,26 @@ enum WorkbenchControlMetrics {
     static let cornerRadius: CGFloat = 8
     static let hairlineWidth: CGFloat = 0.5
     static let iconSize: CGFloat = 16
+
+    // ==========================================
+    // Redesign Tokens (对接新的 Token 规范)
+    // ==========================================
+    /// --height-control / --height-filter-bar-control: 40px
+    static let redesignHeight: CGFloat = 40
+    /// --radius-control: 8px
+    static let redesignCornerRadius: CGFloat = 8
+    /// --height-field: 40px
+    static let redesignFieldHeight: CGFloat = 40
+    /// --height-filter-bar-control (Search box): 40px
+    static let redesignSearchHeight: CGFloat = 40
+    /// --radius-field: 8px
+    static let redesignFieldRadius: CGFloat = 8
+    /// --radius-search: 9999px
+    static let redesignSearchRadius: CGFloat = 9999
+    /// --size-inline-clear-button: 32px
+    static let redesignInlineClearButtonSize: CGFloat = 32
+    /// --padding-field-x / --padding-control-x: 16px
+    static let redesignPaddingX: CGFloat = 16
 }
 
 enum WorkbenchControlColors {
@@ -16,6 +36,29 @@ enum WorkbenchControlColors {
     static let activeBlue = Color(red: 0.035, green: 0.412, blue: 0.957)
     static let activeBlueFill = Color(red: 0.910, green: 0.952, blue: 1.0)
     static let hoverFill = Color(nsColor: .labelColor).opacity(0.06)
+}
+
+enum WorkbenchRedesignColors {
+    // Text & Icon
+    static let textPrimary = Color(hex: "#0F172A")      // --color-text-primary
+    static let textMuted = Color(hex: "#667085")        // --color-text-muted
+    static let textPlaceholder = Color(hex: "#98A2B3")  // --color-text-placeholder
+    static let iconDefault = Color(hex: "#667085")      // --color-icon-default
+    static let iconMuted = Color(hex: "#98A2B3")        // --color-icon-muted
+
+    // Background & Border
+    static let bgSurface = Color(hex: "#FFFFFF")        // --color-bg-surface
+    static let bgDisabled = Color(hex: "#F3F4F6")       // --color-bg-disabled
+    static let bgHover = Color(hex: "#F3F4F6")          // --color-bg-hover
+    static let borderControl = Color(hex: "#E5E7EB")    // --color-border-control
+
+    // Active Blue
+    static let accent = Color(hex: "#0040FF")           // --color-accent
+    static let bgActive = Color(hex: "#EBF5FF")         // --color-bg-active
+    static let bgActiveHover = Color(hex: "#E1EBFF")    // --color-bg-active-hover
+    static let bgActiveClearHover = Color(hex: "#D8E8FD") // --color-bg-active-clear-hover
+    static let borderFocus = Color(hex: "#3B82F6")      // --color-border-focus
+    static let focusRing = Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22) // --color-focus-ring
 }
 
 extension Color {
@@ -55,15 +98,15 @@ struct WorkbenchInlineClearButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .bold))
-                .frame(width: 20, height: 20)
-                .foregroundStyle(isEnabled ? Color(hex: "#667085") : Color(hex: "#98A2B3"))
-                .frame(width: 32, height: 32)
+                .font(.system(size: 11, weight: .bold)) // --size-inline-clear-symbol-font-size-macos: 11pt
+                .frame(width: 20, height: 20) // --size-inline-clear-icon: 20px
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted)
+                .frame(width: WorkbenchControlMetrics.redesignInlineClearButtonSize, height: WorkbenchControlMetrics.redesignInlineClearButtonSize)
                 .background(
                     Group {
                         if isEnabled && isHovered {
                             RoundedRectangle(cornerRadius: 9999, style: .continuous)
-                                .fill(isActiveContext ? Color(hex: "#D8E8FD") : Color(hex: "#F3F4F6"))
+                                .fill(isActiveContext ? WorkbenchRedesignColors.bgActiveClearHover : WorkbenchRedesignColors.bgHover)
                         }
                     }
                 )
@@ -77,7 +120,7 @@ struct WorkbenchInlineClearButton: View {
             Group {
                 if isFocused {
                     RoundedRectangle(cornerRadius: 9999, style: .continuous)
-                        .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: 3)
                         .padding(-3)
                 }
             }
@@ -110,17 +153,17 @@ struct WorkbenchSearchField: View {
         HStack(spacing: isRedesign ? 12 : 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: isRedesign ? 20 : 18, weight: .regular))
-                .foregroundStyle(isRedesign ? (isEnabled ? Color(hex: "#667085") : Color(hex: "#98A2B3")) : WorkbenchControlColors.mutedText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.mutedText)
 
             TextField(
                 "",
                 text: $text,
                 prompt: Text(placeholder)
-                    .foregroundColor(isRedesign ? Color(hex: "#98A2B3") : WorkbenchControlColors.mutedText)
+                    .foregroundColor(isRedesign ? WorkbenchRedesignColors.textPlaceholder : WorkbenchControlColors.mutedText)
             )
             .textFieldStyle(.plain)
             .font(.system(size: isRedesign ? 16 : 15, weight: .regular))
-            .foregroundStyle(isRedesign ? (isEnabled ? Color(hex: "#0F172A") : Color(hex: "#98A2B3")) : WorkbenchControlColors.primaryText)
+            .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
             .focused($isFocused)
             .onSubmit {
                 onSubmit?()
@@ -132,24 +175,24 @@ struct WorkbenchSearchField: View {
                 }
             }
         }
-        .padding(.horizontal, isRedesign ? 16 : 18)
-        .frame(height: isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight)
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 18)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight)
         .background(
-            RoundedRectangle(cornerRadius: isRedesign ? 9999 : WorkbenchControlMetrics.cornerRadius, style: .continuous)
-                .fill(isRedesign ? (isEnabled ? Color(hex: "#FFFFFF") : Color(hex: "#F3F4F6")) : WorkbenchControlColors.surfaceFill)
+            RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
+                .fill(isRedesign ? (isEnabled ? WorkbenchRedesignColors.bgSurface : WorkbenchRedesignColors.bgDisabled) : WorkbenchControlColors.surfaceFill)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: isRedesign ? 9999 : WorkbenchControlMetrics.cornerRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
                 .strokeBorder(
-                    isRedesign ? (isFocused ? Color(hex: "#3B82F6") : Color(hex: "#E5E7EB")) : WorkbenchControlColors.border,
+                    isRedesign ? (isFocused ? WorkbenchRedesignColors.borderFocus : WorkbenchRedesignColors.borderControl) : WorkbenchControlColors.border,
                     lineWidth: isRedesign ? 1.0 : WorkbenchControlMetrics.hairlineWidth
                 )
         )
         .overlay(
             Group {
                 if isRedesign && isFocused {
-                    RoundedRectangle(cornerRadius: 9999 + 3, style: .continuous)
-                        .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + 3, style: .continuous)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: 3)
                         .padding(-3)
                 }
             }
@@ -282,8 +325,8 @@ struct WorkbenchFilterPanelTriggerButton: View {
                             .fixedSize(horizontal: true, vertical: false)
                     }
                 }
-                .foregroundStyle(isEnabled ? Color(hex: "#0040FF") : Color(hex: "#98A2B3"))
-                .padding(.leading, 16)
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.accent : WorkbenchRedesignColors.iconMuted)
+                .padding(.leading, WorkbenchControlMetrics.redesignPaddingX)
                 .padding(.trailing, 8)
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
@@ -300,21 +343,21 @@ struct WorkbenchFilterPanelTriggerButton: View {
             )
             .padding(.trailing, 8)
         }
-        .frame(height: 48)
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isEnabled ? (isHovered ? Color(hex: "#E1EBFF") : Color(hex: "#EBF5FF")) : Color(hex: "#F3F4F6"))
+            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.bgActiveHover : WorkbenchRedesignColors.bgActive) : WorkbenchRedesignColors.bgDisabled)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isEnabled ? Color(hex: "#0040FF") : Color(hex: "#E5E7EB"), lineWidth: 1)
+            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                .strokeBorder(isEnabled ? WorkbenchRedesignColors.accent : WorkbenchRedesignColors.borderControl, lineWidth: 1)
         )
         .onHover { isHovered = $0 }
         .overlay(
             Group {
                 if isMainButtonFocused {
-                    RoundedRectangle(cornerRadius: 17, style: .continuous)
-                        .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + 3, style: .continuous)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: 3)
                         .padding(-3)
                 }
             }
