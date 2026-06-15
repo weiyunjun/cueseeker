@@ -224,6 +224,7 @@ struct WorkbenchToolbarButton: View {
 
     @FocusState private var isFocused: Bool
     @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         if let action {
@@ -243,11 +244,11 @@ struct WorkbenchToolbarButton: View {
             Image(systemName: systemImage)
                 .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
                 .frame(width: isRedesign ? 20 : nil, height: isRedesign ? 20 : nil) // 20x20 icon slot
-                .foregroundStyle(isRedesign ? WorkbenchRedesignColors.iconDefault : WorkbenchControlColors.primaryText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
 
             Text(title)
                 .font(.system(size: 15, weight: isRedesign ? .medium : .medium))
-                .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
@@ -273,7 +274,7 @@ struct WorkbenchToolbarButton: View {
             Group {
                 if isRedesign {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                        .fill((isHovered || isMenuOpen) ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface)
+                        .fill(isEnabled ? ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
                 } else {
                     WorkbenchControlBackground()
                 }
@@ -283,13 +284,13 @@ struct WorkbenchToolbarButton: View {
             Group {
                 if isRedesign {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                        .strokeBorder((isHovered || isMenuOpen) ? Color(hex: "#D1D5DB") : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                        .strokeBorder(isEnabled ? ((isHovered || isMenuOpen) ? Color(hex: "#D1D5DB") : WorkbenchRedesignColors.borderControl) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
                 }
             }
         )
         .overlay(
             Group {
-                if isRedesign && isFocused {
+                if isRedesign && isFocused && isEnabled {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
                         .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
