@@ -1,13 +1,50 @@
 # 版本
 main
+
 # 需求描述
 1. 根据# UI文档部分的内容，修改或添加component，这些控件会应用于Test Search 2界面
 2. 参考图片见docs/human/requirements/assets/20260614/，23个component均有参考图。
 3. 除此之外，还有3个布局参考图，分别是：20260614-SearchFilterBar.png，20260614-TableUtilityBar.png，20260614-DataTable.png。分别对应界面的从上到下的三个区域。
 4. 这个需求的主要任务是：按照现有文档修改或添加component，修改布局，并且保证可以和设计文档对齐。不要求和UI无关的功能实现，例如点击View按钮后，点击弹出的菜单显示或隐藏表格的列。
+
 # 流程描述：
-1. 修改所有component。保持视觉一致。
+1. 修改所有component。保持视觉一致。具体查看# Component修改方案和# UI文档。
 2. 根据布局参考图修改布局。
+
+# 注意事项
+1. Focus效果，需要和# UI文档中保持一致。如果某个component没有Focus相关的token，需要禁用其Focus效果。
+
+# Component修改方案
+
+| 组件 ID | 组件名称 (Component Name) | 当前是否存在 / 所在文件 | 方案类型 | 方案说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| **2.1** | **Search Box** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchSearchField` | **直接修改** | 增加 `isRedesign`，当为 true 时将圆角改为 `9999px`（胶囊形），并调整 padding 和 Focus 环。 |
+| **2.2** | **Inline Clear Button** | **不存在** | **新增组件** | 新建 `WorkbenchInlineClearButton`，并嵌入到 `WorkbenchSearchField` 中。 |
+| **2.3** | **Filter Panel Trigger Button** | **部分存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchFilterChip` | **直接修改** | 在 `WorkbenchFilterChip` 基础上支持右侧 Inline Clear Button，以及特定的激活/悬浮态背景色。 |
+| **2.4** | **Select Trigger Button** | **部分存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchToolbarButton` | **直接修改** | 支持 chevrons-up-down 指示器及 redesign 边框和悬浮态。 |
+| **2.5** | **Form Select Field** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchSelectFieldLabel` | **直接修改** | 调整高度为 40px，圆角 12px，应用新 Token 颜色。 |
+| **2.6** | **Value Input Field** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchTextInputField` / `WorkbenchReadonlyField` | **直接修改** | 调整高度为 40px，圆角 12px，支持只读/禁用样式。 |
+| **2.7** | **Logic Connector** | **部分存在**<br>[SchemaWorkbenchSearchShell.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchSchemaSearch/SchemaWorkbenchSearchShell.swift) 中的 `SchemaWorkbenchFilterRuleRow` 左侧逻辑 | **直接修改** | 调整静态标签（Where）和交互下拉（And/Or）的对齐与高度。 |
+| **2.8** | **Neutral Button** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchButton` | **直接修改** | 调整边框、高度及文字大小（16px）。 |
+| **2.9** | **Inline Add Button** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchPlainActionButton` | **直接修改** | 改为透明背景及特定的 Hover 状态。 |
+| **2.10** | **Icon Button** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchIconButton` | **直接修改** | 统一大小为 40x40，圆角为 `--radius-control`，并调整 cursor。 |
+| **2.11** | **Row Action Button** | **不存在**（原为文本按钮悬浮条） | **新增组件** | 新建 36x36 圆角 10px 的 ellipsis 按钮。 |
+| **2.12** | **Menu Item Base** | **部分存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchPopoverRow` | **直接修改** | 调整 padding 和 Slot 布局以适配底层 Menu Item。 |
+| **2.13** | **Select Menu Item** | **部分存在**<br>`WorkbenchPopoverRow` 的选择状态 | **直接修改** | 调整为高度 48px，圆角 10px。 |
+| **2.14** | **Action Menu Item** | **部分存在**<br>`WorkbenchPopoverRow` 的操作状态 | **直接修改** | 调整为高度 40px，圆角 8px。 |
+| **2.15** | **Column Header Menu** | **不存在** | **新增组件** | 在表头增加 context menu/popover，支持排序和隐藏操作。 |
+| **2.16** | **Row Action Menu** | **不存在** | **新增组件** | 用于响应 Row Action Button 的点击，展示拷贝、上下文、收藏。 |
+| **2.17** | **Table Row** | **存在**（AppKit 绘制）<br>[SubtitleTableView.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/TableSandbox/SubtitleTableView.swift) 中的 `Coordinator.drawRowsNow` | **直接修改** | **在 AppKit 渲染流程中判断 `isRedesign`**，将行高改为 64px 并应用新 Hover/Selected 背景色。 |
+| **2.18** | **Sortable Header Cell** | **部分存在**<br>`SubtitleVirtualTableHeaderView` | **直接修改** | 表头支持绘制 chevrons-up-down / 箭头图标，支持悬浮和点击事件。 |
+| **2.19** | **Row Selection Checkbox** | **不存在** | **新增组件** | 新建 SwiftUI Checkbox 组件，并由 AppKit 表头及表行进行混合渲染/事件传递。 |
+| **2.20** | **Interactive Text Cell** | **不存在** | **直接修改** | 在 `SubtitleTableView` 绘制 displayTitle 时，增加 Hover 下划线绘制。 |
+| **2.21** | **Table Scrollbar** | **存在**<br>`SubtitleTableView` 的 `NSScrollView` | **直接修改** | 调整 `NSScrollView` 的 scroller 样式以符合 8px 规范。 |
+| **2.22** | **Chip / Tag** | **存在**（AppKit 绘制）<br>`SubtitleTableView.Coordinator.drawTags` | **直接修改** | 调整 AppKit 绘制的颜色，适配 Speaker 紫色和 Language 蓝色 Token。 |
+| **2.23** | **Count Summary** | **不存在** | **新增组件** | 在 Table Utility Bar 区域实现计数器，支持已选择与总数的展示及 Overflow（99999+）。 |
+
+---
+
+
 
 # UI文档
 ## 1. Core Tokens
