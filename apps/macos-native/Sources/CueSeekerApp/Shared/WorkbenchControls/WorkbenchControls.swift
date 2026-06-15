@@ -517,11 +517,11 @@ struct WorkbenchSelectFieldLabel: View {
             }
         }
         .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 12)
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : WorkbenchControlMetrics.controlHeight)
         .background(
             Group {
                 if isRedesign {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
                         .fill(isEnabled ? ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
                 } else {
                     WorkbenchControlBackground()
@@ -531,7 +531,7 @@ struct WorkbenchSelectFieldLabel: View {
         .overlay(
             Group {
                 if isRedesign {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
                         .strokeBorder(isEnabled ? (isFocused ? WorkbenchRedesignColors.borderFocus : ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl)) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
                 }
             }
@@ -539,7 +539,7 @@ struct WorkbenchSelectFieldLabel: View {
         .overlay(
             Group {
                 if isRedesign && isFocused && isEnabled {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
                         .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
                 }
