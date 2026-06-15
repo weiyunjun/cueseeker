@@ -50,7 +50,6 @@ struct WorkbenchInlineClearButton: View {
     var action: () -> Void
 
     @State private var isHovered = false
-    @FocusState private var isFocused: Bool
 
     var body: some View {
         Button(action: action) {
@@ -70,17 +69,8 @@ struct WorkbenchInlineClearButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
-        .focused($isFocused)
+        .focusable(false)
         .onHover { isHovered = $0 }
-        .overlay(
-            Group {
-                if isFocused {
-                    RoundedRectangle(cornerRadius: 9999, style: .continuous)
-                        .stroke(Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22), lineWidth: 3)
-                        .padding(-3)
-                }
-            }
-        )
     }
 }
 
@@ -289,6 +279,7 @@ struct WorkbenchFilterPanelTriggerButton: View {
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
+            .disableFocusEffect()
 
             WorkbenchInlineClearButton(
                 isEnabled: isEnabled,
@@ -619,5 +610,16 @@ struct WorkbenchControlBackground: View {
                 lineWidth: WorkbenchControlMetrics.hairlineWidth
             )
         )
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func disableFocusEffect() -> some View {
+        if #available(macOS 14.0, *) {
+            self.focusEffectDisabled()
+        } else {
+            self
+        }
     }
 }
