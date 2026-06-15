@@ -34,6 +34,12 @@ enum WorkbenchControlMetrics {
     static let redesignFocusRingWidth: CGFloat = 3
     /// --radius-inline-clear-button: 9999px
     static let redesignInlineClearButtonRadius: CGFloat = 9999
+    /// --size-control-icon: 20px (Trailing select indicator slot size)
+    static let redesignSelectIndicatorSize: CGFloat = 20
+    /// --size-select-indicator-symbol-font-size-macos: 10pt
+    static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 10
+    /// --size-select-indicator-weight-macos: .medium
+    static let redesignSelectIndicatorWeightMacOS: Font.Weight = .medium
 }
 
 enum WorkbenchControlColors {
@@ -212,7 +218,11 @@ struct WorkbenchToolbarButton: View {
     let title: String
     let systemImage: String
     var showsChevron = false
+    var isRedesign: Bool = false
     var action: (() -> Void)? = nil
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
 
     var body: some View {
         if let action {
@@ -220,33 +230,74 @@ struct WorkbenchToolbarButton: View {
                 label
             }
             .buttonStyle(.plain)
+            .focused($isFocused)
+            .disableFocusEffect()
         } else {
             label
         }
     }
 
     private var label: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: isRedesign ? 8 : 10) {
             Image(systemName: systemImage)
-                .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .medium))
+                .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
+                .frame(width: isRedesign ? 20 : nil, height: isRedesign ? 20 : nil) // 20x20 icon slot
+                .foregroundStyle(isRedesign ? WorkbenchRedesignColors.iconDefault : WorkbenchControlColors.primaryText)
 
             Text(title)
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: 15, weight: isRedesign ? .medium : .medium))
+                .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
             if showsChevron {
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(WorkbenchControlColors.mutedText)
+                if isRedesign {
+                    Spacer(minLength: 0)
+                        .frame(width: 4) // spacing between text and chevron
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
+                        .frame(width: WorkbenchControlMetrics.redesignSelectIndicatorSize, height: WorkbenchControlMetrics.redesignSelectIndicatorSize) // 20x20 slot
+                        .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                } else {
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(WorkbenchControlColors.mutedText)
+                }
             }
         }
-        .foregroundStyle(WorkbenchControlColors.primaryText)
-        .padding(.horizontal, 14)
-        .frame(height: WorkbenchControlMetrics.controlHeight)
-        .background(WorkbenchControlBackground())
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 14)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
+        .background(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                        .fill(isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface)
+                } else {
+                    WorkbenchControlBackground()
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                        .strokeBorder(isHovered ? Color(hex: "#D1D5DB") : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isRedesign && isFocused {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                }
+            }
+        )
+        .onHover { isHovered = $0 }
         .fixedSize(horizontal: true, vertical: false)
+        .contentShape(Rectangle())
     }
 }
 

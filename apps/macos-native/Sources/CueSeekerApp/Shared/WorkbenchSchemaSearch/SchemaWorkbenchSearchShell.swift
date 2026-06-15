@@ -635,6 +635,7 @@ struct SchemaWorkbenchSearchCommandBar: View {
                 title: "View",
                 systemImage: "slider.horizontal.3",
                 showsChevron: true,
+                isRedesign: isRedesign,
                 action: onViewMenu
             )
         }
@@ -657,6 +658,7 @@ struct SchemaWorkbenchFilterControlBar: View {
                 title: "Filter Sets",
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
+                isRedesign: isRedesign,
                 action: onFilterSets
             )
 
@@ -680,6 +682,7 @@ struct SchemaWorkbenchFilterControlBar: View {
                         title: "Reset",
                         systemImage: "xmark",
                         showsChevron: false,
+                        isRedesign: isRedesign,
                         action: onReset
                     )
                 }
