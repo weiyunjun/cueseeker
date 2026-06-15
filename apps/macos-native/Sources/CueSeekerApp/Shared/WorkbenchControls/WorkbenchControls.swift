@@ -32,6 +32,8 @@ enum WorkbenchControlMetrics {
     static let inlineClearIconSize: CGFloat = 20
     /// --focus-ring-width: 3px
     static let redesignFocusRingWidth: CGFloat = 3
+    /// --radius-inline-clear-button: 9999px
+    static let redesignInlineClearButtonRadius: CGFloat = 9999
 }
 
 enum WorkbenchControlColors {
@@ -111,7 +113,7 @@ struct WorkbenchInlineClearButton: View {
                 .background(
                     Group {
                         if isEnabled && isHovered {
-                            RoundedRectangle(cornerRadius: 9999, style: .continuous)
+                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius, style: .continuous)
                                 .fill(isActiveContext ? WorkbenchRedesignColors.bgActiveClearHover : WorkbenchRedesignColors.bgHover)
                         }
                     }
@@ -125,7 +127,7 @@ struct WorkbenchInlineClearButton: View {
         .overlay(
             Group {
                 if isFocused {
-                    RoundedRectangle(cornerRadius: 9999, style: .continuous)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
                         .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
                 }
