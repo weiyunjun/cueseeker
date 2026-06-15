@@ -489,23 +489,62 @@ struct WorkbenchFilterChip: View {
 
 struct WorkbenchSelectFieldLabel: View {
     let title: String
+    var isRedesign: Bool = false
+    var isMenuOpen: Bool = false
+    var isHovered: Bool = false
+    var isFocused: Bool = false
+
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: isRedesign ? 8 : 8) {
             Text(title)
-                .font(.system(size: 14, weight: .regular))
+                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .regular))
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
 
             Spacer(minLength: 0)
 
-            Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(WorkbenchControlColors.mutedText)
+            if isRedesign {
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
+                    .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
+                    .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted)
+            } else {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(WorkbenchControlColors.mutedText)
+            }
         }
-        .foregroundStyle(WorkbenchControlColors.primaryText)
-        .padding(.horizontal, 12)
-        .frame(height: WorkbenchControlMetrics.controlHeight)
-        .background(WorkbenchControlBackground())
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 12)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
+        .background(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                        .fill(isEnabled ? ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
+                } else {
+                    WorkbenchControlBackground()
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                        .strokeBorder(isEnabled ? (isFocused ? WorkbenchRedesignColors.borderFocus : ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl)) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isRedesign && isFocused && isEnabled {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                }
+            }
+        )
     }
 }
 
@@ -550,14 +589,27 @@ struct WorkbenchDropdownChoice: Identifiable, Equatable {
 struct WorkbenchInlineDropdown: View {
     let title: String
     var isOpen = false
+    var isRedesign: Bool = false
     var action: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
-            WorkbenchSelectFieldLabel(title: title)
+            WorkbenchSelectFieldLabel(
+                title: title,
+                isRedesign: isRedesign,
+                isMenuOpen: isOpen,
+                isHovered: isHovered,
+                isFocused: isFocused
+            )
         }
         .buttonStyle(.plain)
-        .frame(height: WorkbenchControlMetrics.controlHeight, alignment: .topLeading)
+        .focused($isFocused)
+        .disableFocusEffect()
+        .onHover { isHovered = $0 }
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight, alignment: .topLeading)
         .zIndex(isOpen ? 100 : 0)
     }
 }

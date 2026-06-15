@@ -360,6 +360,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             SchemaWorkbenchFilterBuilderPopover(
                 columns: columns,
                 rules: $filterRules,
+                isRedesign: isRedesign,
                 onSave: {
                     saveFilterSet()
                 }
@@ -757,6 +758,7 @@ struct SchemaWorkbenchFilterSetPopover: View {
 struct SchemaWorkbenchFilterBuilderPopover: View {
     let columns: [WorkbenchTableColumn]
     @Binding var rules: [SchemaWorkbenchFilterRule]
+    var isRedesign: Bool = false
     var onSave: () -> Void
     @State private var openDropdown: FilterBuilderDropdownID?
 
@@ -771,6 +773,7 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
                                 rowIndex: index,
                                 columns: columns,
                                 openDropdown: openDropdown,
+                                isRedesign: isRedesign,
                                 onToggleDropdown: toggleDropdown,
                                 onChange: updateRule,
                                 onDelete: {
@@ -995,6 +998,7 @@ private struct SchemaWorkbenchFilterRuleRow: View {
     let rowIndex: Int
     let columns: [WorkbenchTableColumn]
     let openDropdown: FilterBuilderDropdownID?
+    var isRedesign: Bool = false
     var onToggleDropdown: (FilterBuilderDropdownID) -> Void
     var onChange: (SchemaWorkbenchFilterRule) -> Void
     var onDelete: () -> Void
@@ -1005,11 +1009,12 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                 if rowIndex == 0 {
                     Text("Where")
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(WorkbenchControlColors.primaryText)
+                        .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
                 } else if rowIndex == 1 {
                     WorkbenchInlineDropdown(
                         title: rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title,
                         isOpen: isDropdownOpen(.join),
+                        isRedesign: isRedesign,
                         action: {
                             onToggleDropdown(dropdownID(.join))
                         }
@@ -1017,7 +1022,7 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                 } else {
                     Text(rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title)
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(WorkbenchControlColors.primaryText)
+                        .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
                 }
             }
             .frame(width: 58, alignment: .leading)
@@ -1025,6 +1030,7 @@ private struct SchemaWorkbenchFilterRuleRow: View {
             WorkbenchInlineDropdown(
                 title: selectedColumn?.title ?? "Field",
                 isOpen: isDropdownOpen(.field),
+                isRedesign: isRedesign,
                 action: {
                     onToggleDropdown(dropdownID(.field))
                 }
@@ -1034,6 +1040,7 @@ private struct SchemaWorkbenchFilterRuleRow: View {
             WorkbenchInlineDropdown(
                 title: rule.operatorID.title,
                 isOpen: isDropdownOpen(.filterOperator),
+                isRedesign: isRedesign,
                 action: {
                     onToggleDropdown(dropdownID(.filterOperator))
                 }
