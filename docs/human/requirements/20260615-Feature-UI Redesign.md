@@ -12,6 +12,7 @@ main
 2. 根据布局参考图修改布局。
 
 # 注意事项
+这一部分记录实际对齐流程中遇到的问题和约束的标准。
 1. Focus效果，需要和# UI文档中保持一致。如果某个component没有Focus相关的token，需要禁用其Focus效果。
 
 # Component修改方案
@@ -22,15 +23,15 @@ main
 | **2.2** | **Inline Clear Button** | **不存在** | **新增组件** | 新建 `WorkbenchInlineClearButton`，并嵌入到 `WorkbenchSearchField` 中。 |
 | **2.3** | **Filter Panel Trigger Button** | **部分存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchFilterChip` | **直接修改** | 在 `WorkbenchFilterChip` 基础上支持右侧 Inline Clear Button，以及特定的激活/悬浮态背景色。 |
 | **2.4** | **Select Trigger Button** | **部分存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchToolbarButton` | **直接修改** | 支持 chevrons-up-down 指示器及 redesign 边框和悬浮态。 |
-| **2.5** | **Form Select Field** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchSelectFieldLabel` | **直接修改** | 调整高度为 40px，圆角 12px，应用新 Token 颜色。 |
-| **2.6** | **Value Input Field** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchTextInputField` / `WorkbenchReadonlyField` | **直接修改** | 调整高度为 40px，圆角 12px，支持只读/禁用样式。 |
+| **2.5** | **Form Select Field** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchSelectFieldLabel` | **直接修改** | 调整高度为 40px，圆角 8px，应用新 Token 颜色。 |
+| **2.6** | **Value Input Field** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchTextInputField` / `WorkbenchReadonlyField` | **直接修改** | 调整高度为 40px，圆角 8px，支持只读/禁用样式。 |
 | **2.7** | **Logic Connector** | **部分存在**<br>[SchemaWorkbenchSearchShell.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchSchemaSearch/SchemaWorkbenchSearchShell.swift) 中的 `SchemaWorkbenchFilterRuleRow` 左侧逻辑 | **直接修改** | 调整静态标签（Where）和交互下拉（And/Or）的对齐与高度。 |
 | **2.8** | **Neutral Button** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchButton` | **直接修改** | 调整边框、高度及文字大小（16px）。 |
 | **2.9** | **Inline Add Button** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchPlainActionButton` | **直接修改** | 改为透明背景及特定的 Hover 状态。 |
 | **2.10** | **Icon Button** | **存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchIconButton` | **直接修改** | 统一大小为 40x40，圆角为 `--radius-control`，并调整 cursor。 |
-| **2.11** | **Row Action Button** | **不存在**（原为文本按钮悬浮条） | **新增组件** | 新建 36x36 圆角 10px 的 ellipsis 按钮。 |
+| **2.11** | **Row Action Button** | **不存在**（原为文本按钮悬浮条） | **新增组件** | 新建 36x36 圆角 8px 的 ellipsis 按钮。 |
 | **2.12** | **Menu Item Base** | **部分存在**<br>[WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) 中的 `WorkbenchPopoverRow` | **直接修改** | 调整 padding 和 Slot 布局以适配底层 Menu Item。 |
-| **2.13** | **Select Menu Item** | **部分存在**<br>`WorkbenchPopoverRow` 的选择状态 | **直接修改** | 调整为高度 48px，圆角 10px。 |
+| **2.13** | **Select Menu Item** | **部分存在**<br>`WorkbenchPopoverRow` 的选择状态 | **直接修改** | 调整为高度 40px，圆角 8px。 |
 | **2.14** | **Action Menu Item** | **部分存在**<br>`WorkbenchPopoverRow` 的操作状态 | **直接修改** | 调整为高度 40px，圆角 8px。 |
 | **2.15** | **Column Header Menu** | **不存在** | **新增组件** | 在表头增加 context menu/popover，支持排序和隐藏操作。 |
 | **2.16** | **Row Action Menu** | **不存在** | **新增组件** | 用于响应 Row Action Button 的点击，展示拷贝、上下文、收藏。 |
@@ -122,14 +123,14 @@ main
 ### 1.2 尺寸、圆角、间距
 
 #### Height
---height-filter-bar-control: 48px
---height-control: 48px
+--height-filter-bar-control: 40px
+--height-control: 40px
 --height-field: 40px
---height-table-utility-bar: 48px
---height-table-header: 48px
+--height-table-utility-bar: 40px
+--height-table-header: 40px
 --height-table-row: 64px
 --height-action-menu-item: 40px
---height-select-menu-item: 48px
+--height-select-menu-item: 40px
 
 #### Size
 --size-checkbox: 16px
@@ -142,15 +143,15 @@ main
 --scrollbar-size: 8px
 
 #### Radius
---radius-control: 14px
---radius-field: 12px
+--radius-control: 8px
+--radius-field: 8px
 --radius-search: 9999px
 --radius-inline-clear-button: 9999px
 --radius-checkbox: 4px
 --radius-menu: 16px
---radius-select-menu-item: 10px
+--radius-select-menu-item: 8px
 --radius-action-menu-item: 8px
---radius-row-action: 10px
+--radius-row-action: 8px
 --radius-chip: 6px
 --scrollbar-radius: 9999px
 
