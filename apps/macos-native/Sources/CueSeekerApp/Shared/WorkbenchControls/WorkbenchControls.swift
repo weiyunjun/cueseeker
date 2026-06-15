@@ -34,8 +34,8 @@ enum WorkbenchControlMetrics {
     static let redesignFocusRingWidth: CGFloat = 3
     /// --radius-inline-clear-button: 9999px
     static let redesignInlineClearButtonRadius: CGFloat = 9999
-    /// --size-control-icon: 20px (Trailing select indicator slot size)
-    static let redesignSelectIndicatorSize: CGFloat = 20
+    /// --size-control-icon: 20px
+    static let redesignControlIconSize: CGFloat = 20
     /// --size-select-indicator-symbol-font-size-macos: 10pt
     static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 10
     /// --size-select-indicator-weight-macos: .medium
@@ -67,6 +67,7 @@ enum WorkbenchRedesignColors {
     static let bgDisabled = Color(hex: "#F3F4F6")       // --color-bg-disabled
     static let bgHover = Color(hex: "#F3F4F6")          // --color-bg-hover
     static let borderControl = Color(hex: "#E5E7EB")    // --color-border-control
+    static let borderControlHover = Color(hex: "#D1D5DB") // --color-border-control-hover
 
     // Active Blue
     static let accent = Color(hex: "#0040FF")           // --color-accent
@@ -245,7 +246,7 @@ struct WorkbenchToolbarButton: View {
         HStack(spacing: isRedesign ? 8 : 10) {
             Image(systemName: systemImage)
                 .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
-                .frame(width: isRedesign ? 20 : nil, height: isRedesign ? 20 : nil) // 20x20 icon slot
+                .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil) // 20x20 icon slot
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
 
             Text(title)
@@ -260,7 +261,7 @@ struct WorkbenchToolbarButton: View {
                         .frame(width: 4) // spacing between text and chevron
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
-                        .frame(width: WorkbenchControlMetrics.redesignSelectIndicatorSize, height: WorkbenchControlMetrics.redesignSelectIndicatorSize) // 20x20 slot
+                        .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize) // 20x20 slot
                         .foregroundStyle(WorkbenchRedesignColors.iconMuted)
                 } else {
                     Spacer(minLength: 0)
@@ -286,7 +287,7 @@ struct WorkbenchToolbarButton: View {
             Group {
                 if isRedesign {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                        .strokeBorder(isEnabled ? ((isHovered || isMenuOpen) ? Color(hex: "#D1D5DB") : WorkbenchRedesignColors.borderControl) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                        .strokeBorder(isEnabled ? ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
                 }
             }
         )
