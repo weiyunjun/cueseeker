@@ -14,6 +14,7 @@ main
 # 注意事项
 这一部分记录实际对齐流程中遇到的问题和约束的标准。
 1. Focus效果，需要和# UI文档中保持一致。如果某个component没有Focus相关的token，需要禁用其Focus效果。
+2. 需要给## 1. Core Tokens 里的所有token，分配新的变量名。避免新的样式改动污染到旧的。
 
 # Component修改方案
 
