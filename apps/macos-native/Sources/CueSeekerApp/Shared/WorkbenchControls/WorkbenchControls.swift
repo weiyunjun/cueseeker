@@ -40,6 +40,8 @@ enum WorkbenchControlMetrics {
     static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 10
     /// --size-select-indicator-weight-macos: .medium
     static let redesignSelectIndicatorWeightMacOS: Font.Weight = .medium
+    /// --font-size-control: 16px
+    static let redesignFontSizeControl: CGFloat = 16
 }
 
 enum WorkbenchControlColors {
@@ -247,7 +249,7 @@ struct WorkbenchToolbarButton: View {
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
 
             Text(title)
-                .font(.system(size: 15, weight: isRedesign ? .medium : .medium))
+                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? .medium : .medium))
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
