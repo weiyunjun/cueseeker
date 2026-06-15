@@ -609,7 +609,7 @@ struct WorkbenchInlineDropdown: View {
         .focused($isFocused)
         .disableFocusEffect()
         .onHover { isHovered = $0 }
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight, alignment: .topLeading)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : WorkbenchControlMetrics.controlHeight, alignment: .topLeading)
         .zIndex(isOpen ? 100 : 0)
     }
 }
