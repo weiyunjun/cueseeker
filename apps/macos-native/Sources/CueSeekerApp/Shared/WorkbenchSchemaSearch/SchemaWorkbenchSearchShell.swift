@@ -605,10 +605,11 @@ enum SchemaWorkbenchStyle {
 
     static func filterPopoverTop(isRedesign: Bool) -> CGFloat {
         let searchHeight = isRedesign ? 48 : WorkbenchControlMetrics.searchFieldHeight
+        let controlHeight = isRedesign ? 48 : WorkbenchControlMetrics.controlHeight
         return pageTopPadding
             + searchHeight
             + rowGap
-            + WorkbenchControlMetrics.controlHeight
+            + controlHeight
             + 8
     }
 }
@@ -690,7 +691,7 @@ struct SchemaWorkbenchFilterControlBar: View {
 
             Spacer(minLength: 0)
         }
-        .frame(height: WorkbenchControlMetrics.controlHeight)
+        .frame(height: isRedesign ? 48 : WorkbenchControlMetrics.controlHeight)
     }
 }
 
