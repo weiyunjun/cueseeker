@@ -26,6 +26,12 @@ enum WorkbenchControlMetrics {
     static let redesignInlineClearButtonSize: CGFloat = 32
     /// --padding-field-x / --padding-control-x: 16px
     static let redesignPaddingX: CGFloat = 16
+    /// --size-inline-clear-symbol-font-size-macos: 11pt
+    static let inlineClearSymbolFontSizeMacOS: CGFloat = 11
+    /// --size-inline-clear-icon: 20px
+    static let inlineClearIconSize: CGFloat = 20
+    /// --focus-ring-width: 3px
+    static let redesignFocusRingWidth: CGFloat = 3
 }
 
 enum WorkbenchControlColors {
@@ -98,8 +104,8 @@ struct WorkbenchInlineClearButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .bold)) // --size-inline-clear-symbol-font-size-macos: 11pt
-                .frame(width: 20, height: 20) // --size-inline-clear-icon: 20px
+                .font(.system(size: WorkbenchControlMetrics.inlineClearSymbolFontSizeMacOS, weight: .bold)) // --size-inline-clear-symbol-font-size-macos: 11pt
+                .frame(width: WorkbenchControlMetrics.inlineClearIconSize, height: WorkbenchControlMetrics.inlineClearIconSize) // --size-inline-clear-icon: 20px
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted)
                 .frame(width: WorkbenchControlMetrics.redesignInlineClearButtonSize, height: WorkbenchControlMetrics.redesignInlineClearButtonSize)
                 .background(
@@ -120,8 +126,8 @@ struct WorkbenchInlineClearButton: View {
             Group {
                 if isFocused {
                     RoundedRectangle(cornerRadius: 9999, style: .continuous)
-                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: 3)
-                        .padding(-3)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
                 }
             }
         )
@@ -191,9 +197,9 @@ struct WorkbenchSearchField: View {
         .overlay(
             Group {
                 if isRedesign && isFocused {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + 3, style: .continuous)
-                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: 3)
-                        .padding(-3)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
                 }
             }
         )
@@ -356,9 +362,9 @@ struct WorkbenchFilterPanelTriggerButton: View {
         .overlay(
             Group {
                 if isMainButtonFocused {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + 3, style: .continuous)
-                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: 3)
-                        .padding(-3)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
                 }
             }
         )

@@ -6,7 +6,7 @@ Human requirement:
 
 ## Scope
 
-This record covers the global refactoring of redesign dimensions (Component 2.1, 2.2, 2.3) to move away from hardcoded layout values. Instead, they are now mapped dynamically to new Redesign Core Tokens (height: 40px, corner radius: 8px) defined as centralized constants.
+This record covers the global refactoring of redesign dimensions (Component 2.1, 2.2, 2.3) to move away from hardcoded layout values. Instead, they are now mapped dynamically to new Redesign Core Tokens (height: 40px, corner radius: 8px, focus ring width: 3px) defined as centralized constants.
 
 ## Changes
 
@@ -19,6 +19,9 @@ This record covers the global refactoring of redesign dimensions (Component 2.1,
   - `redesignSearchRadius: CGFloat = 9999`
   - `redesignInlineClearButtonSize: CGFloat = 32`
   - `redesignPaddingX: CGFloat = 16`
+  - `inlineClearSymbolFontSizeMacOS: CGFloat = 11` (macOS SF Symbols xmark font size)
+  - `inlineClearIconSize: CGFloat = 20`
+  - `redesignFocusRingWidth: CGFloat = 3` (focus ring overlay border and padding offset)
 - **`WorkbenchRedesignColors`**: Extracted redesign colors as proper semantic Color constants (e.g. `textPrimary`, `textMuted`, `accent`, `bgSurface`, `borderFocus`, `focusRing`, etc.) to isolate redesigned theme styles fully from legacy styles.
 - **Component Refactoring**:
   - Refactored `WorkbenchSearchField` (2.1), `WorkbenchInlineClearButton` (2.2), and `WorkbenchFilterPanelTriggerButton` (2.3) in [WorkbenchControls.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift) to replace all hardcoded layout literals and colors with references to `WorkbenchControlMetrics` redesign tokens and `WorkbenchRedesignColors`.
