@@ -57,72 +57,158 @@ main
 ### 1.1 颜色
 
 #### Text
---color-text-primary: #0F172A
---color-text-muted: #667085
---color-text-placeholder: #98A2B3
---color-text-disabled: #98A2B3
---color-text-readonly: #808080
+--color-text-primary:
+  Light: #0F172A
+  Dark: #F4F4F5
+--color-text-muted:
+  Light: #667085
+  Dark: #A1A1AA
+--color-text-placeholder:
+  Light: #98A2B3
+  Dark: #71717A
+--color-text-disabled:
+  Light: #98A2B3
+  Dark: #71717A
+--color-text-readonly:
+  Light: #808080
+  Dark: #A1A1AA
 
 #### Icon
---color-icon-default: #667085
---color-icon-muted: #98A2B3
---color-icon-disabled: #98A2B3
---color-icon-on-dark: #FFFFFF
+--color-icon-default:
+  Light: #667085
+  Dark: #A1A1AA
+--color-icon-muted:
+  Light: #98A2B3
+  Dark: #71717A
+--color-icon-disabled:
+  Light: #98A2B3
+  Dark: #71717A
+--color-icon-on-dark:
+  Light: #FFFFFF
+  Dark: #FFFFFF
 
 #### Background
---color-bg-surface: #FFFFFF
---color-bg-hover: #F3F4F6
---color-bg-disabled: #F3F4F6
---color-bg-readonly: #FFFFFF
---color-bg-popover: #FFFFFF
+--color-bg-surface:
+  Light: #FFFFFF
+  Dark: #18181B
+--color-bg-hover:
+  Light: #F3F4F6
+  Dark: #27272A
+--color-bg-disabled:
+  Light: #F3F4F6
+  Dark: #202024
+--color-bg-readonly:
+  Light: #FFFFFF
+  Dark: #18181B
+--color-bg-popover:
+  Light: #FFFFFF
+  Dark: #1C1C1F
 
 #### Border
---color-border-control: #E5E7EB
---color-border-control-hover: #D1D5DB
---color-border-muted: #E5E7EB
---color-border-divider: #E5E7EB
---color-border-disabled: #E5E7EB
---color-border-readonly: #E5E7EB
---color-border-checkbox: #D0D5DD
+--color-border-control:
+  Light: #E5E7EB
+  Dark: #3F3F46
+--color-border-control-hover:
+  Light: #D1D5DB
+  Dark: #52525B
+--color-border-muted:
+  Light: #E5E7EB
+  Dark: #3F3F46
+--color-border-divider:
+  Light: #E5E7EB
+  Dark: #303036
+--color-border-disabled:
+  Light: #E5E7EB
+  Dark: #303036
+--color-border-readonly:
+  Light: #E5E7EB
+  Dark: #3F3F46
+--color-border-checkbox:
+  Light: #D0D5DD
+  Dark: #52525B
 
 #### Active Blue
---color-accent: #0040FF
---color-text-active: #0040FF
---color-icon-active: #0040FF
---color-border-active: #0040FF
---color-bg-active: #EBF5FF
---color-bg-active-hover: #E1EBFF
---color-bg-active-clear-hover: #D8E8FD
+--color-accent:
+  Light: #0040FF
+  Dark: #7AA2FF
+--color-text-active:
+  Light: #0040FF
+  Dark: #8AB4FF
+--color-icon-active:
+  Light: #0040FF
+  Dark: #8AB4FF
+--color-border-active:
+  Light: #0040FF
+  Dark: #7AA2FF
+--color-bg-active:
+  Light: #EBF5FF
+  Dark: #14275A
+--color-bg-active-hover:
+  Light: #E1EBFF
+  Dark: #1B3470
+--color-bg-active-clear-hover:
+  Light: #D8E8FD
+  Dark: #243F7F
 
 #### Focus
---color-border-focus: #3B82F6
---color-focus-ring: rgba(59,130,246,0.22)
---focus-ring-width: 3px
---focus-ring-offset: 0px
+--color-border-focus:
+  Light: #3B82F6
+  Dark: #60A5FA
+--color-focus-ring:
+  Light: rgba(59,130,246,0.22)
+  Dark: rgba(96,165,250,0.30)
 
 #### Table Row
---color-row-hover: #F9FAFB
---color-row-selected: #F3F4F6
+--color-row-hover:
+  Light: #F9FAFB
+  Dark: #202024
+--color-row-selected:
+  Light: #F3F4F6
+  Dark: #27272A
 
 #### Checkbox
---color-bg-checkbox-unchecked: #FFFFFF
---color-bg-checkbox-checked: #111827
---color-checkbox-icon: #FFFFFF
+--color-bg-checkbox-unchecked:
+  Light: #FFFFFF
+  Dark: #18181B
+--color-bg-checkbox-checked:
+  Light: #111827
+  Dark: #F4F4F5
+--color-checkbox-icon:
+  Light: #FFFFFF
+  Dark: #18181B
 
 #### Danger
---color-danger-text: #B42318
---color-danger-bg-hover: #FEF3F2
+--color-danger-text:
+  Light: #B42318
+  Dark: #FCA5A5
+--color-danger-bg-hover:
+  Light: #FEF3F2
+  Dark: #3A1717
 
 #### Scrollbar
---color-scrollbar-thumb-default: #CBD5E1
---color-scrollbar-thumb-interactive: #94A3B8
---color-scrollbar-track: transparent
+--color-scrollbar-thumb-default:
+  Light: #CBD5E1
+  Dark: #52525B
+--color-scrollbar-thumb-interactive:
+  Light: #94A3B8
+  Dark: #71717A
+--color-scrollbar-track:
+  Light: transparent
+  Dark: transparent
 
 #### Chip
---color-chip-speaker-bg: #DDD6FE
---color-chip-speaker-text: #5B21B6
---color-chip-language-bg: #DBEAFE
---color-chip-language-text: #0040FF
+--color-chip-speaker-bg:
+  Light: #DDD6FE
+  Dark: #31294C
+--color-chip-speaker-text:
+  Light: #5B21B6
+  Dark: #D8B4FE
+--color-chip-language-bg:
+  Light: #DBEAFE
+  Dark: #172A4A
+--color-chip-language-text:
+  Light: #0040FF
+  Dark: #93C5FD
 
 ### 1.2 尺寸、圆角、间距
 
