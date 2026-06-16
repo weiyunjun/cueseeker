@@ -23,10 +23,11 @@ This record covers the implementation and integration of:
   - Removed fixed width constraint (`58`) on the logic connector when `isRedesign` is true to allow self-adaptive sizing of the interactive dropdown.
   - Anchored `SchemaWorkbenchColumnVisibilityPopover`, `SchemaWorkbenchFilterSetPopover`, `SchemaWorkbenchFilterBuilderPopover`, and the inline rule row dropdown panels dynamically below their triggers using geometry preferences.
   - Passed `isRedesign` to the outer `WorkbenchPopoverPanel` inside `SchemaWorkbenchFilterBuilderPopover` to align its corner radius (16px) and padding (4px) with the design token.
-  - Implemented right-edge alignment fallback safety on all popovers in the shell (`columnVisibility`, `filterSets`, `filterBuilder`) and inline dropdowns inside the Filter Builder scroll view, preventing clipping at the container boundary.
+  - Implemented right-edge alignment fallback safety on all popovers in the shell (`columnVisibility`, `filterSets`, `filterBuilder`) and inline dropdowns inside the Filter Builder scroll view by measuring and using their actual layouted widths via background `GeometryReader`s, preventing clipping at the container boundary when long content is displayed.
+  - Removed redundant `.coordinateSpace(name: "SearchSpace")` from the main search shell hierarchy.
   - Propagated `isRedesign` to visibility popover, filter sets popover, and dropdown panels.
 
 ## Verification
 
 - Verified the build compiles successfully with `swift build`.
-- Ran unit tests via `swift test` and confirmed all 270 tests pass.
+- Ran unit tests via `swift test` in `apps/macos-native` and confirmed all 270 tests pass.

@@ -236,6 +236,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     @State private var openPopover: SchemaWorkbenchPopover?
     @State private var shellDropdownFrames: [String: CGRect] = [:]
+    @State private var openPopoverWidth: CGFloat = 0
 
     init(
         searchDraft: Binding<String>,
@@ -309,6 +310,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { frames in
             self.shellDropdownFrames = frames
         }
+        .onChange(of: openPopover) { _ in
+            self.openPopoverWidth = 0
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -348,10 +352,21 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 alignment: .topLeading
             )
             .fixedSize(horizontal: isRedesign, vertical: false)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            self.openPopoverWidth = geo.size.width
+                        }
+                        .onChange(of: geo.size.width) { newWidth in
+                            self.openPopoverWidth = newWidth
+                        }
+                }
+            )
             .offset(
                 x: isRedesign ? {
                     let triggerMinX = shellDropdownFrames["view"]?.minX ?? (geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220)
-                    let popoverWidth = max(220, shellDropdownFrames["view"]?.width ?? 220)
+                    let popoverWidth = self.openPopoverWidth > 0 ? self.openPopoverWidth : max(220, shellDropdownFrames["view"]?.width ?? 220)
                     let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
                     return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
                 }() : max(
@@ -372,10 +387,21 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 alignment: .topLeading
             )
             .fixedSize(horizontal: isRedesign, vertical: false)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            self.openPopoverWidth = geo.size.width
+                        }
+                        .onChange(of: geo.size.width) { newWidth in
+                            self.openPopoverWidth = newWidth
+                        }
+                }
+            )
             .offset(
                 x: isRedesign ? {
                     let triggerMinX = shellDropdownFrames["filterSets"]?.minX ?? SchemaWorkbenchStyle.pageHorizontalPadding
-                    let popoverWidth = max(260, shellDropdownFrames["filterSets"]?.width ?? 260)
+                    let popoverWidth = self.openPopoverWidth > 0 ? self.openPopoverWidth : max(260, shellDropdownFrames["filterSets"]?.width ?? 260)
                     let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
                     return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
                 }() : SchemaWorkbenchStyle.pageHorizontalPadding,
@@ -391,10 +417,21 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 }
             )
             .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            self.openPopoverWidth = geo.size.width
+                        }
+                        .onChange(of: geo.size.width) { newWidth in
+                            self.openPopoverWidth = newWidth
+                        }
+                }
+            )
             .offset(
                 x: isRedesign ? {
                     let triggerMinX = shellDropdownFrames["filterBuilder"]?.minX ?? SchemaWorkbenchStyle.pageHorizontalPadding
-                    let popoverWidth = min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding))
+                    let popoverWidth = self.openPopoverWidth > 0 ? self.openPopoverWidth : min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding))
                     let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
                     return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
                 }() : SchemaWorkbenchStyle.pageHorizontalPadding,
@@ -809,6 +846,7 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
     var onSave: () -> Void
     @State private var openDropdown: FilterBuilderDropdownID?
     @State private var dropdownFrames: [FilterBuilderDropdownID: CGRect] = [:]
+    @State private var openDropdownWidth: CGFloat = 0
 
     var body: some View {
         GeometryReader { popoverGeometry in
@@ -856,6 +894,9 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
                 dropdownOverlay(in: popoverGeometry.size.width)
                     .zIndex(1000)
             }
+            .onChange(of: openDropdown) { _ in
+                self.openDropdownWidth = 0
+            }
         }
     }
 
@@ -879,10 +920,21 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
                 alignment: .topLeading
             )
             .fixedSize(horizontal: isRedesign, vertical: false)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            self.openDropdownWidth = geo.size.width
+                        }
+                        .onChange(of: geo.size.width) { newWidth in
+                            self.openDropdownWidth = newWidth
+                        }
+                }
+            )
             .offset(
                 x: isRedesign ? {
                     let triggerMinX = frame.minX
-                    let popoverWidth = max(220, frame.width)
+                    let popoverWidth = self.openDropdownWidth > 0 ? self.openDropdownWidth : max(220, frame.width)
                     let rightLimit = containerWidth - 8
                     return max(8, min(triggerMinX, rightLimit - popoverWidth))
                 }() : FilterBuilderLayout.dropdownX(for: openDropdown.kind),
