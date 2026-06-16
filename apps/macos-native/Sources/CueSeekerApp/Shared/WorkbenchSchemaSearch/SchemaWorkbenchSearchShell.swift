@@ -349,10 +349,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             )
             .fixedSize(horizontal: isRedesign, vertical: false)
             .offset(
-                x: isRedesign ? (shellDropdownFrames["view"]?.minX ?? max(
-                    SchemaWorkbenchStyle.pageHorizontalPadding,
-                    geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220
-                )) : max(
+                x: isRedesign ? {
+                    let triggerMinX = shellDropdownFrames["view"]?.minX ?? (geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220)
+                    let popoverWidth = max(220, shellDropdownFrames["view"]?.width ?? 220)
+                    let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
+                    return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
+                }() : max(
                     SchemaWorkbenchStyle.pageHorizontalPadding,
                     geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220
                 ),
@@ -371,7 +373,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             )
             .fixedSize(horizontal: isRedesign, vertical: false)
             .offset(
-                x: isRedesign ? (shellDropdownFrames["filterSets"]?.minX ?? SchemaWorkbenchStyle.pageHorizontalPadding) : SchemaWorkbenchStyle.pageHorizontalPadding,
+                x: isRedesign ? {
+                    let triggerMinX = shellDropdownFrames["filterSets"]?.minX ?? SchemaWorkbenchStyle.pageHorizontalPadding
+                    let popoverWidth = max(260, shellDropdownFrames["filterSets"]?.width ?? 260)
+                    let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
+                    return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
+                }() : SchemaWorkbenchStyle.pageHorizontalPadding,
                 y: isRedesign ? ((shellDropdownFrames["filterSets"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
             )
         case .filterBuilder:
@@ -385,7 +392,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             )
             .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
             .offset(
-                x: SchemaWorkbenchStyle.pageHorizontalPadding,
+                x: isRedesign ? {
+                    let triggerMinX = shellDropdownFrames["filterBuilder"]?.minX ?? SchemaWorkbenchStyle.pageHorizontalPadding
+                    let popoverWidth = min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding))
+                    let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
+                    return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
+                }() : SchemaWorkbenchStyle.pageHorizontalPadding,
                 y: isRedesign ? ((shellDropdownFrames["filterBuilder"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
             )
         }
@@ -799,54 +811,56 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
     @State private var dropdownFrames: [FilterBuilderDropdownID: CGRect] = [:]
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            WorkbenchPopoverPanel(isRedesign: isRedesign) {
-                VStack(alignment: .leading, spacing: 14) {
-                    VStack(spacing: FilterBuilderLayout.rowSpacing) {
-                        ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
-                            SchemaWorkbenchFilterRuleRow(
-                                rule: rule,
-                                rowIndex: index,
-                                columns: columns,
-                                openDropdown: openDropdown,
-                                isRedesign: isRedesign,
-                                onToggleDropdown: toggleDropdown,
-                                onChange: updateRule,
-                                onDelete: {
-                                    deleteRule(rule.id)
-                                }
-                            )
-                            .zIndex(Double(rules.count - index))
+        GeometryReader { popoverGeometry in
+            ZStack(alignment: .topLeading) {
+                WorkbenchPopoverPanel(isRedesign: isRedesign) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(spacing: FilterBuilderLayout.rowSpacing) {
+                            ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
+                                SchemaWorkbenchFilterRuleRow(
+                                    rule: rule,
+                                    rowIndex: index,
+                                    columns: columns,
+                                    openDropdown: openDropdown,
+                                    isRedesign: isRedesign,
+                                    onToggleDropdown: toggleDropdown,
+                                    onChange: updateRule,
+                                    onDelete: {
+                                        deleteRule(rule.id)
+                                    }
+                                )
+                                .zIndex(Double(rules.count - index))
+                            }
                         }
+
+                        HStack(spacing: 16) {
+                            WorkbenchPlainActionButton(
+                                title: "New Filter",
+                                systemImage: "plus",
+                                isRedesign: isRedesign,
+                                action: addRule
+                            )
+
+                            Spacer(minLength: 0)
+                        }
+
+                        WorkbenchButton(title: "Save Filter Set", isRedesign: isRedesign, action: onSave)
                     }
-
-                    HStack(spacing: 16) {
-                        WorkbenchPlainActionButton(
-                            title: "New Filter",
-                            systemImage: "plus",
-                            isRedesign: isRedesign,
-                            action: addRule
-                        )
-
-                        Spacer(minLength: 0)
-                    }
-
-                    WorkbenchButton(title: "Save Filter Set", isRedesign: isRedesign, action: onSave)
+                    .padding(8)
                 }
-                .padding(8)
-            }
-            .coordinateSpace(name: "FilterBuilderSpace")
-            .onPreferenceChange(DropdownFramePreferenceKey.self) { frames in
-                self.dropdownFrames = frames
-            }
+                .coordinateSpace(name: "FilterBuilderSpace")
+                .onPreferenceChange(DropdownFramePreferenceKey.self) { frames in
+                    self.dropdownFrames = frames
+                }
 
-            dropdownOverlay
-                .zIndex(1000)
+                dropdownOverlay(in: popoverGeometry.size.width)
+                    .zIndex(1000)
+            }
         }
     }
 
     @ViewBuilder
-    private var dropdownOverlay: some View {
+    private func dropdownOverlay(in containerWidth: CGFloat) -> some View {
         if let openDropdown,
            let rowIndex = rules.firstIndex(where: { $0.id == openDropdown.ruleID }),
            let frame = dropdownFrames[openDropdown]
@@ -866,7 +880,12 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
             )
             .fixedSize(horizontal: isRedesign, vertical: false)
             .offset(
-                x: isRedesign ? frame.minX : FilterBuilderLayout.dropdownX(for: openDropdown.kind),
+                x: isRedesign ? {
+                    let triggerMinX = frame.minX
+                    let popoverWidth = max(220, frame.width)
+                    let rightLimit = containerWidth - 8
+                    return max(8, min(triggerMinX, rightLimit - popoverWidth))
+                }() : FilterBuilderLayout.dropdownX(for: openDropdown.kind),
                 y: isRedesign ? (frame.maxY + 4) : FilterBuilderLayout.dropdownY(forRowAt: rowIndex)
             )
         }
