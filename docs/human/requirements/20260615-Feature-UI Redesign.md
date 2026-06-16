@@ -270,7 +270,9 @@ main
 --font-size-caption: 12px
 
 #### Shadow
---shadow-popover: 0 12px 24px rgba(15,23,42,0.12)
+--shadow-popover:
+  Light: 0 12px 24px rgba(15,23,42,0.12)
+  Dark: 0 12px 24px rgba(0,0,0,0.36)
 
 ## 2. Components
 
