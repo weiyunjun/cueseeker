@@ -803,7 +803,7 @@ struct WorkbenchPopoverRow: View {
     }
 
     private var label: some View {
-        HStack(spacing: isRedesign ? 8 : 12) {
+        HStack(spacing: isRedesign ? 12 : 12) {
             if isRedesign {
                 if isSelected {
                     Image(systemName: "checkmark")
@@ -924,9 +924,9 @@ struct WorkbenchPopoverPanel<Content: View>: View {
 
     var body: some View {
         content()
-            .padding(isRedesign ? 8 : 8)
+            .padding(isRedesign ? 4 : 8)
             .background(
-                RoundedRectangle(cornerRadius: isRedesign ? 12 : 10, style: .continuous)
+                RoundedRectangle(cornerRadius: isRedesign ? 16 : 10, style: .continuous)
                     .fill(isRedesign ? WorkbenchRedesignColors.bgSurface : WorkbenchControlColors.surfaceFill)
                     .shadow(
                         color: Color.black.opacity(isRedesign ? 0.12 : 0.14),
@@ -936,7 +936,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: isRedesign ? 12 : 10, style: .continuous)
+                RoundedRectangle(cornerRadius: isRedesign ? 16 : 10, style: .continuous)
                     .strokeBorder(isRedesign ? WorkbenchRedesignColors.borderControl : WorkbenchControlColors.border.opacity(0.75), lineWidth: isRedesign ? 1.0 : 0.5)
             )
     }
