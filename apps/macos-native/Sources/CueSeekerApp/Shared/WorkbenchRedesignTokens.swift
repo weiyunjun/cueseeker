@@ -171,5 +171,28 @@ enum WorkbenchRedesignColors {
     static let chipLanguageText = Color(nsColor: NS.chipLanguageText)
 
     // Shadow Popover
-    static let shadowPopoverColor = Color(nsColor: NS.shadowPopover)
+    static let shadowPopover = WorkbenchRedesignShadow(
+        color: Color(nsColor: NS.shadowPopover),
+        radius: 24,
+        x: 0,
+        y: 12
+    )
+}
+
+struct WorkbenchRedesignShadow {
+    let color: Color
+    let radius: CGFloat
+    let x: CGFloat
+    let y: CGFloat
+}
+
+extension View {
+    func shadowToken(_ shadow: WorkbenchRedesignShadow) -> some View {
+        self.shadow(
+            color: shadow.color,
+            radius: shadow.radius,
+            x: shadow.x,
+            y: shadow.y
+        )
+    }
 }

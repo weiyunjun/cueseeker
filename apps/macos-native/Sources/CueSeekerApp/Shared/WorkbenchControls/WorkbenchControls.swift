@@ -817,14 +817,22 @@ struct WorkbenchPopoverPanel<Content: View>: View {
         content()
             .padding(isRedesign ? 4 : 8)
             .background(
-                RoundedRectangle(cornerRadius: isRedesign ? 16 : 10, style: .continuous)
-                    .fill(isRedesign ? WorkbenchRedesignColors.bgPopover : WorkbenchControlColors.surfaceFill)
-                    .shadow(
-                        color: isRedesign ? WorkbenchRedesignColors.shadowPopoverColor : Color.black.opacity(0.14),
-                        radius: isRedesign ? 24 : 12,
-                        x: 0,
-                        y: isRedesign ? 12 : 6
-                    )
+                Group {
+                    if isRedesign {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(WorkbenchRedesignColors.bgPopover)
+                            .shadowToken(WorkbenchRedesignColors.shadowPopover)
+                    } else {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(WorkbenchControlColors.surfaceFill)
+                            .shadow(
+                                color: Color.black.opacity(0.14),
+                                radius: 12,
+                                x: 0,
+                                y: 6
+                            )
+                    }
+                }
             )
             .overlay(
                 RoundedRectangle(cornerRadius: isRedesign ? 16 : 10, style: .continuous)

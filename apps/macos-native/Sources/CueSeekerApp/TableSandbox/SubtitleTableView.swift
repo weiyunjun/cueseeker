@@ -190,72 +190,74 @@ final class SubtitleVirtualTableHeaderView: NSView {
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        let M = SubtitleTableMetrics.self
-        let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
-        let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
-        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-        drawHeader(
-            "#",
-            rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height),
-            leading: M.indexHeaderHorizontalInset,
-            trailing: M.indexTrailingInset
-        )
-        drawHeader(
-            coordinator?.displayTitleHeaderForRendering() ?? "Name",
-            rect: CGRect(x: M.indexColumnWidth, y: 0, width: M.nameColumnWidth, height: bounds.height),
-            leading: M.headerHorizontalInset,
-            trailing: M.trailingInset
-        )
-        drawHeader(
-            "Cues",
-            rect: CGRect(
-                x: M.indexColumnWidth + M.nameColumnWidth,
-                y: 0,
-                width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth),
-                height: bounds.height
-            ),
-            leading: M.headerHorizontalInset,
-            trailing: M.trailingInset
-        )
-        if showsSpeakerColumn {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            super.draw(dirtyRect)
+            let M = SubtitleTableMetrics.self
+            let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
+            let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
+            let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+            let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
             drawHeader(
-                "Speaker",
+                "#",
+                rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height),
+                leading: M.indexHeaderHorizontalInset,
+                trailing: M.indexTrailingInset
+            )
+            drawHeader(
+                coordinator?.displayTitleHeaderForRendering() ?? "Name",
+                rect: CGRect(x: M.indexColumnWidth, y: 0, width: M.nameColumnWidth, height: bounds.height),
+                leading: M.headerHorizontalInset,
+                trailing: M.trailingInset
+            )
+            drawHeader(
+                "Cues",
                 rect: CGRect(
-                    x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - languageWidth - M.speakerColumnWidth),
+                    x: M.indexColumnWidth + M.nameColumnWidth,
                     y: 0,
-                    width: M.speakerColumnWidth,
+                    width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth),
                     height: bounds.height
                 ),
                 leading: M.headerHorizontalInset,
                 trailing: M.trailingInset
             )
-        }
-        if showsLanguageColumn {
-            drawHeader(
-                "Language",
-                rect: CGRect(
-                    x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - M.languageColumnWidth),
-                    y: 0,
-                    width: M.languageColumnWidth,
-                    height: bounds.height
-                ),
-                leading: M.headerHorizontalInset,
-                trailing: M.trailingInset
-            )
-        }
+            if showsSpeakerColumn {
+                drawHeader(
+                    "Speaker",
+                    rect: CGRect(
+                        x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - languageWidth - M.speakerColumnWidth),
+                        y: 0,
+                        width: M.speakerColumnWidth,
+                        height: bounds.height
+                    ),
+                    leading: M.headerHorizontalInset,
+                    trailing: M.trailingInset
+                )
+            }
+            if showsLanguageColumn {
+                drawHeader(
+                    "Language",
+                    rect: CGRect(
+                        x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - M.languageColumnWidth),
+                        y: 0,
+                        width: M.languageColumnWidth,
+                        height: bounds.height
+                    ),
+                    leading: M.headerHorizontalInset,
+                    trailing: M.trailingInset
+                )
+            }
 
-        if isRedesign {
-            WorkbenchRedesignColors.NS.borderDivider.setStroke()
-        } else {
-            NSColor.separatorColor.setStroke()
+            if isRedesign {
+                WorkbenchRedesignColors.NS.borderDivider.setStroke()
+            } else {
+                NSColor.separatorColor.setStroke()
+            }
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
+            path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
+            path.lineWidth = 0.5
+            path.stroke()
         }
-        let path = NSBezierPath()
-        path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
-        path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
-        path.lineWidth = 0.5
-        path.stroke()
     }
 
     private func drawHeader(_ text: String, rect: CGRect, leading: CGFloat, trailing: CGFloat) {
@@ -606,7 +608,9 @@ struct SubtitleTableView: NSViewRepresentable {
             self.tableName = tableName
             self.rowProvider = rowProvider
             self.displayTitleHeader = displayTitleHeader
+            let languageColumnChanged = showsLanguageColumn != self.showsLanguageColumn
             self.showsLanguageColumn = showsLanguageColumn
+            let speakerColumnChanged = showsSpeakerColumn != self.showsSpeakerColumn
             self.showsSpeakerColumn = showsSpeakerColumn
             let shouldScrollToTop = scrollResetToken != self.scrollResetToken
             self.scrollResetToken = scrollResetToken
@@ -614,6 +618,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onPlay = onPlay
 
             let nextRowCount = max(0, rowCount)
+            let changed = nextRowCount != self.rowCount || rowsVersion != self.rowsVersion
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
 
@@ -624,7 +629,7 @@ struct SubtitleTableView: NSViewRepresentable {
             resizeDocument()
             if shouldScrollToTop {
                 scrollToTop()
-            } else {
+            } else if changed || languageColumnChanged || speakerColumnChanged {
                 notifyVisibleRowsChanged()
             }
             headerView?.needsDisplay = true
@@ -722,9 +727,12 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func drawRows(in dirtyRect: CGRect) {
-            NSGraphicsContext.saveGraphicsState()
-            drawRowsNow(in: dirtyRect)
-            NSGraphicsContext.restoreGraphicsState()
+            guard let documentView else { return }
+            documentView.effectiveAppearance.performAsCurrentDrawingAppearance {
+                NSGraphicsContext.saveGraphicsState()
+                drawRowsNow(in: dirtyRect)
+                NSGraphicsContext.restoreGraphicsState()
+            }
         }
 
         private func drawRowsNow(in dirtyRect: CGRect) {
