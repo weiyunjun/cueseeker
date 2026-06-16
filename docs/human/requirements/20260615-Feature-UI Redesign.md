@@ -18,6 +18,7 @@ main
 3. 所有会打开 Popover / Menu / Dropdown / Panel 的触发控件，Open 状态必须复用 Hover 状态的外观。Open 不允许设计独立视觉；只要对应弹层处于打开状态，即使鼠标离开触发控件，触发控件也必须保持 Hover 外观。Hover 与 Open 同时存在时不叠加额外效果。涉及组件：2.3 Filter Panel Trigger Button，2.4 Select Trigger Button，2.5 Form Select Field，2.7 Logic Connector，2.11 Row Action Button，2.18 Sortable Header Cell。
 4. 对短标签控件、选择触发器、命令按钮、状态标签、菜单项等非输入型控件，默认宽度应自适应内容，并在正常布局空间充足时完整显示文本内容，不应截断或省略。适用组件：2.3 Filter Panel Trigger Button，2.4 Select Trigger Button，2.5 Form Select Field，2.7 Logic Connector，2.8 Neutral Button，2.9 Inline Add Button，2.12 Menu Item Base，2.13 Select Menu Item，2.14 Action Menu Item，2.15 Column Header Menu 的 Header Trigger，2.16 Row Action Menu 里的 Menu Item，2.22 Chip / Tag，2.23 Count Summary。
 5. 所有由按钮触发的 Menu / Dropdown / Popover / Panel，弹出位置默认锚定触发按钮：1. 弹层左边缘优先与触发按钮左边缘对齐；2. 弹层顶部位于触发按钮底部下方一个固定间距；3. 如果按左边缘对齐会导致弹层超出可用区域右侧，则允许弹层向左回退，保证弹层完整显示；4. 回退后弹层左边缘可以位于触发按钮左边缘左侧；5. 不允许依赖 row / panel 的手算偏移作为最终定位依据。
+6. UI Redesign 必须同时支持 Light Mode 和 Dark Mode。所有颜色 token 必须提供 Light / Dark 两套值，或明确标记为 macOS 系统动态语义色。实现时禁止将 redesign 颜色 token 写成单一固定 hex；SwiftUI 与 AppKit 绘制层都必须通过统一 token 映射读取当前 appearance 下的颜色。
 
 # Component修改方案
 
