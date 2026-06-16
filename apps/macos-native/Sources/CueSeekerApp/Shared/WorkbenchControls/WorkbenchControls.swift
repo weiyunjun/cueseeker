@@ -59,6 +59,7 @@ enum WorkbenchRedesignColors {
     static let textPrimary = Color(hex: "#0F172A")      // --color-text-primary
     static let textMuted = Color(hex: "#667085")        // --color-text-muted
     static let textPlaceholder = Color(hex: "#98A2B3")  // --color-text-placeholder
+    static let textReadonly = Color(hex: "#808080")     // --color-text-readonly
     static let iconDefault = Color(hex: "#667085")      // --color-icon-default
     static let iconMuted = Color(hex: "#98A2B3")        // --color-icon-muted
 
@@ -66,8 +67,10 @@ enum WorkbenchRedesignColors {
     static let bgSurface = Color(hex: "#FFFFFF")        // --color-bg-surface
     static let bgDisabled = Color(hex: "#F3F4F6")       // --color-bg-disabled
     static let bgHover = Color(hex: "#F3F4F6")          // --color-bg-hover
+    static let bgReadonly = Color(hex: "#FFFFFF")       // --color-bg-readonly
     static let borderControl = Color(hex: "#E5E7EB")    // --color-border-control
     static let borderControlHover = Color(hex: "#D1D5DB") // --color-border-control-hover
+    static let borderReadonly = Color(hex: "#E5E7EB")   // --color-border-readonly
 
     // Active Blue
     static let accent = Color(hex: "#0040FF")           // --color-accent
@@ -308,55 +311,119 @@ struct WorkbenchToolbarButton: View {
 
 struct WorkbenchButton: View {
     let title: String
-    var systemImage: String?
+    var systemImage: String? = nil
+    var isRedesign: Bool = false
     var action: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: isRedesign ? 8 : 8) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .regular))
+                        .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .regular))
+                        .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
+                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
                 }
 
                 Text(title)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .medium))
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
-            .foregroundStyle(WorkbenchControlColors.primaryText)
-            .padding(.horizontal, 14)
-            .frame(height: 36)
-            .background(WorkbenchControlBackground())
+            .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 14)
+            .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : 36)
+            .background(
+                Group {
+                    if isRedesign {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                            .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
+                    } else {
+                        WorkbenchControlBackground()
+                    }
+                }
+            )
+            .overlay(
+                Group {
+                    if isRedesign {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                            .strokeBorder(isEnabled ? (isHovered ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                    }
+                }
+            )
+            .overlay(
+                Group {
+                    if isRedesign && isFocused && isEnabled {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                    }
+                }
+            )
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focused($isFocused)
+        .disableFocusEffect()
+        .onHover { isHovered = $0 }
     }
 }
 
 struct WorkbenchPlainActionButton: View {
     let title: String
     let systemImage: String
+    var isRedesign: Bool = false
     var action: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(spacing: isRedesign ? 8 : 10) {
                 Image(systemName: systemImage)
-                    .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .regular))
+                    .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .regular))
+                    .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
 
                 Text(title)
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? .medium : .regular))
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
-            .foregroundStyle(WorkbenchControlColors.primaryText)
-            .frame(height: WorkbenchControlMetrics.controlHeight)
+            .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 0)
+            .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
+            .background(
+                Group {
+                    if isRedesign {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                            .fill(isEnabled && isHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                    }
+                }
+            )
+            .overlay(
+                Group {
+                    if isRedesign && isFocused && isEnabled {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                    }
+                }
+            )
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focused($isFocused)
+        .disableFocusEffect()
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -551,33 +618,90 @@ struct WorkbenchSelectFieldLabel: View {
 struct WorkbenchTextInputField: View {
     let placeholder: String
     @Binding var text: String
+    var isRedesign: Bool = false
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        TextField(placeholder, text: $text)
-            .textFieldStyle(.plain)
-            .font(.system(size: 14, weight: .regular))
-            .foregroundStyle(WorkbenchControlColors.primaryText)
-            .padding(.horizontal, 12)
-            .frame(height: WorkbenchControlMetrics.controlHeight)
-            .background(WorkbenchControlBackground())
+        TextField(
+            "",
+            text: $text,
+            prompt: Text(placeholder)
+                .foregroundColor(isRedesign ? WorkbenchRedesignColors.textPlaceholder : WorkbenchControlColors.mutedText)
+        )
+        .textFieldStyle(.plain)
+        .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .regular))
+        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
+        .focused($isFocused)
+        .disableFocusEffect()
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 12)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : WorkbenchControlMetrics.controlHeight)
+        .background(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                        .fill(isEnabled ? WorkbenchRedesignColors.bgSurface : WorkbenchRedesignColors.bgDisabled)
+                } else {
+                    WorkbenchControlBackground()
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                        .strokeBorder(isEnabled ? (isFocused ? WorkbenchRedesignColors.borderFocus : (isHovered ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl)) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isRedesign && isFocused && isEnabled {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                }
+            }
+        )
+        .onHover { isHovered = $0 }
     }
 }
 
 struct WorkbenchReadonlyField: View {
     let title: String
+    var isRedesign: Bool = false
 
     var body: some View {
         HStack {
             Text(title)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(WorkbenchControlColors.mutedText)
+                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .regular))
+                .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textReadonly : WorkbenchControlColors.mutedText)
                 .lineLimit(1)
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
-        .frame(height: WorkbenchControlMetrics.controlHeight)
-        .background(WorkbenchControlBackground())
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 12)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : WorkbenchControlMetrics.controlHeight)
+        .background(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                        .fill(WorkbenchRedesignColors.bgReadonly)
+                } else {
+                    WorkbenchControlBackground()
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                        .strokeBorder(WorkbenchRedesignColors.borderReadonly, lineWidth: 1)
+                }
+            }
+        )
     }
 }
 
@@ -610,6 +734,7 @@ struct WorkbenchInlineDropdown: View {
         .disableFocusEffect()
         .onHover { isHovered = $0 }
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : WorkbenchControlMetrics.controlHeight, alignment: .topLeading)
+        .fixedSize(horizontal: isRedesign, vertical: false)
         .zIndex(isOpen ? 100 : 0)
     }
 }
@@ -617,16 +742,18 @@ struct WorkbenchInlineDropdown: View {
 struct WorkbenchDropdownPanel: View {
     let choices: [WorkbenchDropdownChoice]
     let selectedID: String?
+    var isRedesign: Bool = false
     var onSelect: (WorkbenchDropdownChoice) -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel {
+        WorkbenchPopoverPanel(isRedesign: isRedesign) {
             VStack(spacing: 0) {
                 ForEach(choices) { choice in
                     WorkbenchPopoverRow(
                         title: choice.title,
                         isSelected: choice.id == selectedID,
                         isHighlighted: choice.id == selectedID,
+                        isRedesign: isRedesign,
                         action: {
                             onSelect(choice)
                         }
@@ -660,6 +787,7 @@ struct WorkbenchPopoverRow: View {
     var isSelected = false
     var isHighlighted = false
     var systemImage: String?
+    var isRedesign: Bool = false
     var action: (() -> Void)? = nil
     @State private var isHovered = false
 
@@ -675,30 +803,46 @@ struct WorkbenchPopoverRow: View {
     }
 
     private var label: some View {
-        HStack(spacing: 12) {
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .semibold))
+        HStack(spacing: isRedesign ? 8 : 12) {
+            if isRedesign {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
+                        .foregroundStyle(WorkbenchRedesignColors.iconDefault)
+                } else {
+                    Color.clear
+                        .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
+                }
             } else {
-                Color.clear
-                    .frame(width: 13, height: 13)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .semibold))
+                } else {
+                    Color.clear
+                        .frame(width: 13, height: 13)
+                }
             }
 
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: isRedesign ? 16 : 14, weight: isRedesign ? .medium : .medium))
+                    .foregroundStyle(isRedesign ? WorkbenchRedesignColors.iconDefault : WorkbenchControlColors.primaryText)
             }
 
             Text(title)
-                .font(.system(size: 15, weight: .regular))
+                .font(.system(size: isRedesign ? 14 : 15, weight: .regular))
+                .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
 
             Spacer(minLength: 0)
         }
-        .foregroundStyle(WorkbenchControlColors.primaryText)
-        .padding(.horizontal, 12)
-        .frame(height: 40)
+        .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
+        .padding(.horizontal, isRedesign ? 16 : 12)
+        .frame(height: isRedesign ? 40 : 40)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: isRedesign ? 8 : 8, style: .continuous)
                 .fill(rowBackground)
         )
         .contentShape(Rectangle())
@@ -706,17 +850,28 @@ struct WorkbenchPopoverRow: View {
     }
 
     private var rowBackground: Color {
-        if isHighlighted || isHovered {
-            return WorkbenchControlColors.hoverFill
+        if isRedesign {
+            if isHighlighted || isHovered {
+                return WorkbenchRedesignColors.bgHover
+            }
+            return .clear
+        } else {
+            if isHighlighted || isHovered {
+                return WorkbenchControlColors.hoverFill
+            }
+            return .clear
         }
-
-        return .clear
     }
 }
 
 struct WorkbenchIconButton: View {
     let systemImage: String
+    var isRedesign: Bool = false
     var action: (() -> Void)? = nil
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         if let action {
@@ -724,6 +879,9 @@ struct WorkbenchIconButton: View {
                 label
             }
             .buttonStyle(.plain)
+            .focused($isFocused)
+            .disableFocusEffect()
+            .onHover { isHovered = $0 }
         } else {
             label
         }
@@ -731,35 +889,55 @@ struct WorkbenchIconButton: View {
 
     private var label: some View {
         Image(systemName: systemImage)
-            .font(.system(size: WorkbenchControlMetrics.iconSize, weight: .medium))
-            .foregroundStyle(WorkbenchControlColors.primaryText)
+            .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
+            .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
             .frame(
-                width: WorkbenchControlMetrics.controlHeight,
-                height: WorkbenchControlMetrics.controlHeight
+                width: isRedesign ? 40 : WorkbenchControlMetrics.controlHeight,
+                height: isRedesign ? 40 : WorkbenchControlMetrics.controlHeight
             )
-            .background(WorkbenchControlBackground())
+            .background(
+                Group {
+                    if isRedesign {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                            .fill(isEnabled && isHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                    } else {
+                        Color.clear
+                    }
+                }
+            )
+            .overlay(
+                Group {
+                    if isRedesign && isFocused && isEnabled {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                    }
+                }
+            )
+            .contentShape(Rectangle())
     }
 }
 
 struct WorkbenchPopoverPanel<Content: View>: View {
+    var isRedesign: Bool = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         content()
-            .padding(8)
+            .padding(isRedesign ? 8 : 8)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(WorkbenchControlColors.surfaceFill)
+                RoundedRectangle(cornerRadius: isRedesign ? 12 : 10, style: .continuous)
+                    .fill(isRedesign ? WorkbenchRedesignColors.bgSurface : WorkbenchControlColors.surfaceFill)
                     .shadow(
-                        color: Color.black.opacity(0.14),
-                        radius: 12,
+                        color: Color.black.opacity(isRedesign ? 0.12 : 0.14),
+                        radius: isRedesign ? 24 : 12,
                         x: 0,
-                        y: 6
+                        y: isRedesign ? 12 : 6
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(WorkbenchControlColors.border.opacity(0.75), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: isRedesign ? 12 : 10, style: .continuous)
+                    .strokeBorder(isRedesign ? WorkbenchRedesignColors.borderControl : WorkbenchControlColors.border.opacity(0.75), lineWidth: isRedesign ? 1.0 : 0.5)
             )
     }
 }
@@ -792,5 +970,27 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+public struct WorkbenchDropdownAnchorPreferenceKey: PreferenceKey {
+    public typealias Value = [String: CGRect]
+    public static var defaultValue: Value { [:] }
+    public static func reduce(value: inout Value, nextValue: () -> Value) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+extension View {
+    public func workbenchDropdownAnchor(id: String, in spaceName: String) -> some View {
+        self.background(
+            GeometryReader { geo in
+                Color.clear
+                    .preference(
+                        key: WorkbenchDropdownAnchorPreferenceKey.self,
+                        value: [id: geo.frame(in: .named(spaceName))]
+                    )
+            }
+        )
     }
 }

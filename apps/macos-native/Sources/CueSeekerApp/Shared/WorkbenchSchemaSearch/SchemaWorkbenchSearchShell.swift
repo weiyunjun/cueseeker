@@ -230,11 +230,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
-    let isRedesign: Bool
+        let isRedesign: Bool
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
     @State private var openPopover: SchemaWorkbenchPopover?
+    @State private var shellDropdownFrames: [String: CGRect] = [:]
 
     init(
         searchDraft: Binding<String>,
@@ -304,6 +305,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
             overlayLayer
         }
+        .coordinateSpace(name: "SearchShellSpace")
+        .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { frames in
+            self.shellDropdownFrames = frames
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -335,26 +340,39 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             SchemaWorkbenchColumnVisibilityPopover(
                 columns: columns,
                 visibleColumnIDs: visibleColumnIDs,
+                isRedesign: isRedesign,
                 onToggleColumn: toggleColumnVisibility
             )
-            .frame(width: 220)
+            .frame(
+                minWidth: isRedesign ? max(220, shellDropdownFrames["view"]?.width ?? 220) : 220,
+                alignment: .topLeading
+            )
+            .fixedSize(horizontal: isRedesign, vertical: false)
             .offset(
-                x: max(
+                x: isRedesign ? (shellDropdownFrames["view"]?.minX ?? max(
+                    SchemaWorkbenchStyle.pageHorizontalPadding,
+                    geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220
+                )) : max(
                     SchemaWorkbenchStyle.pageHorizontalPadding,
                     geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220
                 ),
-                y: SchemaWorkbenchStyle.viewPopoverTop(isRedesign: isRedesign)
+                y: isRedesign ? ((shellDropdownFrames["view"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.viewPopoverTop(isRedesign: isRedesign)
             )
         case .filterSets:
             SchemaWorkbenchFilterSetPopover(
                 options: filterSets,
                 activeFilterSetID: activeFilterSetID,
+                isRedesign: isRedesign,
                 onSelect: selectFilterSet
             )
-            .frame(width: 260)
+            .frame(
+                minWidth: isRedesign ? max(260, shellDropdownFrames["filterSets"]?.width ?? 260) : 260,
+                alignment: .topLeading
+            )
+            .fixedSize(horizontal: isRedesign, vertical: false)
             .offset(
-                x: SchemaWorkbenchStyle.pageHorizontalPadding,
-                y: SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
+                x: isRedesign ? (shellDropdownFrames["filterSets"]?.minX ?? SchemaWorkbenchStyle.pageHorizontalPadding) : SchemaWorkbenchStyle.pageHorizontalPadding,
+                y: isRedesign ? ((shellDropdownFrames["filterSets"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
             )
         case .filterBuilder:
             SchemaWorkbenchFilterBuilderPopover(
@@ -368,7 +386,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
             .offset(
                 x: SchemaWorkbenchStyle.pageHorizontalPadding,
-                y: SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
+                y: isRedesign ? ((shellDropdownFrames["filterBuilder"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
             )
         }
     }
@@ -527,14 +545,14 @@ enum SchemaWorkbenchFilterSetSaveAction {
     }
 }
 
-private enum FilterBuilderDropdownKind: Equatable {
+private enum FilterBuilderDropdownKind: Hashable {
     case join
     case field
     case filterOperator
     case value
 }
 
-private struct FilterBuilderDropdownID: Equatable {
+private struct FilterBuilderDropdownID: Hashable {
     let ruleID: String
     let kind: FilterBuilderDropdownKind
 }
@@ -644,6 +662,7 @@ struct SchemaWorkbenchSearchCommandBar: View {
                 isMenuOpen: isViewMenuOpen,
                 action: onViewMenu
             )
+            .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
         }
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight)
     }
@@ -670,6 +689,7 @@ struct SchemaWorkbenchFilterControlBar: View {
                 isMenuOpen: isFilterSetsMenuOpen,
                 action: onFilterSets
             )
+            .workbenchDropdownAnchor(id: "filterSets", in: "SearchShellSpace")
 
             if filterCount > 0 {
                 if isRedesign {
@@ -680,6 +700,7 @@ struct SchemaWorkbenchFilterControlBar: View {
                         onTrigger: onFilterBuilder,
                         onClear: onReset
                     )
+                    .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
                 } else {
                     WorkbenchFilterChip(
                         systemImage: "line.3.horizontal.decrease",
@@ -700,8 +721,10 @@ struct SchemaWorkbenchFilterControlBar: View {
                 WorkbenchPlainActionButton(
                     title: "New Filter Set",
                     systemImage: "plus",
+                    isRedesign: isRedesign,
                     action: onFilterBuilder
                 )
+                .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
             }
 
             Spacer(minLength: 0)
@@ -713,15 +736,17 @@ struct SchemaWorkbenchFilterControlBar: View {
 struct SchemaWorkbenchColumnVisibilityPopover: View {
     let columns: [WorkbenchTableColumn]
     let visibleColumnIDs: Set<String>
+    var isRedesign: Bool = false
     var onToggleColumn: (String) -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel {
+        WorkbenchPopoverPanel(isRedesign: isRedesign) {
             VStack(spacing: 0) {
                 ForEach(columns) { column in
                     WorkbenchPopoverRow(
                         title: column.title,
                         isSelected: visibleColumnIDs.contains(column.id),
+                        isRedesign: isRedesign,
                         action: {
                             onToggleColumn(column.id)
                         }
@@ -735,16 +760,18 @@ struct SchemaWorkbenchColumnVisibilityPopover: View {
 struct SchemaWorkbenchFilterSetPopover: View {
     let options: [SchemaWorkbenchFilterSet]
     let activeFilterSetID: String?
+    var isRedesign: Bool = false
     var onSelect: (SchemaWorkbenchFilterSet) -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel {
+        WorkbenchPopoverPanel(isRedesign: isRedesign) {
             VStack(spacing: 0) {
                 ForEach(options) { option in
                     WorkbenchPopoverRow(
                         title: option.name,
                         isSelected: option.id == activeFilterSetID,
                         isHighlighted: option.id == activeFilterSetID,
+                        isRedesign: isRedesign,
                         action: {
                             onSelect(option)
                         }
@@ -755,12 +782,21 @@ struct SchemaWorkbenchFilterSetPopover: View {
     }
 }
 
+private struct DropdownFramePreferenceKey: PreferenceKey {
+    typealias Value = [FilterBuilderDropdownID: CGRect]
+    static var defaultValue: Value { [:] }
+    static func reduce(value: inout Value, nextValue: () -> Value) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
 struct SchemaWorkbenchFilterBuilderPopover: View {
     let columns: [WorkbenchTableColumn]
     @Binding var rules: [SchemaWorkbenchFilterRule]
     var isRedesign: Bool = false
     var onSave: () -> Void
     @State private var openDropdown: FilterBuilderDropdownID?
+    @State private var dropdownFrames: [FilterBuilderDropdownID: CGRect] = [:]
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -788,15 +824,20 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
                         WorkbenchPlainActionButton(
                             title: "New Filter",
                             systemImage: "plus",
+                            isRedesign: isRedesign,
                             action: addRule
                         )
 
                         Spacer(minLength: 0)
                     }
 
-                    WorkbenchButton(title: "Save Filter Set", action: onSave)
+                    WorkbenchButton(title: "Save Filter Set", isRedesign: isRedesign, action: onSave)
                 }
                 .padding(8)
+            }
+            .coordinateSpace(name: "FilterBuilderSpace")
+            .onPreferenceChange(DropdownFramePreferenceKey.self) { frames in
+                self.dropdownFrames = frames
             }
 
             dropdownOverlay
@@ -807,23 +848,26 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
     @ViewBuilder
     private var dropdownOverlay: some View {
         if let openDropdown,
-           let rowIndex = rules.firstIndex(where: { $0.id == openDropdown.ruleID })
+           let rowIndex = rules.firstIndex(where: { $0.id == openDropdown.ruleID }),
+           let frame = dropdownFrames[openDropdown]
         {
             WorkbenchDropdownPanel(
                 choices: dropdownChoices(for: openDropdown),
                 selectedID: selectedDropdownID(for: openDropdown),
+                isRedesign: isRedesign,
                 onSelect: { choice in
                     selectDropdownChoice(choice, for: openDropdown)
                     self.openDropdown = nil
                 }
             )
             .frame(
-                width: FilterBuilderLayout.dropdownWidth(for: openDropdown.kind),
+                minWidth: isRedesign ? frame.width : FilterBuilderLayout.dropdownWidth(for: openDropdown.kind),
                 alignment: .topLeading
             )
+            .fixedSize(horizontal: isRedesign, vertical: false)
             .offset(
-                x: FilterBuilderLayout.dropdownX(for: openDropdown.kind),
-                y: FilterBuilderLayout.dropdownY(forRowAt: rowIndex)
+                x: isRedesign ? frame.minX : FilterBuilderLayout.dropdownX(for: openDropdown.kind),
+                y: isRedesign ? (frame.maxY + 4) : FilterBuilderLayout.dropdownY(forRowAt: rowIndex)
             )
         }
     }
@@ -1019,13 +1063,22 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                             onToggleDropdown(dropdownID(.join))
                         }
                     )
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear
+                                .preference(
+                                    key: DropdownFramePreferenceKey.self,
+                                    value: [dropdownID(.join): geo.frame(in: .named("FilterBuilderSpace"))]
+                                )
+                        }
+                    )
                 } else {
                     Text(rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title)
                         .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
                 }
             }
-            .frame(width: 58, alignment: .leading)
+            .frame(width: isRedesign ? nil : 58, alignment: .leading)
 
             WorkbenchInlineDropdown(
                 title: selectedColumn?.title ?? "Field",
@@ -1035,7 +1088,16 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                     onToggleDropdown(dropdownID(.field))
                 }
             )
-            .frame(width: 110)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(
+                            key: DropdownFramePreferenceKey.self,
+                            value: [dropdownID(.field): geo.frame(in: .named("FilterBuilderSpace"))]
+                        )
+                }
+            )
+            .frame(width: isRedesign ? nil : 110)
 
             WorkbenchInlineDropdown(
                 title: rule.operatorID.title,
@@ -1045,12 +1107,21 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                     onToggleDropdown(dropdownID(.filterOperator))
                 }
             )
-            .frame(width: 150)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(
+                            key: DropdownFramePreferenceKey.self,
+                            value: [dropdownID(.filterOperator): geo.frame(in: .named("FilterBuilderSpace"))]
+                        )
+                }
+            )
+            .frame(width: isRedesign ? nil : 150)
 
             valueInput
                 .frame(maxWidth: .infinity)
 
-            WorkbenchIconButton(systemImage: "trash", action: onDelete)
+            WorkbenchIconButton(systemImage: "trash", isRedesign: isRedesign, action: onDelete)
                 .frame(width: 40)
         }
     }
@@ -1058,7 +1129,7 @@ private struct SchemaWorkbenchFilterRuleRow: View {
     @ViewBuilder
     private var valueInput: some View {
         if Self.doesOperatorNeedNoValue(rule.operatorID) {
-            WorkbenchReadonlyField(title: "No value needed")
+            WorkbenchReadonlyField(title: "No value needed", isRedesign: isRedesign)
         } else {
             WorkbenchTextInputField(
                 placeholder: valuePlaceholder,
@@ -1071,7 +1142,8 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                         updatedRule.value = sanitizedInput(value)
                         onChange(updatedRule)
                     }
-                )
+                ),
+                isRedesign: isRedesign
             )
         }
     }
