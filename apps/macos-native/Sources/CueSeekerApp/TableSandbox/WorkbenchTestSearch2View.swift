@@ -50,7 +50,8 @@ struct WorkbenchTestSearch2View: View {
                 showsSpeakerColumn: true,
                 scrollResetToken: tableScrollResetToken,
                 onVisibleRowsChange: hydrateVisibleRows,
-                onPlay: play
+                onPlay: play,
+                isRedesign: true
             )
         }
         .onAppear {

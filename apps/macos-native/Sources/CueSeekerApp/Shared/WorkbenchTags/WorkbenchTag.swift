@@ -73,4 +73,26 @@ enum WorkbenchTagColorID: String, Equatable {
             return NSColor(red: 0.976, green: 0.812, blue: 0.788, alpha: 1)
         }
     }
+
+    func redesignForegroundColor() -> NSColor {
+        switch self {
+        case .purple:
+            return WorkbenchRedesignColors.NS.chipSpeakerText
+        case .blue:
+            return WorkbenchRedesignColors.NS.chipLanguageText
+        default:
+            return appKitForegroundColor
+        }
+    }
+
+    func redesignFillColor() -> NSColor {
+        switch self {
+        case .purple:
+            return WorkbenchRedesignColors.NS.chipSpeakerBg
+        case .blue:
+            return WorkbenchRedesignColors.NS.chipLanguageBg
+        default:
+            return appKitFillColor
+        }
+    }
 }

@@ -54,58 +54,6 @@ enum WorkbenchControlColors {
     static let hoverFill = Color(nsColor: .labelColor).opacity(0.06)
 }
 
-enum WorkbenchRedesignColors {
-    // Text & Icon
-    static let textPrimary = Color(hex: "#0F172A")      // --color-text-primary
-    static let textMuted = Color(hex: "#667085")        // --color-text-muted
-    static let textPlaceholder = Color(hex: "#98A2B3")  // --color-text-placeholder
-    static let textReadonly = Color(hex: "#808080")     // --color-text-readonly
-    static let iconDefault = Color(hex: "#667085")      // --color-icon-default
-    static let iconMuted = Color(hex: "#98A2B3")        // --color-icon-muted
-
-    // Background & Border
-    static let bgSurface = Color(hex: "#FFFFFF")        // --color-bg-surface
-    static let bgDisabled = Color(hex: "#F3F4F6")       // --color-bg-disabled
-    static let bgHover = Color(hex: "#F3F4F6")          // --color-bg-hover
-    static let bgReadonly = Color(hex: "#FFFFFF")       // --color-bg-readonly
-    static let borderControl = Color(hex: "#E5E7EB")    // --color-border-control
-    static let borderControlHover = Color(hex: "#D1D5DB") // --color-border-control-hover
-    static let borderReadonly = Color(hex: "#E5E7EB")   // --color-border-readonly
-
-    // Active Blue
-    static let accent = Color(hex: "#0040FF")           // --color-accent
-    static let bgActive = Color(hex: "#EBF5FF")         // --color-bg-active
-    static let bgActiveHover = Color(hex: "#E1EBFF")    // --color-bg-active-hover
-    static let bgActiveClearHover = Color(hex: "#D8E8FD") // --color-bg-active-clear-hover
-    static let borderFocus = Color(hex: "#3B82F6")      // --color-border-focus
-    static let focusRing = Color(red: 59/255, green: 130/255, blue: 246/255, opacity: 0.22) // --color-focus-ring
-}
-
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (255, 0, 0, 0)
-        }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
-}
 
 struct WorkbenchInlineClearButton: View {
     var isEnabled: Bool = true
@@ -870,9 +818,9 @@ struct WorkbenchPopoverPanel<Content: View>: View {
             .padding(isRedesign ? 4 : 8)
             .background(
                 RoundedRectangle(cornerRadius: isRedesign ? 16 : 10, style: .continuous)
-                    .fill(isRedesign ? WorkbenchRedesignColors.bgSurface : WorkbenchControlColors.surfaceFill)
+                    .fill(isRedesign ? WorkbenchRedesignColors.bgPopover : WorkbenchControlColors.surfaceFill)
                     .shadow(
-                        color: Color.black.opacity(isRedesign ? 0.12 : 0.14),
+                        color: isRedesign ? WorkbenchRedesignColors.shadowPopoverColor : Color.black.opacity(0.14),
                         radius: isRedesign ? 24 : 12,
                         x: 0,
                         y: isRedesign ? 12 : 6
