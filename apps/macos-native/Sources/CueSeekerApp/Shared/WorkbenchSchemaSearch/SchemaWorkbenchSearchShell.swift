@@ -1200,7 +1200,7 @@ private struct SchemaWorkbenchFilterRuleRow: View {
     @ViewBuilder
     private var valueInput: some View {
         if Self.doesOperatorNeedNoValue(rule.operatorID) {
-            WorkbenchReadonlyField(title: "No value needed")
+            WorkbenchReadonlyField(title: "No value needed", isRedesign: isRedesign)
         } else {
             WorkbenchTextInputField(
                 placeholder: valuePlaceholder,
@@ -1213,7 +1213,8 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                         updatedRule.value = sanitizedInput(value)
                         onChange(updatedRule)
                     }
-                )
+                ),
+                isRedesign: isRedesign
             )
         }
     }

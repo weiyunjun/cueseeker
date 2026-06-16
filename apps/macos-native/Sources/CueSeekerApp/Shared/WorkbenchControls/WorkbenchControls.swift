@@ -566,33 +566,99 @@ struct WorkbenchSelectFieldLabel: View {
 struct WorkbenchTextInputField: View {
     let placeholder: String
     @Binding var text: String
+    var isRedesign: Bool = false
+
+    @FocusState private var isFocused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        TextField(placeholder, text: $text)
+        if isRedesign {
+            TextField(
+                "",
+                text: $text,
+                prompt: Text(placeholder)
+                    .foregroundColor(WorkbenchRedesignColors.textPlaceholder)
+            )
             .textFieldStyle(.plain)
-            .font(.system(size: 14, weight: .regular))
-            .foregroundStyle(WorkbenchControlColors.primaryText)
-            .padding(.horizontal, 12)
-            .frame(height: WorkbenchControlMetrics.controlHeight)
-            .background(WorkbenchControlBackground())
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .regular))
+            .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
+            .focused($isFocused)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingX)
+            .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+            .background(
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                    .fill(isEnabled ? WorkbenchRedesignColors.bgSurface : WorkbenchRedesignColors.bgDisabled)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                    .strokeBorder(
+                        isEnabled ? (isFocused ? WorkbenchRedesignColors.borderFocus : WorkbenchRedesignColors.borderControl) : WorkbenchRedesignColors.borderDisabled,
+                        lineWidth: 1.0
+                    )
+            )
+            .overlay(
+                Group {
+                    if isFocused && isEnabled {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                    }
+                }
+            )
+        } else {
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(WorkbenchControlColors.primaryText)
+                .padding(.horizontal, 12)
+                .frame(height: WorkbenchControlMetrics.controlHeight)
+                .background(WorkbenchControlBackground())
+        }
     }
 }
 
 struct WorkbenchReadonlyField: View {
     let title: String
+    var isRedesign: Bool = false
+
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(WorkbenchControlColors.mutedText)
-                .lineLimit(1)
+        if isRedesign {
+            HStack {
+                Text(title)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .regular))
+                    .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textReadonly : WorkbenchRedesignColors.textDisabled)
+                    .lineLimit(1)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingX)
+            .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+            .background(
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                    .fill(isEnabled ? WorkbenchRedesignColors.bgReadonly : WorkbenchRedesignColors.bgDisabled)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                    .strokeBorder(
+                        isEnabled ? WorkbenchRedesignColors.borderReadonly : WorkbenchRedesignColors.borderDisabled,
+                        lineWidth: 1.0
+                    )
+            )
+        } else {
+            HStack {
+                Text(title)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(WorkbenchControlColors.mutedText)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: WorkbenchControlMetrics.controlHeight)
+            .background(WorkbenchControlBackground())
         }
-        .padding(.horizontal, 12)
-        .frame(height: WorkbenchControlMetrics.controlHeight)
-        .background(WorkbenchControlBackground())
     }
 }
 
