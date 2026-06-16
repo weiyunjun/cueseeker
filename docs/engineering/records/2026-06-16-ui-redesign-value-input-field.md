@@ -16,6 +16,7 @@ This record covers the implementation and integration of:
   - Implemented `@FocusState` and `@Environment(\.isEnabled)` tracking inside `WorkbenchTextInputField`.
   - Implemented redesign-specific container sizes, fonts, dynamic color mapping, borders, and focus rings for `WorkbenchTextInputField` when `isRedesign` is true.
   - Implemented redesign-specific container sizes, fonts, dynamic color mapping, and borders for `WorkbenchReadonlyField` when `isRedesign` is true.
+  - Added prompt customization to `WorkbenchTextInputField` based on Codex review findings: explicitly specified font size on prompt, and dynamically switched foreground color between `textPlaceholder` and `textDisabled` based on whether the input field is enabled.
 - **`SchemaWorkbenchSearchShell.swift`**:
   - Propagated `isRedesign: isRedesign` to `WorkbenchTextInputField` and `WorkbenchReadonlyField` inside the `valueInput` builder logic.
 

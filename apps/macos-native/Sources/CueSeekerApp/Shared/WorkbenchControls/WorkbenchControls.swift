@@ -577,7 +577,8 @@ struct WorkbenchTextInputField: View {
                 "",
                 text: $text,
                 prompt: Text(placeholder)
-                    .foregroundColor(WorkbenchRedesignColors.textPlaceholder)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .regular))
+                    .foregroundColor(isEnabled ? WorkbenchRedesignColors.textPlaceholder : WorkbenchRedesignColors.textDisabled)
             )
             .textFieldStyle(.plain)
             .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .regular))
