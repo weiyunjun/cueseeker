@@ -618,90 +618,33 @@ struct WorkbenchSelectFieldLabel: View {
 struct WorkbenchTextInputField: View {
     let placeholder: String
     @Binding var text: String
-    var isRedesign: Bool = false
-
-    @FocusState private var isFocused: Bool
-    @State private var isHovered = false
-    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        TextField(
-            "",
-            text: $text,
-            prompt: Text(placeholder)
-                .foregroundColor(isRedesign ? WorkbenchRedesignColors.textPlaceholder : WorkbenchControlColors.mutedText)
-        )
-        .textFieldStyle(.plain)
-        .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .regular))
-        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
-        .focused($isFocused)
-        .disableFocusEffect()
-        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 12)
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : WorkbenchControlMetrics.controlHeight)
-        .background(
-            Group {
-                if isRedesign {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
-                        .fill(isEnabled ? WorkbenchRedesignColors.bgSurface : WorkbenchRedesignColors.bgDisabled)
-                } else {
-                    WorkbenchControlBackground()
-                }
-            }
-        )
-        .overlay(
-            Group {
-                if isRedesign {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
-                        .strokeBorder(isEnabled ? (isFocused ? WorkbenchRedesignColors.borderFocus : (isHovered ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl)) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
-                }
-            }
-        )
-        .overlay(
-            Group {
-                if isRedesign && isFocused && isEnabled {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
-                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
-                }
-            }
-        )
-        .onHover { isHovered = $0 }
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(.system(size: 14, weight: .regular))
+            .foregroundStyle(WorkbenchControlColors.primaryText)
+            .padding(.horizontal, 12)
+            .frame(height: WorkbenchControlMetrics.controlHeight)
+            .background(WorkbenchControlBackground())
     }
 }
 
 struct WorkbenchReadonlyField: View {
     let title: String
-    var isRedesign: Bool = false
 
     var body: some View {
         HStack {
             Text(title)
-                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .regular))
-                .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textReadonly : WorkbenchControlColors.mutedText)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(WorkbenchControlColors.mutedText)
                 .lineLimit(1)
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 12)
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : WorkbenchControlMetrics.controlHeight)
-        .background(
-            Group {
-                if isRedesign {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
-                        .fill(WorkbenchRedesignColors.bgReadonly)
-                } else {
-                    WorkbenchControlBackground()
-                }
-            }
-        )
-        .overlay(
-            Group {
-                if isRedesign {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
-                        .strokeBorder(WorkbenchRedesignColors.borderReadonly, lineWidth: 1)
-                }
-            }
-        )
+        .padding(.horizontal, 12)
+        .frame(height: WorkbenchControlMetrics.controlHeight)
+        .background(WorkbenchControlBackground())
     }
 }
 
