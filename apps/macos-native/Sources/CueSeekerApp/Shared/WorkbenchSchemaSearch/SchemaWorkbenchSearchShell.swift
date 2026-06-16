@@ -800,7 +800,7 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            WorkbenchPopoverPanel {
+            WorkbenchPopoverPanel(isRedesign: isRedesign) {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(spacing: FilterBuilderLayout.rowSpacing) {
                         ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
