@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 enum WorkbenchControlMetrics {
     static let searchFieldHeight: CGFloat = 46
@@ -44,6 +45,8 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeControl: CGFloat = 16
     /// --size-inline-add-symbol-font-size-macos: 16pt
     static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 16
+    /// --size-icon-button: 40px
+    static let redesignIconButtonSize: CGFloat = 40
 }
 
 enum WorkbenchControlColors {
@@ -834,26 +837,41 @@ struct WorkbenchIconButton: View {
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        if let action {
-            Button(action: action) {
+        Group {
+            if let action {
+                Button(action: action) {
+                    label
+                }
+                .buttonStyle(.plain)
+                .focused($isFocused)
+                .disableFocusEffect()
+            } else {
                 label
             }
-            .buttonStyle(.plain)
-            .focused($isFocused)
-            .disableFocusEffect()
-            .onHover { isHovered = $0 }
-        } else {
-            label
+        }
+        .onHover { inside in
+            isHovered = inside
+            if isRedesign {
+                if inside {
+                    if isEnabled {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.operationNotAllowed.push()
+                    }
+                } else {
+                    NSCursor.pop()
+                }
+            }
         }
     }
 
     private var label: some View {
         Image(systemName: systemImage)
-            .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
-            .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
+            .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
+            .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
             .frame(
-                width: isRedesign ? 40 : WorkbenchControlMetrics.controlHeight,
-                height: isRedesign ? 40 : WorkbenchControlMetrics.controlHeight
+                width: isRedesign ? WorkbenchControlMetrics.redesignIconButtonSize : WorkbenchControlMetrics.controlHeight,
+                height: isRedesign ? WorkbenchControlMetrics.redesignIconButtonSize : WorkbenchControlMetrics.controlHeight
             )
             .background(
                 Group {
