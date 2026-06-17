@@ -1118,13 +1118,16 @@ private struct SchemaWorkbenchFilterRuleRow: View {
     var onChange: (SchemaWorkbenchFilterRule) -> Void
     var onDelete: () -> Void
 
+    @Environment(\.isEnabled) private var isEnabled
+
     var body: some View {
         HStack(spacing: 10) {
             Group {
                 if rowIndex == 0 {
                     Text("Where")
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
+                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
+                        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : nil)
                 } else if rowIndex == 1 {
                     WorkbenchInlineDropdown(
                         title: rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title,
@@ -1146,10 +1149,11 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                 } else {
                     Text(rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title)
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
+                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
+                        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : nil)
                 }
             }
-            .frame(width: isRedesign ? nil : 58, alignment: .leading)
+            .frame(width: isRedesign ? 80 : 58, alignment: .leading)
 
             WorkbenchInlineDropdown(
                 title: selectedColumn?.title ?? "Field",

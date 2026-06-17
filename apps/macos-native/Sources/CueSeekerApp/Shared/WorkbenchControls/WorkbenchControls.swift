@@ -515,7 +515,7 @@ struct WorkbenchSelectFieldLabel: View {
         HStack(spacing: isRedesign ? 8 : 8) {
             Text(title)
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .regular))
-                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
 
             Spacer(minLength: 0)
@@ -524,7 +524,7 @@ struct WorkbenchSelectFieldLabel: View {
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
                     .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
-                    .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted)
+                    .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled)
             } else {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
@@ -547,7 +547,7 @@ struct WorkbenchSelectFieldLabel: View {
             Group {
                 if isRedesign {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
-                        .strokeBorder(isEnabled ? (isFocused ? WorkbenchRedesignColors.borderFocus : ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl)) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                        .strokeBorder(isEnabled ? (isFocused ? WorkbenchRedesignColors.borderFocus : ((isHovered || isMenuOpen) ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl)) : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
                 }
             }
         )
