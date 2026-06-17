@@ -778,7 +778,7 @@ struct WorkbenchPopoverRow: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, weight: .semibold))
                             .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
-                            .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.textDisabled)
+                            .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
                     } else {
                         Color.clear
                             .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)

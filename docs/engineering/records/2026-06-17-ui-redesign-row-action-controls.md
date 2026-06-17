@@ -18,7 +18,7 @@ This record covers the implementation and integration of:
 1. **Update `WorkbenchPopoverRow` (in `WorkbenchControls.swift`)**:
    - Added `showsCheckmarkSlot` property to allow disabling leading checkmark slots for action items.
    - Constrained redesign menu item icons to 20x20px fixed layout slot and `redesignMenuItemSymbolFontSizeMacOS` (14pt) font size.
-   - Map disabled menu item icon color to `textDisabled`.
+   - Map disabled menu item icon color to `textDisabled`, and aligned checked state checkmark icon color to `textPrimary` (2.13).
 2. **Implement `RowActionMenu` (in `SubtitleTableView.swift`)**:
    - Add SwiftUI structure representing the redesign row action items.
 3. **Implement Overlay Click Handler (`SubtitleTableMenuOverlayView`)**:
