@@ -48,8 +48,13 @@
 - SwiftUI 的 NSHostingView 渲染常因为 AppKit 的 layout 驱动机制存在微小延迟。
 - 在 `Coordinator` 内提供 `refreshHeaderHosts()` 入口，在排序切换、菜单打开/关闭、以及 `isEnabled` 切换时同步调用，以确保视觉效果实时呈现。
 
+### 3.4 整体表头 Hover 背景机制
+- 在 AppKit 层的 `SubtitleVirtualTableHeaderView` 中引入了 `NSTrackingArea` 监听鼠标移入与移出。
+- 处于 Redesign 模式下，当鼠标悬停于表头栏区域（且未打开列菜单或外部弹窗层）时，在 `draw(_:)` 中将整体表头背景填充为 `bgHover` 颜色，实现类似于数据行悬停的背景反馈。
+- 当有弹层（如 Column Header Menu）或外部 popup 展开时，自动屏蔽并清除此整体 hover 背景，以确保交互焦点的层级和视觉清晰。
+
 ---
 
 ## 4. 影响的模块与源文件
 - `Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift` (新增度量 Token，更新 `WorkbenchPopoverRow` 光标逻辑)
-- `Sources/CueSeekerApp/TableSandbox/SubtitleTableView.swift` (重构表头、状态管理、显示/关闭菜单机制，新增 Header Cell / Menu Views)
+- `Sources/CueSeekerApp/TableSandbox/SubtitleTableView.swift` (重构表头、状态管理、显示/关闭菜单机制，新增 Header Cell / Menu Views，实现表头整体 hover 追踪与绘制)
