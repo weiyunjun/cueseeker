@@ -228,6 +228,8 @@ main
 --size-inline-clear-button: 32px
 --size-inline-clear-icon: 20px
 --size-inline-clear-symbol-font-size-macos: 11pt
+--size-inline-add-symbol-font-size-macos: 16pt
+--size-menu-item-symbol-font-size-macos: 14pt
 --size-control-icon: 20px
 --size-icon-button: 40px
 --size-row-action-button: 36px
@@ -553,9 +555,11 @@ Font Family: --font-family-base
 Text Size: --font-size-control
 Text Color Default: --color-text-primary
 Text Color Disabled: --color-text-disabled
-Icon Size: --size-control-icon
-Icon Color Default: --color-icon-default
-Icon Color Disabled: --color-icon-disabled
+Icon Slot Size: --size-control-icon
+Native macOS Symbol: SF Symbol plus, medium
+Native macOS Symbol Font Size: --size-inline-add-symbol-font-size-macos
+Icon Color Default: --color-text-primary
+Icon Color Disabled: --color-text-disabled
 
 #### Status
 Default
@@ -637,9 +641,10 @@ Font: --font-family-base
 Font Size: --font-size-body
 Text Color: --color-text-primary
 Disabled Text: --color-text-disabled
-Icon Size: --size-control-icon
-Icon Color: --color-icon-default
-Disabled Icon: --color-icon-disabled
+Icon Slot Size: --size-control-icon
+Native macOS Symbol Font Size: --size-menu-item-symbol-font-size-macos
+Icon Color: --color-text-primary
+Disabled Icon: --color-text-disabled
 
 #### Status
 Default
@@ -669,9 +674,10 @@ Font: --font-family-base
 Font Size: --font-size-body
 Text Color: --color-text-primary
 Disabled Text: --color-text-disabled
-Check Icon Size: --size-control-icon
-Icon Color: --color-icon-default
-Disabled Icon: --color-icon-disabled
+Check Icon Slot Size: --size-control-icon
+Check Native macOS Symbol Font Size: --size-menu-item-symbol-font-size-macos
+Icon Color: --color-text-primary
+Disabled Icon: --color-text-disabled
 
 #### Status
 Default
@@ -702,9 +708,10 @@ Font: --font-family-base
 Font Size: --font-size-body
 Text Color: --color-text-primary
 Disabled Text: --color-text-disabled
-Icon Size: --size-control-icon
-Icon Color: --color-icon-default
-Disabled Icon: --color-icon-disabled
+Icon Slot Size: --size-control-icon
+Native macOS Symbol Font Size: --size-menu-item-symbol-font-size-macos
+Icon Color: --color-text-primary
+Disabled Icon: --color-text-disabled
 
 #### Status
 Default
@@ -745,10 +752,11 @@ Sort Indicator Desc: arrow-down
 Asc Icon: arrow-up
 Desc Icon: arrow-down
 Hide Icon: eye-off
-Icon Size: --size-control-icon
+Menu Item Icon Slot Size: --size-control-icon
+Menu Item Native macOS Symbol Font Size: --size-menu-item-symbol-font-size-macos
 Menu Item Text Color Default: --color-text-primary
 Menu Item Text Color Hover / Highlighted: --color-text-primary
-Menu Item Icon Color: --color-icon-default
+Menu Item Icon Color: --color-text-primary
 Font Family: --font-family-base
 Font Size: --font-size-table
 
@@ -786,11 +794,12 @@ Row Action Trigger Border: none
 Copy Cue Text Icon: copy
 Open Context Icon: search
 Favorite Icon: star
-Menu Item Icon Size: --size-control-icon
+Menu Item Icon Slot Size: --size-control-icon
+Menu Item Native macOS Symbol Font Size: --size-menu-item-symbol-font-size-macos
 Menu Item Text Color Default: --color-text-primary
 Menu Item Text Color Disabled: --color-text-disabled
-Menu Item Icon Color Default: --color-icon-default
-Menu Item Icon Color Disabled: --color-icon-disabled
+Menu Item Icon Color Default: --color-text-primary
+Menu Item Icon Color Disabled: --color-text-disabled
 Row Action Trigger Icon: ellipsis
 Row Action Trigger Icon Color: --color-icon-default
 Row Action Trigger Disabled Icon Color: --color-icon-disabled
