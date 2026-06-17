@@ -45,6 +45,8 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeControl: CGFloat = 16
     /// --size-inline-add-symbol-font-size-macos: 16pt
     static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 16
+    /// --size-menu-item-symbol-font-size-macos: 14pt
+    static let redesignMenuItemSymbolFontSizeMacOS: CGFloat = 14
     /// --size-icon-button: 40px
     static let redesignIconButtonSize: CGFloat = 40
 }
@@ -751,6 +753,8 @@ struct WorkbenchPopoverRow: View {
     var isHighlighted = false
     var systemImage: String?
     var isRedesign: Bool = false
+    var showsCheckmarkSlot = true
+    var isEnabled = true
     var action: (() -> Void)? = nil
     @State private var isHovered = false
 
@@ -760,6 +764,7 @@ struct WorkbenchPopoverRow: View {
                 label
             }
             .buttonStyle(.plain)
+            .disabled(!isEnabled)
         } else {
             label
         }
@@ -767,41 +772,44 @@ struct WorkbenchPopoverRow: View {
 
     private var label: some View {
         HStack(spacing: isRedesign ? 12 : 12) {
-            if isRedesign {
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
-                        .foregroundStyle(WorkbenchRedesignColors.iconDefault)
+            if showsCheckmarkSlot {
+                if isRedesign {
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, weight: .semibold))
+                            .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
+                            .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.textDisabled)
+                    } else {
+                        Color.clear
+                            .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
+                    }
                 } else {
-                    Color.clear
-                        .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
-                }
-            } else {
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .semibold))
-                } else {
-                    Color.clear
-                        .frame(width: 13, height: 13)
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .semibold))
+                    } else {
+                        Color.clear
+                            .frame(width: 13, height: 13)
+                    }
                 }
             }
 
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: isRedesign ? 16 : 14, weight: isRedesign ? .medium : .medium))
-                    .foregroundStyle(isRedesign ? WorkbenchRedesignColors.iconDefault : WorkbenchControlColors.primaryText)
+                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : 14, weight: isRedesign ? .medium : .medium))
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
+                    .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
             }
 
             Text(title)
                 .font(.system(size: isRedesign ? 14 : 15, weight: .regular))
-                .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
             Spacer(minLength: 0)
         }
-        .foregroundStyle(isRedesign ? WorkbenchRedesignColors.textPrimary : WorkbenchControlColors.primaryText)
+        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
         .padding(.horizontal, isRedesign ? 16 : 12)
         .frame(height: isRedesign ? 40 : 40)
         .background(
@@ -809,10 +817,17 @@ struct WorkbenchPopoverRow: View {
                 .fill(rowBackground)
         )
         .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
+        .onHover { inside in
+            if isEnabled {
+                isHovered = inside
+            } else {
+                isHovered = false
+            }
+        }
     }
 
     private var rowBackground: Color {
+        guard isEnabled else { return .clear }
         if isRedesign {
             if isHighlighted || isHovered {
                 return WorkbenchRedesignColors.bgHover

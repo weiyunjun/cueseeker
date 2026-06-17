@@ -110,27 +110,48 @@ final class SubtitleTextLayout {
 private struct CueHoverButtons: View {
     var isRedesign: Bool = false
     var isEnabled: Bool = true
+    var isMenuOpen: Bool = false
     var onPlay: () -> Void
     var onCopy: () -> Void
+    var onTriggerMenu: () -> Void
+    var onDismissMenu: () -> Void
 
-    @State private var isPopoverPresented = false
     @State private var isHovered = false
     @State private var hasPushedCursor = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         if isRedesign {
             Button(action: {
-                isPopoverPresented = true
+                if isMenuOpen {
+                    onDismissMenu()
+                } else {
+                    onTriggerMenu()
+                }
             }) {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled)
                     .frame(width: 36, height: 36)
-                    .background((isHovered || isPopoverPresented) && isEnabled ? WorkbenchRedesignColors.bgHover : Color.clear)
+                    .background((isHovered || isMenuOpen) && isEnabled ? WorkbenchRedesignColors.bgHover : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
+            .focused($isFocused)
+            .disableFocusEffect()
+            .overlay(
+                Group {
+                    if isFocused && isEnabled {
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
+                            style: .continuous
+                        )
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                    }
+                }
+            )
             .contentShape(Rectangle())
             .onHover { inside in
                 isHovered = inside
@@ -154,31 +175,6 @@ private struct CueHoverButtons: View {
                 if hasPushedCursor {
                     NSCursor.pop()
                     hasPushedCursor = false
-                }
-            }
-            .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
-                WorkbenchPopoverPanel(isRedesign: true) {
-                    VStack(spacing: 0) {
-                        WorkbenchPopoverRow(
-                            title: "Play",
-                            systemImage: "play.fill",
-                            isRedesign: true,
-                            action: {
-                                isPopoverPresented = false
-                                onPlay()
-                            }
-                        )
-                        WorkbenchPopoverRow(
-                            title: "Copy",
-                            systemImage: "doc.on.doc",
-                            isRedesign: true,
-                            action: {
-                                isPopoverPresented = false
-                                onCopy()
-                            }
-                        )
-                    }
-                    .frame(width: 140)
                 }
             }
         } else {
@@ -227,6 +223,51 @@ private struct CueHoverButtons: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(ToolbarButtonStyle())
+    }
+}
+
+private struct RowActionMenu: View {
+    var onCopy: () -> Void
+    var onContext: () -> Void
+    var onFavorite: () -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel(isRedesign: true) {
+            VStack(spacing: 0) {
+                WorkbenchPopoverRow(
+                    title: "Copy Cue Text",
+                    systemImage: "doc.on.doc", // Mapped from "copy" to "doc.on.doc" for macOS copy semantics
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: true,
+                    action: onCopy
+                )
+                WorkbenchPopoverRow(
+                    title: "Open Context",
+                    systemImage: "magnifyingglass", // Mapped from "search" to "magnifyingglass"
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: false, // Disabled and not integrated yet
+                    action: onContext
+                )
+                WorkbenchPopoverRow(
+                    title: "Favorite",
+                    systemImage: "star", // Mapped from "star" to "star"
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: false, // Disabled and not integrated yet
+                    action: onFavorite
+                )
+            }
+        }
+    }
+}
+
+final class SubtitleTableMenuOverlayView: NSView {
+    var onClick: (() -> Void)?
+    override var isFlipped: Bool { true }
+    override func mouseDown(with event: NSEvent) {
+        onClick?()
     }
 }
 
@@ -636,6 +677,9 @@ struct SubtitleTableView: NSViewRepresentable {
         private weak var scrollView: NSScrollView?
         private weak var documentView: SubtitleVirtualTableDocumentView?
         private var buttonsHost: NSHostingView<CueHoverButtons>?
+        private var isMenuOpen = false
+        private var menuHost: NSHostingView<RowActionMenu>?
+        private var menuOverlayView: SubtitleTableMenuOverlayView?
 
         private let textLayout = SubtitleTextLayout()
         private var rowHeightCache = SubtitleVirtualRowHeightCache()
@@ -680,7 +724,14 @@ struct SubtitleTableView: NSViewRepresentable {
             self.scrollView = scrollView
             self.documentView = documentView
 
-            let buttonsHost = NSHostingView(rootView: CueHoverButtons(isRedesign: isRedesign, isEnabled: isEnabled, onPlay: {}, onCopy: {}))
+            let buttonsHost = NSHostingView(rootView: CueHoverButtons(
+                isRedesign: isRedesign,
+                isEnabled: isEnabled,
+                onPlay: {},
+                onCopy: {},
+                onTriggerMenu: {},
+                onDismissMenu: {}
+            ))
             buttonsHost.isHidden = true
             buttonsHost.translatesAutoresizingMaskIntoConstraints = true
             documentView.addSubview(buttonsHost)
@@ -688,6 +739,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             container.onLayout = { [weak self] in
                 self?.resizeDocument()
+                self?.dismissMenu()
             }
         }
 
@@ -726,6 +778,11 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             resizeDocument()
+            if changed || languageColumnChanged || speakerColumnChanged {
+                if isMenuOpen {
+                    dismissMenu()
+                }
+            }
             if shouldScrollToTop {
                 scrollToTop()
             } else if changed || languageColumnChanged || speakerColumnChanged {
@@ -822,7 +879,11 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @objc func scrollContentDidChange() {
             notifyVisibleRowsChanged()
-            layoutHoverButtons()
+            if isMenuOpen {
+                dismissMenu()
+            } else {
+                layoutHoverButtons()
+            }
         }
 
         func drawRows(in dirtyRect: CGRect) {
@@ -1060,7 +1121,11 @@ struct SubtitleTableView: NSViewRepresentable {
             let oldRow = hoveredRow
             hoveredRow = newRow
             invalidateRows([oldRow, newRow])
-            layoutHoverButtons()
+            if isMenuOpen {
+                dismissMenu()
+            } else {
+                layoutHoverButtons()
+            }
         }
 
         private func invalidateRows(_ rows: [Int?]) {
@@ -1080,27 +1145,111 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
-            buttonsHost.rootView = CueHoverButtons(
-                isRedesign: isRedesign,
-                isEnabled: isEnabled,
-                onPlay: { [weak self] in self?.playRow(hoveredRow) },
-                onCopy: { [weak self] in self?.copyRow(hoveredRow) }
-            )
-            let rowRect = rectForRow(hoveredRow, width: documentView.bounds.width)
+            let buttonFrame: CGRect
             let M = SubtitleTableMetrics.self
+            let rowRect = rectForRow(hoveredRow, width: documentView.bounds.width)
             if isRedesign {
                 let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
                 let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
                 let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
                 let x = M.indexColumnWidth + M.nameColumnWidth + cuesWidth - 36 - M.trailingInset
                 let y = rowRect.minY + (rowRect.height - 36) / 2
-                buttonsHost.frame = CGRect(x: x, y: y, width: 36, height: 36)
+                buttonFrame = CGRect(x: x, y: y, width: 36, height: 36)
             } else {
                 let x = M.indexColumnWidth + M.nameColumnWidth + M.cellLeading
                 let y = rowRect.minY + M.rowVerticalInset - 4
-                buttonsHost.frame = CGRect(x: x, y: y, width: 120, height: 28)
+                buttonFrame = CGRect(x: x, y: y, width: 120, height: 28)
             }
+
+            buttonsHost.rootView = CueHoverButtons(
+                isRedesign: isRedesign,
+                isEnabled: isEnabled,
+                isMenuOpen: isMenuOpen,
+                onPlay: { [weak self] in self?.playRow(hoveredRow) },
+                onCopy: { [weak self] in self?.copyRow(hoveredRow) },
+                onTriggerMenu: { [weak self] in self?.showMenu(for: hoveredRow, buttonFrame: buttonFrame) },
+                onDismissMenu: { [weak self] in self?.dismissMenu() }
+            )
+
+            buttonsHost.frame = buttonFrame
             buttonsHost.isHidden = model.cues.isEmpty
+        }
+
+        func showMenu(for row: Int, buttonFrame: CGRect) {
+            isMenuOpen = true
+            layoutHoverButtons()
+
+            guard let documentView else { return }
+
+            if menuOverlayView == nil {
+                let overlay = SubtitleTableMenuOverlayView()
+                overlay.onClick = { [weak self] in
+                    self?.dismissMenu()
+                }
+                documentView.addSubview(overlay)
+                menuOverlayView = overlay
+            }
+            menuOverlayView?.frame = documentView.bounds
+            menuOverlayView?.isHidden = false
+
+            let menuView = RowActionMenu(
+                onCopy: { [weak self] in
+                    self?.copyRow(row)
+                    self?.dismissMenu()
+                },
+                onContext: { [weak self] in
+                    self?.dismissMenu()
+                },
+                onFavorite: { [weak self] in
+                    self?.dismissMenu()
+                }
+            )
+
+            if menuHost == nil {
+                let host = NSHostingView(rootView: menuView)
+                documentView.addSubview(host)
+                menuHost = host
+            } else {
+                menuHost?.rootView = menuView
+            }
+
+            if let menuOverlayView {
+                documentView.addSubview(menuOverlayView)
+            }
+            if let menuHost {
+                documentView.addSubview(menuHost)
+            }
+
+            menuHost?.layout()
+            let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
+            let menuWidth = menuSize.width
+            let menuHeight = menuSize.height
+
+            let visibleRect = documentView.visibleRect
+            let M = SubtitleTableMetrics.self
+
+            var menuX = buttonFrame.minX
+            if menuX + menuWidth > visibleRect.maxX - M.trailingInset {
+                menuX = max(visibleRect.minX, visibleRect.maxX - menuWidth - M.trailingInset)
+            }
+
+            var menuY = buttonFrame.maxY + 4
+            if menuY + menuHeight > visibleRect.maxY {
+                menuY = buttonFrame.minY - menuHeight - 4
+                if menuY < visibleRect.minY {
+                    menuY = max(visibleRect.minY, visibleRect.maxY - menuHeight)
+                }
+            }
+
+            menuHost?.frame = CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
+            menuHost?.isHidden = false
+        }
+
+        func dismissMenu() {
+            isMenuOpen = false
+            menuHost?.isHidden = true
+            menuOverlayView?.isHidden = true
+            layoutHoverButtons()
         }
 
         private func playRow(_ row: Int) {
