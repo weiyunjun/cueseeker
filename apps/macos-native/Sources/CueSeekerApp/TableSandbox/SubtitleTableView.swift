@@ -388,7 +388,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             
             if isRedesign {
                 if isHeaderHovered {
-                    WorkbenchRedesignColors.NS.bgHover.setFill()
+                    WorkbenchRedesignColors.NS.rowHover.setFill()
                     bounds.fill()
                 }
                 WorkbenchRedesignColors.NS.borderDivider.setStroke()
