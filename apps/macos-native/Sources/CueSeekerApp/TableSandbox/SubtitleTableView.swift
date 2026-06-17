@@ -328,13 +328,69 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private var speakerHeaderHost: NSHostingView<AnyView>?
     private var languageHeaderHost: NSHostingView<AnyView>?
 
+    private var hoverTracking: NSTrackingArea?
+    private var isHeaderHovered = false {
+        didSet {
+            guard isHeaderHovered != oldValue else { return }
+            needsDisplay = true
+        }
+    }
+
     override var isFlipped: Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking {
+            removeTrackingArea(hoverTracking)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        hoverTracking = area
+        updateHoverState()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        updateHoverState()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        updateHoverState()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        updateHoverState()
+    }
+
+    private func updateHoverState() {
+        guard isRedesign, let window = window else {
+            isHeaderHovered = false
+            return
+        }
+        if let coordinator = coordinator, (coordinator.isMenuOpen || coordinator.isExternalPopupLayerOpen) {
+            isHeaderHovered = false
+            return
+        }
+        let mouseLoc = window.mouseLocationOutsideOfEventStream
+        let localLoc = convert(mouseLoc, from: nil)
+        isHeaderHovered = bounds.contains(localLoc)
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             super.draw(dirtyRect)
             
             if isRedesign {
+                if isHeaderHovered {
+                    WorkbenchRedesignColors.NS.bgHover.setFill()
+                    bounds.fill()
+                }
                 WorkbenchRedesignColors.NS.borderDivider.setStroke()
                 let path = NSBezierPath()
                 path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
@@ -430,6 +486,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     func refreshHeaderHosts() {
+        updateHoverState()
         guard isRedesign else {
             indexHeaderHost?.isHidden = true
             nameHeaderHost?.isHidden = true
@@ -834,10 +891,12 @@ struct SubtitleTableView: NSViewRepresentable {
                     hoveredRow = nil
                     buttonsHost?.isHidden = true
                     documentView?.needsDisplay = true
+                    headerView?.refreshHeaderHosts()
                 } else {
                     if let window = documentView?.window {
                         handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
                     }
+                    headerView?.refreshHeaderHosts()
                 }
             }
         }
