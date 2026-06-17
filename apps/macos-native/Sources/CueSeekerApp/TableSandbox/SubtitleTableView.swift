@@ -694,6 +694,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var isMenuOpen = false
         private var menuHost: NSHostingView<RowActionMenu>?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
+        nonisolated(unsafe) private var menuEventMonitor: Any?
         var isExternalPopupLayerOpen = false {
             didSet {
                 guard isExternalPopupLayerOpen != oldValue else { return }
@@ -742,6 +743,9 @@ struct SubtitleTableView: NSViewRepresentable {
 
         deinit {
             NotificationCenter.default.removeObserver(self)
+            if let monitor = menuEventMonitor {
+                NSEvent.removeMonitor(monitor)
+            }
         }
 
         func attach(
@@ -1212,17 +1216,20 @@ struct SubtitleTableView: NSViewRepresentable {
             isMenuOpen = true
             layoutHoverButtons()
 
-            guard let documentView else { return }
+            guard let documentView, let container = self.container else {
+                isMenuOpen = false
+                return
+            }
 
             if menuOverlayView == nil {
                 let overlay = SubtitleTableMenuOverlayView()
                 overlay.onClick = { [weak self] in
                     self?.dismissMenu()
                 }
-                documentView.addSubview(overlay)
+                container.addSubview(overlay)
                 menuOverlayView = overlay
             }
-            menuOverlayView?.frame = documentView.bounds
+            menuOverlayView?.frame = container.bounds
             menuOverlayView?.isHidden = false
 
             let menuView = RowActionMenu(
@@ -1240,17 +1247,17 @@ struct SubtitleTableView: NSViewRepresentable {
 
             if menuHost == nil {
                 let host = NSHostingView(rootView: menuView)
-                documentView.addSubview(host)
+                container.addSubview(host)
                 menuHost = host
             } else {
                 menuHost?.rootView = menuView
             }
 
             if let menuOverlayView {
-                documentView.addSubview(menuOverlayView)
+                container.addSubview(menuOverlayView)
             }
             if let menuHost {
-                documentView.addSubview(menuHost)
+                container.addSubview(menuHost)
             }
 
             menuHost?.layout()
@@ -1258,30 +1265,34 @@ struct SubtitleTableView: NSViewRepresentable {
             let menuWidth = menuSize.width
             let menuHeight = menuSize.height
 
-            let visibleRect = documentView.visibleRect
+            let buttonFrameInContainer = container.convert(buttonFrame, from: documentView)
+            let visibleRect = container.bounds
             let M = SubtitleTableMetrics.self
 
-            var menuX = buttonFrame.minX
+            var menuX = buttonFrameInContainer.minX
             if menuX + menuWidth > visibleRect.maxX - M.trailingInset {
                 menuX = max(visibleRect.minX, visibleRect.maxX - menuWidth - M.trailingInset)
             }
 
-            var menuY = buttonFrame.maxY + 4
-            if menuY + menuHeight > visibleRect.maxY {
-                menuY = buttonFrame.minY - menuHeight - 4
-                if menuY < visibleRect.minY {
+            var menuY = buttonFrameInContainer.minY - menuHeight - 4
+            if menuY < visibleRect.minY {
+                menuY = buttonFrameInContainer.maxY + 4
+                if menuY + menuHeight > visibleRect.maxY {
                     menuY = max(visibleRect.minY, visibleRect.maxY - menuHeight)
                 }
             }
 
             menuHost?.frame = CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
             menuHost?.isHidden = false
+
+            installMenuDismissMonitor()
         }
 
         func dismissMenu(recalculateHover: Bool = true) {
             isMenuOpen = false
             menuHost?.isHidden = true
             menuOverlayView?.isHidden = true
+            removeMenuDismissMonitor()
 
             guard recalculateHover else { return }
 
@@ -1289,6 +1300,36 @@ struct SubtitleTableView: NSViewRepresentable {
                 handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
             } else {
                 layoutHoverButtons()
+            }
+        }
+
+        private func installMenuDismissMonitor() {
+            removeMenuDismissMonitor()
+            menuEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+                guard let self else { return event }
+                if self.isMenuOpen {
+                    guard let container = self.container, event.window === container.window else {
+                        DispatchQueue.main.async { self.dismissMenu() }
+                        return event
+                    }
+                    if let menuHost = self.menuHost, !menuHost.isHidden {
+                        let clickPoint = container.convert(event.locationInWindow, from: nil)
+                        if menuHost.frame.contains(clickPoint) {
+                            return event
+                        }
+                    }
+                    DispatchQueue.main.async {
+                        self.dismissMenu()
+                    }
+                }
+                return event
+            }
+        }
+
+        private func removeMenuDismissMonitor() {
+            if let monitor = menuEventMonitor {
+                NSEvent.removeMonitor(monitor)
+                menuEventMonitor = nil
             }
         }
 
