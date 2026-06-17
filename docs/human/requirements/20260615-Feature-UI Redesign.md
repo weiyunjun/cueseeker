@@ -19,6 +19,8 @@ main
 4. 对短标签控件、选择触发器、命令按钮、状态标签、菜单项等非输入型控件，默认宽度应自适应内容，并在正常布局空间充足时完整显示文本内容，不应截断或省略。适用组件：2.3 Filter Panel Trigger Button，2.4 Select Trigger Button，2.5 Form Select Field，2.7 Logic Connector，2.8 Neutral Button，2.9 Inline Add Button，2.12 Menu Item Base，2.13 Select Menu Item，2.14 Action Menu Item，2.15 Column Header Menu 的 Header Trigger，2.16 Row Action Menu 里的 Menu Item，2.22 Chip / Tag，2.23 Count Summary。
 5. 所有由按钮触发的 Menu / Dropdown / Popover / Panel，弹出位置默认锚定触发按钮：1. 弹层左边缘优先与触发按钮左边缘对齐；2. 弹层顶部位于触发按钮底部下方一个固定间距；3. 如果按左边缘对齐会导致弹层超出可用区域右侧，则允许弹层向左回退，保证弹层完整显示；4. 回退后弹层左边缘可以位于触发按钮左边缘左侧；5. 不允许依赖 row / panel 的手算偏移作为最终定位依据。
 6. UI Redesign 必须同时支持 Light Mode 和 Dark Mode。所有颜色 token 必须提供 Light / Dark 两套值，或明确标记为 macOS 系统动态语义色。实现时禁止将 redesign 颜色 token 写成单一固定 hex；SwiftUI 与 AppKit 绘制层都必须通过统一 token 映射读取当前 appearance 下的颜色。
+7. 所有 Menu / Dropdown / Popover / Panel 打开后，弹层必须视为独立交互层级。鼠标在弹层内部移动或操作时，不允许触发底层 Table Row / Header / Trigger Surface 的 hover 更新；底层 hover 状态应被暂停或屏蔽，直到弹层关闭后再根据当前鼠标位置重新计算。
+8. Row Action Button，点击后将鼠标移动到其他位置，该按钮及下拉菜单都会消失，这是错的，此时应该保留按钮及下拉菜单。菜单消失的逻辑类似其它菜单。菜单消失的情况下，再根据是否hover到某个为止来判断Row Action Button是否显示。
 
 # Component修改方案
 
