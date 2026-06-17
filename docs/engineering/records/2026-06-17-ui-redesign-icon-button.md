@@ -14,7 +14,7 @@ This record covers the implementation and integration of:
 - **`WorkbenchControls.swift`**:
   - Added `import AppKit` to support Cocoa mouse cursor modifications.
   - Added `redesignIconButtonSize` (40px) to `WorkbenchControlMetrics` to map `--size-icon-button`.
-  - Refactored `WorkbenchIconButton` body with `.onHover` to dynamically push/pop `NSCursor.pointingHand` (when enabled) and `NSCursor.operationNotAllowed` (when disabled) in redesign mode.
+  - Refactored `WorkbenchIconButton` body with `.onHover`, `.onChange(of: isEnabled)`, and `.onDisappear` to safely push/pop `NSCursor.pointingHand` (when enabled) and `NSCursor.operationNotAllowed` (when disabled) in redesign mode. This prevents cursor stack leaks when views disappear (e.g., filter row deletion) and updates correctly when enabled state changes dynamically.
   - Aligned redesign icon font size to `redesignControlIconSize` (20px).
   - Aligned button frame width and height to `redesignIconButtonSize` (40px).
   - Updated disabled icon color to use `iconDisabled` instead of `iconMuted`.

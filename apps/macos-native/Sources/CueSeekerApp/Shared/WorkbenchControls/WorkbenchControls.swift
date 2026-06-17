@@ -834,6 +834,7 @@ struct WorkbenchIconButton: View {
 
     @FocusState private var isFocused: Bool
     @State private var isHovered = false
+    @State private var hasPushedCursor = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
@@ -852,15 +853,44 @@ struct WorkbenchIconButton: View {
         .onHover { inside in
             isHovered = inside
             if isRedesign {
-                if inside {
-                    if isEnabled {
-                        NSCursor.pointingHand.push()
-                    } else {
-                        NSCursor.operationNotAllowed.push()
-                    }
+                updateCursor(inside: inside)
+            }
+        }
+        .onChange(of: isEnabled) { newValue in
+            if isRedesign && isHovered {
+                updateCursor(inside: true, isEnabledVal: newValue)
+            }
+        }
+        .onDisappear {
+            if hasPushedCursor {
+                NSCursor.pop()
+                hasPushedCursor = false
+            }
+        }
+    }
+
+    private func updateCursor(inside: Bool, isEnabledVal: Bool? = nil) {
+        let currentEnabled = isEnabledVal ?? isEnabled
+        if inside {
+            if !hasPushedCursor {
+                if currentEnabled {
+                    NSCursor.pointingHand.push()
                 } else {
-                    NSCursor.pop()
+                    NSCursor.operationNotAllowed.push()
                 }
+                hasPushedCursor = true
+            } else {
+                NSCursor.pop()
+                if currentEnabled {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.operationNotAllowed.push()
+                }
+            }
+        } else {
+            if hasPushedCursor {
+                NSCursor.pop()
+                hasPushedCursor = false
             }
         }
     }
