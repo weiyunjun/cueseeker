@@ -315,13 +315,35 @@ final class SubtitleTableContainerView: NSView {
 
 final class SubtitleVirtualTableHeaderView: NSView {
     weak var coordinator: SubtitleTableView.Coordinator?
-    var isRedesign: Bool = false { didSet { needsDisplay = true } }
+    var isRedesign: Bool = false {
+        didSet {
+            refreshHeaderHosts()
+            needsDisplay = true
+        }
+    }
+
+    private var indexHeaderHost: NSHostingView<AnyView>?
+    private var nameHeaderHost: NSHostingView<AnyView>?
+    private var cuesHeaderHost: NSHostingView<AnyView>?
+    private var speakerHeaderHost: NSHostingView<AnyView>?
+    private var languageHeaderHost: NSHostingView<AnyView>?
 
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             super.draw(dirtyRect)
+            
+            if isRedesign {
+                WorkbenchRedesignColors.NS.borderDivider.setStroke()
+                let path = NSBezierPath()
+                path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
+                path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
+                path.lineWidth = 0.5
+                path.stroke()
+                return
+            }
+
             let M = SubtitleTableMetrics.self
             let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
             let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
@@ -377,11 +399,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 )
             }
 
-            if isRedesign {
-                WorkbenchRedesignColors.NS.borderDivider.setStroke()
-            } else {
-                NSColor.separatorColor.setStroke()
-            }
+            NSColor.separatorColor.setStroke()
             let path = NSBezierPath()
             path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
             path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
@@ -404,6 +422,106 @@ final class SubtitleVirtualTableHeaderView: NSView {
             height: size.height
         )
         attributed.draw(in: clipped)
+    }
+
+    override func layout() {
+        super.layout()
+        refreshHeaderHosts()
+    }
+
+    func refreshHeaderHosts() {
+        guard isRedesign else {
+            indexHeaderHost?.isHidden = true
+            nameHeaderHost?.isHidden = true
+            cuesHeaderHost?.isHidden = true
+            speakerHeaderHost?.isHidden = true
+            languageHeaderHost?.isHidden = true
+            return
+        }
+
+        let M = SubtitleTableMetrics.self
+        let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
+        let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
+        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+
+        let indexRect = CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height)
+        let nameRect = CGRect(x: M.indexColumnWidth, y: 0, width: M.nameColumnWidth, height: bounds.height)
+        let cuesRect = CGRect(
+            x: M.indexColumnWidth + M.nameColumnWidth,
+            y: 0,
+            width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth),
+            height: bounds.height
+        )
+        let speakerRect = showsSpeakerColumn ? CGRect(
+            x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - languageWidth - M.speakerColumnWidth),
+            y: 0,
+            width: M.speakerColumnWidth,
+            height: bounds.height
+        ) : .zero
+        let languageRect = showsLanguageColumn ? CGRect(
+            x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - M.languageColumnWidth),
+            y: 0,
+            width: M.languageColumnWidth,
+            height: bounds.height
+        ) : .zero
+
+        updateHeaderHost(&indexHeaderHost, title: "#", columnID: "index", isSortable: false, frame: indexRect)
+        updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? "Name", columnID: "name", isSortable: true, frame: nameRect)
+        updateHeaderHost(&cuesHeaderHost, title: "Cues", columnID: "cues", isSortable: true, frame: cuesRect)
+
+        if showsSpeakerColumn {
+            updateHeaderHost(&speakerHeaderHost, title: "Speaker", columnID: "speaker", isSortable: true, frame: speakerRect)
+        } else {
+            speakerHeaderHost?.isHidden = true
+        }
+
+        if showsLanguageColumn {
+            updateHeaderHost(&languageHeaderHost, title: "Language", columnID: "language", isSortable: true, frame: languageRect)
+        } else {
+            languageHeaderHost?.isHidden = true
+        }
+    }
+
+    private func updateHeaderHost(
+        _ hostVar: inout NSHostingView<AnyView>?,
+        title: String,
+        columnID: String,
+        isSortable: Bool,
+        frame: CGRect
+    ) {
+        guard let coordinator else { return }
+        let sortDirection = coordinator.sortedColumnID == columnID ? coordinator.sortDirection : nil
+        let isMenuOpen = coordinator.isMenuOpen && coordinator.activeHeaderMenuColumnID == columnID
+        let isEnabled = coordinator.isEnabled
+
+        let cellView = SubtitleTableHeaderCellView(
+            title: title,
+            columnID: columnID,
+            isSortable: isSortable,
+            isEnabled: isEnabled,
+            sortDirection: sortDirection,
+            isMenuOpen: isMenuOpen,
+            columnRect: frame
+        ) { [weak self] rect in
+            self?.coordinator?.showHeaderMenu(for: columnID, triggerFrame: rect)
+        }
+
+        let anyView = AnyView(cellView)
+
+        if let host = hostVar {
+            host.rootView = anyView
+            host.frame = frame
+            host.isHidden = false
+        } else {
+            let host = NSHostingView(rootView: anyView)
+            host.wantsLayer = true
+            host.layer?.masksToBounds = false
+            addSubview(host)
+            hostVar = host
+            host.frame = frame
+            host.isHidden = false
+        }
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -664,6 +782,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 resizeDocument()
                 notifyVisibleRowsChanged()
                 layoutHoverButtons()
+                headerView?.refreshHeaderHosts()
                 headerView?.needsDisplay = true
                 documentView?.needsDisplay = true
             }
@@ -673,13 +792,14 @@ struct SubtitleTableView: NSViewRepresentable {
             didSet {
                 guard oldValue != isEnabled else { return }
                 layoutHoverButtons()
+                headerView?.refreshHeaderHosts()
             }
         }
 
         var headerHeightConstraint: NSLayoutConstraint?
 
         var currentHeaderHeight: CGFloat {
-            isRedesign ? 40.0 : SubtitleTableMetrics.headerHeight
+            isRedesign ? WorkbenchControlMetrics.redesignTableHeaderHeight : SubtitleTableMetrics.headerHeight
         }
 
         var currentRowHeight: CGFloat {
@@ -691,10 +811,19 @@ struct SubtitleTableView: NSViewRepresentable {
         private weak var scrollView: NSScrollView?
         private weak var documentView: SubtitleVirtualTableDocumentView?
         private var buttonsHost: NSHostingView<CueHoverButtons>?
-        private var isMenuOpen = false
-        private var menuHost: NSHostingView<RowActionMenu>?
+        fileprivate var isMenuOpen = false
+        private var menuHost: NSHostingView<AnyView>?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
         nonisolated(unsafe) private var menuEventMonitor: Any?
+
+        enum TableSortDirection: Equatable {
+            case asc
+            case desc
+        }
+
+        var sortedColumnID: String?
+        var sortDirection: TableSortDirection?
+        var activeHeaderMenuColumnID: String?
         var isExternalPopupLayerOpen = false {
             didSet {
                 guard isExternalPopupLayerOpen != oldValue else { return }
@@ -793,6 +922,7 @@ struct SubtitleTableView: NSViewRepresentable {
         ) {
             self.tableName = tableName
             self.rowProvider = rowProvider
+            let displayTitleChanged = displayTitleHeader != self.displayTitleHeader
             self.displayTitleHeader = displayTitleHeader
             let languageColumnChanged = showsLanguageColumn != self.showsLanguageColumn
             self.showsLanguageColumn = showsLanguageColumn
@@ -822,6 +952,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 scrollToTop()
             } else if changed || languageColumnChanged || speakerColumnChanged {
                 notifyVisibleRowsChanged()
+            }
+            if changed || languageColumnChanged || speakerColumnChanged || displayTitleChanged {
+                headerView?.refreshHeaderHosts()
             }
             headerView?.needsDisplay = true
             documentView?.needsDisplay = true
@@ -1212,6 +1345,41 @@ struct SubtitleTableView: NSViewRepresentable {
             buttonsHost.isHidden = model.cues.isEmpty
         }
 
+        private func setMenuHost<Content: View>(_ content: Content, in container: NSView) {
+            let wrapped = AnyView(content)
+            if let menuHost {
+                menuHost.rootView = wrapped
+            } else {
+                let host = NSHostingView(rootView: wrapped)
+                host.wantsLayer = true
+                host.layer?.masksToBounds = false
+                container.addSubview(host)
+                menuHost = host
+            }
+        }
+
+        private func positionMenu(triggerFrameInContainer: CGRect, menuSize: CGSize) -> CGRect {
+            let visibleRect = container?.bounds ?? .zero
+            let M = SubtitleTableMetrics.self
+            let menuWidth = menuSize.width
+            let menuHeight = menuSize.height
+
+            var menuX = triggerFrameInContainer.minX
+            if menuX + menuWidth > visibleRect.maxX - M.trailingInset {
+                menuX = max(visibleRect.minX, visibleRect.maxX - menuWidth - M.trailingInset)
+            }
+
+            var menuY = triggerFrameInContainer.minY - menuHeight - WorkbenchControlMetrics.redesignSpacing1
+            if menuY < visibleRect.minY {
+                menuY = triggerFrameInContainer.maxY + WorkbenchControlMetrics.redesignSpacing1
+                if menuY + menuHeight > visibleRect.maxY {
+                    menuY = max(visibleRect.minY, visibleRect.maxY - menuHeight)
+                }
+            }
+
+            return CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
+        }
+
         func showMenu(for row: Int, buttonFrame: CGRect) {
             isMenuOpen = true
             layoutHoverButtons()
@@ -1245,13 +1413,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 }
             )
 
-            if menuHost == nil {
-                let host = NSHostingView(rootView: menuView)
-                container.addSubview(host)
-                menuHost = host
-            } else {
-                menuHost?.rootView = menuView
-            }
+            setMenuHost(menuView, in: container)
 
             if let menuOverlayView {
                 container.addSubview(menuOverlayView)
@@ -1262,27 +1424,70 @@ struct SubtitleTableView: NSViewRepresentable {
 
             menuHost?.layout()
             let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
-            let menuWidth = menuSize.width
-            let menuHeight = menuSize.height
 
-            let buttonFrameInContainer = container.convert(buttonFrame, from: documentView)
-            let visibleRect = container.bounds
-            let M = SubtitleTableMetrics.self
+            let triggerFrameInContainer = container.convert(buttonFrame, from: documentView)
+            let finalMenuFrame = positionMenu(triggerFrameInContainer: triggerFrameInContainer, menuSize: menuSize)
 
-            var menuX = buttonFrameInContainer.minX
-            if menuX + menuWidth > visibleRect.maxX - M.trailingInset {
-                menuX = max(visibleRect.minX, visibleRect.maxX - menuWidth - M.trailingInset)
+            menuHost?.frame = finalMenuFrame
+            menuHost?.isHidden = false
+
+            installMenuDismissMonitor()
+        }
+
+        func showHeaderMenu(for columnID: String, triggerFrame: CGRect) {
+            isMenuOpen = true
+            activeHeaderMenuColumnID = columnID
+            layoutHoverButtons()
+            headerView?.refreshHeaderHosts()
+
+            guard let container = self.container, let headerView = self.headerView else {
+                isMenuOpen = false
+                activeHeaderMenuColumnID = nil
+                return
             }
 
-            var menuY = buttonFrameInContainer.minY - menuHeight - 4
-            if menuY < visibleRect.minY {
-                menuY = buttonFrameInContainer.maxY + 4
-                if menuY + menuHeight > visibleRect.maxY {
-                    menuY = max(visibleRect.minY, visibleRect.maxY - menuHeight)
+            if menuOverlayView == nil {
+                let overlay = SubtitleTableMenuOverlayView()
+                overlay.onClick = { [weak self] in
+                    self?.dismissMenu()
                 }
+                container.addSubview(overlay)
+                menuOverlayView = overlay
+            }
+            menuOverlayView?.frame = container.bounds
+            menuOverlayView?.isHidden = false
+
+            let sortDirection = (sortedColumnID == columnID) ? self.sortDirection : nil
+            let menuView = ColumnHeaderMenu(
+                sortDirection: sortDirection,
+                onSortAscending: { [weak self] in
+                    self?.sortedColumnID = columnID
+                    self?.sortDirection = .asc
+                    self?.dismissMenu()
+                },
+                onSortDescending: { [weak self] in
+                    self?.sortedColumnID = columnID
+                    self?.sortDirection = .desc
+                    self?.dismissMenu()
+                }
+            )
+
+            setMenuHost(menuView, in: container)
+
+            if let menuOverlayView {
+                container.addSubview(menuOverlayView)
+            }
+            if let menuHost {
+                container.addSubview(menuHost)
             }
 
-            menuHost?.frame = CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
+            menuHost?.layout()
+            let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
+
+            let triggerFrameInContainer = container.convert(triggerFrame, from: headerView)
+            let finalMenuFrame = positionMenu(triggerFrameInContainer: triggerFrameInContainer, menuSize: menuSize)
+
+            menuHost?.frame = finalMenuFrame
             menuHost?.isHidden = false
 
             installMenuDismissMonitor()
@@ -1290,9 +1495,11 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func dismissMenu(recalculateHover: Bool = true) {
             isMenuOpen = false
+            activeHeaderMenuColumnID = nil
             menuHost?.isHidden = true
             menuOverlayView?.isHidden = true
             removeMenuDismissMonitor()
+            headerView?.refreshHeaderHosts()
 
             guard recalculateHover else { return }
 
@@ -1347,6 +1554,216 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func scheduleResizeAfterDrawing() {
             resizeDocument()
+        }
+    }
+}
+
+// MARK: - Header Cell and Header Menu Views
+
+struct SubtitleTableHeaderCellView: View {
+    let title: String
+    let columnID: String
+    let isSortable: Bool
+    let isEnabled: Bool
+    let sortDirection: SubtitleTableView.Coordinator.TableSortDirection?
+    let isMenuOpen: Bool
+    let columnRect: CGRect
+    let onTrigger: (CGRect) -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+    @State private var hasPushedCursor = false
+    @State private var triggerWidth: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if isSortable {
+                Button(action: {
+                    let triggerRect = CGRect(
+                        x: columnRect.minX,
+                        y: columnRect.minY,
+                        width: triggerWidth,
+                        height: columnRect.height
+                    )
+                    onTrigger(triggerRect)
+                }) {
+                    buttonContent
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onAppear { triggerWidth = geo.size.width }
+                                    .onChange(of: geo.size.width) { newValue in triggerWidth = newValue }
+                            }
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!isEnabled)
+                .focused($isFocused)
+                .disableFocusEffect()
+                .overlay(
+                    Group {
+                        if isFocused && isEnabled {
+                            RoundedRectangle(
+                                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
+                                style: .continuous
+                            )
+                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                        }
+                    }
+                )
+                .contentShape(Rectangle())
+                .onHover { inside in
+                    if isEnabled {
+                        isHovered = inside
+                        updateCursor(inside: inside)
+                    } else {
+                        isHovered = false
+                    }
+                }
+                .onChange(of: isEnabled) { newValue in
+                    if isHovered {
+                        if hasPushedCursor {
+                            NSCursor.pop()
+                            hasPushedCursor = false
+                        }
+                        if newValue {
+                            NSCursor.pointingHand.push()
+                        }
+                        hasPushedCursor = newValue
+                    }
+                }
+                .onDisappear {
+                    if hasPushedCursor {
+                        NSCursor.pop()
+                        hasPushedCursor = false
+                    }
+                }
+            } else {
+                staticContent
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: columnRect.width, height: columnRect.height, alignment: .leading)
+    }
+
+    private var buttonContent: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            Text(title)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTable, weight: .semibold))
+                .foregroundStyle(textColor)
+                .lineLimit(1)
+            
+            Image(systemName: sortIconName)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS,
+                    weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS
+                ))
+                .foregroundStyle(iconColor)
+        }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
+        .frame(maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
+                .fill((isHovered || isMenuOpen) && isEnabled ? WorkbenchRedesignColors.bgHover : Color.clear)
+        )
+    }
+
+    private var staticContent: some View {
+        HStack(spacing: 0) {
+            Text(title)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTable, weight: .semibold))
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingX)
+        .frame(maxHeight: .infinity)
+    }
+
+    private var textColor: Color {
+        guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
+        return WorkbenchRedesignColors.textPrimary
+    }
+
+    private var iconColor: Color {
+        guard isEnabled else { return WorkbenchRedesignColors.iconDisabled }
+        if isHovered || isMenuOpen {
+            return WorkbenchRedesignColors.textPrimary
+        }
+        return WorkbenchRedesignColors.iconDefault
+    }
+
+    private var sortIconName: String {
+        switch sortDirection {
+        case .asc:
+            return "arrow.up"
+        case .desc:
+            return "arrow.down"
+        case nil:
+            return "chevron.up.chevron.down"
+        }
+    }
+
+    private func updateCursor(inside: Bool) {
+        if inside {
+            if !hasPushedCursor {
+                if isEnabled {
+                    NSCursor.pointingHand.push()
+                }
+                hasPushedCursor = isEnabled
+            }
+        } else {
+            if hasPushedCursor {
+                NSCursor.pop()
+                hasPushedCursor = false
+            }
+        }
+    }
+}
+
+struct ColumnHeaderMenu: View {
+    let sortDirection: SubtitleTableView.Coordinator.TableSortDirection?
+    let onSortAscending: () -> Void
+    let onSortDescending: () -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel(isRedesign: true) {
+            VStack(spacing: 0) {
+                WorkbenchPopoverRow(
+                    title: "Sort Ascending",
+                    isSelected: false,
+                    isHighlighted: sortDirection == .asc,
+                    systemImage: "arrow.up",
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: true,
+                    action: onSortAscending
+                )
+                WorkbenchPopoverRow(
+                    title: "Sort Descending",
+                    isSelected: false,
+                    isHighlighted: sortDirection == .desc,
+                    systemImage: "arrow.down",
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: true,
+                    action: onSortDescending
+                )
+                Rectangle()
+                    .fill(WorkbenchRedesignColors.borderDivider)
+                    .frame(height: WorkbenchControlMetrics.hairlineWidth)
+                    .padding(.vertical, WorkbenchControlMetrics.redesignSpacing1)
+                WorkbenchPopoverRow(
+                    title: "Hide Column",
+                    isSelected: false,
+                    isHighlighted: false,
+                    systemImage: "eye.slash",
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: false,
+                    action: nil
+                )
+            }
         }
     }
 }

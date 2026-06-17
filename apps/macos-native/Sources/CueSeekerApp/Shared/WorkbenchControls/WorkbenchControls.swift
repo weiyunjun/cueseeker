@@ -49,6 +49,16 @@ enum WorkbenchControlMetrics {
     static let redesignMenuItemSymbolFontSizeMacOS: CGFloat = 14
     /// --size-icon-button: 40px
     static let redesignIconButtonSize: CGFloat = 40
+    /// --height-table-header: 40px
+    static let redesignTableHeaderHeight: CGFloat = 40
+    /// --spacing-1: 4px
+    static let redesignSpacing1: CGFloat = 4
+    /// --spacing-2: 8px
+    static let redesignSpacing2: CGFloat = 8
+    /// --padding-header-trigger-x: 12px
+    static let redesignPaddingHeaderTriggerX: CGFloat = 12
+    /// --font-size-table: 14px
+    static let redesignFontSizeTable: CGFloat = 14
 }
 
 enum WorkbenchControlColors {
@@ -757,6 +767,7 @@ struct WorkbenchPopoverRow: View {
     var isEnabled = true
     var action: (() -> Void)? = nil
     @State private var isHovered = false
+    @State private var hasPushedCursor = false
 
     var body: some View {
         if let action {
@@ -802,7 +813,7 @@ struct WorkbenchPopoverRow: View {
             }
 
             Text(title)
-                .font(.system(size: isRedesign ? 14 : 15, weight: .regular))
+                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeTable : 15, weight: .regular))
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
@@ -818,10 +829,41 @@ struct WorkbenchPopoverRow: View {
         )
         .contentShape(Rectangle())
         .onHover { inside in
-            if isEnabled {
+            if isRedesign && isEnabled && action != nil {
+                isHovered = inside
+                if inside {
+                    if !hasPushedCursor {
+                        NSCursor.pointingHand.push()
+                        hasPushedCursor = true
+                    }
+                } else {
+                    if hasPushedCursor {
+                        NSCursor.pop()
+                        hasPushedCursor = false
+                    }
+                }
+            } else if isEnabled {
                 isHovered = inside
             } else {
                 isHovered = false
+            }
+        }
+        .onChange(of: isEnabled) { newValue in
+            if isRedesign && isHovered && action != nil {
+                if hasPushedCursor {
+                    NSCursor.pop()
+                    hasPushedCursor = false
+                }
+                if newValue {
+                    NSCursor.pointingHand.push()
+                    hasPushedCursor = true
+                }
+            }
+        }
+        .onDisappear {
+            if hasPushedCursor {
+                NSCursor.pop()
+                hasPushedCursor = false
             }
         }
     }
