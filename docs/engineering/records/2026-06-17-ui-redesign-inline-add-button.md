@@ -13,7 +13,8 @@ This record covers the implementation and integration of:
 
 - **`WorkbenchControls.swift`**:
   - Updated `WorkbenchPlainActionButton` in redesign mode to use `12px` (`--spacing-3` token gap constraint) spacing inside the HStack.
-  - Aligned redesign icon font size to `16` and weight to `.medium` for systemImage `"plus"`.
+  - Added `redesignInlineAddSymbolFontSizeMacOS` (16pt) to `WorkbenchControlMetrics` to map `--size-inline-add-symbol-font-size-macos`.
+  - Aligned redesign icon font size to `redesignInlineAddSymbolFontSizeMacOS` and weight to `.medium` for systemImage `"plus"`.
   - Updated icon foregroundStyle to use `textPrimary`/`textDisabled` to match the text color.
 
 ## Verification

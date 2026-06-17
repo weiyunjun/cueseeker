@@ -42,6 +42,8 @@ enum WorkbenchControlMetrics {
     static let redesignSelectIndicatorWeightMacOS: Font.Weight = .medium
     /// --font-size-control: 16px
     static let redesignFontSizeControl: CGFloat = 16
+    /// --size-inline-add-symbol-font-size-macos: 16pt
+    static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 16
 }
 
 enum WorkbenchControlColors {
@@ -336,7 +338,7 @@ struct WorkbenchPlainActionButton: View {
         Button(action: action) {
             HStack(spacing: isRedesign ? 12 : 10) {
                 Image(systemName: systemImage)
-                    .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? (systemImage == "plus" ? .medium : .semibold) : .regular))
+                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignInlineAddSymbolFontSizeMacOS : WorkbenchControlMetrics.iconSize, weight: isRedesign ? (systemImage == "plus" ? .medium : .semibold) : .regular))
                     .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
                     .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
 
