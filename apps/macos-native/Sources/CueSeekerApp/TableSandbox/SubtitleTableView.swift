@@ -108,22 +108,111 @@ final class SubtitleTextLayout {
 // MARK: - Hover Play/Copy buttons
 
 private struct CueHoverButtons: View {
+    var isRedesign: Bool = false
+    var isEnabled: Bool = true
     var onPlay: () -> Void
     var onCopy: () -> Void
 
+    @State private var isPopoverPresented = false
+    @State private var isHovered = false
+    @State private var hasPushedCursor = false
+
     var body: some View {
-        HStack(spacing: 2) {
-            button(title: "Play", systemImage: "play.fill", action: onPlay)
-            button(title: "Copy", systemImage: "doc.on.doc", action: onCopy)
+        if isRedesign {
+            Button(action: {
+                isPopoverPresented = true
+            }) {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled)
+                    .frame(width: 36, height: 36)
+                    .background((isHovered || isPopoverPresented) && isEnabled ? WorkbenchRedesignColors.bgHover : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(!isEnabled)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                isHovered = inside
+                updateCursor(inside: inside)
+            }
+            .onChange(of: isEnabled) { newValue in
+                if isHovered {
+                    if hasPushedCursor {
+                        NSCursor.pop()
+                        hasPushedCursor = false
+                    }
+                    if newValue {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.operationNotAllowed.push()
+                    }
+                    hasPushedCursor = true
+                }
+            }
+            .onDisappear {
+                if hasPushedCursor {
+                    NSCursor.pop()
+                    hasPushedCursor = false
+                }
+            }
+            .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+                WorkbenchPopoverPanel(isRedesign: true) {
+                    VStack(spacing: 0) {
+                        WorkbenchPopoverRow(
+                            title: "Play",
+                            systemImage: "play.fill",
+                            isRedesign: true,
+                            action: {
+                                isPopoverPresented = false
+                                onPlay()
+                            }
+                        )
+                        WorkbenchPopoverRow(
+                            title: "Copy",
+                            systemImage: "doc.on.doc",
+                            isRedesign: true,
+                            action: {
+                                isPopoverPresented = false
+                                onCopy()
+                            }
+                        )
+                    }
+                    .frame(width: 140)
+                }
+            }
+        } else {
+            HStack(spacing: 2) {
+                button(title: "Play", systemImage: "play.fill", action: onPlay)
+                button(title: "Copy", systemImage: "doc.on.doc", action: onCopy)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(Color(nsColor: .textBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+            )
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-        )
+    }
+
+    private func updateCursor(inside: Bool) {
+        if inside {
+            if !hasPushedCursor {
+                if isEnabled {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.operationNotAllowed.push()
+                }
+                hasPushedCursor = true
+            }
+        } else {
+            if hasPushedCursor {
+                NSCursor.pop()
+                hasPushedCursor = false
+            }
+        }
     }
 
     private func button(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
@@ -382,6 +471,7 @@ struct SubtitleVirtualRowHeightCache {
 // MARK: - SwiftUI bridge
 
 struct SubtitleTableView: NSViewRepresentable {
+    @Environment(\.isEnabled) private var isEnabled
     var tableName: String
     var rowCount: Int
     var rowProvider: (Int) -> SubtitleTableRow?
@@ -413,6 +503,7 @@ struct SubtitleTableView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> SubtitleTableContainerView {
+        context.coordinator.isEnabled = isEnabled
         let container = SubtitleTableContainerView()
 
         let header = SubtitleVirtualTableHeaderView()
@@ -474,6 +565,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
     func updateNSView(_ nsView: SubtitleTableContainerView, context: Context) {
         context.coordinator.isRedesign = isRedesign
+        context.coordinator.isEnabled = isEnabled
         context.coordinator.update(
             tableName: tableName,
             rowCount: rowCount,
@@ -519,6 +611,13 @@ struct SubtitleTableView: NSViewRepresentable {
                 layoutHoverButtons()
                 headerView?.needsDisplay = true
                 documentView?.needsDisplay = true
+            }
+        }
+
+        var isEnabled: Bool = true {
+            didSet {
+                guard oldValue != isEnabled else { return }
+                layoutHoverButtons()
             }
         }
 
@@ -581,7 +680,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.scrollView = scrollView
             self.documentView = documentView
 
-            let buttonsHost = NSHostingView(rootView: CueHoverButtons(onPlay: {}, onCopy: {}))
+            let buttonsHost = NSHostingView(rootView: CueHoverButtons(isRedesign: isRedesign, isEnabled: isEnabled, onPlay: {}, onCopy: {}))
             buttonsHost.isHidden = true
             buttonsHost.translatesAutoresizingMaskIntoConstraints = true
             documentView.addSubview(buttonsHost)
@@ -982,13 +1081,25 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             buttonsHost.rootView = CueHoverButtons(
+                isRedesign: isRedesign,
+                isEnabled: isEnabled,
                 onPlay: { [weak self] in self?.playRow(hoveredRow) },
                 onCopy: { [weak self] in self?.copyRow(hoveredRow) }
             )
             let rowRect = rectForRow(hoveredRow, width: documentView.bounds.width)
-            let x = SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading
-            let y = isRedesign ? rowRect.minY + (rowRect.height - 28) / 2 : rowRect.minY + SubtitleTableMetrics.rowVerticalInset - 4
-            buttonsHost.frame = CGRect(x: x, y: y, width: 120, height: 28)
+            let M = SubtitleTableMetrics.self
+            if isRedesign {
+                let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+                let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+                let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
+                let x = M.indexColumnWidth + M.nameColumnWidth + cuesWidth - 36 - M.trailingInset
+                let y = rowRect.minY + (rowRect.height - 36) / 2
+                buttonsHost.frame = CGRect(x: x, y: y, width: 36, height: 36)
+            } else {
+                let x = M.indexColumnWidth + M.nameColumnWidth + M.cellLeading
+                let y = rowRect.minY + M.rowVerticalInset - 4
+                buttonsHost.frame = CGRect(x: x, y: y, width: 120, height: 28)
+            }
             buttonsHost.isHidden = model.cues.isEmpty
         }
 
