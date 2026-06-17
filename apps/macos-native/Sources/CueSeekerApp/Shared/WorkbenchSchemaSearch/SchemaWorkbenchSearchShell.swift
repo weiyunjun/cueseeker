@@ -1153,7 +1153,7 @@ private struct SchemaWorkbenchFilterRuleRow: View {
                         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : nil)
                 }
             }
-            .frame(width: isRedesign ? 80 : 58, alignment: .leading)
+            .frame(width: isRedesign ? nil : 58, alignment: .leading)
 
             WorkbenchInlineDropdown(
                 title: selectedColumn?.title ?? "Field",

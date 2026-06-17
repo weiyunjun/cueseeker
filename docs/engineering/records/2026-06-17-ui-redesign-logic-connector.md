@@ -18,7 +18,7 @@ This record covers the implementation and integration of:
   - Added `@Environment(\.isEnabled)` tracking to `SchemaWorkbenchFilterRuleRow`.
   - Wrapped static logic connector labels (`Where` and inherited `And/Or`) in a height frame aligned with `WorkbenchControlMetrics.redesignFieldHeight` (40px) under redesign.
   - Implemented dynamic text color switching between `textPrimary` and `textDisabled` for static connector labels based on `isEnabled` state under redesign.
-  - Aligned logic connector column horizontally by setting a unified width frame (`80px` under redesign, `58px` originally) for the first cell group of each filter builder row.
+  - Set the logic connector column frame width to nil under redesign (originally 58px) to enable self-adaptive width auto-fitting in compliance with rule 4 of the guidelines, while keeping static label heights and text colors properly aligned.
 
 ## Verification
 
