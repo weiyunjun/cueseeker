@@ -306,6 +306,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
             overlayLayer
         }
+        .environment(\.isWorkbenchPopupLayerOpen, openPopover != nil)
         .coordinateSpace(name: "SearchShellSpace")
         .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { frames in
             self.shellDropdownFrames = frames

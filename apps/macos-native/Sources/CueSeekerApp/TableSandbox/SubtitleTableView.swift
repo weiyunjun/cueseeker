@@ -511,8 +511,20 @@ struct SubtitleVirtualRowHeightCache {
 
 // MARK: - SwiftUI bridge
 
+struct IsWorkbenchPopupLayerOpenKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    var isWorkbenchPopupLayerOpen: Bool {
+        get { self[IsWorkbenchPopupLayerOpenKey.self] }
+        set { self[IsWorkbenchPopupLayerOpenKey.self] = newValue }
+    }
+}
+
 struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.isWorkbenchPopupLayerOpen) var isWorkbenchPopupLayerOpen
     var tableName: String
     var rowCount: Int
     var rowProvider: (Int) -> SubtitleTableRow?
@@ -545,6 +557,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> SubtitleTableContainerView {
         context.coordinator.isEnabled = isEnabled
+        context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
         let container = SubtitleTableContainerView()
 
         let header = SubtitleVirtualTableHeaderView()
@@ -607,6 +620,7 @@ struct SubtitleTableView: NSViewRepresentable {
     func updateNSView(_ nsView: SubtitleTableContainerView, context: Context) {
         context.coordinator.isRedesign = isRedesign
         context.coordinator.isEnabled = isEnabled
+        context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
         context.coordinator.update(
             tableName: tableName,
             rowCount: rowCount,
@@ -680,6 +694,23 @@ struct SubtitleTableView: NSViewRepresentable {
         private var isMenuOpen = false
         private var menuHost: NSHostingView<RowActionMenu>?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
+        var isExternalPopupLayerOpen = false {
+            didSet {
+                guard isExternalPopupLayerOpen != oldValue else { return }
+                if isExternalPopupLayerOpen {
+                    if isMenuOpen {
+                        dismissMenu(recalculateHover: false)
+                    }
+                    hoveredRow = nil
+                    buttonsHost?.isHidden = true
+                    documentView?.needsDisplay = true
+                } else {
+                    if let window = documentView?.window {
+                        handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+                    }
+                }
+            }
+        }
 
         private let textLayout = SubtitleTextLayout()
         private var rowHeightCache = SubtitleVirtualRowHeightCache()
@@ -1103,6 +1134,9 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleMouseHover(windowPoint: CGPoint) {
+            if isMenuOpen || isExternalPopupLayerOpen {
+                return
+            }
             guard let documentView else { return }
             let point = documentView.convert(windowPoint, from: nil)
             guard documentView.visibleRect.contains(point) else {
@@ -1117,15 +1151,14 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func updateHoveredRow(_ newRow: Int?) {
+            if isMenuOpen || isExternalPopupLayerOpen {
+                return
+            }
             guard newRow != hoveredRow else { return }
             let oldRow = hoveredRow
             hoveredRow = newRow
             invalidateRows([oldRow, newRow])
-            if isMenuOpen {
-                dismissMenu()
-            } else {
-                layoutHoverButtons()
-            }
+            layoutHoverButtons()
         }
 
         private func invalidateRows(_ rows: [Int?]) {
@@ -1245,11 +1278,18 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.isHidden = false
         }
 
-        func dismissMenu() {
+        func dismissMenu(recalculateHover: Bool = true) {
             isMenuOpen = false
             menuHost?.isHidden = true
             menuOverlayView?.isHidden = true
-            layoutHoverButtons()
+
+            guard recalculateHover else { return }
+
+            if let window = documentView?.window {
+                handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+            } else {
+                layoutHoverButtons()
+            }
         }
 
         private func playRow(_ row: Int) {
