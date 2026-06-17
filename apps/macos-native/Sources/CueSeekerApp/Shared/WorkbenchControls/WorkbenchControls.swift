@@ -269,17 +269,17 @@ struct WorkbenchButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: isRedesign ? 8 : 8) {
+            HStack(spacing: isRedesign ? 12 : 8) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .regular))
+                        .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .regular))
                         .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
-                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
+                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
                 }
 
                 Text(title)
                     .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .medium))
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
@@ -299,7 +299,7 @@ struct WorkbenchButton: View {
                 Group {
                     if isRedesign {
                         RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                            .strokeBorder(isEnabled ? (isHovered ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl) : WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                            .strokeBorder(isEnabled ? (isHovered ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl) : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
                     }
                 }
             )
