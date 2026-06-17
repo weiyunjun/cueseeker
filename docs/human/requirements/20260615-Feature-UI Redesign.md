@@ -821,7 +821,7 @@ Row Height: --height-table-row
 Header Height: --height-table-header
 Row Hover Bg: --color-row-hover
 Row Selected Bg: --color-row-selected
-Header Hover Bg: --color-bg-hover
+Header Hover Bg: --color-row-hover
 Trigger Surface Bg: --color-bg-hover
 Divider Horizontal: --color-border-divider
 
