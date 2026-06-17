@@ -334,15 +334,15 @@ struct WorkbenchPlainActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: isRedesign ? 8 : 10) {
+            HStack(spacing: isRedesign ? 12 : 10) {
                 Image(systemName: systemImage)
-                    .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .regular))
+                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .regular))
                     .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
 
                 Text(title)
                     .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? .medium : .regular))
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
