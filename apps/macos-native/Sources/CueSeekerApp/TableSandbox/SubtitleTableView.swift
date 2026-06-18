@@ -1533,8 +1533,14 @@ struct SubtitleTableView: NSViewRepresentable {
         fileprivate var isMenuOpen = false
         private var menuHost: NSHostingView<AnyView>?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
+        private var activeMenuAnchor: ActiveMenuAnchor?
         nonisolated(unsafe) private var menuEventMonitor: Any?
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
+
+        private enum ActiveMenuAnchor {
+            case row(buttonFrame: CGRect)
+            case header(triggerFrame: CGRect)
+        }
 
         enum TableSortDirection: Equatable {
             case asc
@@ -1645,7 +1651,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             container.onLayout = { [weak self] in
                 self?.resizeDocument()
-                self?.dismissMenu()
+                self?.repositionOpenMenu()
             }
             installKeyboardFocusEventMonitor()
         }
@@ -1703,7 +1709,7 @@ struct SubtitleTableView: NSViewRepresentable {
             resizeDocument()
             if changed || languageColumnChanged || speakerColumnChanged {
                 if isMenuOpen {
-                    dismissMenu()
+                    repositionOpenMenu()
                 }
             }
             if shouldScrollToTop {
@@ -1748,6 +1754,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func focusedCheckboxRowForTesting() -> Int? {
             focusedCheckboxRow
+        }
+
+        func isMenuOpenForTesting() -> Bool {
+            isMenuOpen && menuHost?.isHidden == false && menuOverlayView?.isHidden == false
         }
 
         func setFocusedCheckboxRowForTesting(_ row: Int?) {
@@ -1872,7 +1882,7 @@ struct SubtitleTableView: NSViewRepresentable {
             notifyVisibleRowsChanged()
             scrollbarOverlayView?.scrollMetricsDidChange()
             if isMenuOpen {
-                dismissMenu()
+                repositionOpenMenu()
             } else if !isScrollbarDragging {
                 layoutHoverButtons()
             }
@@ -2439,10 +2449,12 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func showMenu(for row: Int, buttonFrame: CGRect) {
             isMenuOpen = true
+            activeMenuAnchor = .row(buttonFrame: buttonFrame)
             layoutHoverButtons()
 
             guard let documentView, let container = self.container else {
                 isMenuOpen = false
+                activeMenuAnchor = nil
                 return
             }
 
@@ -2494,12 +2506,14 @@ struct SubtitleTableView: NSViewRepresentable {
         func showHeaderMenu(for columnID: String, triggerFrame: CGRect) {
             isMenuOpen = true
             activeHeaderMenuColumnID = columnID
+            activeMenuAnchor = .header(triggerFrame: triggerFrame)
             layoutHoverButtons()
             headerView?.refreshHeaderHosts()
 
             guard let container = self.container, let headerView = self.headerView else {
                 isMenuOpen = false
                 activeHeaderMenuColumnID = nil
+                activeMenuAnchor = nil
                 return
             }
 
@@ -2553,6 +2567,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func dismissMenu(recalculateHover: Bool = true) {
             isMenuOpen = false
             activeHeaderMenuColumnID = nil
+            activeMenuAnchor = nil
             menuHost?.isHidden = true
             menuOverlayView?.isHidden = true
             removeMenuDismissMonitor()
@@ -2588,6 +2603,41 @@ struct SubtitleTableView: NSViewRepresentable {
                 }
                 return event
             }
+        }
+
+        private func repositionOpenMenu() {
+            guard isMenuOpen,
+                  let container,
+                  let menuHost,
+                  !menuHost.isHidden,
+                  let activeMenuAnchor
+            else {
+                return
+            }
+
+            menuOverlayView?.frame = container.bounds
+            menuOverlayView?.isHidden = false
+
+            let menuSize = menuHost.fittingSize
+            let resolvedMenuSize = CGSize(
+                width: menuSize.width > 0 ? menuSize.width : menuHost.frame.width,
+                height: menuSize.height > 0 ? menuSize.height : menuHost.frame.height
+            )
+
+            let triggerFrameInContainer: CGRect
+            switch activeMenuAnchor {
+            case .row(let buttonFrame):
+                guard let documentView else { return }
+                triggerFrameInContainer = container.convert(buttonFrame, from: documentView)
+            case .header(let triggerFrame):
+                guard let headerView else { return }
+                triggerFrameInContainer = container.convert(triggerFrame, from: headerView)
+            }
+
+            menuHost.frame = positionMenu(
+                triggerFrameInContainer: triggerFrameInContainer,
+                menuSize: resolvedMenuSize
+            )
         }
 
         private func removeMenuDismissMonitor() {

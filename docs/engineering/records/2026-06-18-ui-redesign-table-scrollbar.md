@@ -47,6 +47,10 @@ The work is intentionally limited to the table body scrollbars:
   of the full overlay, duplicate visible-row notifications are skipped when the
   visible range has not changed, and row hover button layout is paused while the
   scrollbar thumb is being dragged.
+- Follow-up manual testing found that row action menus could fail to appear
+  after scrollbar dragging. Generic table layout and scroll callbacks no longer
+  dismiss an open menu; they preserve the menu and recompute its position from
+  the stored trigger anchor instead.
 
 ## 4. Virtualization Constraints Preserved
 
@@ -68,7 +72,7 @@ swift test --quiet
 
 Result:
 
-- 288 tests passed after the follow-up drag performance fix.
+- 290 tests passed after the follow-up row action menu persistence fix.
 - The command also printed an existing playback history disk I/O warning, but
   the test run completed successfully.
 
@@ -84,6 +88,8 @@ Focused coverage added:
   overlay when the point lands on the interactive thumb area.
 - Duplicate visible-row notifications are skipped for scroll offsets that stay
   within the same virtualized row range.
+- Row action menus remain open across container layout callbacks.
+- Row action menus remain open across scroll/bounds-change notifications.
 
 ## 6. Outcome
 

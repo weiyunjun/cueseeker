@@ -258,6 +258,32 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
     #expect(notifiedRanges.count == 2)
 }
 
+@MainActor
+@Test
+func subtitleTableViewKeepsRowMenuOpenAcrossContainerLayout() {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let buttonFrame = CGRect(x: 320, y: 10 * fixture.coordinator.currentRowHeight + 14, width: 36, height: 36)
+
+    fixture.coordinator.showMenu(for: 10, buttonFrame: buttonFrame)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+
+    fixture.container.layout()
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+}
+
+@MainActor
+@Test
+func subtitleTableViewKeepsRowMenuOpenAcrossScrollNotifications() {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let buttonFrame = CGRect(x: 320, y: 10 * fixture.coordinator.currentRowHeight + 14, width: 36, height: 36)
+
+    fixture.coordinator.showMenu(for: 10, buttonFrame: buttonFrame)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+
+    fixture.coordinator.scrollContentDidChange()
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()
@@ -291,6 +317,53 @@ private func makeKeyboardFocusTableCoordinator(
     )
     coordinator.isRedesign = true
     return coordinator
+}
+
+@MainActor
+private func makeAttachedVirtualTableCoordinator() -> (
+    coordinator: SubtitleTableView.Coordinator,
+    container: SubtitleTableContainerView
+) {
+    let loadedRow = SubtitleTableRow(
+        id: 1,
+        displayTitle: "Episode 01",
+        cues: "cue text",
+        tags: [],
+        speakerTags: []
+    )
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "test-search-2",
+        rowCount: 100,
+        rowProvider: { _ in loadedRow },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: 500, height: 260))
+    let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: 500, height: 44))
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 44, width: 500, height: 200))
+    let overlay = SubtitleTableScrollbarOverlayView(frame: scrollView.frame)
+    let documentView = SubtitleVirtualTableDocumentView(frame: CGRect(x: 0, y: 0, width: 500, height: 1))
+
+    documentView.coordinator = coordinator
+    scrollView.documentView = documentView
+    overlay.scrollView = scrollView
+    coordinator.attach(
+        container: container,
+        headerView: header,
+        scrollView: scrollView,
+        scrollbarOverlayView: overlay,
+        documentView: documentView
+    )
+    coordinator.resizeDocument()
+
+    return (coordinator, container)
 }
 
 private func makeTabKeyEvent(shift: Bool = false) -> NSEvent {
