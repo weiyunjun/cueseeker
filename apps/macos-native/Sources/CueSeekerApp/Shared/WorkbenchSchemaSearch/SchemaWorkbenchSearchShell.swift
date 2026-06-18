@@ -7,6 +7,48 @@ enum SchemaWorkbenchPopover: Equatable {
     case filterBuilder
 }
 
+struct SchemaWorkbenchTableSummary: Equatable {
+    let totalRowCount: Int
+    let selectedRowCount: Int
+}
+
+struct SchemaWorkbenchCountSummarySegment: Equatable {
+    enum Tone: Equatable {
+        case primary
+        case secondary
+    }
+
+    let text: String
+    let tone: Tone
+}
+
+enum SchemaWorkbenchCountSummaryText {
+    static let overflowLimit = 99_999
+
+    static func formattedCount(_ count: Int) -> String {
+        let safeCount = max(0, count)
+        return safeCount > overflowLimit ? "\(overflowLimit)+" : "\(safeCount)"
+    }
+
+    static func segments(for summary: SchemaWorkbenchTableSummary) -> [SchemaWorkbenchCountSummarySegment] {
+        let totalText = formattedCount(summary.totalRowCount)
+        let selectedText = formattedCount(summary.selectedRowCount)
+        guard summary.selectedRowCount > 0 else {
+            return [
+                SchemaWorkbenchCountSummarySegment(text: totalText, tone: .primary),
+                SchemaWorkbenchCountSummarySegment(text: " rows", tone: .secondary),
+            ]
+        }
+
+        return [
+            SchemaWorkbenchCountSummarySegment(text: selectedText, tone: .primary),
+            SchemaWorkbenchCountSummarySegment(text: " / ", tone: .secondary),
+            SchemaWorkbenchCountSummarySegment(text: totalText, tone: .primary),
+            SchemaWorkbenchCountSummarySegment(text: " rows selected", tone: .secondary),
+        ]
+    }
+}
+
 struct SchemaWorkbenchFilterSet: Identifiable, Equatable, Codable {
     let id: String
     let name: String
@@ -230,7 +272,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
-        let isRedesign: Bool
+    let isRedesign: Bool
+    let tableSummary: SchemaWorkbenchTableSummary?
+    let tableSummaryLeadingInset: CGFloat
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
@@ -247,6 +291,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         columns: [WorkbenchTableColumn],
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         isRedesign: Bool = false,
+        tableSummary: SchemaWorkbenchTableSummary? = nil,
+        tableSummaryLeadingInset: CGFloat = 0,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
@@ -258,6 +304,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.columns = columns
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
+        self.tableSummary = tableSummary
+        self.tableSummaryLeadingInset = tableSummaryLeadingInset
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
     }
@@ -290,6 +338,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
 
                     SchemaWorkbenchTableUtilityBar(
+                        tableSummary: tableSummary,
+                        summaryLeadingInset: tableSummaryLeadingInset,
                         isRedesign: true,
                         isViewMenuOpen: openPopover == .columnVisibility,
                         onViewMenu: {
@@ -794,12 +844,19 @@ struct SchemaWorkbenchSearchFilterBar: View {
 }
 
 struct SchemaWorkbenchTableUtilityBar: View {
+    var tableSummary: SchemaWorkbenchTableSummary?
+    var summaryLeadingInset: CGFloat = 0
     var isRedesign: Bool = false
     var isViewMenuOpen: Bool = false
     var onViewMenu: () -> Void
 
     var body: some View {
         HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing3 : 12) {
+            if let tableSummary {
+                SchemaWorkbenchCountSummaryView(summary: tableSummary)
+                    .padding(.leading, summaryLeadingInset)
+            }
+
             Spacer(minLength: 0)
 
             WorkbenchToolbarButton(
@@ -813,6 +870,33 @@ struct SchemaWorkbenchTableUtilityBar: View {
             .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
         }
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignTableUtilityBarHeight : WorkbenchControlMetrics.controlHeight)
+    }
+}
+
+struct SchemaWorkbenchCountSummaryView: View {
+    let summary: SchemaWorkbenchTableSummary
+
+    var body: some View {
+        summaryText
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(height: WorkbenchControlMetrics.redesignTableUtilityBarHeight, alignment: .center)
+    }
+
+    private var summaryText: Text {
+        SchemaWorkbenchCountSummaryText.segments(for: summary).reduce(Text("")) { partial, segment in
+            partial + Text(segment.text).foregroundColor(color(for: segment.tone))
+        }
+    }
+
+    private func color(for tone: SchemaWorkbenchCountSummarySegment.Tone) -> Color {
+        switch tone {
+        case .primary:
+            return WorkbenchRedesignColors.textPrimary
+        case .secondary:
+            return WorkbenchRedesignColors.textMuted
+        }
     }
 }
 

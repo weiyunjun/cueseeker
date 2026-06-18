@@ -36,6 +36,8 @@ struct WorkbenchTestSearch2View: View {
             filterSets: $settingsStore.searchFilterSets,
             columns: SchemaWorkbenchSearchDefaults.columns,
             isRedesign: true,
+            tableSummary: tableSummary,
+            tableSummaryLeadingInset: tableSummaryLeadingInset,
             onSearchSubmit: {
                 submitSearchDraft()
             }
@@ -99,6 +101,22 @@ struct WorkbenchTestSearch2View: View {
 
     private var isAllCuesMode: Bool {
         search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var tableSummary: SchemaWorkbenchTableSummary {
+        let totalRowCount = tableSummaryTotalRowCount
+        return SchemaWorkbenchTableSummary(
+            totalRowCount: totalRowCount,
+            selectedRowCount: rowSelection.selectedCount(rowCount: totalRowCount)
+        )
+    }
+
+    private var tableSummaryTotalRowCount: Int {
+        isAllCuesMode ? rowStore.snapshot.totalRowCount : search.searchResultTotalCount
+    }
+
+    private var tableSummaryLeadingInset: CGFloat {
+        SubtitleTableMetrics.checkboxLeadingInset
     }
 
     private func submitSearchDraft() {
