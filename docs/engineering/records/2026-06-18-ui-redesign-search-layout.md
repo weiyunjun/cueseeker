@@ -1,0 +1,60 @@
+# Engineering Record: UI Redesign - Search And Table Layout
+
+## 1. Covering Human-Owned Requirement
+
+- `docs/human/requirements/20260615-Feature-UI Redesign.md`
+
+## 2. Scope
+
+This record covers the layout-only adjustment made before Section 2.23 Count
+Summary implementation.
+
+The work is limited to the Search 2 redesign shell:
+
+- Move Search, Filter Sets, and the active/new filter control into one Search
+  Filter Bar row.
+- Move the View control into a separate Table Utility Bar above the data table.
+- Keep the Table Utility Bar at the documented 40 px height.
+- Preserve the existing legacy non-redesign layout.
+- Do not implement Count Summary, CSV export, or Anki export behavior in this
+  change.
+
+## 3. Implementation Summary
+
+- Added explicit redesign token constants for `--height-table-utility-bar` and
+  `--spacing-3`.
+- Reworked the redesign branch of `SchemaWorkbenchSearchShell` so the Search
+  Filter Bar contains the search box, Filter Sets trigger, and active/new filter
+  trigger on one baseline.
+- Added a redesign Table Utility Bar container with the View trigger aligned to
+  the right.
+- Kept the previous two-row command/filter layout for non-redesign shell usage.
+
+## 4. Virtualization Constraints Preserved
+
+- `SubtitleTableView` and its AppKit virtualized row rendering path were not
+  changed.
+- No row materialization, measurement pass, or data scan was added.
+- Table scrolling, hydration, and visible-row callbacks remain owned by the
+  existing virtual table implementation.
+
+## 5. Verification
+
+Commands run from `apps/macos-native/`:
+
+```text
+swift build
+swift test --quiet
+```
+
+Result:
+
+- `swift build` passed.
+- `swift test --quiet` passed with 299 tests.
+- The test command printed existing playback history disk I/O and EBML parsing
+  warnings, but the test run completed successfully.
+
+## 6. Outcome
+
+The Search 2 redesign shell now has a separate Search Filter Bar and Table
+Utility Bar structure, ready for a later Count Summary implementation.

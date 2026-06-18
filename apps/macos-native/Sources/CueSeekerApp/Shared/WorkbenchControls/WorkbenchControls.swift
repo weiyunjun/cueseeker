@@ -51,10 +51,14 @@ enum WorkbenchControlMetrics {
     static let redesignIconButtonSize: CGFloat = 40
     /// --height-table-header: 40px
     static let redesignTableHeaderHeight: CGFloat = 40
+    /// --height-table-utility-bar: 40px
+    static let redesignTableUtilityBarHeight: CGFloat = 40
     /// --spacing-1: 4px
     static let redesignSpacing1: CGFloat = 4
     /// --spacing-2: 8px
     static let redesignSpacing2: CGFloat = 8
+    /// --spacing-3: 12px
+    static let redesignSpacing3: CGFloat = 12
     /// --padding-header-trigger-x: 12px
     static let redesignPaddingHeaderTriggerX: CGFloat = 12
     /// --font-size-table: 14px

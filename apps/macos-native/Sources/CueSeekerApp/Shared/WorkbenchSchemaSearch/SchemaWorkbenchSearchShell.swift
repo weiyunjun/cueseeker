@@ -265,38 +265,71 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                SchemaWorkbenchSearchCommandBar(
-                    placeholder: searchPlaceholder,
-                    searchDraft: $searchDraft,
-                    isRedesign: isRedesign,
-                    isViewMenuOpen: openPopover == .columnVisibility,
-                    onSubmit: onSearchSubmit,
-                    onViewMenu: {
-                        togglePopover(.columnVisibility)
-                    }
-                )
-                .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
-                .padding(.bottom, 12)
+                if isRedesign {
+                    SchemaWorkbenchSearchFilterBar(
+                        placeholder: searchPlaceholder,
+                        searchDraft: $searchDraft,
+                        activeFilterSetName: activeFilterSetName,
+                        filterCount: filterRules.count,
+                        isRedesign: true,
+                        isFilterSetsMenuOpen: openPopover == .filterSets,
+                        isFilterBuilderMenuOpen: openPopover == .filterBuilder,
+                        onSubmit: onSearchSubmit,
+                        onFilterSets: {
+                            togglePopover(.filterSets)
+                        },
+                        onFilterBuilder: {
+                            openFilterBuilder()
+                        },
+                        onReset: {
+                            resetFilters()
+                        }
+                    )
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                    .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
+                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
 
-                SchemaWorkbenchFilterControlBar(
-                    activeFilterSetName: activeFilterSetName,
-                    filterCount: filterRules.count,
-                    isRedesign: isRedesign,
-                    isFilterSetsMenuOpen: openPopover == .filterSets,
-                    isFilterBuilderMenuOpen: openPopover == .filterBuilder,
-                    onFilterSets: {
-                        togglePopover(.filterSets)
-                    },
-                    onFilterBuilder: {
-                        openFilterBuilder()
-                    },
-                    onReset: {
-                        resetFilters()
-                    }
-                )
-                .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                .padding(.bottom, 12)
+                    SchemaWorkbenchTableUtilityBar(
+                        isRedesign: true,
+                        isViewMenuOpen: openPopover == .columnVisibility,
+                        onViewMenu: {
+                            togglePopover(.columnVisibility)
+                        }
+                    )
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                    .padding(.bottom, 12)
+                } else {
+                    SchemaWorkbenchLegacySearchCommandBar(
+                        placeholder: searchPlaceholder,
+                        searchDraft: $searchDraft,
+                        isViewMenuOpen: openPopover == .columnVisibility,
+                        onSubmit: onSearchSubmit,
+                        onViewMenu: {
+                            togglePopover(.columnVisibility)
+                        }
+                    )
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                    .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
+                    .padding(.bottom, 12)
+
+                    SchemaWorkbenchLegacyFilterControlBar(
+                        activeFilterSetName: activeFilterSetName,
+                        filterCount: filterRules.count,
+                        isFilterSetsMenuOpen: openPopover == .filterSets,
+                        isFilterBuilderMenuOpen: openPopover == .filterBuilder,
+                        onFilterSets: {
+                            togglePopover(.filterSets)
+                        },
+                        onFilterBuilder: {
+                            openFilterBuilder()
+                        },
+                        onReset: {
+                            resetFilters()
+                        }
+                    )
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                    .padding(.bottom, 12)
+                }
 
                 tableContent(visibleColumns)
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
@@ -686,16 +719,22 @@ enum SchemaWorkbenchStyle {
     }
 }
 
-struct SchemaWorkbenchSearchCommandBar: View {
+struct SchemaWorkbenchSearchFilterBar: View {
     let placeholder: String
     @Binding var searchDraft: String
+    let activeFilterSetName: String?
+    let filterCount: Int
     var isRedesign: Bool = false
-    var isViewMenuOpen: Bool = false
+    var isFilterSetsMenuOpen: Bool = false
+    var isFilterBuilderMenuOpen: Bool = false
     var onSubmit: (() -> Void)?
-    var onViewMenu: () -> Void
+    var onFilterSets: () -> Void
+    var onFilterBuilder: () -> Void
+    var onReset: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        let filterCountText = filterCount == 1 ? "1 Filter" : "\(filterCount) Filters"
+        HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing3 : 10) {
             WorkbenchSearchField(
                 placeholder: placeholder,
                 text: $searchDraft,
@@ -704,33 +743,6 @@ struct SchemaWorkbenchSearchCommandBar: View {
             )
             .frame(maxWidth: .infinity)
 
-            WorkbenchToolbarButton(
-                title: "View",
-                systemImage: "slider.horizontal.3",
-                showsChevron: true,
-                isRedesign: isRedesign,
-                isMenuOpen: isViewMenuOpen,
-                action: onViewMenu
-            )
-            .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
-        }
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight)
-    }
-}
-
-struct SchemaWorkbenchFilterControlBar: View {
-    let activeFilterSetName: String?
-    let filterCount: Int
-    var isRedesign: Bool = false
-    var isFilterSetsMenuOpen: Bool = false
-    var isFilterBuilderMenuOpen: Bool = false
-    var onFilterSets: () -> Void
-    var onFilterBuilder: () -> Void
-    var onReset: () -> Void
-
-    var body: some View {
-        let filterCountText = filterCount == 1 ? "1 Filter" : "\(filterCount) Filters"
-        HStack(spacing: 10) {
             WorkbenchToolbarButton(
                 title: "Filter Sets",
                 systemImage: "line.3.horizontal.decrease",
@@ -776,10 +788,129 @@ struct SchemaWorkbenchFilterControlBar: View {
                 )
                 .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
             }
+        }
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
+    }
+}
+
+struct SchemaWorkbenchTableUtilityBar: View {
+    var isRedesign: Bool = false
+    var isViewMenuOpen: Bool = false
+    var onViewMenu: () -> Void
+
+    var body: some View {
+        HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing3 : 12) {
+            Spacer(minLength: 0)
+
+            WorkbenchToolbarButton(
+                title: "View",
+                systemImage: "slider.horizontal.3",
+                showsChevron: true,
+                isRedesign: isRedesign,
+                isMenuOpen: isViewMenuOpen,
+                action: onViewMenu
+            )
+            .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
+        }
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 0)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignTableUtilityBarHeight : WorkbenchControlMetrics.controlHeight)
+        .background(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: SchemaWorkbenchStyle.tableCornerRadius, style: .continuous)
+                        .fill(WorkbenchRedesignColors.bgSurface)
+                } else {
+                    Color.clear
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: SchemaWorkbenchStyle.tableCornerRadius, style: .continuous)
+                        .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
+                }
+            }
+        )
+    }
+}
+
+struct SchemaWorkbenchLegacySearchCommandBar: View {
+    let placeholder: String
+    @Binding var searchDraft: String
+    var isViewMenuOpen: Bool = false
+    var onSubmit: (() -> Void)?
+    var onViewMenu: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            WorkbenchSearchField(
+                placeholder: placeholder,
+                text: $searchDraft,
+                onSubmit: onSubmit
+            )
+            .frame(maxWidth: .infinity)
+
+            WorkbenchToolbarButton(
+                title: "View",
+                systemImage: "slider.horizontal.3",
+                showsChevron: true,
+                isMenuOpen: isViewMenuOpen,
+                action: onViewMenu
+            )
+            .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
+        }
+        .frame(height: WorkbenchControlMetrics.searchFieldHeight)
+    }
+}
+
+struct SchemaWorkbenchLegacyFilterControlBar: View {
+    let activeFilterSetName: String?
+    let filterCount: Int
+    var isFilterSetsMenuOpen: Bool = false
+    var isFilterBuilderMenuOpen: Bool = false
+    var onFilterSets: () -> Void
+    var onFilterBuilder: () -> Void
+    var onReset: () -> Void
+
+    var body: some View {
+        let filterCountText = filterCount == 1 ? "1 Filter" : "\(filterCount) Filters"
+        HStack(spacing: 10) {
+            WorkbenchToolbarButton(
+                title: "Filter Sets",
+                systemImage: "line.3.horizontal.decrease",
+                showsChevron: true,
+                isMenuOpen: isFilterSetsMenuOpen,
+                action: onFilterSets
+            )
+            .workbenchDropdownAnchor(id: "filterSets", in: "SearchShellSpace")
+
+            if filterCount > 0 {
+                WorkbenchFilterChip(
+                    systemImage: "line.3.horizontal.decrease",
+                    title: activeFilterSetName ?? filterCountText,
+                    detail: activeFilterSetName == nil ? nil : filterCountText,
+                    action: onFilterBuilder
+                )
+
+                WorkbenchToolbarButton(
+                    title: "Reset",
+                    systemImage: "xmark",
+                    showsChevron: false,
+                    action: onReset
+                )
+            } else {
+                WorkbenchPlainActionButton(
+                    title: "New Filter Set",
+                    systemImage: "plus",
+                    action: onFilterBuilder
+                )
+                .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
+            }
 
             Spacer(minLength: 0)
         }
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
+        .frame(height: WorkbenchControlMetrics.controlHeight)
     }
 }
 
