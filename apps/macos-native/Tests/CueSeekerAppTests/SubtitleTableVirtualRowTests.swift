@@ -178,6 +178,37 @@ func subtitleTableViewExitsVirtualCheckboxFocusAtTabBoundaries() {
     #expect(coordinator.focusedCheckboxRowForTesting() == nil)
 }
 
+@MainActor
+@Test
+func subtitleTableViewIgnoresMouseCheckboxToggleWhenDisabled() {
+    var toggledRows: [Int] = []
+    let coordinator = makeKeyboardFocusTableCoordinator { row in
+        toggledRows.append(row)
+    }
+
+    coordinator.setFocusedCheckboxRowForTesting(3)
+    coordinator.isEnabled = false
+
+    #expect(coordinator.toggleRowCheckboxFromMouseForTesting(row: 1) == false)
+    #expect(toggledRows.isEmpty)
+    #expect(coordinator.focusedCheckboxRowForTesting() == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewMouseCheckboxToggleDoesNotKeepKeyboardFocus() {
+    var toggledRows: [Int] = []
+    let coordinator = makeKeyboardFocusTableCoordinator { row in
+        toggledRows.append(row)
+    }
+
+    coordinator.setFocusedCheckboxRowForTesting(3)
+
+    #expect(coordinator.toggleRowCheckboxFromMouseForTesting(row: 1) == true)
+    #expect(toggledRows == [1])
+    #expect(coordinator.focusedCheckboxRowForTesting() == nil)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()
@@ -192,7 +223,10 @@ func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
 }
 
 @MainActor
-private func makeKeyboardFocusTableCoordinator(rowCount: Int = 100_000) -> SubtitleTableView.Coordinator {
+private func makeKeyboardFocusTableCoordinator(
+    rowCount: Int = 100_000,
+    onToggleRowSelection: @escaping (Int) -> Void = { _ in }
+) -> SubtitleTableView.Coordinator {
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "test-search-2",
         rowCount: rowCount,
@@ -203,6 +237,7 @@ private func makeKeyboardFocusTableCoordinator(rowCount: Int = 100_000) -> Subti
         showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
+        onToggleRowSelection: onToggleRowSelection,
         onPlay: { _ in }
     )
     coordinator.isRedesign = true

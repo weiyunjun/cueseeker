@@ -46,21 +46,22 @@ or row action behavior.
   header already uses SwiftUI hosting for redesign header cells.
 - Implemented body row checkboxes with AppKit drawing and hit testing. This
   avoids creating per-row SwiftUI controls for large result sets.
-- Row checkbox click handling toggles only the hit row and invalidates only the
-  affected row plus the header host refresh.
+- Row checkbox mouse handling toggles only the hit row when the table is
+  enabled and invalidates only the affected row plus the header host refresh.
 
 ### 3.4 Row checkbox focus fix
 
 - Follow-up review found that body row checkboxes could be clicked but did not
   have a real focus state, so the required focus ring could never be drawn.
 - Added a focused row-checkbox index to the AppKit coordinator.
-- Clicking a row checkbox now gives the custom document view first responder
-  status, records the focused checkbox row, and redraws that row with the
-  shared focus ring token.
+- Keyboard navigation records the focused checkbox row and redraws that row
+  with the shared focus ring token.
 - When the custom document view resigns first responder status, the focused row
   checkbox is cleared so the focus ring cannot remain visually stale.
 - Space toggles the currently focused row checkbox. Arrow up/down moves the
   focused checkbox row without materializing offscreen controls.
+- Mouse-clicking a row checkbox toggles selection without creating a keyboard
+  focus ring, and clears any previous row checkbox keyboard focus.
 
 ### 3.5 Header-to-body keyboard focus bridge
 
@@ -82,6 +83,17 @@ or row action behavior.
   last row boundary it clears the focused checkbox and asks the window to move
   to the previous or next key view, avoiding a focus trap.
 
+### 3.6 Checkbox disabled and focus-token closure
+
+- Follow-up review found that disabled tables still allowed row checkbox mouse
+  toggles even though the header checkbox and keyboard toggles were disabled.
+- Row checkbox mouse handling now respects the same `isEnabled` gate as the
+  header and keyboard paths.
+- Focused checkboxes now use both focus-related tokens: `borderFocus` for the
+  checkbox border and `focusRing` for the outside ring.
+- Header checkbox mouse activation suppresses the custom focus visuals until
+  focus is lost, while keyboard focus still shows the focus border and ring.
+
 ## 4. Virtualization Constraints Preserved
 
 - No SwiftUI `List`, `Table`, or per-row `NSHostingView` was introduced for body
@@ -97,13 +109,12 @@ or row action behavior.
 Commands run from `apps/macos-native/`:
 
 ```text
-swift test
+swift test --quiet
 ```
 
 Result:
 
-- 274 tests passed after the initial 2.17/2.19 implementation.
-- 275 tests passed after the row checkbox focus-ring fix.
+- 281 tests passed after the checkbox disabled-state and focus-state fixes.
 
 Additional focused coverage added:
 
@@ -117,6 +128,10 @@ Additional focused coverage added:
   row, or row 0 when no visible range is available yet.
 - Tab and Shift+Tab move between focused virtual row checkboxes without
   materializing row controls, and exit the table focus chain at row boundaries.
+- Disabled row checkbox mouse toggles are ignored and clear stale row checkbox
+  focus.
+- Row checkbox mouse toggles do not keep keyboard focus, preventing mouse
+  clicks from showing the row focus ring.
 
 ## 6. Outcome
 

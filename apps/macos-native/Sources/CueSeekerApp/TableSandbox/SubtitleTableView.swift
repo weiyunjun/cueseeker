@@ -289,11 +289,18 @@ private enum WorkbenchCheckboxDrawing {
         }
         path.fill()
 
-        switch state {
-        case .unchecked:
-            WorkbenchRedesignColors.NS.borderCheckbox.setStroke()
+        let borderColor: NSColor? = isFocused
+            ? WorkbenchRedesignColors.NS.borderFocus
+            : (state == .unchecked ? WorkbenchRedesignColors.NS.borderCheckbox : nil)
+        if let borderColor {
+            borderColor.setStroke()
             path.lineWidth = 1.5
             path.stroke()
+        }
+
+        switch state {
+        case .unchecked:
+            break
         case .checked:
             drawCheckmark(in: rect)
         case .indeterminate:
@@ -345,16 +352,18 @@ private struct WorkbenchCheckboxButton: View {
     var action: () -> Void
 
     @FocusState private var isFocused: Bool
+    @State private var suppressFocusRingUntilBlur = false
 
     var body: some View {
         Button(action: action) {
             ZStack {
                 RoundedRectangle(cornerRadius: SubtitleTableMetrics.checkboxCornerRadius, style: .continuous)
                     .fill(backgroundColor)
-                if state == .unchecked {
+                if let borderColor {
                     RoundedRectangle(cornerRadius: SubtitleTableMetrics.checkboxCornerRadius, style: .continuous)
-                        .strokeBorder(WorkbenchRedesignColors.borderCheckbox, lineWidth: 1.5)
-                } else {
+                        .strokeBorder(borderColor, lineWidth: 1.5)
+                }
+                if state != .unchecked {
                     Image(systemName: state == .checked ? "checkmark" : "minus")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(WorkbenchRedesignColors.checkboxIcon)
@@ -363,7 +372,7 @@ private struct WorkbenchCheckboxButton: View {
             .frame(width: SubtitleTableMetrics.checkboxSize, height: SubtitleTableMetrics.checkboxSize)
             .overlay(
                 Group {
-                    if isFocused && isEnabled {
+                    if showsKeyboardFocus {
                         RoundedRectangle(
                             cornerRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
                             style: .continuous
@@ -380,6 +389,15 @@ private struct WorkbenchCheckboxButton: View {
         .disableFocusEffect()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in suppressFocusRingUntilBlur = true }
+        )
+        .onChange(of: isFocused) { focused in
+            if !focused {
+                suppressFocusRingUntilBlur = false
+            }
+        }
     }
 
     private var backgroundColor: Color {
@@ -389,6 +407,17 @@ private struct WorkbenchCheckboxButton: View {
         case .checked, .indeterminate:
             return WorkbenchRedesignColors.bgCheckboxChecked
         }
+    }
+
+    private var borderColor: Color? {
+        if showsKeyboardFocus {
+            return WorkbenchRedesignColors.borderFocus
+        }
+        return state == .unchecked ? WorkbenchRedesignColors.borderCheckbox : nil
+    }
+
+    private var showsKeyboardFocus: Bool {
+        isFocused && isEnabled && !suppressFocusRingUntilBlur
     }
 }
 
@@ -1061,6 +1090,9 @@ struct SubtitleTableView: NSViewRepresentable {
         var isEnabled: Bool = true {
             didSet {
                 guard oldValue != isEnabled else { return }
+                if !isEnabled {
+                    clearFocusedCheckbox()
+                }
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
             }
@@ -1294,6 +1326,11 @@ struct SubtitleTableView: NSViewRepresentable {
             updateFocusedCheckbox(row)
         }
 
+        @discardableResult
+        func toggleRowCheckboxFromMouseForTesting(row: Int) -> Bool {
+            toggleRowCheckboxFromMouse(row: row)
+        }
+
         func selectionHeaderStateForRendering() -> WorkbenchCheckboxState {
             selectionHeaderState
         }
@@ -1445,7 +1482,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 WorkbenchCheckboxDrawing.draw(
                     state: checkboxState,
                     in: checkboxRect(forRowRect: rowRect),
-                    isFocused: focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
+                    isFocused: isEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
                 )
             } else {
                 drawIndex(row + 1, in: CGRect(x: 0, y: rowRect.minY, width: M.indexColumnWidth, height: rowRect.height))
@@ -1644,6 +1681,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func handleMouseDown(windowPoint: CGPoint) -> Bool {
             guard isRedesign,
+                  isEnabled,
                   !isMenuOpen,
                   !isExternalPopupLayerOpen,
                   let documentView
@@ -1660,7 +1698,20 @@ struct SubtitleTableView: NSViewRepresentable {
             guard checkboxHitRect(forRowRect: rowRect).contains(point) else {
                 return false
             }
-            updateFocusedCheckbox(row)
+            return toggleRowCheckboxFromMouse(row: row)
+        }
+
+        private func toggleRowCheckboxFromMouse(row: Int) -> Bool {
+            guard isRedesign,
+                  isEnabled,
+                  !isMenuOpen,
+                  !isExternalPopupLayerOpen,
+                  row >= 0,
+                  row < rowCount
+            else {
+                return false
+            }
+            clearFocusedCheckbox()
             onToggleRowSelection(row)
             invalidateRows([row])
             headerView?.refreshHeaderHosts()
