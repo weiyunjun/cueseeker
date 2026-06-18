@@ -57,6 +57,8 @@ or row action behavior.
 - Clicking a row checkbox now gives the custom document view first responder
   status, records the focused checkbox row, and redraws that row with the
   shared focus ring token.
+- When the custom document view resigns first responder status, the focused row
+  checkbox is cleared so the focus ring cannot remain visually stale.
 - Space toggles the currently focused row checkbox. Arrow up/down moves the
   focused checkbox row without materializing offscreen controls.
 

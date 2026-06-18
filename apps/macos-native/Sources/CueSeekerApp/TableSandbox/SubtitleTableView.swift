@@ -747,6 +747,11 @@ final class SubtitleVirtualTableDocumentView: NSView {
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
 
+    override func resignFirstResponder() -> Bool {
+        coordinator?.clearFocusedCheckbox()
+        return super.resignFirstResponder()
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let hoverTracking {
