@@ -710,6 +710,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var showsSpeakerColumn = false
     var scrollResetToken = 0
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
+    var isRowSelected: (Int) -> Bool = { _ in false }
     var onPlay: (SubtitleTableRow) -> Void
     var isRedesign: Bool = false
 
@@ -724,6 +725,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
             onVisibleRowsChange: onVisibleRowsChange,
+            isRowSelected: isRowSelected,
             onPlay: onPlay
         )
         coordinator.isRedesign = isRedesign
@@ -807,6 +809,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
             onVisibleRowsChange: onVisibleRowsChange,
+            isRowSelected: isRowSelected,
             onPlay: onPlay
         )
     }
@@ -824,6 +827,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var showsSpeakerColumn: Bool
         private var scrollResetToken: Int
         private var onVisibleRowsChange: (Range<Int>) -> Void
+        private var isRowSelected: (Int) -> Bool
         private var onPlay: (SubtitleTableRow) -> Void
 
         var isRedesign: Bool = false {
@@ -915,6 +919,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsSpeakerColumn: Bool = false,
             scrollResetToken: Int = 0,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
+            isRowSelected: @escaping (Int) -> Bool = { _ in false },
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
@@ -926,6 +931,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsSpeakerColumn = showsSpeakerColumn
             self.scrollResetToken = scrollResetToken
             self.onVisibleRowsChange = onVisibleRowsChange
+            self.isRowSelected = isRowSelected
             self.onPlay = onPlay
         }
 
@@ -977,6 +983,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsSpeakerColumn: Bool,
             scrollResetToken: Int,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
+            isRowSelected: @escaping (Int) -> Bool,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
@@ -990,6 +997,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let shouldScrollToTop = scrollResetToken != self.scrollResetToken
             self.scrollResetToken = scrollResetToken
             self.onVisibleRowsChange = onVisibleRowsChange
+            self.isRowSelected = isRowSelected
             self.onPlay = onPlay
 
             let nextRowCount = max(0, rowCount)
@@ -1041,6 +1049,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func numberOfRowsForTesting() -> Int {
             rowCount
+        }
+
+        func rowSelectionStateForTesting(row: Int) -> Bool {
+            isRowSelected(row)
         }
 
         func cellFullText(row: Int, column: Int) -> String {
@@ -1138,7 +1150,11 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawRowBackground(row: Int, rect: CGRect) {
-            if hoveredRow == row {
+            let rowIsSelected = isRedesign && isRowSelected(row)
+            if rowIsSelected {
+                WorkbenchRedesignColors.NS.rowSelected.setFill()
+                rect.fill()
+            } else if hoveredRow == row {
                 if isRedesign {
                     WorkbenchRedesignColors.NS.rowHover.setFill()
                 } else {

@@ -45,6 +45,29 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
     #expect(coordinator.cellFullText(row: 1_000_000, column: 4) == "")
 }
 
+@MainActor
+@Test
+func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "test-search-2",
+        rowCount: 100_000,
+        rowProvider: { _ in nil },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { $0 == 99_999 },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    #expect(coordinator.numberOfRowsForTesting() == 100_000)
+    #expect(coordinator.currentRowHeight == CGFloat(64))
+    #expect(coordinator.rowSelectionStateForTesting(row: 0) == false)
+    #expect(coordinator.rowSelectionStateForTesting(row: 99_999) == true)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()
