@@ -44,6 +44,24 @@ func subtitleTableScrollbarMetricsUsesEightPixelThumbThickness() {
 }
 
 @Test
+func subtitleTableScrollbarMetricsProvidesTransparentThumbHitSlop() {
+    let metrics = SubtitleTableScrollbarMetrics(
+        viewportSize: CGSize(width: 300, height: 200),
+        contentSize: CGSize(width: 300, height: 1_000),
+        contentOffset: .zero
+    )
+    let bounds = CGRect(x: 0, y: 0, width: 300, height: 200)
+    let thumb = metrics.thumbRect(for: .vertical, in: bounds)
+    let interactiveThumb = metrics.interactiveThumbRect(for: .vertical, in: bounds)
+
+    #expect(thumb != nil)
+    #expect(interactiveThumb != nil)
+    guard let thumb, let interactiveThumb else { return }
+    #expect(interactiveThumb.width == thumb.width + 2 * SubtitleTableMetrics.scrollbarHitSlop)
+    #expect(interactiveThumb.contains(CGPoint(x: thumb.minX - SubtitleTableMetrics.scrollbarHitSlop / 2, y: thumb.midY)))
+}
+
+@Test
 func subtitleTableScrollbarMetricsMapsThumbPositionBackToScrollOffset() {
     let metrics = SubtitleTableScrollbarMetrics(
         viewportSize: CGSize(width: 300, height: 200),
@@ -57,4 +75,25 @@ func subtitleTableScrollbarMetricsMapsThumbPositionBackToScrollOffset() {
     guard let thumb else { return }
     let mappedOffset = metrics.scrollOffset(for: .vertical, thumbPosition: thumb.minY, in: bounds)
     #expect(abs(mappedOffset - 400) < 0.001)
+}
+
+@Test
+func subtitleTableScrollbarMetricsMapsThumbDragDeltaToScrollOffset() {
+    let metrics = SubtitleTableScrollbarMetrics(
+        viewportSize: CGSize(width: 300, height: 200),
+        contentSize: CGSize(width: 300, height: 1_000),
+        contentOffset: .zero
+    )
+    let bounds = CGRect(x: 0, y: 0, width: 300, height: 200)
+    let thumb = metrics.thumbRect(for: .vertical, in: bounds)
+
+    #expect(thumb != nil)
+    guard let thumb else { return }
+    let mappedOffset = metrics.scrollOffset(
+        for: .vertical,
+        dragStartThumbOrigin: thumb.minY,
+        dragDelta: 40,
+        in: bounds
+    )
+    #expect(mappedOffset > 0)
 }

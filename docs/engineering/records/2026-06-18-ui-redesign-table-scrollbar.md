@@ -30,7 +30,9 @@ The work is intentionally limited to the table body scrollbars:
   native track or rail drawing. The underlying `NSScrollView` remains the source
   of truth for actual scrolling, clipping, momentum scrolling, and bounds-change
   notifications.
-- The overlay hit tests only visible thumbs. Pointer events outside the thumb
+- The overlay draws only the visible 8 px thumb, but uses a transparent thumb
+  hit area so the thumb can be reliably grabbed and dragged without drawing a
+  track or outer rail. Pointer events outside the interactive thumb area
   continue to reach the existing table row and hover handling.
 - Thumb dragging maps overlay thumb movement back to the existing clip-view
   scroll offset and calls `reflectScrolledClipView(_:)`, so existing scroll
@@ -56,7 +58,7 @@ swift test --quiet
 
 Result:
 
-- 284 tests passed.
+- 286 tests passed after the follow-up drag interaction fix.
 - The command also printed an existing playback history disk I/O warning, but
   the test run completed successfully.
 
@@ -65,7 +67,9 @@ Focused coverage added:
 - A scrollbar axis is hidden when its content fits the viewport.
 - Vertical and horizontal axes are detected independently.
 - The visible thumb uses the 8 px redesign scrollbar size.
+- The transparent thumb hit area is wider than the visible thumb.
 - Thumb position maps back to the expected scroll offset.
+- Thumb drag delta maps to a positive scroll offset.
 
 ## 6. Outcome
 

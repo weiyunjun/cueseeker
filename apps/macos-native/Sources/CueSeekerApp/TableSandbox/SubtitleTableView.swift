@@ -29,6 +29,7 @@ enum SubtitleTableMetrics {
     static let scrollbarSize: CGFloat = 8
     static let scrollbarInset: CGFloat = 4
     static let scrollbarMinThumbLength: CGFloat = 24
+    static let scrollbarHitSlop: CGFloat = 6
 }
 
 // MARK: - Typography
@@ -479,6 +480,7 @@ struct SubtitleTableScrollbarMetrics {
     private var size: CGFloat { SubtitleTableMetrics.scrollbarSize }
     private var inset: CGFloat { SubtitleTableMetrics.scrollbarInset }
     private var minThumbLength: CGFloat { SubtitleTableMetrics.scrollbarMinThumbLength }
+    private var hitSlop: CGFloat { SubtitleTableMetrics.scrollbarHitSlop }
 
     func isVisible(_ axis: Axis) -> Bool {
         switch axis {
@@ -563,6 +565,16 @@ struct SubtitleTableScrollbarMetrics {
         }
     }
 
+    func interactiveThumbRect(for axis: Axis, in bounds: CGRect) -> CGRect? {
+        guard let thumb = thumbRect(for: axis, in: bounds) else { return nil }
+        switch axis {
+        case .vertical:
+            return thumb.insetBy(dx: -hitSlop, dy: -2)
+        case .horizontal:
+            return thumb.insetBy(dx: -2, dy: -hitSlop)
+        }
+    }
+
     func scrollOffset(for axis: Axis, thumbPosition: CGFloat, in bounds: CGRect) -> CGFloat {
         guard let track = trackRect(for: axis, in: bounds),
               let thumb = thumbRect(for: axis, in: bounds)
@@ -592,6 +604,15 @@ struct SubtitleTableScrollbarMetrics {
         guard travelLength > 0, maxScroll > 0 else { return 0 }
         let thumbTravel = min(travelLength, max(0, thumbPosition - trackStart))
         return maxScroll * thumbTravel / travelLength
+    }
+
+    func scrollOffset(
+        for axis: Axis,
+        dragStartThumbOrigin: CGFloat,
+        dragDelta: CGFloat,
+        in bounds: CGRect
+    ) -> CGFloat {
+        scrollOffset(for: axis, thumbPosition: dragStartThumbOrigin + dragDelta, in: bounds)
     }
 }
 
@@ -704,8 +725,12 @@ final class SubtitleTableScrollbarOverlayView: NSView {
         let dragDelta = draggingAxis == .vertical
             ? point.y - dragStartPoint.y
             : point.x - dragStartPoint.x
-        let thumbPosition = dragStartThumbOrigin + dragDelta
-        let nextOffset = metrics.scrollOffset(for: draggingAxis, thumbPosition: thumbPosition, in: bounds)
+        let nextOffset = metrics.scrollOffset(
+            for: draggingAxis,
+            dragStartThumbOrigin: dragStartThumbOrigin,
+            dragDelta: dragDelta,
+            in: bounds
+        )
         var origin = scrollView.contentView.bounds.origin
         switch draggingAxis {
         case .vertical:
@@ -747,11 +772,11 @@ final class SubtitleTableScrollbarOverlayView: NSView {
 
     private func axis(at point: CGPoint) -> SubtitleTableScrollbarMetrics.Axis? {
         guard let metrics = metrics() else { return nil }
-        if let verticalThumb = metrics.thumbRect(for: .vertical, in: bounds),
+        if let verticalThumb = metrics.interactiveThumbRect(for: .vertical, in: bounds),
            verticalThumb.contains(point) {
             return .vertical
         }
-        if let horizontalThumb = metrics.thumbRect(for: .horizontal, in: bounds),
+        if let horizontalThumb = metrics.interactiveThumbRect(for: .horizontal, in: bounds),
            horizontalThumb.contains(point) {
             return .horizontal
         }
