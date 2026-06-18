@@ -778,7 +778,15 @@ final class SubtitleVirtualTableDocumentView: NSView {
         if coordinator?.handleMouseDown(windowPoint: event.locationInWindow) == true {
             return
         }
+        coordinator?.clearFocusedCheckbox()
         super.mouseDown(with: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if coordinator?.handleKeyDown(event) == true {
+            return
+        }
+        super.keyDown(with: event)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1073,6 +1081,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private let textLayout = SubtitleTextLayout()
         private var rowHeightCache = SubtitleVirtualRowHeightCache()
         private var hoveredRow: Int?
+        private var focusedCheckboxRow: Int?
 
         init(
             tableName: String,
@@ -1182,6 +1191,9 @@ struct SubtitleTableView: NSViewRepresentable {
             let changed = nextRowCount != self.rowCount || rowsVersion != self.rowsVersion
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
+            if let focusedCheckboxRow, focusedCheckboxRow >= nextRowCount {
+                updateFocusedCheckbox(nil)
+            }
 
             rowHeightCache.prune(rowCount: nextRowCount) { [rowProvider] row in
                 rowProvider(row) != nil
@@ -1231,6 +1243,14 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func rowSelectionStateForTesting(row: Int) -> Bool {
             isRowSelected(row)
+        }
+
+        func focusedCheckboxRowForTesting() -> Int? {
+            focusedCheckboxRow
+        }
+
+        func setFocusedCheckboxRowForTesting(_ row: Int?) {
+            updateFocusedCheckbox(row)
         }
 
         func selectionHeaderStateForRendering() -> WorkbenchCheckboxState {
@@ -1377,7 +1397,11 @@ struct SubtitleTableView: NSViewRepresentable {
 
             if isRedesign {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
-                WorkbenchCheckboxDrawing.draw(state: checkboxState, in: checkboxRect(forRowRect: rowRect))
+                WorkbenchCheckboxDrawing.draw(
+                    state: checkboxState,
+                    in: checkboxRect(forRowRect: rowRect),
+                    isFocused: focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
+                )
             } else {
                 drawIndex(row + 1, in: CGRect(x: 0, y: rowRect.minY, width: M.indexColumnWidth, height: rowRect.height))
             }
@@ -1591,10 +1615,69 @@ struct SubtitleTableView: NSViewRepresentable {
             guard checkboxHitRect(forRowRect: rowRect).contains(point) else {
                 return false
             }
+            updateFocusedCheckbox(row)
             onToggleRowSelection(row)
             invalidateRows([row])
             headerView?.refreshHeaderHosts()
             return true
+        }
+
+        func handleKeyDown(_ event: NSEvent) -> Bool {
+            guard isRedesign,
+                  isEnabled,
+                  !isMenuOpen,
+                  !isExternalPopupLayerOpen,
+                  let focusedCheckboxRow,
+                  focusedCheckboxRow >= 0,
+                  focusedCheckboxRow < rowCount
+            else {
+                return false
+            }
+
+            switch event.keyCode {
+            case 49:
+                onToggleRowSelection(focusedCheckboxRow)
+                invalidateRows([focusedCheckboxRow])
+                headerView?.refreshHeaderHosts()
+                return true
+            case 125:
+                moveFocusedCheckbox(by: 1)
+                return true
+            case 126:
+                moveFocusedCheckbox(by: -1)
+                return true
+            default:
+                return false
+            }
+        }
+
+        func clearFocusedCheckbox() {
+            updateFocusedCheckbox(nil)
+        }
+
+        private func moveFocusedCheckbox(by delta: Int) {
+            guard rowCount > 0 else {
+                updateFocusedCheckbox(nil)
+                return
+            }
+            let current = focusedCheckboxRow ?? hoveredRow ?? visibleRowRange()?.lowerBound ?? 0
+            let next = min(max(0, current + delta), rowCount - 1)
+            updateFocusedCheckbox(next)
+            scrollFocusedCheckboxIntoVisible()
+        }
+
+        private func updateFocusedCheckbox(_ row: Int?) {
+            let nextRow = row.flatMap { $0 >= 0 && $0 < rowCount ? $0 : nil }
+            guard nextRow != focusedCheckboxRow else { return }
+            let oldRow = focusedCheckboxRow
+            focusedCheckboxRow = nextRow
+            invalidateRows([oldRow, nextRow])
+        }
+
+        private func scrollFocusedCheckboxIntoVisible() {
+            guard let focusedCheckboxRow, let documentView else { return }
+            documentView.scrollToVisible(rectForRow(focusedCheckboxRow, width: documentView.bounds.width))
+            notifyVisibleRowsChanged()
         }
 
         func clearHover() {

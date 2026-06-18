@@ -68,6 +68,47 @@ func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
     #expect(coordinator.rowSelectionStateForTesting(row: 99_999) == true)
 }
 
+@MainActor
+@Test
+func subtitleTableViewTracksFocusedRedesignCheckboxRowSparsely() {
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "test-search-2",
+        rowCount: 100_000,
+        rowProvider: { _ in nil },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    coordinator.setFocusedCheckboxRowForTesting(99_999)
+    #expect(coordinator.focusedCheckboxRowForTesting() == 99_999)
+
+    coordinator.update(
+        tableName: "test-search-2",
+        rowCount: 10,
+        rowProvider: { _ in nil },
+        rowsVersion: 2,
+        rowsUpdate: .reload,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    #expect(coordinator.focusedCheckboxRowForTesting() == nil)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()
