@@ -1678,12 +1678,13 @@ struct SubtitleTableView: NSViewRepresentable {
 
             switch event.keyCode {
             case 48:
-                clearFocusedCheckbox()
-                if event.modifierFlags.contains(.shift) {
-                    documentView?.window?.selectPreviousKeyView(documentView)
-                } else {
-                    documentView?.window?.selectNextKeyView(documentView)
+                guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+                    return false
                 }
+                if moveFocusedCheckboxByTab(isShiftPressed: event.modifierFlags.contains(.shift)) {
+                    return true
+                }
+                exitFocusedCheckboxByTab(isShiftPressed: event.modifierFlags.contains(.shift))
                 return true
             case 49:
                 guard let focusedCheckboxRow,
@@ -1722,6 +1723,28 @@ struct SubtitleTableView: NSViewRepresentable {
             let next = min(max(0, current + delta), rowCount - 1)
             updateFocusedCheckbox(next)
             scrollFocusedCheckboxIntoVisible()
+        }
+
+        private func moveFocusedCheckboxByTab(isShiftPressed: Bool) -> Bool {
+            guard let focusedCheckboxRow, rowCount > 0 else {
+                return false
+            }
+            let next = focusedCheckboxRow + (isShiftPressed ? -1 : 1)
+            guard next >= 0, next < rowCount else {
+                return false
+            }
+            updateFocusedCheckbox(next)
+            scrollFocusedCheckboxIntoVisible()
+            return true
+        }
+
+        private func exitFocusedCheckboxByTab(isShiftPressed: Bool) {
+            clearFocusedCheckbox()
+            if isShiftPressed {
+                documentView?.window?.selectPreviousKeyView(documentView)
+            } else {
+                documentView?.window?.selectNextKeyView(documentView)
+            }
         }
 
         private func updateFocusedCheckbox(_ row: Int?) {

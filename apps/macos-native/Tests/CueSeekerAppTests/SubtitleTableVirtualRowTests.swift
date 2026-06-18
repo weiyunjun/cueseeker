@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Testing
 @testable import CueSeekerApp
@@ -150,6 +151,33 @@ func subtitleTableViewRejectsKeyboardCheckboxEntryWhenNoRowsExist() {
     #expect(coordinator.firstFocusableCheckboxRowForTesting(visibleRows: 0..<10) == nil)
 }
 
+@MainActor
+@Test
+func subtitleTableViewTabsBetweenFocusedVirtualCheckboxRows() {
+    let coordinator = makeKeyboardFocusTableCoordinator()
+
+    coordinator.setFocusedCheckboxRowForTesting(0)
+    #expect(coordinator.handleKeyDown(makeTabKeyEvent()) == true)
+    #expect(coordinator.focusedCheckboxRowForTesting() == 1)
+
+    #expect(coordinator.handleKeyDown(makeTabKeyEvent(shift: true)) == true)
+    #expect(coordinator.focusedCheckboxRowForTesting() == 0)
+}
+
+@MainActor
+@Test
+func subtitleTableViewExitsVirtualCheckboxFocusAtTabBoundaries() {
+    let coordinator = makeKeyboardFocusTableCoordinator(rowCount: 100_000)
+
+    coordinator.setFocusedCheckboxRowForTesting(0)
+    #expect(coordinator.handleKeyDown(makeTabKeyEvent(shift: true)) == true)
+    #expect(coordinator.focusedCheckboxRowForTesting() == nil)
+
+    coordinator.setFocusedCheckboxRowForTesting(99_999)
+    #expect(coordinator.handleKeyDown(makeTabKeyEvent()) == true)
+    #expect(coordinator.focusedCheckboxRowForTesting() == nil)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()
@@ -161,4 +189,37 @@ func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     #expect(cache.height(for: 1_999_999, defaultHeight: CGFloat(56)) == CGFloat(56))
     #expect(cache.rowIndex(atY: CGFloat(112), rowCount: 2_000_000, defaultHeight: CGFloat(56)) == 2)
     #expect(cache.totalHeight(rowCount: 2_000_000, defaultHeight: CGFloat(56)) == CGFloat(112_000_000))
+}
+
+@MainActor
+private func makeKeyboardFocusTableCoordinator(rowCount: Int = 100_000) -> SubtitleTableView.Coordinator {
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "test-search-2",
+        rowCount: rowCount,
+        rowProvider: { _ in nil },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+    return coordinator
+}
+
+private func makeTabKeyEvent(shift: Bool = false) -> NSEvent {
+    NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: shift ? [.shift] : [],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        characters: "\t",
+        charactersIgnoringModifiers: "\t",
+        isARepeat: false,
+        keyCode: 48
+    )!
 }

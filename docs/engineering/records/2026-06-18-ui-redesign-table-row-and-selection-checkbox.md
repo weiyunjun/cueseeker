@@ -77,9 +77,10 @@ or row action behavior.
 - The final visible interactive header is resolved dynamically: Language,
   Speaker, Cues, then Display Title. This keeps the bridge correct when optional
   columns are hidden.
-- The document view handles Tab while body focus is active by clearing the
-  focused checkbox and asking the window to move to the next or previous key
-  view. This avoids trapping keyboard focus inside the virtual table.
+- The document view handles Tab while body checkbox focus is active by moving
+  the single focused row index to the next or previous row. At the first or
+  last row boundary it clears the focused checkbox and asks the window to move
+  to the previous or next key view, avoiding a focus trap.
 
 ## 4. Virtualization Constraints Preserved
 
@@ -114,6 +115,8 @@ Additional focused coverage added:
   count shrinks below that index.
 - Keyboard entry into the virtual checkbox area resolves to the first visible
   row, or row 0 when no visible range is available yet.
+- Tab and Shift+Tab move between focused virtual row checkboxes without
+  materializing row controls, and exit the table focus chain at row boundaries.
 
 ## 6. Outcome
 
