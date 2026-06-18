@@ -30,6 +30,8 @@ enum SubtitleTableMetrics {
     static let scrollbarInset: CGFloat = 4
     static let scrollbarMinThumbLength: CGFloat = 24
     static let scrollbarHitSlop: CGFloat = 6
+    static let interactiveTextUnderlineThickness: CGFloat = 1
+    static let interactiveTextUnderlineOffset: CGFloat = 2
 }
 
 // MARK: - Typography
@@ -109,6 +111,104 @@ final class SubtitleTextLayout {
         let glyphRange = layoutManager.glyphRange(for: textContainer)
         guard glyphRange.length > 0 else { return }
         layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: origin)
+    }
+
+    func containsText(at point: CGPoint, origin: CGPoint) -> Bool {
+        lineUsedRects(at: origin).contains { $0.contains(point) }
+    }
+
+    func underlineRects(
+        at origin: CGPoint,
+        thickness: CGFloat,
+        offset: CGFloat,
+        backingScaleFactor: CGFloat
+    ) -> [CGRect] {
+        let scale = max(1, backingScaleFactor)
+        let lineThickness = max(1 / scale, thickness)
+        return lineGlyphRanges().compactMap { glyphRange in
+            guard glyphRange.length > 0 else { return nil }
+            let usedRect = layoutManager.lineFragmentUsedRect(
+                forGlyphAt: glyphRange.location,
+                effectiveRange: nil
+            )
+            guard usedRect.width > 0 else { return nil }
+            let baseline = origin.y + usedRect.minY + layoutManager.location(forGlyphAt: glyphRange.location).y
+            let y = pixelAligned(baseline + offset, scale: scale)
+            let minX = pixelFloored(origin.x + usedRect.minX, scale: scale)
+            let maxX = pixelCeiled(origin.x + usedRect.maxX, scale: scale)
+            return CGRect(
+                x: minX,
+                y: y,
+                width: max(0, maxX - minX),
+                height: lineThickness
+            )
+        }
+    }
+
+    func drawUnderline(
+        at origin: CGPoint,
+        color: NSColor,
+        thickness: CGFloat,
+        offset: CGFloat,
+        backingScaleFactor: CGFloat
+    ) {
+        color.setFill()
+        for rect in underlineRects(
+            at: origin,
+            thickness: thickness,
+            offset: offset,
+            backingScaleFactor: backingScaleFactor
+        ) where rect.width > 0 {
+            rect.fill()
+        }
+    }
+
+    private func lineUsedRects(at origin: CGPoint) -> [CGRect] {
+        lineGlyphRanges().compactMap { glyphRange in
+            guard glyphRange.length > 0 else { return nil }
+            let usedRect = layoutManager.lineFragmentUsedRect(
+                forGlyphAt: glyphRange.location,
+                effectiveRange: nil
+            )
+            guard usedRect.width > 0, usedRect.height > 0 else { return nil }
+            return usedRect.offsetBy(dx: origin.x, dy: origin.y)
+        }
+    }
+
+    private func lineGlyphRanges() -> [NSRange] {
+        let glyphRange = layoutManager.glyphRange(for: textContainer)
+        guard glyphRange.length > 0 else { return [] }
+
+        var lineRanges: [NSRange] = []
+        var glyphIndex = glyphRange.location
+        let glyphUpperBound = NSMaxRange(glyphRange)
+        while glyphIndex < glyphUpperBound {
+            var effectiveRange = NSRange(location: 0, length: 0)
+            _ = layoutManager.lineFragmentUsedRect(
+                forGlyphAt: glyphIndex,
+                effectiveRange: &effectiveRange
+            )
+            let lineRange = NSIntersectionRange(effectiveRange, glyphRange)
+            if lineRange.length > 0 {
+                lineRanges.append(lineRange)
+            }
+            let nextIndex = NSMaxRange(effectiveRange)
+            guard nextIndex > glyphIndex else { break }
+            glyphIndex = nextIndex
+        }
+        return lineRanges
+    }
+
+    private func pixelAligned(_ value: CGFloat, scale: CGFloat) -> CGFloat {
+        (value * scale).rounded() / scale
+    }
+
+    private func pixelFloored(_ value: CGFloat, scale: CGFloat) -> CGFloat {
+        floor(value * scale) / scale
+    }
+
+    private func pixelCeiled(_ value: CGFloat, scale: CGFloat) -> CGFloat {
+        ceil(value * scale) / scale
     }
 }
 
@@ -1496,6 +1596,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 lastNotifiedVisibleRows = nil
                 resizeDocument()
                 notifyVisibleRowsChanged(force: true)
+                updateHoveredCueTextRow(nil)
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
                 headerView?.needsDisplay = true
@@ -1508,6 +1609,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 guard oldValue != isEnabled else { return }
                 if !isEnabled {
                     clearFocusedCheckbox()
+                    updateHoveredCueTextRow(nil)
                 }
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
@@ -1558,6 +1660,8 @@ struct SubtitleTableView: NSViewRepresentable {
                         dismissMenu(recalculateHover: false)
                     }
                     hoveredRow = nil
+                    hoveredCueTextRow = nil
+                    updateCueTextCursor(isActive: false)
                     buttonsHost?.isHidden = true
                     documentView?.needsDisplay = true
                     headerView?.refreshHeaderHosts()
@@ -1573,6 +1677,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private let textLayout = SubtitleTextLayout()
         private var rowHeightCache = SubtitleVirtualRowHeightCache()
         private var hoveredRow: Int?
+        private var hoveredCueTextRow: Int?
+        private var hasPushedCueTextCursor = false
         private var focusedCheckboxRow: Int?
         private var lastNotifiedVisibleRows: Range<Int>?
         private var isScrollbarDragging = false
@@ -1762,6 +1868,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func setFocusedCheckboxRowForTesting(_ row: Int?) {
             updateFocusedCheckbox(row)
+        }
+
+        func cueTextHitTestForTesting(row: Int, point: CGPoint) -> Bool {
+            isPointInCueText(row: row, point: point)
         }
 
         @discardableResult
@@ -1968,7 +2078,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     width: cuesWidth,
                     height: rowRect.height
                 ),
-                trailing: M.trailingInset
+                trailing: M.trailingInset,
+                underline: isRedesign && hoveredCueTextRow == row
             )
             if showsSpeakerColumn {
                 drawTags(
@@ -2006,7 +2117,7 @@ struct SubtitleTableView: NSViewRepresentable {
             textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: yOffset))
         }
 
-        private func drawBody(_ text: String, in rect: CGRect, trailing: CGFloat) {
+        private func drawBody(_ text: String, in rect: CGRect, trailing: CGFloat, underline: Bool = false) {
             let M = SubtitleTableMetrics.self
             guard !text.isEmpty else { return }
             NSGraphicsContext.saveGraphicsState()
@@ -2015,8 +2126,17 @@ struct SubtitleTableView: NSViewRepresentable {
                 attributedString: SubtitleTableText.body(text, isRedesign: isRedesign),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
-            let yOffset = isRedesign ? rect.minY + (rect.height - textLayout.usedHeight) / 2 : rect.minY + M.rowVerticalInset
-            textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: yOffset))
+            let origin = bodyTextOrigin(in: rect)
+            if underline {
+                textLayout.drawUnderline(
+                    at: origin,
+                    color: WorkbenchRedesignColors.NS.textPrimary,
+                    thickness: M.interactiveTextUnderlineThickness,
+                    offset: M.interactiveTextUnderlineOffset,
+                    backingScaleFactor: backingScaleFactor()
+                )
+            }
+            textLayout.draw(at: origin)
             NSGraphicsContext.restoreGraphicsState()
         }
 
@@ -2134,6 +2254,46 @@ struct SubtitleTableView: NSViewRepresentable {
             return rect.contains(point) ? row : nil
         }
 
+        private func cuesCellRect(forRowRect rowRect: CGRect) -> CGRect {
+            let M = SubtitleTableMetrics.self
+            let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+            let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+            let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
+            return CGRect(
+                x: M.indexColumnWidth + M.nameColumnWidth,
+                y: rowRect.minY,
+                width: cuesWidth,
+                height: rowRect.height
+            )
+        }
+
+        private func bodyTextOrigin(in rect: CGRect) -> CGPoint {
+            let M = SubtitleTableMetrics.self
+            let yOffset = isRedesign ? rect.minY + (rect.height - textLayout.usedHeight) / 2 : rect.minY + M.rowVerticalInset
+            return CGPoint(x: rect.minX + M.cellLeading, y: yOffset)
+        }
+
+        private func isPointInCueText(row: Int, point: CGPoint) -> Bool {
+            guard row >= 0,
+                  row < rowCount,
+                  let documentView,
+                  let model = rowProvider(row),
+                  !model.cues.isEmpty
+            else {
+                return false
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            let cuesRect = cuesCellRect(forRowRect: rowRect)
+            guard cuesRect.contains(point) else { return false }
+
+            let M = SubtitleTableMetrics.self
+            textLayout.update(
+                attributedString: SubtitleTableText.body(model.cues, isRedesign: isRedesign),
+                width: max(0, cuesRect.width - M.cellLeading - M.trailingInset)
+            )
+            return textLayout.containsText(at: point, origin: bodyTextOrigin(in: cuesRect))
+        }
+
         func handleMouseHover(windowPoint: CGPoint) {
             if isMenuOpen || isExternalPopupLayerOpen {
                 return
@@ -2144,7 +2304,10 @@ struct SubtitleTableView: NSViewRepresentable {
                 clearHover()
                 return
             }
-            updateHoveredRow(rowAtDocumentPoint(point))
+            let row = rowAtDocumentPoint(point)
+            updateHoveredRow(row)
+            let cueTextRow = row.flatMap { isPointInCueText(row: $0, point: point) ? $0 : nil }
+            updateHoveredCueTextRow(cueTextRow)
         }
 
         func handleMouseDown(windowPoint: CGPoint) -> Bool {
@@ -2161,6 +2324,10 @@ struct SubtitleTableView: NSViewRepresentable {
                   let row = rowAtDocumentPoint(point)
             else {
                 return false
+            }
+            if isPointInCueText(row: row, point: point) {
+                playRow(row)
+                return true
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
             guard checkboxHitRect(forRowRect: rowRect).contains(point) else {
@@ -2339,6 +2506,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func clearHover() {
             updateHoveredRow(nil)
+            updateHoveredCueTextRow(nil)
         }
 
         private func updateHoveredRow(_ newRow: Int?) {
@@ -2350,6 +2518,31 @@ struct SubtitleTableView: NSViewRepresentable {
             hoveredRow = newRow
             invalidateRows([oldRow, newRow])
             layoutHoverButtons()
+        }
+
+        private func updateHoveredCueTextRow(_ newRow: Int?) {
+            guard newRow != hoveredCueTextRow else {
+                updateCueTextCursor(isActive: newRow != nil)
+                return
+            }
+            let oldRow = hoveredCueTextRow
+            hoveredCueTextRow = newRow
+            invalidateRows([oldRow, newRow])
+            updateCueTextCursor(isActive: newRow != nil)
+        }
+
+        private func updateCueTextCursor(isActive: Bool) {
+            if isActive {
+                guard !hasPushedCueTextCursor else { return }
+                NSCursor.pointingHand.push()
+                hasPushedCueTextCursor = true
+                return
+            }
+
+            if hasPushedCueTextCursor {
+                NSCursor.pop()
+                hasPushedCueTextCursor = false
+            }
         }
 
         private func invalidateRows(_ rows: [Int?]) {
@@ -2364,9 +2557,14 @@ struct SubtitleTableView: NSViewRepresentable {
             isScrollbarDragging = isDragging
             if isDragging {
                 buttonsHost?.isHidden = true
+                updateHoveredCueTextRow(nil)
             } else {
                 layoutHoverButtons()
             }
+        }
+
+        private func backingScaleFactor() -> CGFloat {
+            documentView?.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
         }
 
         private func layoutHoverButtons() {

@@ -284,6 +284,24 @@ func subtitleTableViewKeepsRowMenuOpenAcrossScrollNotifications() {
     #expect(fixture.coordinator.isMenuOpenForTesting() == true)
 }
 
+@MainActor
+@Test
+func subtitleTableViewCueTextHitTestingUsesTextFragmentsOnly() {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let row = 0
+    let textPoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
+    let trailingPoint = CGPoint(
+        x: 898,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
+
+    #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: textPoint) == true)
+    #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: trailingPoint) == false)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()
@@ -345,11 +363,11 @@ private func makeAttachedVirtualTableCoordinator() -> (
     )
     coordinator.isRedesign = true
 
-    let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: 500, height: 260))
-    let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: 500, height: 44))
-    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 44, width: 500, height: 200))
+    let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: 900, height: 260))
+    let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: 900, height: 44))
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 44, width: 900, height: 200))
     let overlay = SubtitleTableScrollbarOverlayView(frame: scrollView.frame)
-    let documentView = SubtitleVirtualTableDocumentView(frame: CGRect(x: 0, y: 0, width: 500, height: 1))
+    let documentView = SubtitleVirtualTableDocumentView(frame: CGRect(x: 0, y: 0, width: 900, height: 1))
 
     documentView.coordinator = coordinator
     scrollView.documentView = documentView
