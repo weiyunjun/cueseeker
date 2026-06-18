@@ -51,6 +51,11 @@ The work is intentionally limited to the table body scrollbars:
   after scrollbar dragging. Generic table layout and scroll callbacks no longer
   dismiss an open menu; they preserve the menu and recompute its position from
   the stored trigger anchor instead.
+- Follow-up manual testing found that the horizontal scrollbar did not appear
+  in the real table path when the window was narrower than the table's natural
+  column width. The redesign table now resolves a shared content-width column
+  layout, gives the `documentView` that natural width, and offsets the header
+  columns by the horizontal clip-view origin so header and body stay aligned.
 
 ## 4. Virtualization Constraints Preserved
 
@@ -58,9 +63,11 @@ The work is intentionally limited to the table body scrollbars:
   introduced.
 - `rowHeightCache`, `visibleRowRange(in:)`, and `drawRowsNow(in:)` were not
   changed.
-- Search result count changes still update the document height through
-  `resizeDocument()`, and the scrollbar overlay only reads the resulting
-  scroll metrics.
+- Search result count and viewport changes still update the document size
+  through `resizeDocument()`, and the scrollbar overlay only reads the
+  resulting scroll metrics.
+- The new content width is computed from column constants, not from row data,
+  so no per-row measurement or materialization was added.
 
 ## 5. Verification
 
@@ -72,7 +79,7 @@ swift test --quiet
 
 Result:
 
-- 290 tests passed after the follow-up row action menu persistence fix.
+- 296 tests passed after the follow-up horizontal content-width fix.
 - The command also printed an existing playback history disk I/O warning, but
   the test run completed successfully.
 
@@ -90,6 +97,11 @@ Focused coverage added:
   within the same virtualized row range.
 - Row action menus remain open across container layout callbacks.
 - Row action menus remain open across scroll/bounds-change notifications.
+- The redesign table expands its real `documentView` width when the table's
+  natural column width exceeds the viewport, making the horizontal scrollbar
+  visible in the real table path.
+- The redesign table hides the horizontal scrollbar when the natural content
+  width fits the viewport.
 
 ## 6. Outcome
 

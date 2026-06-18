@@ -35,6 +35,10 @@ The work is intentionally limited to the Cues column body text:
 - Cues text clicks call the existing row playback path. Checkbox and row action
   interactions remain separate because they are handled before or outside the
   text hit region.
+- Follow-up review found that the Cues text pointer cursor could stay pushed if
+  the coordinator was released while the pointer was over Cues text. The
+  coordinator now clears the pushed cursor state during teardown using the same
+  cursor cleanup path used when hover leaves the text.
 
 ## 4. Virtualization Constraints Preserved
 
@@ -56,7 +60,7 @@ swift test --quiet
 
 Result:
 
-- 293 tests passed after the Interactive Text Cell implementation.
+- 296 tests passed after the follow-up cursor cleanup fix.
 - The command also printed an existing playback history disk I/O warning, but
   the test run completed successfully.
 
@@ -66,6 +70,8 @@ Focused coverage added:
 - Underline Y positions are aligned to the backing scale.
 - Text hit testing uses actual line fragments rather than the full Cues cell.
 - Cues text hit testing rejects trailing whitespace in the table cell.
+- Cues text cursor state can be cleared after being activated, covering the
+  teardown cleanup path.
 
 ## 6. Outcome
 

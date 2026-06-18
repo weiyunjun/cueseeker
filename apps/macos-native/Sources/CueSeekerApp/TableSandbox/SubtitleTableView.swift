@@ -6,6 +6,7 @@ import SwiftUI
 enum SubtitleTableMetrics {
     static let indexColumnWidth: CGFloat = 50
     static let nameColumnWidth: CGFloat = 240
+    static let cuesColumnMinimumWidth: CGFloat = 520
     static let speakerColumnWidth: CGFloat = 180
     static let languageColumnWidth: CGFloat = 160
     static let cellLeading: CGFloat = 12
@@ -32,6 +33,132 @@ enum SubtitleTableMetrics {
     static let scrollbarHitSlop: CGFloat = 6
     static let interactiveTextUnderlineThickness: CGFloat = 1
     static let interactiveTextUnderlineOffset: CGFloat = 2
+}
+
+struct SubtitleTableColumnLayout {
+    var indexRect: CGRect
+    var nameRect: CGRect
+    var cuesRect: CGRect
+    var speakerRect: CGRect?
+    var languageRect: CGRect?
+    var contentWidth: CGFloat
+
+    static func minimumContentWidth(
+        showsSpeakerColumn: Bool,
+        showsLanguageColumn: Bool,
+        cuesMinimumWidth: CGFloat
+    ) -> CGFloat {
+        let M = SubtitleTableMetrics.self
+        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+        return M.indexColumnWidth + M.nameColumnWidth + cuesMinimumWidth + speakerWidth + languageWidth
+    }
+
+    static func resolve(
+        contentWidth: CGFloat,
+        height: CGFloat,
+        showsSpeakerColumn: Bool,
+        showsLanguageColumn: Bool,
+        cuesMinimumWidth: CGFloat,
+        expandsToMinimumContentWidth: Bool = true
+    ) -> SubtitleTableColumnLayout {
+        let M = SubtitleTableMetrics.self
+        let minimumWidth = minimumContentWidth(
+            showsSpeakerColumn: showsSpeakerColumn,
+            showsLanguageColumn: showsLanguageColumn,
+            cuesMinimumWidth: cuesMinimumWidth
+        )
+        let resolvedContentWidth = expandsToMinimumContentWidth
+            ? max(0, contentWidth, minimumWidth)
+            : max(0, contentWidth)
+        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+        let cuesWidth = max(
+            cuesMinimumWidth,
+            resolvedContentWidth - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth
+        )
+
+        var x: CGFloat = 0
+        let indexRect = CGRect(x: x, y: 0, width: M.indexColumnWidth, height: height)
+        x += M.indexColumnWidth
+        let nameRect = CGRect(x: x, y: 0, width: M.nameColumnWidth, height: height)
+        x += M.nameColumnWidth
+        let cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
+        x += cuesWidth
+
+        let speakerRect: CGRect?
+        if showsSpeakerColumn {
+            speakerRect = CGRect(x: x, y: 0, width: M.speakerColumnWidth, height: height)
+            x += M.speakerColumnWidth
+        } else {
+            speakerRect = nil
+        }
+
+        let languageRect: CGRect?
+        if showsLanguageColumn {
+            languageRect = CGRect(x: x, y: 0, width: M.languageColumnWidth, height: height)
+        } else {
+            languageRect = nil
+        }
+
+        return SubtitleTableColumnLayout(
+            indexRect: indexRect,
+            nameRect: nameRect,
+            cuesRect: cuesRect,
+            speakerRect: speakerRect,
+            languageRect: languageRect,
+            contentWidth: resolvedContentWidth
+        )
+    }
+
+    static func legacy(
+        contentWidth: CGFloat,
+        height: CGFloat,
+        showsSpeakerColumn: Bool,
+        showsLanguageColumn: Bool
+    ) -> SubtitleTableColumnLayout {
+        let M = SubtitleTableMetrics.self
+        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+        let cuesWidth = max(0, contentWidth - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
+        let speakerRect = showsSpeakerColumn ? CGRect(
+            x: max(M.indexColumnWidth + M.nameColumnWidth, contentWidth - languageWidth - M.speakerColumnWidth),
+            y: 0,
+            width: M.speakerColumnWidth,
+            height: height
+        ) : nil
+        let languageRect = showsLanguageColumn ? CGRect(
+            x: max(M.indexColumnWidth + M.nameColumnWidth, contentWidth - M.languageColumnWidth),
+            y: 0,
+            width: M.languageColumnWidth,
+            height: height
+        ) : nil
+
+        return SubtitleTableColumnLayout(
+            indexRect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: height),
+            nameRect: CGRect(x: M.indexColumnWidth, y: 0, width: M.nameColumnWidth, height: height),
+            cuesRect: CGRect(
+                x: M.indexColumnWidth + M.nameColumnWidth,
+                y: 0,
+                width: cuesWidth,
+                height: height
+            ),
+            speakerRect: speakerRect,
+            languageRect: languageRect,
+            contentWidth: contentWidth
+        )
+    }
+
+    func offsetBy(dx: CGFloat) -> SubtitleTableColumnLayout {
+        SubtitleTableColumnLayout(
+            indexRect: indexRect.offsetBy(dx: dx, dy: 0),
+            nameRect: nameRect.offsetBy(dx: dx, dy: 0),
+            cuesRect: cuesRect.offsetBy(dx: dx, dy: 0),
+            speakerRect: speakerRect?.offsetBy(dx: dx, dy: 0),
+            languageRect: languageRect?.offsetBy(dx: dx, dy: 0),
+            contentWidth: contentWidth
+        )
+    }
 }
 
 // MARK: - Typography
@@ -1149,43 +1276,28 @@ final class SubtitleVirtualTableHeaderView: NSView {
         }
 
         let M = SubtitleTableMetrics.self
-        let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
-        let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
-        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-
-        let indexRect = CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height)
-        let nameRect = CGRect(x: M.indexColumnWidth, y: 0, width: M.nameColumnWidth, height: bounds.height)
-        let cuesRect = CGRect(
-            x: M.indexColumnWidth + M.nameColumnWidth,
-            y: 0,
-            width: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth),
+        let layout = coordinator?.headerColumnLayoutForRendering(
+            viewportWidth: bounds.width,
             height: bounds.height
+        ) ?? SubtitleTableColumnLayout.resolve(
+            contentWidth: bounds.width,
+            height: bounds.height,
+            showsSpeakerColumn: false,
+            showsLanguageColumn: false,
+            cuesMinimumWidth: max(0, bounds.width - M.indexColumnWidth - M.nameColumnWidth)
         )
-        let speakerRect = showsSpeakerColumn ? CGRect(
-            x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - languageWidth - M.speakerColumnWidth),
-            y: 0,
-            width: M.speakerColumnWidth,
-            height: bounds.height
-        ) : .zero
-        let languageRect = showsLanguageColumn ? CGRect(
-            x: max(M.indexColumnWidth + M.nameColumnWidth, bounds.width - M.languageColumnWidth),
-            y: 0,
-            width: M.languageColumnWidth,
-            height: bounds.height
-        ) : .zero
 
-        updateSelectionHeaderHost(&indexHeaderHost, frame: indexRect)
-        updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? "Name", columnID: "name", isSortable: true, frame: nameRect)
-        updateHeaderHost(&cuesHeaderHost, title: "Cues", columnID: "cues", isSortable: true, frame: cuesRect)
+        updateSelectionHeaderHost(&indexHeaderHost, frame: layout.indexRect)
+        updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? "Name", columnID: "name", isSortable: true, frame: layout.nameRect)
+        updateHeaderHost(&cuesHeaderHost, title: "Cues", columnID: "cues", isSortable: true, frame: layout.cuesRect)
 
-        if showsSpeakerColumn {
+        if let speakerRect = layout.speakerRect {
             updateHeaderHost(&speakerHeaderHost, title: "Speaker", columnID: "speaker", isSortable: true, frame: speakerRect)
         } else {
             speakerHeaderHost?.isHidden = true
         }
 
-        if showsLanguageColumn {
+        if let languageRect = layout.languageRect {
             updateHeaderHost(&languageHeaderHost, title: "Language", columnID: "language", isSortable: true, frame: languageRect)
         } else {
             languageHeaderHost?.isHidden = true
@@ -1681,6 +1793,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var hasPushedCueTextCursor = false
         private var focusedCheckboxRow: Int?
         private var lastNotifiedVisibleRows: Range<Int>?
+        private var lastHeaderHorizontalOffset: CGFloat?
         private var isScrollbarDragging = false
 
         init(
@@ -1717,6 +1830,9 @@ struct SubtitleTableView: NSViewRepresentable {
 
         deinit {
             NotificationCenter.default.removeObserver(self)
+            MainActor.assumeIsolated {
+                clearCueTextCursor()
+            }
             if let monitor = menuEventMonitor {
                 NSEvent.removeMonitor(monitor)
             }
@@ -1843,6 +1959,14 @@ struct SubtitleTableView: NSViewRepresentable {
             showsSpeakerColumn
         }
 
+        func headerColumnLayoutForRendering(viewportWidth: CGFloat, height: CGFloat) -> SubtitleTableColumnLayout {
+            let offsetX = scrollView?.contentView.bounds.origin.x ?? 0
+            return tableColumnLayout(
+                contentWidth: tableContentWidth(viewportWidth: viewportWidth),
+                height: height
+            ).offsetBy(dx: -offsetX)
+        }
+
         func textForLanguageColumn(row: Int) -> String {
             if let model = rowProvider(row) {
                 return model.tags.map(\.label).joined(separator: ", ")
@@ -1877,6 +2001,22 @@ struct SubtitleTableView: NSViewRepresentable {
         @discardableResult
         func toggleRowCheckboxFromMouseForTesting(row: Int) -> Bool {
             toggleRowCheckboxFromMouse(row: row)
+        }
+
+        func tableContentWidthForTesting(viewportWidth: CGFloat) -> CGFloat {
+            tableContentWidth(viewportWidth: viewportWidth)
+        }
+
+        func hasPushedCueTextCursorForTesting() -> Bool {
+            hasPushedCueTextCursor
+        }
+
+        func setCueTextCursorActiveForTesting(_ isActive: Bool) {
+            updateCueTextCursor(isActive: isActive)
+        }
+
+        func clearCueTextCursorForTesting() {
+            clearCueTextCursor()
         }
 
         func selectionHeaderStateForRendering() -> WorkbenchCheckboxState {
@@ -1958,15 +2098,22 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func resizeDocument() {
             guard let scrollView, let documentView else { return }
-            let width = max(scrollView.contentSize.width, scrollView.bounds.width)
+            let viewportWidth = max(scrollView.contentSize.width, scrollView.bounds.width)
+            let width = isRedesign
+                ? tableContentWidth(viewportWidth: viewportWidth)
+                : max(scrollView.contentSize.width, scrollView.bounds.width)
             let height = max(
                 scrollView.contentSize.height,
                 CGFloat(rowCount) * currentRowHeight
             )
             let nextSize = CGSize(width: width, height: max(1, height))
             scrollbarOverlayView?.needsDisplay = true
-            guard documentView.frame.size != nextSize else { return }
+            guard documentView.frame.size != nextSize else {
+                refreshHeaderForHorizontalScrollIfNeeded()
+                return
+            }
             documentView.setFrameSize(nextSize)
+            refreshHeaderForHorizontalScrollIfNeeded(force: true)
         }
 
         func notifyVisibleRowsChanged(force: Bool = false) {
@@ -1991,11 +2138,48 @@ struct SubtitleTableView: NSViewRepresentable {
         @objc func scrollContentDidChange() {
             notifyVisibleRowsChanged()
             scrollbarOverlayView?.scrollMetricsDidChange()
+            refreshHeaderForHorizontalScrollIfNeeded()
             if isMenuOpen {
                 repositionOpenMenu()
             } else if !isScrollbarDragging {
                 layoutHoverButtons()
             }
+        }
+
+        private func tableContentWidth(viewportWidth: CGFloat) -> CGFloat {
+            let cuesMinimumWidth = isRedesign ? SubtitleTableMetrics.cuesColumnMinimumWidth : 0
+            let minimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
+                showsSpeakerColumn: showsSpeakerColumn,
+                showsLanguageColumn: showsLanguageColumn,
+                cuesMinimumWidth: cuesMinimumWidth
+            )
+            return max(viewportWidth, minimumWidth)
+        }
+
+        private func tableColumnLayout(contentWidth: CGFloat, height: CGFloat) -> SubtitleTableColumnLayout {
+            guard isRedesign else {
+                return SubtitleTableColumnLayout.legacy(
+                    contentWidth: contentWidth,
+                    height: height,
+                    showsSpeakerColumn: showsSpeakerColumn,
+                    showsLanguageColumn: showsLanguageColumn
+                )
+            }
+            return SubtitleTableColumnLayout.resolve(
+                contentWidth: contentWidth,
+                height: height,
+                showsSpeakerColumn: showsSpeakerColumn,
+                showsLanguageColumn: showsLanguageColumn,
+                cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
+            )
+        }
+
+        private func refreshHeaderForHorizontalScrollIfNeeded(force: Bool = false) {
+            let offset = scrollView?.contentView.bounds.origin.x ?? 0
+            guard force || lastHeaderHorizontalOffset != offset else { return }
+            lastHeaderHorizontalOffset = offset
+            headerView?.refreshHeaderHosts()
+            headerView?.needsDisplay = true
         }
 
         func drawRows(in dirtyRect: CGRect) {
@@ -2049,11 +2233,9 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawCellTexts(row: Int, rowRect: CGRect) {
-            let M = SubtitleTableMetrics.self
             let model = rowProvider(row)
-            let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-            let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-            let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
+            let M = SubtitleTableMetrics.self
+            let layout = tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height)
 
             if isRedesign {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
@@ -2063,48 +2245,42 @@ struct SubtitleTableView: NSViewRepresentable {
                     isFocused: isEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
                 )
             } else {
-                drawIndex(row + 1, in: CGRect(x: 0, y: rowRect.minY, width: M.indexColumnWidth, height: rowRect.height))
+                drawIndex(row + 1, in: rowColumnRect(layout.indexRect, rowRect: rowRect))
             }
             drawBody(
                 model?.displayTitle ?? "",
-                in: CGRect(x: M.indexColumnWidth, y: rowRect.minY, width: M.nameColumnWidth, height: rowRect.height),
+                in: rowColumnRect(layout.nameRect, rowRect: rowRect),
                 trailing: M.trailingInset
             )
             drawBody(
                 model?.cues ?? "",
-                in: CGRect(
-                    x: M.indexColumnWidth + M.nameColumnWidth,
-                    y: rowRect.minY,
-                    width: cuesWidth,
-                    height: rowRect.height
-                ),
+                in: rowColumnRect(layout.cuesRect, rowRect: rowRect),
                 trailing: M.trailingInset,
                 underline: isRedesign && hoveredCueTextRow == row
             )
-            if showsSpeakerColumn {
+            if let speakerRect = layout.speakerRect {
                 drawTags(
                     model?.speakerTags ?? [],
-                    in: CGRect(
-                        x: max(M.indexColumnWidth + M.nameColumnWidth, rowRect.width - languageWidth - M.speakerColumnWidth),
-                        y: rowRect.minY,
-                        width: M.speakerColumnWidth,
-                        height: rowRect.height
-                    ),
+                    in: rowColumnRect(speakerRect, rowRect: rowRect),
                     trailing: M.trailingInset
                 )
             }
-            if showsLanguageColumn {
+            if let languageRect = layout.languageRect {
                 drawTags(
                     model?.tags ?? [],
-                    in: CGRect(
-                        x: max(M.indexColumnWidth + M.nameColumnWidth, rowRect.width - M.languageColumnWidth),
-                        y: rowRect.minY,
-                        width: M.languageColumnWidth,
-                        height: rowRect.height
-                    ),
+                    in: rowColumnRect(languageRect, rowRect: rowRect),
                     trailing: M.trailingInset
                 )
             }
+        }
+
+        private func rowColumnRect(_ columnRect: CGRect, rowRect: CGRect) -> CGRect {
+            CGRect(
+                x: columnRect.minX,
+                y: rowRect.minY,
+                width: columnRect.width,
+                height: rowRect.height
+            )
         }
 
         private func drawIndex(_ number: Int, in rect: CGRect) {
@@ -2255,15 +2431,9 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func cuesCellRect(forRowRect rowRect: CGRect) -> CGRect {
-            let M = SubtitleTableMetrics.self
-            let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-            let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-            let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
-            return CGRect(
-                x: M.indexColumnWidth + M.nameColumnWidth,
-                y: rowRect.minY,
-                width: cuesWidth,
-                height: rowRect.height
+            rowColumnRect(
+                tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height).cuesRect,
+                rowRect: rowRect
             )
         }
 
@@ -2545,6 +2715,10 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
+        private func clearCueTextCursor() {
+            updateCueTextCursor(isActive: false)
+        }
+
         private func invalidateRows(_ rows: [Int?]) {
             guard let documentView else { return }
             for row in rows.compactMap({ $0 }) where row >= 0 && row < rowCount {
@@ -2584,10 +2758,8 @@ struct SubtitleTableView: NSViewRepresentable {
             let M = SubtitleTableMetrics.self
             let rowRect = rectForRow(hoveredRow, width: documentView.bounds.width)
             if isRedesign {
-                let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-                let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-                let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
-                let x = M.indexColumnWidth + M.nameColumnWidth + cuesWidth - 36 - M.trailingInset
+                let cuesRect = cuesCellRect(forRowRect: rowRect)
+                let x = cuesRect.maxX - 36 - M.trailingInset
                 let y = rowRect.minY + (rowRect.height - 36) / 2
                 buttonFrame = CGRect(x: x, y: y, width: 36, height: 36)
             } else {

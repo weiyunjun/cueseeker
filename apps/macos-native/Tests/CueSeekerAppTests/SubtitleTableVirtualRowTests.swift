@@ -302,6 +302,47 @@ func subtitleTableViewCueTextHitTestingUsesTextFragmentsOnly() {
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: trailingPoint) == false)
 }
 
+@MainActor
+@Test
+func subtitleTableViewExpandsRedesignDocumentWidthForHorizontalScrolling() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 500)
+    let metrics = SubtitleTableScrollbarMetrics(
+        viewportSize: fixture.scrollView.contentView.bounds.size,
+        contentSize: fixture.documentView.frame.size,
+        contentOffset: fixture.scrollView.contentView.bounds.origin
+    )
+
+    #expect(fixture.documentView.frame.width == fixture.coordinator.tableContentWidthForTesting(viewportWidth: 500))
+    #expect(fixture.documentView.frame.width > fixture.scrollView.contentView.bounds.width)
+    #expect(metrics.isVisible(.horizontal) == true)
+}
+
+@MainActor
+@Test
+func subtitleTableViewHidesHorizontalScrollbarWhenContentFitsViewport() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 1_400)
+    let metrics = SubtitleTableScrollbarMetrics(
+        viewportSize: fixture.scrollView.contentView.bounds.size,
+        contentSize: fixture.documentView.frame.size,
+        contentOffset: fixture.scrollView.contentView.bounds.origin
+    )
+
+    #expect(fixture.documentView.frame.width == fixture.scrollView.contentView.bounds.width)
+    #expect(metrics.isVisible(.horizontal) == false)
+}
+
+@MainActor
+@Test
+func subtitleTableViewClearsCueTextCursorState() {
+    let fixture = makeAttachedVirtualTableCoordinator()
+
+    fixture.coordinator.setCueTextCursorActiveForTesting(true)
+    #expect(fixture.coordinator.hasPushedCueTextCursorForTesting() == true)
+
+    fixture.coordinator.clearCueTextCursorForTesting()
+    #expect(fixture.coordinator.hasPushedCueTextCursorForTesting() == false)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()
@@ -340,7 +381,23 @@ private func makeKeyboardFocusTableCoordinator(
 @MainActor
 private func makeAttachedVirtualTableCoordinator() -> (
     coordinator: SubtitleTableView.Coordinator,
-    container: SubtitleTableContainerView
+    container: SubtitleTableContainerView,
+    header: SubtitleVirtualTableHeaderView,
+    scrollView: NSScrollView,
+    overlay: SubtitleTableScrollbarOverlayView,
+    documentView: SubtitleVirtualTableDocumentView
+) {
+    makeAttachedVirtualTableCoordinator(width: 900)
+}
+
+@MainActor
+private func makeAttachedVirtualTableCoordinator(width: CGFloat) -> (
+    coordinator: SubtitleTableView.Coordinator,
+    container: SubtitleTableContainerView,
+    header: SubtitleVirtualTableHeaderView,
+    scrollView: NSScrollView,
+    overlay: SubtitleTableScrollbarOverlayView,
+    documentView: SubtitleVirtualTableDocumentView
 ) {
     let loadedRow = SubtitleTableRow(
         id: 1,
@@ -363,11 +420,11 @@ private func makeAttachedVirtualTableCoordinator() -> (
     )
     coordinator.isRedesign = true
 
-    let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: 900, height: 260))
-    let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: 900, height: 44))
-    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 44, width: 900, height: 200))
+    let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: width, height: 260))
+    let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: width, height: 44))
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 44, width: width, height: 200))
     let overlay = SubtitleTableScrollbarOverlayView(frame: scrollView.frame)
-    let documentView = SubtitleVirtualTableDocumentView(frame: CGRect(x: 0, y: 0, width: 900, height: 1))
+    let documentView = SubtitleVirtualTableDocumentView(frame: CGRect(x: 0, y: 0, width: width, height: 1))
 
     documentView.coordinator = coordinator
     scrollView.documentView = documentView
@@ -381,7 +438,7 @@ private func makeAttachedVirtualTableCoordinator() -> (
     )
     coordinator.resizeDocument()
 
-    return (coordinator, container)
+    return (coordinator, container, header, scrollView, overlay, documentView)
 }
 
 private func makeTabKeyEvent(shift: Bool = false) -> NSEvent {
