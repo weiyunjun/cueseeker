@@ -34,6 +34,11 @@ The work is intentionally limited to the table body scrollbars:
   hit area so the thumb can be reliably grabbed and dragged without drawing a
   track or outer rail. Pointer events outside the interactive thumb area
   continue to reach the existing table row and hover handling.
+- Follow-up manual testing found that the thumb still could not be dragged
+  because `hitTest(_:)` received a point in the superview coordinate space while
+  thumb hit testing used overlay-local bounds. The overlay now converts the
+  incoming hit-test point from its superview before resolving the interactive
+  thumb area.
 - Thumb dragging maps overlay thumb movement back to the existing clip-view
   scroll offset and calls `reflectScrolledClipView(_:)`, so existing scroll
   notifications and visible-row updates continue to run.
@@ -58,7 +63,7 @@ swift test --quiet
 
 Result:
 
-- 286 tests passed after the follow-up drag interaction fix.
+- 287 tests passed after the follow-up hit-test coordinate fix.
 - The command also printed an existing playback history disk I/O warning, but
   the test run completed successfully.
 
@@ -70,6 +75,8 @@ Focused coverage added:
 - The transparent thumb hit area is wider than the visible thumb.
 - Thumb position maps back to the expected scroll offset.
 - Thumb drag delta maps to a positive scroll offset.
+- Overlay hit testing from a parent view coordinate resolves to the scrollbar
+  overlay when the point lands on the interactive thumb area.
 
 ## 6. Outcome
 

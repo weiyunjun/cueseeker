@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Testing
 @testable import CueSeekerApp
@@ -96,4 +97,32 @@ func subtitleTableScrollbarMetricsMapsThumbDragDeltaToScrollOffset() {
         in: bounds
     )
     #expect(mappedOffset > 0)
+}
+
+@MainActor
+@Test
+func subtitleTableScrollbarOverlayHitTestConvertsSuperviewCoordinates() {
+    let parent = NSView(frame: CGRect(x: 0, y: 0, width: 320, height: 320))
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 44, width: 300, height: 200))
+    let documentView = NSView(frame: CGRect(x: 0, y: 0, width: 300, height: 1_000))
+    scrollView.documentView = documentView
+
+    let overlay = SubtitleTableScrollbarOverlayView(frame: CGRect(x: 0, y: 44, width: 300, height: 200))
+    overlay.scrollView = scrollView
+    overlay.isRedesign = true
+
+    parent.addSubview(scrollView)
+    parent.addSubview(overlay)
+
+    let metrics = SubtitleTableScrollbarMetrics(
+        viewportSize: scrollView.contentView.bounds.size,
+        contentSize: documentView.frame.size,
+        contentOffset: scrollView.contentView.bounds.origin
+    )
+    let interactiveThumb = metrics.interactiveThumbRect(for: .vertical, in: overlay.bounds)
+
+    #expect(interactiveThumb != nil)
+    guard let interactiveThumb else { return }
+    let parentPoint = overlay.convert(CGPoint(x: interactiveThumb.midX, y: interactiveThumb.midY), to: parent)
+    #expect(parent.hitTest(parentPoint) === overlay)
 }

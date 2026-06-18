@@ -671,9 +671,10 @@ final class SubtitleTableScrollbarOverlayView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        let localPoint = superview.map { convert(point, from: $0) } ?? point
         guard isRedesign,
               !isHidden,
-              axis(at: point) != nil
+              axis(at: localPoint) != nil
         else {
             return nil
         }
