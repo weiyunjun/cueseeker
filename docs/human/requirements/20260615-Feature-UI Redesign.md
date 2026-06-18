@@ -21,6 +21,7 @@ main
 6. UI Redesign 必须同时支持 Light Mode 和 Dark Mode。所有颜色 token 必须提供 Light / Dark 两套值，或明确标记为 macOS 系统动态语义色。实现时禁止将 redesign 颜色 token 写成单一固定 hex；SwiftUI 与 AppKit 绘制层都必须通过统一 token 映射读取当前 appearance 下的颜色。
 7. 所有 Menu / Dropdown / Popover / Panel 打开后，弹层必须视为独立交互层级。鼠标在弹层内部移动或操作时，不允许触发底层 Table Row / Header / Trigger Surface 的 hover 更新；底层 hover 状态应被暂停或屏蔽，直到弹层关闭后再根据当前鼠标位置重新计算。
 8. Row Action Button，点击后将鼠标移动到其他位置，该按钮及下拉菜单都会消失，这是错的，此时应该保留按钮及下拉菜单。菜单消失的逻辑类似其它菜单。菜单消失的情况下，再根据是否hover到某个为止来判断Row Action Button是否显示。
+9. 滚动条：1. 只有滚动条本身，没有滚动条的那个外框轨道。2. 横向无需滚动或纵向无需滚动时，不显示对应滚动条。3. 横向和纵向的滚动条，一旦需要显示，均保持显示。4. 滚动条更新的规则维持现状（搜索出更多结果，滚动条的位置变化）。5. 滚动条目前的虚拟化的优化代码维持现状。
 
 # Component修改方案
 
