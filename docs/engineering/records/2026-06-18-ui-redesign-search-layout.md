@@ -15,6 +15,8 @@ The work is limited to the Search 2 redesign shell:
   Filter Bar row.
 - Move the View control into a separate Table Utility Bar above the data table.
 - Keep the Table Utility Bar at the documented 40 px height.
+- Keep the Table Utility Bar as layout only until Count Summary is implemented;
+  do not draw an extra full-width background or border around the empty area.
 - Preserve the existing legacy non-redesign layout.
 - Do not implement Count Summary, CSV export, or Anki export behavior in this
   change.
@@ -26,9 +28,13 @@ The work is limited to the Search 2 redesign shell:
 - Reworked the redesign branch of `SchemaWorkbenchSearchShell` so the Search
   Filter Bar contains the search box, Filter Sets trigger, and active/new filter
   trigger on one baseline.
-- Added a redesign Table Utility Bar container with the View trigger aligned to
-  the right.
+- Added a redesign Table Utility Bar layout row with the View trigger aligned
+  to the right, without an additional full-width container frame.
 - Kept the previous two-row command/filter layout for non-redesign shell usage.
+- Follow-up correction: removed the temporary full-width rounded border/background
+  from the Table Utility Bar because the left side has no Count Summary content
+  yet and the requirement currently authorizes layout height, not an extra
+  visual container.
 
 ## 4. Virtualization Constraints Preserved
 
@@ -57,4 +63,5 @@ Result:
 ## 6. Outcome
 
 The Search 2 redesign shell now has a separate Search Filter Bar and Table
-Utility Bar structure, ready for a later Count Summary implementation.
+Utility Bar layout structure, ready for a later Count Summary implementation
+without showing an empty full-width utility frame.

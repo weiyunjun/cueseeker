@@ -814,24 +814,6 @@ struct SchemaWorkbenchTableUtilityBar: View {
         }
         .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 0)
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignTableUtilityBarHeight : WorkbenchControlMetrics.controlHeight)
-        .background(
-            Group {
-                if isRedesign {
-                    RoundedRectangle(cornerRadius: SchemaWorkbenchStyle.tableCornerRadius, style: .continuous)
-                        .fill(WorkbenchRedesignColors.bgSurface)
-                } else {
-                    Color.clear
-                }
-            }
-        )
-        .overlay(
-            Group {
-                if isRedesign {
-                    RoundedRectangle(cornerRadius: SchemaWorkbenchStyle.tableCornerRadius, style: .continuous)
-                        .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
-                }
-            }
-        )
     }
 }
 
