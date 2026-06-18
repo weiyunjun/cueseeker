@@ -62,6 +62,25 @@ or row action behavior.
 - Space toggles the currently focused row checkbox. Arrow up/down moves the
   focused checkbox row without materializing offscreen controls.
 
+### 3.5 Header-to-body keyboard focus bridge
+
+- Follow-up manual testing found that focusing the final sortable header cell
+  and pressing Tab did not enter the first body row checkbox.
+- The cause was that header controls are real SwiftUI buttons hosted in AppKit,
+  while body checkboxes are AppKit-drawn virtual row elements. The system key
+  view loop could discover the header buttons but could not discover drawn row
+  checkboxes.
+- Added an AppKit keyboard focus monitor scoped to the table window. When Tab
+  is pressed from the final visible interactive header, the coordinator moves
+  first responder status to the table document view and focuses the first
+  visible row checkbox.
+- The final visible interactive header is resolved dynamically: Language,
+  Speaker, Cues, then Display Title. This keeps the bridge correct when optional
+  columns are hidden.
+- The document view handles Tab while body focus is active by clearing the
+  focused checkbox and asking the window to move to the next or previous key
+  view. This avoids trapping keyboard focus inside the virtual table.
+
 ## 4. Virtualization Constraints Preserved
 
 - No SwiftUI `List`, `Table`, or per-row `NSHostingView` was introduced for body
@@ -93,6 +112,8 @@ Additional focused coverage added:
   selected index.
 - Focused row checkbox state stores only one row index and clears when row
   count shrinks below that index.
+- Keyboard entry into the virtual checkbox area resolves to the first visible
+  row, or row 0 when no visible range is available yet.
 
 ## 6. Outcome
 

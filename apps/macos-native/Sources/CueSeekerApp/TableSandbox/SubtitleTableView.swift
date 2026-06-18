@@ -659,6 +659,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         } else {
             languageHeaderHost?.isHidden = true
         }
+        updateHeaderKeyViewBridge()
     }
 
     private func updateSelectionHeaderHost(
@@ -729,6 +730,36 @@ final class SubtitleVirtualTableHeaderView: NSView {
             host.frame = frame
             host.isHidden = false
         }
+    }
+
+    func isLastInteractiveHeaderResponder(_ responder: NSResponder?) -> Bool {
+        guard let host = lastInteractiveHeaderHost(), let responderView = responder as? NSView else {
+            return false
+        }
+        return responderView === host || responderView.isDescendant(of: host)
+    }
+
+    private func updateHeaderKeyViewBridge() {
+        guard let lastHost = lastInteractiveHeaderHost(), let documentView = coordinator?.documentViewForKeyboardFocusBridge() else {
+            return
+        }
+        lastHost.nextKeyView = documentView
+    }
+
+    private func lastInteractiveHeaderHost() -> NSView? {
+        if let languageHeaderHost, !languageHeaderHost.isHidden {
+            return languageHeaderHost
+        }
+        if let speakerHeaderHost, !speakerHeaderHost.isHidden {
+            return speakerHeaderHost
+        }
+        if let cuesHeaderHost, !cuesHeaderHost.isHidden {
+            return cuesHeaderHost
+        }
+        if let nameHeaderHost, !nameHeaderHost.isHidden {
+            return nameHeaderHost
+        }
+        return nil
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -1054,6 +1085,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var menuHost: NSHostingView<AnyView>?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
         nonisolated(unsafe) private var menuEventMonitor: Any?
+        nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
 
         enum TableSortDirection: Equatable {
             case asc
@@ -1125,6 +1157,9 @@ struct SubtitleTableView: NSViewRepresentable {
             if let monitor = menuEventMonitor {
                 NSEvent.removeMonitor(monitor)
             }
+            if let monitor = keyboardFocusEventMonitor {
+                NSEvent.removeMonitor(monitor)
+            }
         }
 
         func attach(
@@ -1155,6 +1190,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 self?.resizeDocument()
                 self?.dismissMenu()
             }
+            installKeyboardFocusEventMonitor()
         }
 
         func update(
@@ -1264,6 +1300,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func canToggleSelectionForRendering() -> Bool {
             isEnabled && rowCount > 0
+        }
+
+        func documentViewForKeyboardFocusBridge() -> NSView? {
+            documentView
         }
 
         func toggleAllRowSelection() {
@@ -1631,24 +1671,37 @@ struct SubtitleTableView: NSViewRepresentable {
             guard isRedesign,
                   isEnabled,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
-                  let focusedCheckboxRow,
-                  focusedCheckboxRow >= 0,
-                  focusedCheckboxRow < rowCount
+                  !isExternalPopupLayerOpen
             else {
                 return false
             }
 
             switch event.keyCode {
+            case 48:
+                clearFocusedCheckbox()
+                if event.modifierFlags.contains(.shift) {
+                    documentView?.window?.selectPreviousKeyView(documentView)
+                } else {
+                    documentView?.window?.selectNextKeyView(documentView)
+                }
+                return true
             case 49:
+                guard let focusedCheckboxRow,
+                      focusedCheckboxRow >= 0,
+                      focusedCheckboxRow < rowCount
+                else {
+                    return false
+                }
                 onToggleRowSelection(focusedCheckboxRow)
                 invalidateRows([focusedCheckboxRow])
                 headerView?.refreshHeaderHosts()
                 return true
             case 125:
+                guard focusedCheckboxRow != nil else { return false }
                 moveFocusedCheckbox(by: 1)
                 return true
             case 126:
+                guard focusedCheckboxRow != nil else { return false }
                 moveFocusedCheckbox(by: -1)
                 return true
             default:
@@ -1683,6 +1736,63 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let focusedCheckboxRow, let documentView else { return }
             documentView.scrollToVisible(rectForRow(focusedCheckboxRow, width: documentView.bounds.width))
             notifyVisibleRowsChanged()
+        }
+
+        @discardableResult
+        func focusFirstVisibleCheckboxFromKeyboard() -> Bool {
+            guard isRedesign,
+                  isEnabled,
+                  rowCount > 0,
+                  !isMenuOpen,
+                  !isExternalPopupLayerOpen,
+                  let documentView
+            else {
+                return false
+            }
+            guard let row = firstFocusableCheckboxRow(visibleRows: visibleRowRange()) else {
+                return false
+            }
+            documentView.window?.makeFirstResponder(documentView)
+            updateFocusedCheckbox(row)
+            scrollFocusedCheckboxIntoVisible()
+            return true
+        }
+
+        func firstFocusableCheckboxRowForTesting(visibleRows: Range<Int>?) -> Int? {
+            firstFocusableCheckboxRow(visibleRows: visibleRows)
+        }
+
+        private func firstFocusableCheckboxRow(visibleRows: Range<Int>?) -> Int? {
+            guard rowCount > 0 else { return nil }
+            guard let visibleRows, visibleRows.lowerBound < visibleRows.upperBound else {
+                return 0
+            }
+            return min(max(0, visibleRows.lowerBound), rowCount - 1)
+        }
+
+        private func installKeyboardFocusEventMonitor() {
+            guard keyboardFocusEventMonitor == nil else { return }
+            keyboardFocusEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+                guard let self else { return event }
+                return self.handleKeyboardFocusEvent(event)
+            }
+        }
+
+        private func handleKeyboardFocusEvent(_ event: NSEvent) -> NSEvent? {
+            guard event.keyCode == 48,
+                  let container,
+                  event.window === container.window,
+                  isRedesign,
+                  isEnabled,
+                  !isMenuOpen,
+                  !isExternalPopupLayerOpen,
+                  event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+                  let firstResponder = event.window?.firstResponder,
+                  headerView?.isLastInteractiveHeaderResponder(firstResponder) == true
+            else {
+                return event
+            }
+            return focusFirstVisibleCheckboxFromKeyboard() ? nil : event
         }
 
         func clearHover() {
