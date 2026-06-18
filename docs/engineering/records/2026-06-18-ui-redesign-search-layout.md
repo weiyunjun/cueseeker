@@ -35,6 +35,9 @@ The work is limited to the Search 2 redesign shell:
   from the Table Utility Bar because the left side has no Count Summary content
   yet and the requirement currently authorizes layout height, not an extra
   visual container.
+- Follow-up correction: removed the Table Utility Bar's extra horizontal
+  padding so the View trigger's right edge aligns with the data table's right
+  edge through the shared shell padding.
 
 ## 4. Virtualization Constraints Preserved
 
@@ -64,4 +67,5 @@ Result:
 
 The Search 2 redesign shell now has a separate Search Filter Bar and Table
 Utility Bar layout structure, ready for a later Count Summary implementation
-without showing an empty full-width utility frame.
+without showing an empty full-width utility frame. The View trigger is aligned
+to the right edge of the data table.

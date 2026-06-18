@@ -812,7 +812,6 @@ struct SchemaWorkbenchTableUtilityBar: View {
             )
             .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
         }
-        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 0)
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignTableUtilityBarHeight : WorkbenchControlMetrics.controlHeight)
     }
 }
