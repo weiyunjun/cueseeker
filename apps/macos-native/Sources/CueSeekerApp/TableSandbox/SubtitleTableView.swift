@@ -26,6 +26,9 @@ enum SubtitleTableMetrics {
     static let checkboxSize: CGFloat = 16
     static let checkboxCornerRadius: CGFloat = 4
     static let checkboxHitSlop: CGFloat = 8
+    static let scrollbarSize: CGFloat = 8
+    static let scrollbarInset: CGFloat = 4
+    static let scrollbarMinThumbLength: CGFloat = 24
 }
 
 // MARK: - Typography
@@ -460,6 +463,317 @@ final class SubtitleTableContainerView: NSView {
                 layer.borderColor = NSColor.separatorColor.cgColor
             }
         }
+    }
+}
+
+struct SubtitleTableScrollbarMetrics {
+    enum Axis {
+        case vertical
+        case horizontal
+    }
+
+    var viewportSize: CGSize
+    var contentSize: CGSize
+    var contentOffset: CGPoint
+
+    private var size: CGFloat { SubtitleTableMetrics.scrollbarSize }
+    private var inset: CGFloat { SubtitleTableMetrics.scrollbarInset }
+    private var minThumbLength: CGFloat { SubtitleTableMetrics.scrollbarMinThumbLength }
+
+    func isVisible(_ axis: Axis) -> Bool {
+        switch axis {
+        case .vertical:
+            contentSize.height > viewportSize.height + 0.5
+        case .horizontal:
+            contentSize.width > viewportSize.width + 0.5
+        }
+    }
+
+    func trackRect(for axis: Axis, in bounds: CGRect) -> CGRect? {
+        guard isVisible(axis) else { return nil }
+        let verticalReserve = isVisible(.vertical) ? size + inset : 0
+        let horizontalReserve = isVisible(.horizontal) ? size + inset : 0
+
+        switch axis {
+        case .vertical:
+            let height = bounds.height - 2 * inset - horizontalReserve
+            guard height > 0 else { return nil }
+            return CGRect(
+                x: bounds.maxX - inset - size,
+                y: bounds.minY + inset,
+                width: size,
+                height: height
+            )
+        case .horizontal:
+            let width = bounds.width - 2 * inset - verticalReserve
+            guard width > 0 else { return nil }
+            return CGRect(
+                x: bounds.minX + inset,
+                y: bounds.maxY - inset - size,
+                width: width,
+                height: size
+            )
+        }
+    }
+
+    func thumbRect(for axis: Axis, in bounds: CGRect) -> CGRect? {
+        guard let track = trackRect(for: axis, in: bounds) else { return nil }
+        let viewportLength: CGFloat
+        let contentLength: CGFloat
+        let contentOffsetLength: CGFloat
+        let trackLength: CGFloat
+
+        switch axis {
+        case .vertical:
+            viewportLength = viewportSize.height
+            contentLength = contentSize.height
+            contentOffsetLength = contentOffset.y
+            trackLength = track.height
+        case .horizontal:
+            viewportLength = viewportSize.width
+            contentLength = contentSize.width
+            contentOffsetLength = contentOffset.x
+            trackLength = track.width
+        }
+
+        let maxScroll = max(0, contentLength - viewportLength)
+        guard maxScroll > 0, trackLength > 0 else { return nil }
+
+        let proportionalLength = trackLength * min(1, max(0, viewportLength / contentLength))
+        let thumbLength = min(trackLength, max(minThumbLength, proportionalLength))
+        let travelLength = max(0, trackLength - thumbLength)
+        let scrollFraction = maxScroll > 0 ? min(1, max(0, contentOffsetLength / maxScroll)) : 0
+        let thumbOffset = travelLength * scrollFraction
+
+        switch axis {
+        case .vertical:
+            return CGRect(
+                x: track.minX,
+                y: track.minY + thumbOffset,
+                width: track.width,
+                height: thumbLength
+            )
+        case .horizontal:
+            return CGRect(
+                x: track.minX + thumbOffset,
+                y: track.minY,
+                width: thumbLength,
+                height: track.height
+            )
+        }
+    }
+
+    func scrollOffset(for axis: Axis, thumbPosition: CGFloat, in bounds: CGRect) -> CGFloat {
+        guard let track = trackRect(for: axis, in: bounds),
+              let thumb = thumbRect(for: axis, in: bounds)
+        else {
+            return 0
+        }
+
+        let trackStart: CGFloat
+        let trackLength: CGFloat
+        let thumbLength: CGFloat
+        let maxScroll: CGFloat
+
+        switch axis {
+        case .vertical:
+            trackStart = track.minY
+            trackLength = track.height
+            thumbLength = thumb.height
+            maxScroll = max(0, contentSize.height - viewportSize.height)
+        case .horizontal:
+            trackStart = track.minX
+            trackLength = track.width
+            thumbLength = thumb.width
+            maxScroll = max(0, contentSize.width - viewportSize.width)
+        }
+
+        let travelLength = max(0, trackLength - thumbLength)
+        guard travelLength > 0, maxScroll > 0 else { return 0 }
+        let thumbTravel = min(travelLength, max(0, thumbPosition - trackStart))
+        return maxScroll * thumbTravel / travelLength
+    }
+}
+
+final class SubtitleTableScrollbarOverlayView: NSView {
+    weak var scrollView: NSScrollView? {
+        didSet { needsDisplay = true }
+    }
+
+    var isRedesign: Bool = false {
+        didSet {
+            isHidden = !isRedesign
+            needsDisplay = true
+        }
+    }
+
+    private var trackingArea: NSTrackingArea?
+    private var hoveredAxis: SubtitleTableScrollbarMetrics.Axis? {
+        didSet {
+            guard hoveredAxis != oldValue else { return }
+            needsDisplay = true
+        }
+    }
+    private var draggingAxis: SubtitleTableScrollbarMetrics.Axis?
+    private var dragStartPoint: CGPoint = .zero
+    private var dragStartThumbOrigin: CGFloat = 0
+
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        isHidden = true
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard isRedesign,
+              !isHidden,
+              axis(at: point) != nil
+        else {
+            return nil
+        }
+        return self
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard isRedesign else { return }
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            drawThumb(axis: .vertical)
+            drawThumb(axis: .horizontal)
+        }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        hoveredAxis = axis(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        guard draggingAxis == nil else { return }
+        hoveredAxis = nil
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard let axis = axis(at: point),
+              let metrics = metrics(),
+              let thumb = metrics.thumbRect(for: axis, in: bounds)
+        else {
+            return
+        }
+        draggingAxis = axis
+        hoveredAxis = axis
+        dragStartPoint = point
+        dragStartThumbOrigin = axis == .vertical ? thumb.minY : thumb.minX
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let draggingAxis,
+              let metrics = metrics(),
+              let scrollView
+        else {
+            return
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        let dragDelta = draggingAxis == .vertical
+            ? point.y - dragStartPoint.y
+            : point.x - dragStartPoint.x
+        let thumbPosition = dragStartThumbOrigin + dragDelta
+        let nextOffset = metrics.scrollOffset(for: draggingAxis, thumbPosition: thumbPosition, in: bounds)
+        var origin = scrollView.contentView.bounds.origin
+        switch draggingAxis {
+        case .vertical:
+            origin.y = nextOffset
+        case .horizontal:
+            origin.x = nextOffset
+        }
+        scrollView.contentView.scroll(to: origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        needsDisplay = true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+        draggingAxis = nil
+        hoveredAxis = axis(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        if let scrollView {
+            scrollView.scrollWheel(with: event)
+        } else {
+            super.scrollWheel(with: event)
+        }
+    }
+
+    private func metrics() -> SubtitleTableScrollbarMetrics? {
+        guard let scrollView,
+              let documentView = scrollView.documentView
+        else {
+            return nil
+        }
+        return SubtitleTableScrollbarMetrics(
+            viewportSize: scrollView.contentView.bounds.size,
+            contentSize: documentView.frame.size,
+            contentOffset: scrollView.contentView.bounds.origin
+        )
+    }
+
+    private func axis(at point: CGPoint) -> SubtitleTableScrollbarMetrics.Axis? {
+        guard let metrics = metrics() else { return nil }
+        if let verticalThumb = metrics.thumbRect(for: .vertical, in: bounds),
+           verticalThumb.contains(point) {
+            return .vertical
+        }
+        if let horizontalThumb = metrics.thumbRect(for: .horizontal, in: bounds),
+           horizontalThumb.contains(point) {
+            return .horizontal
+        }
+        return nil
+    }
+
+    private func drawThumb(axis: SubtitleTableScrollbarMetrics.Axis) {
+        guard let metrics = metrics(),
+              let rect = metrics.thumbRect(for: axis, in: bounds)
+        else {
+            return
+        }
+        let isInteractive = hoveredAxis == axis || draggingAxis == axis
+        let color = isInteractive
+            ? WorkbenchRedesignColors.NS.scrollbarThumbInteractive
+            : WorkbenchRedesignColors.NS.scrollbarThumbDefault
+        color.setFill()
+        NSBezierPath(
+            roundedRect: rect,
+            xRadius: SubtitleTableMetrics.scrollbarSize / 2,
+            yRadius: SubtitleTableMetrics.scrollbarSize / 2
+        ).fill()
     }
 }
 
@@ -980,6 +1294,10 @@ struct SubtitleTableView: NSViewRepresentable {
         scrollView.drawsBackground = false
         scrollView.automaticallyAdjustsContentInsets = false
 
+        let scrollbarOverlayView = SubtitleTableScrollbarOverlayView()
+        scrollbarOverlayView.translatesAutoresizingMaskIntoConstraints = false
+        scrollbarOverlayView.scrollView = scrollView
+
         let documentView = SubtitleVirtualTableDocumentView()
         documentView.coordinator = context.coordinator
         documentView.frame = CGRect(origin: .zero, size: CGSize(width: 1, height: 1))
@@ -990,6 +1308,7 @@ struct SubtitleTableView: NSViewRepresentable {
             container: container,
             headerView: header,
             scrollView: scrollView,
+            scrollbarOverlayView: scrollbarOverlayView,
             documentView: documentView
         )
         NotificationCenter.default.addObserver(
@@ -1001,6 +1320,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         container.addSubview(header)
         container.addSubview(scrollView)
+        container.addSubview(scrollbarOverlayView)
 
         let headerHeightConstraint = header.heightAnchor.constraint(equalToConstant: context.coordinator.currentHeaderHeight)
         context.coordinator.headerHeightConstraint = headerHeightConstraint
@@ -1019,6 +1339,11 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+
+            scrollbarOverlayView.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            scrollbarOverlayView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            scrollbarOverlayView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            scrollbarOverlayView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
         ])
 
         context.coordinator.resizeDocument()
@@ -1074,6 +1399,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 container?.isRedesign = isRedesign
                 headerView?.isRedesign = isRedesign
                 documentView?.isRedesign = isRedesign
+                scrollbarOverlayView?.isRedesign = isRedesign
+                configureScrollbars()
 
                 headerHeightConstraint?.constant = currentHeaderHeight
                 container?.layoutSubtreeIfNeeded()
@@ -1111,6 +1438,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private weak var container: SubtitleTableContainerView?
         private weak var headerView: SubtitleVirtualTableHeaderView?
         private weak var scrollView: NSScrollView?
+        private weak var scrollbarOverlayView: SubtitleTableScrollbarOverlayView?
         private weak var documentView: SubtitleVirtualTableDocumentView?
         private var buttonsHost: NSHostingView<CueHoverButtons>?
         fileprivate var isMenuOpen = false
@@ -1198,12 +1526,15 @@ struct SubtitleTableView: NSViewRepresentable {
             container: SubtitleTableContainerView,
             headerView: SubtitleVirtualTableHeaderView,
             scrollView: NSScrollView,
+            scrollbarOverlayView: SubtitleTableScrollbarOverlayView,
             documentView: SubtitleVirtualTableDocumentView
         ) {
             self.container = container
             self.headerView = headerView
             self.scrollView = scrollView
+            self.scrollbarOverlayView = scrollbarOverlayView
             self.documentView = documentView
+            configureScrollbars()
 
             let buttonsHost = NSHostingView(rootView: CueHoverButtons(
                 isRedesign: isRedesign,
@@ -1339,8 +1670,30 @@ struct SubtitleTableView: NSViewRepresentable {
             isEnabled && rowCount > 0
         }
 
+        func usesOverlayScrollbarsForTesting() -> Bool {
+            scrollbarOverlayView?.isRedesign == true &&
+                scrollView?.hasVerticalScroller == false &&
+                scrollView?.hasHorizontalScroller == false
+        }
+
         func documentViewForKeyboardFocusBridge() -> NSView? {
             documentView
+        }
+
+        private func configureScrollbars() {
+            guard let scrollView else { return }
+            if isRedesign {
+                scrollView.hasVerticalScroller = false
+                scrollView.hasHorizontalScroller = false
+                scrollView.autohidesScrollers = true
+            } else {
+                scrollView.hasVerticalScroller = true
+                scrollView.hasHorizontalScroller = false
+                scrollView.autohidesScrollers = true
+            }
+            scrollbarOverlayView?.isRedesign = isRedesign
+            scrollbarOverlayView?.isHidden = !isRedesign
+            scrollbarOverlayView?.needsDisplay = true
         }
 
         func toggleAllRowSelection() {
@@ -1391,6 +1744,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 CGFloat(rowCount) * currentRowHeight
             )
             let nextSize = CGSize(width: width, height: max(1, height))
+            scrollbarOverlayView?.needsDisplay = true
             guard documentView.frame.size != nextSize else { return }
             documentView.setFrameSize(nextSize)
         }
@@ -1408,11 +1762,13 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.contentView.scroll(to: .zero)
             scrollView.reflectScrolledClipView(scrollView.contentView)
             documentView?.needsDisplay = true
+            scrollbarOverlayView?.needsDisplay = true
             notifyVisibleRowsChanged()
         }
 
         @objc func scrollContentDidChange() {
             notifyVisibleRowsChanged()
+            scrollbarOverlayView?.needsDisplay = true
             if isMenuOpen {
                 dismissMenu()
             } else {
