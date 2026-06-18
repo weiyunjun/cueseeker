@@ -21,6 +21,8 @@ enum SubtitleTableMetrics {
     static let maximumBodyLineCount = 6
     static let tagHeight: CGFloat = 22
     static let tagHorizontalInset: CGFloat = 8
+    static let tagRedesignHorizontalInset: CGFloat = 10
+    static let tagRedesignVerticalInset: CGFloat = 4
     static let tagCornerRadius: CGFloat = 6
     static let tagHorizontalSpacing: CGFloat = 6
     static let tagVerticalSpacing: CGFloat = 4
@@ -161,6 +163,51 @@ struct SubtitleTableColumnLayout {
     }
 }
 
+struct SubtitleTableTagStyle {
+    let horizontalInset: CGFloat
+    let verticalInset: CGFloat
+    let cornerRadius: CGFloat
+    let horizontalSpacing: CGFloat
+    let verticalSpacing: CGFloat
+    private let fixedHeight: CGFloat?
+
+    static func resolve(isRedesign: Bool) -> SubtitleTableTagStyle {
+        let M = SubtitleTableMetrics.self
+        if isRedesign {
+            return SubtitleTableTagStyle(
+                horizontalInset: M.tagRedesignHorizontalInset,
+                verticalInset: M.tagRedesignVerticalInset,
+                cornerRadius: M.tagCornerRadius,
+                horizontalSpacing: M.tagHorizontalSpacing,
+                verticalSpacing: M.tagVerticalSpacing,
+                fixedHeight: nil
+            )
+        }
+        return SubtitleTableTagStyle(
+            horizontalInset: M.tagHorizontalInset,
+            verticalInset: 0,
+            cornerRadius: M.tagCornerRadius,
+            horizontalSpacing: M.tagHorizontalSpacing,
+            verticalSpacing: M.tagVerticalSpacing,
+            fixedHeight: M.tagHeight
+        )
+    }
+
+    func height(for textSize: CGSize) -> CGFloat {
+        fixedHeight ?? ceil(textSize.height) + 2 * verticalInset
+    }
+
+    func width(for textSize: CGSize) -> CGFloat {
+        ceil(textSize.width) + 2 * horizontalInset
+    }
+
+    func fillColor(for tag: WorkbenchTag, isRedesign: Bool, isEnabled: Bool) -> NSColor {
+        guard isRedesign else { return tag.colorID.appKitFillColor }
+        guard isEnabled else { return WorkbenchRedesignColors.NS.bgDisabled }
+        return tag.colorID.redesignFillColor()
+    }
+}
+
 // MARK: - Typography
 
 @MainActor
@@ -200,10 +247,16 @@ enum SubtitleTableText {
         ])
     }
 
-    static func tag(_ tag: WorkbenchTag, isRedesign: Bool = false) -> NSAttributedString {
-        NSAttributedString(string: tag.label, attributes: [
+    static func tag(_ tag: WorkbenchTag, isRedesign: Bool = false, isEnabled: Bool = true) -> NSAttributedString {
+        let foregroundColor: NSColor
+        if isRedesign, !isEnabled {
+            foregroundColor = WorkbenchRedesignColors.NS.textDisabled
+        } else {
+            foregroundColor = isRedesign ? tag.colorID.redesignForegroundColor() : tag.colorID.appKitForegroundColor
+        }
+        return NSAttributedString(string: tag.label, attributes: [
             .font: tagFont,
-            .foregroundColor: isRedesign ? tag.colorID.redesignForegroundColor() : tag.colorID.appKitForegroundColor,
+            .foregroundColor: foregroundColor,
         ])
     }
 }
@@ -2323,45 +2376,48 @@ struct SubtitleTableView: NSViewRepresentable {
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath.clip(rect)
 
+            let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
             var x = rect.minX + M.cellLeading
-            let startY = isRedesign ? rect.minY + (rect.height - M.tagHeight) / 2 : rect.minY + M.rowVerticalInset - 1
-            var y = startY
+            var y: CGFloat?
             let maxX = rect.maxX - trailing
             let maxY = isRedesign ? rect.maxY : rect.maxY - M.rowVerticalInset
 
             for tag in tags {
-                let attributed = SubtitleTableText.tag(tag, isRedesign: isRedesign)
+                let attributed = SubtitleTableText.tag(tag, isRedesign: isRedesign, isEnabled: isEnabled)
                 let textSize = attributed.size()
-                let tagWidth = ceil(textSize.width) + 2 * M.tagHorizontalInset
+                let tagHeight = tagStyle.height(for: textSize)
+                if y == nil {
+                    y = isRedesign
+                        ? rect.minY + (rect.height - tagHeight) / 2
+                        : rect.minY + M.rowVerticalInset - 1
+                }
+                guard let currentY = y else { break }
+                let tagWidth = tagStyle.width(for: textSize)
                 if x > rect.minX + M.cellLeading, x + tagWidth > maxX {
                     x = rect.minX + M.cellLeading
-                    y += M.tagHeight + M.tagVerticalSpacing
+                    y = currentY + tagHeight + tagStyle.verticalSpacing
                 }
-                guard y + M.tagHeight <= maxY else {
+                guard let resolvedY = y, resolvedY + tagHeight <= maxY else {
                     break
                 }
 
-                let tagRect = CGRect(x: x, y: y, width: min(tagWidth, max(0, maxX - x)), height: M.tagHeight)
+                let tagRect = CGRect(x: x, y: resolvedY, width: min(tagWidth, max(0, maxX - x)), height: tagHeight)
                 let path = NSBezierPath(
                     roundedRect: tagRect,
-                    xRadius: M.tagCornerRadius,
-                    yRadius: M.tagCornerRadius
+                    xRadius: tagStyle.cornerRadius,
+                    yRadius: tagStyle.cornerRadius
                 )
-                if isRedesign {
-                    tag.colorID.redesignFillColor().setFill()
-                } else {
-                    tag.colorID.appKitFillColor.setFill()
-                }
+                tagStyle.fillColor(for: tag, isRedesign: isRedesign, isEnabled: isEnabled).setFill()
                 path.fill()
 
                 let textRect = CGRect(
-                    x: tagRect.minX + M.tagHorizontalInset,
+                    x: tagRect.minX + tagStyle.horizontalInset,
                     y: tagRect.minY + max(0, (tagRect.height - textSize.height) / 2),
-                    width: max(0, tagRect.width - 2 * M.tagHorizontalInset),
+                    width: max(0, tagRect.width - 2 * tagStyle.horizontalInset),
                     height: textSize.height
                 )
                 attributed.draw(in: textRect)
-                x += tagRect.width + M.tagHorizontalSpacing
+                x += tagRect.width + tagStyle.horizontalSpacing
             }
 
             NSGraphicsContext.restoreGraphicsState()
