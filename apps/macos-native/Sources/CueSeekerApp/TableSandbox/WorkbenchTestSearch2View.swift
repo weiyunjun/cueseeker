@@ -18,6 +18,7 @@ struct WorkbenchTestSearch2View: View {
     @State private var lastVisibleRows: Range<Int>?
     @State private var appliedFilterSignature = ""
     @State private var tableScrollResetToken = 0
+    @State private var rowSelection = TableSandboxRowSelectionState()
 
     init() {
         _searchDraft = State(initialValue: "")
@@ -50,6 +51,10 @@ struct WorkbenchTestSearch2View: View {
                 showsSpeakerColumn: true,
                 scrollResetToken: tableScrollResetToken,
                 onVisibleRowsChange: hydrateVisibleRows,
+                isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
+                selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
+                onToggleRowSelection: toggleRowSelection,
+                onToggleAllSelection: toggleAllRowSelection,
                 onPlay: play,
                 isRedesign: true
             )
@@ -73,6 +78,7 @@ struct WorkbenchTestSearch2View: View {
         .onChange(of: search.searchQuery) { newValue in
             searchDraft = newValue
             visibleHydrator.reset()
+            rowSelection.reset()
             lastVisibleRows = nil
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 loadAllCueRows(resetScroll: true)
@@ -116,6 +122,7 @@ struct WorkbenchTestSearch2View: View {
             totalRowCount: search.searchResultTotalCount,
             tableName: "test-search-2"
         )
+        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         hydrateInitialRowsIfNeeded()
     }
 
@@ -156,6 +163,7 @@ struct WorkbenchTestSearch2View: View {
         visibleHydrator.reset()
         lastVisibleRows = nil
         if resetScroll {
+            rowSelection.reset()
             tableScrollResetToken += 1
         }
 
@@ -173,6 +181,7 @@ struct WorkbenchTestSearch2View: View {
                 totalRowCount: page.totalRowCount,
                 tableName: "test-search-2"
             )
+            rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
             hydrateLastVisibleRowsIfNeeded()
         }
     }
@@ -201,6 +210,7 @@ struct WorkbenchTestSearch2View: View {
             totalRowCount: max(page.totalRowCount, rowStore.snapshot.totalRowCount),
             tableName: "test-search-2"
         )
+        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
 
     private func applyFilterRules(_ rules: [SchemaWorkbenchFilterRule], force: Bool = false) {
@@ -212,11 +222,20 @@ struct WorkbenchTestSearch2View: View {
 
         appliedFilterSignature = nextSignature
         visibleHydrator.reset()
+        rowSelection.reset()
         lastVisibleRows = nil
         tableScrollResetToken += 1
         appState.updateSearchFilterSet(filterSet)
         if isAllCuesMode {
             loadAllCueRows(resetScroll: false)
         }
+    }
+
+    private func toggleRowSelection(_ row: Int) {
+        rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+    }
+
+    private func toggleAllRowSelection() {
+        rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
     }
 }

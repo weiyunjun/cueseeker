@@ -23,6 +23,9 @@ enum SubtitleTableMetrics {
     static let tagCornerRadius: CGFloat = 6
     static let tagHorizontalSpacing: CGFloat = 6
     static let tagVerticalSpacing: CGFloat = 4
+    static let checkboxSize: CGFloat = 16
+    static let checkboxCornerRadius: CGFloat = 4
+    static let checkboxHitSlop: CGFloat = 8
 }
 
 // MARK: - Typography
@@ -268,6 +271,124 @@ final class SubtitleTableMenuOverlayView: NSView {
     override var isFlipped: Bool { true }
     override func mouseDown(with event: NSEvent) {
         onClick?()
+    }
+}
+
+private enum WorkbenchCheckboxDrawing {
+    static func draw(state: WorkbenchCheckboxState, in rect: CGRect, isFocused: Bool = false) {
+        let path = NSBezierPath(
+            roundedRect: rect,
+            xRadius: SubtitleTableMetrics.checkboxCornerRadius,
+            yRadius: SubtitleTableMetrics.checkboxCornerRadius
+        )
+        switch state {
+        case .unchecked:
+            WorkbenchRedesignColors.NS.bgCheckboxUnchecked.setFill()
+        case .checked, .indeterminate:
+            WorkbenchRedesignColors.NS.bgCheckboxChecked.setFill()
+        }
+        path.fill()
+
+        switch state {
+        case .unchecked:
+            WorkbenchRedesignColors.NS.borderCheckbox.setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
+        case .checked:
+            drawCheckmark(in: rect)
+        case .indeterminate:
+            drawIndeterminate(in: rect)
+        }
+
+        if isFocused {
+            let focusRect = rect.insetBy(
+                dx: -WorkbenchControlMetrics.redesignFocusRingWidth,
+                dy: -WorkbenchControlMetrics.redesignFocusRingWidth
+            )
+            let focusPath = NSBezierPath(
+                roundedRect: focusRect,
+                xRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
+                yRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth
+            )
+            WorkbenchRedesignColors.NS.focusRing.setStroke()
+            focusPath.lineWidth = WorkbenchControlMetrics.redesignFocusRingWidth
+            focusPath.stroke()
+        }
+    }
+
+    private static func drawCheckmark(in rect: CGRect) {
+        let path = NSBezierPath()
+        path.move(to: CGPoint(x: rect.minX + 4, y: rect.minY + 8.5))
+        path.line(to: CGPoint(x: rect.minX + 7, y: rect.minY + 11.5))
+        path.line(to: CGPoint(x: rect.minX + 12.5, y: rect.minY + 5))
+        WorkbenchRedesignColors.NS.checkboxIcon.setStroke()
+        path.lineWidth = 2.5
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.stroke()
+    }
+
+    private static func drawIndeterminate(in rect: CGRect) {
+        let path = NSBezierPath()
+        path.move(to: CGPoint(x: rect.minX + 4, y: rect.midY))
+        path.line(to: CGPoint(x: rect.maxX - 4, y: rect.midY))
+        WorkbenchRedesignColors.NS.checkboxIcon.setStroke()
+        path.lineWidth = 2.5
+        path.lineCapStyle = .round
+        path.stroke()
+    }
+}
+
+private struct WorkbenchCheckboxButton: View {
+    let state: WorkbenchCheckboxState
+    var isEnabled: Bool = true
+    var action: () -> Void
+
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: SubtitleTableMetrics.checkboxCornerRadius, style: .continuous)
+                    .fill(backgroundColor)
+                if state == .unchecked {
+                    RoundedRectangle(cornerRadius: SubtitleTableMetrics.checkboxCornerRadius, style: .continuous)
+                        .strokeBorder(WorkbenchRedesignColors.borderCheckbox, lineWidth: 1.5)
+                } else {
+                    Image(systemName: state == .checked ? "checkmark" : "minus")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(WorkbenchRedesignColors.checkboxIcon)
+                }
+            }
+            .frame(width: SubtitleTableMetrics.checkboxSize, height: SubtitleTableMetrics.checkboxSize)
+            .overlay(
+                Group {
+                    if isFocused && isEnabled {
+                        RoundedRectangle(
+                            cornerRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
+                            style: .continuous
+                        )
+                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                    }
+                }
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .focused($isFocused)
+        .disableFocusEffect()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+    }
+
+    private var backgroundColor: Color {
+        switch state {
+        case .unchecked:
+            return WorkbenchRedesignColors.bgCheckboxUnchecked
+        case .checked, .indeterminate:
+            return WorkbenchRedesignColors.bgCheckboxChecked
+        }
     }
 }
 
@@ -523,7 +644,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             height: bounds.height
         ) : .zero
 
-        updateHeaderHost(&indexHeaderHost, title: "#", columnID: "index", isSortable: false, frame: indexRect)
+        updateSelectionHeaderHost(&indexHeaderHost, frame: indexRect)
         updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? "Name", columnID: "name", isSortable: true, frame: nameRect)
         updateHeaderHost(&cuesHeaderHost, title: "Cues", columnID: "cues", isSortable: true, frame: cuesRect)
 
@@ -537,6 +658,35 @@ final class SubtitleVirtualTableHeaderView: NSView {
             updateHeaderHost(&languageHeaderHost, title: "Language", columnID: "language", isSortable: true, frame: languageRect)
         } else {
             languageHeaderHost?.isHidden = true
+        }
+    }
+
+    private func updateSelectionHeaderHost(
+        _ hostVar: inout NSHostingView<AnyView>?,
+        frame: CGRect
+    ) {
+        guard let coordinator else { return }
+        let checkboxView = WorkbenchCheckboxButton(
+            state: coordinator.selectionHeaderStateForRendering(),
+            isEnabled: coordinator.canToggleSelectionForRendering(),
+            action: { [weak self] in
+                self?.coordinator?.toggleAllRowSelection()
+            }
+        )
+        let anyView = AnyView(checkboxView)
+
+        if let host = hostVar {
+            host.rootView = anyView
+            host.frame = frame
+            host.isHidden = false
+        } else {
+            let host = NSHostingView(rootView: anyView)
+            host.wantsLayer = true
+            host.layer?.masksToBounds = false
+            addSubview(host)
+            hostVar = host
+            host.frame = frame
+            host.isHidden = false
         }
     }
 
@@ -625,6 +775,9 @@ final class SubtitleVirtualTableDocumentView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        if coordinator?.handleMouseDown(windowPoint: event.locationInWindow) == true {
+            return
+        }
         super.mouseDown(with: event)
     }
 
@@ -711,6 +864,9 @@ struct SubtitleTableView: NSViewRepresentable {
     var scrollResetToken = 0
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var isRowSelected: (Int) -> Bool = { _ in false }
+    var selectionHeaderState: WorkbenchCheckboxState = .unchecked
+    var onToggleRowSelection: (Int) -> Void = { _ in }
+    var onToggleAllSelection: () -> Void = {}
     var onPlay: (SubtitleTableRow) -> Void
     var isRedesign: Bool = false
 
@@ -726,6 +882,9 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollResetToken: scrollResetToken,
             onVisibleRowsChange: onVisibleRowsChange,
             isRowSelected: isRowSelected,
+            selectionHeaderState: selectionHeaderState,
+            onToggleRowSelection: onToggleRowSelection,
+            onToggleAllSelection: onToggleAllSelection,
             onPlay: onPlay
         )
         coordinator.isRedesign = isRedesign
@@ -810,6 +969,9 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollResetToken: scrollResetToken,
             onVisibleRowsChange: onVisibleRowsChange,
             isRowSelected: isRowSelected,
+            selectionHeaderState: selectionHeaderState,
+            onToggleRowSelection: onToggleRowSelection,
+            onToggleAllSelection: onToggleAllSelection,
             onPlay: onPlay
         )
     }
@@ -828,6 +990,9 @@ struct SubtitleTableView: NSViewRepresentable {
         private var scrollResetToken: Int
         private var onVisibleRowsChange: (Range<Int>) -> Void
         private var isRowSelected: (Int) -> Bool
+        private var selectionHeaderState: WorkbenchCheckboxState
+        private var onToggleRowSelection: (Int) -> Void
+        private var onToggleAllSelection: () -> Void
         private var onPlay: (SubtitleTableRow) -> Void
 
         var isRedesign: Bool = false {
@@ -920,6 +1085,9 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollResetToken: Int = 0,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             isRowSelected: @escaping (Int) -> Bool = { _ in false },
+            selectionHeaderState: WorkbenchCheckboxState = .unchecked,
+            onToggleRowSelection: @escaping (Int) -> Void = { _ in },
+            onToggleAllSelection: @escaping () -> Void = {},
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
@@ -932,6 +1100,9 @@ struct SubtitleTableView: NSViewRepresentable {
             self.scrollResetToken = scrollResetToken
             self.onVisibleRowsChange = onVisibleRowsChange
             self.isRowSelected = isRowSelected
+            self.selectionHeaderState = selectionHeaderState
+            self.onToggleRowSelection = onToggleRowSelection
+            self.onToggleAllSelection = onToggleAllSelection
             self.onPlay = onPlay
         }
 
@@ -984,6 +1155,9 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollResetToken: Int,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             isRowSelected: @escaping (Int) -> Bool,
+            selectionHeaderState: WorkbenchCheckboxState,
+            onToggleRowSelection: @escaping (Int) -> Void,
+            onToggleAllSelection: @escaping () -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void
         ) {
             self.tableName = tableName
@@ -998,6 +1172,10 @@ struct SubtitleTableView: NSViewRepresentable {
             self.scrollResetToken = scrollResetToken
             self.onVisibleRowsChange = onVisibleRowsChange
             self.isRowSelected = isRowSelected
+            let selectionHeaderChanged = selectionHeaderState != self.selectionHeaderState
+            self.selectionHeaderState = selectionHeaderState
+            self.onToggleRowSelection = onToggleRowSelection
+            self.onToggleAllSelection = onToggleAllSelection
             self.onPlay = onPlay
 
             let nextRowCount = max(0, rowCount)
@@ -1020,7 +1198,7 @@ struct SubtitleTableView: NSViewRepresentable {
             } else if changed || languageColumnChanged || speakerColumnChanged {
                 notifyVisibleRowsChanged()
             }
-            if changed || languageColumnChanged || speakerColumnChanged || displayTitleChanged {
+            if changed || languageColumnChanged || speakerColumnChanged || displayTitleChanged || selectionHeaderChanged {
                 headerView?.refreshHeaderHosts()
             }
             headerView?.needsDisplay = true
@@ -1053,6 +1231,21 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func rowSelectionStateForTesting(row: Int) -> Bool {
             isRowSelected(row)
+        }
+
+        func selectionHeaderStateForRendering() -> WorkbenchCheckboxState {
+            selectionHeaderState
+        }
+
+        func canToggleSelectionForRendering() -> Bool {
+            isEnabled && rowCount > 0
+        }
+
+        func toggleAllRowSelection() {
+            guard rowCount > 0 else { return }
+            onToggleAllSelection()
+            headerView?.refreshHeaderHosts()
+            documentView?.needsDisplay = true
         }
 
         func cellFullText(row: Int, column: Int) -> String {
@@ -1182,7 +1375,12 @@ struct SubtitleTableView: NSViewRepresentable {
             let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
             let cuesWidth = max(0, rowRect.width - M.indexColumnWidth - M.nameColumnWidth - speakerWidth - languageWidth)
 
-            drawIndex(row + 1, in: CGRect(x: 0, y: rowRect.minY, width: M.indexColumnWidth, height: rowRect.height))
+            if isRedesign {
+                let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
+                WorkbenchCheckboxDrawing.draw(state: checkboxState, in: checkboxRect(forRowRect: rowRect))
+            } else {
+                drawIndex(row + 1, in: CGRect(x: 0, y: rowRect.minY, width: M.indexColumnWidth, height: rowRect.height))
+            }
             drawBody(
                 model?.displayTitle ?? "",
                 in: CGRect(x: M.indexColumnWidth, y: rowRect.minY, width: M.nameColumnWidth, height: rowRect.height),
@@ -1311,6 +1509,23 @@ struct SubtitleTableView: NSViewRepresentable {
             return CGRect(x: 0, y: y, width: width, height: height)
         }
 
+        private func checkboxRect(forRowRect rowRect: CGRect) -> CGRect {
+            let size = SubtitleTableMetrics.checkboxSize
+            return CGRect(
+                x: (SubtitleTableMetrics.indexColumnWidth - size) / 2,
+                y: rowRect.minY + (rowRect.height - size) / 2,
+                width: size,
+                height: size
+            )
+        }
+
+        private func checkboxHitRect(forRowRect rowRect: CGRect) -> CGRect {
+            checkboxRect(forRowRect: rowRect).insetBy(
+                dx: -SubtitleTableMetrics.checkboxHitSlop,
+                dy: -SubtitleTableMetrics.checkboxHitSlop
+            )
+        }
+
         private func visibleRowRange() -> Range<Int>? {
             guard let scrollView else { return nil }
             return visibleRowRange(in: scrollView.contentView.bounds)
@@ -1356,6 +1571,30 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
             updateHoveredRow(rowAtDocumentPoint(point))
+        }
+
+        func handleMouseDown(windowPoint: CGPoint) -> Bool {
+            guard isRedesign,
+                  !isMenuOpen,
+                  !isExternalPopupLayerOpen,
+                  let documentView
+            else {
+                return false
+            }
+            let point = documentView.convert(windowPoint, from: nil)
+            guard documentView.visibleRect.contains(point),
+                  let row = rowAtDocumentPoint(point)
+            else {
+                return false
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            guard checkboxHitRect(forRowRect: rowRect).contains(point) else {
+                return false
+            }
+            onToggleRowSelection(row)
+            invalidateRows([row])
+            headerView?.refreshHeaderHosts()
+            return true
         }
 
         func clearHover() {
