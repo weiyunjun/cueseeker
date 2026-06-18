@@ -21,6 +21,7 @@ main
 6. UI Redesign 必须同时支持 Light Mode 和 Dark Mode。所有颜色 token 必须提供 Light / Dark 两套值，或明确标记为 macOS 系统动态语义色。实现时禁止将 redesign 颜色 token 写成单一固定 hex；SwiftUI 与 AppKit 绘制层都必须通过统一 token 映射读取当前 appearance 下的颜色。
 7. 所有 Menu / Dropdown / Popover / Panel 打开后，弹层必须视为独立交互层级。鼠标在弹层内部移动或操作时，不允许触发底层 Table Row / Header / Trigger Surface 的 hover 更新；底层 hover 状态应被暂停或屏蔽，直到弹层关闭后再根据当前鼠标位置重新计算。
 8. Row Action Button，点击后将鼠标移动到其他位置，该按钮及下拉菜单都会消失，这是错的，此时应该保留按钮及下拉菜单。菜单消失的逻辑类似其它菜单。菜单消失的情况下，再根据是否hover到某个为止来判断Row Action Button是否显示。
+9. 2.20 Interactive Text Cell，应用于Cues的内容行，当鼠标悬浮在文字上时，增加下划线，且鼠标样式改变。注意，...按钮仍然是存在的，行的hover效果也是。鼠标点击文字以后，和历史版本的逻辑类似，播放对应字幕的视频。
 
 # Component修改方案
 
@@ -45,7 +46,7 @@ main
 | **2.17** | **Table Row** | **存在**（AppKit 绘制）<br>[SubtitleTableView.swift](file:///Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native/Sources/CueSeekerApp/TableSandbox/SubtitleTableView.swift) 中的 `Coordinator.drawRowsNow` | **直接修改** | **在 AppKit 渲染流程中判断 `isRedesign`**，将行高改为 64px 并应用新 Hover/Selected 背景色。 |
 | **2.18** | **Sortable Header Cell** | **部分存在**<br>`SubtitleVirtualTableHeaderView` | **直接修改** | 表头支持绘制 chevrons-up-down / 箭头图标，支持悬浮和点击事件。 |
 | **2.19** | **Row Selection Checkbox** | **不存在** | **新增组件** | 新建 SwiftUI Checkbox 组件，并由 AppKit 表头及表行进行混合渲染/事件传递。 |
-| **2.20** | **Interactive Text Cell** | **不存在** | **直接修改** | 在 `SubtitleTableView` 绘制 displayTitle 时，增加 Hover 下划线绘制。 |
+| **2.20** | **Interactive Text Cell** | **不存在** | **直接修改** | 在 `SubtitleTableView` 绘制 Cues 内容文本时，增加 Hover 下划线绘制。 |
 | **2.21** | **Table Scrollbar** | **存在**<br>`SubtitleTableView` 的 `NSScrollView` | **直接修改** | 调整 `NSScrollView` 的 scroller 样式以符合 8px 规范。 |
 | **2.22** | **Chip / Tag** | **存在**（AppKit 绘制）<br>`SubtitleTableView.Coordinator.drawTags` | **直接修改** | 调整 AppKit 绘制的颜色，适配 Speaker 紫色和 Language 蓝色 Token。 |
 | **2.23** | **Count Summary** | **不存在** | **新增组件** | 在 Table Utility Bar 区域实现计数器，支持已选择与总数的展示及 Overflow（99999+）。 |
