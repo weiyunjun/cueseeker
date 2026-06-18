@@ -209,6 +209,55 @@ func subtitleTableViewMouseCheckboxToggleDoesNotKeepKeyboardFocus() {
     #expect(coordinator.focusedCheckboxRowForTesting() == nil)
 }
 
+@MainActor
+@Test
+func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
+    var notifiedRanges = [Range<Int>]()
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "test-search-2",
+        rowCount: 100_000,
+        rowProvider: { _ in nil },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        onVisibleRowsChange: { notifiedRanges.append($0) },
+        isRowSelected: { _ in false },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: 500, height: 260))
+    let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: 500, height: 44))
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 44, width: 500, height: 200))
+    let overlay = SubtitleTableScrollbarOverlayView(frame: scrollView.frame)
+    let documentView = SubtitleVirtualTableDocumentView(frame: CGRect(x: 0, y: 0, width: 500, height: 1))
+
+    documentView.coordinator = coordinator
+    scrollView.documentView = documentView
+    overlay.scrollView = scrollView
+    coordinator.attach(
+        container: container,
+        headerView: header,
+        scrollView: scrollView,
+        scrollbarOverlayView: overlay,
+        documentView: documentView
+    )
+    coordinator.resizeDocument()
+
+    coordinator.notifyVisibleRowsChanged()
+    coordinator.notifyVisibleRowsChanged()
+    #expect(notifiedRanges.count == 1)
+
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: 10))
+    coordinator.scrollContentDidChange()
+    #expect(notifiedRanges.count == 1)
+
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: 1_000))
+    coordinator.scrollContentDidChange()
+    #expect(notifiedRanges.count == 2)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()

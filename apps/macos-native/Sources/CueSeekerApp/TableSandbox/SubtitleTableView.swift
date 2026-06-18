@@ -618,12 +618,18 @@ struct SubtitleTableScrollbarMetrics {
 
 final class SubtitleTableScrollbarOverlayView: NSView {
     weak var scrollView: NSScrollView? {
-        didSet { needsDisplay = true }
+        didSet {
+            lastMetrics = nil
+            needsDisplay = true
+        }
     }
+
+    var onDragStateChanged: ((Bool) -> Void)?
 
     var isRedesign: Bool = false {
         didSet {
             isHidden = !isRedesign
+            lastMetrics = nil
             needsDisplay = true
         }
     }
@@ -632,12 +638,21 @@ final class SubtitleTableScrollbarOverlayView: NSView {
     private var hoveredAxis: SubtitleTableScrollbarMetrics.Axis? {
         didSet {
             guard hoveredAxis != oldValue else { return }
-            needsDisplay = true
+            invalidateInteractiveStateChange(from: oldValue, to: hoveredAxis)
         }
     }
-    private var draggingAxis: SubtitleTableScrollbarMetrics.Axis?
+    private var draggingAxis: SubtitleTableScrollbarMetrics.Axis? {
+        didSet {
+            guard draggingAxis != oldValue else { return }
+            invalidateInteractiveStateChange(from: oldValue, to: draggingAxis)
+            if (oldValue == nil) != (draggingAxis == nil) {
+                onDragStateChanged?(draggingAxis != nil)
+            }
+        }
+    }
     private var dragStartPoint: CGPoint = .zero
     private var dragStartThumbOrigin: CGFloat = 0
+    private var lastMetrics: SubtitleTableScrollbarMetrics?
 
     override var isFlipped: Bool { true }
 
@@ -683,10 +698,14 @@ final class SubtitleTableScrollbarOverlayView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        guard isRedesign else { return }
+        guard isRedesign, let currentMetrics = metrics() else {
+            lastMetrics = nil
+            return
+        }
+        lastMetrics = currentMetrics
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            drawThumb(axis: .vertical)
-            drawThumb(axis: .horizontal)
+            drawThumb(axis: .vertical, metrics: currentMetrics)
+            drawThumb(axis: .horizontal, metrics: currentMetrics)
         }
     }
 
@@ -741,7 +760,9 @@ final class SubtitleTableScrollbarOverlayView: NSView {
         }
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
-        needsDisplay = true
+        let newMetrics = self.metrics()
+        invalidateThumbs(oldMetrics: metrics, newMetrics: newMetrics, axes: [draggingAxis])
+        lastMetrics = newMetrics
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -756,6 +777,13 @@ final class SubtitleTableScrollbarOverlayView: NSView {
         } else {
             super.scrollWheel(with: event)
         }
+    }
+
+    func scrollMetricsDidChange() {
+        guard isRedesign else { return }
+        let newMetrics = metrics()
+        invalidateThumbs(oldMetrics: lastMetrics, newMetrics: newMetrics)
+        lastMetrics = newMetrics
     }
 
     private func metrics() -> SubtitleTableScrollbarMetrics? {
@@ -784,9 +812,43 @@ final class SubtitleTableScrollbarOverlayView: NSView {
         return nil
     }
 
-    private func drawThumb(axis: SubtitleTableScrollbarMetrics.Axis) {
-        guard let metrics = metrics(),
-              let rect = metrics.thumbRect(for: axis, in: bounds)
+    private func invalidateInteractiveStateChange(
+        from oldAxis: SubtitleTableScrollbarMetrics.Axis?,
+        to newAxis: SubtitleTableScrollbarMetrics.Axis?
+    ) {
+        guard isRedesign else { return }
+        var axes = [SubtitleTableScrollbarMetrics.Axis]()
+        if let oldAxis {
+            axes.append(oldAxis)
+        }
+        if let newAxis, newAxis != oldAxis {
+            axes.append(newAxis)
+        }
+        guard !axes.isEmpty else { return }
+        let currentMetrics = metrics()
+        invalidateThumbs(oldMetrics: currentMetrics, newMetrics: currentMetrics, axes: axes)
+    }
+
+    private func invalidateThumbs(
+        oldMetrics: SubtitleTableScrollbarMetrics?,
+        newMetrics: SubtitleTableScrollbarMetrics?,
+        axes: [SubtitleTableScrollbarMetrics.Axis] = [.vertical, .horizontal]
+    ) {
+        var dirtyRect = CGRect.null
+        for axis in axes {
+            if let oldRect = oldMetrics?.thumbRect(for: axis, in: bounds) {
+                dirtyRect = dirtyRect.union(oldRect)
+            }
+            if let newRect = newMetrics?.thumbRect(for: axis, in: bounds) {
+                dirtyRect = dirtyRect.union(newRect)
+            }
+        }
+        guard !dirtyRect.isNull else { return }
+        setNeedsDisplay(dirtyRect.insetBy(dx: -2, dy: -2))
+    }
+
+    private func drawThumb(axis: SubtitleTableScrollbarMetrics.Axis, metrics: SubtitleTableScrollbarMetrics) {
+        guard let rect = metrics.thumbRect(for: axis, in: bounds)
         else {
             return
         }
@@ -1431,8 +1493,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 headerHeightConstraint?.constant = currentHeaderHeight
                 container?.layoutSubtreeIfNeeded()
                 rowHeightCache.removeAll()
+                lastNotifiedVisibleRows = nil
                 resizeDocument()
-                notifyVisibleRowsChanged()
+                notifyVisibleRowsChanged(force: true)
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
                 headerView?.needsDisplay = true
@@ -1505,6 +1568,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rowHeightCache = SubtitleVirtualRowHeightCache()
         private var hoveredRow: Int?
         private var focusedCheckboxRow: Int?
+        private var lastNotifiedVisibleRows: Range<Int>?
+        private var isScrollbarDragging = false
 
         init(
             tableName: String,
@@ -1560,6 +1625,9 @@ struct SubtitleTableView: NSViewRepresentable {
             self.scrollView = scrollView
             self.scrollbarOverlayView = scrollbarOverlayView
             self.documentView = documentView
+            scrollbarOverlayView.onDragStateChanged = { [weak self] isDragging in
+                self?.setScrollbarDragging(isDragging)
+            }
             configureScrollbars()
 
             let buttonsHost = NSHostingView(rootView: CueHoverButtons(
@@ -1621,6 +1689,9 @@ struct SubtitleTableView: NSViewRepresentable {
             let changed = nextRowCount != self.rowCount || rowsVersion != self.rowsVersion
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
+            if changed || shouldScrollToTop {
+                lastNotifiedVisibleRows = nil
+            }
             if let focusedCheckboxRow, focusedCheckboxRow >= nextRowCount {
                 updateFocusedCheckbox(nil)
             }
@@ -1638,7 +1709,7 @@ struct SubtitleTableView: NSViewRepresentable {
             if shouldScrollToTop {
                 scrollToTop()
             } else if changed || languageColumnChanged || speakerColumnChanged {
-                notifyVisibleRowsChanged()
+                notifyVisibleRowsChanged(force: changed)
             }
             if changed || languageColumnChanged || speakerColumnChanged || displayTitleChanged || selectionHeaderChanged {
                 headerView?.refreshHeaderHosts()
@@ -1720,6 +1791,9 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollbarOverlayView?.isRedesign = isRedesign
             scrollbarOverlayView?.isHidden = !isRedesign
             scrollbarOverlayView?.needsDisplay = true
+            if !isRedesign {
+                setScrollbarDragging(false)
+            }
         }
 
         func toggleAllRowSelection() {
@@ -1775,8 +1849,10 @@ struct SubtitleTableView: NSViewRepresentable {
             documentView.setFrameSize(nextSize)
         }
 
-        func notifyVisibleRowsChanged() {
+        func notifyVisibleRowsChanged(force: Bool = false) {
             guard let range = visibleRowRange() else { return }
+            guard force || range != lastNotifiedVisibleRows else { return }
+            lastNotifiedVisibleRows = range
             onVisibleRowsChange(range)
         }
 
@@ -1789,15 +1865,15 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.reflectScrolledClipView(scrollView.contentView)
             documentView?.needsDisplay = true
             scrollbarOverlayView?.needsDisplay = true
-            notifyVisibleRowsChanged()
+            notifyVisibleRowsChanged(force: true)
         }
 
         @objc func scrollContentDidChange() {
             notifyVisibleRowsChanged()
-            scrollbarOverlayView?.needsDisplay = true
+            scrollbarOverlayView?.scrollMetricsDidChange()
             if isMenuOpen {
                 dismissMenu()
-            } else {
+            } else if !isScrollbarDragging {
                 layoutHoverButtons()
             }
         }
@@ -2273,8 +2349,21 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
+        private func setScrollbarDragging(_ isDragging: Bool) {
+            guard isScrollbarDragging != isDragging else { return }
+            isScrollbarDragging = isDragging
+            if isDragging {
+                buttonsHost?.isHidden = true
+            } else {
+                layoutHoverButtons()
+            }
+        }
+
         private func layoutHoverButtons() {
-            guard let buttonsHost, let documentView, let hoveredRow,
+            guard !isScrollbarDragging,
+                  let buttonsHost,
+                  let documentView,
+                  let hoveredRow,
                   hoveredRow >= 0,
                   hoveredRow < rowCount,
                   let model = rowProvider(hoveredRow)

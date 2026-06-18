@@ -42,6 +42,11 @@ The work is intentionally limited to the table body scrollbars:
 - Thumb dragging maps overlay thumb movement back to the existing clip-view
   scroll offset and calls `reflectScrolledClipView(_:)`, so existing scroll
   notifications and visible-row updates continue to run.
+- Follow-up performance testing found drag feedback slower than the previous
+  native path. Drag updates now invalidate only old/new thumb rectangles instead
+  of the full overlay, duplicate visible-row notifications are skipped when the
+  visible range has not changed, and row hover button layout is paused while the
+  scrollbar thumb is being dragged.
 
 ## 4. Virtualization Constraints Preserved
 
@@ -63,7 +68,7 @@ swift test --quiet
 
 Result:
 
-- 287 tests passed after the follow-up hit-test coordinate fix.
+- 288 tests passed after the follow-up drag performance fix.
 - The command also printed an existing playback history disk I/O warning, but
   the test run completed successfully.
 
@@ -77,6 +82,8 @@ Focused coverage added:
 - Thumb drag delta maps to a positive scroll offset.
 - Overlay hit testing from a parent view coordinate resolves to the scrollbar
   overlay when the point lands on the interactive thumb area.
+- Duplicate visible-row notifications are skipped for scroll offsets that stay
+  within the same virtualized row range.
 
 ## 6. Outcome
 
