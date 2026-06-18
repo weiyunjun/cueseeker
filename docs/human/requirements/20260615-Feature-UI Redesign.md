@@ -916,7 +916,8 @@ Default
 Hover (Underline)
 
 #### Cursor
-Not specified in image
+Default / Non-text Area: default
+Cues Text Hover: pointer
 
 ### 2.21 Table Scrollbar
 
