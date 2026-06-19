@@ -212,7 +212,7 @@ enum SchemaWorkbenchSearchDefaults {
         ),
         WorkbenchTableColumn(
             id: "display",
-            title: "Display",
+            title: "Display Title",
             kind: .text,
             width: .fixed(300)
         ),
@@ -230,7 +230,7 @@ enum SchemaWorkbenchSearchDefaults {
         ),
         WorkbenchTableColumn(
             id: "language",
-            title: "Language",
+            title: "Title",
             kind: .multiSelect,
             width: .fixed(230)
         ),
@@ -529,7 +529,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     }
 
     private var visibleColumns: [WorkbenchTableColumn] {
-        columns.filter { visibleColumnIDs.contains($0.id) }
+        columns.filter {
+            visibleColumnIDs.contains($0.id) ||
+                SchemaWorkbenchColumnVisibilityMenu.isLocked($0.id)
+        }
     }
 
     private var activeFilterSetName: String? {
@@ -541,6 +544,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     }
 
     private func toggleColumnVisibility(_ columnID: String) {
+        guard !SchemaWorkbenchColumnVisibilityMenu.isLocked(columnID) else {
+            visibleColumnIDs.insert(columnID)
+            return
+        }
         if visibleColumnIDs.contains(columnID) {
             visibleColumnIDs.remove(columnID)
         } else {
@@ -979,6 +986,38 @@ struct SchemaWorkbenchLegacyFilterControlBar: View {
     }
 }
 
+struct SchemaWorkbenchColumnVisibilityMenuItem: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let isSelected: Bool
+    let isEnabled: Bool
+}
+
+enum SchemaWorkbenchColumnVisibilityMenu {
+    static let lockedColumnIDs: Set<String> = ["cues"]
+
+    static func isLocked(_ columnID: String) -> Bool {
+        lockedColumnIDs.contains(columnID)
+    }
+
+    static func items(
+        columns: [WorkbenchTableColumn],
+        visibleColumnIDs: Set<String>
+    ) -> [SchemaWorkbenchColumnVisibilityMenuItem] {
+        columns
+            .filter { $0.kind != .rowNumber }
+            .map { column in
+                let locked = isLocked(column.id)
+                return SchemaWorkbenchColumnVisibilityMenuItem(
+                    id: column.id,
+                    title: column.title,
+                    isSelected: locked || visibleColumnIDs.contains(column.id),
+                    isEnabled: !locked
+                )
+            }
+    }
+}
+
 struct SchemaWorkbenchColumnVisibilityPopover: View {
     let columns: [WorkbenchTableColumn]
     let visibleColumnIDs: Set<String>
@@ -988,18 +1027,26 @@ struct SchemaWorkbenchColumnVisibilityPopover: View {
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: isRedesign) {
             VStack(spacing: 0) {
-                ForEach(columns) { column in
+                ForEach(menuItems) { item in
                     WorkbenchPopoverRow(
-                        title: column.title,
-                        isSelected: visibleColumnIDs.contains(column.id),
+                        title: item.title,
+                        isSelected: item.isSelected,
                         isRedesign: isRedesign,
-                        action: {
-                            onToggleColumn(column.id)
-                        }
+                        isEnabled: item.isEnabled,
+                        action: item.isEnabled ? {
+                            onToggleColumn(item.id)
+                        } : nil
                     )
                 }
             }
         }
+    }
+
+    private var menuItems: [SchemaWorkbenchColumnVisibilityMenuItem] {
+        SchemaWorkbenchColumnVisibilityMenu.items(
+            columns: columns,
+            visibleColumnIDs: visibleColumnIDs
+        )
     }
 }
 

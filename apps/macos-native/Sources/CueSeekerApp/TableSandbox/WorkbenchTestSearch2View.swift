@@ -41,16 +41,20 @@ struct WorkbenchTestSearch2View: View {
             onSearchSubmit: {
                 submitSearchDraft()
             }
-        ) { _ in
+        ) { visibleColumns in
             SubtitleTableView(
                 tableName: "test-search-2",
                 rowCount: rowStore.snapshot.totalRowCount,
                 rowProvider: { rowStore.snapshot.row(at: $0) },
                 rowsVersion: rowStore.snapshot.version,
                 rowsUpdate: rowStore.snapshot.update,
-                displayTitleHeader: "Display Title",
-                showsLanguageColumn: true,
-                showsSpeakerColumn: true,
+                displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
+                cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
+                speakerHeader: columnTitle("speaker", in: visibleColumns, fallback: "Speaker"),
+                languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
+                showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
+                showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
+                showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
                 scrollResetToken: tableScrollResetToken,
                 onVisibleRowsChange: hydrateVisibleRows,
                 isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
@@ -97,6 +101,14 @@ struct WorkbenchTestSearch2View: View {
             hydrateLastVisibleRowsIfNeeded()
         }
         .onDisappear { visibleHydrator.cancel() }
+    }
+
+    private func isColumnVisible(_ id: String, in visibleColumns: [WorkbenchTableColumn]) -> Bool {
+        visibleColumns.contains { $0.id == id }
+    }
+
+    private func columnTitle(_ id: String, in visibleColumns: [WorkbenchTableColumn], fallback: String) -> String {
+        visibleColumns.first { $0.id == id }?.title ?? fallback
     }
 
     private var isAllCuesMode: Bool {

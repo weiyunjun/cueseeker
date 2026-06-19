@@ -48,6 +48,43 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
 
 @MainActor
 @Test
+func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
+    let loadedRow = SubtitleTableRow(
+        id: 1,
+        displayTitle: "Episode 01",
+        cues: "loaded cue",
+        tags: [
+            WorkbenchTag(key: "zh-hans"),
+            WorkbenchTag(key: "jp"),
+        ],
+        speakerTags: [
+            WorkbenchTag(key: "高松灯"),
+        ]
+    )
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "test-search-2",
+        rowCount: 1,
+        rowProvider: { _ in loadedRow },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsDisplayTitleColumn: false,
+        showsLanguageColumn: true,
+        showsSpeakerColumn: false,
+        onVisibleRowsChange: { _ in },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    #expect(coordinator.cellFullText(row: -1, column: 1) == "Cues")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Language")
+    #expect(coordinator.cellFullText(row: -1, column: 3) == "")
+    #expect(coordinator.cellFullText(row: 0, column: 1) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "zh-hans, jp")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "")
+}
+
+@MainActor
+@Test
 func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "test-search-2",
@@ -328,6 +365,45 @@ func subtitleTableViewHidesHorizontalScrollbarWhenContentFitsViewport() {
     )
 
     #expect(fixture.documentView.frame.width == fixture.scrollView.contentView.bounds.width)
+    #expect(metrics.isVisible(.horizontal) == false)
+}
+
+@MainActor
+@Test
+func subtitleTableViewClampsHorizontalScrollWhenColumnsAreHidden() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 900)
+
+    fixture.scrollView.contentView.scroll(to: CGPoint(x: 120, y: 0))
+    fixture.scrollView.reflectScrolledClipView(fixture.scrollView.contentView)
+    #expect(fixture.scrollView.contentView.bounds.origin.x > 0)
+
+    fixture.coordinator.update(
+        tableName: "test-search-2",
+        rowCount: 100,
+        rowProvider: { _ in nil },
+        rowsVersion: 1,
+        rowsUpdate: .none,
+        displayTitleHeader: "Display Title",
+        showsDisplayTitleColumn: false,
+        showsLanguageColumn: false,
+        showsSpeakerColumn: false,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    let metrics = SubtitleTableScrollbarMetrics(
+        viewportSize: fixture.scrollView.contentView.bounds.size,
+        contentSize: fixture.documentView.frame.size,
+        contentOffset: fixture.scrollView.contentView.bounds.origin
+    )
+
+    #expect(fixture.documentView.frame.width == fixture.scrollView.contentView.bounds.width)
+    #expect(fixture.scrollView.contentView.bounds.origin.x == 0)
     #expect(metrics.isVisible(.horizontal) == false)
 }
 

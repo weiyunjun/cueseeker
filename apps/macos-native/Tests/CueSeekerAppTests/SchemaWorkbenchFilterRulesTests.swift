@@ -11,6 +11,25 @@ func schemaWorkbenchStartsWithoutPresetFilterSets() {
 }
 
 @Test
+func schemaWorkbenchColumnVisibilityMenuLocksCuesAndSkipsCheckboxColumn() {
+    let items = SchemaWorkbenchColumnVisibilityMenu.items(
+        columns: SchemaWorkbenchSearchDefaults.columns,
+        visibleColumnIDs: ["display", "speaker"]
+    )
+
+    #expect(items.map(\.id) == ["display", "cues", "speaker", "language"])
+    #expect(items.map(\.title) == ["Display Title", "Cues", "Speaker", "Title"])
+
+    let cues = items.first { $0.id == "cues" }
+    #expect(cues?.isSelected == true)
+    #expect(cues?.isEnabled == false)
+
+    let language = items.first { $0.id == "language" }
+    #expect(language?.isSelected == false)
+    #expect(language?.isEnabled == true)
+}
+
+@Test
 func schemaWorkbenchFilterRulesConvertToCoreFilterSet() {
     let rules = [
         SchemaWorkbenchSearchDefaults.makeFilterRule(
