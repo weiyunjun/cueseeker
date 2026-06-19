@@ -24,6 +24,9 @@ This record covers the Test Search 2 View button column visibility feature.
 - Clamped the horizontal scroll offset after content width changes so hiding
   right-side columns cannot leave the header, body, or scrollbar thumb offset
   beyond the new content bounds.
+- Follow-up: after the human requirement corrected the fourth menu item from
+  `Title` to `Language`, restored the `language` column display title and menu
+  test expectation to `Language`.
 
 ## Virtualization And Scrollbar Constraints
 

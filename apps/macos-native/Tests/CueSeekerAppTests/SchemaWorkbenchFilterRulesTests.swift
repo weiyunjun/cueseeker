@@ -18,7 +18,7 @@ func schemaWorkbenchColumnVisibilityMenuLocksCuesAndSkipsCheckboxColumn() {
     )
 
     #expect(items.map(\.id) == ["display", "cues", "speaker", "language"])
-    #expect(items.map(\.title) == ["Display Title", "Cues", "Speaker", "Title"])
+    #expect(items.map(\.title) == ["Display Title", "Cues", "Speaker", "Language"])
 
     let cues = items.first { $0.id == "cues" }
     #expect(cues?.isSelected == true)

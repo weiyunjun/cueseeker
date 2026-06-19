@@ -230,7 +230,7 @@ enum SchemaWorkbenchSearchDefaults {
         ),
         WorkbenchTableColumn(
             id: "language",
-            title: "Title",
+            title: "Language",
             kind: .multiSelect,
             width: .fixed(230)
         ),
