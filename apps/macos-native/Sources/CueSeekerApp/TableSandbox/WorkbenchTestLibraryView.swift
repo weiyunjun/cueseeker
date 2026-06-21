@@ -311,10 +311,8 @@ private struct CompleteLibraryList: View {
                             videos: folder.videos,
                             onOpen: onOpenVideo
                         )
-                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
-                .animation(.easeInOut(duration: 0.16), value: expandedFolderPaths.contains(folder.folderPath))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

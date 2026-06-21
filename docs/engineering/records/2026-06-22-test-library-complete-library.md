@@ -40,6 +40,9 @@ leaving the existing Recent Watching slice intact.
   indexing refresh hooks.
 - Added the Test Library Complete Library section with folder cards, Neutral
   Continue Watching buttons, disclosure controls, and wrapping episode cards.
+- Aligned expand/collapse behavior with the formal Library: episode content
+  appears and disappears immediately, while only the disclosure chevron keeps
+  its rotation animation.
 - Added database tests for Complete Library presentation, continue-target
   selection, and fallback behavior.
 - Extended the database-read cancellation test to include Complete Library
