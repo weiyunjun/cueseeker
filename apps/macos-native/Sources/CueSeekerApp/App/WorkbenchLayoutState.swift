@@ -15,9 +15,6 @@ enum WorkbenchPanelMode: String, CaseIterable {
 enum WorkbenchTestPage: String, CaseIterable {
     case library
     case search
-    case shiori
-    case searchUI
-    case search2
 }
 
 @MainActor

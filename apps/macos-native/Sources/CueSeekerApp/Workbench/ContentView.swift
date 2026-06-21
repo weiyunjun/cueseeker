@@ -110,26 +110,8 @@ private struct AppTopBar: View {
 
                         TopbarTestButton(
                             page: .search,
-                            systemImage: "magnifyingglass.circle",
-                            help: "Test Search"
-                        )
-
-                        TopbarTestButton(
-                            page: .shiori,
-                            systemImage: "bookmark.circle",
-                            help: "Test Shiori"
-                        )
-
-                        TopbarTestButton(
-                            page: .searchUI,
-                            systemImage: "tablecells",
-                            help: "Test Search UI"
-                        )
-
-                        TopbarTestButton(
-                            page: .search2,
                             systemImage: "line.3.horizontal.decrease.circle",
-                            help: "Test Search 2"
+                            help: "Test Search"
                         )
                     }
                 }

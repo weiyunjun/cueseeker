@@ -62,7 +62,7 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
         ]
     )
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 1,
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,
@@ -87,7 +87,7 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
 @Test
 func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 100_000,
         rowProvider: { _ in nil },
         rowsVersion: 1,
@@ -110,7 +110,7 @@ func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
 @Test
 func subtitleTableViewTracksFocusedRedesignCheckboxRowSparsely() {
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 100_000,
         rowProvider: { _ in nil },
         rowsVersion: 1,
@@ -127,7 +127,7 @@ func subtitleTableViewTracksFocusedRedesignCheckboxRowSparsely() {
     #expect(coordinator.focusedCheckboxRowForTesting() == 99_999)
 
     coordinator.update(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 10,
         rowProvider: { _ in nil },
         rowsVersion: 2,
@@ -151,7 +151,7 @@ func subtitleTableViewTracksFocusedRedesignCheckboxRowSparsely() {
 @Test
 func subtitleTableViewChoosesFirstVisibleRowForKeyboardCheckboxEntry() {
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 100_000,
         rowProvider: { _ in nil },
         rowsVersion: 1,
@@ -172,7 +172,7 @@ func subtitleTableViewChoosesFirstVisibleRowForKeyboardCheckboxEntry() {
 @Test
 func subtitleTableViewRejectsKeyboardCheckboxEntryWhenNoRowsExist() {
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 0,
         rowProvider: { _ in nil },
         rowsVersion: 1,
@@ -251,7 +251,7 @@ func subtitleTableViewMouseCheckboxToggleDoesNotKeepKeyboardFocus() {
 func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
     var notifiedRanges = [Range<Int>]()
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 100_000,
         rowProvider: { _ in nil },
         rowsVersion: 1,
@@ -378,7 +378,7 @@ func subtitleTableViewClampsHorizontalScrollWhenColumnsAreHidden() {
     #expect(fixture.scrollView.contentView.bounds.origin.x > 0)
 
     fixture.coordinator.update(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 100,
         rowProvider: { _ in nil },
         rowsVersion: 1,
@@ -438,7 +438,7 @@ private func makeKeyboardFocusTableCoordinator(
     onToggleRowSelection: @escaping (Int) -> Void = { _ in }
 ) -> SubtitleTableView.Coordinator {
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: rowCount,
         rowProvider: { _ in nil },
         rowsVersion: 1,
@@ -483,7 +483,7 @@ private func makeAttachedVirtualTableCoordinator(width: CGFloat) -> (
         speakerTags: []
     )
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "test-search-2",
+        tableName: "test-search",
         rowCount: 100,
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,

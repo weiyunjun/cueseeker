@@ -1,7 +1,7 @@
 import SwiftUI
 import CueSeekerCore
 
-struct WorkbenchTestSearch2View: View {
+struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -43,7 +43,7 @@ struct WorkbenchTestSearch2View: View {
             }
         ) { visibleColumns in
             SubtitleTableView(
-                tableName: "test-search-2",
+                tableName: "test-search",
                 rowCount: rowStore.snapshot.totalRowCount,
                 rowProvider: { rowStore.snapshot.row(at: $0) },
                 rowsVersion: rowStore.snapshot.version,
@@ -150,7 +150,7 @@ struct WorkbenchTestSearch2View: View {
         rowStore.updateSearchRows(
             results,
             totalRowCount: search.searchResultTotalCount,
-            tableName: "test-search-2"
+            tableName: "test-search"
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         hydrateInitialRowsIfNeeded()
@@ -202,14 +202,14 @@ struct WorkbenchTestSearch2View: View {
                 return
             }
             guard let page = await appState.loadTableSandboxAllCueRows(range: 0..<240) else {
-                rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search-2")
+                rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
                 return
             }
             appState.applyTableSandboxAllCueSearchContext(page)
             rowStore.updateSearchRows(
                 page.results,
                 totalRowCount: page.totalRowCount,
-                tableName: "test-search-2"
+                tableName: "test-search"
             )
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
             hydrateLastVisibleRowsIfNeeded()
@@ -238,7 +238,7 @@ struct WorkbenchTestSearch2View: View {
             page.results,
             startIndex: page.range.lowerBound,
             totalRowCount: max(page.totalRowCount, rowStore.snapshot.totalRowCount),
-            tableName: "test-search-2"
+            tableName: "test-search"
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
