@@ -4494,7 +4494,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
             WHERE \(scopeCondition)
-            ORDER BY h.updated_at DESC, lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
+            ORDER BY julianday(h.updated_at) DESC, h.updated_at DESC,
+                     lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
             """
         )
 
@@ -4907,7 +4908,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         } else {
             try statement.bindNull(at: 3)
         }
-        try statement.bind(ISO8601DateFormatter().string(from: updatedAt), at: 4)
+        try statement.bind(Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt), at: 4)
         try statement.run()
     }
 
@@ -7317,6 +7318,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return lhs.videoPath.localizedStandardCompare(rhs.videoPath) == .orderedAscending
+    }
+
+    private static func libraryPlaybackHistoryUpdatedAtString(from date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 
     private static func folderPathVariants(for folder: URL) -> [String] {

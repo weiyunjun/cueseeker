@@ -45,6 +45,7 @@ extension AppCoordinator {
         indexing.removeFolder(folder)
         clearSearchAndPlaybackState(under: folder)
         refreshLibrary()
+        refreshRecentWatching()
         refreshCurrentSearch(clearExistingResults: true)
         refreshDatabaseStorageStats()
     }
@@ -85,6 +86,7 @@ extension AppCoordinator {
 
                 indexing.indexingStatus = .completed(folder, result)
                 refreshLibrary()
+                refreshRecentWatching()
                 refreshCurrentSearch()
                 refreshDatabaseStorageStats()
             } catch {
@@ -192,6 +194,7 @@ extension AppCoordinator {
                 aggregateResult
             )
             refreshLibrary()
+            refreshRecentWatching()
             refreshCurrentSearch()
             refreshDatabaseStorageStats()
         }
@@ -372,6 +375,9 @@ extension AppCoordinator {
 
         if case .loading = library.libraryStatus {
             library.libraryStatus = library.libraryVideos.isEmpty ? .idle : .completed
+        }
+        if case .loading = library.recentWatchingStatus {
+            library.recentWatchingStatus = library.recentWatchingItems.isEmpty ? .idle : .completed
         }
         if case .searching = search.searchStatus {
             search.searchStatus = .completed

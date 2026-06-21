@@ -44,6 +44,11 @@ persistence remain future work.
 - `swift test` succeeded after the initial implementation.
 - `swift test` succeeded again after preserving existing playback-history
   duration when touching a Recent Watching record.
+- `swift test --filter recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond`
+  succeeded after fixing same-second Recent Watching ordering.
+- `swift test --filter cancelDatabaseReadsResetsRecentWatchingLoadingState`
+  succeeded after fixing Recent Watching loading-state cancellation.
+- `swift test` succeeded after the bug fixes, with 313 tests passing.
 
 ## Outcome
 
@@ -52,3 +57,12 @@ persisted through the existing Library playback-history boundary, excludes
 Search/Shiori playback sources, deduplicates by folder, displays up to five
 items, and opens the selected video through the existing resume-capable Library
 playback path.
+
+## Follow-Up Bug Fixes
+
+- Playback history now writes ISO8601 timestamps with fractional seconds and
+  Recent Watching orders by SQLite time value before fallback tie-breakers, so
+  rapid same-second opens in one folder keep the later video.
+- Database-read cancellation now resets `recentWatchingStatus` out of loading,
+  and Library indexing/removal refreshes Recent Watching alongside the Library
+  presentation snapshot.

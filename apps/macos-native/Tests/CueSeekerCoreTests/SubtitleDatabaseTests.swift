@@ -2188,6 +2188,49 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
 }
 
 @Test
+func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let root = URL(fileURLWithPath: "/Media")
+    let episode3 = root.appendingPathComponent("Show/Episode 3.mkv")
+    let episode4 = root.appendingPathComponent("Show/Episode 4.mkv")
+
+    for videoFile in [episode3, episode4] {
+        try database.replaceEntries(
+            subtitleFile: videoFile.deletingPathExtension().appendingPathExtension("srt"),
+            videoFile: videoFile,
+            entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
+        )
+    }
+    try database.rebuildLibraryPresentationSnapshot()
+
+    let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: episode3,
+        positionMilliseconds: 30_000,
+        duration: 1_200.0,
+        updatedAt: baseDate.addingTimeInterval(0.100)
+    )
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: episode4,
+        positionMilliseconds: 40_000,
+        duration: 1_200.0,
+        updatedAt: baseDate.addingTimeInterval(0.200)
+    )
+
+    let recent = try database.recentLibraryWatching(under: [root], limit: 5)
+
+    #expect(recent.map(\.videoPath) == [episode4.path])
+    #expect(recent.first?.positionMilliseconds == 40_000)
+}
+
+@Test
 func shioriPersistsCueIdentityAndCreatedAt() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

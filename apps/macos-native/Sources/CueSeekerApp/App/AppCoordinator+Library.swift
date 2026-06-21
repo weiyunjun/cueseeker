@@ -140,7 +140,7 @@ extension AppCoordinator {
     }
 
     func hydrateRecentWatchingAsync() {
-        guard library.recentWatchingStatus != .loading else {
+        if case .loading = library.recentWatchingStatus, recentWatchingTask != nil {
             return
         }
         refreshRecentWatching()
