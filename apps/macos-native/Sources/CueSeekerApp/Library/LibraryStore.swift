@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import CueSeekerCore
 
 @MainActor
@@ -14,5 +15,6 @@ final class LibraryStore: ObservableObject {
     @Published var completeLibraryFolders: [CompleteLibraryFolderPresentation] = []
     @Published var completeLibraryRevision = 0
     @Published var completeLibraryExpandedFolderPaths: Set<String> = []
+    @Published var completeLibraryScrollOffsetY: CGFloat = 0
     @Published var selectedLibraryVideo: LibraryVideo?
 }

@@ -9,6 +9,9 @@ struct WorkbenchTestLibraryView: View {
 
     var body: some View {
         ScrollView {
+            LibraryScrollOffsetPersistenceView(offsetY: completeLibraryScrollOffsetY)
+                .frame(width: 0, height: 0)
+
             VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
                 LibrarySectionTitle("Recent Watching")
 
@@ -32,6 +35,13 @@ struct WorkbenchTestLibraryView: View {
             appState.refreshRecentWatching()
             appState.refreshCompleteLibrary()
         }
+    }
+
+    private var completeLibraryScrollOffsetY: Binding<CGFloat> {
+        Binding(
+            get: { library.completeLibraryScrollOffsetY },
+            set: { library.completeLibraryScrollOffsetY = max(0, $0) }
+        )
     }
 
     @ViewBuilder
@@ -780,5 +790,133 @@ private struct LibraryEmptyHint<Content: View>: View {
             .font(.system(size: WorkbenchTestLibraryMetrics.metaSize))
             .foregroundStyle(WorkbenchRedesignColors.textMuted)
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+    }
+}
+
+private struct LibraryScrollOffsetPersistenceView: NSViewRepresentable {
+    @Binding var offsetY: CGFloat
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(offsetY: $offsetY)
+    }
+
+    func makeNSView(context: Context) -> LibraryScrollOffsetReaderView {
+        let view = LibraryScrollOffsetReaderView()
+        view.desiredOffsetY = offsetY
+        view.onOffsetChange = { offsetY in
+            context.coordinator.offsetY.wrappedValue = offsetY
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: LibraryScrollOffsetReaderView, context: Context) {
+        context.coordinator.offsetY = $offsetY
+        nsView.desiredOffsetY = offsetY
+        nsView.onOffsetChange = { offsetY in
+            context.coordinator.offsetY.wrappedValue = offsetY
+        }
+        nsView.restoreIfNeeded()
+    }
+
+    static func dismantleNSView(_ nsView: LibraryScrollOffsetReaderView, coordinator: Coordinator) {
+        nsView.stopObserving()
+    }
+
+    final class Coordinator {
+        var offsetY: Binding<CGFloat>
+
+        init(offsetY: Binding<CGFloat>) {
+            self.offsetY = offsetY
+        }
+    }
+}
+
+private final class LibraryScrollOffsetReaderView: NSView {
+    var desiredOffsetY: CGFloat = 0
+    var onOffsetChange: ((CGFloat) -> Void)?
+
+    private weak var observedClipView: NSClipView?
+    private var boundsObserver: NSObjectProtocol?
+    private var didRestoreInitialOffset = false
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        scheduleAttachAndRestore()
+    }
+
+    func restoreIfNeeded() {
+        attachIfNeeded()
+
+        guard !didRestoreInitialOffset,
+              desiredOffsetY > 0,
+              let clipView = observedClipView,
+              let scrollView = clipView.enclosingScrollView,
+              let documentView = scrollView.documentView
+        else {
+            if desiredOffsetY <= 0 {
+                didRestoreInitialOffset = true
+            }
+            return
+        }
+
+        let maxOffsetY = max(0, documentView.bounds.height - clipView.bounds.height)
+        guard maxOffsetY > 0 else {
+            return
+        }
+
+        let restoredOffsetY = min(max(0, desiredOffsetY), maxOffsetY)
+        didRestoreInitialOffset = true
+        clipView.scroll(to: CGPoint(x: clipView.bounds.origin.x, y: restoredOffsetY))
+        scrollView.reflectScrolledClipView(clipView)
+        onOffsetChange?(restoredOffsetY)
+    }
+
+    func stopObserving() {
+        if let boundsObserver {
+            NotificationCenter.default.removeObserver(boundsObserver)
+        }
+        boundsObserver = nil
+        observedClipView = nil
+    }
+
+    private func scheduleAttachAndRestore() {
+        DispatchQueue.main.async { [weak self] in
+            self?.attachIfNeeded()
+            self?.restoreIfNeeded()
+        }
+    }
+
+    private func attachIfNeeded() {
+        guard let scrollView = enclosingScrollView else {
+            return
+        }
+
+        let clipView = scrollView.contentView
+        guard observedClipView !== clipView else {
+            return
+        }
+
+        stopObserving()
+        observedClipView = clipView
+        clipView.postsBoundsChangedNotifications = true
+        boundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clipView,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleBoundsChanged()
+            }
+        }
+    }
+
+    private func handleBoundsChanged() {
+        restoreIfNeeded()
+        guard didRestoreInitialOffset,
+              let clipView = observedClipView
+        else {
+            return
+        }
+        onOffsetChange?(max(0, clipView.bounds.origin.y))
     }
 }

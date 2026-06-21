@@ -34,6 +34,8 @@ leaving the existing Recent Watching slice intact.
   otherwise the first `Unwatched` episode, otherwise the first episode.
 - Added Complete Library loading/data/revision state and in-app expanded folder
   state to `LibraryStore`.
+- Added in-app page scroll offset persistence for the Test Library page using a
+  small AppKit scroll-view bridge compatible with macOS 13.
 - Added Complete Library refresh, cancellation reset, removal pruning, and
   indexing refresh hooks.
 - Added the Test Library Complete Library section with folder cards, Neutral
@@ -52,12 +54,6 @@ leaving the existing Recent Watching slice intact.
 ## Outcome
 
 Complete Library now loads real indexed Library data in the Test Library page,
-keeps expansion state during the App session, exposes folder-level Continue
-Watching, expands folders into wrapping video cards, and opens videos through
-the existing resume-capable Library playback path.
-
-## Known Follow-Up
-
-- Exact page scroll-position restoration is not implemented in this slice. The
-  expanded/collapsed state persists during the App session; scroll behavior can
-  be refined after end-to-end UI testing.
+keeps expansion and page scroll state during the App session, exposes
+folder-level Continue Watching, expands folders into wrapping video cards, and
+opens videos through the existing resume-capable Library playback path.
