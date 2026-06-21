@@ -16,9 +16,19 @@ Recent Watching和Complete Library，是居左的标题的样式，只读，没�
 2. 文件夹卡片
 每行包含一个文件夹信息，从左到右分别是：1. 文件夹封面图，目前还在写需求，马上可以实装。2. 文件夹名称。3. Last Watched: EP08，用灰色的次要信息字体颜色。4. 继续观看按钮（Continue Watching Button，Base Component: Neutral Button，Leading Icon: play，Label: Continue Watching）。点击以后会播放最新的观看进度（播放观看中最后的一集，如果没有观看中的但是有未观看的播放未观看的最前的一集，如果全观看了就播放第一集）4. 展开/收起按钮。
 3. 展开的内容
-收起状态下，点击展开/收起按钮，会弹出具体的每一集在下方，包含若干视频卡片，和最近观看卡片相比，包含第一部分和第三部分（封面图，进度条，进度数字信息，集数，当前播放状态标签）。这里要启用懒加载，优先铺满界面，后续滚动时，需要提前一点点懒加载好剩下的部分。具体实现参考正式的Search界面的懒加载。
+收起状态下，点击展开/收起按钮，会弹出具体的每一集在下方，包含若干视频卡片，和最近观看卡片相比，包含第一部分和第三部分（封面图，进度条，进度数字信息，集数，当前播放状态标签）。
 4. 排版
 这里需要做自适应排版。
+
+## 注意事项
+1. Recent Watching或Complete Library或展开内容为空时，显示2.33 Empty Hint。
+2. Recent Watching只显示最近5个视频的内容。
+3. Recent Watching，会合并来自同一文件夹下的视频，例如某个番剧，先看第3集再看第4集，此时只会留下1个记录，即第4集的记录。
+4. Recent Watching，只会记录从Library入口打开的视频，Search和Shiori入口打开的视频是不会计算的。从逻辑上讲，和记录Library视频的进度是consistent的。
+5. Complete Library展开的内容，要启用懒加载，优先铺满界面，后续滚动时，需要提前一点点懒加载好剩下的部分。具体实现参考正式的Search界面的懒加载。
+6. Complete Library的文件夹排序规则，参考正式的Library实现。
+7. Test Library页面整体使用单一纵向滚动容器。Recent Watching和Complete Library在同一个滚动上下文中；当Complete Library内容较多且页面向下滚动时，Recent Watching可以滚出可视区域。
+8. 状态持久化：Recent Watching需要持久化。Complete Library的展开/收起状态以及页面目前滚动到的位置，需要在 App 打开期间保持。
 
 # UI文档
 ## 1. Core Tokens
@@ -1259,3 +1269,23 @@ Disabled / Missing File
 #### Cursor
 Default / Hover: pointer
 Disabled: not-allowed
+
+### 2.33 Empty Hint
+
+#### Container
+Display: flex
+Align Items: center
+Justify Content: center
+Background: transparent
+Border: none
+
+#### Content
+Font Family: --font-family-base
+Font Size: --font-size-library-meta
+Text Color: --color-text-muted
+
+#### Status
+Default
+
+#### Cursor
+default
