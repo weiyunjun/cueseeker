@@ -393,6 +393,37 @@ public struct LibraryPlaybackHistory: Equatable, Sendable {
     public let updatedAt: String
 }
 
+public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiable {
+    public let videoPath: String
+    public let videoName: String
+    public let duration: Double?
+    public let subtitlePath: String
+    public let subtitleFormat: SubtitleFormat
+    public let displayTitle: String
+    public let fileExtension: String
+    public let folderPath: String
+    public let folderTitle: String
+    public let episodeNumber: Int
+    public let positionMilliseconds: Int
+    public let playbackDuration: Double?
+    public let updatedAt: String
+    public let coverPath: String?
+
+    public var id: String {
+        videoPath
+    }
+
+    public var libraryVideo: LibraryVideo {
+        LibraryVideo(
+            videoPath: videoPath,
+            videoName: videoName,
+            duration: duration,
+            subtitlePath: subtitlePath,
+            subtitleFormat: subtitleFormat
+        )
+    }
+}
+
 public enum PlaybackNavigationEntryKind: String, Equatable, Sendable, Codable {
     case library
     case search
@@ -4436,6 +4467,79 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return groups
     }
 
+    public func recentLibraryWatching(
+        under folders: [URL],
+        limit: Int = 5
+    ) throws -> [RecentLibraryWatchingPresentation] {
+        let cappedLimit = max(0, limit)
+        guard cappedLimit > 0 else {
+            return []
+        }
+
+        let pathPrefixes = Self.folderPathPrefixes(for: folders)
+        guard !pathPrefixes.isEmpty else {
+            return []
+        }
+
+        let scopeCondition = pathPrefixes.map { _ in "(lvr.subtitle_path >= ? AND lvr.subtitle_path < ?)" }
+            .joined(separator: " OR ")
+        let statement = try database.prepare(
+            """
+            SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
+                   lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
+                   lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
+                   h.updated_at, vc.cover_path
+            FROM library_playback_history h
+            JOIN library_video_rows lvr ON lvr.video_path = h.video_path
+            LEFT JOIN video_files vf ON vf.path = lvr.video_path
+            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
+            WHERE \(scopeCondition)
+            ORDER BY h.updated_at DESC, lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
+            """
+        )
+
+        var bindIndex: Int32 = 1
+        try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        for prefix in pathPrefixes {
+            try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+            bindIndex += 1
+        }
+
+        var rows: [RecentLibraryWatchingPresentation] = []
+        var seenFolderPaths = Set<String>()
+
+        while try statement.step(), rows.count < cappedLimit {
+            let folderPath = statement.stringColumn(0)
+            guard seenFolderPaths.insert(folderPath).inserted else {
+                continue
+            }
+
+            rows.append(
+                RecentLibraryWatchingPresentation(
+                    videoPath: statement.stringColumn(2),
+                    videoName: statement.stringColumn(3),
+                    duration: statement.nullableDoubleColumn(4),
+                    subtitlePath: statement.stringColumn(5),
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
+                    displayTitle: statement.stringColumn(7),
+                    fileExtension: statement.stringColumn(8),
+                    folderPath: folderPath,
+                    folderTitle: statement.stringColumn(1),
+                    episodeNumber: max(1, statement.intColumn(9) + 1),
+                    positionMilliseconds: max(0, statement.intColumn(10)),
+                    playbackDuration: statement.nullableDoubleColumn(11),
+                    updatedAt: statement.stringColumn(12),
+                    coverPath: statement.nullableStringColumn(13)
+                )
+            )
+        }
+
+        return rows
+    }
+
     public func rebuildLibraryPresentationSnapshot() throws {
         let videosByFolderPath = Dictionary(grouping: try indexedLibraryVideos(scopedTo: nil)) {
             URL(fileURLWithPath: $0.videoPath)
@@ -4782,7 +4886,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func upsertLibraryPlaybackHistory(
         videoFile: URL,
         positionMilliseconds: Int,
-        duration: Double?
+        duration: Double?,
+        updatedAt: Date = Date()
     ) throws {
         let statement = try database.prepare(
             """
@@ -4802,7 +4907,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         } else {
             try statement.bindNull(at: 3)
         }
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 4)
+        try statement.bind(ISO8601DateFormatter().string(from: updatedAt), at: 4)
         try statement.run()
     }
 

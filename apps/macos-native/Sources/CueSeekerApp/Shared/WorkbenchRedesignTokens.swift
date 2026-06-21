@@ -101,6 +101,22 @@ enum WorkbenchRedesignColors {
         static let chipLanguageBg = NSColor.dynamic(lightHex: "#DBEAFE", darkHex: "#172A4A")
         static let chipLanguageText = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#93C5FD")
 
+        // Watch Status
+        static let watchStatusUnwatchedBg = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#27272A")
+        static let watchStatusUnwatchedText = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
+        static let watchStatusWatchingBg = NSColor.dynamic(lightHex: "#DBEAFE", darkHex: "#172A4A")
+        static let watchStatusWatchingText = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#93C5FD")
+        static let watchStatusFinishedBg = NSColor.dynamic(lightHex: "#D1FAE5", darkHex: "#123A2A")
+        static let watchStatusFinishedText = NSColor.dynamic(lightHex: "#047857", darkHex: "#6EE7B7")
+
+        // Library Media
+        static let libraryProgressFill = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#7AA2FF")
+        static let libraryProgressTrack = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
+        static let libraryTimeBadgeBg = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.72, darkHex: "#000000", darkAlpha: 0.58)
+        static let libraryTimeBadgeText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
+        static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
+        static let libraryMediaCardHoverBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#27272A")
+
         // Shadow Color
         static let shadowPopover = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.12, darkHex: "#000000", darkAlpha: 0.36)
     }
@@ -169,6 +185,22 @@ enum WorkbenchRedesignColors {
     static let chipSpeakerText = Color(nsColor: NS.chipSpeakerText)
     static let chipLanguageBg = Color(nsColor: NS.chipLanguageBg)
     static let chipLanguageText = Color(nsColor: NS.chipLanguageText)
+
+    // Watch Status
+    static let watchStatusUnwatchedBg = Color(nsColor: NS.watchStatusUnwatchedBg)
+    static let watchStatusUnwatchedText = Color(nsColor: NS.watchStatusUnwatchedText)
+    static let watchStatusWatchingBg = Color(nsColor: NS.watchStatusWatchingBg)
+    static let watchStatusWatchingText = Color(nsColor: NS.watchStatusWatchingText)
+    static let watchStatusFinishedBg = Color(nsColor: NS.watchStatusFinishedBg)
+    static let watchStatusFinishedText = Color(nsColor: NS.watchStatusFinishedText)
+
+    // Library Media
+    static let libraryProgressFill = Color(nsColor: NS.libraryProgressFill)
+    static let libraryProgressTrack = Color(nsColor: NS.libraryProgressTrack)
+    static let libraryTimeBadgeBg = Color(nsColor: NS.libraryTimeBadgeBg)
+    static let libraryTimeBadgeText = Color(nsColor: NS.libraryTimeBadgeText)
+    static let libraryCoverPlaceholderBg = Color(nsColor: NS.libraryCoverPlaceholderBg)
+    static let libraryMediaCardHoverBg = Color(nsColor: NS.libraryMediaCardHoverBg)
 
     // Shadow Popover
     static let shadowPopover = WorkbenchRedesignShadow(

@@ -320,6 +320,7 @@ final class AppCoordinator: ObservableObject {
             && !search.isSearching
             && indexing.searchFTSVocabularyDiagnosticsTask == nil
             && library.libraryStatus != .loading
+            && library.recentWatchingStatus != .loading
     }
 
     let userDefaults: UserDefaults
@@ -328,6 +329,7 @@ final class AppCoordinator: ObservableObject {
     var startupDatabaseTask: Task<Void, Never>?
     var indexingTask: Task<Void, Never>?
     var libraryTask: Task<Void, Never>?
+    var recentWatchingTask: Task<Void, Never>?
     var shiorisTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var searchTask: Task<Void, Never>?

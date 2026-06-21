@@ -2123,6 +2123,71 @@ func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
 }
 
 @Test
+func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let root = URL(fileURLWithPath: "/Media")
+    let showA1 = root.appendingPathComponent("Show A/Episode 1.mkv")
+    let showA2 = root.appendingPathComponent("Show A/Episode 2.mkv")
+    let showB1 = root.appendingPathComponent("Show B/Episode 1.mkv")
+    let showC1 = root.appendingPathComponent("Show C/Episode 1.mkv")
+    let showD1 = root.appendingPathComponent("Show D/Episode 1.mkv")
+    let showE1 = root.appendingPathComponent("Show E/Episode 1.mkv")
+    let showF1 = root.appendingPathComponent("Show F/Episode 1.mkv")
+
+    for videoFile in [showA1, showA2, showB1, showC1, showD1, showE1, showF1] {
+        let subtitleFile = videoFile
+            .deletingPathExtension()
+            .appendingPathExtension("srt")
+        try database.replaceEntries(
+            subtitleFile: subtitleFile,
+            videoFile: videoFile,
+            entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
+        )
+    }
+    try database.rebuildLibraryPresentationSnapshot()
+
+    let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
+    let history: [(URL, Int, TimeInterval)] = [
+        (showA1, 10_000, 0),
+        (showB1, 20_000, 1),
+        (showC1, 30_000, 2),
+        (showD1, 40_000, 3),
+        (showE1, 50_000, 4),
+        (showF1, 60_000, 5),
+        (showA2, 70_000, 6)
+    ]
+    for (videoFile, positionMilliseconds, dateOffset) in history {
+        try database.upsertLibraryPlaybackHistory(
+            videoFile: videoFile,
+            positionMilliseconds: positionMilliseconds,
+            duration: 1_200.0,
+            updatedAt: baseDate.addingTimeInterval(dateOffset)
+        )
+    }
+
+    let recent = try database.recentLibraryWatching(under: [root], limit: 5)
+
+    #expect(recent.map(\.videoPath) == [
+        showA2.path,
+        showF1.path,
+        showE1.path,
+        showD1.path,
+        showC1.path
+    ])
+    #expect(recent.map(\.folderTitle) == ["Show A", "Show F", "Show E", "Show D", "Show C"])
+    #expect(recent.first?.episodeNumber == 2)
+    #expect(recent.first?.positionMilliseconds == 70_000)
+    #expect(recent.first?.playbackDuration == 1_200.0)
+}
+
+@Test
 func shioriPersistsCueIdentityAndCreatedAt() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

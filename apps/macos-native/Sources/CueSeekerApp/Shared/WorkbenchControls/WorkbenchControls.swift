@@ -65,6 +65,53 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeTable: CGFloat = 14
     /// --font-size-body: 14px
     static let redesignFontSizeBody: CGFloat = 14
+    /// --font-size-caption: 12px
+    static let redesignFontSizeCaption: CGFloat = 12
+
+    /// --aspect-library-cover: 16 / 9
+    static let redesignLibraryCoverAspectRatio: CGFloat = 16.0 / 9.0
+    /// --height-library-progress-bar: 4px
+    static let redesignLibraryProgressBarHeight: CGFloat = 4
+    /// --width-library-recent-card-min: 180px
+    static let redesignLibraryRecentCardMinWidth: CGFloat = 180
+    /// --width-library-recent-card-max: 220px
+    static let redesignLibraryRecentCardMaxWidth: CGFloat = 220
+    /// --width-library-episode-card: 160px
+    static let redesignLibraryEpisodeCardWidth: CGFloat = 160
+    /// --width-library-folder-cover: 120px
+    static let redesignLibraryFolderCoverWidth: CGFloat = 120
+    /// --min-height-library-folder-card: 96px
+    static let redesignLibraryFolderCardMinHeight: CGFloat = 96
+    /// --radius-library-cover: 8px
+    static let redesignLibraryCoverRadius: CGFloat = 8
+    /// --radius-library-time-badge: 6px
+    static let redesignLibraryTimeBadgeRadius: CGFloat = 6
+    /// --radius-library-folder-card: 8px
+    static let redesignLibraryFolderCardRadius: CGFloat = 8
+    /// --radius-library-media-card-hover: 20px
+    static let redesignLibraryMediaCardHoverRadius: CGFloat = 20
+    /// --gap-library-recent-grid: 16px
+    static let redesignLibraryRecentGridGap: CGFloat = 16
+    /// --gap-library-episode-grid-card: 12px
+    static let redesignLibraryEpisodeGridCardGap: CGFloat = 12
+    /// --gap-library-folder-card-content: 12px
+    static let redesignLibraryFolderCardContentGap: CGFloat = 12
+    /// --padding-library-folder-card: 12px 16px
+    static let redesignLibraryFolderCardVerticalPadding: CGFloat = 12
+    static let redesignLibraryFolderCardHorizontalPadding: CGFloat = 16
+    /// --padding-library-time-badge: 2px 6px
+    static let redesignLibraryTimeBadgeVerticalPadding: CGFloat = 2
+    static let redesignLibraryTimeBadgeHorizontalPadding: CGFloat = 6
+    /// --padding-library-media-card-hover: 12px
+    static let redesignLibraryMediaCardHoverPadding: CGFloat = 12
+    /// --font-size-section-title: 18px
+    static let redesignFontSizeSectionTitle: CGFloat = 18
+    /// --font-size-library-title: 14px
+    static let redesignFontSizeLibraryTitle: CGFloat = 14
+    /// --font-size-library-meta: 12px
+    static let redesignFontSizeLibraryMeta: CGFloat = 12
+    /// --font-size-library-time-badge: 12px
+    static let redesignFontSizeLibraryTimeBadge: CGFloat = 12
 }
 
 enum WorkbenchControlColors {

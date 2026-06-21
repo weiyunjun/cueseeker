@@ -356,6 +356,8 @@ extension AppCoordinator {
         cancelStartupDatabaseTask()
         libraryTask?.cancel()
         libraryTask = nil
+        recentWatchingTask?.cancel()
+        recentWatchingTask = nil
         searchTask?.cancel()
         searchTask = nil
         searchExactCompletionTask?.cancel()

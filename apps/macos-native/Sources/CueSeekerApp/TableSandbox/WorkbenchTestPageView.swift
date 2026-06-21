@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// Table-style UI sandbox pages, reachable only through the top-bar test icons
-/// so production views stay untouched. Library stays blank for future Library
-/// redesign work; Search hosts the current schema-driven table on real data.
+/// so production views stay untouched.
 struct WorkbenchTestPageView: View {
     let page: WorkbenchTestPage
 
@@ -13,7 +12,7 @@ struct WorkbenchTestPageView: View {
 
             switch page {
             case .library:
-                EmptyView()
+                WorkbenchTestLibraryView()
             case .search:
                 WorkbenchTestSearchView()
             }

@@ -139,6 +139,49 @@ extension AppCoordinator {
         }
     }
 
+    func hydrateRecentWatchingAsync() {
+        guard library.recentWatchingStatus != .loading else {
+            return
+        }
+        refreshRecentWatching()
+    }
+
+    func refreshRecentWatching() {
+        recentWatchingTask?.cancel()
+
+        let folders = indexing.selectedFolders
+        guard !folders.isEmpty else {
+            applyRecentWatching([])
+            library.recentWatchingStatus = .idle
+            return
+        }
+
+        guard let database = subtitleDatabase else {
+            applyRecentWatching([])
+            library.recentWatchingStatus = .failed("Database is not initialized")
+            return
+        }
+
+        library.recentWatchingStatus = .loading
+        recentWatchingTask = Task { [weak self] in
+            do {
+                let snapshot = try await Task.detached(priority: .userInitiated) {
+                    try database.recentLibraryWatching(under: folders)
+                }.value
+
+                guard !Task.isCancelled else { return }
+
+                self?.applyRecentWatching(snapshot)
+                self?.library.recentWatchingStatus = .completed
+            } catch {
+                guard !Task.isCancelled else { return }
+                print("Failed to hydrate recent Library watching asynchronously: \(error)")
+                self?.applyRecentWatching([])
+                self?.library.recentWatchingStatus = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
         let groups = Self.makeLibraryFolderGroups(from: snapshot)
         library.libraryFolderGroups = groups
@@ -149,6 +192,15 @@ extension AppCoordinator {
         UIInvalidationProbe.count(
             "UI.LibraryPresentationSnapshot.rebuilt",
             details: "groups=\(groups.count) rows=\(library.libraryVideos.count)"
+        )
+    }
+
+    func applyRecentWatching(_ snapshot: [RecentLibraryWatchingPresentation]) {
+        library.recentWatchingItems = snapshot
+        library.recentWatchingRevision += 1
+        UIInvalidationProbe.count(
+            "UI.RecentWatchingSnapshot.rebuilt",
+            details: "rows=\(snapshot.count)"
         )
     }
 
@@ -179,6 +231,7 @@ extension AppCoordinator {
         if recordsNavigationHistory {
             recordPlaybackNavigationEntry(playbackNavigationPayload(for: video))
         }
+        recordRecentLibraryWatching(for: video)
         library.selectedLibraryVideo = video
         search.selectedSearchResult = nil
         shiori.selectedShiori = nil
@@ -187,6 +240,17 @@ extension AppCoordinator {
             await Task.yield()
             play(video)
         }
+    }
+
+    func recordRecentLibraryWatching(for video: LibraryVideo) {
+        let existingHistory = libraryPlaybackHistory(for: video)
+        let snapshot = LibraryPlaybackHistorySnapshot(
+            videoPath: video.videoPath,
+            positionMilliseconds: existingHistory?.positionMilliseconds ?? 0,
+            duration: existingHistory?.duration ?? video.duration
+        )
+        libraryPlaybackHistoryWriter.saveAndWait(snapshot)
+        refreshRecentWatching()
     }
 
     func play(_ video: LibraryVideo) {
@@ -282,16 +346,20 @@ extension AppCoordinator {
     }
 
     func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
+        libraryPlaybackHistory(for: video)?.positionMilliseconds ?? 0
+    }
+
+    func libraryPlaybackHistory(for video: LibraryVideo) -> LibraryPlaybackHistory? {
         guard let database = subtitleDatabase else {
-            return 0
+            return nil
         }
         do {
             return try database.libraryPlaybackHistory(
                 forVideoFile: URL(fileURLWithPath: video.videoPath)
-            )?.positionMilliseconds ?? 0
+            )
         } catch {
             print("Failed to load Library playback history: \(error)")
-            return 0
+            return nil
         }
     }
 
