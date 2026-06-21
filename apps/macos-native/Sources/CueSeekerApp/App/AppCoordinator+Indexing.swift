@@ -64,12 +64,17 @@ extension AppCoordinator {
             indexing.indexingStatus = .failed(folder, "Database is not initialized")
             return
         }
+        let coverDirectory = LibraryCoverIndexer.defaultCoverDirectory(forDatabaseURL: databaseURL)
         indexingTask = Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
                     let indexer = SubtitleIndexer()
                     let result = try indexer.index(folder: folder, into: database)
                     _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
+                    let coverIndexer = LibraryCoverIndexer(
+                        configuration: .init(coverDirectory: coverDirectory)
+                    )
+                    _ = try await coverIndexer.indexCovers(under: folder, into: database)
                     try database.rebuildLibraryPresentationSnapshot()
                     return result
                 }.value
@@ -118,6 +123,7 @@ extension AppCoordinator {
             indexing.indexingStatus = .failed(firstFolder, "Database is not initialized")
             return
         }
+        let coverDirectory = LibraryCoverIndexer.defaultCoverDirectory(forDatabaseURL: databaseURL)
         indexingTask = Task {
             var aggregateResult: SubtitleIndexingResult?
 
@@ -137,6 +143,10 @@ extension AppCoordinator {
                         let indexer = SubtitleIndexer()
                         let result = try indexer.index(folder: folder, into: database)
                         _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
+                        let coverIndexer = LibraryCoverIndexer(
+                            configuration: .init(coverDirectory: coverDirectory)
+                        )
+                        _ = try await coverIndexer.indexCovers(under: folder, into: database)
                         return result
                     }.value
 

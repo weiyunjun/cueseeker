@@ -48,6 +48,7 @@ public struct SubtitleIndexer {
                 result.skippedMissingVideo += 1
                 continue
             }
+            try database.refreshVideoFileMetadata(videoFile)
 
             let attributes = try? FileManager.default.attributesOfItem(atPath: subtitleFile.path)
             let fileSize = (attributes?[.size] as? NSNumber)?.int64Value

@@ -233,6 +233,38 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
 }
 
 @Test
+func reindexingUnchangedSubtitleFileRefreshesVideoFileMetadata() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Stable searchable text.
+
+        """
+    )
+    let videoURL = try fixture.writeVideo(name: "Episode.mp4")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    _ = try indexer.index(folder: fixture.root, into: database)
+    try Data(repeating: 0x42, count: 16).write(to: videoURL)
+
+    let unchangedResult = try indexer.index(folder: fixture.root, into: database)
+    let coverVideos = try database.libraryCoverEligibleVideos(under: [fixture.root])
+    let coverVideo = try #require(coverVideos.first)
+
+    #expect(unchangedResult.skippedUnchangedSubtitleFiles == 1)
+    #expect(coverVideo.fileSize == 16)
+}
+
+@Test
 func reindexingUnchangedSubtitleFileWithoutLanguageManifestRewritesOnce() throws {
     let fixture = try IndexingFixture()
     defer {

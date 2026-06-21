@@ -1935,6 +1935,110 @@ func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
 }
 
 @Test
+func libraryCoverEligibleVideosFollowSubtitleMatchesAndLibraryOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
+    let episode11Video = URL(fileURLWithPath: "/Media/Show 2/Episode 11.mkv")
+    let otherFolderVideo = URL(fileURLWithPath: "/Media/Show 11/Episode 1.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 2.ja.srt"),
+        videoFile: episode2Video,
+        entries: [databaseTestEntry(text: "Japanese subtitle")]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 2.en.srt"),
+        videoFile: episode2Video,
+        entries: [databaseTestEntry(text: "English subtitle")]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 2/Episode 11.srt"),
+        videoFile: episode11Video,
+        entries: [databaseTestEntry(text: "Later episode")]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show 11/Episode 1.srt"),
+        videoFile: otherFolderVideo,
+        entries: [databaseTestEntry(text: "Other folder episode")]
+    )
+    try database.updateVideoDuration(videoFile: episode2Video, duration: 125.4)
+
+    let videos = try database.libraryCoverEligibleVideos(under: [URL(fileURLWithPath: "/Media")])
+
+    #expect(videos.map(\.videoPath) == [
+        episode2Video.path,
+        episode11Video.path,
+        otherFolderVideo.path
+    ])
+    #expect(videos[0].duration == 125.4)
+    #expect(videos[0].subtitlePath == "/Media/Show 2/Episode 2.en.srt")
+    #expect(videos[0].folderPath == "/Media/Show 2")
+}
+
+@Test
+func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let videoURL = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),
+        videoFile: videoURL,
+        entries: [databaseTestEntry(text: "Cover candidate")]
+    )
+    try database.updateVideoDuration(videoFile: videoURL, duration: 1440.25)
+
+    let videos = try database.libraryCoverEligibleVideos(under: [URL(fileURLWithPath: "/Media")])
+    let video = try #require(videos.first)
+    try database.upsertLibraryVideoCover(
+        videoFileID: video.videoFileID,
+        coverPath: "/Library/Application Support/CueSeeker/Covers/Videos/example.jpg",
+        sourceTimeMilliseconds: 432_000,
+        score: 82.5,
+        algorithmVersion: 1,
+        generatedFileSize: video.fileSize,
+        generatedDuration: video.duration,
+        status: .generated,
+        errorMessage: nil
+    )
+
+    let storedCover = try database.libraryVideoCover(forVideoFileID: video.videoFileID)
+    let cover = try #require(storedCover)
+    #expect(cover.coverPath == "/Library/Application Support/CueSeeker/Covers/Videos/example.jpg")
+    #expect(cover.sourceTimeMilliseconds == 432_000)
+    #expect(cover.score == 82.5)
+    #expect(cover.algorithmVersion == 1)
+    #expect(cover.generatedFileSize == video.fileSize)
+    #expect(cover.generatedDuration == 1440.25)
+    #expect(cover.status == .generated)
+    #expect(cover.errorMessage == nil)
+
+    try database.upsertLibraryFolderCover(
+        folderPath: video.folderPath,
+        coverPath: cover.coverPath,
+        sourceVideoFileID: video.videoFileID
+    )
+
+    let storedFolderCover = try database.libraryFolderCover(folderPath: video.folderPath)
+    let folderCover = try #require(storedFolderCover)
+    #expect(folderCover.folderPath == "/Media/Show")
+    #expect(folderCover.coverPath == cover.coverPath)
+    #expect(folderCover.sourceVideoFileID == video.videoFileID)
+}
+
+@Test
 func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

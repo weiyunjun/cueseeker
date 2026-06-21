@@ -302,6 +302,56 @@ public struct LibraryVideo: Equatable, Sendable, Identifiable {
     }
 }
 
+public enum LibraryCoverStatus: String, Sendable {
+    case generated
+    case failed
+}
+
+public struct LibraryCoverEligibleVideo: Equatable, Sendable, Identifiable {
+    public let videoFileID: Int64
+    public let videoPath: String
+    public let videoName: String
+    public let fileSize: Int64?
+    public let duration: Double?
+    public let subtitlePath: String
+    public let subtitleFormat: SubtitleFormat
+    public let folderPath: String
+
+    public var id: Int64 {
+        videoFileID
+    }
+
+    var libraryVideo: LibraryVideo {
+        LibraryVideo(
+            videoPath: videoPath,
+            videoName: videoName,
+            duration: duration,
+            subtitlePath: subtitlePath,
+            subtitleFormat: subtitleFormat
+        )
+    }
+}
+
+public struct LibraryVideoCover: Equatable, Sendable {
+    public let videoFileID: Int64
+    public let coverPath: String
+    public let sourceTimeMilliseconds: Int
+    public let score: Double?
+    public let algorithmVersion: Int
+    public let generatedFileSize: Int64?
+    public let generatedDuration: Double?
+    public let status: LibraryCoverStatus
+    public let errorMessage: String?
+    public let generatedAt: String
+}
+
+public struct LibraryFolderCover: Equatable, Sendable {
+    public let folderPath: String
+    public let coverPath: String
+    public let sourceVideoFileID: Int64
+    public let generatedAt: String
+}
+
 public struct LibraryVideoPresentation: Equatable, Sendable, Identifiable {
     public let videoPath: String
     public let videoName: String
@@ -909,7 +959,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 18
+    public static let currentSchemaVersion: Int = 19
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1212,6 +1262,34 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE INDEX IF NOT EXISTS idx_library_video_rows_order
                 ON library_video_rows(folder_order, video_order);
+
+            CREATE TABLE IF NOT EXISTS video_covers (
+                video_file_id INTEGER PRIMARY KEY,
+                cover_path TEXT NOT NULL,
+                source_time_ms INTEGER NOT NULL,
+                score REAL,
+                algorithm_version INTEGER NOT NULL,
+                generated_file_size INTEGER,
+                generated_duration REAL,
+                status TEXT NOT NULL,
+                error_message TEXT,
+                generated_at TEXT NOT NULL,
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_video_covers_status
+                ON video_covers(status);
+
+            CREATE TABLE IF NOT EXISTS folder_covers (
+                folder_path TEXT PRIMARY KEY,
+                cover_path TEXT NOT NULL,
+                source_video_file_id INTEGER NOT NULL,
+                generated_at TEXT NOT NULL,
+                FOREIGN KEY(source_video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_folder_covers_source_video
+                ON folder_covers(source_video_file_id);
 
             CREATE TABLE IF NOT EXISTS subtitle_search_order_rows (
                 subtitle_path TEXT PRIMARY KEY,
@@ -4085,6 +4163,208 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return try indexedLibraryVideos(scopedTo: pathPrefixes)
     }
 
+    public func libraryCoverEligibleVideos(under folders: [URL]) throws -> [LibraryCoverEligibleVideo] {
+        let pathPrefixes = Self.folderPathPrefixes(for: folders)
+        guard !pathPrefixes.isEmpty else {
+            return []
+        }
+
+        let scopeCondition = pathPrefixes.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
+            .joined(separator: " OR ")
+        let statement = try database.prepare(
+            """
+            SELECT vf.id, vf.path, vf.video_name, vf.file_size, vf.duration,
+                   sf.subtitle_path, sf.format
+            FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            WHERE \(scopeCondition)
+            ORDER BY vf.path ASC, sf.subtitle_path ASC;
+            """
+        )
+
+        var bindIndex: Int32 = 1
+        for prefix in pathPrefixes {
+            try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+            bindIndex += 1
+        }
+
+        var videosByID: [Int64: LibraryCoverEligibleVideo] = [:]
+        while try statement.step() {
+            let videoFileID = statement.int64Column(0)
+            let subtitleFormat = SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt
+            let subtitlePath = statement.stringColumn(5)
+            let video = LibraryCoverEligibleVideo(
+                videoFileID: videoFileID,
+                videoPath: statement.stringColumn(1),
+                videoName: statement.stringColumn(2),
+                fileSize: statement.nullableInt64Column(3),
+                duration: statement.nullableDoubleColumn(4),
+                subtitlePath: subtitlePath,
+                subtitleFormat: subtitleFormat,
+                folderPath: Self.folderPath(forSubtitlePath: subtitlePath)
+            )
+
+            if let existing = videosByID[videoFileID] {
+                let subtitleComparison = video.subtitlePath.localizedStandardCompare(existing.subtitlePath)
+                if subtitleComparison == .orderedAscending {
+                    videosByID[videoFileID] = video
+                }
+            } else {
+                videosByID[videoFileID] = video
+            }
+        }
+
+        return videosByID.values.sorted { lhs, rhs in
+            Self.libraryVideoSort(lhs.libraryVideo, rhs.libraryVideo)
+        }
+    }
+
+    public func libraryVideoCover(forVideoFileID videoFileID: Int64) throws -> LibraryVideoCover? {
+        let statement = try database.prepare(
+            """
+            SELECT video_file_id, cover_path, source_time_ms, score, algorithm_version,
+                   generated_file_size, generated_duration, status, error_message, generated_at
+            FROM video_covers
+            WHERE video_file_id = ?;
+            """
+        )
+        try statement.bind(videoFileID, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return Self.libraryVideoCover(from: statement)
+    }
+
+    public func upsertLibraryVideoCover(
+        videoFileID: Int64,
+        coverPath: String,
+        sourceTimeMilliseconds: Int,
+        score: Double?,
+        algorithmVersion: Int,
+        generatedFileSize: Int64?,
+        generatedDuration: Double?,
+        status: LibraryCoverStatus,
+        errorMessage: String?
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO video_covers(
+                video_file_id,
+                cover_path,
+                source_time_ms,
+                score,
+                algorithm_version,
+                generated_file_size,
+                generated_duration,
+                status,
+                error_message,
+                generated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(video_file_id) DO UPDATE SET
+                cover_path = excluded.cover_path,
+                source_time_ms = excluded.source_time_ms,
+                score = excluded.score,
+                algorithm_version = excluded.algorithm_version,
+                generated_file_size = excluded.generated_file_size,
+                generated_duration = excluded.generated_duration,
+                status = excluded.status,
+                error_message = excluded.error_message,
+                generated_at = excluded.generated_at;
+            """
+        )
+
+        try statement.bind(videoFileID, at: 1)
+        try statement.bind(coverPath, at: 2)
+        try statement.bind(max(0, sourceTimeMilliseconds), at: 3)
+        if let score, score.isFinite {
+            try statement.bind(score, at: 4)
+        } else {
+            try statement.bindNull(at: 4)
+        }
+        try statement.bind(algorithmVersion, at: 5)
+        if let generatedFileSize {
+            try statement.bind(generatedFileSize, at: 6)
+        } else {
+            try statement.bindNull(at: 6)
+        }
+        if let generatedDuration, generatedDuration.isFinite, generatedDuration >= 0 {
+            try statement.bind(generatedDuration, at: 7)
+        } else {
+            try statement.bindNull(at: 7)
+        }
+        try statement.bind(status.rawValue, at: 8)
+        if let errorMessage, !errorMessage.isEmpty {
+            try statement.bind(errorMessage, at: 9)
+        } else {
+            try statement.bindNull(at: 9)
+        }
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 10)
+        try statement.run()
+    }
+
+    public func libraryFolderCover(folderPath: String) throws -> LibraryFolderCover? {
+        let statement = try database.prepare(
+            """
+            SELECT folder_path, cover_path, source_video_file_id, generated_at
+            FROM folder_covers
+            WHERE folder_path = ?;
+            """
+        )
+        try statement.bind(folderPath, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return LibraryFolderCover(
+            folderPath: statement.stringColumn(0),
+            coverPath: statement.stringColumn(1),
+            sourceVideoFileID: statement.int64Column(2),
+            generatedAt: statement.stringColumn(3)
+        )
+    }
+
+    public func upsertLibraryFolderCover(
+        folderPath: String,
+        coverPath: String,
+        sourceVideoFileID: Int64
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO folder_covers(folder_path, cover_path, source_video_file_id, generated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(folder_path) DO UPDATE SET
+                cover_path = excluded.cover_path,
+                source_video_file_id = excluded.source_video_file_id,
+                generated_at = excluded.generated_at;
+            """
+        )
+
+        try statement.bind(folderPath, at: 1)
+        try statement.bind(coverPath, at: 2)
+        try statement.bind(sourceVideoFileID, at: 3)
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 4)
+        try statement.run()
+    }
+
+    public func deleteLibraryFolderCover(folderPath: String) throws {
+        let statement = try database.prepare(
+            """
+            DELETE FROM folder_covers
+            WHERE folder_path = ?;
+            """
+        )
+
+        try statement.bind(folderPath, at: 1)
+        try statement.run()
+    }
+
     public func libraryPresentation(under folders: [URL]) throws -> [LibraryFolderPresentation] {
         let pathPrefixes = Self.folderPathPrefixes(for: folders)
         guard !pathPrefixes.isEmpty else {
@@ -4470,6 +4750,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
         try snapshotStatement.bind(videoFile.path, at: 2)
         try snapshotStatement.run()
+    }
+
+    public func refreshVideoFileMetadata(_ videoFile: URL) throws {
+        _ = try upsertVideoFile(videoFile)
     }
 
     public func libraryPlaybackHistory(forVideoFile videoFile: URL) throws -> LibraryPlaybackHistory? {
@@ -6689,6 +6973,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
             startMilliseconds: statement.intColumn(8),
             endMilliseconds: statement.intColumn(9),
             content: statement.stringColumn(10)
+        )
+    }
+
+    private static func libraryVideoCover(from statement: SQLiteStatement) -> LibraryVideoCover {
+        let status = LibraryCoverStatus(rawValue: statement.stringColumn(7)) ?? .failed
+        return LibraryVideoCover(
+            videoFileID: statement.int64Column(0),
+            coverPath: statement.stringColumn(1),
+            sourceTimeMilliseconds: max(0, statement.intColumn(2)),
+            score: statement.nullableDoubleColumn(3),
+            algorithmVersion: statement.intColumn(4),
+            generatedFileSize: statement.nullableInt64Column(5),
+            generatedDuration: statement.nullableDoubleColumn(6),
+            status: status,
+            errorMessage: statement.nullableStringColumn(8),
+            generatedAt: statement.stringColumn(9)
         )
     }
 
