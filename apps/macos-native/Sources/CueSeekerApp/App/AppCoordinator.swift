@@ -321,6 +321,7 @@ final class AppCoordinator: ObservableObject {
             && indexing.searchFTSVocabularyDiagnosticsTask == nil
             && library.libraryStatus != .loading
             && library.recentWatchingStatus != .loading
+            && library.completeLibraryStatus != .loading
     }
 
     let userDefaults: UserDefaults
@@ -330,6 +331,7 @@ final class AppCoordinator: ObservableObject {
     var indexingTask: Task<Void, Never>?
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
+    var completeLibraryTask: Task<Void, Never>?
     var shiorisTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var searchTask: Task<Void, Never>?
@@ -507,6 +509,7 @@ final class AppCoordinator: ObservableObject {
         search.hasMoreSearchResults = false
         search.collapsedSearchResultGroupPaths = search.collapsedSearchResultGroupPaths.filter { !Self.path($0, isUnder: folder) }
         removeLibraryPresentation(under: folder)
+        removeCompleteLibraryPresentation(under: folder)
         search.expandedSearchResultGroupRowsByPath = search.expandedSearchResultGroupRowsByPath.filter { path, _ in
             !Self.path(path, isUnder: folder)
         }

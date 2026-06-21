@@ -2231,6 +2231,107 @@ func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
 }
 
 @Test
+func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let root = URL(fileURLWithPath: "/Media")
+    let show = root.appendingPathComponent("Show")
+    let episode1 = show.appendingPathComponent("Episode 1.mkv")
+    let episode2 = show.appendingPathComponent("Episode 2.mkv")
+    let episode3 = show.appendingPathComponent("Episode 3.mkv")
+    let episode4 = show.appendingPathComponent("Episode 4.mkv")
+
+    for videoFile in [episode1, episode2, episode3, episode4] {
+        try database.replaceEntries(
+            subtitleFile: videoFile.deletingPathExtension().appendingPathExtension("srt"),
+            videoFile: videoFile,
+            entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
+        )
+        try database.updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
+    }
+
+    try database.rebuildLibraryPresentationSnapshot()
+
+    let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: episode2,
+        positionMilliseconds: 960_000,
+        duration: 1_000.0,
+        updatedAt: baseDate.addingTimeInterval(1)
+    )
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: episode3,
+        positionMilliseconds: 300_000,
+        duration: 1_000.0,
+        updatedAt: baseDate.addingTimeInterval(3)
+    )
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: episode4,
+        positionMilliseconds: 400_000,
+        duration: 1_000.0,
+        updatedAt: baseDate.addingTimeInterval(2)
+    )
+
+    let groups = try database.completeLibraryPresentation(under: [root])
+    let group = try #require(groups.first)
+
+    #expect(groups.count == 1)
+    #expect(group.folderTitle == "Show")
+    #expect(group.lastWatchedEpisodeNumber == 3)
+    #expect(group.videos.map(\.episodeNumber) == [1, 2, 3, 4])
+    #expect(group.videos.map(\.watchState) == [.unwatched, .finished, .watching, .watching])
+    #expect(group.continueWatchingVideo?.videoPath == episode4.path)
+}
+
+@Test
+func completeLibraryContinueTargetFallsBackToFirstUnwatchedThenFirstEpisode() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let root = URL(fileURLWithPath: "/Media")
+    let showA1 = root.appendingPathComponent("Show A/Episode 1.mkv")
+    let showA2 = root.appendingPathComponent("Show A/Episode 2.mkv")
+    let showB1 = root.appendingPathComponent("Show B/Episode 1.mkv")
+    let showB2 = root.appendingPathComponent("Show B/Episode 2.mkv")
+
+    for videoFile in [showA1, showA2, showB1, showB2] {
+        try database.replaceEntries(
+            subtitleFile: videoFile.deletingPathExtension().appendingPathExtension("srt"),
+            videoFile: videoFile,
+            entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
+        )
+        try database.updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
+    }
+    try database.rebuildLibraryPresentationSnapshot()
+
+    for videoFile in [showA2, showB1, showB2] {
+        try database.upsertLibraryPlaybackHistory(
+            videoFile: videoFile,
+            positionMilliseconds: 960_000,
+            duration: 1_000.0
+        )
+    }
+
+    let groups = try database.completeLibraryPresentation(under: [root])
+    let showA = try #require(groups.first { $0.folderTitle == "Show A" })
+    let showB = try #require(groups.first { $0.folderTitle == "Show B" })
+
+    #expect(showA.continueWatchingVideo?.videoPath == showA1.path)
+    #expect(showB.continueWatchingVideo?.videoPath == showB1.path)
+}
+
+@Test
 func shioriPersistsCueIdentityAndCreatedAt() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

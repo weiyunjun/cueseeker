@@ -10,5 +10,9 @@ final class LibraryStore: ObservableObject {
     @Published var recentWatchingStatus: LibraryStatus = .idle
     @Published var recentWatchingItems: [RecentLibraryWatchingPresentation] = []
     @Published var recentWatchingRevision = 0
+    @Published var completeLibraryStatus: LibraryStatus = .idle
+    @Published var completeLibraryFolders: [CompleteLibraryFolderPresentation] = []
+    @Published var completeLibraryRevision = 0
+    @Published var completeLibraryExpandedFolderPaths: Set<String> = []
     @Published var selectedLibraryVideo: LibraryVideo?
 }

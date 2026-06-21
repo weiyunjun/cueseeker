@@ -146,6 +146,13 @@ extension AppCoordinator {
         refreshRecentWatching()
     }
 
+    func hydrateCompleteLibraryAsync() {
+        if case .loading = library.completeLibraryStatus, completeLibraryTask != nil {
+            return
+        }
+        refreshCompleteLibrary()
+    }
+
     func refreshRecentWatching() {
         recentWatchingTask?.cancel()
 
@@ -182,6 +189,42 @@ extension AppCoordinator {
         }
     }
 
+    func refreshCompleteLibrary() {
+        completeLibraryTask?.cancel()
+
+        let folders = indexing.selectedFolders
+        guard !folders.isEmpty else {
+            applyCompleteLibrary([])
+            library.completeLibraryStatus = .idle
+            return
+        }
+
+        guard let database = subtitleDatabase else {
+            applyCompleteLibrary([])
+            library.completeLibraryStatus = .failed("Database is not initialized")
+            return
+        }
+
+        library.completeLibraryStatus = .loading
+        completeLibraryTask = Task { [weak self] in
+            do {
+                let snapshot = try await Task.detached(priority: .userInitiated) {
+                    try database.completeLibraryPresentation(under: folders)
+                }.value
+
+                guard !Task.isCancelled else { return }
+
+                self?.applyCompleteLibrary(snapshot)
+                self?.library.completeLibraryStatus = .completed
+            } catch {
+                guard !Task.isCancelled else { return }
+                print("Failed to hydrate Complete Library asynchronously: \(error)")
+                self?.applyCompleteLibrary([])
+                self?.library.completeLibraryStatus = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
         let groups = Self.makeLibraryFolderGroups(from: snapshot)
         library.libraryFolderGroups = groups
@@ -204,6 +247,19 @@ extension AppCoordinator {
         )
     }
 
+    func applyCompleteLibrary(_ snapshot: [CompleteLibraryFolderPresentation]) {
+        let folderPaths = Set(snapshot.map(\.folderPath))
+        library.completeLibraryFolders = snapshot
+        library.completeLibraryExpandedFolderPaths = library.completeLibraryExpandedFolderPaths.filter {
+            folderPaths.contains($0)
+        }
+        library.completeLibraryRevision += 1
+        UIInvalidationProbe.count(
+            "UI.CompleteLibrarySnapshot.rebuilt",
+            details: "folders=\(snapshot.count) videos=\(snapshot.reduce(0) { $0 + $1.videos.count })"
+        )
+    }
+
     func removeLibraryPresentation(under folder: URL) {
         let groups = library.libraryFolderGroups.filter { group in
             !group.videos.contains { Self.path($0.video.videoPath, isUnder: folder) }
@@ -217,6 +273,31 @@ extension AppCoordinator {
             "UI.LibraryPresentationSnapshot.rebuilt",
             details: "groups=\(groups.count) rows=\(library.libraryVideos.count) reason=remove"
         )
+    }
+
+    func removeCompleteLibraryPresentation(under folder: URL) {
+        library.completeLibraryFolders = library.completeLibraryFolders.filter { group in
+            !Self.path(group.folderPath, isUnder: folder)
+        }
+        let folderPaths = Set(library.completeLibraryFolders.map(\.folderPath))
+        library.completeLibraryExpandedFolderPaths = library.completeLibraryExpandedFolderPaths.filter {
+            folderPaths.contains($0)
+        }
+        library.completeLibraryRevision += 1
+        UIInvalidationProbe.count(
+            "UI.CompleteLibrarySnapshot.rebuilt",
+            details: "folders=\(library.completeLibraryFolders.count) reason=remove"
+        )
+    }
+
+    func toggleCompleteLibraryFolder(_ folderPath: String) {
+        var expandedFolderPaths = library.completeLibraryExpandedFolderPaths
+        if expandedFolderPaths.contains(folderPath) {
+            expandedFolderPaths.remove(folderPath)
+        } else {
+            expandedFolderPaths.insert(folderPath)
+        }
+        library.completeLibraryExpandedFolderPaths = expandedFolderPaths
     }
 
     func openLibraryVideo(_ video: LibraryVideo, recordsNavigationHistory: Bool = true) {
@@ -251,6 +332,7 @@ extension AppCoordinator {
         )
         libraryPlaybackHistoryWriter.saveAndWait(snapshot)
         refreshRecentWatching()
+        refreshCompleteLibrary()
     }
 
     func play(_ video: LibraryVideo) {

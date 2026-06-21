@@ -119,11 +119,11 @@ func explicitIndexFolderKeepsSearchAndLibraryReady() async throws {
 
 @MainActor
 @Test
-func cancelDatabaseReadsResetsRecentWatchingLoadingState() throws {
-    let suiteName = "CueSeekerRecentWatchingCancelTests-\(UUID().uuidString)"
+func cancelDatabaseReadsResetsLibraryLoadingStates() throws {
+    let suiteName = "CueSeekerLibraryCancelTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerRecentWatchingCancelTests-\(UUID().uuidString)")
+        .appendingPathComponent("CueSeekerLibraryCancelTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
     defer {
         userDefaults.removePersistentDomain(forName: suiteName)
@@ -135,9 +135,11 @@ func cancelDatabaseReadsResetsRecentWatchingLoadingState() throws {
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     app.library.recentWatchingStatus = .loading
+    app.library.completeLibraryStatus = .loading
 
     app.cancelDatabaseReadTasksBeforeIndexing()
 
     #expect(app.library.recentWatchingStatus == .idle)
+    #expect(app.library.completeLibraryStatus == .idle)
     #expect(app.canCompactDatabase)
 }

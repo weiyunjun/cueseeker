@@ -393,6 +393,31 @@ public struct LibraryPlaybackHistory: Equatable, Sendable {
     public let updatedAt: String
 }
 
+public enum LibraryWatchState: String, Equatable, Sendable {
+    case unwatched
+    case watching
+    case finished
+
+    public init(positionMilliseconds: Int, duration: Double?) {
+        let positionSeconds = Double(max(0, positionMilliseconds)) / 1_000
+        guard positionSeconds > 0 else {
+            self = .unwatched
+            return
+        }
+
+        guard let duration, duration.isFinite, duration > 0 else {
+            self = .watching
+            return
+        }
+
+        if positionSeconds >= duration * 0.95 || duration - positionSeconds <= 1 {
+            self = .finished
+        } else {
+            self = .watching
+        }
+    }
+}
+
 public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiable {
     public let videoPath: String
     public let videoName: String
@@ -421,6 +446,60 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
             subtitlePath: subtitlePath,
             subtitleFormat: subtitleFormat
         )
+    }
+}
+
+public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiable {
+    public let videoPath: String
+    public let videoName: String
+    public let duration: Double?
+    public let subtitlePath: String
+    public let subtitleFormat: SubtitleFormat
+    public let displayTitle: String
+    public let fileExtension: String
+    public let episodeNumber: Int
+    public let positionMilliseconds: Int
+    public let playbackDuration: Double?
+    public let historyUpdatedAt: String?
+    public let coverPath: String?
+
+    public var id: String {
+        videoPath
+    }
+
+    public var libraryVideo: LibraryVideo {
+        LibraryVideo(
+            videoPath: videoPath,
+            videoName: videoName,
+            duration: duration,
+            subtitlePath: subtitlePath,
+            subtitleFormat: subtitleFormat
+        )
+    }
+
+    public var watchState: LibraryWatchState {
+        LibraryWatchState(
+            positionMilliseconds: positionMilliseconds,
+            duration: playbackDuration ?? duration
+        )
+    }
+}
+
+public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiable {
+    public let folderPath: String
+    public let folderTitle: String
+    public let folderCoverPath: String?
+    public let lastWatchedEpisodeNumber: Int?
+    public let videos: [CompleteLibraryVideoPresentation]
+
+    public var id: String {
+        folderPath
+    }
+
+    public var continueWatchingVideo: CompleteLibraryVideoPresentation? {
+        videos.last { $0.watchState == .watching }
+            ?? videos.first { $0.watchState == .unwatched }
+            ?? videos.first
     }
 }
 
@@ -4539,6 +4618,128 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return rows
+    }
+
+    public func completeLibraryPresentation(
+        under folders: [URL]
+    ) throws -> [CompleteLibraryFolderPresentation] {
+        let pathPrefixes = Self.folderPathPrefixes(for: folders)
+        guard !pathPrefixes.isEmpty else {
+            return []
+        }
+
+        let scopeCondition = pathPrefixes.map { _ in "(lvr.subtitle_path >= ? AND lvr.subtitle_path < ?)" }
+            .joined(separator: " OR ")
+        let statement = try database.prepare(
+            """
+            SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
+                   lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
+                   lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
+                   h.updated_at, julianday(h.updated_at), vc.cover_path, fc.cover_path
+            FROM library_video_rows lvr
+            LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
+            LEFT JOIN video_files vf ON vf.path = lvr.video_path
+            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
+            LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
+            WHERE \(scopeCondition)
+            ORDER BY lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
+            """
+        )
+
+        var bindIndex: Int32 = 1
+        try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        for prefix in pathPrefixes {
+            try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+            bindIndex += 1
+        }
+
+        var groups: [CompleteLibraryFolderPresentation] = []
+        var currentFolderPath: String?
+        var currentFolderTitle = ""
+        var currentFolderCoverPath: String?
+        var currentVideos: [CompleteLibraryVideoPresentation] = []
+        var currentLastWatchedEpisodeNumber: Int?
+        var currentLastWatchedSortValue: Double?
+        var currentLastWatchedUpdatedAt: String?
+
+        func appendCurrentGroup() {
+            guard let currentFolderPath else {
+                return
+            }
+
+            groups.append(
+                CompleteLibraryFolderPresentation(
+                    folderPath: currentFolderPath,
+                    folderTitle: currentFolderTitle,
+                    folderCoverPath: currentFolderCoverPath,
+                    lastWatchedEpisodeNumber: currentLastWatchedEpisodeNumber,
+                    videos: currentVideos
+                )
+            )
+        }
+
+        func resetCurrentGroup(folderPath: String) {
+            currentFolderPath = folderPath
+            currentFolderTitle = statement.stringColumn(1)
+            currentFolderCoverPath = statement.nullableStringColumn(15)
+            currentVideos = []
+            currentLastWatchedEpisodeNumber = nil
+            currentLastWatchedSortValue = nil
+            currentLastWatchedUpdatedAt = nil
+        }
+
+        while try statement.step() {
+            let folderPath = statement.stringColumn(0)
+            if currentFolderPath != folderPath {
+                appendCurrentGroup()
+                resetCurrentGroup(folderPath: folderPath)
+            }
+
+            let episodeNumber = max(1, statement.intColumn(9) + 1)
+            let historyUpdatedAt = statement.nullableStringColumn(12)
+            if let historyUpdatedAt {
+                let historySortValue = statement.nullableDoubleColumn(13) ?? 0
+                let shouldUpdateLatest: Bool
+                if let currentLastWatchedSortValue {
+                    shouldUpdateLatest = historySortValue > currentLastWatchedSortValue
+                        || (
+                            historySortValue == currentLastWatchedSortValue
+                            && historyUpdatedAt > (currentLastWatchedUpdatedAt ?? "")
+                        )
+                } else {
+                    shouldUpdateLatest = true
+                }
+
+                if shouldUpdateLatest {
+                    currentLastWatchedEpisodeNumber = episodeNumber
+                    currentLastWatchedSortValue = historySortValue
+                    currentLastWatchedUpdatedAt = historyUpdatedAt
+                }
+            }
+
+            currentVideos.append(
+                CompleteLibraryVideoPresentation(
+                    videoPath: statement.stringColumn(2),
+                    videoName: statement.stringColumn(3),
+                    duration: statement.nullableDoubleColumn(4),
+                    subtitlePath: statement.stringColumn(5),
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
+                    displayTitle: statement.stringColumn(7),
+                    fileExtension: statement.stringColumn(8),
+                    episodeNumber: episodeNumber,
+                    positionMilliseconds: max(0, statement.nullableIntColumn(10) ?? 0),
+                    playbackDuration: statement.nullableDoubleColumn(11),
+                    historyUpdatedAt: historyUpdatedAt,
+                    coverPath: statement.nullableStringColumn(14)
+                )
+            )
+        }
+
+        appendCurrentGroup()
+        return groups
     }
 
     public func rebuildLibraryPresentationSnapshot() throws {

@@ -46,6 +46,7 @@ extension AppCoordinator {
         clearSearchAndPlaybackState(under: folder)
         refreshLibrary()
         refreshRecentWatching()
+        refreshCompleteLibrary()
         refreshCurrentSearch(clearExistingResults: true)
         refreshDatabaseStorageStats()
     }
@@ -87,6 +88,7 @@ extension AppCoordinator {
                 indexing.indexingStatus = .completed(folder, result)
                 refreshLibrary()
                 refreshRecentWatching()
+                refreshCompleteLibrary()
                 refreshCurrentSearch()
                 refreshDatabaseStorageStats()
             } catch {
@@ -195,6 +197,7 @@ extension AppCoordinator {
             )
             refreshLibrary()
             refreshRecentWatching()
+            refreshCompleteLibrary()
             refreshCurrentSearch()
             refreshDatabaseStorageStats()
         }
@@ -299,6 +302,11 @@ extension AppCoordinator {
             return
         }
 
+        guard library.completeLibraryStatus != .loading else {
+            indexing.databaseMaintenanceStatus = .failed("Complete Library is loading")
+            return
+        }
+
         guard let database = subtitleDatabase else {
             indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
             return
@@ -361,6 +369,8 @@ extension AppCoordinator {
         libraryTask = nil
         recentWatchingTask?.cancel()
         recentWatchingTask = nil
+        completeLibraryTask?.cancel()
+        completeLibraryTask = nil
         searchTask?.cancel()
         searchTask = nil
         searchExactCompletionTask?.cancel()
@@ -378,6 +388,9 @@ extension AppCoordinator {
         }
         if case .loading = library.recentWatchingStatus {
             library.recentWatchingStatus = library.recentWatchingItems.isEmpty ? .idle : .completed
+        }
+        if case .loading = library.completeLibraryStatus {
+            library.completeLibraryStatus = library.completeLibraryFolders.isEmpty ? .idle : .completed
         }
         if case .searching = search.searchStatus {
             search.searchStatus = .completed
