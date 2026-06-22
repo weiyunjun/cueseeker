@@ -13,6 +13,7 @@ enum WorkbenchPanelMode: String, CaseIterable {
 /// top-bar test icons; intentionally not persisted across launches.
 @MainActor
 enum WorkbenchTestPage: String, CaseIterable {
+    case recentWatching
     case library
     case search
 }

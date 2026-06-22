@@ -146,6 +146,13 @@ extension AppCoordinator {
         refreshRecentWatching()
     }
 
+    func hydrateTestRecentWatchingAsync() {
+        if case .loading = library.testRecentWatchingStatus, testRecentWatchingTask != nil {
+            return
+        }
+        refreshTestRecentWatching()
+    }
+
     func hydrateCompleteLibraryAsync() {
         if case .loading = library.completeLibraryStatus, completeLibraryTask != nil {
             return
@@ -187,6 +194,49 @@ extension AppCoordinator {
                 self?.library.recentWatchingStatus = .failed(Self.errorMessage(for: error))
             }
         }
+    }
+
+    func refreshTestRecentWatching() {
+        testRecentWatchingTask?.cancel()
+
+        let folders = indexing.selectedFolders
+        guard !folders.isEmpty else {
+            applyTestRecentWatching([])
+            library.testRecentWatchingStatus = .idle
+            return
+        }
+
+        guard let database = subtitleDatabase else {
+            applyTestRecentWatching([])
+            library.testRecentWatchingStatus = .failed("Database is not initialized")
+            return
+        }
+
+        library.testRecentWatchingStatus = .loading
+        testRecentWatchingTask = Task { [weak self] in
+            do {
+                let snapshot = try await Task.detached(priority: .userInitiated) {
+                    try database.recentLibraryWatching(under: folders, limit: Int.max)
+                }.value
+
+                guard !Task.isCancelled else { return }
+
+                self?.applyTestRecentWatching(snapshot)
+                self?.library.testRecentWatchingStatus = .completed
+            } catch {
+                guard !Task.isCancelled else { return }
+                print("Failed to hydrate Test Recent Watching asynchronously: \(error)")
+                self?.applyTestRecentWatching([])
+                self?.library.testRecentWatchingStatus = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
+    func refreshLoadedTestRecentWatching() {
+        guard library.testRecentWatchingStatus != .idle || !library.testRecentWatchingItems.isEmpty else {
+            return
+        }
+        refreshTestRecentWatching()
     }
 
     func refreshCompleteLibrary() {
@@ -243,6 +293,15 @@ extension AppCoordinator {
         library.recentWatchingRevision += 1
         UIInvalidationProbe.count(
             "UI.RecentWatchingSnapshot.rebuilt",
+            details: "rows=\(snapshot.count)"
+        )
+    }
+
+    func applyTestRecentWatching(_ snapshot: [RecentLibraryWatchingPresentation]) {
+        library.testRecentWatchingItems = snapshot
+        library.testRecentWatchingRevision += 1
+        UIInvalidationProbe.count(
+            "UI.TestRecentWatchingSnapshot.rebuilt",
             details: "rows=\(snapshot.count)"
         )
     }
@@ -332,6 +391,7 @@ extension AppCoordinator {
         )
         libraryPlaybackHistoryWriter.saveAndWait(snapshot)
         refreshRecentWatching()
+        refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
     }
 

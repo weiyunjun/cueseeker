@@ -3,6 +3,53 @@ import CueSeekerCore
 import ImageIO
 import SwiftUI
 
+struct WorkbenchTestRecentWatchingView: View {
+    @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var indexing: IndexingStore
+    @EnvironmentObject private var library: LibraryStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
+                LibrarySectionTitle("Recent Watching")
+
+                recentWatchingContent
+            }
+            .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
+            .padding(.vertical, WorkbenchTestLibraryMetrics.pageVerticalPadding)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .background(WorkbenchRedesignColors.bgSurface)
+        .task {
+            appState.hydrateTestRecentWatchingAsync()
+        }
+        .onChange(of: indexing.selectedFolders) { _ in
+            appState.refreshTestRecentWatching()
+        }
+    }
+
+    @ViewBuilder
+    private var recentWatchingContent: some View {
+        if case .loading = library.testRecentWatchingStatus, library.testRecentWatchingItems.isEmpty {
+            LibraryEmptyHint {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        } else if case .failed(let message) = library.testRecentWatchingStatus {
+            LibraryEmptyHint(message)
+        } else if library.testRecentWatchingItems.isEmpty {
+            LibraryEmptyHint("No recent watching yet.")
+        } else {
+            RecentWatchingGrid(
+                items: library.testRecentWatchingItems,
+                onOpen: { item in
+                    appState.openLibraryVideo(item.libraryVideo)
+                }
+            )
+        }
+    }
+}
+
 struct WorkbenchTestLibraryView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore

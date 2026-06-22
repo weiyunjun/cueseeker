@@ -321,6 +321,7 @@ final class AppCoordinator: ObservableObject {
             && indexing.searchFTSVocabularyDiagnosticsTask == nil
             && library.libraryStatus != .loading
             && library.recentWatchingStatus != .loading
+            && library.testRecentWatchingStatus != .loading
             && library.completeLibraryStatus != .loading
     }
 
@@ -331,6 +332,7 @@ final class AppCoordinator: ObservableObject {
     var indexingTask: Task<Void, Never>?
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
+    var testRecentWatchingTask: Task<Void, Never>?
     var completeLibraryTask: Task<Void, Never>?
     var shiorisTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?

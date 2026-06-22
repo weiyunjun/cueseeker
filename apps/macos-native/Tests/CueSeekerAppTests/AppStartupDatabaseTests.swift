@@ -135,11 +135,13 @@ func cancelDatabaseReadsResetsLibraryLoadingStates() throws {
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     app.library.recentWatchingStatus = .loading
+    app.library.testRecentWatchingStatus = .loading
     app.library.completeLibraryStatus = .loading
 
     app.cancelDatabaseReadTasksBeforeIndexing()
 
     #expect(app.library.recentWatchingStatus == .idle)
+    #expect(app.library.testRecentWatchingStatus == .idle)
     #expect(app.library.completeLibraryStatus == .idle)
     #expect(app.canCompactDatabase)
 }

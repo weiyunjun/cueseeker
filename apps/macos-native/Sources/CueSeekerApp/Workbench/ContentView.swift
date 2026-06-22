@@ -103,6 +103,12 @@ private struct AppTopBar: View {
 
                     HStack(spacing: 8) {
                         TopbarTestButton(
+                            page: .recentWatching,
+                            systemImage: "clock",
+                            help: "Test Recent Watching"
+                        )
+
+                        TopbarTestButton(
                             page: .library,
                             systemImage: "folder.circle",
                             help: "Test Library"

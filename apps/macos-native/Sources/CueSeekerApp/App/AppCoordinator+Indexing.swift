@@ -46,6 +46,7 @@ extension AppCoordinator {
         clearSearchAndPlaybackState(under: folder)
         refreshLibrary()
         refreshRecentWatching()
+        refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
         refreshCurrentSearch(clearExistingResults: true)
         refreshDatabaseStorageStats()
@@ -88,6 +89,7 @@ extension AppCoordinator {
                 indexing.indexingStatus = .completed(folder, result)
                 refreshLibrary()
                 refreshRecentWatching()
+                refreshLoadedTestRecentWatching()
                 refreshCompleteLibrary()
                 refreshCurrentSearch()
                 refreshDatabaseStorageStats()
@@ -197,6 +199,7 @@ extension AppCoordinator {
             )
             refreshLibrary()
             refreshRecentWatching()
+            refreshLoadedTestRecentWatching()
             refreshCompleteLibrary()
             refreshCurrentSearch()
             refreshDatabaseStorageStats()
@@ -369,6 +372,8 @@ extension AppCoordinator {
         libraryTask = nil
         recentWatchingTask?.cancel()
         recentWatchingTask = nil
+        testRecentWatchingTask?.cancel()
+        testRecentWatchingTask = nil
         completeLibraryTask?.cancel()
         completeLibraryTask = nil
         searchTask?.cancel()
@@ -388,6 +393,9 @@ extension AppCoordinator {
         }
         if case .loading = library.recentWatchingStatus {
             library.recentWatchingStatus = library.recentWatchingItems.isEmpty ? .idle : .completed
+        }
+        if case .loading = library.testRecentWatchingStatus {
+            library.testRecentWatchingStatus = library.testRecentWatchingItems.isEmpty ? .idle : .completed
         }
         if case .loading = library.completeLibraryStatus {
             library.completeLibraryStatus = library.completeLibraryFolders.isEmpty ? .idle : .completed

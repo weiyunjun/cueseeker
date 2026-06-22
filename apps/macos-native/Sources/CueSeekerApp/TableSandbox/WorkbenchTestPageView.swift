@@ -11,6 +11,8 @@ struct WorkbenchTestPageView: View {
                 .ignoresSafeArea()
 
             switch page {
+            case .recentWatching:
+                WorkbenchTestRecentWatchingView()
             case .library:
                 WorkbenchTestLibraryView()
             case .search:

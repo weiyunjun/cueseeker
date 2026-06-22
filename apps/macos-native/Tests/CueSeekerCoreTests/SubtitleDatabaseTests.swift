@@ -2185,6 +2185,16 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
     #expect(recent.first?.episodeNumber == 2)
     #expect(recent.first?.positionMilliseconds == 70_000)
     #expect(recent.first?.playbackDuration == 1_200.0)
+
+    let allRecent = try database.recentLibraryWatching(under: [root], limit: Int.max)
+    #expect(allRecent.map(\.videoPath) == [
+        showA2.path,
+        showF1.path,
+        showE1.path,
+        showD1.path,
+        showC1.path,
+        showB1.path
+    ])
 }
 
 @Test
