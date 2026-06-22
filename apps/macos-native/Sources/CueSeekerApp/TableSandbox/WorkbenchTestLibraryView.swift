@@ -351,10 +351,7 @@ private struct RecentWatchingCard: View {
     }
 
     private var watchStatus: LibraryWatchStatus {
-        LibraryWatchStatus(
-            positionMilliseconds: item.positionMilliseconds,
-            duration: item.playbackDuration ?? item.duration
-        )
+        LibraryWatchStatus(item.watchState)
     }
 
     private func updateCursor(isHovering: Bool) {

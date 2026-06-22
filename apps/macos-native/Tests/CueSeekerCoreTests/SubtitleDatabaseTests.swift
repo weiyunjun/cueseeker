@@ -2110,16 +2110,70 @@ func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
     #expect(initialHistory.videoPath == videoFile.path)
     #expect(initialHistory.positionMilliseconds == 91_250)
     #expect(initialHistory.duration == 1_800.5)
+    #expect(initialHistory.startedAt != nil)
+    #expect(initialHistory.completedAt == nil)
 
     try database.upsertLibraryPlaybackHistory(
         videoFile: videoFile,
-        positionMilliseconds: 125_000,
+        positionMilliseconds: 0,
         duration: nil
     )
 
     let updatedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
-    #expect(updatedHistory.positionMilliseconds == 125_000)
+    #expect(updatedHistory.positionMilliseconds == 0)
     #expect(updatedHistory.duration == nil)
+    #expect(updatedHistory.startedAt == initialHistory.startedAt)
+    #expect(updatedHistory.completedAt == nil)
+    #expect(LibraryWatchState(
+        positionMilliseconds: updatedHistory.positionMilliseconds,
+        duration: updatedHistory.duration,
+        startedAt: updatedHistory.startedAt,
+        completedAt: updatedHistory.completedAt
+    ) == .watching)
+}
+
+@Test
+func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 960_000,
+        duration: 1_000.0
+    )
+
+    let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(finishedHistory.completedAt != nil)
+    #expect(LibraryWatchState(
+        positionMilliseconds: finishedHistory.positionMilliseconds,
+        duration: finishedHistory.duration,
+        startedAt: finishedHistory.startedAt,
+        completedAt: finishedHistory.completedAt
+    ) == .finished)
+
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 0,
+        duration: 1_000.0
+    )
+
+    let rewoundHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(rewoundHistory.positionMilliseconds == 0)
+    #expect(rewoundHistory.startedAt == finishedHistory.startedAt)
+    #expect(rewoundHistory.completedAt == finishedHistory.completedAt)
+    #expect(LibraryWatchState(
+        positionMilliseconds: rewoundHistory.positionMilliseconds,
+        duration: rewoundHistory.duration,
+        startedAt: rewoundHistory.startedAt,
+        completedAt: rewoundHistory.completedAt
+    ) == .finished)
 }
 
 @Test
@@ -2935,6 +2989,45 @@ func migrationBackfillsCueGroupLineCountAndSearchOrderRows() throws {
     #expect(searchOrderRows.map(\.displayTitle) == ["Sample.ass"])
     #expect(searchOrderRows.map(\.folderOrder) == [0])
     #expect(searchOrderRows.map(\.fileOrder) == [0])
+}
+
+@Test
+func migrationBackfillsLibraryPlaybackHistoryWatchStateColumns() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+    }
+
+    try createVersionNineteenDatabaseWithLibraryPlaybackHistory(at: databaseURL)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+
+    let startedVideo = URL(fileURLWithPath: "/Media/Started.mkv")
+    let startedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: startedVideo))
+    #expect(startedHistory.startedAt == startedHistory.updatedAt)
+    #expect(startedHistory.completedAt == nil)
+    #expect(LibraryWatchState(
+        positionMilliseconds: startedHistory.positionMilliseconds,
+        duration: startedHistory.duration,
+        startedAt: startedHistory.startedAt,
+        completedAt: startedHistory.completedAt
+    ) == .watching)
+
+    let completedVideo = URL(fileURLWithPath: "/Media/Completed.mkv")
+    let completedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: completedVideo))
+    #expect(completedHistory.startedAt == completedHistory.updatedAt)
+    #expect(completedHistory.completedAt == completedHistory.updatedAt)
+    #expect(LibraryWatchState(
+        positionMilliseconds: completedHistory.positionMilliseconds,
+        duration: completedHistory.duration,
+        startedAt: completedHistory.startedAt,
+        completedAt: completedHistory.completedAt
+    ) == .finished)
 }
 
 @Test
@@ -4580,6 +4673,38 @@ private func createVersionTenDatabaseWithMixedCueGroupLineCounts(at url: URL) th
         VALUES (3, 2, 'ass', '2000', '3000', 2000, 3000, 'bot', 2);
 
         PRAGMA user_version = 10;
+        """
+    )
+}
+
+private func createVersionNineteenDatabaseWithLibraryPlaybackHistory(at url: URL) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(
+        database,
+        """
+        CREATE TABLE library_playback_history (
+            video_path TEXT PRIMARY KEY,
+            position_ms INTEGER NOT NULL,
+            duration REAL,
+            updated_at TEXT NOT NULL
+        );
+
+        INSERT INTO library_playback_history(video_path, position_ms, duration, updated_at)
+        VALUES
+            ('/Media/Started.mkv', 120000, 1000.0, '2026-06-01T00:00:00Z'),
+            ('/Media/Completed.mkv', 960000, 1000.0, '2026-06-01T00:01:00Z');
+
+        PRAGMA user_version = 19;
         """
     )
 }

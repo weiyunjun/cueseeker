@@ -390,6 +390,8 @@ public struct LibraryPlaybackHistory: Equatable, Sendable {
     public let videoPath: String
     public let positionMilliseconds: Int
     public let duration: Double?
+    public let startedAt: String?
+    public let completedAt: String?
     public let updatedAt: String
 }
 
@@ -399,6 +401,30 @@ public enum LibraryWatchState: String, Equatable, Sendable {
     case finished
 
     public init(positionMilliseconds: Int, duration: Double?) {
+        self.init(
+            positionMilliseconds: positionMilliseconds,
+            duration: duration,
+            startedAt: nil,
+            completedAt: nil
+        )
+    }
+
+    public init(
+        positionMilliseconds: Int,
+        duration: Double?,
+        startedAt: String?,
+        completedAt: String?
+    ) {
+        if completedAt != nil {
+            self = .finished
+            return
+        }
+
+        if startedAt != nil {
+            self = .watching
+            return
+        }
+
         let positionSeconds = Double(max(0, positionMilliseconds)) / 1_000
         guard positionSeconds > 0 else {
             self = .unwatched
@@ -431,6 +457,8 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
     public let episodeNumber: Int
     public let positionMilliseconds: Int
     public let playbackDuration: Double?
+    public let startedAt: String?
+    public let completedAt: String?
     public let updatedAt: String
     public let coverPath: String?
 
@@ -447,6 +475,15 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
             subtitleFormat: subtitleFormat
         )
     }
+
+    public var watchState: LibraryWatchState {
+        LibraryWatchState(
+            positionMilliseconds: positionMilliseconds,
+            duration: playbackDuration ?? duration,
+            startedAt: startedAt,
+            completedAt: completedAt
+        )
+    }
 }
 
 public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiable {
@@ -460,6 +497,8 @@ public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiabl
     public let episodeNumber: Int
     public let positionMilliseconds: Int
     public let playbackDuration: Double?
+    public let startedAt: String?
+    public let completedAt: String?
     public let historyUpdatedAt: String?
     public let coverPath: String?
 
@@ -480,7 +519,9 @@ public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiabl
     public var watchState: LibraryWatchState {
         LibraryWatchState(
             positionMilliseconds: positionMilliseconds,
-            duration: playbackDuration ?? duration
+            duration: playbackDuration ?? duration,
+            startedAt: startedAt,
+            completedAt: completedAt
         )
     }
 }
@@ -1093,7 +1134,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 19
+    public static let currentSchemaVersion: Int = 20
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1373,6 +1414,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 video_path TEXT PRIMARY KEY,
                 position_ms INTEGER NOT NULL,
                 duration REAL,
+                started_at TEXT,
+                completed_at TEXT,
                 updated_at TEXT NOT NULL
             );
 
@@ -1540,6 +1583,46 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         if previousVersion < 13 {
             try rebuildFTSRows()
+        }
+
+        if previousVersion < 20 {
+            if try !columnExists(table: "library_playback_history", column: "started_at") {
+                try database.execute(
+                    """
+                    ALTER TABLE library_playback_history
+                    ADD COLUMN started_at TEXT;
+                    """
+                )
+            }
+            if try !columnExists(table: "library_playback_history", column: "completed_at") {
+                try database.execute(
+                    """
+                    ALTER TABLE library_playback_history
+                    ADD COLUMN completed_at TEXT;
+                    """
+                )
+            }
+            try database.execute(
+                """
+                UPDATE library_playback_history
+                SET started_at = updated_at
+                WHERE started_at IS NULL
+                  AND position_ms > 0;
+                """
+            )
+            try database.execute(
+                """
+                UPDATE library_playback_history
+                SET completed_at = updated_at
+                WHERE completed_at IS NULL
+                  AND duration IS NOT NULL
+                  AND duration > 0
+                  AND (
+                      (CAST(position_ms AS REAL) / 1000.0) >= duration * 0.95
+                      OR duration - (CAST(position_ms AS REAL) / 1000.0) <= 1
+                  );
+                """
+            )
         }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
@@ -4591,7 +4674,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
-                   h.updated_at, vc.cover_path
+                   h.started_at, h.completed_at, h.updated_at, vc.cover_path
             FROM library_playback_history h
             JOIN library_video_rows lvr ON lvr.video_path = h.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
@@ -4635,8 +4718,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     episodeNumber: max(1, statement.intColumn(9) + 1),
                     positionMilliseconds: max(0, statement.intColumn(10)),
                     playbackDuration: statement.nullableDoubleColumn(11),
-                    updatedAt: statement.stringColumn(12),
-                    coverPath: statement.nullableStringColumn(13)
+                    startedAt: statement.nullableStringColumn(12),
+                    completedAt: statement.nullableStringColumn(13),
+                    updatedAt: statement.stringColumn(14),
+                    coverPath: statement.nullableStringColumn(15)
                 )
             )
         }
@@ -4659,7 +4744,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
-                   h.updated_at, julianday(h.updated_at), vc.cover_path, fc.cover_path
+                   h.started_at, h.completed_at, h.updated_at, julianday(h.updated_at),
+                   vc.cover_path, fc.cover_path
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
@@ -4710,7 +4796,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         func resetCurrentGroup(folderPath: String) {
             currentFolderPath = folderPath
             currentFolderTitle = statement.stringColumn(1)
-            currentFolderCoverPath = statement.nullableStringColumn(15)
+            currentFolderCoverPath = statement.nullableStringColumn(17)
             currentVideos = []
             currentLastWatchedEpisodeNumber = nil
             currentLastWatchedVideoPath = nil
@@ -4726,9 +4812,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             let episodeNumber = max(1, statement.intColumn(9) + 1)
-            let historyUpdatedAt = statement.nullableStringColumn(12)
+            let historyUpdatedAt = statement.nullableStringColumn(14)
             if let historyUpdatedAt {
-                let historySortValue = statement.nullableDoubleColumn(13) ?? 0
+                let historySortValue = statement.nullableDoubleColumn(15) ?? 0
                 let shouldUpdateLatest: Bool
                 if let currentLastWatchedSortValue {
                     shouldUpdateLatest = historySortValue > currentLastWatchedSortValue
@@ -4760,8 +4846,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     episodeNumber: episodeNumber,
                     positionMilliseconds: max(0, statement.nullableIntColumn(10) ?? 0),
                     playbackDuration: statement.nullableDoubleColumn(11),
+                    startedAt: statement.nullableStringColumn(12),
+                    completedAt: statement.nullableStringColumn(13),
                     historyUpdatedAt: historyUpdatedAt,
-                    coverPath: statement.nullableStringColumn(14)
+                    coverPath: statement.nullableStringColumn(16)
                 )
             )
         }
@@ -4833,7 +4921,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
-                   h.updated_at, vc.cover_path
+                   h.started_at, h.completed_at, h.updated_at, vc.cover_path
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
@@ -4867,8 +4955,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     episodeNumber: max(1, statement.intColumn(9) + 1),
                     positionMilliseconds: max(0, statement.nullableIntColumn(10) ?? 0),
                     playbackDuration: statement.nullableDoubleColumn(11),
-                    historyUpdatedAt: statement.nullableStringColumn(12),
-                    coverPath: statement.nullableStringColumn(13)
+                    startedAt: statement.nullableStringColumn(12),
+                    completedAt: statement.nullableStringColumn(13),
+                    historyUpdatedAt: statement.nullableStringColumn(14),
+                    coverPath: statement.nullableStringColumn(15)
                 )
             )
         }
@@ -5206,7 +5296,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func libraryPlaybackHistory(forVideoFile videoFile: URL) throws -> LibraryPlaybackHistory? {
         let statement = try database.prepare(
             """
-            SELECT video_path, position_ms, duration, updated_at
+            SELECT video_path, position_ms, duration, started_at, completed_at, updated_at
             FROM library_playback_history
             WHERE video_path = ?;
             """
@@ -5222,7 +5312,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             videoPath: statement.stringColumn(0),
             positionMilliseconds: max(0, statement.intColumn(1)),
             duration: statement.nullableDoubleColumn(2),
-            updatedAt: statement.stringColumn(3)
+            startedAt: statement.nullableStringColumn(3),
+            completedAt: statement.nullableStringColumn(4),
+            updatedAt: statement.stringColumn(5)
         )
     }
 
@@ -5232,25 +5324,50 @@ public final class SubtitleDatabase: @unchecked Sendable {
         duration: Double?,
         updatedAt: Date = Date()
     ) throws {
+        let updatedAtString = Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt)
+        let clampedPositionMilliseconds = max(0, positionMilliseconds)
+        let normalizedDuration = duration.flatMap { value in
+            value.isFinite && value > 0 ? value : nil
+        }
+        let completedAt = Self.libraryPlaybackHistoryIsFinished(
+            positionMilliseconds: clampedPositionMilliseconds,
+            duration: normalizedDuration
+        ) ? updatedAtString : nil
+
         let statement = try database.prepare(
             """
-            INSERT INTO library_playback_history(video_path, position_ms, duration, updated_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO library_playback_history(
+                video_path,
+                position_ms,
+                duration,
+                started_at,
+                completed_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(video_path) DO UPDATE SET
                 position_ms = excluded.position_ms,
                 duration = excluded.duration,
+                started_at = COALESCE(library_playback_history.started_at, excluded.started_at),
+                completed_at = COALESCE(library_playback_history.completed_at, excluded.completed_at),
                 updated_at = excluded.updated_at;
             """
         )
 
         try statement.bind(videoFile.path, at: 1)
-        try statement.bind(max(0, positionMilliseconds), at: 2)
-        if let duration, duration.isFinite, duration > 0 {
-            try statement.bind(duration, at: 3)
+        try statement.bind(clampedPositionMilliseconds, at: 2)
+        if let normalizedDuration {
+            try statement.bind(normalizedDuration, at: 3)
         } else {
             try statement.bindNull(at: 3)
         }
-        try statement.bind(Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt), at: 4)
+        try statement.bind(updatedAtString, at: 4)
+        if let completedAt {
+            try statement.bind(completedAt, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
+        }
+        try statement.bind(updatedAtString, at: 6)
         try statement.run()
     }
 
@@ -7666,6 +7783,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)
+    }
+
+    private static func libraryPlaybackHistoryIsFinished(
+        positionMilliseconds: Int,
+        duration: Double?
+    ) -> Bool {
+        guard let duration, duration.isFinite, duration > 0 else {
+            return false
+        }
+        let positionSeconds = Double(max(0, positionMilliseconds)) / 1_000
+        return positionSeconds >= duration * 0.95 || duration - positionSeconds <= 1
     }
 
     private static func folderPathVariants(for folder: URL) -> [String] {

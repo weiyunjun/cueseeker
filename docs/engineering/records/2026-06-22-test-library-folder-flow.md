@@ -19,6 +19,8 @@ Recent Watching page was accepted for basic validation.
   the top-level page and loads a selected folder detail on demand.
 - Playback execution: episode cards still reuse the existing Library playback
   path and saved resume position.
+- Persistence semantics: Library playback history now stores "started" and
+  "completed" milestones separately from the mutable resume position.
 
 ## Changes
 
@@ -35,6 +37,14 @@ Recent Watching page was accepted for basic validation.
   so formal Library presentation state is not polluted.
 - Added a close-playback history revision so the folder detail view reloads its
   episode progress after returning from Library video playback.
+- Added `started_at` and `completed_at` to `library_playback_history` in schema
+  version 20. `position_ms` now remains only the resume point; watch status uses
+  `completed_at` first, then `started_at`, then the legacy position heuristic.
+- Backfilled the new watch-state columns during migration so existing finished
+  and in-progress Library history keeps its presentation state.
+- Updated Test Recent Watching and Test Library cards to render watch status
+  from the persisted watch state instead of recalculating only from the current
+  resume position.
 
 ## Verification
 
@@ -42,7 +52,9 @@ Recent Watching page was accepted for basic validation.
 - `swift test --filter completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData` passed.
 - `swift test --filter completeLibrary` passed.
 - `swift test --filter closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision` passed.
-- `swift test --quiet` passed: 317 Swift tests plus 7 XCTest cases.
+- `swift test --filter libraryPlaybackHistory` passed.
+- `swift test --filter migrationBackfillsLibraryPlaybackHistoryWatchStateColumns` passed.
+- `swift test --quiet` passed: 319 Swift tests plus 7 XCTest cases.
 
 ## Outcome
 
