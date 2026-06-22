@@ -157,6 +157,46 @@
   Light: #0040FF
   Dark: #93C5FD
 
+#### Watch Status
+--color-watch-status-unwatched-bg:
+  Light: #F3F4F6
+  Dark: #27272A
+--color-watch-status-unwatched-text:
+  Light: #667085
+  Dark: #A1A1AA
+--color-watch-status-watching-bg:
+  Light: #DBEAFE
+  Dark: #172A4A
+--color-watch-status-watching-text:
+  Light: #0040FF
+  Dark: #93C5FD
+--color-watch-status-finished-bg:
+  Light: #D1FAE5
+  Dark: #123A2A
+--color-watch-status-finished-text:
+  Light: #047857
+  Dark: #6EE7B7
+
+#### Library Media
+--color-library-progress-fill:
+  Light: #0040FF
+  Dark: #7AA2FF
+--color-library-progress-track:
+  Light: #E5E7EB
+  Dark: #303036
+--color-library-time-badge-bg:
+  Light: rgba(15,23,42,0.72)
+  Dark: rgba(0,0,0,0.58)
+--color-library-time-badge-text:
+  Light: #FFFFFF
+  Dark: #FFFFFF
+--color-library-cover-placeholder-bg:
+  Light: #E5E7EB
+  Dark: #303036
+--color-library-media-card-hover-bg:
+  Light: #E5E7EB
+  Dark: #27272A
+
 ### 1.2 尺寸、圆角、间距
 
 #### Height
@@ -221,6 +261,37 @@
 --shadow-popover:
   Light: 0 12px 24px rgba(15,23,42,0.12)
   Dark: 0 12px 24px rgba(0,0,0,0.36)
+
+#### Library Size
+--aspect-library-cover: 16 / 9
+--height-library-progress-bar: 4px
+--width-library-recent-card-min: 180px
+--width-library-recent-card-max: 220px
+--width-library-episode-card: 160px
+--width-library-folder-cover: 120px
+--min-height-library-folder-card: 96px
+
+#### Library Radius
+--radius-library-cover: 8px
+--radius-library-time-badge: 6px
+--radius-library-folder-card: 8px
+--radius-library-media-card-hover: 20px
+
+#### Library Spacing
+--gap-library-recent-grid: 16px
+--gap-library-episode-grid-card: 12px
+--gap-library-folder-card-content: 12px
+
+#### Library Padding
+--padding-library-folder-card: 12px 16px
+--padding-library-time-badge: 2px 6px
+--padding-library-media-card-hover: 12px
+
+#### Library Typography
+--font-size-section-title: 18px
+--font-size-library-title: 14px
+--font-size-library-meta: 12px
+--font-size-library-time-badge: 12px
 
 ## 2. Components
 
@@ -932,3 +1003,251 @@ Selected / Overflow
 
 #### Cursor
 default
+
+### 2.24 Section Title
+
+#### Container
+Display: block
+Align: left
+Background: transparent
+Border: none
+
+#### Content
+Font Family: --font-family-base
+Font Size: --font-size-section-title
+Font Weight: semibold
+Text Color: --color-text-primary
+
+#### Status
+Readonly
+
+#### Cursor
+default
+
+### 2.25 Library Cover
+
+#### Container
+Aspect Ratio: --aspect-library-cover
+Radius: --radius-library-cover
+Background Fallback: --color-library-cover-placeholder-bg
+Overflow: hidden
+
+#### Content
+Cover Image: fill container, preserve aspect ratio by cropping
+Image Source: index-stage generated cover cache
+Image Rendering: downsample to actual displayed pixel size before rendering
+
+#### Status
+No Cover
+Loaded
+
+#### Cursor
+Inherited from parent component
+
+### 2.26 Library Cover Progress Overlay
+
+#### Container
+Position: bottom aligned
+Width: 100%
+Height: --height-library-progress-bar
+
+#### Content
+Progress Track: --color-library-progress-track
+Progress Fill: --color-library-progress-fill
+Progress Fill Width: follows playback progress
+
+#### Status
+No Progress
+In Progress
+Finished
+Unknown Duration
+
+#### Cursor
+Inherited from parent component
+
+### 2.27 Library Cover Badge
+
+#### Container
+Position: bottom right
+Radius: --radius-library-time-badge
+Background: --color-library-time-badge-bg
+Padding: --padding-library-time-badge
+
+#### Content
+Font Size: --font-size-library-time-badge
+Text Color: --color-library-time-badge-text
+
+#### Status
+Time
+Count
+Hidden
+
+#### Cursor
+Inherited from parent component
+
+### 2.28 Watch Status Badge
+
+#### Container
+Height: fit-content
+Radius: --radius-chip
+Padding X: --padding-chip-x
+Padding Y: --padding-chip-y
+Border: none
+
+#### Content
+Font Family: --font-family-base
+Font Size: --font-size-caption
+Unwatched Background: --color-watch-status-unwatched-bg
+Unwatched Text Color: --color-watch-status-unwatched-text
+Watching Background: --color-watch-status-watching-bg
+Watching Text Color: --color-watch-status-watching-text
+Finished Background: --color-watch-status-finished-bg
+Finished Text Color: --color-watch-status-finished-text
+
+#### Status
+Unwatched
+Watching
+Finished
+Disabled
+
+#### Cursor
+default
+
+### 2.29 Empty Hint
+
+#### Container
+Display: flex
+Align Items: center
+Justify Content: center
+Background: transparent
+Border: none
+
+#### Content
+Font Family: --font-family-base
+Font Size: --font-size-library-meta
+Text Color: --color-text-muted
+
+#### Status
+Default
+
+#### Cursor
+default
+
+### 3.1 Recent Watching Card Layout
+
+#### Structure
+Container: clickable media card
+Orientation: vertical
+Gap: --spacing-2
+Padding: --padding-library-media-card-hover
+Hover Radius: --radius-library-media-card-hover
+Hover Background: --color-library-media-card-hover-bg
+
+#### Content
+Cover: Library Cover
+Cover Overlay: Library Cover Progress Overlay
+Cover Badge: Library Cover Badge / Time
+Folder Name:
+  Font Size: --font-size-library-title
+  Text Color: --color-text-primary
+  Line Count: 1
+Meta Row:
+  Episode Label:
+    Font Size: --font-size-library-meta
+    Text Color: --color-text-muted
+  Watch Status: Watch Status Badge
+
+#### Interaction
+Default: transparent background
+Hover: show hover background
+Pressed: media card press feedback
+Click: open video at saved playback position
+Disabled / Missing File: reduce opacity and disable click
+
+#### Cursor
+Default / Hover: pointer
+Disabled: not-allowed
+
+### 3.2 Library Folder Card Layout
+
+#### Structure
+Container: clickable media card
+Orientation: vertical
+Gap: --spacing-2
+Padding: --padding-library-media-card-hover
+Hover Radius: --radius-library-media-card-hover
+Hover Background: --color-library-media-card-hover-bg
+
+#### Content
+Cover: Library Cover
+Cover Badge: Library Cover Badge / Count
+Folder Name:
+  Font Size: --font-size-library-title
+  Text Color: --color-text-primary
+  Line Count: 1
+
+#### Interaction
+Default: transparent background
+Hover: show hover background
+Pressed: scale card to 0.98 while pointer is pressed
+Click: open Test Library Folder Detail view
+Disabled / Empty Folder: reduce opacity and disable click
+
+#### Cursor
+Default / Hover: pointer
+Disabled: not-allowed
+
+### 3.3 Library Episode Card Layout
+
+#### Structure
+Container: clickable media card
+Orientation: vertical
+Gap: --spacing-2
+Padding: --padding-library-media-card-hover
+Hover Radius: --radius-library-media-card-hover
+Hover Background: --color-library-media-card-hover-bg
+
+#### Content
+Cover: Library Cover
+Cover Overlay: Library Cover Progress Overlay
+Cover Badge: Library Cover Badge / Time
+Meta Row:
+  Episode Label:
+    Font Size: --font-size-library-meta
+    Text Color: --color-text-muted
+  Watch Status: Watch Status Badge
+
+#### Interaction
+Default: transparent background
+Hover: show hover background
+Pressed: scale card to 0.98 while pointer is pressed
+Click: open video at saved playback position
+Disabled / Missing File: reduce opacity and disable click
+
+#### Cursor
+Default / Hover: pointer
+Disabled: not-allowed
+
+### 3.4 Library Folder Detail Header Layout
+
+#### Structure
+Container: horizontal header
+Orientation: horizontal
+Gap: --spacing-2
+Align Items: center
+
+#### Content
+Back Button:
+  Base Component: Icon Button
+  Icon: chevron.left
+Title:
+  Base Component: Section Title
+  Text: folder name
+
+#### Interaction
+Back Button Click: return to Test Library一级界面
+Title: readonly
+
+#### Cursor
+Back Button Default / Hover: pointer
+Title: default
