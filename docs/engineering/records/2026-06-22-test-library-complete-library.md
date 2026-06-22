@@ -46,6 +46,9 @@ leaving the existing Recent Watching slice intact.
   its rotation animation.
 - Corrected Continue Watching so a recently opened earlier episode wins over a
   later-numbered `Watching` episode from older history.
+- Changed Test Library cover rendering to downsample cover files to the actual
+  displayed pixel size before creating SwiftUI images, with a bounded in-memory
+  cache for decoded thumbnails.
 - Added database tests for Complete Library presentation, continue-target
   selection, and fallback behavior.
 - Extended the database-read cancellation test to include Complete Library
@@ -56,6 +59,10 @@ leaving the existing Recent Watching slice intact.
 - `swift test --filter completeLibrary` succeeded with 2 selected tests.
 - `swift test --filter cancelDatabaseReadsResetsLibraryLoadingStates` succeeded
   with 1 selected test.
+- `swift test --filter completeLibrary` succeeded after the cover-rendering
+  downsampling change.
+- `swift test` succeeded with 315 tests after the cover-rendering downsampling
+  change.
 
 ## Outcome
 
