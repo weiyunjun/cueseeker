@@ -2,33 +2,39 @@
 main
 
 # 需求描述
-新的Library界面（test Library）会有2个部分：Recent Watching和Complete Library。
-## Recent Watching
+开始做：Test Recent Watching界面和Test Library界面。前者的入口图标，用系统的时钟（时针和分针垂直）的图标，放在后者的入口图标的左边。
+## Test Recent Watching
 1. 标题
-Recent Watching和Complete Library，是居左的标题的样式，只读，没有实质性交互。
+Recent Watching，位于顶部，是居左的标题的样式，只读，没有实质性交互。
 2. 最近观看卡片
-卡片样式，一行放几个，从上到下包含若干部分：1. 封面图，目前还在写需求，马上可以实装。封面图底部包含一个纯色的进度条，用于展示进度。封面图右下角显示一个灰底白字的进度数字，例如3:12/24:15。封面图本身是圆角，参考目前的圆角规范。2. 文件夹名称。3. 集数（例如EP01），当前播放状态标签（Unwatched，Watching，Finished）。这里标签本身已经有组件了，不过颜色可能还要调整一下，3种状态用不同颜色。
-4. 排版
+卡片样式，一行放几个，从上到下包含若干部分：1. 封面图，调用index阶段生成的封面图缓存并按照实际像素渲染。封面图底部包含一个纯色的进度条，用于展示进度。封面图右下角显示一个灰底白字的进度数字，例如3:12/24:15。封面图本身是圆角，参考目前的圆角规范。2. 文件夹名称。3. 集数（例如EP01），当前播放状态标签（Unwatched，Watching，Finished）。这里标签本身已经有组件了，不过颜色可能还要调整一下，3种状态用不同颜色。
+3. 排版
 这里需要做自适应排版。
 
-### Complete Library
+### Test Library一级界面
 1. 标题
+Library，位于顶部，是居左的标题的样式，只读，没有实质性交互。
 2. 文件夹卡片
-每行包含一个文件夹信息，从左到右分别是：1. 文件夹封面图，目前还在写需求，马上可以实装。2. 文件夹名称。3. Last Watched: EP08，用灰色的次要信息字体颜色。4. 继续观看按钮（Continue Watching Button，Base Component: Neutral Button，Leading Icon: play，Label: Continue Watching）。点击以后会播放最新的观看进度（这里和Recent Watching保持一致，播放这个文件夹最近播放的视频）4. 展开/收起按钮。
-3. 展开的内容
-收起状态下，点击展开/收起按钮，会弹出具体的每一集在下方，包含若干视频卡片，和最近观看卡片相比，包含第一部分和第三部分（封面图，进度条，进度数字信息，集数，当前播放状态标签）。
-4. 排版
+类似最近观看卡片。从上到下包含若干部分：1. 封面图，调用index阶段生成的封面图缓存并按照实际像素渲染。目前是默认将第一集的封面图视为文件夹封面图。封面图右下角显示一个灰底白字的episodes数字，例如13 episodes。封面图本身是圆角，参考目前的圆角规范。2. 文件夹名称。
+3. 交互
+点击任意文件夹卡片，进入Test Library二级界面
+
+### Test Library二级界面
+1. 标题
+包含2部分：朝左的Chevron按钮和文件夹名称的标题。Chevron按钮，点击以后返回Test Library一级界面。文件夹名称的标题，样式和Test Library一级界面的标题一致。
+2. 视频卡片
+卡片样式，一行放几个，从上到下包含若干部分：1. 封面图，调用index阶段生成的封面图缓存并按照实际像素渲染。封面图底部包含一个纯色的进度条，用于展示进度。封面图右下角显示一个灰底白字的进度数字，例如3:12/24:15。封面图本身是圆角，参考目前的圆角规范。2. 集数（例如EP01），当前播放状态标签（Unwatched，Watching，Finished）。这里标签本身已经有组件了，不过颜色可能还要调整一下，3种状态用不同颜色。
+3. 排版
 这里需要做自适应排版。
 
 ## 注意事项
-1. Recent Watching或Complete Library或展开内容为空时，显示2.33 Empty Hint。
-2. Recent Watching只显示最近5个视频的内容。
+1. Recent Watching或Library为空时，显示2.29 Empty Hint。
+2. Recent Watching完整显示最近播放的视频卡片。
 3. Recent Watching，会合并来自同一文件夹下的视频，例如某个番剧，先看第3集再看第4集，此时只会留下1个记录，即第4集的记录。
 4. Recent Watching，只会记录从Library入口打开的视频，Search和Shiori入口打开的视频是不会计算的。从逻辑上讲，和记录Library视频的进度是consistent的。
-5. Complete Library展开的内容，要启用懒加载，优先铺满界面，后续滚动时，需要提前一点点懒加载好剩下的部分。具体实现参考正式的Search界面的懒加载。
-6. Complete Library的文件夹排序规则，参考正式的Library实现。
-7. Test Library页面整体使用单一纵向滚动容器。Recent Watching和Complete Library在同一个滚动上下文中；当Complete Library内容较多且页面向下滚动时，Recent Watching可以滚出可视区域。
-8. 状态持久化：Recent Watching需要持久化。Complete Library的展开/收起状态以及页面目前滚动到的位置，需要在 App 打开期间保持。
+5. Test Library界面的文件夹排序规则，参考正式的Library实现。
+6. Test Recent Watching界面和Test Library界面需要启用瀑布流，无分页，懒加载。懒加载的实现可以参考正式的Library界面。
+7. 状态持久化：Test Recent Watching界面需要持久化。Test Library界面，在当前规则下，不需要持久化或保存状态，以节省资源占用。例如，点击某个番剧，进入二级界面，此时点击搜索再点击Test Library界面，会显示一级界面而非二级界面。
 
 # UI文档
 ## 1. Core Tokens
@@ -1056,7 +1062,7 @@ Readonly
 #### Cursor
 default
 
-### 2.25 Library Cover With Progress
+### 2.25 Library Cover
 
 #### Container
 Aspect Ratio: --aspect-library-cover
@@ -1066,17 +1072,29 @@ Overflow: hidden
 
 #### Content
 Cover Image: fill container, preserve aspect ratio by cropping
-Progress Track: bottom aligned, height --height-library-progress-bar, color --color-library-progress-track
-Progress Fill: left aligned, width follows playback progress, color --color-library-progress-fill
-Time Badge: bottom right
-Time Badge Background: --color-library-time-badge-bg
-Time Badge Text: --color-library-time-badge-text
-Time Badge Radius: --radius-library-time-badge
-Time Badge Padding: --padding-library-time-badge
-Time Badge Font Size: --font-size-library-time-badge
+Image Source: index-stage generated cover cache
+Image Rendering: downsample to actual displayed pixel size before rendering
 
 #### Status
 No Cover
+Loaded
+
+#### Cursor
+Inherited from parent component
+
+### 2.26 Library Cover Progress Overlay
+
+#### Container
+Position: bottom aligned
+Width: 100%
+Height: --height-library-progress-bar
+
+#### Content
+Progress Track: --color-library-progress-track
+Progress Fill: --color-library-progress-fill
+Progress Fill Width: follows playback progress
+
+#### Status
 No Progress
 In Progress
 Finished
@@ -1085,7 +1103,27 @@ Unknown Duration
 #### Cursor
 Inherited from parent component
 
-### 2.26 Watch Status Badge
+### 2.27 Library Cover Badge
+
+#### Container
+Position: bottom right
+Radius: --radius-library-time-badge
+Background: --color-library-time-badge-bg
+Padding: --padding-library-time-badge
+
+#### Content
+Font Size: --font-size-library-time-badge
+Text Color: --color-library-time-badge-text
+
+#### Status
+Time
+Count
+Hidden
+
+#### Cursor
+Inherited from parent component
+
+### 2.28 Watch Status Badge
 
 #### Container
 Height: fit-content
@@ -1113,164 +1151,7 @@ Disabled
 #### Cursor
 default
 
-### 2.27 Recent Watching Grid
-
-#### Container
-Display: adaptive grid
-Column Width Min: --width-library-recent-card-min
-Column Width Max: --width-library-recent-card-max
-Gap: --gap-library-recent-grid
-Align: left
-
-#### Content
-Items: Recent Watching Card
-
-#### Status
-Default
-Empty
-
-#### Cursor
-default
-
-### 2.28 Recent Watching Card
-
-#### Container
-Width Min: --width-library-recent-card-min
-Width Max: --width-library-recent-card-max
-Background Default: transparent
-Background Hover: --color-library-media-card-hover-bg
-Radius Hover: --radius-library-media-card-hover
-Padding Hover: --padding-library-media-card-hover
-Border: none
-Gap: --spacing-2
-
-#### Content
-Cover: Library Cover With Progress
-Folder Name Font Size: --font-size-library-title
-Folder Name Text Color: --color-text-primary
-Folder Name Line Count: 1
-Meta Row: episode label + Watch Status Badge
-Episode Font Size: --font-size-library-meta
-Episode Text Color: --color-text-muted
-
-#### Status
-Default
-Hover
-Pressed
-Disabled / Missing File
-
-#### Cursor
-Default / Hover: pointer
-Disabled: not-allowed
-
-### 2.29 Library Folder Card
-
-#### Container
-Width: 100%
-Min Height: --min-height-library-folder-card
-Radius: --radius-library-folder-card
-Padding: --padding-library-folder-card
-Background Default: --color-bg-surface
-Background Hover: --color-bg-hover
-Border: --color-border-control
-Gap: --gap-library-folder-card-content
-
-#### Content
-Folder Cover Width: --width-library-folder-cover
-Folder Cover: Library Cover With Progress
-Folder Name Font Size: --font-size-library-title
-Folder Name Text Color: --color-text-primary
-Last Watched Episode Font Size: --font-size-library-meta
-Last Watched Episode Text Color: --color-text-muted
-Continue Watching Button: Neutral Button
-Continue Watching Button Leading Icon: play
-Expand / Collapse Button: Library Folder Disclosure Button
-
-#### Status
-Default
-Hover
-Expanded
-Disabled / Empty Folder
-
-#### Cursor
-Card Body: default
-Buttons: pointer / not-allowed
-
-### 2.30 Library Folder Disclosure Button
-
-#### Container
-Base Component: Icon Button
-Button Size: --size-icon-button
-Border Radius: --radius-control
-Background Default: transparent
-Background Hover: --color-bg-hover
-
-#### Content
-Icon: chevron.right
-Collapsed Icon Rotation: 0deg
-Expanded Icon Rotation: 90deg
-Animation: ease-in-out, 160ms
-Icon Size: --size-control-icon
-Icon Color Default: --color-icon-default
-Icon Color Disabled: --color-icon-disabled
-
-#### Status
-Collapsed
-Expanded
-Hover
-Disabled
-
-#### Cursor
-Default / Hover: pointer
-Disabled: not-allowed
-
-### 2.31 Library Episode Grid
-
-#### Container
-Display: wrapping grid
-Width: 100%
-Card Width: --width-library-episode-card
-Card Gap: --gap-library-episode-grid-card
-
-#### Content
-Items: Library Episode Card
-
-#### Status
-Default
-Empty
-Loading
-
-#### Cursor
-default
-
-### 2.32 Library Episode Card
-
-#### Container
-Width: --width-library-episode-card
-Background Default: transparent
-Background Hover: --color-library-media-card-hover-bg
-Radius Hover: --radius-library-media-card-hover
-Padding Hover: --padding-library-media-card-hover
-Border: none
-Gap: --spacing-2
-
-#### Content
-Cover: Library Cover With Progress
-Meta Row: episode label + Watch Status Badge
-Episode Font Size: --font-size-library-meta
-Episode Text Color: --color-text-muted
-
-#### Status
-Default
-Hover
-Pressed
-Disabled / Missing File
-
-#### Cursor
-Default / Hover: pointer
-Disabled: not-allowed
-
-### 2.33 Empty Hint
+### 2.29 Empty Hint
 
 #### Container
 Display: flex
@@ -1289,3 +1170,122 @@ Default
 
 #### Cursor
 default
+
+### 3.1 Recent Watching Card Layout
+
+#### Structure
+Container: clickable media card
+Orientation: vertical
+Gap: --spacing-2
+Padding: --padding-library-media-card-hover
+Hover Radius: --radius-library-media-card-hover
+Hover Background: --color-library-media-card-hover-bg
+
+#### Content
+Cover: Library Cover
+Cover Overlay: Library Cover Progress Overlay
+Cover Badge: Library Cover Badge / Time
+Folder Name:
+  Font Size: --font-size-library-title
+  Text Color: --color-text-primary
+  Line Count: 1
+Meta Row:
+  Episode Label:
+    Font Size: --font-size-library-meta
+    Text Color: --color-text-muted
+  Watch Status: Watch Status Badge
+
+#### Interaction
+Default: transparent background
+Hover: show hover background
+Pressed: media card press feedback
+Click: open video at saved playback position
+Disabled / Missing File: reduce opacity and disable click
+
+#### Cursor
+Default / Hover: pointer
+Disabled: not-allowed
+
+### 3.2 Library Folder Card Layout
+
+#### Structure
+Container: clickable media card
+Orientation: vertical
+Gap: --spacing-2
+Padding: --padding-library-media-card-hover
+Hover Radius: --radius-library-media-card-hover
+Hover Background: --color-library-media-card-hover-bg
+
+#### Content
+Cover: Library Cover
+Cover Badge: Library Cover Badge / Count
+Folder Name:
+  Font Size: --font-size-library-title
+  Text Color: --color-text-primary
+  Line Count: 1
+
+#### Interaction
+Default: transparent background
+Hover: show hover background
+Pressed: scale card to 0.98 while pointer is pressed
+Click: open Test Library Folder Detail view
+Disabled / Empty Folder: reduce opacity and disable click
+
+#### Cursor
+Default / Hover: pointer
+Disabled: not-allowed
+
+### 3.3 Library Episode Card Layout
+
+#### Structure
+Container: clickable media card
+Orientation: vertical
+Gap: --spacing-2
+Padding: --padding-library-media-card-hover
+Hover Radius: --radius-library-media-card-hover
+Hover Background: --color-library-media-card-hover-bg
+
+#### Content
+Cover: Library Cover
+Cover Overlay: Library Cover Progress Overlay
+Cover Badge: Library Cover Badge / Time
+Meta Row:
+  Episode Label:
+    Font Size: --font-size-library-meta
+    Text Color: --color-text-muted
+  Watch Status: Watch Status Badge
+
+#### Interaction
+Default: transparent background
+Hover: show hover background
+Pressed: scale card to 0.98 while pointer is pressed
+Click: open video at saved playback position
+Disabled / Missing File: reduce opacity and disable click
+
+#### Cursor
+Default / Hover: pointer
+Disabled: not-allowed
+
+### 3.4 Library Folder Detail Header Layout
+
+#### Structure
+Container: horizontal header
+Orientation: horizontal
+Gap: --spacing-2
+Align Items: center
+
+#### Content
+Back Button:
+  Base Component: Icon Button
+  Icon: chevron.left
+Title:
+  Base Component: Section Title
+  Text: folder name
+
+#### Interaction
+Back Button Click: return to Test Library一级界面
+Title: readonly
+
+#### Cursor
+Back Button Default / Hover: pointer
+Title: default
