@@ -14,7 +14,7 @@ Recent Watching和Complete Library，是居左的标题的样式，只读，没�
 ### Complete Library
 1. 标题
 2. 文件夹卡片
-每行包含一个文件夹信息，从左到右分别是：1. 文件夹封面图，目前还在写需求，马上可以实装。2. 文件夹名称。3. Last Watched: EP08，用灰色的次要信息字体颜色。4. 继续观看按钮（Continue Watching Button，Base Component: Neutral Button，Leading Icon: play，Label: Continue Watching）。点击以后会播放最新的观看进度（播放观看中最后的一集，如果没有观看中的但是有未观看的播放未观看的最前的一集，如果全观看了就播放第一集）4. 展开/收起按钮。
+每行包含一个文件夹信息，从左到右分别是：1. 文件夹封面图，目前还在写需求，马上可以实装。2. 文件夹名称。3. Last Watched: EP08，用灰色的次要信息字体颜色。4. 继续观看按钮（Continue Watching Button，Base Component: Neutral Button，Leading Icon: play，Label: Continue Watching）。点击以后会播放最新的观看进度（这里和Recent Watching保持一致，播放这个文件夹最近播放的视频）4. 展开/收起按钮。
 3. 展开的内容
 收起状态下，点击展开/收起按钮，会弹出具体的每一集在下方，包含若干视频卡片，和最近观看卡片相比，包含第一部分和第三部分（封面图，进度条，进度数字信息，集数，当前播放状态标签）。
 4. 排版
