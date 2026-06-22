@@ -6,6 +6,22 @@ struct LibraryPlaybackHistorySnapshot: Sendable {
     let videoPath: String
     let positionMilliseconds: Int
     let duration: Double?
+    let markStarted: Bool
+    let markCompleted: Bool
+
+    init(
+        videoPath: String,
+        positionMilliseconds: Int,
+        duration: Double?,
+        markStarted: Bool = true,
+        markCompleted: Bool = false
+    ) {
+        self.videoPath = videoPath
+        self.positionMilliseconds = positionMilliseconds
+        self.duration = duration
+        self.markStarted = markStarted
+        self.markCompleted = markCompleted
+    }
 }
 
 final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
@@ -40,7 +56,9 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
             try database.upsertLibraryPlaybackHistory(
                 videoFile: URL(fileURLWithPath: snapshot.videoPath),
                 positionMilliseconds: snapshot.positionMilliseconds,
-                duration: snapshot.duration
+                duration: snapshot.duration,
+                markStarted: snapshot.markStarted,
+                markCompleted: snapshot.markCompleted
             )
         } catch {
             print("Failed to save Library playback history: \(error)")
@@ -464,6 +482,39 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
     }
 
+    func markCurrentLibraryPlaybackCompletedIfNeeded(
+        currentTime: Double,
+        duration: Double
+    ) {
+        guard case .library(let videoPath) = activePlaybackSource,
+              libraryPlaybackCompletedMilestoneVideoPath != videoPath,
+              duration.isFinite,
+              duration > 0
+        else {
+            return
+        }
+
+        let positionMilliseconds = max(
+            0,
+            Int((currentTime * 1_000).rounded(.down))
+        )
+        guard LibraryWatchState.isFinishedThresholdReached(
+            positionMilliseconds: positionMilliseconds,
+            duration: duration
+        ) else {
+            return
+        }
+
+        libraryPlaybackCompletedMilestoneVideoPath = videoPath
+        let snapshot = LibraryPlaybackHistorySnapshot(
+            videoPath: videoPath,
+            positionMilliseconds: positionMilliseconds,
+            duration: duration,
+            markCompleted: true
+        )
+        libraryPlaybackHistoryWriter.save(snapshot)
+    }
+
     func saveCurrentLibraryPlaybackHistoryForPlaybackClose() {
         guard case .library = activePlaybackSource else {
             saveCurrentLibraryPlaybackHistory()
@@ -554,6 +605,18 @@ extension AppCoordinator {
 
     func startLibraryPlaybackHistoryTracking(videoPath: String) {
         activePlaybackSource = .library(videoPath: videoPath)
+        let videoFile = URL(fileURLWithPath: videoPath)
+        let existingHistory: LibraryPlaybackHistory?
+        if let subtitleDatabase {
+            existingHistory = try? subtitleDatabase.libraryPlaybackHistory(forVideoFile: videoFile)
+        } else {
+            existingHistory = nil
+        }
+        if existingHistory?.completedAt != nil {
+            libraryPlaybackCompletedMilestoneVideoPath = videoPath
+        } else {
+            libraryPlaybackCompletedMilestoneVideoPath = nil
+        }
         libraryPlaybackHistoryTask?.cancel()
         libraryPlaybackHistoryTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -570,5 +633,6 @@ extension AppCoordinator {
     func stopLibraryPlaybackHistoryTracking() {
         libraryPlaybackHistoryTask?.cancel()
         libraryPlaybackHistoryTask = nil
+        libraryPlaybackCompletedMilestoneVideoPath = nil
     }
 }

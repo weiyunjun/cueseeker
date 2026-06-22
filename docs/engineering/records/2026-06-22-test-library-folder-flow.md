@@ -21,6 +21,8 @@ Recent Watching page was accepted for basic validation.
   path and saved resume position.
 - Persistence semantics: Library playback history now stores "started" and
   "completed" milestones separately from the mutable resume position.
+- Playback sync semantics: resume position is saved as continuous progress,
+  while `started_at` and `completed_at` are written as one-way milestones.
 
 ## Changes
 
@@ -45,6 +47,11 @@ Recent Watching page was accepted for basic validation.
 - Updated Test Recent Watching and Test Library cards to render watch status
   from the persisted watch state instead of recalculating only from the current
   resume position.
+- Split Library history writes so ordinary progress saves update `position_ms`
+  without inferring `completed_at` from the current resume position.
+- Added a playback-time milestone hook that writes `completed_at` as soon as a
+  Library video reaches the completion threshold. Seeking back later only moves
+  the resume position and does not roll the watch state back.
 
 ## Verification
 
@@ -54,7 +61,8 @@ Recent Watching page was accepted for basic validation.
 - `swift test --filter closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision` passed.
 - `swift test --filter libraryPlaybackHistory` passed.
 - `swift test --filter migrationBackfillsLibraryPlaybackHistoryWatchStateColumns` passed.
-- `swift test --quiet` passed: 319 Swift tests plus 7 XCTest cases.
+- `swift test --filter libraryPlaybackCompletionMilestoneSurvivesSeekingBackBeforeClose` passed.
+- `swift test --quiet` passed: 321 Swift tests plus 7 XCTest cases.
 
 ## Outcome
 

@@ -184,6 +184,57 @@ func closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision() async throws {
 }
 
 @MainActor
+@Test
+func libraryPlaybackCompletionMilestoneSurvivesSeekingBackBeforeClose() async throws {
+    try await withTemporarySegmentCompletionApp { app, database in
+        let videoURL = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+        try database.replaceEntries(
+            subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),
+            videoFile: videoURL,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:02,000",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 2_000,
+                    text: "library completion milestone"
+                )
+            ]
+        )
+
+        app.ensurePlayerInitialized()
+        defer {
+            app.stopLibraryPlaybackHistoryTracking()
+        }
+
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        app.startLibraryPlaybackHistoryTracking(videoPath: videoURL.path)
+
+        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100.0))
+        await Task.yield()
+        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(96.0))
+        await Task.yield()
+        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(42.5))
+        await Task.yield()
+
+        app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
+
+        let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        #expect(history.positionMilliseconds == 42_500)
+        #expect(history.duration == 100.0)
+        #expect(history.completedAt != nil)
+        #expect(LibraryWatchState(
+            positionMilliseconds: history.positionMilliseconds,
+            duration: history.duration,
+            startedAt: history.startedAt,
+            completedAt: history.completedAt
+        ) == .finished)
+    }
+}
+
+@MainActor
 private func withTemporarySegmentCompletionApp(
     _ body: @MainActor (AppCoordinator, SubtitleDatabase) async throws -> Void
 ) async throws {

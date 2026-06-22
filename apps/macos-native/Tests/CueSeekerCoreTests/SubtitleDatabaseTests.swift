@@ -2146,7 +2146,8 @@ func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
     try database.upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 960_000,
-        duration: 1_000.0
+        duration: 1_000.0,
+        markCompleted: true
     )
 
     let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
@@ -2174,6 +2175,34 @@ func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
         startedAt: rewoundHistory.startedAt,
         completedAt: rewoundHistory.completedAt
     ) == .finished)
+}
+
+@Test
+func libraryPlaybackHistoryDoesNotFinishFromResumePositionAlone() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 960_000,
+        duration: 1_000.0
+    )
+
+    let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(history.startedAt != nil)
+    #expect(history.completedAt == nil)
+    #expect(LibraryWatchState(
+        positionMilliseconds: history.positionMilliseconds,
+        duration: history.duration,
+        startedAt: history.startedAt,
+        completedAt: history.completedAt
+    ) == .watching)
 }
 
 @Test
@@ -2327,7 +2356,8 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
         videoFile: episode2,
         positionMilliseconds: 960_000,
         duration: 1_000.0,
-        updatedAt: baseDate.addingTimeInterval(1)
+        updatedAt: baseDate.addingTimeInterval(1),
+        markCompleted: true
     )
     try database.upsertLibraryPlaybackHistory(
         videoFile: episode3,

@@ -400,6 +400,17 @@ public enum LibraryWatchState: String, Equatable, Sendable {
     case watching
     case finished
 
+    public static func isFinishedThresholdReached(
+        positionMilliseconds: Int,
+        duration: Double?
+    ) -> Bool {
+        guard let duration, duration.isFinite, duration > 0 else {
+            return false
+        }
+        let positionSeconds = Double(max(0, positionMilliseconds)) / 1_000
+        return positionSeconds >= duration * 0.95 || duration - positionSeconds <= 1
+    }
+
     public init(positionMilliseconds: Int, duration: Double?) {
         self.init(
             positionMilliseconds: positionMilliseconds,
@@ -436,7 +447,7 @@ public enum LibraryWatchState: String, Equatable, Sendable {
             return
         }
 
-        if positionSeconds >= duration * 0.95 || duration - positionSeconds <= 1 {
+        if Self.isFinishedThresholdReached(positionMilliseconds: positionMilliseconds, duration: duration) {
             self = .finished
         } else {
             self = .watching
@@ -5322,17 +5333,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
         videoFile: URL,
         positionMilliseconds: Int,
         duration: Double?,
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        markStarted: Bool = true,
+        markCompleted: Bool = false
     ) throws {
         let updatedAtString = Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt)
         let clampedPositionMilliseconds = max(0, positionMilliseconds)
         let normalizedDuration = duration.flatMap { value in
             value.isFinite && value > 0 ? value : nil
         }
-        let completedAt = Self.libraryPlaybackHistoryIsFinished(
-            positionMilliseconds: clampedPositionMilliseconds,
-            duration: normalizedDuration
-        ) ? updatedAtString : nil
+        let startedAt = markStarted || markCompleted ? updatedAtString : nil
+        let completedAt = markCompleted ? updatedAtString : nil
 
         let statement = try database.prepare(
             """
@@ -5361,7 +5372,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
         } else {
             try statement.bindNull(at: 3)
         }
-        try statement.bind(updatedAtString, at: 4)
+        if let startedAt {
+            try statement.bind(startedAt, at: 4)
+        } else {
+            try statement.bindNull(at: 4)
+        }
         if let completedAt {
             try statement.bind(completedAt, at: 5)
         } else {
@@ -7783,17 +7798,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)
-    }
-
-    private static func libraryPlaybackHistoryIsFinished(
-        positionMilliseconds: Int,
-        duration: Double?
-    ) -> Bool {
-        guard let duration, duration.isFinite, duration > 0 else {
-            return false
-        }
-        let positionSeconds = Double(max(0, positionMilliseconds)) / 1_000
-        return positionSeconds >= duration * 0.95 || duration - positionSeconds <= 1
     }
 
     private static func folderPathVariants(for folder: URL) -> [String] {

@@ -85,6 +85,7 @@ public final class PlaybackViewModel: ObservableObject {
     private let onLastNonzeroVolumeChanged: (Double) -> Void
     private let onPlaybackSpeedChanged: (Double) -> Void
     private let onSubtitlesVisibleChanged: (Bool) -> Void
+    private let onPlaybackTimeUpdated: (Double, Double) -> Void
     private let onSegmentFinished: (Int) -> Void
 
     public init(
@@ -97,6 +98,7 @@ public final class PlaybackViewModel: ObservableObject {
         onLastNonzeroVolumeChanged: @escaping (Double) -> Void = { _ in },
         onPlaybackSpeedChanged: @escaping (Double) -> Void = { _ in },
         onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in },
+        onPlaybackTimeUpdated: @escaping (Double, Double) -> Void = { _, _ in },
         onSegmentFinished: @escaping (Int) -> Void = { _ in }
     ) {
         self.player = player
@@ -104,6 +106,7 @@ public final class PlaybackViewModel: ObservableObject {
         self.onLastNonzeroVolumeChanged = onLastNonzeroVolumeChanged
         self.onPlaybackSpeedChanged = onPlaybackSpeedChanged
         self.onSubtitlesVisibleChanged = onSubtitlesVisibleChanged
+        self.onPlaybackTimeUpdated = onPlaybackTimeUpdated
         self.onSegmentFinished = onSegmentFinished
 
         volume = Self.clampedVolume(initialVolume)
@@ -629,6 +632,7 @@ public final class PlaybackViewModel: ObservableObject {
         publishesControlsImmediately: Bool = false
     ) {
         currentTime = time.isFinite ? max(time, 0) : 0
+        onPlaybackTimeUpdated(currentTime, duration)
         refreshActiveSubtitleText()
         publishDisplayedCurrentTimeIfNeeded(force: publishesControlsImmediately)
     }

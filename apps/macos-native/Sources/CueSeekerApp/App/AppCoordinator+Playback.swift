@@ -141,6 +141,12 @@ extension AppCoordinator {
             onSubtitlesVisibleChanged: { [weak self] isVisible in
                 self?.userDefaults.set(isVisible, forKey: Self.playbackSubtitlesVisibleKey)
             },
+            onPlaybackTimeUpdated: { [weak self] currentTime, duration in
+                self?.markCurrentLibraryPlaybackCompletedIfNeeded(
+                    currentTime: currentTime,
+                    duration: duration
+                )
+            },
             onSegmentFinished: { [weak self] endMilliseconds in
                 self?.handlePlaybackSegmentFinished(endMilliseconds: endMilliseconds)
             }
