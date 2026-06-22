@@ -830,7 +830,8 @@ private struct LibraryDownsampledCoverImage: View {
         let maxPixelSize = max(1, Int((maxDimension * scale).rounded(.up)))
         return LibraryCoverImageRequest(
             path: coverPath,
-            maxPixelSize: maxPixelSize
+            maxPixelSize: maxPixelSize,
+            fileVersion: LibraryCoverImageFileVersion.current(forPath: coverPath)
         )
     }
 
@@ -875,9 +876,40 @@ private struct LibraryDownsampledCoverImage: View {
 private struct LibraryCoverImageRequest: Equatable, Sendable {
     let path: String
     let maxPixelSize: Int
+    let fileVersion: LibraryCoverImageFileVersion
 
     var cacheKey: String {
-        "\(path)|\(maxPixelSize)"
+        "\(path)|\(maxPixelSize)|\(fileVersion.cacheKeyComponent)"
+    }
+}
+
+private struct LibraryCoverImageFileVersion: Equatable, Sendable {
+    let byteCount: UInt64?
+    let modificationTimeNanoseconds: Int64?
+
+    static func current(forPath path: String) -> LibraryCoverImageFileVersion {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else {
+            return LibraryCoverImageFileVersion(
+                byteCount: nil,
+                modificationTimeNanoseconds: nil
+            )
+        }
+
+        let byteCount = (attributes[.size] as? NSNumber)?.uint64Value
+        let modificationTimeNanoseconds = (attributes[.modificationDate] as? Date).map { date in
+            Int64((date.timeIntervalSince1970 * 1_000_000_000).rounded())
+        }
+
+        return LibraryCoverImageFileVersion(
+            byteCount: byteCount,
+            modificationTimeNanoseconds: modificationTimeNanoseconds
+        )
+    }
+
+    var cacheKeyComponent: String {
+        let byteCountComponent = byteCount.map(String.init) ?? "missing-size"
+        let modificationTimeComponent = modificationTimeNanoseconds.map(String.init) ?? "missing-mtime"
+        return "\(byteCountComponent)|\(modificationTimeComponent)"
     }
 }
 
