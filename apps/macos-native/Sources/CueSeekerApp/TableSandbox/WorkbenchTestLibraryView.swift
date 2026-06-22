@@ -147,7 +147,7 @@ struct WorkbenchTestLibraryView: View {
         guard let selectedFolder else {
             return ""
         }
-        return "\(selectedFolder.folderPath)|\(library.completeLibraryRevision)"
+        return "\(selectedFolder.folderPath)|\(library.completeLibraryRevision)|\(library.libraryPlaybackHistoryRevision)"
     }
 
     private func closeFolderDetail() {

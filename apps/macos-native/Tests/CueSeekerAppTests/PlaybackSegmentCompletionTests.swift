@@ -144,6 +144,46 @@ func appCoordinatorOnlyBoundsCuePlaybackWhenAutoSwitchIsEnabled() async throws {
 }
 
 @MainActor
+@Test
+func closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision() async throws {
+    try await withTemporarySegmentCompletionApp { app, database in
+        let videoURL = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+        try database.replaceEntries(
+            subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),
+            videoFile: videoURL,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:02,000",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 2_000,
+                    text: "library close progress"
+                )
+            ]
+        )
+
+        app.ensurePlayerInitialized()
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        app.activePlaybackSource = .library(videoPath: videoURL.path)
+
+        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(42.5))
+        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100.0))
+        await Task.yield()
+
+        let revisionBeforeSave = app.library.libraryPlaybackHistoryRevision
+
+        app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
+
+        let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        #expect(history.positionMilliseconds == 42_500)
+        #expect(history.duration == 100.0)
+        #expect(app.library.libraryPlaybackHistoryRevision == revisionBeforeSave + 1)
+    }
+}
+
+@MainActor
 private func withTemporarySegmentCompletionApp(
     _ body: @MainActor (AppCoordinator, SubtitleDatabase) async throws -> Void
 ) async throws {

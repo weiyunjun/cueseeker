@@ -16,6 +16,7 @@ final class LibraryStore: ObservableObject {
     @Published var completeLibraryStatus: LibraryStatus = .idle
     @Published var completeLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] = []
     @Published var completeLibraryRevision = 0
+    @Published var libraryPlaybackHistoryRevision = 0
     @Published var selectedLibraryVideo: LibraryVideo?
     var libraryPlaybackNavigationVideos: [LibraryVideo] = []
 }

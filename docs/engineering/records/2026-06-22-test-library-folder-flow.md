@@ -33,13 +33,16 @@ Recent Watching page was accepted for basic validation.
 - Removed Test Library scroll-position and expanded-folder persistence state.
 - Added a separate Library playback navigation list for folder detail playback
   so formal Library presentation state is not polluted.
+- Added a close-playback history revision so the folder detail view reloads its
+  episode progress after returning from Library video playback.
 
 ## Verification
 
 - `swift build` passed.
 - `swift test --filter completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData` passed.
 - `swift test --filter completeLibrary` passed.
-- `swift test --quiet` passed: 316 Swift tests plus 7 XCTest cases.
+- `swift test --filter closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision` passed.
+- `swift test --quiet` passed: 317 Swift tests plus 7 XCTest cases.
 
 ## Outcome
 

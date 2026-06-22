@@ -464,11 +464,23 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
     }
 
-    func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) {
+    func saveCurrentLibraryPlaybackHistoryForPlaybackClose() {
+        guard case .library = activePlaybackSource else {
+            saveCurrentLibraryPlaybackHistory()
+            return
+        }
+
+        if saveCurrentLibraryPlaybackHistory(waitUntilFinished: true) {
+            library.libraryPlaybackHistoryRevision += 1
+        }
+    }
+
+    @discardableResult
+    func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) -> Bool {
         guard case .library(let videoPath) = activePlaybackSource,
               let playbackViewModel = playback.playbackViewModel
         else {
-            return
+            return false
         }
 
         let positionMilliseconds = max(
@@ -489,6 +501,7 @@ extension AppCoordinator {
         } else {
             libraryPlaybackHistoryWriter.save(snapshot)
         }
+        return true
     }
 
     func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {

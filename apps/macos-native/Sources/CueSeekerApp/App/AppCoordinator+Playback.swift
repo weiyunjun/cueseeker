@@ -1312,7 +1312,7 @@ extension AppCoordinator {
             cancelPlaybackQuickSearchAIChunking()
             cancelPlaybackQuickSearchChunkCount()
             discardPlaybackQuickSearchSearchContext()
-            saveCurrentLibraryPlaybackHistory()
+            saveCurrentLibraryPlaybackHistoryForPlaybackClose()
             stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()
             try player?.stop()
