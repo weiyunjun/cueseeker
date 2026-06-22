@@ -1,32 +1,72 @@
 import Foundation
 import SwiftUI
+import CueSeekerCore
 
 @MainActor
 enum WorkbenchPanelMode: String, CaseIterable {
     case library
-    case search
     case shiori
-}
-
-/// Temporary sandbox pages used to prototype the table-style UI without
-/// polluting the production Library/Search/Shiori views. Reachable only via the
-/// top-bar test icons; intentionally not persisted across launches.
-@MainActor
-enum WorkbenchTestPage: String, CaseIterable {
     case recentWatching
-    case library
+    case testLibrary
     case search
+
+    var sidebarLabel: String {
+        switch self {
+        case .library:
+            return "Library"
+        case .shiori:
+            return "Shiori"
+        case .recentWatching:
+            return "Test Recent Watching"
+        case .testLibrary:
+            return "Test Library"
+        case .search:
+            return "Search"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .library:
+            return "Library"
+        case .shiori:
+            return "Shiori"
+        case .recentWatching:
+            return "Recent Watching"
+        case .testLibrary:
+            return "Library"
+        case .search:
+            return "Search"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .library:
+            return "folder"
+        case .shiori:
+            return "bookmark"
+        case .recentWatching:
+            return "clock"
+        case .testLibrary:
+            return "folder.circle"
+        case .search:
+            return "line.3.horizontal.decrease.circle"
+        }
+    }
 }
 
 @MainActor
 final class WorkbenchLayoutState: ObservableObject {
     private static let panelModeKey = "workbenchPanelMode"
+    private static let isSidebarVisibleKey = "workbenchSidebarVisible"
 
     @Published var panelMode: WorkbenchPanelMode
+    @Published var isSidebarVisible: Bool
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
     @Published var isSearchFocused = false
-    @Published var activeTestPage: WorkbenchTestPage?
+    @Published var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation?
 
     private let userDefaults: UserDefaults
 
@@ -34,7 +74,8 @@ final class WorkbenchLayoutState: ObservableObject {
         self.userDefaults = userDefaults
         panelMode = WorkbenchPanelMode(
             rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
-        ) ?? .search
+        ) ?? .library
+        isSidebarVisible = userDefaults.object(forKey: Self.isSidebarVisibleKey) as? Bool ?? true
     }
 
     func selectPanelMode(_ mode: WorkbenchPanelMode) {
@@ -46,16 +87,26 @@ final class WorkbenchLayoutState: ObservableObject {
         userDefaults.set(mode.rawValue, forKey: Self.panelModeKey)
     }
 
-    func toggleTestPage(_ page: WorkbenchTestPage) {
-        activeTestPage = (activeTestPage == page) ? nil : page
+    func toggleSidebarVisibility() {
+        isSidebarVisible.toggle()
+        userDefaults.set(isSidebarVisible, forKey: Self.isSidebarVisibleKey)
     }
 
-    func clearTestPage() {
-        guard activeTestPage != nil else {
+    func setSidebarVisible(_ isVisible: Bool) {
+        guard isSidebarVisible != isVisible else {
             return
         }
 
-        activeTestPage = nil
+        isSidebarVisible = isVisible
+        userDefaults.set(isVisible, forKey: Self.isSidebarVisibleKey)
+    }
+
+    func selectTestLibraryFolder(_ folder: CompleteLibraryFolderSummaryPresentation) {
+        selectedTestLibraryFolder = folder
+    }
+
+    func clearTestLibraryFolder() {
+        selectedTestLibraryFolder = nil
     }
 
     func beginVideoSizeTransition() -> Bool {
@@ -78,7 +129,6 @@ final class WorkbenchLayoutState: ObservableObject {
 
         AppPerformanceProbe.measure("WorkbenchLayoutState.clearSearchFocus", thresholdMilliseconds: 4) {
             isSearchFocused = false
-            NotificationCenter.default.post(name: .topbarSearchFocusClearRequested, object: nil)
         }
     }
 }

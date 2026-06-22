@@ -28,10 +28,10 @@ extension AppCoordinator {
         refreshCurrentSearch(clearExistingResults: true)
     }
 
-    func submitTopbarSearch(_ query: String) {
+    func submitSearch(_ query: String) {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         UIInvalidationProbe.mark(
-            "ACTION UI.TopbarSearch.submitted",
+            "ACTION UI.Search.submitted",
             details: "length=\(trimmedQuery.count)"
         )
         if playback.playbackViewModel?.isPlaying == true {

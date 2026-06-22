@@ -134,7 +134,7 @@ struct WorkbenchTestSearchView: View {
     private func submitSearchDraft() {
         let trimmedDraft = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedDraft.isEmpty else {
-            appState.submitTopbarSearch(searchDraft)
+            appState.submitSearch(searchDraft)
             return
         }
 

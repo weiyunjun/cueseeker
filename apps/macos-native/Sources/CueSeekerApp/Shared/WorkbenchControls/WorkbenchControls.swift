@@ -67,6 +67,22 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px
     static let redesignFontSizeCaption: CGFloat = 12
+    /// --height-app-sidebar-item: 32px
+    static let redesignAppSidebarItemHeight: CGFloat = 32
+    /// --width-app-sidebar: 240px
+    static let redesignAppSidebarWidth: CGFloat = 240
+    /// --size-app-sidebar-item-icon: 18px
+    static let redesignAppSidebarItemIconSize: CGFloat = 18
+    /// --radius-app-sidebar-item: 8px
+    static let redesignAppSidebarItemRadius: CGFloat = 8
+    /// --padding-app-sidebar-x: 12px
+    static let redesignAppSidebarHorizontalPadding: CGFloat = 12
+    /// --padding-app-sidebar-y: 12px
+    static let redesignAppSidebarVerticalPadding: CGFloat = 12
+    /// --padding-app-sidebar-item-x: 10px
+    static let redesignAppSidebarItemHorizontalPadding: CGFloat = 10
+    /// --font-size-app-sidebar-item: 13px
+    static let redesignFontSizeAppSidebarItem: CGFloat = 13
 
     /// --aspect-library-cover: 16 / 9
     static let redesignLibraryCoverAspectRatio: CGFloat = 16.0 / 9.0

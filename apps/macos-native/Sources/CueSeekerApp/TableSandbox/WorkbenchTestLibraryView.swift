@@ -11,8 +11,6 @@ struct WorkbenchTestRecentWatchingView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                LibrarySectionTitle("Recent Watching")
-
                 recentWatchingContent
             }
             .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
@@ -53,8 +51,8 @@ struct WorkbenchTestRecentWatchingView: View {
 struct WorkbenchTestLibraryView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var library: LibraryStore
-    @State private var selectedFolder: CompleteLibraryFolderSummaryPresentation?
     @State private var folderDetail: CompleteLibraryFolderDetailPresentation?
     @State private var folderDetailStatus: LibraryStatus = .idle
 
@@ -62,15 +60,8 @@ struct WorkbenchTestLibraryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
                 if let selectedFolder {
-                    LibraryFolderDetailHeader(
-                        folderTitle: selectedFolder.folderTitle,
-                        onBack: closeFolderDetail
-                    )
-
                     folderDetailContent(for: selectedFolder)
                 } else {
-                    LibrarySectionTitle("Library")
-
                     completeLibraryContent
                 }
             }
@@ -112,7 +103,7 @@ struct WorkbenchTestLibraryView: View {
             CompleteLibraryFolderGrid(
                 folders: library.completeLibraryFolderSummaries,
                 onOpen: { folder in
-                    selectedFolder = folder
+                    layoutState.selectTestLibraryFolder(folder)
                 }
             )
         }
@@ -151,7 +142,7 @@ struct WorkbenchTestLibraryView: View {
     }
 
     private func closeFolderDetail() {
-        selectedFolder = nil
+        layoutState.clearTestLibraryFolder()
         folderDetail = nil
         folderDetailStatus = .idle
     }
@@ -166,7 +157,7 @@ struct WorkbenchTestLibraryView: View {
             }
             return
         }
-        self.selectedFolder = updatedFolder
+        layoutState.selectTestLibraryFolder(updatedFolder)
     }
 
     @MainActor
@@ -193,6 +184,12 @@ struct WorkbenchTestLibraryView: View {
             folderDetail = nil
             folderDetailStatus = .failed(AppCoordinator.errorMessage(for: error))
         }
+    }
+}
+
+private extension WorkbenchTestLibraryView {
+    var selectedFolder: CompleteLibraryFolderSummaryPresentation? {
+        layoutState.selectedTestLibraryFolder
     }
 }
 
@@ -234,7 +231,7 @@ private enum WorkbenchTestLibraryMetrics {
     static let timeBadgeSize = WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge
 }
 
-private struct LibrarySectionTitle: View {
+struct LibrarySectionTitle: View {
     let title: String
 
     init(_ title: String) {
@@ -246,6 +243,7 @@ private struct LibrarySectionTitle: View {
             .font(.system(size: WorkbenchTestLibraryMetrics.sectionTitleSize, weight: .semibold))
             .foregroundStyle(WorkbenchRedesignColors.textPrimary)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .allowsHitTesting(false)
     }
 }
 
@@ -495,7 +493,7 @@ private struct LibraryFolderCard: View {
     }
 }
 
-private struct LibraryFolderDetailHeader: View {
+struct LibraryFolderDetailHeader: View {
     let folderTitle: String
     let onBack: () -> Void
 
@@ -512,6 +510,7 @@ private struct LibraryFolderDetailHeader: View {
                 .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

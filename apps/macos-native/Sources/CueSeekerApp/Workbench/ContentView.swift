@@ -1,6 +1,11 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    static let topbarDismissMenusRequested = Notification.Name("CueSeekerTopbarDismissMenusRequested")
+    static let topbarTitlebarZoomRequested = Notification.Name("CueSeekerTopbarTitlebarZoomRequested")
+}
+
 struct ContentView: View {
     @EnvironmentObject private var appState: AppCoordinator
 
@@ -16,6 +21,7 @@ private struct ContentRootView: View {
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var playback: PlaybackStore
 
     private let windowBackground = Color(
@@ -30,25 +36,31 @@ private struct ContentRootView: View {
             UIInvalidationProbe.count("UI.ContentView.body")
 
             let isPlaybackFullscreen = fullscreenManager.isFullscreen
-            let hidesInfoPageTopBar = isPlaybackFullscreen || appState.isPlaybackPageVisible
+            let hidesWorkbenchChrome = isPlaybackFullscreen || appState.isPlaybackPageVisible
 
             return ZStack(alignment: .topLeading) {
                 windowBackground
                     .ignoresSafeArea()
 
                 HStack(spacing: 0) {
+                    if !hidesWorkbenchChrome && layoutState.isSidebarVisible {
+                        AppSidebar()
+                            .frame(width: AppShellLayout.sidebarWidth)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
+
                     mainWorkspace
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.top, hidesInfoPageTopBar ? 0 : AppShellLayout.topBarHeight)
+                        .padding(.top, hidesWorkbenchChrome ? 0 : AppShellLayout.topBarHeight)
                 }
 
-                if !hidesInfoPageTopBar {
+                if !hidesWorkbenchChrome {
                     AppTopBar(backgroundColor: contentBackground)
                         .frame(height: AppShellLayout.topBarHeight)
                         .zIndex(3)
                 }
 
-                TopbarCommandBridge()
+                TitlebarCommandBridge()
                     .frame(width: 0, height: 0)
             }
             .ignoresSafeArea(.container, edges: .top)
@@ -65,6 +77,9 @@ private struct ContentRootView: View {
 }
 
 private struct AppTopBar: View {
+    @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
+
     let backgroundColor: Color
 
     var body: some View {
@@ -82,80 +97,126 @@ private struct AppTopBar: View {
                 return true
             }
         )
-            .overlay(alignment: .center) {
-                HStack(spacing: 16) {
-                    HStack(spacing: 10) {
-                        TopbarModeButton(
-                            mode: .library,
-                            systemImage: "folder",
-                            help: "Library"
-                        )
-
-                        TopbarModeButton(
-                            mode: .shiori,
-                            systemImage: "bookmark",
-                            help: "Shiori"
-                        )
-                    }
-
-                    TopbarSearchInputHost()
-                    .frame(width: AppShellLayout.topbarSearchFieldWidth)
-
-                    HStack(spacing: 8) {
-                        TopbarTestButton(
-                            page: .recentWatching,
-                            systemImage: "clock",
-                            help: "Test Recent Watching"
-                        )
-
-                        TopbarTestButton(
-                            page: .library,
-                            systemImage: "folder.circle",
-                            help: "Test Library"
-                        )
-
-                        TopbarTestButton(
-                            page: .search,
-                            systemImage: "line.3.horizontal.decrease.circle",
-                            help: "Test Search"
-                        )
-                    }
-                }
+        .overlay(alignment: .leading) {
+            if layoutState.isSidebarVisible {
+                WorkbenchRedesignColors.appSidebarBg
+                    .frame(width: AppShellLayout.sidebarWidth)
+                    .allowsHitTesting(false)
             }
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    NotificationCenter.default.post(name: .topbarDismissMenusRequested, object: nil)
-                }
-            )
+        }
+        .overlay(alignment: .leading) {
+            titlebarContent
+                .padding(.leading, titleLeadingInset)
+                .padding(.trailing, AppShellLayout.titleHorizontalPadding)
+        }
+        .overlay(alignment: .leading) {
+            topBarLeadingControls
+        }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                NotificationCenter.default.post(name: .topbarDismissMenusRequested, object: nil)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var titlebarContent: some View {
+        switch layoutState.panelMode {
+        case .testLibrary:
+            if let selectedFolder = layoutState.selectedTestLibraryFolder {
+                LibraryFolderDetailHeader(
+                    folderTitle: selectedFolder.folderTitle,
+                    onBack: {
+                        appState.performUserInitiatedAppCommand {
+                            layoutState.clearTestLibraryFolder()
+                        }
+                    }
+                )
+            } else {
+                LibrarySectionTitle("Library")
+                    .allowsHitTesting(false)
+            }
+        default:
+            LibrarySectionTitle(layoutState.panelMode.title)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var titleLeadingInset: CGFloat {
+        if layoutState.isSidebarVisible {
+            return AppShellLayout.sidebarWidth + AppShellLayout.titleHorizontalPadding
+        }
+
+        let toggleX = layoutState.isAppFullscreen
+            ? AppShellLayout.modeControlsOuterPadding
+            : AppShellLayout.collapsedLeadingToggleX
+        return max(
+            AppShellLayout.titleHorizontalPadding,
+            toggleX + AppShellLayout.sidebarToggleSize + AppShellLayout.titleAfterToggleSpacing
+        )
+    }
+
+    private var topBarLeadingControls: some View {
+        GeometryReader { _ in
+            sidebarToggle
+                .frame(
+                    width: AppShellLayout.sidebarToggleSize,
+                    height: AppShellLayout.sidebarToggleSize
+                )
+                .offset(
+                    x: sidebarToggleHandleX,
+                    y: (AppShellLayout.topBarHeight - AppShellLayout.sidebarToggleSize) / 2
+                )
+        }
+        .frame(height: AppShellLayout.topBarHeight)
+        .clipped()
+    }
+
+    private var sidebarToggleHandleX: CGFloat {
+        let collapsedX = layoutState.isAppFullscreen
+            ? AppShellLayout.modeControlsOuterPadding
+            : AppShellLayout.collapsedLeadingToggleX
+
+        guard layoutState.isSidebarVisible else {
+            return collapsedX
+        }
+
+        return max(
+            collapsedX,
+            AppShellLayout.sidebarWidth
+                - AppShellLayout.modeControlsOuterPadding
+                - AppShellLayout.sidebarToggleSize
+        )
+    }
+
+    private var sidebarToggle: some View {
+        Button {
+            appState.performUserInitiatedAppCommand {
+                appState.toggleWorkbenchSidebarVisibilityFromUser()
+            }
+        } label: {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: WorkbenchControlMetrics.redesignControlIconSize, weight: .medium))
+                .frame(
+                    width: AppShellLayout.sidebarToggleSize,
+                    height: AppShellLayout.sidebarToggleSize
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(AppSidebarToggleButtonStyle())
+        .disabled(layoutState.isVideoSizeTransitionInProgress)
+        .foregroundStyle(WorkbenchRedesignColors.iconDefault)
+        .focusable(false)
+        .help(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
+        .accessibilityLabel(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
     }
 }
 
-private struct TopbarCommandBridge: View {
+private struct TitlebarCommandBridge: View {
     @EnvironmentObject private var appState: AppCoordinator
-    @EnvironmentObject private var layoutState: WorkbenchLayoutState
 
     var body: some View {
         Color.clear
-            .onReceive(NotificationCenter.default.publisher(for: .topbarSearchSubmitted)) { notification in
-                guard let query = notification.object as? String else {
-                    return
-                }
-
-                appState.submitTopbarSearch(query)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .topbarSearchFocusChanged)) { notification in
-                guard let isFocused = notification.object as? Bool else {
-                    return
-                }
-
-                layoutState.isSearchFocused = isFocused
-                if isFocused {
-                    layoutState.clearTestPage()
-                    if layoutState.panelMode != .search {
-                        appState.activateWorkbenchPanelMode(.search)
-                    }
-                }
-            }
             .onReceive(NotificationCenter.default.publisher(for: .topbarTitlebarZoomRequested)) { notification in
                 guard let window = notification.object as? NSWindow else {
                     return
@@ -166,161 +227,173 @@ private struct TopbarCommandBridge: View {
     }
 }
 
-private struct TopbarModeButton: View {
+private struct AppSidebar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
 
+    var body: some View {
+        UIInvalidationProbe.count(
+            "UI.AppSidebar.body",
+            details: "selection=\(layoutState.panelMode.rawValue)"
+        )
+
+        return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                ForEach(WorkbenchPanelMode.allCases, id: \.rawValue) { mode in
+                    AppSidebarNavigationItem(
+                        mode: mode,
+                        isSelected: layoutState.panelMode == mode,
+                        isEnabled: !layoutState.isVideoSizeTransitionInProgress,
+                        onSelect: {
+                            guard layoutState.panelMode != mode else {
+                                return
+                            }
+
+                            appState.performUserInitiatedAppCommand {
+                                appState.activateWorkbenchPanelMode(mode)
+                            }
+                        }
+                    )
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            AppSidebarSettingsItem {
+                appState.performUserInitiatedAppCommand {
+                    NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
+                }
+            }
+        }
+        .padding(.top, AppShellLayout.topBarHeight + WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignAppSidebarHorizontalPadding)
+        .padding(.bottom, WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(WorkbenchRedesignColors.appSidebarBg)
+        .background(LayoutPerformanceProbe(name: "AppSidebar.layout"))
+    }
+}
+
+private struct AppSidebarNavigationItem: View {
     let mode: WorkbenchPanelMode
-    let systemImage: String
-    let help: String
-
-    var body: some View {
-        let isSelected = layoutState.activeTestPage == nil && layoutState.panelMode == mode
-
-        Button {
-            appState.performUserInitiatedAppCommand {
-                appState.activateWorkbenchPanelMode(mode)
-            }
-        } label: {
-            Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .semibold))
-                .frame(width: 34, height: 34)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(TopbarModeButtonStyle(isSelected: isSelected))
-        .foregroundStyle(isSelected ? AppShellLayout.topbarModeSelectedColor : AppShellLayout.topbarModeColor)
-        .help(help)
-        .accessibilityLabel(help)
-    }
-}
-
-private struct TopbarTestButton: View {
-    @EnvironmentObject private var appState: AppCoordinator
-    @EnvironmentObject private var layoutState: WorkbenchLayoutState
-
-    let page: WorkbenchTestPage
-    let systemImage: String
-    let help: String
-
-    var body: some View {
-        let isSelected = layoutState.activeTestPage == page
-
-        Button {
-            appState.performUserInitiatedAppCommand {
-                layoutState.toggleTestPage(page)
-            }
-        } label: {
-            Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .semibold))
-                .frame(width: 30, height: 30)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(TopbarModeButtonStyle(isSelected: isSelected))
-        .foregroundStyle(isSelected ? AppShellLayout.topbarModeSelectedColor : AppShellLayout.topbarModeColor)
-        .help(help)
-        .accessibilityLabel(help)
-    }
-}
-
-private struct TopbarModeButtonStyle: ButtonStyle {
     let isSelected: Bool
+    let isEnabled: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            AppSidebarItemLabel(
+                systemImage: mode.systemImage,
+                label: mode.sidebarLabel,
+                isSelected: isSelected,
+                isEnabled: isEnabled
+            )
+        }
+        .buttonStyle(AppSidebarItemButtonStyle(isSelected: isSelected))
+        .disabled(!isEnabled)
+        .focusable(false)
+        .help(mode.sidebarLabel)
+        .accessibilityLabel(mode.sidebarLabel)
+    }
+}
+
+private struct AppSidebarSettingsItem: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            AppSidebarItemLabel(
+                systemImage: "gearshape",
+                label: "Settings",
+                isSelected: false,
+                isEnabled: true
+            )
+        }
+        .buttonStyle(AppSidebarItemButtonStyle(isSelected: false))
+        .focusable(false)
+        .help("Settings")
+        .accessibilityLabel("Settings")
+    }
+}
+
+private struct AppSidebarItemLabel: View {
+    let systemImage: String
+    let label: String
+    let isSelected: Bool
+    let isEnabled: Bool
+
+    var body: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            Image(systemName: systemImage)
+                .font(.system(size: WorkbenchControlMetrics.redesignAppSidebarItemIconSize, weight: .medium))
+                .frame(
+                    width: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
+                    height: WorkbenchControlMetrics.redesignAppSidebarItemIconSize
+                )
+                .foregroundStyle(iconColor)
+
+            Text(label)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeAppSidebarItem, weight: .regular))
+                .foregroundStyle(textColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignAppSidebarItemHorizontalPadding)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
+            maxHeight: WorkbenchControlMetrics.redesignAppSidebarItemHeight
+        )
+        .contentShape(Rectangle())
+    }
+
+    private var iconColor: Color {
+        guard isEnabled else {
+            return WorkbenchRedesignColors.iconDisabled
+        }
+        return WorkbenchRedesignColors.iconDefault
+    }
+
+    private var textColor: Color {
+        guard isEnabled else {
+            return WorkbenchRedesignColors.textDisabled
+        }
+        return WorkbenchRedesignColors.textPrimary
+    }
+}
+
+private struct AppSidebarItemButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignAppSidebarItemRadius,
+                    style: .continuous
+                )
+                .fill(isSelected ? WorkbenchRedesignColors.appSidebarItemSelectedBg : Color.clear)
+            )
+            .opacity(isEnabled ? 1 : 0.62)
+    }
+}
+
+private struct AppSidebarToggleButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                RoundedRectangle(cornerRadius: AppShellLayout.topbarModeCornerRadius)
-                    .fill(backgroundColor(configuration: configuration))
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                    .fill(isHovered && isEnabled ? WorkbenchRedesignColors.bgHover : Color.clear)
             )
+            .opacity(isEnabled ? 1 : 0.62)
             .onHover { isHovered = $0 }
     }
-
-    private func backgroundColor(configuration: Configuration) -> Color {
-        if configuration.isPressed {
-            return AppShellLayout.topbarModeActiveHoverBackground
-        }
-        if isSelected {
-            return isHovered
-                ? AppShellLayout.topbarModeActiveHoverBackground
-                : AppShellLayout.topbarModeActiveBackground
-        }
-        if isHovered {
-            return AppShellLayout.topbarModeHoverBackground
-        }
-        return .clear
-    }
-}
-
-private struct TopbarSearchInputHost: View {
-    @StateObject private var inputState = TopbarSearchInputState()
-
-    var body: some View {
-        UIInvalidationProbe.count("UI.TopbarSearchInput.body")
-
-        return TopbarSearchField(inputState: inputState)
-            .onChange(of: inputState.isFocused) { isFocused in
-                NotificationCenter.default.post(name: .topbarSearchFocusChanged, object: isFocused)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .topbarSearchFocusClearRequested)) { _ in
-                inputState.requestFocus(false)
-            }
-    }
-}
-
-private struct TopbarSearchField: View {
-    @ObservedObject var inputState: TopbarSearchInputState
-    @State private var isHovered = false
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        let tokens = LiquidGlassTokens(colorScheme: colorScheme)
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .regular))
-                .foregroundStyle(tokens.fieldIcon)
-
-            SearchTextView(
-                text: $inputState.draft,
-                placeholder: "Search subtitles",
-                isFocused: $inputState.isFocused,
-                forcedTextUpdateID: inputState.forcedTextUpdateID,
-                onSubmit: {
-                    inputState.submit()
-                }
-            )
-            .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
-
-            if !inputState.draft.isEmpty {
-                Button {
-                    inputState.clearDraft()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(height: AppShellLayout.topbarSearchFieldHeight)
-        .background(
-            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius, style: .continuous)
-                .fill(inputState.isFocused ? tokens.topbarFieldFocusFill : tokens.topbarFieldFill)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppShellLayout.topbarSearchFieldCornerRadius, style: .continuous)
-                .strokeBorder(
-                    inputState.isFocused ? Color.accentColor.opacity(0.55) : tokens.topbarFieldHairline,
-                    lineWidth: inputState.isFocused ? 2 : 0.5
-                )
-        )
-        .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-        .onTapGesture {
-            inputState.requestFocus(true)
-        }
-    }
-
 }
 
 enum AppShellLayout {
@@ -328,51 +401,16 @@ enum AppShellLayout {
     static let minimumWindowWidth: CGFloat = 1_000
     static let minimumWindowHeight: CGFloat = 560
     static let topBarHeight: CGFloat = 45
-    static let titleFontSize: CGFloat = 16
-    static let titleFontWeight: Font.Weight = .semibold
-    static let topbarSearchFieldWidth: CGFloat = 320
-    static let topbarSearchFieldHeight: CGFloat = 30
-    static let topbarSearchFieldCornerRadius: CGFloat = 15
-    static let topbarModeCornerRadius: CGFloat = 7
+    static let sidePanelAnimationDuration: Double = 0.18
 
-    static let topbarModeColor = Color(
-        red: 119.0 / 255.0,
-        green: 121.0 / 255.0,
-        blue: 129.0 / 255.0
-    )
-    static let topbarModeSelectedColor = Color(
-        red: 45.0 / 255.0,
-        green: 47.0 / 255.0,
-        blue: 54.0 / 255.0
-    )
-    static let topbarModeHoverBackground = Color(
-        red: 240.0 / 255.0,
-        green: 240.0 / 255.0,
-        blue: 242.0 / 255.0
-    )
-    static let topbarModeActiveBackground = Color(
-        red: 217.0 / 255.0,
-        green: 218.0 / 255.0,
-        blue: 222.0 / 255.0
-    )
-    static let topbarModeActiveHoverBackground = Color(
-        red: 210.0 / 255.0,
-        green: 211.0 / 255.0,
-        blue: 216.0 / 255.0
-    )
-    static let topbarSearchBorderColor = Color(
-        red: 184.0 / 255.0,
-        green: 185.0 / 255.0,
-        blue: 191.0 / 255.0
-    )
-    static let topbarSearchHoverBorderColor = Color(
-        red: 158.0 / 255.0,
-        green: 159.0 / 255.0,
-        blue: 166.0 / 255.0
-    )
-    static let topbarSearchIconColor = Color(
-        red: 154.0 / 255.0,
-        green: 155.0 / 255.0,
-        blue: 161.0 / 255.0
-    )
+    static let windowControlsReservedWidth: CGFloat = 80
+    static let toggleLeadingAfterWindowControls: CGFloat = 18
+    static let modeControlsOuterPadding: CGFloat = 12
+    static let collapsedLeadingToggleX: CGFloat = windowControlsReservedWidth
+        + toggleLeadingAfterWindowControls
+
+    static let sidebarWidth = WorkbenchControlMetrics.redesignAppSidebarWidth
+    static let sidebarToggleSize = WorkbenchControlMetrics.redesignIconButtonSize
+    static let titleHorizontalPadding: CGFloat = 24
+    static let titleAfterToggleSpacing: CGFloat = 12
 }

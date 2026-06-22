@@ -44,10 +44,6 @@ final class AppCoordinator: ObservableObject {
         player
     }
 
-    var searchGlobalLoadMoreTriggerID: String {
-        "\(nextGlobalSearchCursor?.offset ?? loadedGlobalSearchResultCount)-\(search.isSearching)"
-    }
-
     static func makeLibraryFolderGroups(
         from snapshot: [LibraryFolderPresentation]
     ) -> [LibraryFolderGroup] {
@@ -370,7 +366,8 @@ final class AppCoordinator: ObservableObject {
         self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
 
         userDefaults.register(defaults: [
-            "workbenchPanelMode": WorkbenchPanelMode.search.rawValue,
+            "workbenchPanelMode": WorkbenchPanelMode.library.rawValue,
+            "workbenchSidebarVisible": true,
             Self.playbackVolumeKey: 100.0,
             Self.playbackLastNonzeroVolumeKey: 100.0,
             Self.playbackSpeedKey: 1.0,
@@ -485,8 +482,6 @@ final class AppCoordinator: ObservableObject {
 
     func activateWorkbenchPanelMode(_ mode: WorkbenchPanelMode) {
         AppPerformanceProbe.action("AppCoordinator.activateWorkbenchPanelMode", thresholdMilliseconds: 4) {
-            workbenchLayout.clearTestPage()
-
             if workbenchLayout.panelMode == mode {
                 return
             }
@@ -496,6 +491,22 @@ final class AppCoordinator: ObservableObject {
                 details: "from=\(workbenchLayout.panelMode.rawValue) to=\(mode.rawValue)"
             )
             workbenchLayout.selectPanelMode(mode)
+        }
+    }
+
+    func toggleWorkbenchSidebarVisibilityFromUser() {
+        AppPerformanceProbe.action("AppCoordinator.toggleWorkbenchSidebarVisibility", thresholdMilliseconds: 4) {
+            guard beginVideoSizeTransition(duration: AppShellLayout.sidePanelAnimationDuration) else {
+                return
+            }
+
+            UIInvalidationProbe.mark(
+                "ACTION UI.AppSidebar.toggled",
+                details: "visibleBefore=\(workbenchLayout.isSidebarVisible)"
+            )
+            withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+                workbenchLayout.toggleSidebarVisibility()
+            }
         }
     }
 

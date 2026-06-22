@@ -9,7 +9,6 @@ struct SearchView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var shiori: ShioriStore
     @EnvironmentObject private var library: LibraryStore
-    @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedLibraryFolderPaths: Set<String> = []
@@ -62,17 +61,17 @@ struct SearchView: View {
             )
 
             return Group {
-                if let testPage = layoutState.activeTestPage {
-                    WorkbenchTestPageView(page: testPage)
-                } else {
-                    switch layoutState.panelMode {
-                    case .library:
-                        libraryPanel
-                    case .search:
-                        topbarSearchResultsArea
-                    case .shiori:
-                        shioriPanel
-                    }
+                switch layoutState.panelMode {
+                case .library:
+                    libraryPanel
+                case .shiori:
+                    shioriPanel
+                case .recentWatching:
+                    WorkbenchTestRecentWatchingView()
+                case .testLibrary:
+                    WorkbenchTestLibraryView()
+                case .search:
+                    workbenchSearchSurface
                 }
             }
         }
@@ -140,7 +139,7 @@ struct SearchView: View {
         return GeometryReader { geo in
             ScrollViewReader { proxy in
                 ScrollView {
-                    // Content padding unified with Search (cardResultsList);
+                    // Content padding unified with the card search surface;
                     // groups carry their own vertical rhythm so LazyVStack
                     // spacing is 0 (P5.3 Confirmed Pixel Spec, owner decision 1).
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -253,24 +252,6 @@ struct SearchView: View {
         "\(shiori.shioriCount) shioris in \(shiori.shioriFileCount) files"
     }
 
-    private var searchResultSummaryText: String? {
-        guard !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-
-        switch search.searchStatus {
-        case .idle:
-            return nil
-        case .searching where search.searchResults.isEmpty:
-            return nil
-        case .failed where search.searchResults.isEmpty:
-            return nil
-        case .searching, .completed, .failed:
-            let fileText = search.searchResultFileCount == 1 ? "file" : "files"
-            return "Found \(search.searchResultTotalCount) results in \(search.searchResultFileCount) \(fileText)"
-        }
-    }
-
     private var shioriCardList: some View {
         UIInvalidationProbe.count(
             "UI.ShioriCards.rendered",
@@ -306,67 +287,6 @@ struct SearchView: View {
         }
     }
 
-    private var cardResultsList: some View {
-        UIInvalidationProbe.count(
-            "UI.SearchCards.rendered",
-            details: "groups=\(search.searchResultGroups.count) rows=\(search.renderedSearchResultCount)"
-        )
-
-        return GeometryReader { geo in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: SearchCardLayout.groupSpacing) {
-                    ForEach(search.searchResultGroups) { group in
-                        SearchResultCardGroupView(
-                            group: group,
-                            query: search.searchQuery,
-                            onToggle: {
-                                layoutState.clearSearchFocus()
-                                appState.toggleSearchResultGroup(group.subtitlePath)
-                            },
-                            onOpenResult: { result in
-                                layoutState.clearSearchFocus()
-                                appState.openSearchResult(result)
-                            },
-                            onResultAppear: { result in
-                                appState.markSearchResultVisible(result)
-                                appState.loadMoreSearchResultsIfNeeded(currentResult: result)
-                            },
-                            onExportToAnki: {
-                                layoutState.clearSearchFocus()
-                                appState.exportSearchResultGroupToAnki(group)
-                            }
-                        )
-                    }
-
-                    searchGlobalLoadMoreTrigger
-
-                    if case .searching = search.searchStatus, !search.searchResults.isEmpty {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                }
-                .padding(.horizontal, SearchCardLayout.contentHorizontalPadding)
-                .padding(.top, SearchCardLayout.contentTopPadding)
-                .padding(.bottom, SearchCardLayout.contentBottomPadding)
-                .frame(width: max(0, geo.size.width), alignment: .topLeading)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var searchGlobalLoadMoreTrigger: some View {
-        if search.shouldShowSearchGlobalLoadMoreTrigger {
-            Color.clear
-                .frame(height: 1)
-                .id(appState.searchGlobalLoadMoreTriggerID)
-                .onAppear {
-                    appState.loadMoreSearchResultsIfNeeded()
-                }
-        }
-    }
-
     private var playbackSurface: some View {
         PlaybackView(
             player: appState.playbackPlayer,
@@ -378,55 +298,14 @@ struct SearchView: View {
         )
     }
 
-    private var topbarSearchResultsArea: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Text(searchResultSummaryText ?? "Search")
-                    .font(.system(size: SearchTypography.detailSize))
-                    .foregroundStyle(.secondary)
+    private var workbenchSearchSurface: some View {
+        ZStack {
+            Color(nsColor: .textBackgroundColor)
+                .ignoresSafeArea()
 
-                Spacer()
-
-                if search.hasSearchResultGroups {
-                    Button {
-                        layoutState.clearSearchFocus()
-                        appState.collapseAllSearchResultGroups()
-                    } label: {
-                        Text("Collapse All")
-                            .foregroundStyle(.secondary)
-                    }
-                    .disabled(!search.canCollapseAllSearchResultGroups)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, AppShellLayout.contentTopPadding)
-
-            if search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                InfoPageStateView(state: .searchNoQuery)
-                .font(.system(size: SearchTypography.bodySize))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if case .searching = search.searchStatus, search.searchResults.isEmpty {
-                InfoPageStateView(state: .searching)
-                .font(.system(size: SearchTypography.bodySize))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay {
-                    ProgressView()
-                        .offset(y: 72)
-                }
-            } else if case .failed(let message) = search.searchStatus, search.searchResults.isEmpty {
-                InfoPageStateView(state: .searchFailed(message))
-                .font(.system(size: SearchTypography.bodySize))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if search.searchResults.isEmpty {
-                InfoPageStateView(state: .searchNoResults)
-                .font(.system(size: SearchTypography.bodySize))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                cardResultsList
-            }
+            WorkbenchTestSearchView()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
 }
