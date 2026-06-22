@@ -6,16 +6,17 @@ main
 2. 将顶栏的几个入口（移除的正式Search除外）放到左边栏：Library，Shiori，Test Recent Watching，Test Library，Search。
 3. 左边栏默认展开，允许收起，展开/收起状态持久化。收起后完全不显示左边栏内容。
 4. 左边栏除了几个入口外，还会在底部有一个设置按钮，点击打开设置界面。
-5. 左边栏包括图标和标签页文字。沿用现在的。
+5. 左边栏包括图标和标签页文字。
 6. 标签页，初始化默认选中Library页。
 7. 选中的标签页，状态也要持久化，重启App仍然会选中关闭前选中的标签页。
-8. 每个标签页都要有标题，标题位于现在的顶栏。这里，Test Recent Watching和Test Library的界面，直接将已有标题放到顶栏。其它几个界面，在顶栏处补和Test Recent Watching一样的标题component。
+8. 每个标签页都要有标题，标题位于现在的顶栏。这里，Test Recent Watching和Test Library的界面，直接将已有标题放到顶栏。其它几个界面（包括二级界面），在顶栏处补和Test Recent Watching一样的标题component。
 
 # 注意事项
 1. 展开/收起动画曾经在远古版本有过，可以看一下，大概是一个多月前了。
-2. hover左边栏和选中的效果参考表格的hover和选中效果。
-3. 展开/收起按钮图标可以用macOS自带的那个。
-4. 将入口放到边栏以后，语义已经和现在不同，选中标签页之后再点击选中的标签页不会有界面的刷新。
+2. 左边栏不需要hover效果，需要有selected效果。
+3. 左边栏要有一个相对较浅的灰色。
+4. 展开/收起按钮图标可以用macOS自带的那个。
+5. 将入口放到边栏以后，语义已经和现在不同，选中标签页之后再点击选中的标签页不会有界面的刷新。
 
 # UI文档
 ## 1. Core Tokens
@@ -69,6 +70,12 @@ main
 --color-bg-popover:
   Light: #FFFFFF
   Dark: #1C1C1F
+--color-app-sidebar-bg:
+  Light: #F6F7F9
+  Dark: #202024
+--color-app-sidebar-item-selected-bg:
+  Light: #FFFFFF
+  Dark: #303036
 
 #### Border
 --color-border-control:
@@ -227,6 +234,7 @@ main
 --height-table-row: 64px
 --height-action-menu-item: 40px
 --height-select-menu-item: 40px
+--height-app-sidebar-item: 32px
 
 #### Size
 --size-checkbox: 16px
@@ -239,6 +247,8 @@ main
 --size-icon-button: 40px
 --size-row-action-button: 36px
 --scrollbar-size: 8px
+--width-app-sidebar: 240px
+--size-app-sidebar-item-icon: 18px
 
 #### Radius
 --radius-control: 8px
@@ -252,6 +262,7 @@ main
 --radius-row-action: 8px
 --radius-chip: 6px
 --scrollbar-radius: 9999px
+--radius-app-sidebar-item: 8px
 
 #### Spacing
 --spacing-1: 4px
@@ -268,6 +279,9 @@ main
 --padding-header-trigger-x: 12px
 --padding-chip-x: 10px
 --padding-chip-y: 4px
+--padding-app-sidebar-x: 12px
+--padding-app-sidebar-y: 12px
+--padding-app-sidebar-item-x: 10px
 
 #### Typography
 --font-family-base: system-ui, sans-serif
@@ -275,6 +289,7 @@ main
 --font-size-control: 16px
 --font-size-table: 14px
 --font-size-caption: 12px
+--font-size-app-sidebar-item: 13px
 
 #### Shadow
 --shadow-popover:
@@ -1439,3 +1454,82 @@ Scrollbar: vertical table scrolling
 
 #### Cursor
 Inherited from child components
+
+### 3.8 App Sidebar Layout
+
+#### Structure
+Container: persistent left navigation sidebar
+Position: window left edge
+Width: --width-app-sidebar
+Height: full window height
+Background: --color-app-sidebar-bg
+Orientation: vertical
+Padding X: --padding-app-sidebar-x
+Padding Y: --padding-app-sidebar-y
+
+#### Regions
+Top Safe Area:
+  Purpose: reserve space for macOS traffic light buttons and sidebar toggle
+
+Navigation Region:
+  Orientation: vertical
+  Gap: --spacing-1
+  Items: App Sidebar Navigation Item
+
+Spacer:
+  Behavior: fills remaining vertical space
+
+Bottom Region:
+  Items: App Sidebar Settings Item
+
+#### Expanded State
+Default: expanded
+Content:
+  Show navigation item icons
+  Show navigation item labels
+  Show settings item icon
+  Show settings item label
+
+#### Collapsed State
+Content:
+  Sidebar content is hidden
+  Sidebar layout width is removed from main content
+Toggle Button:
+  Remains visible in titlebar
+  Position follows fullscreen / windowed titlebar rules
+
+#### Selection
+Selected Item:
+  Background: --color-app-sidebar-item-selected-bg
+  Text Color: --color-text-primary
+  Icon Color: --color-icon-default
+
+#### Interaction
+Navigation Item Click:
+  Switch active workbench page
+  Clicking current selected item does nothing
+
+Settings Item Click:
+  Open Settings window
+
+Sidebar Toggle Click:
+  Expand / collapse sidebar
+  Persist expanded / collapsed state
+
+#### Cursor
+Navigation Item: pointer
+Settings Item: pointer
+Sidebar Toggle: pointer
+
+#### Persistence
+Sidebar Expanded State:
+  Persist across app restarts
+
+Selected Navigation Item:
+  Persist across app restarts
+
+#### Playback
+When playback page is visible:
+  Hide App Sidebar Layout
+  Hide titlebar navigation/title layout
+  Playback page owns the full window content
