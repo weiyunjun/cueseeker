@@ -1251,3 +1251,79 @@ Title: readonly
 #### Cursor
 Back Button Default / Hover: pointer
 Title: default
+
+### 3.5 Test Search Filter Bar Layout
+
+#### Structure
+Container: horizontal toolbar
+Orientation: horizontal
+Gap: --spacing-3
+Align Items: center
+
+#### Content
+Search: Search Box
+Filter Controls:
+  Filter Panel Trigger Button
+  Select Trigger Button
+  Form Select Field
+  Value Input Field
+  Logic Connector
+  Inline Add Button
+
+#### Interaction
+Search Input: update query
+Filter Controls: open / edit / clear filters
+
+#### Cursor
+Inherited from child components
+
+### 3.6 Test Search Utility Bar Layout
+
+#### Structure
+Container: horizontal utility bar
+Orientation: horizontal
+Gap: --spacing-3
+Align Items: center
+Justify Content: space-between
+
+#### Content
+Row Info: Count Summary
+View Controls:
+  Icon Button
+  Select Trigger Button
+Future Actions:
+  Neutral Button
+  Icon Button
+  Action Menu Item
+
+#### Interaction
+Row Info: readonly
+View Controls: switch table display mode
+Future Actions: export / screenshot / batch actions
+
+#### Cursor
+Inherited from child components
+
+### 3.7 Test Search Table Layout
+
+#### Structure
+Container: table region
+Orientation: vertical
+
+#### Content
+Header: Sortable Header Cell
+Rows: Table Row
+Selection: Row Selection Checkbox
+Text Cell: Interactive Text Cell
+Tags: Chip / Tag
+Row Actions: Row Action Button / Row Action Menu
+Scrollbar: Table Scrollbar
+
+#### Interaction
+Header: sort / column menu
+Rows: hover / select / open row actions
+Text Cell: click cue text
+Scrollbar: vertical table scrolling
+
+#### Cursor
+Inherited from child components
