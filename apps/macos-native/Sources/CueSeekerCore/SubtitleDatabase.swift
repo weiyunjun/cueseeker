@@ -485,6 +485,27 @@ public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiabl
     }
 }
 
+public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Identifiable {
+    public let folderPath: String
+    public let folderTitle: String
+    public let coverPath: String?
+    public let episodeCount: Int
+
+    public var id: String {
+        folderPath
+    }
+}
+
+public struct CompleteLibraryFolderDetailPresentation: Equatable, Sendable, Identifiable {
+    public let folderPath: String
+    public let folderTitle: String
+    public let videos: [CompleteLibraryVideoPresentation]
+
+    public var id: String {
+        folderPath
+    }
+}
+
 public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiable {
     public let folderPath: String
     public let folderTitle: String
@@ -4747,6 +4768,119 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         appendCurrentGroup()
         return groups
+    }
+
+    public func completeLibraryFolderSummaries(
+        under folders: [URL]
+    ) throws -> [CompleteLibraryFolderSummaryPresentation] {
+        let pathPrefixes = Self.folderPathPrefixes(for: folders)
+        guard !pathPrefixes.isEmpty else {
+            return []
+        }
+
+        let scopeCondition = pathPrefixes.map { _ in "(lvr.subtitle_path >= ? AND lvr.subtitle_path < ?)" }
+            .joined(separator: " OR ")
+        let statement = try database.prepare(
+            """
+            SELECT lvr.folder_path, lvr.folder_title, COUNT(*) AS episode_count,
+                   fc.cover_path,
+                   (
+                       SELECT vc.cover_path
+                       FROM library_video_rows first_lvr
+                       LEFT JOIN video_files first_vf ON first_vf.path = first_lvr.video_path
+                       LEFT JOIN video_covers vc ON vc.video_file_id = first_vf.id AND vc.status = ?
+                       WHERE first_lvr.folder_path = lvr.folder_path
+                       ORDER BY first_lvr.video_order ASC, first_lvr.video_path ASC
+                       LIMIT 1
+                   ) AS first_video_cover_path
+            FROM library_video_rows lvr
+            LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
+            WHERE \(scopeCondition)
+            GROUP BY lvr.folder_path, lvr.folder_title, fc.cover_path
+            ORDER BY MIN(lvr.folder_order) ASC, lvr.folder_path ASC;
+            """
+        )
+
+        var bindIndex: Int32 = 1
+        try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        for prefix in pathPrefixes {
+            try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+            bindIndex += 1
+        }
+
+        var summaries: [CompleteLibraryFolderSummaryPresentation] = []
+        while try statement.step() {
+            summaries.append(
+                CompleteLibraryFolderSummaryPresentation(
+                    folderPath: statement.stringColumn(0),
+                    folderTitle: statement.stringColumn(1),
+                    coverPath: statement.nullableStringColumn(3) ?? statement.nullableStringColumn(4),
+                    episodeCount: max(0, statement.intColumn(2))
+                )
+            )
+        }
+        return summaries
+    }
+
+    public func completeLibraryFolderDetail(
+        folderPath: String
+    ) throws -> CompleteLibraryFolderDetailPresentation? {
+        let statement = try database.prepare(
+            """
+            SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
+                   lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
+                   lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
+                   h.updated_at, vc.cover_path
+            FROM library_video_rows lvr
+            LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
+            LEFT JOIN video_files vf ON vf.path = lvr.video_path
+            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
+            WHERE lvr.folder_path = ?
+            ORDER BY lvr.video_order ASC, lvr.video_path ASC;
+            """
+        )
+        try statement.bind(LibraryCoverStatus.generated.rawValue, at: 1)
+        try statement.bind(folderPath, at: 2)
+
+        var resolvedFolderPath: String?
+        var folderTitle = ""
+        var videos: [CompleteLibraryVideoPresentation] = []
+
+        while try statement.step() {
+            if resolvedFolderPath == nil {
+                resolvedFolderPath = statement.stringColumn(0)
+                folderTitle = statement.stringColumn(1)
+            }
+
+            videos.append(
+                CompleteLibraryVideoPresentation(
+                    videoPath: statement.stringColumn(2),
+                    videoName: statement.stringColumn(3),
+                    duration: statement.nullableDoubleColumn(4),
+                    subtitlePath: statement.stringColumn(5),
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
+                    displayTitle: statement.stringColumn(7),
+                    fileExtension: statement.stringColumn(8),
+                    episodeNumber: max(1, statement.intColumn(9) + 1),
+                    positionMilliseconds: max(0, statement.nullableIntColumn(10) ?? 0),
+                    playbackDuration: statement.nullableDoubleColumn(11),
+                    historyUpdatedAt: statement.nullableStringColumn(12),
+                    coverPath: statement.nullableStringColumn(13)
+                )
+            )
+        }
+
+        guard let resolvedFolderPath else {
+            return nil
+        }
+        return CompleteLibraryFolderDetailPresentation(
+            folderPath: resolvedFolderPath,
+            folderTitle: folderTitle,
+            videos: videos
+        )
     }
 
     public func rebuildLibraryPresentationSnapshot() throws {

@@ -2348,6 +2348,65 @@ func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode()
 }
 
 @Test
+func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let root = URL(fileURLWithPath: "/Media")
+    let showA1 = root.appendingPathComponent("Show A/Episode 1.mkv")
+    let showA2 = root.appendingPathComponent("Show A/Episode 2.mkv")
+    let showB1 = root.appendingPathComponent("Show B/Episode 1.mkv")
+
+    for videoFile in [showA1, showA2, showB1] {
+        try database.replaceEntries(
+            subtitleFile: videoFile.deletingPathExtension().appendingPathExtension("srt"),
+            videoFile: videoFile,
+            entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
+        )
+        try database.updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
+    }
+    try database.rebuildLibraryPresentationSnapshot()
+
+    let eligibleVideos = try database.libraryCoverEligibleVideos(under: [root])
+    let showA1CoverCandidate = try #require(eligibleVideos.first { $0.videoPath == showA1.path })
+    try database.upsertLibraryVideoCover(
+        videoFileID: showA1CoverCandidate.videoFileID,
+        coverPath: "/Covers/show-a-episode-1.jpg",
+        sourceTimeMilliseconds: 120_000,
+        score: 90,
+        algorithmVersion: 1,
+        generatedFileSize: showA1CoverCandidate.fileSize,
+        generatedDuration: showA1CoverCandidate.duration,
+        status: .generated,
+        errorMessage: nil
+    )
+
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: showA2,
+        positionMilliseconds: 250_000,
+        duration: 1_000.0
+    )
+
+    let summaries = try database.completeLibraryFolderSummaries(under: [root])
+    #expect(summaries.map(\.folderTitle) == ["Show A", "Show B"])
+
+    let showASummary = try #require(summaries.first { $0.folderTitle == "Show A" })
+    #expect(showASummary.episodeCount == 2)
+    #expect(showASummary.coverPath == "/Covers/show-a-episode-1.jpg")
+
+    let detail = try #require(try database.completeLibraryFolderDetail(folderPath: showASummary.folderPath))
+    #expect(detail.folderTitle == "Show A")
+    #expect(detail.videos.map(\.videoPath) == [showA1.path, showA2.path])
+    #expect(detail.videos.map(\.episodeNumber) == [1, 2])
+    #expect(detail.videos.map(\.watchState) == [.unwatched, .watching])
+}
+
+@Test
 func shioriPersistsCueIdentityAndCreatedAt() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

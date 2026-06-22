@@ -54,21 +54,25 @@ struct WorkbenchTestLibraryView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var library: LibraryStore
+    @State private var selectedFolder: CompleteLibraryFolderSummaryPresentation?
+    @State private var folderDetail: CompleteLibraryFolderDetailPresentation?
+    @State private var folderDetailStatus: LibraryStatus = .idle
 
     var body: some View {
         ScrollView {
-            LibraryScrollOffsetPersistenceView(offsetY: completeLibraryScrollOffsetY)
-                .frame(width: 0, height: 0)
-
             VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                LibrarySectionTitle("Recent Watching")
+                if let selectedFolder {
+                    LibraryFolderDetailHeader(
+                        folderTitle: selectedFolder.folderTitle,
+                        onBack: closeFolderDetail
+                    )
 
-                recentWatchingContent
+                    folderDetailContent(for: selectedFolder)
+                } else {
+                    LibrarySectionTitle("Library")
 
-                LibrarySectionTitle("Complete Library")
-                    .padding(.top, WorkbenchTestLibraryMetrics.completeSectionTopPadding)
-
-                completeLibraryContent
+                    completeLibraryContent
+                }
             }
             .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
             .padding(.vertical, WorkbenchTestLibraryMetrics.pageVerticalPadding)
@@ -76,71 +80,118 @@ struct WorkbenchTestLibraryView: View {
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .task {
-            appState.hydrateRecentWatchingAsync()
             appState.hydrateCompleteLibraryAsync()
         }
+        .task(id: folderDetailTaskID) {
+            guard let folderPath = selectedFolder?.folderPath else {
+                return
+            }
+            await loadFolderDetail(folderPath: folderPath)
+        }
         .onChange(of: indexing.selectedFolders) { _ in
-            appState.refreshRecentWatching()
+            closeFolderDetail()
             appState.refreshCompleteLibrary()
         }
-    }
-
-    private var completeLibraryScrollOffsetY: Binding<CGFloat> {
-        Binding(
-            get: { library.completeLibraryScrollOffsetY },
-            set: { library.completeLibraryScrollOffsetY = max(0, $0) }
-        )
-    }
-
-    @ViewBuilder
-    private var recentWatchingContent: some View {
-        if case .loading = library.recentWatchingStatus, library.recentWatchingItems.isEmpty {
-            LibraryEmptyHint {
-                ProgressView()
-                    .controlSize(.small)
-            }
-        } else if case .failed(let message) = library.recentWatchingStatus {
-            LibraryEmptyHint(message)
-        } else if library.recentWatchingItems.isEmpty {
-            LibraryEmptyHint("No recent watching yet.")
-        } else {
-            RecentWatchingGrid(
-                items: library.recentWatchingItems,
-                onOpen: { item in
-                    appState.openLibraryVideo(item.libraryVideo)
-                }
-            )
+        .onChange(of: library.completeLibraryRevision) { _ in
+            reconcileSelectedFolder()
         }
     }
 
     @ViewBuilder
     private var completeLibraryContent: some View {
-        if case .loading = library.completeLibraryStatus, library.completeLibraryFolders.isEmpty {
+        if case .loading = library.completeLibraryStatus, library.completeLibraryFolderSummaries.isEmpty {
             LibraryEmptyHint {
                 ProgressView()
                     .controlSize(.small)
             }
         } else if case .failed(let message) = library.completeLibraryStatus {
             LibraryEmptyHint(message)
-        } else if library.completeLibraryFolders.isEmpty {
+        } else if library.completeLibraryFolderSummaries.isEmpty {
             LibraryEmptyHint("No library videos yet.")
         } else {
-            CompleteLibraryList(
-                folders: library.completeLibraryFolders,
-                expandedFolderPaths: library.completeLibraryExpandedFolderPaths,
-                onContinue: { folder in
-                    guard let video = folder.continueWatchingVideo else {
-                        return
-                    }
-                    appState.openLibraryVideo(video.libraryVideo)
-                },
-                onOpenVideo: { video in
-                    appState.openLibraryVideo(video.libraryVideo)
-                },
-                onToggle: { folder in
-                    appState.toggleCompleteLibraryFolder(folder.folderPath)
+            CompleteLibraryFolderGrid(
+                folders: library.completeLibraryFolderSummaries,
+                onOpen: { folder in
+                    selectedFolder = folder
                 }
             )
+        }
+    }
+
+    @ViewBuilder
+    private func folderDetailContent(for folder: CompleteLibraryFolderSummaryPresentation) -> some View {
+        if case .loading = folderDetailStatus, folderDetail?.folderPath != folder.folderPath {
+            LibraryEmptyHint {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        } else if case .failed(let message) = folderDetailStatus {
+            LibraryEmptyHint(message)
+        } else if let folderDetail, folderDetail.folderPath == folder.folderPath {
+            CompleteLibraryEpisodeGrid(
+                videos: folderDetail.videos,
+                onOpen: { video in
+                    appState.prepareLibraryNavigationVideos(folderDetail.videos)
+                    appState.openLibraryVideo(video.libraryVideo)
+                }
+            )
+        } else {
+            LibraryEmptyHint {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+    }
+
+    private var folderDetailTaskID: String {
+        guard let selectedFolder else {
+            return ""
+        }
+        return "\(selectedFolder.folderPath)|\(library.completeLibraryRevision)"
+    }
+
+    private func closeFolderDetail() {
+        selectedFolder = nil
+        folderDetail = nil
+        folderDetailStatus = .idle
+    }
+
+    private func reconcileSelectedFolder() {
+        guard let selectedFolder else {
+            return
+        }
+        guard let updatedFolder = library.completeLibraryFolderSummaries.first(where: { $0.folderPath == selectedFolder.folderPath }) else {
+            if library.completeLibraryStatus != .loading {
+                closeFolderDetail()
+            }
+            return
+        }
+        self.selectedFolder = updatedFolder
+    }
+
+    @MainActor
+    private func loadFolderDetail(folderPath: String) async {
+        folderDetailStatus = .loading
+        do {
+            let loadedDetail = try await appState.loadCompleteLibraryFolderDetail(folderPath: folderPath)
+            guard !Task.isCancelled,
+                  selectedFolder?.folderPath == folderPath else {
+                return
+            }
+            guard let loadedDetail else {
+                folderDetail = nil
+                folderDetailStatus = .failed("Folder detail is unavailable")
+                return
+            }
+            folderDetail = loadedDetail
+            folderDetailStatus = .completed
+        } catch {
+            guard !Task.isCancelled,
+                  selectedFolder?.folderPath == folderPath else {
+                return
+            }
+            folderDetail = nil
+            folderDetailStatus = .failed(AppCoordinator.errorMessage(for: error))
         }
     }
 }
@@ -160,16 +211,11 @@ private enum WorkbenchTestLibraryMetrics {
     static let mediaCardHoverPadding = WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
     static let mediaCardHoverRadius = WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius
 
-    static let completeFolderListGap = WorkbenchControlMetrics.redesignSpacing3
-    static let completeFolderExpandedGap = WorkbenchControlMetrics.redesignSpacing2
-    static let folderCardMinHeight = WorkbenchControlMetrics.redesignLibraryFolderCardMinHeight
-    static let folderCardRadius = WorkbenchControlMetrics.redesignLibraryFolderCardRadius
-    static let folderCardVerticalPadding = WorkbenchControlMetrics.redesignLibraryFolderCardVerticalPadding
-    static let folderCardHorizontalPadding = WorkbenchControlMetrics.redesignLibraryFolderCardHorizontalPadding
-    static let folderCardContentGap = WorkbenchControlMetrics.redesignLibraryFolderCardContentGap
-    static let folderCoverWidth = WorkbenchControlMetrics.redesignLibraryFolderCoverWidth
-    static let folderInfoGap = WorkbenchControlMetrics.redesignSpacing1
-    static let folderActionsGap = WorkbenchControlMetrics.redesignSpacing2
+    static let folderGridGap = WorkbenchControlMetrics.redesignLibraryRecentGridGap
+    static let folderCardMinWidth = WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth
+    static let folderCardMaxWidth = WorkbenchControlMetrics.redesignLibraryRecentCardMaxWidth
+    static let folderCardGap = WorkbenchControlMetrics.redesignSpacing2
+    static let detailHeaderGap = WorkbenchControlMetrics.redesignSpacing2
     static let episodeGridTopPadding = WorkbenchControlMetrics.redesignSpacing2
     static let episodeCardWidth = WorkbenchControlMetrics.redesignLibraryEpisodeCardWidth
     static let episodeCardGap = WorkbenchControlMetrics.redesignSpacing2
@@ -336,30 +382,28 @@ private struct RecentWatchingCard: View {
     }
 }
 
-private struct CompleteLibraryList: View {
-    let folders: [CompleteLibraryFolderPresentation]
-    let expandedFolderPaths: Set<String>
-    let onContinue: (CompleteLibraryFolderPresentation) -> Void
-    let onOpenVideo: (CompleteLibraryVideoPresentation) -> Void
-    let onToggle: (CompleteLibraryFolderPresentation) -> Void
+private struct CompleteLibraryFolderGrid: View {
+    let folders: [CompleteLibraryFolderSummaryPresentation]
+    let onOpen: (CompleteLibraryFolderSummaryPresentation) -> Void
+
+    private var columns: [GridItem] {
+        [
+            GridItem(
+                .adaptive(
+                    minimum: WorkbenchTestLibraryMetrics.folderCardMinWidth,
+                    maximum: WorkbenchTestLibraryMetrics.folderCardMaxWidth
+                ),
+                spacing: WorkbenchTestLibraryMetrics.folderGridGap,
+                alignment: .topLeading
+            )
+        ]
+    }
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.completeFolderListGap) {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderGridGap) {
             ForEach(folders) { folder in
-                VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.completeFolderExpandedGap) {
-                    LibraryFolderCard(
-                        folder: folder,
-                        isExpanded: expandedFolderPaths.contains(folder.folderPath),
-                        onContinue: { onContinue(folder) },
-                        onToggle: { onToggle(folder) }
-                    )
-
-                    if expandedFolderPaths.contains(folder.folderPath) {
-                        CompleteLibraryEpisodeGrid(
-                            videos: folder.videos,
-                            onOpen: onOpenVideo
-                        )
-                    }
+                LibraryFolderCard(folder: folder) {
+                    onOpen(folder)
                 }
             }
         }
@@ -368,143 +412,111 @@ private struct CompleteLibraryList: View {
 }
 
 private struct LibraryFolderCard: View {
-    let folder: CompleteLibraryFolderPresentation
-    let isExpanded: Bool
-    let onContinue: () -> Void
-    let onToggle: () -> Void
+    let folder: CompleteLibraryFolderSummaryPresentation
+    let onOpen: () -> Void
     @State private var isHovered = false
+    @State private var hasPushedCursor = false
 
-    private var continueVideo: CompleteLibraryVideoPresentation? {
-        folder.continueWatchingVideo
-    }
-
-    private var isContinueAvailable: Bool {
-        guard let continueVideo else {
-            return false
-        }
-        return FileManager.default.fileExists(atPath: continueVideo.videoPath)
+    private var isAvailable: Bool {
+        folder.episodeCount > 0
     }
 
     var body: some View {
-        HStack(spacing: WorkbenchTestLibraryMetrics.folderCardContentGap) {
-            LibraryCoverWithProgress(
-                coverPath: coverPath,
-                positionMilliseconds: continueVideo?.positionMilliseconds ?? 0,
-                duration: continueVideo?.playbackDuration ?? continueVideo?.duration
-            )
-            .frame(width: WorkbenchTestLibraryMetrics.folderCoverWidth)
+        Button(action: {
+            guard isAvailable else {
+                return
+            }
+            onOpen()
+        }) {
+            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderCardGap) {
+                LibraryCoverWithBadge(
+                    coverPath: folder.coverPath,
+                    badgeText: episodeCountText
+                )
 
-            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderInfoGap) {
                 Text(folder.folderTitle)
                     .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
                     .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                     .lineLimit(1)
-
-                Text(lastWatchedText)
-                    .font(.system(size: WorkbenchTestLibraryMetrics.metaSize, weight: .medium))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .lineLimit(1)
-                    .monospacedDigit()
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: WorkbenchTestLibraryMetrics.folderActionsGap) {
-                WorkbenchButton(
-                    title: "Continue Watching",
-                    systemImage: "play",
-                    isRedesign: true,
-                    action: onContinue
+            .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
+            .frame(maxWidth: WorkbenchTestLibraryMetrics.folderCardMaxWidth, alignment: .topLeading)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                    style: .continuous
                 )
-                .disabled(!isContinueAvailable)
-
-                LibraryFolderDisclosureButton(
-                    isExpanded: isExpanded,
-                    action: onToggle
+                .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
+            )
+            .opacity(isAvailable ? 1 : 0.55)
+            .contentShape(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                    style: .continuous
                 )
-            }
+            )
         }
-        .padding(.vertical, WorkbenchTestLibraryMetrics.folderCardVerticalPadding)
-        .padding(.horizontal, WorkbenchTestLibraryMetrics.folderCardHorizontalPadding)
-        .frame(maxWidth: .infinity, minHeight: WorkbenchTestLibraryMetrics.folderCardMinHeight, alignment: .leading)
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.folderCardRadius,
-                style: .continuous
-            )
-            .fill(isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface)
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.folderCardRadius,
-                style: .continuous
-            )
-            .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
-        )
+        .buttonStyle(LibraryMediaCardButtonStyle())
+        .disabled(!isAvailable)
         .onHover { hovering in
             isHovered = hovering
+            updateCursor(isHovering: hovering)
+        }
+        .onDisappear {
+            resetCursor()
         }
         .animation(.easeOut(duration: 0.12), value: isHovered)
     }
 
-    private var coverPath: String? {
-        folder.folderCoverPath
-            ?? continueVideo?.coverPath
-            ?? folder.videos.first?.coverPath
+    private var episodeCountText: String {
+        folder.episodeCount == 1 ? "1 episode" : "\(folder.episodeCount) episodes"
     }
 
-    private var lastWatchedText: String {
-        guard let episodeNumber = folder.lastWatchedEpisodeNumber else {
-            return "Last Watched: None"
+    private func updateCursor(isHovering: Bool) {
+        guard isHovering else {
+            resetCursor()
+            return
         }
-        return String(format: "Last Watched: EP%02d", episodeNumber)
+        guard !hasPushedCursor else {
+            return
+        }
+        if isAvailable {
+            NSCursor.pointingHand.push()
+        } else {
+            NSCursor.operationNotAllowed.push()
+        }
+        hasPushedCursor = true
+    }
+
+    private func resetCursor() {
+        guard hasPushedCursor else {
+            return
+        }
+        NSCursor.pop()
+        hasPushedCursor = false
     }
 }
 
-private struct LibraryFolderDisclosureButton: View {
-    let isExpanded: Bool
-    let action: () -> Void
-    @FocusState private var isFocused: Bool
-    @State private var isHovered = false
+private struct LibraryFolderDetailHeader: View {
+    let folderTitle: String
+    let onBack: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: "chevron.right")
-                .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.iconDefault)
-                .frame(
-                    width: WorkbenchControlMetrics.redesignIconButtonSize,
-                    height: WorkbenchControlMetrics.redesignIconButtonSize
-                )
-                .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                .background(
-                    RoundedRectangle(
-                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                        style: .continuous
-                    )
-                    .fill(isHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
-                )
-                .overlay(
-                    Group {
-                        if isFocused {
-                            RoundedRectangle(
-                                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
-                                style: .continuous
-                            )
-                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
-                        }
-                    }
-                )
-                .contentShape(Rectangle())
+        HStack(spacing: WorkbenchTestLibraryMetrics.detailHeaderGap) {
+            WorkbenchIconButton(
+                systemImage: "chevron.left",
+                isRedesign: true,
+                action: onBack
+            )
+
+            Text(folderTitle)
+                .font(.system(size: WorkbenchTestLibraryMetrics.sectionTitleSize, weight: .semibold))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
-        .focused($isFocused)
-        .disableFocusEffect()
-        .onHover { hovering in
-            isHovered = hovering
-        }
-        .animation(.easeInOut(duration: 0.16), value: isExpanded)
-        .animation(.easeOut(duration: 0.12), value: isHovered)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -739,6 +751,45 @@ private struct LibraryCoverWithProgress: View {
             return String(format: "%d:%02d:%02d", hours, minutes, seconds)
         }
         return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+private struct LibraryCoverWithBadge: View {
+    let coverPath: String?
+    let badgeText: String
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            GeometryReader { proxy in
+                LibraryDownsampledCoverImage(
+                    coverPath: coverPath,
+                    displaySize: proxy.size
+                )
+            }
+
+            Text(badgeText)
+                .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
+                .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
+                .monospacedDigit()
+                .padding(.horizontal, WorkbenchTestLibraryMetrics.timeBadgeHorizontalPadding)
+                .padding(.vertical, WorkbenchTestLibraryMetrics.timeBadgeVerticalPadding)
+                .background(
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchTestLibraryMetrics.timeBadgeRadius,
+                        style: .continuous
+                    )
+                    .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+                )
+                .padding(.trailing, WorkbenchTestLibraryMetrics.timeBadgeInset)
+                .padding(.bottom, WorkbenchTestLibraryMetrics.timeBadgeInset)
+        }
+        .aspectRatio(WorkbenchTestLibraryMetrics.coverAspectRatio, contentMode: .fit)
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchTestLibraryMetrics.coverRadius,
+                style: .continuous
+            )
+        )
     }
 }
 
@@ -984,133 +1035,5 @@ private struct LibraryEmptyHint<Content: View>: View {
             .font(.system(size: WorkbenchTestLibraryMetrics.metaSize))
             .foregroundStyle(WorkbenchRedesignColors.textMuted)
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
-    }
-}
-
-private struct LibraryScrollOffsetPersistenceView: NSViewRepresentable {
-    @Binding var offsetY: CGFloat
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(offsetY: $offsetY)
-    }
-
-    func makeNSView(context: Context) -> LibraryScrollOffsetReaderView {
-        let view = LibraryScrollOffsetReaderView()
-        view.desiredOffsetY = offsetY
-        view.onOffsetChange = { offsetY in
-            context.coordinator.offsetY.wrappedValue = offsetY
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: LibraryScrollOffsetReaderView, context: Context) {
-        context.coordinator.offsetY = $offsetY
-        nsView.desiredOffsetY = offsetY
-        nsView.onOffsetChange = { offsetY in
-            context.coordinator.offsetY.wrappedValue = offsetY
-        }
-        nsView.restoreIfNeeded()
-    }
-
-    static func dismantleNSView(_ nsView: LibraryScrollOffsetReaderView, coordinator: Coordinator) {
-        nsView.stopObserving()
-    }
-
-    final class Coordinator {
-        var offsetY: Binding<CGFloat>
-
-        init(offsetY: Binding<CGFloat>) {
-            self.offsetY = offsetY
-        }
-    }
-}
-
-private final class LibraryScrollOffsetReaderView: NSView {
-    var desiredOffsetY: CGFloat = 0
-    var onOffsetChange: ((CGFloat) -> Void)?
-
-    private weak var observedClipView: NSClipView?
-    private var boundsObserver: NSObjectProtocol?
-    private var didRestoreInitialOffset = false
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        scheduleAttachAndRestore()
-    }
-
-    func restoreIfNeeded() {
-        attachIfNeeded()
-
-        guard !didRestoreInitialOffset,
-              desiredOffsetY > 0,
-              let clipView = observedClipView,
-              let scrollView = clipView.enclosingScrollView,
-              let documentView = scrollView.documentView
-        else {
-            if desiredOffsetY <= 0 {
-                didRestoreInitialOffset = true
-            }
-            return
-        }
-
-        let maxOffsetY = max(0, documentView.bounds.height - clipView.bounds.height)
-        guard maxOffsetY > 0 else {
-            return
-        }
-
-        let restoredOffsetY = min(max(0, desiredOffsetY), maxOffsetY)
-        didRestoreInitialOffset = true
-        clipView.scroll(to: CGPoint(x: clipView.bounds.origin.x, y: restoredOffsetY))
-        scrollView.reflectScrolledClipView(clipView)
-        onOffsetChange?(restoredOffsetY)
-    }
-
-    func stopObserving() {
-        if let boundsObserver {
-            NotificationCenter.default.removeObserver(boundsObserver)
-        }
-        boundsObserver = nil
-        observedClipView = nil
-    }
-
-    private func scheduleAttachAndRestore() {
-        DispatchQueue.main.async { [weak self] in
-            self?.attachIfNeeded()
-            self?.restoreIfNeeded()
-        }
-    }
-
-    private func attachIfNeeded() {
-        guard let scrollView = enclosingScrollView else {
-            return
-        }
-
-        let clipView = scrollView.contentView
-        guard observedClipView !== clipView else {
-            return
-        }
-
-        stopObserving()
-        observedClipView = clipView
-        clipView.postsBoundsChangedNotifications = true
-        boundsObserver = NotificationCenter.default.addObserver(
-            forName: NSView.boundsDidChangeNotification,
-            object: clipView,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.handleBoundsChanged()
-            }
-        }
-    }
-
-    private func handleBoundsChanged() {
-        restoreIfNeeded()
-        guard didRestoreInitialOffset,
-              let clipView = observedClipView
-        else {
-            return
-        }
-        onOffsetChange?(max(0, clipView.bounds.origin.y))
     }
 }

@@ -259,7 +259,7 @@ extension AppCoordinator {
         completeLibraryTask = Task { [weak self] in
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
-                    try database.completeLibraryPresentation(under: folders)
+                    try database.completeLibraryFolderSummaries(under: folders)
                 }.value
 
                 guard !Task.isCancelled else { return }
@@ -275,12 +275,33 @@ extension AppCoordinator {
         }
     }
 
+    func loadCompleteLibraryFolderDetail(
+        folderPath: String
+    ) async throws -> CompleteLibraryFolderDetailPresentation? {
+        guard let database = subtitleDatabase else {
+            throw NSError(
+                domain: "CueSeeker.Library",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Database is not initialized"]
+            )
+        }
+
+        return try await Task.detached(priority: .userInitiated) {
+            try database.completeLibraryFolderDetail(folderPath: folderPath)
+        }.value
+    }
+
+    func prepareLibraryNavigationVideos(_ videos: [CompleteLibraryVideoPresentation]) {
+        library.libraryPlaybackNavigationVideos = videos.map(\.libraryVideo)
+    }
+
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
         let groups = Self.makeLibraryFolderGroups(from: snapshot)
         library.libraryFolderGroups = groups
         library.libraryVideos = groups.flatMap { group in
             group.videos.map(\.video)
         }
+        library.libraryPlaybackNavigationVideos = library.libraryVideos
         library.libraryPresentationRevision += 1
         UIInvalidationProbe.count(
             "UI.LibraryPresentationSnapshot.rebuilt",
@@ -306,16 +327,12 @@ extension AppCoordinator {
         )
     }
 
-    func applyCompleteLibrary(_ snapshot: [CompleteLibraryFolderPresentation]) {
-        let folderPaths = Set(snapshot.map(\.folderPath))
-        library.completeLibraryFolders = snapshot
-        library.completeLibraryExpandedFolderPaths = library.completeLibraryExpandedFolderPaths.filter {
-            folderPaths.contains($0)
-        }
+    func applyCompleteLibrary(_ snapshot: [CompleteLibraryFolderSummaryPresentation]) {
+        library.completeLibraryFolderSummaries = snapshot
         library.completeLibraryRevision += 1
         UIInvalidationProbe.count(
             "UI.CompleteLibrarySnapshot.rebuilt",
-            details: "folders=\(snapshot.count) videos=\(snapshot.reduce(0) { $0 + $1.videos.count })"
+            details: "folders=\(snapshot.count)"
         )
     }
 
@@ -327,6 +344,7 @@ extension AppCoordinator {
         library.libraryVideos = groups.flatMap { group in
             group.videos.map(\.video)
         }
+        library.libraryPlaybackNavigationVideos = library.libraryVideos
         library.libraryPresentationRevision += 1
         UIInvalidationProbe.count(
             "UI.LibraryPresentationSnapshot.rebuilt",
@@ -335,28 +353,14 @@ extension AppCoordinator {
     }
 
     func removeCompleteLibraryPresentation(under folder: URL) {
-        library.completeLibraryFolders = library.completeLibraryFolders.filter { group in
+        library.completeLibraryFolderSummaries = library.completeLibraryFolderSummaries.filter { group in
             !Self.path(group.folderPath, isUnder: folder)
-        }
-        let folderPaths = Set(library.completeLibraryFolders.map(\.folderPath))
-        library.completeLibraryExpandedFolderPaths = library.completeLibraryExpandedFolderPaths.filter {
-            folderPaths.contains($0)
         }
         library.completeLibraryRevision += 1
         UIInvalidationProbe.count(
             "UI.CompleteLibrarySnapshot.rebuilt",
-            details: "folders=\(library.completeLibraryFolders.count) reason=remove"
+            details: "folders=\(library.completeLibraryFolderSummaries.count) reason=remove"
         )
-    }
-
-    func toggleCompleteLibraryFolder(_ folderPath: String) {
-        var expandedFolderPaths = library.completeLibraryExpandedFolderPaths
-        if expandedFolderPaths.contains(folderPath) {
-            expandedFolderPaths.remove(folderPath)
-        } else {
-            expandedFolderPaths.insert(folderPath)
-        }
-        library.completeLibraryExpandedFolderPaths = expandedFolderPaths
     }
 
     func openLibraryVideo(_ video: LibraryVideo, recordsNavigationHistory: Bool = true) {
@@ -515,18 +519,24 @@ extension AppCoordinator {
 
     func libraryAdjacentVideo(offset: Int) -> LibraryVideo? {
         guard isLibraryPlaybackActive,
-              let selectedLibraryVideo = library.selectedLibraryVideo,
-              let currentIndex = library.libraryVideos.firstIndex(where: { $0.videoPath == selectedLibraryVideo.videoPath })
+              let selectedLibraryVideo = library.selectedLibraryVideo
         else {
             return nil
         }
 
-        let targetIndex = currentIndex + offset
-        guard library.libraryVideos.indices.contains(targetIndex) else {
+        let navigationVideos = library.libraryPlaybackNavigationVideos.contains { $0.videoPath == selectedLibraryVideo.videoPath }
+            ? library.libraryPlaybackNavigationVideos
+            : library.libraryVideos
+        guard let currentIndex = navigationVideos.firstIndex(where: { $0.videoPath == selectedLibraryVideo.videoPath }) else {
             return nil
         }
 
-        return library.libraryVideos[targetIndex]
+        let targetIndex = currentIndex + offset
+        guard navigationVideos.indices.contains(targetIndex) else {
+            return nil
+        }
+
+        return navigationVideos[targetIndex]
     }
 
     func startLibraryPlaybackHistoryTracking(videoPath: String) {

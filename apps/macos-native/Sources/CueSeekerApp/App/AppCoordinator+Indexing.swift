@@ -398,7 +398,7 @@ extension AppCoordinator {
             library.testRecentWatchingStatus = library.testRecentWatchingItems.isEmpty ? .idle : .completed
         }
         if case .loading = library.completeLibraryStatus {
-            library.completeLibraryStatus = library.completeLibraryFolders.isEmpty ? .idle : .completed
+            library.completeLibraryStatus = library.completeLibraryFolderSummaries.isEmpty ? .idle : .completed
         }
         if case .searching = search.searchStatus {
             search.searchStatus = .completed
