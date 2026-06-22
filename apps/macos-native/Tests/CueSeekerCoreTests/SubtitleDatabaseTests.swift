@@ -2286,11 +2286,11 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
     #expect(group.lastWatchedEpisodeNumber == 3)
     #expect(group.videos.map(\.episodeNumber) == [1, 2, 3, 4])
     #expect(group.videos.map(\.watchState) == [.unwatched, .finished, .watching, .watching])
-    #expect(group.continueWatchingVideo?.videoPath == episode4.path)
+    #expect(group.continueWatchingVideo?.videoPath == episode3.path)
 }
 
 @Test
-func completeLibraryContinueTargetFallsBackToFirstUnwatchedThenFirstEpisode() throws {
+func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -2315,20 +2315,26 @@ func completeLibraryContinueTargetFallsBackToFirstUnwatchedThenFirstEpisode() th
     }
     try database.rebuildLibraryPresentationSnapshot()
 
-    for videoFile in [showA2, showB1, showB2] {
-        try database.upsertLibraryPlaybackHistory(
-            videoFile: videoFile,
-            positionMilliseconds: 960_000,
-            duration: 1_000.0
-        )
-    }
+    let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: showB1,
+        positionMilliseconds: 960_000,
+        duration: 1_000.0,
+        updatedAt: baseDate.addingTimeInterval(1)
+    )
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: showB2,
+        positionMilliseconds: 960_000,
+        duration: 1_000.0,
+        updatedAt: baseDate.addingTimeInterval(2)
+    )
 
     let groups = try database.completeLibraryPresentation(under: [root])
     let showA = try #require(groups.first { $0.folderTitle == "Show A" })
     let showB = try #require(groups.first { $0.folderTitle == "Show B" })
 
     #expect(showA.continueWatchingVideo?.videoPath == showA1.path)
-    #expect(showB.continueWatchingVideo?.videoPath == showB1.path)
+    #expect(showB.continueWatchingVideo?.videoPath == showB2.path)
 }
 
 @Test

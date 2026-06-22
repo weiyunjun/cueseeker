@@ -30,8 +30,9 @@ leaving the existing Recent Watching slice intact.
 - Added `completeLibraryPresentation(under:)` to read Library rows, playback
   history, generated video covers, and folder covers without changing database
   schema.
-- Implemented Continue Watching selection as the last `Watching` episode,
-  otherwise the first `Unwatched` episode, otherwise the first episode.
+- Implemented Continue Watching selection to match Recent Watching semantics:
+  choose the latest playback-history video in the folder, otherwise fall back
+  to the first `Unwatched` episode, otherwise the first episode.
 - Added Complete Library loading/data/revision state and in-app expanded folder
   state to `LibraryStore`.
 - Added in-app page scroll offset persistence for the Test Library page using a
@@ -43,6 +44,8 @@ leaving the existing Recent Watching slice intact.
 - Aligned expand/collapse behavior with the formal Library: episode content
   appears and disappears immediately, while only the disclosure chevron keeps
   its rotation animation.
+- Corrected Continue Watching so a recently opened earlier episode wins over a
+  later-numbered `Watching` episode from older history.
 - Added database tests for Complete Library presentation, continue-target
   selection, and fallback behavior.
 - Extended the database-read cancellation test to include Complete Library

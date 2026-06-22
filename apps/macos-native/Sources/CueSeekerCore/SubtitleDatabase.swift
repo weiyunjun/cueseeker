@@ -490,6 +490,7 @@ public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiab
     public let folderTitle: String
     public let folderCoverPath: String?
     public let lastWatchedEpisodeNumber: Int?
+    public let lastWatchedVideoPath: String?
     public let videos: [CompleteLibraryVideoPresentation]
 
     public var id: String {
@@ -497,7 +498,9 @@ public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiab
     }
 
     public var continueWatchingVideo: CompleteLibraryVideoPresentation? {
-        videos.last { $0.watchState == .watching }
+        lastWatchedVideoPath.flatMap { videoPath in
+            videos.first { $0.videoPath == videoPath }
+        }
             ?? videos.first { $0.watchState == .unwatched }
             ?? videos.first
     }
@@ -4662,6 +4665,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var currentFolderCoverPath: String?
         var currentVideos: [CompleteLibraryVideoPresentation] = []
         var currentLastWatchedEpisodeNumber: Int?
+        var currentLastWatchedVideoPath: String?
         var currentLastWatchedSortValue: Double?
         var currentLastWatchedUpdatedAt: String?
 
@@ -4676,6 +4680,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     folderTitle: currentFolderTitle,
                     folderCoverPath: currentFolderCoverPath,
                     lastWatchedEpisodeNumber: currentLastWatchedEpisodeNumber,
+                    lastWatchedVideoPath: currentLastWatchedVideoPath,
                     videos: currentVideos
                 )
             )
@@ -4687,6 +4692,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             currentFolderCoverPath = statement.nullableStringColumn(15)
             currentVideos = []
             currentLastWatchedEpisodeNumber = nil
+            currentLastWatchedVideoPath = nil
             currentLastWatchedSortValue = nil
             currentLastWatchedUpdatedAt = nil
         }
@@ -4715,6 +4721,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
                 if shouldUpdateLatest {
                     currentLastWatchedEpisodeNumber = episodeNumber
+                    currentLastWatchedVideoPath = statement.stringColumn(2)
                     currentLastWatchedSortValue = historySortValue
                     currentLastWatchedUpdatedAt = historyUpdatedAt
                 }
