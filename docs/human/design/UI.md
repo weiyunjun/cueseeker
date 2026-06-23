@@ -1,3 +1,4 @@
+
 # UI文档
 ## 1. Core Tokens
 
@@ -563,6 +564,7 @@ Border Disabled: --color-border-disabled
 Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
 
 #### Content
+Leading Icon: optional
 Gap: --spacing-3
 Font Family: --font-family-base
 Text Size: --font-size-control
@@ -869,10 +871,11 @@ Divider Horizontal: --color-border-divider
 
 #### Content
 Header Text Color: --color-text-primary
-Cues Text Color: --color-text-primary
-Columns: checkbox / Cues / Speaker / Language
-Speaker: Chip / Tag
-Language: Chip / Tag
+Primary Text Color: --color-text-primary
+Secondary Text Color: --color-text-muted
+Interactive Text Color: --color-text-primary
+Columns: defined by each table layout
+Tags: Chip / Tag
 
 #### Status
 Default
@@ -1306,7 +1309,7 @@ Folder Name:
 Default: transparent background
 Hover: show hover background
 Pressed: scale card to --scale-library-media-card-pressed while pointer is pressed
-Click: open Test Library Folder Detail view
+Click: open Library Folder Detail view
 Disabled / Empty Folder: reduce opacity and disable click
 
 #### Cursor
@@ -1361,14 +1364,14 @@ Title:
   Text: folder name
 
 #### Interaction
-Back Button Click: return to Test Library一级界面
+Back Button Click: return to Library一级界面
 Title: readonly
 
 #### Cursor
 Back Button Default / Hover: pointer
 Title: default
 
-### 3.5 Test Search Filter Bar Layout
+### 3.5 Search Filter Bar Layout
 
 #### Structure
 Container: horizontal toolbar
@@ -1393,7 +1396,7 @@ Filter Controls: open / edit / clear filters
 #### Cursor
 Inherited from child components
 
-### 3.6 Test Search Utility Bar Layout
+### 3.6 Search / Shiori Utility Bar Layout
 
 #### Structure
 Container: horizontal utility bar
@@ -1403,24 +1406,23 @@ Align Items: center
 Justify Content: space-between
 
 #### Content
-Row Info: Count Summary
+Left Region:
+  Row Info: Count Summary
+  Batch Actions:
+    Neutral Button
 View Controls:
   Icon Button
   Select Trigger Button
-Future Actions:
-  Neutral Button
-  Icon Button
-  Action Menu Item
 
 #### Interaction
 Row Info: readonly
-View Controls: switch table display mode
-Future Actions: export / screenshot / batch actions
+Batch Actions: visible only when selected row count > 0
+View Controls: switch table column visibility
 
 #### Cursor
 Inherited from child components
 
-### 3.7 Test Search Table Layout
+### 3.7 Search / Shiori Table Layout
 
 #### Structure
 Container: table region
@@ -1434,12 +1436,45 @@ Text Cell: Interactive Text Cell
 Tags: Chip / Tag
 Row Actions: Row Action Button / Row Action Menu
 Scrollbar: Table Scrollbar
+Empty State: Empty Hint
+
+Search Columns:
+  Display Title
+  Cues
+  Speaker
+  Language
+
+Shiori Columns:
+  Date Added
+  Display Title
+  Cues
+  Language
+
+Search Empty Hint:
+  Text: Enter a search term or add filters to show cues.
+  Condition: no search term and no effective filter condition
+
+Shiori Empty Hint:
+  Text: Save cues from playback to collect Shiori.
+  Condition: no saved Shiori rows
 
 #### Interaction
 Header: sort / column menu
 Rows: hover / select / open row actions
 Text Cell: click cue text
-Scrollbar: vertical table scrolling
+View Menu: Cues is checked + disabled; other data columns can be hidden
+Search Row Action Menu: Copy Cue Text
+Shiori Row Action Menu: Copy Cue Text / Remove Shiori
+Remove Shiori Icon: bookmark.slash
+Remove Shiori Icon Fallback: bookmark
+Shiori Remove: remove the row from saved Shiori records and refresh the Shiori table
+Shiori Default Sort: Date Added, newest to oldest
+Scrollbar: virtualized table scrolling
+
+#### Effective Filter Condition
+An effective filter condition is any filter rule that can constrain results.
+A filter rule with a non-empty value is effective.
+A presence-style filter rule that does not require a value is effective when selected, for example Cues is not empty.
 
 #### Cursor
 Inherited from child components
@@ -1464,6 +1499,16 @@ Navigation Region:
   Orientation: vertical
   Gap: --spacing-1
   Items: App Sidebar Navigation Item
+
+Navigation Items:
+  Search:
+    Icon: magnifyingglass
+  Recent:
+    Icon: current Test Recent Watching icon
+  Library:
+    Icon: current sidebar Library icon
+  Shiori:
+    Icon: current Shiori icon
 
 Spacer:
   Behavior: fills remaining vertical space
@@ -1513,15 +1558,6 @@ Sidebar Toggle: pointer
 #### Persistence
 Sidebar Expanded State:
   Persist across app restarts
-
-Selected Navigation Item:
-  Persist across app restarts
-
-#### Playback
-When playback page is visible:
-  Hide App Sidebar Layout
-  Hide titlebar navigation/title layout
-  Playback page owns the full window content
 
 ### 3.9 App Topbar Layout
 
@@ -1573,3 +1609,45 @@ Double Click:
 When playback page is visible:
   Hide App Topbar Layout
   Playback page owns its own topbar / chrome behavior
+
+### 3.10 Confirmation Dialog Layout
+
+#### Structure
+Container: modal dialog
+Orientation: vertical
+Align Items: center
+Backdrop: modal overlay
+Panel: centered dialog surface
+
+#### Content
+Icon:
+  Source: action-specific icon
+  Size: --size-icon-button
+  Color: --color-icon-default
+Title:
+  Text: action-specific title
+Message:
+  Text: action-specific message
+Actions:
+  Neutral Button
+  Neutral Button
+
+#### Remove Shiori Content
+Icon: bookmark.slash
+Icon Fallback: bookmark
+Title: Remove Shiori?
+Message: This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.
+Primary Action Button:
+  Base Component: Neutral Button
+  Text: Remove
+Cancel Action Button:
+  Base Component: Neutral Button
+  Text: Cancel
+
+#### Interaction
+Default Focus: Cancel Action Button
+Cancel Action: close dialog without changes
+Remove Action: remove the Shiori row, close dialog, refresh Shiori table and selection state
+Escape Key: same as Cancel
+Return Key: activate default focused action
+Click Outside: no action, dialog remains open
