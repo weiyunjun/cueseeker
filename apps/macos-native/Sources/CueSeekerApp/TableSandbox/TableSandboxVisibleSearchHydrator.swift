@@ -2,14 +2,21 @@ import Foundation
 import Combine
 import CueSeekerCore
 
-struct TableSandboxSearchHydrationPage: Equatable {
+struct TableSandboxSearchHydrationPage: Equatable, Sendable {
     let range: Range<Int>
     let results: [SubtitleSearchResult]
     let totalRowCount: Int
 }
 
+struct TableSandboxShioriHydrationPage: Equatable, Sendable {
+    let range: Range<Int>
+    let rows: [TableSandboxShioriRowSource]
+    let totalRowCount: Int
+    let totalSavedRowCount: Int
+}
+
 @MainActor
-final class TableSandboxVisibleSearchHydrator: ObservableObject {
+final class TableSandboxVisibleHydrator<Page: Sendable>: ObservableObject {
     private enum HydrationPriority: Int {
         case viewport = 0
         case prefetch = 1
@@ -36,8 +43,8 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
     private var inFlightRequests: [Int: ActiveRequest] = [:]
     private var viewportDebounceTask: Task<Void, Never>?
     private var isRowLoaded: ((Int) -> Bool)?
-    private var load: ((Range<Int>) async -> TableSandboxSearchHydrationPage?)?
-    private var apply: ((TableSandboxSearchHydrationPage) -> Void)?
+    private var load: ((Range<Int>) async -> Page?)?
+    private var apply: ((Page) -> Void)?
     private var generation = 0
     private var viewportDebounceGeneration = 0
     private var sequence = 0
@@ -77,8 +84,8 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
         visibleRows: Range<Int>,
         totalRowCount: Int,
         isRowLoaded: @escaping (Int) -> Bool,
-        load: @escaping (Range<Int>) async -> TableSandboxSearchHydrationPage?,
-        apply: @escaping (TableSandboxSearchHydrationPage) -> Void
+        load: @escaping (Range<Int>) async -> Page?,
+        apply: @escaping (Page) -> Void
     ) {
         configure(isRowLoaded: isRowLoaded, load: load, apply: apply)
         guard totalRowCount > 0, visibleRows.lowerBound < visibleRows.upperBound else {
@@ -129,8 +136,8 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
     func scheduleInitialCompletion(
         totalRowCount: Int,
         isRowLoaded: @escaping (Int) -> Bool,
-        load: @escaping (Range<Int>) async -> TableSandboxSearchHydrationPage?,
-        apply: @escaping (TableSandboxSearchHydrationPage) -> Void
+        load: @escaping (Range<Int>) async -> Page?,
+        apply: @escaping (Page) -> Void
     ) {
         configure(isRowLoaded: isRowLoaded, load: load, apply: apply)
         _ = totalRowCount
@@ -138,8 +145,8 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
 
     private func configure(
         isRowLoaded: @escaping (Int) -> Bool,
-        load: @escaping (Range<Int>) async -> TableSandboxSearchHydrationPage?,
-        apply: @escaping (TableSandboxSearchHydrationPage) -> Void
+        load: @escaping (Range<Int>) async -> Page?,
+        apply: @escaping (Page) -> Void
     ) {
         self.isRowLoaded = isRowLoaded
         self.load = load
@@ -334,3 +341,6 @@ final class TableSandboxVisibleSearchHydrator: ObservableObject {
         return lowerBound..<upperBound
     }
 }
+
+typealias TableSandboxVisibleSearchHydrator = TableSandboxVisibleHydrator<TableSandboxSearchHydrationPage>
+typealias TableSandboxVisibleShioriHydrator = TableSandboxVisibleHydrator<TableSandboxShioriHydrationPage>

@@ -44,14 +44,32 @@ batch Anki export.
 - Added a database helper for Shiori cue-group languages and an AppCoordinator
   Shiori removal entry point.
 - Added layout-state test coverage for the legacy Library route migration.
+- Reworked the Shiori table data path so opening Shiori no longer hydrates the
+  full `ShioriStore` list into table rows. The table now loads the first visible
+  page, hydrates additional pages from visible-row callbacks, and prunes
+  hydrated Shiori rows with the same bounded-row strategy used by Search.
+- Added Shiori database paging ordered by newest Date Added, with batched
+  language lookup for rows in the requested page.
+- Updated Shiori playback, removal, and selected-row Anki export to resolve
+  actions from hydrated row metadata and to page in missing selected rows before
+  export.
 
 ## Verification
 
 - `swift build` passed.
 - `swift test` passed with 325 tests.
+- Follow-up Shiori table hydration fix:
+  - `swift build` passed.
+  - `swift test` passed with 328 tests.
 
 ## Outcome
 
 The Search and Shiori surfaces now share the same table-based workflow while
 preserving Shiori playback and Anki export behavior. Search no longer eagerly
 loads all cues without an explicit search term or effective filter.
+
+The Shiori table now applies virtualization before row-model materialization:
+default Shiori opening requests only the first page from SQLite instead of
+mapping every saved Shiori row and querying languages one row at a time. Search
+or filter criteria on Shiori can still evaluate the full saved set locally, but
+the default all-favorites view no longer performs that work on first screen.

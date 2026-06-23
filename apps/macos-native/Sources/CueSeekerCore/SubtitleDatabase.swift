@@ -691,6 +691,22 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     }
 }
 
+public struct ShioriPage: Equatable, Sendable {
+    public let shioris: [Shiori]
+    public let totalCount: Int
+    public let languagesByShioriID: [Int64: Set<SubtitleLanguageCode>]
+
+    public init(
+        shioris: [Shiori],
+        totalCount: Int,
+        languagesByShioriID: [Int64: Set<SubtitleLanguageCode>]
+    ) {
+        self.shioris = shioris
+        self.totalCount = totalCount
+        self.languagesByShioriID = languagesByShioriID
+    }
+}
+
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
@@ -2556,6 +2572,45 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return languagesByCueGroupID
+    }
+
+    private func shioriLanguagesByID(
+        forShioriIDs shioriIDs: [Int64]
+    ) throws -> [Int64: Set<SubtitleLanguageCode>] {
+        guard !shioriIDs.isEmpty else {
+            return [:]
+        }
+
+        let placeholders = shioriIDs.map { _ in "?" }.joined(separator: ", ")
+        let statement = try database.prepare(
+            """
+            SELECT s.id, cgl.language_code
+            FROM shioris s
+            JOIN subtitle_files sf ON sf.subtitle_path = s.subtitle_path
+            JOIN subtitle_cue_groups g
+              ON g.subtitle_file_id = sf.id
+             AND g.start_ms = s.start_ms
+             AND g.end_ms = s.end_ms
+            JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
+            WHERE s.id IN (\(placeholders))
+            ORDER BY s.id ASC, cgl.language_code ASC;
+            """
+        )
+
+        for (offset, shioriID) in shioriIDs.enumerated() {
+            try statement.bind(shioriID, at: Int32(offset + 1))
+        }
+
+        var languagesByShioriID: [Int64: Set<SubtitleLanguageCode>] = [:]
+        languagesByShioriID.reserveCapacity(shioriIDs.count)
+        while try statement.step() {
+            guard let language = SubtitleLanguageCode(rawValue: statement.stringColumn(1)) else {
+                continue
+            }
+            languagesByShioriID[statement.int64Column(0), default: []].insert(language)
+        }
+
+        return languagesByShioriID
     }
 
     private func cueGroupSpeakers(
@@ -5512,6 +5567,70 @@ public final class SubtitleDatabase: @unchecked Sendable {
             shioris.append(shiori(from: statement))
         }
         return shioris
+    }
+
+    public func shioriCount() throws -> Int {
+        let statement = try database.prepare(
+            """
+            SELECT COUNT(*)
+            FROM shioris;
+            """
+        )
+
+        guard try statement.step() else {
+            return 0
+        }
+        return statement.intColumn(0)
+    }
+
+    public func shioriPage(limit: Int, offset: Int) throws -> ShioriPage {
+        let totalCount = try shioriCount()
+        let safeLimit = max(0, limit)
+        let safeOffset = max(0, offset)
+        guard safeLimit > 0, safeOffset < totalCount else {
+            return ShioriPage(
+                shioris: [],
+                totalCount: totalCount,
+                languagesByShioriID: [:]
+            )
+        }
+
+        let statement = try database.prepare(
+            """
+            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
+                   start_ms, end_ms, content, is_valid, created_at
+            FROM shioris
+            ORDER BY created_at DESC, id DESC
+            LIMIT ? OFFSET ?;
+            """
+        )
+        try statement.bind(safeLimit, at: 1)
+        try statement.bind(safeOffset, at: 2)
+
+        var shioris: [Shiori] = []
+        while try statement.step() {
+            shioris.append(shiori(from: statement))
+        }
+
+        return ShioriPage(
+            shioris: shioris,
+            totalCount: totalCount,
+            languagesByShioriID: try shioriLanguagesByID(forShioriIDs: shioris.map(\.id))
+        )
+    }
+
+    public func shiorisWithLanguages() throws -> ShioriPage {
+        let shioris = try shioris().sorted {
+            if $0.createdAt != $1.createdAt {
+                return $0.createdAt > $1.createdAt
+            }
+            return $0.id > $1.id
+        }
+        return ShioriPage(
+            shioris: shioris,
+            totalCount: shioris.count,
+            languagesByShioriID: try shioriLanguagesByID(forShioriIDs: shioris.map(\.id))
+        )
     }
 
     @discardableResult

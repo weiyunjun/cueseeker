@@ -6,6 +6,7 @@ struct TableSandboxRowsSnapshot {
     var rows: [SubtitleTableRow] = []
     var rowsBySourceIndex: [Int: SubtitleTableRow] = [:]
     var searchResultsByEntryID: [Int: SubtitleSearchResult] = [:]
+    var shiorisByEntryID: [Int: Shiori] = [:]
     var version = 0
     var update = TableSandboxRowsUpdate.none
     var references: [TableSandboxRowReference] = []
@@ -22,6 +23,10 @@ struct TableSandboxRowsSnapshot {
     func searchResult(entryID: Int) -> SubtitleSearchResult? {
         searchResultsByEntryID[entryID]
     }
+
+    func shiori(entryID: Int) -> Shiori? {
+        shiorisByEntryID[entryID]
+    }
 }
 
 struct TableSandboxRowReference: Equatable {
@@ -35,7 +40,7 @@ struct TableSandboxRowReference: Equatable {
     let id: Int
 }
 
-struct TableSandboxShioriRowSource: Equatable {
+struct TableSandboxShioriRowSource: Equatable, Sendable {
     let shiori: Shiori
     let displayTitle: String
     let dateAddedText: String
@@ -124,6 +129,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             rows,
             rowsBySourceIndex: rowsBySourceIndex,
             searchResultsByEntryID: searchResultsByEntryID,
+            shiorisByEntryID: [:],
             references: references,
             totalRowCount: max(totalRowCount ?? results.count, results.count),
             nextRowsByKey: nextRowsByKey,
@@ -196,6 +202,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             rows: contiguousPrefixRows(from: nextRowsBySourceIndex),
             rowsBySourceIndex: nextRowsBySourceIndex,
             searchResultsByEntryID: nextSearchResultsByEntryID,
+            shiorisByEntryID: snapshot.shiorisByEntryID,
             version: snapshot.version + 1,
             update: update,
             references: references,
@@ -251,11 +258,15 @@ final class TableSandboxRowModelStore: ObservableObject {
         let rowsBySourceIndex = Dictionary(uniqueKeysWithValues: rows.enumerated().map { index, row in
             (index, row)
         })
+        let shiorisByEntryID = Dictionary(uniqueKeysWithValues: shioris.map { item in
+            (Int(item.shiori.id), item.shiori)
+        })
 
         apply(
             rows,
             rowsBySourceIndex: rowsBySourceIndex,
             searchResultsByEntryID: [:],
+            shiorisByEntryID: shiorisByEntryID,
             references: references,
             totalRowCount: shioris.count,
             nextRowsByKey: nextRowsByKey,
@@ -266,10 +277,98 @@ final class TableSandboxRowModelStore: ObservableObject {
         )
     }
 
+    func hydrateShioriRows(
+        _ shioris: [TableSandboxShioriRowSource],
+        startIndex: Int,
+        totalRowCount: Int,
+        tableName: String
+    ) {
+        guard startIndex >= 0 else { return }
+
+        if shioris.isEmpty {
+            guard totalRowCount == 0 || snapshot.totalRowCount != totalRowCount || !snapshot.rowsBySourceIndex.isEmpty else {
+                return
+            }
+            snapshot = TableSandboxRowsSnapshot(
+                rows: [],
+                rowsBySourceIndex: [:],
+                searchResultsByEntryID: [:],
+                shiorisByEntryID: [:],
+                version: snapshot.version + 1,
+                update: .reload,
+                references: [],
+                totalRowCount: max(0, totalRowCount)
+            )
+            return
+        }
+
+        let start = TableRenderingPerformanceLogger.now()
+        var nextRowsBySourceIndex = snapshot.rowsBySourceIndex
+        var nextShiorisByEntryID = snapshot.shiorisByEntryID
+        var referencesBySourceIndex = Dictionary(uniqueKeysWithValues: snapshot.references.map { reference in
+            (reference.sourceIndex, reference)
+        })
+        var lowerChangedIndex: Int?
+        var upperChangedIndex: Int?
+
+        for (offset, item) in shioris.enumerated() {
+            let sourceIndex = startIndex + offset
+            let row = shioriRow(for: item)
+            if nextRowsBySourceIndex[sourceIndex] != row {
+                lowerChangedIndex = min(lowerChangedIndex ?? sourceIndex, sourceIndex)
+                upperChangedIndex = max(upperChangedIndex ?? sourceIndex + 1, sourceIndex + 1)
+            }
+            nextRowsBySourceIndex[sourceIndex] = row
+            nextShiorisByEntryID[Int(item.shiori.id)] = item.shiori
+            referencesBySourceIndex[sourceIndex] = TableSandboxRowReference(
+                source: .shiori,
+                sourceIndex: sourceIndex,
+                id: Int(item.shiori.id)
+            )
+        }
+
+        guard let lowerChangedIndex, let upperChangedIndex else { return }
+
+        let hydratedRange = startIndex..<(startIndex + shioris.count)
+        pruneHydratedShioriRowsIfNeeded(
+            keepingPriorityRange: hydratedRange,
+            rowsBySourceIndex: &nextRowsBySourceIndex,
+            shiorisByEntryID: &nextShiorisByEntryID,
+            referencesBySourceIndex: &referencesBySourceIndex
+        )
+
+        let references = referencesBySourceIndex.values.sorted { lhs, rhs in
+            lhs.sourceIndex < rhs.sourceIndex
+        }
+        let resolvedTotalRowCount = max(totalRowCount, (references.last?.sourceIndex ?? -1) + 1)
+        let update: TableSandboxRowsUpdate = .append(lowerChangedIndex..<upperChangedIndex)
+        TableRenderingPerformanceLogger.record(
+            event: "rows_hydrated",
+            table: tableName,
+            reason: update.reason,
+            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
+            rowCount: resolvedTotalRowCount,
+            sourceCount: shioris.count,
+            changed: true
+        )
+
+        snapshot = TableSandboxRowsSnapshot(
+            rows: contiguousPrefixRows(from: nextRowsBySourceIndex),
+            rowsBySourceIndex: nextRowsBySourceIndex,
+            searchResultsByEntryID: [:],
+            shiorisByEntryID: nextShiorisByEntryID,
+            version: snapshot.version + 1,
+            update: update,
+            references: references,
+            totalRowCount: resolvedTotalRowCount
+        )
+    }
+
     private func apply(
         _ rows: [SubtitleTableRow],
         rowsBySourceIndex: [Int: SubtitleTableRow],
         searchResultsByEntryID: [Int: SubtitleSearchResult],
+        shiorisByEntryID: [Int: Shiori],
         references: [TableSandboxRowReference],
         totalRowCount: Int,
         nextRowsByKey: [RowCacheKey: SubtitleTableRow],
@@ -302,6 +401,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             rows: rows,
             rowsBySourceIndex: rowsBySourceIndex,
             searchResultsByEntryID: searchResultsByEntryID,
+            shiorisByEntryID: shiorisByEntryID,
             version: snapshot.version + 1,
             update: update,
             references: references,
@@ -352,6 +452,36 @@ final class TableSandboxRowModelStore: ObservableObject {
         return row
     }
 
+    private func shioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTableRow {
+        let key = RowCacheKey(
+            id: Int(item.shiori.id),
+            subtitlePath: item.shiori.subtitlePath,
+            dateAdded: item.dateAddedText,
+            displayTitle: item.displayTitle,
+            content: item.shiori.content,
+            cueLines: item.shiori.cueLines,
+            languages: item.languages,
+            speakers: []
+        )
+
+        if let cached = rowsByKey[key] {
+            return cached
+        }
+
+        let row = SubtitleTableRow(
+            id: key.id,
+            dateAdded: item.dateAddedText,
+            displayTitle: item.displayTitle,
+            cues: tableSandboxDisplayText(
+                content: item.shiori.content,
+                cueLines: item.shiori.cueLines
+            ),
+            tags: SubtitleLanguageWorkbenchTags.tags(for: item.languages)
+        )
+        rowsByKey[key] = row
+        return row
+    }
+
     private func searchDisplayTitle(for result: SubtitleSearchResult) -> String {
         guard !result.displayTitle.isEmpty else {
             return displayTitle(forSubtitlePath: result.subtitlePath)
@@ -391,6 +521,39 @@ final class TableSandboxRowModelStore: ObservableObject {
         referencesBySourceIndex = referencesBySourceIndex.filter { keptIndexes.contains($0.key) }
         let keptEntryIDs = Set(referencesBySourceIndex.values.map(\.id))
         searchResultsByEntryID = searchResultsByEntryID.filter { keptEntryIDs.contains($0.key) }
+    }
+
+    private func pruneHydratedShioriRowsIfNeeded(
+        keepingPriorityRange priorityRange: Range<Int>,
+        rowsBySourceIndex: inout [Int: SubtitleTableRow],
+        shiorisByEntryID: inout [Int: Shiori],
+        referencesBySourceIndex: inout [Int: TableSandboxRowReference]
+    ) {
+        guard rowsBySourceIndex.count > maximumHydratedSearchRows else {
+            return
+        }
+
+        let center = priorityRange.lowerBound + max(0, priorityRange.count / 2)
+        let keptIndexes = Set(rowsBySourceIndex.keys.sorted { lhs, rhs in
+            let lhsPriority = priorityRange.contains(lhs)
+            let rhsPriority = priorityRange.contains(rhs)
+            if lhsPriority != rhsPriority {
+                return lhsPriority
+            }
+
+            let lhsDistance = abs(lhs - center)
+            let rhsDistance = abs(rhs - center)
+            if lhsDistance != rhsDistance {
+                return lhsDistance < rhsDistance
+            }
+
+            return lhs < rhs
+        }.prefix(maximumHydratedSearchRows))
+
+        rowsBySourceIndex = rowsBySourceIndex.filter { keptIndexes.contains($0.key) }
+        referencesBySourceIndex = referencesBySourceIndex.filter { keptIndexes.contains($0.key) }
+        let keptEntryIDs = Set(referencesBySourceIndex.values.map(\.id))
+        shiorisByEntryID = shiorisByEntryID.filter { keptEntryIDs.contains($0.key) }
     }
 
     private func contiguousPrefixRows(from rowsBySourceIndex: [Int: SubtitleTableRow]) -> [SubtitleTableRow] {

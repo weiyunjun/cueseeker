@@ -233,6 +233,64 @@ func tableSandboxRowModelStoreCachesHydratedSearchResultsForActions() {
 
 @MainActor
 @Test
+func tableSandboxRowModelStoreHydratesSparseShioriRowsForVirtualTableActions() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(id: 301, content: "visible shiori one", languages: [.japanese]),
+            shioriSource(id: 302, content: "visible shiori two", languages: [.simplifiedChinese]),
+        ],
+        startIndex: 300,
+        totalRowCount: 1_000,
+        tableName: "shiori"
+    )
+
+    #expect(store.snapshot.totalRowCount == 1_000)
+    #expect(store.snapshot.loadedReferenceCount == 2)
+    #expect(store.snapshot.rows.isEmpty)
+    #expect(store.snapshot.row(at: 299) == nil)
+    #expect(store.snapshot.row(at: 300)?.cues == "visible shiori one")
+    #expect(store.snapshot.row(at: 301)?.tags.map(\.label) == ["zh-hans"])
+    #expect(store.snapshot.shiori(entryID: 301)?.content == "visible shiori one")
+    #expect(store.snapshot.update == .append(300..<302))
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStorePrunesHydratedShioriRowsAroundVisibleWindow() {
+    let store = TableSandboxRowModelStore(maximumHydratedSearchRows: 3) { _ in "Resolved" }
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(id: 1, content: "prefix one", languages: [.japanese]),
+            shioriSource(id: 2, content: "prefix two", languages: [.japanese]),
+            shioriSource(id: 3, content: "prefix three", languages: [.japanese]),
+        ],
+        startIndex: 0,
+        totalRowCount: 100,
+        tableName: "shiori"
+    )
+    store.hydrateShioriRows(
+        [
+            shioriSource(id: 51, content: "visible one", languages: [.japanese]),
+            shioriSource(id: 52, content: "visible two", languages: [.japanese]),
+        ],
+        startIndex: 50,
+        totalRowCount: 100,
+        tableName: "shiori"
+    )
+
+    #expect(store.snapshot.totalRowCount == 100)
+    #expect(store.snapshot.loadedReferenceCount == 3)
+    #expect(store.snapshot.row(at: 50)?.cues == "visible one")
+    #expect(store.snapshot.row(at: 51)?.cues == "visible two")
+    #expect(store.snapshot.shiori(entryID: 1) == nil)
+    #expect(store.snapshot.shiori(entryID: 51)?.content == "visible one")
+}
+
+@MainActor
+@Test
 func tableSandboxRowModelStorePrunesHydratedSearchRowsAroundVisibleWindow() {
     let store = TableSandboxRowModelStore(maximumHydratedSearchRows: 4) { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
@@ -365,5 +423,29 @@ private func searchResult(
         cueLines: cueLines,
         languages: languages,
         speakers: speakers
+    )
+}
+
+private func shioriSource(
+    id: Int64,
+    content: String,
+    languages: Set<SubtitleLanguageCode>
+) -> TableSandboxShioriRowSource {
+    TableSandboxShioriRowSource(
+        shiori: Shiori(
+            id: id,
+            subtitlePath: "/tmp/CueSeeker/Series/episode-\(id).ass",
+            subtitleFormat: .ass,
+            videoPath: "/tmp/CueSeeker/Series/episode-\(id).mkv",
+            videoName: "episode-\(id).mkv",
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_000,
+            content: content,
+            isValid: true,
+            createdAt: "2026-06-23T12:00:00Z"
+        ),
+        displayTitle: "Episode \(id)",
+        dateAddedText: "26-06-23 12:00",
+        languages: languages
     )
 }

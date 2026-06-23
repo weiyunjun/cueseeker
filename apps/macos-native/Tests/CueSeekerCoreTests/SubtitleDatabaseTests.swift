@@ -2555,6 +2555,89 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
 }
 
 @Test
+func shioriPageReturnsNewestRowsWithLanguages() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Shiori Page.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Shiori Page.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Old saved cue."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Middle saved cue."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "Newest saved cue."
+            ),
+        ],
+        languageAnalysis: SubtitleLanguageAnalysis(
+            format: .srt,
+            fileDetection: nil,
+            styleDetections: [:],
+            cueGroupLanguages: [
+                [.japanese],
+                [.simplifiedChinese],
+                [.japanese, .simplifiedChinese]
+            ]
+        )
+    )
+
+    for (milliseconds, createdAt) in [
+        (1_500, Date(timeIntervalSince1970: 1_700_000_000)),
+        (3_500, Date(timeIntervalSince1970: 1_800_000_000)),
+        (5_500, Date(timeIntervalSince1970: 1_900_000_000)),
+    ] {
+        let selection = try #require(try database.cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: milliseconds
+        ))
+        _ = try database.upsertShiori(
+            subtitleFile: subtitleFile,
+            subtitleFormat: .srt,
+            videoFile: videoFile,
+            videoName: videoFile.lastPathComponent,
+            selection: selection,
+            createdAt: createdAt
+        )
+    }
+
+    let page = try database.shioriPage(limit: 2, offset: 1)
+
+    #expect(page.totalCount == 3)
+    #expect(page.shioris.map(\.content) == [
+        "Middle saved cue.",
+        "Old saved cue."
+    ])
+    #expect(page.languagesByShioriID[page.shioris[0].id] == [.simplifiedChinese])
+    #expect(page.languagesByShioriID[page.shioris[1].id] == [.japanese])
+}
+
+@Test
 func removingIndexedFolderPreservesShiori() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -6,13 +6,21 @@ struct WorkbenchShioriTableView: View {
     @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @StateObject private var rowStore = TableSandboxRowModelStore()
+    @StateObject private var visibleHydrator = TableSandboxVisibleShioriHydrator(
+        debounceNanoseconds: 16_000_000,
+        prefetchPageCount: 0,
+        smallResultEagerLoadThreshold: 0
+    )
     @State private var searchDraft = ""
     @State private var visibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleShioriColumnIDs
     @State private var activeFilterSetID: String?
     @State private var filterRules: [SchemaWorkbenchFilterRule] = []
     @State private var tableScrollResetToken = 0
     @State private var rowSelection = TableSandboxRowSelectionState()
-    @State private var currentShioris: [Shiori] = []
+    @State private var lastVisibleRows: Range<Int>?
+    @State private var totalSavedRowCount = 0
+    @State private var hasLoadedInitialPage = false
+    @State private var reloadGeneration = 0
     @State private var pendingRemoval: Shiori?
 
     var body: some View {
@@ -30,7 +38,7 @@ struct WorkbenchShioriTableView: View {
             tableSummaryAction: selectedAnkiAction,
             filterableColumnIDs: ["display", "cues", "language"],
             onSearchSubmit: {
-                rebuildRows(resetScroll: true)
+                reloadRows(resetScroll: true)
             }
         ) { visibleColumns in
             ZStack {
@@ -49,6 +57,7 @@ struct WorkbenchShioriTableView: View {
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: false,
                     scrollResetToken: tableScrollResetToken,
+                    onVisibleRowsChange: hydrateVisibleRows,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
                     onToggleRowSelection: toggleRowSelection,
@@ -59,7 +68,7 @@ struct WorkbenchShioriTableView: View {
                     isRedesign: true
                 )
 
-                if shioriStore.shioris.isEmpty {
+                if hasLoadedInitialPage && totalSavedRowCount == 0 {
                     WorkbenchEmptyHint(message: "Save cues from playback to collect Shiori.")
                 }
             }
@@ -83,18 +92,18 @@ struct WorkbenchShioriTableView: View {
             }
         }
         .task {
-            appState.hydrateShiorisAsync()
-            rebuildRows(resetScroll: false)
+            reloadRows(resetScroll: false)
         }
         .onChange(of: shioriStore.shioris) { _ in
-            rebuildRows(resetScroll: false)
+            reloadRows(resetScroll: false)
         }
         .onChange(of: searchDraft) { _ in
-            rebuildRows(resetScroll: true)
+            reloadRows(resetScroll: true)
         }
         .onChange(of: filterRules) { _ in
-            rebuildRows(resetScroll: true)
+            reloadRows(resetScroll: true)
         }
+        .onDisappear { visibleHydrator.cancel() }
     }
 
     private var tableSummary: SchemaWorkbenchTableSummary {
@@ -130,85 +139,149 @@ struct WorkbenchShioriTableView: View {
         visibleColumns.first { $0.id == id }?.title ?? fallback
     }
 
-    private func rebuildRows(resetScroll: Bool) {
-        let sources = shioriRowSources()
-        currentShioris = sources.map(\.shiori)
-        rowStore.updateShioriRows(sources, tableName: "shiori")
-        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+    private func reloadRows(resetScroll: Bool) {
+        reloadGeneration += 1
+        let generation = reloadGeneration
+        visibleHydrator.reset()
+        lastVisibleRows = nil
+        hasLoadedInitialPage = false
+        rowSelection.reset()
+        rowStore.updateShioriRows([], tableName: "shiori")
         if resetScroll {
-            rowSelection.reset()
             tableScrollResetToken += 1
         }
-    }
 
-    private func shioriRowSources() -> [TableSandboxShioriRowSource] {
-        let term = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let filterSet = filterRules.subtitleSearchFilterSet
-        return shioriStore.shioris.compactMap { shiori in
-            let displayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: shiori.subtitlePath)
-            let languages = appState.languages(for: shiori)
-            let cues = tableSandboxDisplayText(content: shiori.content, cueLines: shiori.cueLines)
-            guard matchesSearchTerm(term, displayTitle: displayTitle, cues: cues) else {
-                return nil
+        Task { @MainActor in
+            guard let page = await loadRows(range: 0..<240) else {
+                guard generation == reloadGeneration else { return }
+                totalSavedRowCount = 0
+                hasLoadedInitialPage = true
+                return
             }
-            guard matchesFilterSet(filterSet, displayTitle: displayTitle, cues: cues, languages: languages) else {
-                return nil
+
+            guard generation == reloadGeneration else {
+                return
             }
-            return TableSandboxShioriRowSource(
-                shiori: shiori,
-                displayTitle: displayTitle,
-                dateAddedText: WorkbenchShioriDateFormatter.displayText(for: shiori.createdAt),
-                languages: languages
-            )
+            applyHydrationPage(page)
+            hasLoadedInitialPage = true
+            hydrateLastVisibleRowsIfNeeded()
         }
     }
 
-    private func matchesSearchTerm(_ term: String, displayTitle: String, cues: String) -> Bool {
-        guard !term.isEmpty else {
-            return true
-        }
-        return displayTitle.range(of: term, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-            || cues.range(of: term, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-    }
-
-    private func matchesFilterSet(
-        _ filterSet: SubtitleSearchFilterSet,
-        displayTitle: String,
-        cues: String,
-        languages: Set<SubtitleLanguageCode>
-    ) -> Bool {
-        let tags = SubtitleLanguageWorkbenchTags.tags(for: languages)
-        let languageCandidates = Array(Set(languages.map(\.rawValue) + tags.map(\.label)))
-        return filterSet.matches(
-            display: displayTitle,
-            cues: cues,
-            languages: languageCandidates
+    private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
+        lastVisibleRows = visibleRows
+        visibleHydrator.schedule(
+            visibleRows: visibleRows,
+            totalRowCount: rowStore.snapshot.totalRowCount,
+            isRowLoaded: { rowStore.snapshot.row(at: $0) != nil },
+            load: { range in
+                await loadRows(range: range)
+            },
+            apply: applyHydrationPage
         )
     }
 
+    private func loadRows(range: Range<Int>) async -> TableSandboxShioriHydrationPage? {
+        await appState.loadTableSandboxShioriRows(
+            range: range,
+            searchText: searchDraft,
+            filterSet: filterRules.subtitleSearchFilterSet
+        )
+    }
+
+    private func hydrateLastVisibleRowsIfNeeded() {
+        guard let lastVisibleRows else {
+            return
+        }
+        hydrateVisibleRows(lastVisibleRows)
+    }
+
+    private func applyHydrationPage(_ page: TableSandboxShioriHydrationPage) {
+        totalSavedRowCount = page.totalSavedRowCount
+        rowStore.hydrateShioriRows(
+            page.rows,
+            startIndex: page.range.lowerBound,
+            totalRowCount: page.totalRowCount,
+            tableName: "shiori"
+        )
+        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+    }
+
     private func openShiori(_ row: SubtitleTableRow) {
-        guard let item = currentShioris.first(where: { Int($0.id) == row.id }) else {
+        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
             return
         }
         appState.openShiori(item)
     }
 
     private func requestRemoveShiori(_ row: SubtitleTableRow) {
-        pendingRemoval = currentShioris.first { Int($0.id) == row.id }
+        pendingRemoval = rowStore.snapshot.shiori(entryID: row.id)
     }
 
     private func confirmRemoveShiori(_ item: Shiori) {
         pendingRemoval = nil
-        appState.removeShiori(item)
-        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+        guard appState.removeShiori(item, reloadPresentation: false) else {
+            return
+        }
+        reloadRows(resetScroll: false)
     }
 
     private func exportSelectedRowsToAnki() {
         let selectedRows = rowSelection.selectedRows(rowCount: rowStore.snapshot.totalRowCount)
-        let selectedShioris = selectedRows.compactMap { row in
-            currentShioris.indices.contains(row) ? currentShioris[row] : nil
+        guard !selectedRows.isEmpty else {
+            return
         }
-        appState.exportShiorisToAnki(selectedShioris)
+
+        Task { @MainActor in
+            let selectedShioris = await selectedShioris(for: selectedRows)
+            appState.exportShiorisToAnki(selectedShioris)
+        }
+    }
+
+    private func selectedShioris(for selectedRows: [Int]) async -> [Shiori] {
+        await hydrateRowsForExport(selectedRows)
+        return selectedRows.compactMap { row in
+            guard let tableRow = rowStore.snapshot.row(at: row) else {
+                return nil
+            }
+            return rowStore.snapshot.shiori(entryID: tableRow.id)
+        }
+    }
+
+    private func hydrateRowsForExport(_ selectedRows: [Int]) async {
+        let missingRows = selectedRows.filter { row in
+            guard let tableRow = rowStore.snapshot.row(at: row) else {
+                return true
+            }
+            return rowStore.snapshot.shiori(entryID: tableRow.id) == nil
+        }
+        guard !missingRows.isEmpty else {
+            return
+        }
+
+        let pageSize = 240
+        let rowCount = rowStore.snapshot.totalRowCount
+        var requestedStarts: Set<Int> = []
+        let ranges = missingRows
+            .map { row -> Range<Int> in
+                let start = max(0, (row / pageSize) * pageSize)
+                let end = min(rowCount, start + pageSize)
+                return start..<end
+            }
+            .filter { range in
+                guard !requestedStarts.contains(range.lowerBound), !range.isEmpty else {
+                    return false
+                }
+                requestedStarts.insert(range.lowerBound)
+                return true
+            }
+
+        for range in ranges {
+            guard let page = await loadRows(range: range) else {
+                continue
+            }
+            applyHydrationPage(page)
+        }
     }
 
     private func toggleRowSelection(_ row: Int) {
@@ -217,19 +290,5 @@ struct WorkbenchShioriTableView: View {
 
     private func toggleAllRowSelection() {
         rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
-    }
-}
-
-private enum WorkbenchShioriDateFormatter {
-    static func displayText(for value: String) -> String {
-        let isoFormatter = ISO8601DateFormatter()
-        guard let date = isoFormatter.date(from: value) else {
-            return value
-        }
-
-        let displayFormatter = DateFormatter()
-        displayFormatter.locale = Locale(identifier: "en_US_POSIX")
-        displayFormatter.dateFormat = "yy-MM-dd HH:mm"
-        return displayFormatter.string(from: date)
     }
 }
