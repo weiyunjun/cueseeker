@@ -252,8 +252,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             guard let contentView = window.contentView else { return }
 
             if windowButtonsProxy == nil {
-                // AppTopBar is 45pt tall, width 80 is enough for the 3 buttons
-                let proxy = WindowButtonsProxyView(frame: NSRect(x: 24, y: 0, width: 80, height: 45))
+                let proxy = WindowButtonsProxyView(
+                    frame: NSRect(
+                        x: WorkbenchControlMetrics.redesignAppTopbarTitleHorizontalPadding,
+                        y: 0,
+                        width: 80,
+                        height: WorkbenchControlMetrics.redesignAppTopbarHeight
+                    )
+                )
                 contentView.addSubview(proxy)
                 windowButtonsProxy = proxy
             } else if let proxy = windowButtonsProxy, proxy.superview !== contentView {
@@ -269,7 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
             let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
             var xOffset: CGFloat = 0
-            let targetCenterFromTop: CGFloat = 22.5
+            let targetCenterFromTop = WorkbenchControlMetrics.redesignAppTopbarHeight / 2
         
             for type in buttons {
                 guard let button = window.standardWindowButton(type) else { continue }

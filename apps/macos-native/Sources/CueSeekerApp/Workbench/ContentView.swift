@@ -29,7 +29,6 @@ private struct ContentRootView: View {
         green: 0.955,
         blue: 0.95
     )
-    private let contentBackground = Color(nsColor: .textBackgroundColor)
 
     var body: some View {
         AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
@@ -55,8 +54,7 @@ private struct ContentRootView: View {
                 }
 
                 if !hidesWorkbenchChrome {
-                    AppTopBar(backgroundColor: contentBackground)
-                        .frame(height: AppShellLayout.topBarHeight)
+                    AppTopBar()
                         .zIndex(3)
                 }
 
@@ -80,43 +78,21 @@ private struct AppTopBar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
 
-    let backgroundColor: Color
-
     var body: some View {
         UIInvalidationProbe.count("UI.AppTopBar.body")
 
-        return appTopBar
-    }
-
-    @ViewBuilder
-    private var appTopBar: some View {
-        TitlebarBackgroundView(
-            backgroundColor: backgroundColor,
+        return AppTopbarLayout(
+            isSidebarVisible: layoutState.isSidebarVisible,
+            isAppFullscreen: layoutState.isAppFullscreen,
             onDoubleClickZoom: { window in
                 NotificationCenter.default.post(name: .topbarTitlebarZoomRequested, object: window)
                 return true
             }
-        )
-        .overlay(alignment: .leading) {
-            if layoutState.isSidebarVisible {
-                WorkbenchRedesignColors.appSidebarBg
-                    .frame(width: AppShellLayout.sidebarWidth)
-                    .allowsHitTesting(false)
-            }
-        }
-        .overlay(alignment: .leading) {
+        ) {
             titlebarContent
-                .padding(.leading, titleLeadingInset)
-                .padding(.trailing, AppShellLayout.titleHorizontalPadding)
+        } sidebarToggle: {
+            sidebarToggle
         }
-        .overlay(alignment: .leading) {
-            topBarLeadingControls
-        }
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                NotificationCenter.default.post(name: .topbarDismissMenusRequested, object: nil)
-            }
-        )
     }
 
     @ViewBuilder
@@ -140,53 +116,6 @@ private struct AppTopBar: View {
             LibrarySectionTitle(layoutState.panelMode.title)
                 .allowsHitTesting(false)
         }
-    }
-
-    private var titleLeadingInset: CGFloat {
-        if layoutState.isSidebarVisible {
-            return AppShellLayout.sidebarWidth + AppShellLayout.titleHorizontalPadding
-        }
-
-        let toggleX = layoutState.isAppFullscreen
-            ? AppShellLayout.modeControlsOuterPadding
-            : AppShellLayout.collapsedLeadingToggleX
-        return max(
-            AppShellLayout.titleHorizontalPadding,
-            toggleX + AppShellLayout.sidebarToggleSize + AppShellLayout.titleAfterToggleSpacing
-        )
-    }
-
-    private var topBarLeadingControls: some View {
-        GeometryReader { _ in
-            sidebarToggle
-                .frame(
-                    width: AppShellLayout.sidebarToggleSize,
-                    height: AppShellLayout.sidebarToggleSize
-                )
-                .offset(
-                    x: sidebarToggleHandleX,
-                    y: (AppShellLayout.topBarHeight - AppShellLayout.sidebarToggleSize) / 2
-                )
-        }
-        .frame(height: AppShellLayout.topBarHeight)
-        .clipped()
-    }
-
-    private var sidebarToggleHandleX: CGFloat {
-        let collapsedX = layoutState.isAppFullscreen
-            ? AppShellLayout.modeControlsOuterPadding
-            : AppShellLayout.collapsedLeadingToggleX
-
-        guard layoutState.isSidebarVisible else {
-            return collapsedX
-        }
-
-        return max(
-            collapsedX,
-            AppShellLayout.sidebarWidth
-                - AppShellLayout.modeControlsOuterPadding
-                - AppShellLayout.sidebarToggleSize
-        )
     }
 
     private var sidebarToggle: some View {
@@ -400,7 +329,7 @@ enum AppShellLayout {
     static let contentTopPadding: CGFloat = 16
     static let minimumWindowWidth: CGFloat = 1_000
     static let minimumWindowHeight: CGFloat = 560
-    static let topBarHeight: CGFloat = 45
+    static let topBarHeight = WorkbenchControlMetrics.redesignAppTopbarHeight
     static let sidePanelAnimationDuration: Double = 0.18
 
     static let windowControlsReservedWidth: CGFloat = 80
@@ -411,6 +340,4 @@ enum AppShellLayout {
 
     static let sidebarWidth = WorkbenchControlMetrics.redesignAppSidebarWidth
     static let sidebarToggleSize = WorkbenchControlMetrics.redesignIconButtonSize
-    static let titleHorizontalPadding: CGFloat = 24
-    static let titleAfterToggleSpacing: CGFloat = 12
 }

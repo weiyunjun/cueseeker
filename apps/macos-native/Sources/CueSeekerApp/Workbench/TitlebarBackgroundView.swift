@@ -2,25 +2,51 @@ import SwiftUI
 import AppKit
 
 struct TitlebarBackgroundView: NSViewRepresentable {
-    var backgroundColor: Color
+    var backgroundColor: NSColor
     var onDoubleClickZoom: (NSWindow) -> Bool = { _ in true }
+
+    init(
+        backgroundColor: Color,
+        onDoubleClickZoom: @escaping (NSWindow) -> Bool = { _ in true }
+    ) {
+        self.backgroundColor = NSColor(backgroundColor)
+        self.onDoubleClickZoom = onDoubleClickZoom
+    }
+
+    init(
+        backgroundColor: NSColor,
+        onDoubleClickZoom: @escaping (NSWindow) -> Bool = { _ in true }
+    ) {
+        self.backgroundColor = backgroundColor
+        self.onDoubleClickZoom = onDoubleClickZoom
+    }
 
     func makeNSView(context: Context) -> DraggableNSView {
         let view = DraggableNSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor(backgroundColor).cgColor
+        view.backgroundColor = backgroundColor
         view.onDoubleClickZoom = onDoubleClickZoom
         return view
     }
 
     func updateNSView(_ nsView: DraggableNSView, context: Context) {
-        nsView.layer?.backgroundColor = NSColor(backgroundColor).cgColor
+        nsView.backgroundColor = backgroundColor
         nsView.onDoubleClickZoom = onDoubleClickZoom
     }
 }
 
 final class DraggableNSView: NSView {
     var onDoubleClickZoom: ((NSWindow) -> Bool)?
+    var backgroundColor: NSColor = .clear {
+        didSet {
+            updateBackgroundColor()
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBackgroundColor()
+    }
 
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2 {
@@ -43,5 +69,13 @@ final class DraggableNSView: NSView {
             // For a single click/drag, initiate native window dragging.
             self.window?.performDrag(with: event)
         }
+    }
+
+    private func updateBackgroundColor() {
+        var resolvedColor: CGColor?
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            resolvedColor = backgroundColor.cgColor
+        }
+        layer?.backgroundColor = resolvedColor
     }
 }

@@ -648,7 +648,7 @@ private struct LibraryEpisodeCard: View {
 private struct LibraryMediaCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed ? WorkbenchControlMetrics.redesignLibraryMediaCardPressedScale : 1)
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }

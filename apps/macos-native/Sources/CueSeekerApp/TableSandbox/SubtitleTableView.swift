@@ -34,8 +34,8 @@ enum SubtitleTableMetrics {
     static let scrollbarInset: CGFloat = 4
     static let scrollbarMinThumbLength: CGFloat = 24
     static let scrollbarHitSlop: CGFloat = 6
-    static let interactiveTextUnderlineThickness: CGFloat = 1
-    static let interactiveTextUnderlineOffset: CGFloat = 2
+    static let interactiveTextUnderlineThickness = WorkbenchControlMetrics.redesignInteractiveTextUnderlineThickness
+    static let interactiveTextUnderlineOffset = WorkbenchControlMetrics.redesignInteractiveTextUnderlineOffset
 }
 
 struct SubtitleTableColumnLayout {

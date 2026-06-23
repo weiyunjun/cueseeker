@@ -59,6 +59,8 @@ enum WorkbenchControlMetrics {
     static let redesignSpacing2: CGFloat = 8
     /// --spacing-3: 12px
     static let redesignSpacing3: CGFloat = 12
+    /// --gap-app-topbar-title-after-toggle: 12px
+    static let redesignAppTopbarTitleAfterToggleGap: CGFloat = 12
     /// --padding-header-trigger-x: 12px
     static let redesignPaddingHeaderTriggerX: CGFloat = 12
     /// --font-size-table: 14px
@@ -69,10 +71,16 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeCaption: CGFloat = 12
     /// --height-app-sidebar-item: 32px
     static let redesignAppSidebarItemHeight: CGFloat = 32
+    /// --height-app-topbar: 45px
+    static let redesignAppTopbarHeight: CGFloat = 45
     /// --width-app-sidebar: 240px
     static let redesignAppSidebarWidth: CGFloat = 240
     /// --size-app-sidebar-item-icon: 18px
     static let redesignAppSidebarItemIconSize: CGFloat = 18
+    /// --width-interactive-text-underline: 1px
+    static let redesignInteractiveTextUnderlineThickness: CGFloat = 1
+    /// --offset-interactive-text-underline: 2px
+    static let redesignInteractiveTextUnderlineOffset: CGFloat = 2
     /// --radius-app-sidebar-item: 8px
     static let redesignAppSidebarItemRadius: CGFloat = 8
     /// --padding-app-sidebar-x: 12px
@@ -81,6 +89,8 @@ enum WorkbenchControlMetrics {
     static let redesignAppSidebarVerticalPadding: CGFloat = 12
     /// --padding-app-sidebar-item-x: 10px
     static let redesignAppSidebarItemHorizontalPadding: CGFloat = 10
+    /// --padding-app-topbar-title-x: 24px
+    static let redesignAppTopbarTitleHorizontalPadding: CGFloat = 24
     /// --font-size-app-sidebar-item: 13px
     static let redesignFontSizeAppSidebarItem: CGFloat = 13
 
@@ -112,6 +122,8 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryEpisodeGridCardGap: CGFloat = 12
     /// --gap-library-folder-card-content: 12px
     static let redesignLibraryFolderCardContentGap: CGFloat = 12
+    /// --scale-library-media-card-pressed: 0.98
+    static let redesignLibraryMediaCardPressedScale: CGFloat = 0.98
     /// --padding-library-folder-card: 12px 16px
     static let redesignLibraryFolderCardVerticalPadding: CGFloat = 12
     static let redesignLibraryFolderCardHorizontalPadding: CGFloat = 16

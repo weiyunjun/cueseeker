@@ -16,7 +16,7 @@ struct LiquidGlassVideoTopBar: View {
         // via the serialized titlebar-zoom path, or minimize). The control
         // buttons sit on top and consume their own clicks.
         TitlebarBackgroundView(
-            backgroundColor: .clear,
+            backgroundColor: Color.clear,
             onDoubleClickZoom: { window in
                 NotificationCenter.default.post(
                     name: .topbarTitlebarZoomRequested,
