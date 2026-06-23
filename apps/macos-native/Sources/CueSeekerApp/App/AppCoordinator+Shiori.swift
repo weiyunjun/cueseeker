@@ -3,6 +3,30 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
+private func tableSandboxShioriRowSources(from page: ShioriPage) -> [TableSandboxShioriRowSource] {
+    page.shioris.map { shiori in
+        TableSandboxShioriRowSource(
+            shiori: shiori,
+            displayTitle: page.displayTitlesByShioriID[shiori.id]
+                ?? URL(fileURLWithPath: shiori.subtitlePath).lastPathComponent,
+            dateAddedText: shioriDateAddedDisplayText(for: shiori.createdAt),
+            languages: page.languagesByShioriID[shiori.id] ?? [.unknown]
+        )
+    }
+}
+
+private func shioriDateAddedDisplayText(for value: String) -> String {
+    let isoFormatter = ISO8601DateFormatter()
+    guard let date = isoFormatter.date(from: value) else {
+        return value
+    }
+
+    let displayFormatter = DateFormatter()
+    displayFormatter.locale = Locale(identifier: "en_US_POSIX")
+    displayFormatter.dateFormat = "yy-MM-dd HH:mm"
+    return displayFormatter.string(from: date)
+}
+
 @MainActor
 extension AppCoordinator {
     func loadTableSandboxShioriRows(
@@ -15,21 +39,27 @@ extension AppCoordinator {
         }
 
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasLocalCriteria = !trimmedSearchText.isEmpty || !filterSet.isEffectivelyEmpty
         let lowerBound = max(0, range.lowerBound)
         let upperBound = max(lowerBound, range.upperBound)
         guard lowerBound < upperBound else { return nil }
 
         do {
             let pageDatabaseURL = databaseURL
-            let rawPage = try await Task.detached(priority: .userInitiated) {
+            let page = try await Task.detached(priority: .userInitiated) {
                 let pageDatabase = try SubtitleDatabase(path: pageDatabaseURL)
-                if hasLocalCriteria {
-                    return try pageDatabase.shiorisWithLanguages()
-                }
-                return try pageDatabase.shioriPage(
+                let rawPage = try pageDatabase.shioriTablePage(
                     limit: upperBound - lowerBound,
-                    offset: lowerBound
+                    offset: lowerBound,
+                    searchText: trimmedSearchText,
+                    filterSet: filterSet
+                )
+                let totalSavedRowCount = try pageDatabase.shioriCount()
+                let rows = tableSandboxShioriRowSources(from: rawPage)
+                return TableSandboxShioriHydrationPage(
+                    range: lowerBound..<(lowerBound + rows.count),
+                    rows: rows,
+                    totalRowCount: rawPage.totalCount,
+                    totalSavedRowCount: totalSavedRowCount
                 )
             }.value
 
@@ -37,35 +67,7 @@ extension AppCoordinator {
                 return nil
             }
 
-            if hasLocalCriteria {
-                let filteredSources = shioriRowSources(
-                    from: rawPage,
-                    searchText: trimmedSearchText,
-                    filterSet: filterSet
-                )
-                let pageUpperBound = min(upperBound, filteredSources.count)
-                let pageRows = lowerBound < pageUpperBound
-                    ? Array(filteredSources[lowerBound..<pageUpperBound])
-                    : []
-                return TableSandboxShioriHydrationPage(
-                    range: lowerBound..<(lowerBound + pageRows.count),
-                    rows: pageRows,
-                    totalRowCount: filteredSources.count,
-                    totalSavedRowCount: rawPage.totalCount
-                )
-            }
-
-            let pageRows = shioriRowSources(
-                from: rawPage,
-                searchText: "",
-                filterSet: SubtitleSearchFilterSet()
-            )
-            return TableSandboxShioriHydrationPage(
-                range: lowerBound..<(lowerBound + pageRows.count),
-                rows: pageRows,
-                totalRowCount: rawPage.totalCount,
-                totalSavedRowCount: rawPage.totalCount
-            )
+            return page
         } catch {
             print("Failed to load Shiori table rows: \(error)")
             return nil
@@ -103,18 +105,6 @@ extension AppCoordinator {
         rebuildShioriFileGroups()
     }
 
-    static func shioriDateAddedDisplayText(for value: String) -> String {
-        let isoFormatter = ISO8601DateFormatter()
-        guard let date = isoFormatter.date(from: value) else {
-            return value
-        }
-
-        let displayFormatter = DateFormatter()
-        displayFormatter.locale = Locale(identifier: "en_US_POSIX")
-        displayFormatter.dateFormat = "yy-MM-dd HH:mm"
-        return displayFormatter.string(from: date)
-    }
-
     func languages(for shiori: Shiori) -> Set<SubtitleLanguageCode> {
         guard let database = subtitleDatabase else {
             return [.unknown]
@@ -130,57 +120,6 @@ extension AppCoordinator {
             print("Failed to load Shiori languages: \(error)")
             return [.unknown]
         }
-    }
-
-    private func shioriRowSources(
-        from page: ShioriPage,
-        searchText: String,
-        filterSet: SubtitleSearchFilterSet
-    ) -> [TableSandboxShioriRowSource] {
-        page.shioris.compactMap { shiori in
-            let displayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: shiori.subtitlePath)
-            let languages = page.languagesByShioriID[shiori.id] ?? [.unknown]
-            let cues = tableSandboxDisplayText(content: shiori.content, cueLines: shiori.cueLines)
-            guard shioriMatchesSearchText(searchText, displayTitle: displayTitle, cues: cues) else {
-                return nil
-            }
-            guard shioriMatchesFilterSet(filterSet, displayTitle: displayTitle, cues: cues, languages: languages) else {
-                return nil
-            }
-            return TableSandboxShioriRowSource(
-                shiori: shiori,
-                displayTitle: displayTitle,
-                dateAddedText: AppCoordinator.shioriDateAddedDisplayText(for: shiori.createdAt),
-                languages: languages
-            )
-        }
-    }
-
-    private func shioriMatchesSearchText(
-        _ searchText: String,
-        displayTitle: String,
-        cues: String
-    ) -> Bool {
-        guard !searchText.isEmpty else {
-            return true
-        }
-        return displayTitle.range(of: searchText, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-            || cues.range(of: searchText, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-    }
-
-    private func shioriMatchesFilterSet(
-        _ filterSet: SubtitleSearchFilterSet,
-        displayTitle: String,
-        cues: String,
-        languages: Set<SubtitleLanguageCode>
-    ) -> Bool {
-        let tags = SubtitleLanguageWorkbenchTags.tags(for: languages)
-        let languageCandidates = Array(Set(languages.map(\.rawValue) + tags.map(\.label)))
-        return filterSet.matches(
-            display: displayTitle,
-            cues: cues,
-            languages: languageCandidates
-        )
     }
 
     @discardableResult

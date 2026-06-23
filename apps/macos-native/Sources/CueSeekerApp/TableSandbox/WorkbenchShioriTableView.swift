@@ -40,7 +40,7 @@ private struct WorkbenchShioriTableContent: View {
             tableSummaryAction: selectedAnkiAction,
             filterableColumnIDs: ["display", "cues", "language"],
             onSearchSubmit: {
-                reloadRows(resetScroll: true)
+                submitSearchDraft()
             }
         ) { visibleColumns in
             ZStack {
@@ -96,11 +96,8 @@ private struct WorkbenchShioriTableContent: View {
         .task {
             loadInitialRowsIfNeeded()
         }
-        .onChange(of: shioriStore.shioris) { _ in
+        .onChange(of: shioriStore.tableDataRevision) { _ in
             reloadRows(resetScroll: false)
-        }
-        .onChange(of: shioriStore.tableSearchDraft) { _ in
-            reloadRows(resetScroll: true)
         }
         .onChange(of: shioriStore.tableFilterRules) { _ in
             reloadRows(resetScroll: true)
@@ -149,6 +146,12 @@ private struct WorkbenchShioriTableContent: View {
         reloadRows(resetScroll: false)
     }
 
+    private func submitSearchDraft() {
+        let trimmedDraft = shioriStore.tableSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        shioriStore.tableSubmittedSearchText = trimmedDraft
+        reloadRows(resetScroll: true)
+    }
+
     private func reloadRows(resetScroll: Bool) {
         reloadGeneration += 1
         let generation = reloadGeneration
@@ -192,7 +195,7 @@ private struct WorkbenchShioriTableContent: View {
     private func loadRows(range: Range<Int>) async -> TableSandboxShioriHydrationPage? {
         await appState.loadTableSandboxShioriRows(
             range: range,
-            searchText: shioriStore.tableSearchDraft,
+            searchText: shioriStore.tableSubmittedSearchText,
             filterSet: shioriStore.tableFilterRules.subtitleSearchFilterSet
         )
     }
@@ -231,7 +234,6 @@ private struct WorkbenchShioriTableContent: View {
         guard appState.removeShiori(item, reloadPresentation: false) else {
             return
         }
-        reloadRows(resetScroll: false)
     }
 
     private func exportSelectedRowsToAnki() {

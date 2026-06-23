@@ -2635,6 +2635,8 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
     ])
     #expect(page.languagesByShioriID[page.shioris[0].id] == [.simplifiedChinese])
     #expect(page.languagesByShioriID[page.shioris[1].id] == [.japanese])
+    #expect(page.displayTitlesByShioriID[page.shioris[0].id]?.isEmpty == false)
+    #expect(page.displayTitlesByShioriID[page.shioris[1].id]?.isEmpty == false)
 
     let allShioris = try database.shioriPage(limit: 3, offset: 0).shioris
     let newest = try #require(allShioris.first { $0.content == "Newest saved cue." })
@@ -2646,6 +2648,121 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
     #expect(try database.adjacentShiori(to: middle, direction: .next)?.id == old.id)
     #expect(try database.adjacentShiori(to: newest, direction: .previous) == nil)
     #expect(try database.adjacentShiori(to: old, direction: .next) == nil)
+}
+
+@Test
+func shioriTablePageAppliesSearchAndFiltersBeforeSlicing() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Shiori Table.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Shiori Table.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Old saved cue."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Middle saved cue."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "Newest saved cue."
+            ),
+        ],
+        languageAnalysis: SubtitleLanguageAnalysis(
+            format: .srt,
+            fileDetection: nil,
+            styleDetections: [:],
+            cueGroupLanguages: [
+                [.japanese],
+                [.simplifiedChinese],
+                [.japanese, .simplifiedChinese]
+            ]
+        )
+    )
+
+    for (milliseconds, createdAt) in [
+        (1_500, Date(timeIntervalSince1970: 1_700_000_000)),
+        (3_500, Date(timeIntervalSince1970: 1_800_000_000)),
+        (5_500, Date(timeIntervalSince1970: 1_900_000_000)),
+    ] {
+        let selection = try #require(try database.cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: milliseconds
+        ))
+        _ = try database.upsertShiori(
+            subtitleFile: subtitleFile,
+            subtitleFormat: .srt,
+            videoFile: videoFile,
+            videoName: videoFile.lastPathComponent,
+            selection: selection,
+            createdAt: createdAt
+        )
+    }
+
+    let searchPage = try database.shioriTablePage(
+        limit: 1,
+        offset: 0,
+        searchText: "middle",
+        filterSet: SubtitleSearchFilterSet()
+    )
+    #expect(searchPage.totalCount == 1)
+    #expect(searchPage.shioris.map(\.content) == ["Middle saved cue."])
+    #expect(searchPage.displayTitlesByShioriID[searchPage.shioris[0].id]?.isEmpty == false)
+
+    let languageFilter = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .language,
+            operatorID: .contains,
+            value: "zh-Hans"
+        )
+    ])
+    let filteredPage = try database.shioriTablePage(
+        limit: 1,
+        offset: 1,
+        searchText: "",
+        filterSet: languageFilter
+    )
+
+    #expect(filteredPage.totalCount == 2)
+    #expect(filteredPage.shioris.map(\.content) == ["Middle saved cue."])
+    #expect(filteredPage.languagesByShioriID[filteredPage.shioris[0].id] == [.simplifiedChinese])
+}
+
+@Test
+func migrationCreatesShioriTablePerformanceIndexes() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try sqliteIndexExists("idx_shioris_created_order", databaseURL: databaseURL))
+    #expect(try sqliteIndexExists("idx_subtitle_cue_groups_file_time", databaseURL: databaseURL))
 }
 
 @Test
@@ -4359,6 +4476,41 @@ private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerDatabaseTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
+}
+
+private func sqliteIndexExists(_ name: String, databaseURL: URL) throws -> Bool {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(
+        database,
+        "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ? LIMIT 1;",
+        -1,
+        &statement,
+        nil
+    ) == SQLITE_OK,
+        let statement
+    else {
+        let message = String(cString: sqlite3_errmsg(database))
+        throw SQLiteFixtureError.executeFailed(message)
+    }
+
+    defer {
+        sqlite3_finalize(statement)
+    }
+
+    let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    sqlite3_bind_text(statement, 1, name, -1, transient)
+    return sqlite3_step(statement) == SQLITE_ROW
 }
 
 private func testCueGroup(

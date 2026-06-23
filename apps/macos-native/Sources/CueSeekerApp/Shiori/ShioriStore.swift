@@ -8,11 +8,13 @@ final class ShioriStore: ObservableObject {
     @Published var shioriFileGroups: [ShioriFileGroup] = []
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
+    @Published var tableSubmittedSearchText = ""
     @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleShioriColumnIDs
     @Published var tableActiveFilterSetID: String?
     @Published var tableFilterRules: [SchemaWorkbenchFilterRule] = []
     @Published var tableTotalSavedRowCount = 0
     @Published var tableHasLoadedInitialPage = false
+    @Published var tableDataRevision = 0
 
     let tableRowStore = TableSandboxRowModelStore()
 
@@ -41,5 +43,6 @@ final class ShioriStore: ObservableObject {
 
     func invalidateTableRows(tableName: String = "shiori") {
         clearTableRowsForReload(tableName: tableName)
+        tableDataRevision += 1
     }
 }

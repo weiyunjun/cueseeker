@@ -695,15 +695,18 @@ public struct ShioriPage: Equatable, Sendable {
     public let shioris: [Shiori]
     public let totalCount: Int
     public let languagesByShioriID: [Int64: Set<SubtitleLanguageCode>]
+    public let displayTitlesByShioriID: [Int64: String]
 
     public init(
         shioris: [Shiori],
         totalCount: Int,
-        languagesByShioriID: [Int64: Set<SubtitleLanguageCode>]
+        languagesByShioriID: [Int64: Set<SubtitleLanguageCode>],
+        displayTitlesByShioriID: [Int64: String] = [:]
     ) {
         self.shioris = shioris
         self.totalCount = totalCount
         self.languagesByShioriID = languagesByShioriID
+        self.displayTitlesByShioriID = displayTitlesByShioriID
     }
 }
 
@@ -1313,6 +1316,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             CREATE INDEX IF NOT EXISTS idx_subtitle_cue_groups_start_ms
                 ON subtitle_cue_groups(start_ms);
 
+            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_groups_file_time
+                ON subtitle_cue_groups(subtitle_file_id, start_ms, end_ms, id);
+
             CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_group_order
                 ON subtitle_cue_lines(cue_group_id, display_order, event_index);
 
@@ -1533,6 +1539,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE INDEX IF NOT EXISTS idx_shioris_order
                 ON shioris(subtitle_path, start_ms, end_ms);
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_created_order
+                ON shioris(created_at DESC, id DESC);
 
             CREATE TABLE IF NOT EXISTS ai_chunk_cache_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -5656,42 +5665,148 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        let statement = try database.prepare(
-            """
-            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, content, is_valid, created_at
-            FROM shioris
-            ORDER BY created_at DESC, id DESC
-            LIMIT ? OFFSET ?;
-            """
-        )
-        try statement.bind(safeLimit, at: 1)
-        try statement.bind(safeOffset, at: 2)
+        let candidates = try shioriTableCandidates(limit: safeLimit, offset: safeOffset)
+        return shioriPage(from: candidates, totalCount: totalCount)
+    }
 
-        var shioris: [Shiori] = []
-        while try statement.step() {
-            shioris.append(shiori(from: statement))
+    public func shioriTablePage(
+        limit: Int,
+        offset: Int,
+        searchText: String,
+        filterSet: SubtitleSearchFilterSet
+    ) throws -> ShioriPage {
+        let safeLimit = max(0, limit)
+        let safeOffset = max(0, offset)
+        guard safeLimit > 0 else {
+            return ShioriPage(
+                shioris: [],
+                totalCount: try shioriCount(),
+                languagesByShioriID: [:],
+                displayTitlesByShioriID: [:]
+            )
         }
 
-        return ShioriPage(
-            shioris: shioris,
-            totalCount: totalCount,
-            languagesByShioriID: try shioriLanguagesByID(forShioriIDs: shioris.map(\.id))
-        )
+        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearchText.isEmpty || !filterSet.isEffectivelyEmpty else {
+            return try shioriPage(limit: safeLimit, offset: safeOffset)
+        }
+
+        let candidates = try shioriTableCandidates(limit: nil, offset: 0)
+        var pageCandidates: [ShioriTableCandidate] = []
+        pageCandidates.reserveCapacity(safeLimit)
+        var acceptedCount = 0
+
+        for candidate in candidates {
+            try Task.checkCancellation()
+            guard Self.shioriMatchesSearchText(
+                trimmedSearchText,
+                displayTitle: candidate.displayTitle,
+                cues: candidate.shiori.content
+            ) else {
+                continue
+            }
+            guard filterSet.matches(
+                display: candidate.displayTitle,
+                cues: candidate.shiori.content,
+                languages: Self.filterSetLanguageValues(candidate.languages)
+            ) else {
+                continue
+            }
+
+            if acceptedCount >= safeOffset && pageCandidates.count < safeLimit {
+                pageCandidates.append(candidate)
+            }
+            acceptedCount += 1
+        }
+
+        return shioriPage(from: pageCandidates, totalCount: acceptedCount)
     }
 
     public func shiorisWithLanguages() throws -> ShioriPage {
-        let shioris = try shioris().sorted {
-            if $0.createdAt != $1.createdAt {
-                return $0.createdAt > $1.createdAt
-            }
-            return $0.id > $1.id
-        }
-        return ShioriPage(
-            shioris: shioris,
-            totalCount: shioris.count,
-            languagesByShioriID: try shioriLanguagesByID(forShioriIDs: shioris.map(\.id))
+        let candidates = try shioriTableCandidates(limit: nil, offset: 0)
+        return shioriPage(from: candidates, totalCount: candidates.count)
+    }
+
+    private func shioriTableCandidates(limit: Int?, offset: Int) throws -> [ShioriTableCandidate] {
+        let limitClause = limit == nil ? "" : "LIMIT ? OFFSET ?"
+        let statement = try database.prepare(
+            """
+            SELECT s.id, s.subtitle_path, s.subtitle_format, s.video_path, s.video_name,
+                   s.start_ms, s.end_ms, s.content, s.is_valid, s.created_at,
+                   sor.display_title,
+                   (
+                       SELECT GROUP_CONCAT(cgl.language_code)
+                       FROM subtitle_files sf
+                       JOIN subtitle_cue_groups g
+                         ON g.subtitle_file_id = sf.id
+                        AND g.start_ms = s.start_ms
+                        AND g.end_ms = s.end_ms
+                       JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
+                       WHERE sf.subtitle_path = s.subtitle_path
+                   ) AS language_values
+            FROM shioris s
+            LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = s.subtitle_path
+            ORDER BY s.created_at DESC, s.id DESC
+            \(limitClause);
+            """
         )
+
+        if let limit {
+            try statement.bind(max(0, limit), at: 1)
+            try statement.bind(max(0, offset), at: 2)
+        }
+
+        var candidates: [ShioriTableCandidate] = []
+        while try statement.step() {
+            let shiori = shiori(from: statement)
+            candidates.append(
+                ShioriTableCandidate(
+                    shiori: shiori,
+                    displayTitle: Self.shioriDisplayTitle(
+                        rawValue: statement.nullableStringColumn(10),
+                        subtitlePath: shiori.subtitlePath
+                    ),
+                    languages: Self.languageValues(from: statement.nullableStringColumn(11))
+                )
+            )
+        }
+        return candidates
+    }
+
+    private func shioriPage(
+        from candidates: [ShioriTableCandidate],
+        totalCount: Int
+    ) -> ShioriPage {
+        ShioriPage(
+            shioris: candidates.map(\.shiori),
+            totalCount: totalCount,
+            languagesByShioriID: Dictionary(uniqueKeysWithValues: candidates.map { candidate in
+                (candidate.shiori.id, candidate.languages)
+            }),
+            displayTitlesByShioriID: Dictionary(uniqueKeysWithValues: candidates.map { candidate in
+                (candidate.shiori.id, candidate.displayTitle)
+            })
+        )
+    }
+
+    private static func shioriDisplayTitle(rawValue: String?, subtitlePath: String) -> String {
+        let trimmedTitle = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedTitle.isEmpty {
+            return trimmedTitle
+        }
+        return URL(fileURLWithPath: subtitlePath).lastPathComponent
+    }
+
+    private static func shioriMatchesSearchText(
+        _ searchText: String,
+        displayTitle: String,
+        cues: String
+    ) -> Bool {
+        guard !searchText.isEmpty else {
+            return true
+        }
+        return displayTitle.range(of: searchText, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            || cues.range(of: searchText, options: [.caseInsensitive, .diacriticInsensitive]) != nil
     }
 
     @discardableResult
@@ -5764,6 +5879,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private struct OrderedSearchResult {
         let result: SubtitleSearchResult
         let order: SearchResultOrder
+    }
+
+    private struct ShioriTableCandidate {
+        let shiori: Shiori
+        let displayTitle: String
+        let languages: Set<SubtitleLanguageCode>
     }
 
     private struct SearchLanguageDetections {
