@@ -2,33 +2,35 @@ import SwiftUI
 import CueSeekerCore
 
 struct WorkbenchShioriTableView: View {
+    @EnvironmentObject private var shioriStore: ShioriStore
+
+    var body: some View {
+        WorkbenchShioriTableContent(rowStore: shioriStore.tableRowStore)
+    }
+}
+
+private struct WorkbenchShioriTableContent: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var settingsStore: SettingsStore
-    @StateObject private var rowStore = TableSandboxRowModelStore()
+    @ObservedObject var rowStore: TableSandboxRowModelStore
     @StateObject private var visibleHydrator = TableSandboxVisibleShioriHydrator(
         debounceNanoseconds: 16_000_000,
         prefetchPageCount: 0,
         smallResultEagerLoadThreshold: 0
     )
-    @State private var searchDraft = ""
-    @State private var visibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleShioriColumnIDs
-    @State private var activeFilterSetID: String?
-    @State private var filterRules: [SchemaWorkbenchFilterRule] = []
     @State private var tableScrollResetToken = 0
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var lastVisibleRows: Range<Int>?
-    @State private var totalSavedRowCount = 0
-    @State private var hasLoadedInitialPage = false
     @State private var reloadGeneration = 0
     @State private var pendingRemoval: Shiori?
 
     var body: some View {
         SchemaWorkbenchSearchShell(
-            searchDraft: $searchDraft,
-            visibleColumnIDs: $visibleColumnIDs,
-            activeFilterSetID: $activeFilterSetID,
-            filterRules: $filterRules,
+            searchDraft: $shioriStore.tableSearchDraft,
+            visibleColumnIDs: $shioriStore.tableVisibleColumnIDs,
+            activeFilterSetID: $shioriStore.tableActiveFilterSetID,
+            filterRules: $shioriStore.tableFilterRules,
             filterSets: $settingsStore.searchFilterSets,
             columns: SchemaWorkbenchSearchDefaults.shioriColumns,
             searchPlaceholder: "Search Shiori by title or cues...",
@@ -68,7 +70,7 @@ struct WorkbenchShioriTableView: View {
                     isRedesign: true
                 )
 
-                if hasLoadedInitialPage && totalSavedRowCount == 0 {
+                if shioriStore.tableHasLoadedInitialPage && shioriStore.tableTotalSavedRowCount == 0 {
                     WorkbenchEmptyHint(message: "Save cues from playback to collect Shiori.")
                 }
             }
@@ -92,15 +94,15 @@ struct WorkbenchShioriTableView: View {
             }
         }
         .task {
-            reloadRows(resetScroll: false)
+            loadInitialRowsIfNeeded()
         }
         .onChange(of: shioriStore.shioris) { _ in
             reloadRows(resetScroll: false)
         }
-        .onChange(of: searchDraft) { _ in
+        .onChange(of: shioriStore.tableSearchDraft) { _ in
             reloadRows(resetScroll: true)
         }
-        .onChange(of: filterRules) { _ in
+        .onChange(of: shioriStore.tableFilterRules) { _ in
             reloadRows(resetScroll: true)
         }
         .onDisappear { visibleHydrator.cancel() }
@@ -139,14 +141,21 @@ struct WorkbenchShioriTableView: View {
         visibleColumns.first { $0.id == id }?.title ?? fallback
     }
 
+    private func loadInitialRowsIfNeeded() {
+        guard !shioriStore.tableHasLoadedInitialPage else {
+            hydrateLastVisibleRowsIfNeeded()
+            return
+        }
+        reloadRows(resetScroll: false)
+    }
+
     private func reloadRows(resetScroll: Bool) {
         reloadGeneration += 1
         let generation = reloadGeneration
         visibleHydrator.reset()
         lastVisibleRows = nil
-        hasLoadedInitialPage = false
         rowSelection.reset()
-        rowStore.updateShioriRows([], tableName: "shiori")
+        shioriStore.clearTableRowsForReload()
         if resetScroll {
             tableScrollResetToken += 1
         }
@@ -154,8 +163,7 @@ struct WorkbenchShioriTableView: View {
         Task { @MainActor in
             guard let page = await loadRows(range: 0..<TableSandboxHydrationPaging.pageSize) else {
                 guard generation == reloadGeneration else { return }
-                totalSavedRowCount = 0
-                hasLoadedInitialPage = true
+                shioriStore.markTableRowsLoaded(totalSavedRowCount: 0)
                 return
             }
 
@@ -163,7 +171,7 @@ struct WorkbenchShioriTableView: View {
                 return
             }
             applyHydrationPage(page)
-            hasLoadedInitialPage = true
+            shioriStore.markTableRowsLoaded(totalSavedRowCount: page.totalSavedRowCount)
             hydrateLastVisibleRowsIfNeeded()
         }
     }
@@ -184,8 +192,8 @@ struct WorkbenchShioriTableView: View {
     private func loadRows(range: Range<Int>) async -> TableSandboxShioriHydrationPage? {
         await appState.loadTableSandboxShioriRows(
             range: range,
-            searchText: searchDraft,
-            filterSet: filterRules.subtitleSearchFilterSet
+            searchText: shioriStore.tableSearchDraft,
+            filterSet: shioriStore.tableFilterRules.subtitleSearchFilterSet
         )
     }
 
@@ -197,7 +205,7 @@ struct WorkbenchShioriTableView: View {
     }
 
     private func applyHydrationPage(_ page: TableSandboxShioriHydrationPage) {
-        totalSavedRowCount = page.totalSavedRowCount
+        shioriStore.tableTotalSavedRowCount = page.totalSavedRowCount
         rowStore.hydrateShioriRows(
             page.rows,
             startIndex: page.range.lowerBound,

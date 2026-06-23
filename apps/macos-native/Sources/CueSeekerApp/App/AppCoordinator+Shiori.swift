@@ -95,7 +95,11 @@ extension AppCoordinator {
     }
 
     func applyShioris(_ nextShioris: [Shiori]) {
-        shiori.shioris = nextShioris.sorted(by: Self.shioriSort)
+        let sortedShioris = nextShioris.sorted(by: Self.shioriSort)
+        if shiori.shioris != sortedShioris {
+            shiori.invalidateTableRows()
+        }
+        shiori.shioris = sortedShioris
         rebuildShioriFileGroups()
     }
 
@@ -195,6 +199,7 @@ extension AppCoordinator {
             if reloadPresentation {
                 applyShioris(try database.shioris())
             } else {
+                shiori.invalidateTableRows()
                 shiori.shioris.removeAll { $0.id == item.id }
                 if !shiori.shioriFileGroups.isEmpty {
                     rebuildShioriFileGroups()

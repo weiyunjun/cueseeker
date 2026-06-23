@@ -401,6 +401,66 @@ func tableSandboxRowModelStoreMapsSearchSpeakersToTags() {
     #expect(tags.map(\.colorID) == [.purple, .purple])
 }
 
+@MainActor
+@Test
+func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
+    let store = ShioriStore()
+    store.tableSearchDraft = "tomori"
+    store.tableVisibleColumnIDs = ["display", "cues"]
+    store.tableActiveFilterSetID = "favorite-cues"
+    store.tableFilterRules = [
+        SchemaWorkbenchSearchDefaults.makeFilterRule(
+            join: nil,
+            fieldID: "cues",
+            operatorID: .contains,
+            value: "星"
+        )
+    ]
+    store.tableRowStore.hydrateShioriRows(
+        [
+            shioriSource(id: 1, content: "cached shiori", languages: [.japanese]),
+        ],
+        startIndex: 0,
+        totalRowCount: 1,
+        tableName: "shiori"
+    )
+    store.markTableRowsLoaded(totalSavedRowCount: 1)
+
+    #expect(store.tableSearchDraft == "tomori")
+    #expect(store.tableVisibleColumnIDs == ["display", "cues"])
+    #expect(store.tableActiveFilterSetID == "favorite-cues")
+    #expect(store.tableFilterRules.count == 1)
+    #expect(store.tableHasLoadedInitialPage)
+    #expect(store.tableTotalSavedRowCount == 1)
+    #expect(store.tableRowStore.snapshot.row(at: 0)?.cues == "cached shiori")
+}
+
+@MainActor
+@Test
+func shioriStoreInvalidatesTableRowsWithoutResettingControls() {
+    let store = ShioriStore()
+    store.tableSearchDraft = "soyo"
+    store.tableVisibleColumnIDs = ["dateAdded", "cues"]
+    store.tableRowStore.hydrateShioriRows(
+        [
+            shioriSource(id: 1, content: "old shiori", languages: [.japanese]),
+        ],
+        startIndex: 0,
+        totalRowCount: 1,
+        tableName: "shiori"
+    )
+    store.markTableRowsLoaded(totalSavedRowCount: 1)
+
+    store.invalidateTableRows()
+
+    #expect(store.tableSearchDraft == "soyo")
+    #expect(store.tableVisibleColumnIDs == ["dateAdded", "cues"])
+    #expect(!store.tableHasLoadedInitialPage)
+    #expect(store.tableTotalSavedRowCount == 0)
+    #expect(store.tableRowStore.snapshot.totalRowCount == 0)
+    #expect(store.tableRowStore.snapshot.row(at: 0) == nil)
+}
+
 private func searchResult(
     id: Int64,
     path: String,
