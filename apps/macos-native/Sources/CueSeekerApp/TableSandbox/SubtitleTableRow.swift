@@ -5,6 +5,7 @@ import Foundation
 /// (displayTitle = user-facing subtitle title, cues = merged same-timestamp subtitle text).
 struct SubtitleTableRow: Identifiable, Equatable {
     let id: Int
+    let dateAdded: String
     let displayTitle: String
     /// Merged subtitle text for one timestamp. Bilingual entries keep one line
     /// per language, joined with "\n", so the cell wraps to multiple lines.
@@ -14,12 +15,14 @@ struct SubtitleTableRow: Identifiable, Equatable {
 
     init(
         id: Int,
+        dateAdded: String = "",
         displayTitle: String,
         cues: String,
         tags: [WorkbenchTag] = [],
         speakerTags: [WorkbenchTag] = []
     ) {
         self.id = id
+        self.dateAdded = dateAdded
         self.displayTitle = displayTitle
         self.cues = cues
         self.tags = tags

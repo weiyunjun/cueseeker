@@ -5,6 +5,7 @@ import SwiftUI
 
 enum SubtitleTableMetrics {
     static let indexColumnWidth: CGFloat = 50
+    static let dateAddedColumnWidth: CGFloat = 160
     static let nameColumnWidth: CGFloat = 240
     static let cuesColumnMinimumWidth: CGFloat = 520
     static let speakerColumnWidth: CGFloat = 180
@@ -40,6 +41,7 @@ enum SubtitleTableMetrics {
 
 struct SubtitleTableColumnLayout {
     var indexRect: CGRect
+    var dateAddedRect: CGRect?
     var nameRect: CGRect
     var cuesRect: CGRect
     var speakerRect: CGRect?
@@ -47,21 +49,24 @@ struct SubtitleTableColumnLayout {
     var contentWidth: CGFloat
 
     static func minimumContentWidth(
+        showsDateAddedColumn: Bool = false,
         showsDisplayTitleColumn: Bool = true,
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool,
         cuesMinimumWidth: CGFloat
     ) -> CGFloat {
         let M = SubtitleTableMetrics.self
+        let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
         let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-        return M.indexColumnWidth + displayTitleWidth + cuesMinimumWidth + speakerWidth + languageWidth
+        return M.indexColumnWidth + dateAddedWidth + displayTitleWidth + cuesMinimumWidth + speakerWidth + languageWidth
     }
 
     static func resolve(
         contentWidth: CGFloat,
         height: CGFloat,
+        showsDateAddedColumn: Bool = false,
         showsDisplayTitleColumn: Bool = true,
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool,
@@ -70,6 +75,7 @@ struct SubtitleTableColumnLayout {
     ) -> SubtitleTableColumnLayout {
         let M = SubtitleTableMetrics.self
         let minimumWidth = minimumContentWidth(
+            showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             showsLanguageColumn: showsLanguageColumn,
@@ -78,17 +84,25 @@ struct SubtitleTableColumnLayout {
         let resolvedContentWidth = expandsToMinimumContentWidth
             ? max(0, contentWidth, minimumWidth)
             : max(0, contentWidth)
+        let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
         let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
         let cuesWidth = max(
             cuesMinimumWidth,
-            resolvedContentWidth - M.indexColumnWidth - displayTitleWidth - speakerWidth - languageWidth
+            resolvedContentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - speakerWidth - languageWidth
         )
 
         var x: CGFloat = 0
         let indexRect = CGRect(x: x, y: 0, width: M.indexColumnWidth, height: height)
         x += M.indexColumnWidth
+        let dateAddedRect: CGRect?
+        if showsDateAddedColumn {
+            dateAddedRect = CGRect(x: x, y: 0, width: M.dateAddedColumnWidth, height: height)
+            x += M.dateAddedColumnWidth
+        } else {
+            dateAddedRect = nil
+        }
         let nameRect = CGRect(x: x, y: 0, width: displayTitleWidth, height: height)
         x += displayTitleWidth
         let cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
@@ -111,6 +125,7 @@ struct SubtitleTableColumnLayout {
 
         return SubtitleTableColumnLayout(
             indexRect: indexRect,
+            dateAddedRect: dateAddedRect,
             nameRect: nameRect,
             cuesRect: cuesRect,
             speakerRect: speakerRect,
@@ -122,23 +137,25 @@ struct SubtitleTableColumnLayout {
     static func legacy(
         contentWidth: CGFloat,
         height: CGFloat,
+        showsDateAddedColumn: Bool = false,
         showsDisplayTitleColumn: Bool = true,
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool
     ) -> SubtitleTableColumnLayout {
         let M = SubtitleTableMetrics.self
+        let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
         let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-        let cuesWidth = max(0, contentWidth - M.indexColumnWidth - displayTitleWidth - speakerWidth - languageWidth)
+        let cuesWidth = max(0, contentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - speakerWidth - languageWidth)
         let speakerRect = showsSpeakerColumn ? CGRect(
-            x: max(M.indexColumnWidth + displayTitleWidth, contentWidth - languageWidth - M.speakerColumnWidth),
+            x: max(M.indexColumnWidth + dateAddedWidth + displayTitleWidth, contentWidth - languageWidth - M.speakerColumnWidth),
             y: 0,
             width: M.speakerColumnWidth,
             height: height
         ) : nil
         let languageRect = showsLanguageColumn ? CGRect(
-            x: max(M.indexColumnWidth + displayTitleWidth, contentWidth - M.languageColumnWidth),
+            x: max(M.indexColumnWidth + dateAddedWidth + displayTitleWidth, contentWidth - M.languageColumnWidth),
             y: 0,
             width: M.languageColumnWidth,
             height: height
@@ -146,9 +163,10 @@ struct SubtitleTableColumnLayout {
 
         return SubtitleTableColumnLayout(
             indexRect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: height),
-            nameRect: CGRect(x: M.indexColumnWidth, y: 0, width: displayTitleWidth, height: height),
+            dateAddedRect: showsDateAddedColumn ? CGRect(x: M.indexColumnWidth, y: 0, width: dateAddedWidth, height: height) : nil,
+            nameRect: CGRect(x: M.indexColumnWidth + dateAddedWidth, y: 0, width: displayTitleWidth, height: height),
             cuesRect: CGRect(
-                x: M.indexColumnWidth + displayTitleWidth,
+                x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth,
                 y: 0,
                 width: cuesWidth,
                 height: height
@@ -162,6 +180,7 @@ struct SubtitleTableColumnLayout {
     func offsetBy(dx: CGFloat) -> SubtitleTableColumnLayout {
         SubtitleTableColumnLayout(
             indexRect: indexRect.offsetBy(dx: dx, dy: 0),
+            dateAddedRect: dateAddedRect?.offsetBy(dx: dx, dy: 0),
             nameRect: nameRect.offsetBy(dx: dx, dy: 0),
             cuesRect: cuesRect.offsetBy(dx: dx, dy: 0),
             speakerRect: speakerRect?.offsetBy(dx: dx, dy: 0),
@@ -521,10 +540,15 @@ private struct CueHoverButtons: View {
     }
 }
 
+enum SubtitleTableRowActionMenuStyle {
+    case search
+    case shiori
+}
+
 private struct RowActionMenu: View {
+    var style: SubtitleTableRowActionMenuStyle = .search
     var onCopy: () -> Void
-    var onContext: () -> Void
-    var onFavorite: () -> Void
+    var onRemoveShiori: () -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
@@ -537,22 +561,16 @@ private struct RowActionMenu: View {
                     isEnabled: true,
                     action: onCopy
                 )
-                WorkbenchPopoverRow(
-                    title: "Open Context",
-                    systemImage: "magnifyingglass", // Mapped from "search" to "magnifyingglass"
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: false, // Disabled and not integrated yet
-                    action: onContext
-                )
-                WorkbenchPopoverRow(
-                    title: "Favorite",
-                    systemImage: "star", // Mapped from "star" to "star"
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: false, // Disabled and not integrated yet
-                    action: onFavorite
-                )
+                if style == .shiori {
+                    WorkbenchPopoverRow(
+                        title: "Remove",
+                        systemImage: "bookmark.slash",
+                        isRedesign: true,
+                        showsCheckmarkSlot: false,
+                        isEnabled: true,
+                        action: onRemoveShiori
+                    )
+                }
             }
         }
     }
@@ -1163,6 +1181,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     private var indexHeaderHost: NSHostingView<AnyView>?
+    private var dateAddedHeaderHost: NSHostingView<AnyView>?
     private var nameHeaderHost: NSHostingView<AnyView>?
     private var cuesHeaderHost: NSHostingView<AnyView>?
     private var speakerHeaderHost: NSHostingView<AnyView>?
@@ -1241,9 +1260,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
             }
 
             let M = SubtitleTableMetrics.self
+            let showsDateAddedColumn = coordinator?.showsDateAddedColumnForRendering() ?? false
             let showsDisplayTitleColumn = coordinator?.showsDisplayTitleColumnForRendering() ?? true
             let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
             let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
+            let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
             let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
             let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
             let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
@@ -1253,10 +1274,18 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 leading: M.indexHeaderHorizontalInset,
                 trailing: M.indexTrailingInset
             )
+            if showsDateAddedColumn {
+                drawHeader(
+                    coordinator?.dateAddedHeaderForRendering() ?? "Date Added",
+                    rect: CGRect(x: M.indexColumnWidth, y: 0, width: dateAddedWidth, height: bounds.height),
+                    leading: M.headerHorizontalInset,
+                    trailing: M.trailingInset
+                )
+            }
             if showsDisplayTitleColumn {
                 drawHeader(
                     coordinator?.displayTitleHeaderForRendering() ?? "Name",
-                    rect: CGRect(x: M.indexColumnWidth, y: 0, width: displayTitleWidth, height: bounds.height),
+                    rect: CGRect(x: M.indexColumnWidth + dateAddedWidth, y: 0, width: displayTitleWidth, height: bounds.height),
                     leading: M.headerHorizontalInset,
                     trailing: M.trailingInset
                 )
@@ -1264,9 +1293,9 @@ final class SubtitleVirtualTableHeaderView: NSView {
             drawHeader(
                 coordinator?.cuesHeaderForRendering() ?? "Cues",
                 rect: CGRect(
-                    x: M.indexColumnWidth + displayTitleWidth,
+                    x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth,
                     y: 0,
-                    width: max(0, bounds.width - M.indexColumnWidth - displayTitleWidth - speakerWidth - languageWidth),
+                    width: max(0, bounds.width - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - speakerWidth - languageWidth),
                     height: bounds.height
                 ),
                 leading: M.headerHorizontalInset,
@@ -1276,7 +1305,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 drawHeader(
                     coordinator?.speakerHeaderForRendering() ?? "Speaker",
                     rect: CGRect(
-                        x: max(M.indexColumnWidth + displayTitleWidth, bounds.width - languageWidth - M.speakerColumnWidth),
+                        x: max(M.indexColumnWidth + dateAddedWidth + displayTitleWidth, bounds.width - languageWidth - M.speakerColumnWidth),
                         y: 0,
                         width: M.speakerColumnWidth,
                         height: bounds.height
@@ -1289,7 +1318,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 drawHeader(
                     coordinator?.languageHeaderForRendering() ?? "Language",
                     rect: CGRect(
-                        x: max(M.indexColumnWidth + displayTitleWidth, bounds.width - M.languageColumnWidth),
+                        x: max(M.indexColumnWidth + dateAddedWidth + displayTitleWidth, bounds.width - M.languageColumnWidth),
                         y: 0,
                         width: M.languageColumnWidth,
                         height: bounds.height
@@ -1333,6 +1362,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         updateHoverState()
         guard isRedesign else {
             indexHeaderHost?.isHidden = true
+            dateAddedHeaderHost?.isHidden = true
             nameHeaderHost?.isHidden = true
             cuesHeaderHost?.isHidden = true
             speakerHeaderHost?.isHidden = true
@@ -1347,6 +1377,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         ) ?? SubtitleTableColumnLayout.resolve(
             contentWidth: bounds.width,
             height: bounds.height,
+            showsDateAddedColumn: false,
             showsDisplayTitleColumn: false,
             showsSpeakerColumn: false,
             showsLanguageColumn: false,
@@ -1354,6 +1385,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
         )
 
         updateSelectionHeaderHost(&indexHeaderHost, frame: layout.indexRect)
+        if let dateAddedRect = layout.dateAddedRect {
+            updateHeaderHost(&dateAddedHeaderHost, title: coordinator?.dateAddedHeaderForRendering() ?? "Date Added", columnID: "dateAdded", isSortable: true, frame: dateAddedRect)
+        } else {
+            dateAddedHeaderHost?.isHidden = true
+        }
         if coordinator?.showsDisplayTitleColumnForRendering() ?? true {
             updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? "Name", columnID: "display", isSortable: true, frame: layout.nameRect)
         } else {
@@ -1471,6 +1507,9 @@ final class SubtitleVirtualTableHeaderView: NSView {
         }
         if let nameHeaderHost, !nameHeaderHost.isHidden {
             return nameHeaderHost
+        }
+        if let dateAddedHeaderHost, !dateAddedHeaderHost.isHidden {
+            return dateAddedHeaderHost
         }
         return nil
     }
@@ -1615,10 +1654,12 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowProvider: (Int) -> SubtitleTableRow?
     var rowsVersion: Int
     var rowsUpdate: TableSandboxRowsUpdate
+    var dateAddedHeader = "Date Added"
     var displayTitleHeader = "Name"
     var cuesHeader = "Cues"
     var speakerHeader = "Speaker"
     var languageHeader = "Language"
+    var showsDateAddedColumn = false
     var showsDisplayTitleColumn = true
     var showsLanguageColumn = false
     var showsSpeakerColumn = false
@@ -1629,6 +1670,8 @@ struct SubtitleTableView: NSViewRepresentable {
     var onToggleRowSelection: (Int) -> Void = { _ in }
     var onToggleAllSelection: () -> Void = {}
     var onPlay: (SubtitleTableRow) -> Void
+    var rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search
+    var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
     var isRedesign: Bool = false
 
     func makeCoordinator() -> Coordinator {
@@ -1637,10 +1680,12 @@ struct SubtitleTableView: NSViewRepresentable {
             rowCount: rowCount,
             rowProvider: rowProvider,
             rowsVersion: rowsVersion,
+            dateAddedHeader: dateAddedHeader,
             displayTitleHeader: displayTitleHeader,
             cuesHeader: cuesHeader,
             speakerHeader: speakerHeader,
             languageHeader: languageHeader,
+            showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
@@ -1650,7 +1695,9 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
             onToggleAllSelection: onToggleAllSelection,
-            onPlay: onPlay
+            onPlay: onPlay,
+            rowActionMenuStyle: rowActionMenuStyle,
+            onRemoveShiori: onRemoveShiori
         )
         coordinator.isRedesign = isRedesign
         return coordinator
@@ -1739,10 +1786,12 @@ struct SubtitleTableView: NSViewRepresentable {
             rowProvider: rowProvider,
             rowsVersion: rowsVersion,
             rowsUpdate: rowsUpdate,
+            dateAddedHeader: dateAddedHeader,
             displayTitleHeader: displayTitleHeader,
             cuesHeader: cuesHeader,
             speakerHeader: speakerHeader,
             languageHeader: languageHeader,
+            showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
@@ -1752,7 +1801,9 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
             onToggleAllSelection: onToggleAllSelection,
-            onPlay: onPlay
+            onPlay: onPlay,
+            rowActionMenuStyle: rowActionMenuStyle,
+            onRemoveShiori: onRemoveShiori
         )
     }
 
@@ -1764,10 +1815,12 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rowCount: Int
         private var rowProvider: (Int) -> SubtitleTableRow?
         private var rowsVersion: Int
+        private var dateAddedHeader: String
         private var displayTitleHeader: String
         private var cuesHeader: String
         private var speakerHeader: String
         private var languageHeader: String
+        private var showsDateAddedColumn: Bool
         private var showsDisplayTitleColumn: Bool
         private var showsLanguageColumn: Bool
         private var showsSpeakerColumn: Bool
@@ -1778,6 +1831,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var onToggleRowSelection: (Int) -> Void
         private var onToggleAllSelection: () -> Void
         private var onPlay: (SubtitleTableRow) -> Void
+        private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
+        private var onRemoveShiori: (SubtitleTableRow) -> Void
 
         var isRedesign: Bool = false {
             didSet {
@@ -1887,10 +1942,12 @@ struct SubtitleTableView: NSViewRepresentable {
             rowCount: Int,
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
+            dateAddedHeader: String = "Date Added",
             displayTitleHeader: String = "Name",
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
+            showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
             showsLanguageColumn: Bool = false,
             showsSpeakerColumn: Bool = false,
@@ -1900,16 +1957,20 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: WorkbenchCheckboxState = .unchecked,
             onToggleRowSelection: @escaping (Int) -> Void = { _ in },
             onToggleAllSelection: @escaping () -> Void = {},
-            onPlay: @escaping (SubtitleTableRow) -> Void
+            onPlay: @escaping (SubtitleTableRow) -> Void,
+            rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
+            onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
             self.tableName = tableName
             self.rowCount = max(0, rowCount)
             self.rowProvider = rowProvider
             self.rowsVersion = rowsVersion
+            self.dateAddedHeader = dateAddedHeader
             self.displayTitleHeader = displayTitleHeader
             self.cuesHeader = cuesHeader
             self.speakerHeader = speakerHeader
             self.languageHeader = languageHeader
+            self.showsDateAddedColumn = showsDateAddedColumn
             self.showsDisplayTitleColumn = showsDisplayTitleColumn
             self.showsLanguageColumn = showsLanguageColumn
             self.showsSpeakerColumn = showsSpeakerColumn
@@ -1920,6 +1981,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onToggleRowSelection = onToggleRowSelection
             self.onToggleAllSelection = onToggleAllSelection
             self.onPlay = onPlay
+            self.rowActionMenuStyle = rowActionMenuStyle
+            self.onRemoveShiori = onRemoveShiori
         }
 
         deinit {
@@ -1978,10 +2041,12 @@ struct SubtitleTableView: NSViewRepresentable {
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
             rowsUpdate: TableSandboxRowsUpdate,
+            dateAddedHeader: String = "Date Added",
             displayTitleHeader: String,
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
+            showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
             showsLanguageColumn: Bool,
             showsSpeakerColumn: Bool,
@@ -1991,10 +2056,14 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: WorkbenchCheckboxState,
             onToggleRowSelection: @escaping (Int) -> Void,
             onToggleAllSelection: @escaping () -> Void,
-            onPlay: @escaping (SubtitleTableRow) -> Void
+            onPlay: @escaping (SubtitleTableRow) -> Void,
+            rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
+            onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
             self.tableName = tableName
             self.rowProvider = rowProvider
+            let dateAddedChanged = dateAddedHeader != self.dateAddedHeader
+            self.dateAddedHeader = dateAddedHeader
             let displayTitleChanged = displayTitleHeader != self.displayTitleHeader
             self.displayTitleHeader = displayTitleHeader
             let cuesHeaderChanged = cuesHeader != self.cuesHeader
@@ -2003,6 +2072,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.speakerHeader = speakerHeader
             let languageHeaderChanged = languageHeader != self.languageHeader
             self.languageHeader = languageHeader
+            let dateAddedColumnChanged = showsDateAddedColumn != self.showsDateAddedColumn
+            self.showsDateAddedColumn = showsDateAddedColumn
             let displayTitleColumnChanged = showsDisplayTitleColumn != self.showsDisplayTitleColumn
             self.showsDisplayTitleColumn = showsDisplayTitleColumn
             let languageColumnChanged = showsLanguageColumn != self.showsLanguageColumn
@@ -2018,6 +2089,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onToggleRowSelection = onToggleRowSelection
             self.onToggleAllSelection = onToggleAllSelection
             self.onPlay = onPlay
+            self.rowActionMenuStyle = rowActionMenuStyle
+            self.onRemoveShiori = onRemoveShiori
 
             let nextRowCount = max(0, rowCount)
             let changed = nextRowCount != self.rowCount || rowsVersion != self.rowsVersion
@@ -2034,8 +2107,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 rowProvider(row) != nil
             }
 
-            let columnVisibilityChanged = displayTitleColumnChanged || languageColumnChanged || speakerColumnChanged
-            let headerTitleChanged = displayTitleChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged
+            let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || languageColumnChanged || speakerColumnChanged
+            let headerTitleChanged = dateAddedChanged || displayTitleChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged
 
             resizeDocument()
             if changed || columnVisibilityChanged {
@@ -2056,6 +2129,10 @@ struct SubtitleTableView: NSViewRepresentable {
             layoutHoverButtons()
         }
 
+        func dateAddedHeaderForRendering() -> String {
+            dateAddedHeader
+        }
+
         func displayTitleHeaderForRendering() -> String {
             displayTitleHeader
         }
@@ -2070,6 +2147,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func languageHeaderForRendering() -> String {
             languageHeader
+        }
+
+        func showsDateAddedColumnForRendering() -> Bool {
+            showsDateAddedColumn
         }
 
         func showsDisplayTitleColumnForRendering() -> Bool {
@@ -2191,6 +2272,9 @@ struct SubtitleTableView: NSViewRepresentable {
         func cellFullText(row: Int, column: Int) -> String {
             if row == -1 {
                 var headers = ["#"]
+                if showsDateAddedColumn {
+                    headers.append(dateAddedHeader)
+                }
                 if showsDisplayTitleColumn {
                     headers.append(displayTitleHeader)
                 }
@@ -2207,6 +2291,12 @@ struct SubtitleTableView: NSViewRepresentable {
             guard column != 0 else { return "\(row + 1)" }
             guard let model = rowProvider(row) else { return "" }
             var nextColumn = 1
+            if showsDateAddedColumn {
+                if column == nextColumn {
+                    return model.dateAdded
+                }
+                nextColumn += 1
+            }
             if showsDisplayTitleColumn {
                 if column == nextColumn {
                     return model.displayTitle
@@ -2298,6 +2388,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func tableContentWidth(viewportWidth: CGFloat) -> CGFloat {
             let cuesMinimumWidth = isRedesign ? SubtitleTableMetrics.cuesColumnMinimumWidth : 0
             let minimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
+                showsDateAddedColumn: showsDateAddedColumn,
                 showsDisplayTitleColumn: showsDisplayTitleColumn,
                 showsSpeakerColumn: showsSpeakerColumn,
                 showsLanguageColumn: showsLanguageColumn,
@@ -2311,6 +2402,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return SubtitleTableColumnLayout.legacy(
                     contentWidth: contentWidth,
                     height: height,
+                    showsDateAddedColumn: showsDateAddedColumn,
                     showsDisplayTitleColumn: showsDisplayTitleColumn,
                     showsSpeakerColumn: showsSpeakerColumn,
                     showsLanguageColumn: showsLanguageColumn
@@ -2319,6 +2411,7 @@ struct SubtitleTableView: NSViewRepresentable {
             return SubtitleTableColumnLayout.resolve(
                 contentWidth: contentWidth,
                 height: height,
+                showsDateAddedColumn: showsDateAddedColumn,
                 showsDisplayTitleColumn: showsDisplayTitleColumn,
                 showsSpeakerColumn: showsSpeakerColumn,
                 showsLanguageColumn: showsLanguageColumn,
@@ -2398,6 +2491,13 @@ struct SubtitleTableView: NSViewRepresentable {
                 )
             } else {
                 drawIndex(row + 1, in: rowColumnRect(layout.indexRect, rowRect: rowRect))
+            }
+            if let dateAddedRect = layout.dateAddedRect {
+                drawBody(
+                    model?.dateAdded ?? "",
+                    in: rowColumnRect(dateAddedRect, rowRect: rowRect),
+                    trailing: M.trailingInset
+                )
             }
             if showsDisplayTitleColumn {
                 drawBody(
@@ -2920,8 +3020,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 let y = rowRect.minY + (rowRect.height - 36) / 2
                 buttonFrame = CGRect(x: x, y: y, width: 36, height: 36)
             } else {
+                let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
                 let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
-                let x = M.indexColumnWidth + displayTitleWidth + M.cellLeading
+                let x = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + M.cellLeading
                 let y = rowRect.minY + M.rowVerticalInset - 4
                 buttonFrame = CGRect(x: x, y: y, width: 120, height: 28)
             }
@@ -2998,15 +3099,15 @@ struct SubtitleTableView: NSViewRepresentable {
             menuOverlayView?.isHidden = false
 
             let menuView = RowActionMenu(
+                style: rowActionMenuStyle,
                 onCopy: { [weak self] in
                     self?.copyRow(row)
                     self?.dismissMenu()
                 },
-                onContext: { [weak self] in
-                    self?.dismissMenu()
-                },
-                onFavorite: { [weak self] in
-                    self?.dismissMenu()
+                onRemoveShiori: { [weak self] in
+                    guard let self, let model = self.rowProvider(row) else { return }
+                    self.dismissMenu()
+                    self.onRemoveShiori(model)
                 }
             )
 

@@ -366,7 +366,7 @@ final class AppCoordinator: ObservableObject {
         self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
 
         userDefaults.register(defaults: [
-            "workbenchPanelMode": WorkbenchPanelMode.library.rawValue,
+            "workbenchPanelMode": WorkbenchPanelMode.search.rawValue,
             "workbenchSidebarVisible": true,
             Self.playbackVolumeKey: 100.0,
             Self.playbackLastNonzeroVolumeKey: 100.0,
@@ -607,19 +607,11 @@ final class AppCoordinator: ObservableObject {
     }
 
     static func shioriSort(_ lhs: Shiori, _ rhs: Shiori) -> Bool {
-        if lhs.subtitlePath != rhs.subtitlePath {
-            return searchResultGroupPathSort(lhs.subtitlePath, rhs.subtitlePath)
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt > rhs.createdAt
         }
 
-        if lhs.startMilliseconds != rhs.startMilliseconds {
-            return lhs.startMilliseconds < rhs.startMilliseconds
-        }
-
-        if lhs.endMilliseconds != rhs.endMilliseconds {
-            return lhs.endMilliseconds < rhs.endMilliseconds
-        }
-
-        return lhs.id < rhs.id
+        return lhs.id > rhs.id
     }
 
     func aggregate(

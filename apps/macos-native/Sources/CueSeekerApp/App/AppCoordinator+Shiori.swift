@@ -32,6 +32,49 @@ extension AppCoordinator {
         rebuildShioriFileGroups()
     }
 
+    func languages(for shiori: Shiori) -> Set<SubtitleLanguageCode> {
+        guard let database = subtitleDatabase else {
+            return [.unknown]
+        }
+
+        do {
+            return try database.cueGroupLanguages(
+                forSubtitlePath: shiori.subtitlePath,
+                startMilliseconds: shiori.startMilliseconds,
+                endMilliseconds: shiori.endMilliseconds
+            )
+        } catch {
+            print("Failed to load Shiori languages: \(error)")
+            return [.unknown]
+        }
+    }
+
+    @discardableResult
+    func removeShiori(_ item: Shiori) -> Bool {
+        guard let database = subtitleDatabase else {
+            playback.playbackViewModel?.showShioriFeedback(.unavailable)
+            return false
+        }
+
+        do {
+            try database.removeShiori(
+                subtitleFile: URL(fileURLWithPath: item.subtitlePath),
+                startMilliseconds: item.startMilliseconds,
+                endMilliseconds: item.endMilliseconds
+            )
+            applyShioris(try database.shioris())
+            if shiori.selectedShiori?.id == item.id {
+                shiori.selectedShiori = nil
+            }
+            playback.playbackViewModel?.showShioriFeedback(.removed)
+            return true
+        } catch {
+            print("Failed to remove Shiori: \(error)")
+            playback.playbackViewModel?.showShioriFeedback(.unavailable)
+            return false
+        }
+    }
+
     func rebuildShioriFileGroups() {
         shiori.shioriFileGroups = Self.makeShioriFileGroups(
             from: shiori.shioris,

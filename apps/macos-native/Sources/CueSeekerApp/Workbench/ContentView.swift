@@ -168,7 +168,7 @@ private struct AppSidebar: View {
 
         return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                ForEach(WorkbenchPanelMode.allCases, id: \.rawValue) { mode in
+                ForEach(WorkbenchPanelMode.sidebarCases, id: \.rawValue) { mode in
                     AppSidebarNavigationItem(
                         mode: mode,
                         isSelected: layoutState.panelMode == mode,

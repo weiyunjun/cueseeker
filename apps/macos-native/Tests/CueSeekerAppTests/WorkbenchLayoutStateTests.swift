@@ -4,12 +4,24 @@ import Testing
 
 @MainActor
 @Test
-func workbenchLayoutStateDefaultsToLibraryWithExpandedSidebar() {
+func workbenchLayoutStateDefaultsToSearchWithExpandedSidebar() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
 
-        #expect(layoutState.panelMode == .library)
+        #expect(layoutState.panelMode == .search)
         #expect(layoutState.isSidebarVisible)
+    }
+}
+
+@MainActor
+@Test
+func workbenchLayoutStateMigratesLegacyLibraryPanelToSearch() {
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        userDefaults.set(WorkbenchPanelMode.library.rawValue, forKey: "workbenchPanelMode")
+
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+
+        #expect(layoutState.panelMode == .search)
     }
 }
 

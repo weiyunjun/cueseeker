@@ -10,6 +10,13 @@ enum WorkbenchPanelMode: String, CaseIterable {
     case testLibrary
     case search
 
+    static let sidebarCases: [WorkbenchPanelMode] = [
+        .search,
+        .recentWatching,
+        .testLibrary,
+        .shiori,
+    ]
+
     var sidebarLabel: String {
         switch self {
         case .library:
@@ -17,9 +24,9 @@ enum WorkbenchPanelMode: String, CaseIterable {
         case .shiori:
             return "Shiori"
         case .recentWatching:
-            return "Test Recent Watching"
+            return "Recent"
         case .testLibrary:
-            return "Test Library"
+            return "Library"
         case .search:
             return "Search"
         }
@@ -32,7 +39,7 @@ enum WorkbenchPanelMode: String, CaseIterable {
         case .shiori:
             return "Shiori"
         case .recentWatching:
-            return "Recent Watching"
+            return "Recent"
         case .testLibrary:
             return "Library"
         case .search:
@@ -49,9 +56,9 @@ enum WorkbenchPanelMode: String, CaseIterable {
         case .recentWatching:
             return "clock"
         case .testLibrary:
-            return "folder.circle"
+            return "folder"
         case .search:
-            return "line.3.horizontal.decrease.circle"
+            return "magnifyingglass"
         }
     }
 }
@@ -72,9 +79,10 @@ final class WorkbenchLayoutState: ObservableObject {
 
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
-        panelMode = WorkbenchPanelMode(
+        let savedMode = WorkbenchPanelMode(
             rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
-        ) ?? .library
+        ) ?? .search
+        panelMode = savedMode == .library ? .search : savedMode
         isSidebarVisible = userDefaults.object(forKey: Self.isSidebarVisibleKey) as? Bool ?? true
     }
 

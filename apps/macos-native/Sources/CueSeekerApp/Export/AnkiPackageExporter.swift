@@ -3,6 +3,7 @@ import Foundation
 import SQLite3
 
 struct AnkiExportItem: Sendable {
+    let deckDisplayTitle: String
     let videoPath: String
     let startMilliseconds: Int
     let endMilliseconds: Int
@@ -47,7 +48,6 @@ enum AnkiPackageExporter {
     private static let deckPrefix = "CueSeeker::"
 
     static func export(
-        deckDisplayTitle: String,
         items: [AnkiExportItem],
         to destinationURL: URL
     ) async throws {
@@ -93,6 +93,7 @@ enum AnkiPackageExporter {
 
             notes.append(
                 AnkiPackageNote(
+                    deckName: deckPrefix + item.deckDisplayTitle,
                     audioField: "[sound:\(audioName)]",
                     imageField: "<img src=\"\(imageName)\">",
                     textField: textHTML(for: item.textLines)
@@ -103,7 +104,6 @@ enum AnkiPackageExporter {
         let collectionURL = workspaceURL.appendingPathComponent("collection.anki2")
         try createCollection(
             at: collectionURL,
-            deckName: deckPrefix + deckDisplayTitle,
             notes: notes
         )
 
@@ -122,8 +122,11 @@ enum AnkiPackageExporter {
         )
     }
 
-    static func defaultFileName(for displayTitle: String) -> String {
-        "CueSeeker - \(safeFileName(displayTitle)).apkg"
+    static func defaultFileName(exportedAt: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm"
+        return "CueSeeker-\(formatter.string(from: exportedAt)).apkg"
     }
 
     private static func exportAudio(
@@ -179,7 +182,6 @@ enum AnkiPackageExporter {
 
     private static func createCollection(
         at url: URL,
-        deckName: String,
         notes: [AnkiPackageNote]
     ) throws {
         var database: OpaquePointer?
@@ -199,15 +201,20 @@ enum AnkiPackageExporter {
         let now = Int(Date().timeIntervalSince1970)
         let nowMilliseconds = Int64(Date().timeIntervalSince1970 * 1_000)
         let modelID = Self.modelID
-        let deckID = deckID(for: deckName)
+        let deckNames = orderedDeckNames(from: notes)
+        let deckIDs = Dictionary(uniqueKeysWithValues: deckNames.map { ($0, deckID(for: $0)) })
+        let defaultDeckID = deckIDs[deckNames.first ?? deckPrefix] ?? deckID(for: deckPrefix)
         let modelsJSON = try jsonString(
-            modelJSON(modelID: modelID, deckID: deckID, now: now)
+            modelJSON(modelID: modelID, deckID: defaultDeckID, now: now)
         )
         let decksJSON = try jsonString(
-            [String(deckID): deckJSON(deckID: deckID, name: deckName, now: now)]
+            Dictionary(uniqueKeysWithValues: deckNames.map { deckName in
+                let deckID = deckIDs[deckName] ?? deckID(for: deckName)
+                return (String(deckID), deckJSON(deckID: deckID, name: deckName, now: now))
+            })
         )
         let dconfJSON = try jsonString(deckConfigJSON())
-        let confJSON = try jsonString(confJSON(deckID: deckID, modelID: modelID))
+        let confJSON = try jsonString(confJSON(deckID: defaultDeckID, modelID: modelID))
 
         try insertCollection(
             database: database,
@@ -236,7 +243,7 @@ enum AnkiPackageExporter {
                 database: database,
                 id: cardID,
                 noteID: noteID,
-                deckID: deckID,
+                deckID: deckIDs[note.deckName] ?? defaultDeckID,
                 now: now,
                 due: index + 1
             )
@@ -602,6 +609,16 @@ enum AnkiPackageExporter {
         return digest.prefix(4).map { String(format: "%02x", $0) }.joined()
     }
 
+    private static func orderedDeckNames(from notes: [AnkiPackageNote]) -> [String] {
+        var seen: Set<String> = []
+        var names: [String] = []
+        for note in notes where !seen.contains(note.deckName) {
+            seen.insert(note.deckName)
+            names.append(note.deckName)
+        }
+        return names.isEmpty ? [deckPrefix] : names
+    }
+
     private static func deckID(for deckName: String) -> Int64 {
         let digest = Insecure.SHA1.hash(data: Data(deckName.utf8))
         let suffix = digest.prefix(5).reduce(Int64(0)) { ($0 << 8) + Int64($1) }
@@ -713,6 +730,7 @@ enum AnkiPackageExporter {
 }
 
 private struct AnkiPackageNote {
+    let deckName: String
     let audioField: String
     let imageField: String
     let textField: String

@@ -63,9 +63,9 @@ struct SearchView: View {
             return Group {
                 switch layoutState.panelMode {
                 case .library:
-                    libraryPanel
+                    workbenchSearchSurface
                 case .shiori:
-                    shioriPanel
+                    workbenchShioriSurface
                 case .recentWatching:
                     WorkbenchTestRecentWatchingView()
                 case .testLibrary:
@@ -304,6 +304,16 @@ struct SearchView: View {
                 .ignoresSafeArea()
 
             WorkbenchTestSearchView()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var workbenchShioriSurface: some View {
+        ZStack {
+            Color(nsColor: .textBackgroundColor)
+                .ignoresSafeArea()
+
+            WorkbenchShioriTableView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

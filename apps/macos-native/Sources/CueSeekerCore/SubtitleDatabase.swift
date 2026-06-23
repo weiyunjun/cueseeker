@@ -2493,6 +2493,38 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return languagesByCueGroupID
     }
 
+    public func cueGroupLanguages(
+        forSubtitlePath subtitlePath: String,
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) throws -> Set<SubtitleLanguageCode> {
+        let statement = try database.prepare(
+            """
+            SELECT cgl.language_code
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
+            WHERE sf.subtitle_path = ?
+              AND g.start_ms = ?
+              AND g.end_ms = ?
+            ORDER BY cgl.language_code ASC;
+            """
+        )
+        try statement.bind(subtitlePath, at: 1)
+        try statement.bind(startMilliseconds, at: 2)
+        try statement.bind(endMilliseconds, at: 3)
+
+        var languages = Set<SubtitleLanguageCode>()
+        while try statement.step() {
+            guard let language = SubtitleLanguageCode(rawValue: statement.stringColumn(0)) else {
+                continue
+            }
+            languages.insert(language)
+        }
+
+        return languages.isEmpty ? [.unknown] : languages
+    }
+
     private func cueGroupLanguages(
         forCueGroupIDs cueGroupIDs: [Int64]
     ) throws -> [Int64: Set<SubtitleLanguageCode>] {

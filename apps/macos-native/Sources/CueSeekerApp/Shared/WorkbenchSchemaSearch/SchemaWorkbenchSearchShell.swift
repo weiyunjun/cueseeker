@@ -236,7 +236,41 @@ enum SchemaWorkbenchSearchDefaults {
         ),
     ]
 
+    static let shioriColumns: [WorkbenchTableColumn] = [
+        WorkbenchTableColumn(
+            id: "rowNumber",
+            title: "#",
+            kind: .rowNumber,
+            width: .fixed(84)
+        ),
+        WorkbenchTableColumn(
+            id: "dateAdded",
+            title: "Date Added",
+            kind: .text,
+            width: .fixed(190)
+        ),
+        WorkbenchTableColumn(
+            id: "display",
+            title: "Display Title",
+            kind: .text,
+            width: .fixed(300)
+        ),
+        WorkbenchTableColumn(
+            id: "cues",
+            title: "Cues",
+            kind: .text,
+            width: .flexible(min: 580)
+        ),
+        WorkbenchTableColumn(
+            id: "language",
+            title: "Language",
+            kind: .multiSelect,
+            width: .fixed(230)
+        ),
+    ]
+
     static let initialVisibleColumnIDs = Set(columns.map(\.id))
+    static let initialVisibleShioriColumnIDs = Set(shioriColumns.map(\.id))
 
     static let defaultFilterSetID: String? = nil
 
@@ -275,6 +309,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let isRedesign: Bool
     let tableSummary: SchemaWorkbenchTableSummary?
     let tableSummaryLeadingInset: CGFloat
+    let tableSummaryAction: AnyView?
+    let filterableColumnIDs: Set<String>?
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
@@ -293,6 +329,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         isRedesign: Bool = false,
         tableSummary: SchemaWorkbenchTableSummary? = nil,
         tableSummaryLeadingInset: CGFloat = 0,
+        tableSummaryAction: AnyView? = nil,
+        filterableColumnIDs: Set<String>? = nil,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
@@ -306,6 +344,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.isRedesign = isRedesign
         self.tableSummary = tableSummary
         self.tableSummaryLeadingInset = tableSummaryLeadingInset
+        self.tableSummaryAction = tableSummaryAction
+        self.filterableColumnIDs = filterableColumnIDs
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
     }
@@ -340,6 +380,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     SchemaWorkbenchTableUtilityBar(
                         tableSummary: tableSummary,
                         summaryLeadingInset: tableSummaryLeadingInset,
+                        summaryAction: tableSummaryAction,
                         isRedesign: true,
                         isViewMenuOpen: openPopover == .columnVisibility,
                         onViewMenu: {
@@ -601,7 +642,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     }
 
     private var filterableColumns: [WorkbenchTableColumn] {
-        columns.filter { $0.kind != .rowNumber }
+        columns.filter { column in
+            column.kind != .rowNumber
+                && (filterableColumnIDs == nil || filterableColumnIDs?.contains(column.id) == true)
+        }
     }
 
     private func normalizedFilterRules(_ sourceRules: [SchemaWorkbenchFilterRule]) -> [SchemaWorkbenchFilterRule] {
@@ -853,6 +897,7 @@ struct SchemaWorkbenchSearchFilterBar: View {
 struct SchemaWorkbenchTableUtilityBar: View {
     var tableSummary: SchemaWorkbenchTableSummary?
     var summaryLeadingInset: CGFloat = 0
+    var summaryAction: AnyView? = nil
     var isRedesign: Bool = false
     var isViewMenuOpen: Bool = false
     var onViewMenu: () -> Void
@@ -862,6 +907,10 @@ struct SchemaWorkbenchTableUtilityBar: View {
             if let tableSummary {
                 SchemaWorkbenchCountSummaryView(summary: tableSummary)
                     .padding(.leading, summaryLeadingInset)
+            }
+
+            if let summaryAction {
+                summaryAction
             }
 
             Spacer(minLength: 0)

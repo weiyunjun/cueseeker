@@ -39,6 +39,20 @@ struct TableSandboxRowSelectionState: Equatable {
         }
     }
 
+    func selectedRows(rowCount: Int) -> [Int] {
+        let safeRowCount = max(0, rowCount)
+        guard safeRowCount > 0 else { return [] }
+        switch storage {
+        case .explicit(let selectedRows):
+            return selectedRows
+                .filter { $0 >= 0 && $0 < safeRowCount }
+                .sorted()
+        case .allExcept(let deselectedRows):
+            let excluded = Set(deselectedRows.filter { $0 >= 0 && $0 < safeRowCount })
+            return (0..<safeRowCount).filter { !excluded.contains($0) }
+        }
+    }
+
     func headerState(rowCount: Int) -> WorkbenchCheckboxState {
         let safeRowCount = max(0, rowCount)
         guard safeRowCount > 0 else { return .unchecked }

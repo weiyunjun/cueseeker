@@ -35,6 +35,13 @@ struct TableSandboxRowReference: Equatable {
     let id: Int
 }
 
+struct TableSandboxShioriRowSource: Equatable {
+    let shiori: Shiori
+    let displayTitle: String
+    let dateAddedText: String
+    let languages: Set<SubtitleLanguageCode>
+}
+
 @MainActor
 final class TableSandboxRowModelStore: ObservableObject {
     static let defaultMaximumHydratedSearchRows = 2_000
@@ -74,6 +81,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             let key = RowCacheKey(
                 id: Int(result.entryID),
                 subtitlePath: result.subtitlePath,
+                dateAdded: "",
                 displayTitle: displayTitle,
                 content: result.content,
                 cueLines: result.cueLines,
@@ -195,24 +203,24 @@ final class TableSandboxRowModelStore: ObservableObject {
         )
     }
 
-    func updateShioriRows(_ shioris: [Shiori], tableName: String) {
+    func updateShioriRows(_ shioris: [TableSandboxShioriRowSource], tableName: String) {
         let start = TableRenderingPerformanceLogger.now()
         var nextRowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
         nextRowsByKey.reserveCapacity(shioris.count)
         var prefixUnchanged = shioris.count >= snapshot.rows.count
         let references = shioris.enumerated().map { index, item in
-            TableSandboxRowReference(source: .shiori, sourceIndex: index, id: Int(item.id))
+            TableSandboxRowReference(source: .shiori, sourceIndex: index, id: Int(item.shiori.id))
         }
 
         let rows = shioris.enumerated().map { index, item in
-            let displayTitle = displayTitle(forSubtitlePath: item.subtitlePath)
             let key = RowCacheKey(
-                id: Int(item.id),
-                subtitlePath: item.subtitlePath,
-                displayTitle: displayTitle,
-                content: item.content,
-                cueLines: item.cueLines,
-                languages: [],
+                id: Int(item.shiori.id),
+                subtitlePath: item.shiori.subtitlePath,
+                dateAdded: item.dateAddedText,
+                displayTitle: item.displayTitle,
+                content: item.shiori.content,
+                cueLines: item.shiori.cueLines,
+                languages: item.languages,
                 speakers: []
             )
 
@@ -229,11 +237,13 @@ final class TableSandboxRowModelStore: ObservableObject {
             }
             let row = SubtitleTableRow(
                 id: key.id,
-                displayTitle: displayTitle,
+                dateAdded: item.dateAddedText,
+                displayTitle: item.displayTitle,
                 cues: tableSandboxDisplayText(
-                    content: item.content,
-                    cueLines: item.cueLines
-                )
+                    content: item.shiori.content,
+                    cueLines: item.shiori.cueLines
+                ),
+                tags: SubtitleLanguageWorkbenchTags.tags(for: item.languages)
             )
             nextRowsByKey[key] = row
             return row
@@ -316,6 +326,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         let key = RowCacheKey(
             id: Int(result.entryID),
             subtitlePath: result.subtitlePath,
+            dateAdded: "",
             displayTitle: displayTitle,
             content: result.content,
             cueLines: result.cueLines,
@@ -406,6 +417,7 @@ final class TableSandboxRowModelStore: ObservableObject {
 private struct RowCacheKey: Hashable {
     let id: Int
     let subtitlePath: String
+    let dateAdded: String
     let displayTitle: String
     let content: String
     let cueLines: [String]
@@ -418,7 +430,7 @@ enum TableSandboxDisplayTextBudget {
     static let maximumCharactersPerLine = 500
 }
 
-private func tableSandboxDisplayText(content: String, cueLines: [String]) -> String {
+func tableSandboxDisplayText(content: String, cueLines: [String]) -> String {
     subtitleDisplayLines(content: content, cueLines: cueLines)
         .prefix(TableSandboxDisplayTextBudget.maximumLines)
         .map(truncateTableSandboxDisplayLine)

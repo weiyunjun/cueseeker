@@ -38,37 +38,46 @@ struct WorkbenchTestSearchView: View {
             isRedesign: true,
             tableSummary: tableSummary,
             tableSummaryLeadingInset: tableSummaryLeadingInset,
+            tableSummaryAction: selectedAnkiAction,
             onSearchSubmit: {
                 submitSearchDraft()
             }
         ) { visibleColumns in
-            SubtitleTableView(
-                tableName: "test-search",
-                rowCount: rowStore.snapshot.totalRowCount,
-                rowProvider: { rowStore.snapshot.row(at: $0) },
-                rowsVersion: rowStore.snapshot.version,
-                rowsUpdate: rowStore.snapshot.update,
-                displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
-                cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
-                speakerHeader: columnTitle("speaker", in: visibleColumns, fallback: "Speaker"),
-                languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
-                showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
-                showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
-                showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
-                scrollResetToken: tableScrollResetToken,
-                onVisibleRowsChange: hydrateVisibleRows,
-                isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
-                selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
-                onToggleRowSelection: toggleRowSelection,
-                onToggleAllSelection: toggleAllRowSelection,
-                onPlay: play,
-                isRedesign: true
-            )
+            ZStack {
+                SubtitleTableView(
+                    tableName: "test-search",
+                    rowCount: rowStore.snapshot.totalRowCount,
+                    rowProvider: { rowStore.snapshot.row(at: $0) },
+                    rowsVersion: rowStore.snapshot.version,
+                    rowsUpdate: rowStore.snapshot.update,
+                    displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
+                    cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
+                    speakerHeader: columnTitle("speaker", in: visibleColumns, fallback: "Speaker"),
+                    languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
+                    showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
+                    showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
+                    showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
+                    scrollResetToken: tableScrollResetToken,
+                    onVisibleRowsChange: hydrateVisibleRows,
+                    isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
+                    selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
+                    onToggleRowSelection: toggleRowSelection,
+                    onToggleAllSelection: toggleAllRowSelection,
+                    onPlay: play,
+                    isRedesign: true
+                )
+
+                if showsSearchEmptyHint {
+                    WorkbenchEmptyHint(message: "Enter a search term or add filters to show cues.")
+                }
+            }
         }
         .onAppear {
             searchDraft = search.searchQuery
             applyFilterRules(filterRules, force: true)
-            if isAllCuesMode {
+            if showsSearchEmptyHint {
+                clearTableRows(resetScroll: false)
+            } else if isFilterOnlyMode {
                 loadAllCueRows(resetScroll: false)
             } else {
                 updateRows(search.searchResults)
@@ -78,7 +87,7 @@ struct WorkbenchTestSearchView: View {
             applyFilterRules(newValue)
         }
         .onReceive(search.$searchResults) {
-            guard !isAllCuesMode else { return }
+            guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows($0)
         }
         .onChange(of: search.searchQuery) { newValue in
@@ -87,16 +96,20 @@ struct WorkbenchTestSearchView: View {
             rowSelection.reset()
             lastVisibleRows = nil
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                loadAllCueRows(resetScroll: true)
+                if search.activeFilterSet.isEffectivelyEmpty {
+                    clearTableRows(resetScroll: true)
+                } else {
+                    loadAllCueRows(resetScroll: true)
+                }
             }
         }
         .onChange(of: search.searchResultTotalCount) { _ in
-            guard !isAllCuesMode else { return }
+            guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
             hydrateLastVisibleRowsIfNeeded()
         }
         .onChange(of: search.searchCountState) { _ in
-            guard !isAllCuesMode else { return }
+            guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
             hydrateLastVisibleRowsIfNeeded()
         }
@@ -111,8 +124,15 @@ struct WorkbenchTestSearchView: View {
         visibleColumns.first { $0.id == id }?.title ?? fallback
     }
 
-    private var isAllCuesMode: Bool {
+    private var isFilterOnlyMode: Bool {
         search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !search.activeFilterSet.isEffectivelyEmpty
+    }
+
+    private var showsSearchEmptyHint: Bool {
+        search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && searchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && search.activeFilterSet.isEffectivelyEmpty
     }
 
     private var tableSummary: SchemaWorkbenchTableSummary {
@@ -124,11 +144,28 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var tableSummaryTotalRowCount: Int {
-        isAllCuesMode ? rowStore.snapshot.totalRowCount : search.searchResultTotalCount
+        if showsSearchEmptyHint {
+            return 0
+        }
+        return isFilterOnlyMode ? rowStore.snapshot.totalRowCount : search.searchResultTotalCount
     }
 
     private var tableSummaryLeadingInset: CGFloat {
         SubtitleTableMetrics.checkboxLeadingInset
+    }
+
+    private var selectedAnkiAction: AnyView? {
+        guard tableSummary.selectedRowCount > 0 else {
+            return nil
+        }
+        return AnyView(
+            WorkbenchButton(
+                title: "Anki",
+                systemImage: "square.and.arrow.up",
+                isRedesign: true,
+                action: exportSelectedRowsToAnki
+            )
+        )
     }
 
     private func submitSearchDraft() {
@@ -143,7 +180,11 @@ struct WorkbenchTestSearchView: View {
         search.searchResultTotalCount = 0
         search.searchNavigationSnapshot = nil
         search.hasMoreSearchResults = false
-        loadAllCueRows(resetScroll: true)
+        if search.activeFilterSet.isEffectivelyEmpty {
+            clearTableRows(resetScroll: true)
+        } else {
+            loadAllCueRows(resetScroll: true)
+        }
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
@@ -154,6 +195,16 @@ struct WorkbenchTestSearchView: View {
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         hydrateInitialRowsIfNeeded()
+    }
+
+    private func clearTableRows(resetScroll: Bool) {
+        visibleHydrator.reset()
+        lastVisibleRows = nil
+        rowSelection.reset()
+        rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
+        if resetScroll {
+            tableScrollResetToken += 1
+        }
     }
 
     private func play(_ row: SubtitleTableRow) {
@@ -201,6 +252,9 @@ struct WorkbenchTestSearchView: View {
             guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return
             }
+            guard !search.activeFilterSet.isEffectivelyEmpty else {
+                return
+            }
             guard let page = await appState.loadTableSandboxAllCueRows(range: 0..<240) else {
                 rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
                 return
@@ -217,9 +271,10 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func loadRows(range: Range<Int>) async -> TableSandboxSearchHydrationPage? {
-        if isAllCuesMode {
+        if isFilterOnlyMode {
             return await appState.loadTableSandboxAllCueRows(range: range)
         }
+        guard !showsSearchEmptyHint else { return nil }
         return await appState.loadTableSandboxSearchRows(range: range)
     }
 
@@ -231,7 +286,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func applyHydrationPage(_ page: TableSandboxSearchHydrationPage) {
-        if isAllCuesMode {
+        if isFilterOnlyMode {
             appState.applyTableSandboxAllCueSearchContext(page)
         }
         rowStore.hydrateSearchRows(
@@ -256,8 +311,71 @@ struct WorkbenchTestSearchView: View {
         lastVisibleRows = nil
         tableScrollResetToken += 1
         appState.updateSearchFilterSet(filterSet)
-        if isAllCuesMode {
-            loadAllCueRows(resetScroll: false)
+        if search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if filterSet.isEffectivelyEmpty {
+                clearTableRows(resetScroll: false)
+            } else {
+                loadAllCueRows(resetScroll: false)
+            }
+        }
+    }
+
+    private func exportSelectedRowsToAnki() {
+        let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
+        guard !selectedRows.isEmpty else {
+            return
+        }
+
+        Task { @MainActor in
+            let results = await selectedSearchResults(for: selectedRows)
+            appState.exportSearchResultsToAnki(results)
+        }
+    }
+
+    private func selectedSearchResults(for selectedRows: [Int]) async -> [SubtitleSearchResult] {
+        await hydrateRowsForExport(selectedRows)
+        return selectedRows.compactMap { row in
+            guard let tableRow = rowStore.snapshot.row(at: row) else {
+                return nil
+            }
+            return rowStore.snapshot.searchResult(entryID: tableRow.id)
+                ?? search.searchResults.first { Int($0.entryID) == tableRow.id }
+        }
+    }
+
+    private func hydrateRowsForExport(_ selectedRows: [Int]) async {
+        let missingRows = selectedRows.filter { row in
+            guard let tableRow = rowStore.snapshot.row(at: row) else {
+                return true
+            }
+            return rowStore.snapshot.searchResult(entryID: tableRow.id) == nil
+        }
+        guard !missingRows.isEmpty else {
+            return
+        }
+
+        let pageSize = 240
+        let rowCount = tableSummaryTotalRowCount
+        var requestedStarts: Set<Int> = []
+        let ranges = missingRows
+            .map { row -> Range<Int> in
+                let start = max(0, (row / pageSize) * pageSize)
+                let end = min(rowCount, start + pageSize)
+                return start..<end
+            }
+            .filter { range in
+                guard !requestedStarts.contains(range.lowerBound), !range.isEmpty else {
+                    return false
+                }
+                requestedStarts.insert(range.lowerBound)
+                return true
+            }
+
+        for range in ranges {
+            guard let page = await loadRows(range: range) else {
+                continue
+            }
+            applyHydrationPage(page)
         }
     }
 
