@@ -152,7 +152,7 @@ struct WorkbenchShioriTableView: View {
         }
 
         Task { @MainActor in
-            guard let page = await loadRows(range: 0..<240) else {
+            guard let page = await loadRows(range: 0..<TableSandboxHydrationPaging.pageSize) else {
                 guard generation == reloadGeneration else { return }
                 totalSavedRowCount = 0
                 hasLoadedInitialPage = true
@@ -259,7 +259,7 @@ struct WorkbenchShioriTableView: View {
             return
         }
 
-        let pageSize = 240
+        let pageSize = TableSandboxHydrationPaging.pageSize
         let rowCount = rowStore.snapshot.totalRowCount
         var requestedStarts: Set<Int> = []
         let ranges = missingRows

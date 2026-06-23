@@ -15,6 +15,10 @@ struct TableSandboxShioriHydrationPage: Equatable, Sendable {
     let totalSavedRowCount: Int
 }
 
+enum TableSandboxHydrationPaging {
+    static let pageSize = 50
+}
+
 @MainActor
 final class TableSandboxVisibleHydrator<Page: Sendable>: ObservableObject {
     private enum HydrationPriority: Int {
@@ -52,7 +56,7 @@ final class TableSandboxVisibleHydrator<Page: Sendable>: ObservableObject {
     init(
         debounceNanoseconds: UInt64 = 0,
         overscanRows: Int = 80,
-        maxHydrationRows: Int = 240,
+        maxHydrationRows: Int = TableSandboxHydrationPaging.pageSize,
         pageSize: Int? = nil,
         prefetchPageCount: Int? = nil,
         smallResultEagerLoadThreshold: Int = 2_000,

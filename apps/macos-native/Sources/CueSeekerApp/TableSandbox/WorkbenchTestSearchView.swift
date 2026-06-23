@@ -255,7 +255,9 @@ struct WorkbenchTestSearchView: View {
             guard !search.activeFilterSet.isEffectivelyEmpty else {
                 return
             }
-            guard let page = await appState.loadTableSandboxAllCueRows(range: 0..<240) else {
+            guard let page = await appState.loadTableSandboxAllCueRows(
+                range: 0..<TableSandboxHydrationPaging.pageSize
+            ) else {
                 rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
                 return
             }
@@ -354,7 +356,7 @@ struct WorkbenchTestSearchView: View {
             return
         }
 
-        let pageSize = 240
+        let pageSize = TableSandboxHydrationPaging.pageSize
         let rowCount = tableSummaryTotalRowCount
         var requestedStarts: Set<Int> = []
         let ranges = missingRows

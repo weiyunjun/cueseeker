@@ -53,6 +53,9 @@ batch Anki export.
 - Updated Shiori playback, removal, and selected-row Anki export to resolve
   actions from hydrated row metadata and to page in missing selected rows before
   export.
+- Reduced the shared Search/Shiori table hydration page size from 240 rows to
+  50 rows, and made initial loads plus selected-row export backfill use the same
+  page-size constant.
 
 ## Verification
 
@@ -61,6 +64,9 @@ batch Anki export.
 - Follow-up Shiori table hydration fix:
   - `swift build` passed.
   - `swift test` passed with 328 tests.
+- Follow-up Search/Shiori hydration page-size fix:
+  - `swift build` passed.
+  - `swift test` passed with 329 tests.
 
 ## Outcome
 
@@ -73,3 +79,7 @@ default Shiori opening requests only the first page from SQLite instead of
 mapping every saved Shiori row and querying languages one row at a time. Search
 or filter criteria on Shiori can still evaluate the full saved set locally, but
 the default all-favorites view no longer performs that work on first screen.
+
+Search and Shiori now share a 50-row table hydration page size. Very tall
+viewports can request a second page after visible-row reporting, but normal
+first-screen data hydration no longer loads up to 240 rows by default.

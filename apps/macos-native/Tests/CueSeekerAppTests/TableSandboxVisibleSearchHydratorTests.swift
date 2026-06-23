@@ -4,6 +4,31 @@ import Testing
 
 @MainActor
 @Test
+func tableSandboxVisibleSearchHydratorDefaultsToFiftyRowPages() async throws {
+    let hydrator = TableSandboxVisibleSearchHydrator(
+        overscanRows: 0,
+        smallResultEagerLoadThreshold: 0
+    )
+    var loadedRanges: [String] = []
+
+    hydrator.schedule(
+        visibleRows: 60..<61,
+        totalRowCount: 200,
+        isRowLoaded: { _ in false },
+        load: { range in
+            loadedRanges.append(rangeDescription(range))
+            return TableSandboxSearchHydrationPage(range: range, results: [], totalRowCount: 200)
+        },
+        apply: { _ in }
+    )
+
+    try await Task.sleep(nanoseconds: 60_000_000)
+
+    #expect(loadedRanges == ["50..<100"])
+}
+
+@MainActor
+@Test
 func tableSandboxVisibleSearchHydratorSkipsAlreadyLoadedRows() async throws {
     let hydrator = TableSandboxVisibleSearchHydrator(
         overscanRows: 0,
