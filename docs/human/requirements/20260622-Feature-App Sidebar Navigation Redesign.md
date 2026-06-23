@@ -76,6 +76,9 @@ main
 --color-app-sidebar-item-selected-bg:
   Light: #FFFFFF
   Dark: #303036
+--color-app-topbar-bg:
+  Light: #FFFFFF
+  Dark: #18181B
 
 #### Border
 --color-border-control:
@@ -235,6 +238,7 @@ main
 --height-action-menu-item: 40px
 --height-select-menu-item: 40px
 --height-app-sidebar-item: 32px
+--height-app-topbar: 45px
 
 #### Size
 --size-checkbox: 16px
@@ -249,6 +253,10 @@ main
 --scrollbar-size: 8px
 --width-app-sidebar: 240px
 --size-app-sidebar-item-icon: 18px
+
+#### Text Decoration
+--width-interactive-text-underline: 1px
+--offset-interactive-text-underline: 2px
 
 #### Radius
 --radius-control: 8px
@@ -271,6 +279,7 @@ main
 --spacing-4: 16px
 --spacing-6: 24px
 --spacing-8: 32px
+--gap-app-topbar-title-after-toggle: 12px
 
 #### Padding
 --padding-control-x: 16px
@@ -282,6 +291,7 @@ main
 --padding-app-sidebar-x: 12px
 --padding-app-sidebar-y: 12px
 --padding-app-sidebar-item-x: 10px
+--padding-app-topbar-title-x: 24px
 
 #### Typography
 --font-family-base: system-ui, sans-serif
@@ -315,6 +325,9 @@ main
 --gap-library-recent-grid: 16px
 --gap-library-episode-grid-card: 12px
 --gap-library-folder-card-content: 12px
+
+#### Library Interaction
+--scale-library-media-card-pressed: 0.98
 
 #### Library Padding
 --padding-library-folder-card: 12px 16px
@@ -955,8 +968,8 @@ Text Default: --color-text-primary
 Text Hover: --color-text-primary
 Underline Hover: same as text color
 Text Decoration: underline
-Decoration Thickness: 1px
-Decoration Offset: 2px
+Decoration Thickness: --width-interactive-text-underline
+Decoration Offset: --offset-interactive-text-underline
 
 #### Status
 Default
@@ -1195,12 +1208,11 @@ Disabled: not-allowed
 ### 2.31 App Sidebar Navigation Item
 
 #### Container
-Height: --height-control
-Radius: --radius-control
-Padding X: --padding-control-x
+Height: --height-app-sidebar-item
+Radius: --radius-app-sidebar-item
+Padding X: --padding-app-sidebar-item-x
 Background Default: transparent
-Background Hover: --color-row-hover
-Background Selected: --color-row-selected
+Background Selected: --color-app-sidebar-item-selected-bg
 Border: none
 Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
 
@@ -1209,33 +1221,31 @@ Leading Icon: navigation item icon
 Label: navigation item label
 Gap: --spacing-3
 Font Family: --font-family-base
-Text Size: --font-size-control
+Text Size: --font-size-app-sidebar-item
 Text Color Default: --color-text-primary
 Text Color Selected: --color-text-primary
 Text Color Disabled: --color-text-disabled
-Icon Size: --size-control-icon
+Icon Size: --size-app-sidebar-item-icon
 Icon Color Default: --color-icon-default
-Icon Color Selected: --color-text-primary
+Icon Color Selected: --color-icon-default
 Icon Color Disabled: --color-icon-disabled
 
 #### Status
 Default
-Hover
 Selected
 Disabled
 
 #### Cursor
-Default / Hover: pointer
+Enabled: pointer
 Disabled: not-allowed
 
 ### 2.32 App Sidebar Settings Item
 
 #### Container
-Height: --height-control
-Radius: --radius-control
-Padding X: --padding-control-x
+Height: --height-app-sidebar-item
+Radius: --radius-app-sidebar-item
+Padding X: --padding-app-sidebar-item-x
 Background Default: transparent
-Background Hover: --color-row-hover
 Border: none
 Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
 
@@ -1244,20 +1254,19 @@ Leading Icon: gearshape
 Label: Settings
 Gap: --spacing-3
 Font Family: --font-family-base
-Text Size: --font-size-control
+Text Size: --font-size-app-sidebar-item
 Text Color Default: --color-text-primary
 Text Color Disabled: --color-text-disabled
-Icon Size: --size-control-icon
+Icon Size: --size-app-sidebar-item-icon
 Icon Color Default: --color-icon-default
 Icon Color Disabled: --color-icon-disabled
 
 #### Status
 Default
-Hover
 Disabled
 
 #### Cursor
-Default / Hover: pointer
+Enabled: pointer
 Disabled: not-allowed
 
 ### 3.1 Recent Watching Card Layout
@@ -1316,7 +1325,7 @@ Folder Name:
 #### Interaction
 Default: transparent background
 Hover: show hover background
-Pressed: scale card to 0.98 while pointer is pressed
+Pressed: scale card to --scale-library-media-card-pressed while pointer is pressed
 Click: open Test Library Folder Detail view
 Disabled / Empty Folder: reduce opacity and disable click
 
@@ -1347,7 +1356,7 @@ Meta Row:
 #### Interaction
 Default: transparent background
 Hover: show hover background
-Pressed: scale card to 0.98 while pointer is pressed
+Pressed: scale card to --scale-library-media-card-pressed while pointer is pressed
 Click: open video at saved playback position
 Disabled / Missing File: reduce opacity and disable click
 
@@ -1533,3 +1542,54 @@ When playback page is visible:
   Hide App Sidebar Layout
   Hide titlebar navigation/title layout
   Playback page owns the full window content
+
+### 3.9 App Topbar Layout
+
+#### Structure
+Container: non-player app titlebar layout
+Position: window top edge
+Width: full window width
+Height: --height-app-topbar
+Background: --color-app-topbar-bg
+Orientation: horizontal
+
+#### Regions
+Sidebar Segment:
+  Visible when App Sidebar Layout is expanded
+  Width: --width-app-sidebar
+  Background: --color-app-sidebar-bg
+
+Sidebar Toggle Slot:
+  Contains: App Sidebar Toggle Button
+  Position: follows fullscreen / windowed titlebar rules
+  Remains visible when App Sidebar Layout is collapsed
+
+Title Slot:
+  Contains: existing title component
+  Does not define a new title component
+
+#### Expanded Sidebar State
+Sidebar Segment:
+  Visible
+Title Leading:
+  --width-app-sidebar + --padding-app-topbar-title-x
+
+#### Collapsed Sidebar State
+Sidebar Segment:
+  Hidden
+Sidebar Layout Width:
+  Removed from main content
+Title Leading:
+  max(--padding-app-topbar-title-x, sidebar toggle trailing edge + --gap-app-topbar-title-after-toggle)
+
+#### Behavior
+Empty Titlebar Area:
+  Supports native window drag
+
+Double Click:
+  Follows macOS titlebar double-click behavior
+
+#### Playback
+When playback page is visible:
+  Hide App Topbar Layout
+  Playback page owns its own topbar / chrome behavior
