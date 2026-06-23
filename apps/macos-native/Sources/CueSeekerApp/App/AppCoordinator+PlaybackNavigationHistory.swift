@@ -136,12 +136,34 @@ extension AppCoordinator {
         _ payload: PlaybackNavigationShioriPayload,
         targetEntryID: Int64
     ) -> Bool {
-        guard let target = shiori.shioris.first(where: { $0.id == payload.id }) else {
+        let target = shiori.shioris.first(where: { $0.id == payload.id })
+            ?? restoredShiori(for: payload)
+        guard let target else {
             return false
         }
         openShiori(target, recordsNavigationHistory: false)
         try? subtitleDatabase?.setPlaybackNavigationCurrentEntryID(targetEntryID)
         return true
+    }
+
+    private func restoredShiori(for payload: PlaybackNavigationShioriPayload) -> Shiori? {
+        guard let database = subtitleDatabase else {
+            return nil
+        }
+
+        do {
+            if let shiori = try database.shiori(id: payload.id) {
+                return shiori
+            }
+            return try database.shiori(
+                subtitleFile: URL(fileURLWithPath: payload.subtitlePath),
+                startMilliseconds: payload.startMilliseconds,
+                endMilliseconds: payload.endMilliseconds
+            )
+        } catch {
+            print("Failed to restore Shiori navigation entry: \(error)")
+            return nil
+        }
     }
 
     private func restoreSearchNavigationEntry(

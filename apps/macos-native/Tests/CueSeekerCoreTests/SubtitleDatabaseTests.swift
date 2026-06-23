@@ -2635,6 +2635,17 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
     ])
     #expect(page.languagesByShioriID[page.shioris[0].id] == [.simplifiedChinese])
     #expect(page.languagesByShioriID[page.shioris[1].id] == [.japanese])
+
+    let allShioris = try database.shioriPage(limit: 3, offset: 0).shioris
+    let newest = try #require(allShioris.first { $0.content == "Newest saved cue." })
+    let middle = try #require(allShioris.first { $0.content == "Middle saved cue." })
+    let old = try #require(allShioris.first { $0.content == "Old saved cue." })
+
+    #expect(try database.shiori(id: middle.id)?.content == "Middle saved cue.")
+    #expect(try database.adjacentShiori(to: middle, direction: .previous)?.id == newest.id)
+    #expect(try database.adjacentShiori(to: middle, direction: .next)?.id == old.id)
+    #expect(try database.adjacentShiori(to: newest, direction: .previous) == nil)
+    #expect(try database.adjacentShiori(to: old, direction: .next) == nil)
 }
 
 @Test

@@ -213,7 +213,7 @@ func quickSearchBackResumesShioriEntry() async throws {
                 lines: ["hello"]
             )
         )
-        app.shiori.shioris = [shioriRow]
+        #expect(app.shiori.shioris.isEmpty)
 
         let shioriEntry = try database.appendPlaybackNavigationEntry(
             .shiori(
@@ -239,6 +239,48 @@ func quickSearchBackResumesShioriEntry() async throws {
         #expect(app.shiori.selectedShiori?.id == shioriRow.id)
         #expect(!app.playback.isQuickSearchOverlayVisible)
         #expect(try database.playbackNavigationCurrentEntryID() == shioriEntry.id)
+    }
+}
+
+@MainActor
+@Test
+func shioriPlaybackNavigationUsesDatabaseWhenStoreIsNotHydrated() async throws {
+    try await withTemporaryNavigationApp { app, database in
+        let old = try insertNavigationShiori(
+            in: database,
+            content: "old saved cue",
+            startMilliseconds: 1_000,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let middle = try insertNavigationShiori(
+            in: database,
+            content: "middle saved cue",
+            startMilliseconds: 3_000,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        let newest = try insertNavigationShiori(
+            in: database,
+            content: "newest saved cue",
+            startMilliseconds: 5_000,
+            createdAt: Date(timeIntervalSince1970: 1_900_000_000)
+        )
+
+        #expect(app.shiori.shioris.isEmpty)
+
+        app.openShiori(middle)
+        #expect(app.canOpenPreviousShiori)
+        #expect(app.canOpenNextShiori)
+
+        app.openPreviousShiori()
+        #expect(app.shiori.selectedShiori?.id == newest.id)
+        #expect(!app.canOpenPreviousShiori)
+
+        app.openNextShiori()
+        #expect(app.shiori.selectedShiori?.id == middle.id)
+
+        app.openNextShiori()
+        #expect(app.shiori.selectedShiori?.id == old.id)
+        #expect(!app.canOpenNextShiori)
     }
 }
 
@@ -389,6 +431,27 @@ private func indexFakeLibraryVideo(in database: SubtitleDatabase, basename: Stri
                 text: "placeholder \(basename)"
             )
         ]
+    )
+}
+
+private func insertNavigationShiori(
+    in database: SubtitleDatabase,
+    content: String,
+    startMilliseconds: Int,
+    createdAt: Date
+) throws -> Shiori {
+    try database.upsertShiori(
+        subtitleFile: URL(fileURLWithPath: "/Media/ShioriNavigation.srt"),
+        subtitleFormat: .srt,
+        videoFile: URL(fileURLWithPath: "/Media/ShioriNavigation.mkv"),
+        videoName: "ShioriNavigation.mkv",
+        selection: SubtitleCueTextSelection(
+            cueGroupID: Int64(startMilliseconds),
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: startMilliseconds + 1_000,
+            lines: [content]
+        ),
+        createdAt: createdAt
     )
 }
 

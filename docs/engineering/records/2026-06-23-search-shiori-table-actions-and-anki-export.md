@@ -56,6 +56,13 @@ batch Anki export.
 - Reduced the shared Search/Shiori table hydration page size from 240 rows to
   50 rows, and made initial loads plus selected-row export backfill use the same
   page-size constant.
+- Fixed Shiori playback navigation and playback-history restoration so the new
+  virtualized Shiori table does not need to hydrate the full `ShioriStore`.
+  Restore now loads the target Shiori by id from SQLite, and previous/next
+  navigation loads the adjacent Shiori by the Date Added sort order.
+- Updated the Shiori row action menu item text from `Remove` to
+  `Remove Shiori`, while keeping the confirmation dialog action text as
+  `Remove`.
 
 ## Verification
 
@@ -67,6 +74,9 @@ batch Anki export.
 - Follow-up Search/Shiori hydration page-size fix:
   - `swift build` passed.
   - `swift test` passed with 329 tests.
+- Follow-up Shiori navigation and row menu bug fixes:
+  - `swift build` passed.
+  - `swift test` passed with 330 tests.
 
 ## Outcome
 
@@ -83,3 +93,8 @@ the default all-favorites view no longer performs that work on first screen.
 Search and Shiori now share a 50-row table hydration page size. Very tall
 viewports can request a second page after visible-row reporting, but normal
 first-screen data hydration no longer loads up to 240 rows by default.
+
+Shiori playback controls and playback-history restoration now use targeted
+SQLite lookups instead of requiring a full in-memory Shiori list. This preserves
+the virtualized table data path while keeping Shiori previous/next and restored
+navigation available after a fresh launch.

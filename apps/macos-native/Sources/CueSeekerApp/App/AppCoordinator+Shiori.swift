@@ -399,45 +399,59 @@ extension AppCoordinator {
         guard activePlaybackSource == .shiori, let selectedShiori = shiori.selectedShiori else {
             return false
         }
-        if let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }), index > 0 {
-            return true
-        }
-        return false
+        return adjacentShiori(to: selectedShiori, direction: .previous) != nil
     }
 
     var canOpenNextShiori: Bool {
         guard activePlaybackSource == .shiori, let selectedShiori = shiori.selectedShiori else {
             return false
         }
-        if let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }), index < shiori.shioris.count - 1 {
-            return true
-        }
-        return false
+        return adjacentShiori(to: selectedShiori, direction: .next) != nil
     }
 
     func openPreviousShiori() {
-        let hasResult = canOpenPreviousShiori
+        let target = shiori.selectedShiori.flatMap {
+            adjacentShiori(to: $0, direction: .previous)
+        }
+        let hasResult = target != nil
         playback.playbackViewModel?.showShioriNavigationFeedback(direction: .previous, hasResult: hasResult)
-        if hasResult {
-            guard let selectedShiori = shiori.selectedShiori,
-                  let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }),
-                  index > 0 else {
-                return
-            }
-            openShiori(shiori.shioris[index - 1])
+        if let target {
+            openShiori(target)
         }
     }
 
     func openNextShiori() {
-        let hasResult = canOpenNextShiori
+        let target = shiori.selectedShiori.flatMap {
+            adjacentShiori(to: $0, direction: .next)
+        }
+        let hasResult = target != nil
         playback.playbackViewModel?.showShioriNavigationFeedback(direction: .next, hasResult: hasResult)
-        if hasResult {
-            guard let selectedShiori = shiori.selectedShiori,
-                  let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }),
-                  index < shiori.shioris.count - 1 else {
-                return
+        if let target {
+            openShiori(target)
+        }
+    }
+
+    private func adjacentShiori(
+        to selectedShiori: Shiori,
+        direction: ShioriNavigationDirection
+    ) -> Shiori? {
+        if let database = subtitleDatabase {
+            do {
+                return try database.adjacentShiori(to: selectedShiori, direction: direction)
+            } catch {
+                print("Failed to load adjacent Shiori: \(error)")
+                return nil
             }
-            openShiori(shiori.shioris[index + 1])
+        }
+
+        guard let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }) else {
+            return nil
+        }
+        switch direction {
+        case .previous:
+            return index > 0 ? shiori.shioris[index - 1] : nil
+        case .next:
+            return index < shiori.shioris.count - 1 ? shiori.shioris[index + 1] : nil
         }
     }
 }

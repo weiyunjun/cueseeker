@@ -563,7 +563,7 @@ private struct RowActionMenu: View {
                 )
                 if style == .shiori {
                     WorkbenchPopoverRow(
-                        title: "Remove",
+                        title: "Remove Shiori",
                         systemImage: "bookmark.slash",
                         isRedesign: true,
                         showsCheckmarkSlot: false,

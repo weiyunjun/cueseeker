@@ -707,6 +707,11 @@ public struct ShioriPage: Equatable, Sendable {
     }
 }
 
+public enum ShioriNavigationDirection: Equatable, Sendable {
+    case previous
+    case next
+}
+
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
     public let totalCount: Int
@@ -5544,6 +5549,62 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.bind(subtitleFile.path, at: 1)
         try statement.bind(max(0, startMilliseconds), at: 2)
         try statement.bind(max(startMilliseconds, endMilliseconds), at: 3)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return shiori(from: statement)
+    }
+
+    public func shiori(id: Int64) throws -> Shiori? {
+        let statement = try database.prepare(
+            """
+            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
+                   start_ms, end_ms, content, is_valid, created_at
+            FROM shioris
+            WHERE id = ?;
+            """
+        )
+
+        try statement.bind(id, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return shiori(from: statement)
+    }
+
+    public func adjacentShiori(
+        to item: Shiori,
+        direction: ShioriNavigationDirection
+    ) throws -> Shiori? {
+        let orderingPredicate: String
+        let orderingClause: String
+        switch direction {
+        case .previous:
+            orderingPredicate = "(created_at > ? OR (created_at = ? AND id > ?))"
+            orderingClause = "ORDER BY created_at ASC, id ASC"
+        case .next:
+            orderingPredicate = "(created_at < ? OR (created_at = ? AND id < ?))"
+            orderingClause = "ORDER BY created_at DESC, id DESC"
+        }
+
+        let statement = try database.prepare(
+            """
+            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
+                   start_ms, end_ms, content, is_valid, created_at
+            FROM shioris
+            WHERE \(orderingPredicate)
+            \(orderingClause)
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(item.createdAt, at: 1)
+        try statement.bind(item.createdAt, at: 2)
+        try statement.bind(item.id, at: 3)
 
         guard try statement.step() else {
             return nil
