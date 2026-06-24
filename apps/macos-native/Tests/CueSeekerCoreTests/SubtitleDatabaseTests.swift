@@ -122,7 +122,7 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
 }
 
 @Test
-func cueContextSearchPageStartsAtTargetCueWhenWindowCanFitFollowingRows() throws {
+func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -180,43 +180,63 @@ func cueContextSearchPageStartsAtTargetCueWhenWindowCanFitFollowingRows() throws
         try database.cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
             targetCueGroupID: thirdContextEntry.id,
-            limit: 3
+            limit: 3,
+            anchorsInitialPage: true
         )
     )
-    #expect(targetFirstPage.totalCount == 4)
+    #expect(targetFirstPage.totalCount == 6)
+    #expect(targetFirstPage.appliedCursor == SubtitleSearchCursor(offset: 2))
     #expect(targetFirstPage.results.map(\.content) == [
         "context cue 3",
         "context cue 4",
         "context cue 5",
     ])
-    #expect(targetFirstPage.results.map(\.searchRank) == [0, 1, 2])
-    #expect(targetFirstPage.nextCursor == SubtitleSearchCursor(offset: 3))
+    #expect(targetFirstPage.results.map(\.searchRank) == [2, 3, 4])
+    #expect(targetFirstPage.nextCursor == SubtitleSearchCursor(offset: 5))
+
+    let precedingPage = try #require(
+        try database.cueContextSearchPage(
+            subtitlePath: contextSubtitleFile.path,
+            targetCueGroupID: thirdContextEntry.id,
+            limit: 2,
+            cursor: SubtitleSearchCursor(offset: 0)
+        )
+    )
+    #expect(precedingPage.totalCount == 6)
+    #expect(precedingPage.results.map(\.content) == [
+        "context cue 1",
+        "context cue 2",
+    ])
+    #expect(precedingPage.results.map(\.searchRank) == [0, 1])
 
     let followingPage = try #require(
         try database.cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
             targetCueGroupID: thirdContextEntry.id,
             limit: 3,
-            cursor: SubtitleSearchCursor(offset: 3)
+            cursor: SubtitleSearchCursor(offset: 5)
         )
     )
-    #expect(followingPage.totalCount == 4)
+    #expect(followingPage.totalCount == 6)
     #expect(followingPage.results.map(\.content) == ["context cue 6"])
-    #expect(followingPage.results.map(\.searchRank) == [3])
+    #expect(followingPage.results.map(\.searchRank) == [5])
 
     let tailPage = try #require(
         try database.cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
             targetCueGroupID: lastContextEntry.id,
-            limit: 3
+            limit: 3,
+            anchorsInitialPage: true
         )
     )
-    #expect(tailPage.totalCount == 3)
+    #expect(tailPage.totalCount == 6)
+    #expect(tailPage.appliedCursor == SubtitleSearchCursor(offset: 3))
     #expect(tailPage.results.map(\.content) == [
         "context cue 4",
         "context cue 5",
         "context cue 6",
     ])
+    #expect(tailPage.results.map(\.searchRank) == [3, 4, 5])
 }
 
 @Test

@@ -19,6 +19,7 @@ struct WorkbenchTestSearchView: View {
     @State private var lastVisibleRows: Range<Int>?
     @State private var appliedFilterSignature = ""
     @State private var tableScrollResetToken = 0
+    @State private var tableScrollTargetRow: Int?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var collageAvailabilityGeneration = 0
     @State private var canExportSelectedRowsAsCollage = false
@@ -71,6 +72,7 @@ struct WorkbenchTestSearchView: View {
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
                     scrollResetToken: tableScrollResetToken,
+                    scrollTargetRow: tableScrollTargetRow,
                     onVisibleRowsChange: hydrateVisibleRows,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
@@ -129,6 +131,7 @@ struct WorkbenchTestSearchView: View {
             lastVisibleRows = nil
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 activeCueContextRequest = nil
+                tableScrollTargetRow = nil
                 cueContextLoadGeneration += 1
             }
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -241,6 +244,7 @@ struct WorkbenchTestSearchView: View {
         search.searchNavigationSnapshot = nil
         appliedFilterSignature = filterSignature
         appState.updateSearchFilterSet(filterSet)
+        tableScrollTargetRow = nil
         tableScrollResetToken += 1
         clearTableRows(resetScroll: false)
         CueContextPerformanceLogger.record(
@@ -314,12 +318,14 @@ struct WorkbenchTestSearchView: View {
         let trimmedDraft = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedDraft.isEmpty else {
             activeCueContextRequest = nil
+            tableScrollTargetRow = nil
             cueContextLoadGeneration += 1
             appState.submitSearch(searchDraft)
             return
         }
 
         activeCueContextRequest = nil
+        tableScrollTargetRow = nil
         cueContextLoadGeneration += 1
         search.searchQuery = ""
         search.searchResults = []
@@ -351,6 +357,7 @@ struct WorkbenchTestSearchView: View {
         resetSelectedCollageAvailability()
         rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
         if resetScroll {
+            tableScrollTargetRow = nil
             tableScrollResetToken += 1
         }
     }
@@ -413,6 +420,7 @@ struct WorkbenchTestSearchView: View {
 
     private func loadAllCueRows(resetScroll: Bool) {
         activeCueContextRequest = nil
+        tableScrollTargetRow = nil
         visibleHydrator.reset()
         lastVisibleRows = nil
         if resetScroll {
@@ -465,7 +473,8 @@ struct WorkbenchTestSearchView: View {
             )
             guard let page = await appState.loadCueContextSearchPage(
                 request: request,
-                range: 0..<TableSandboxHydrationPaging.pageSize
+                range: 0..<TableSandboxHydrationPaging.pageSize,
+                anchorsInitialPage: true
             ) else {
                 guard generation == cueContextLoadGeneration else { return }
                 CueContextPerformanceLogger.record(
@@ -520,11 +529,14 @@ struct WorkbenchTestSearchView: View {
 
             appState.applyTableSandboxAllCueSearchContext(page)
             let rowStoreStart = CueContextPerformanceLogger.now()
-            rowStore.updateSearchRows(
+            rowStore.hydrateSearchRows(
                 page.results,
+                startIndex: page.range.lowerBound,
                 totalRowCount: page.totalRowCount,
                 tableName: "test-search"
             )
+            tableScrollTargetRow = page.range.lowerBound
+            tableScrollResetToken += 1
             CueContextPerformanceLogger.record(
                 event: "context_initial_rows_committed",
                 contextID: request.id,
@@ -599,6 +611,7 @@ struct WorkbenchTestSearchView: View {
         }
 
         activeCueContextRequest = nil
+        tableScrollTargetRow = nil
         cueContextLoadGeneration += 1
         appliedFilterSignature = nextSignature
         visibleHydrator.reset()

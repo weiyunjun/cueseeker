@@ -427,6 +427,34 @@ func subtitleTableViewClampsHorizontalScrollWhenColumnsAreHidden() {
 
 @MainActor
 @Test
+func subtitleTableViewScrollsToTargetRowOnReset() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 900)
+
+    fixture.coordinator.update(
+        tableName: "test-search",
+        rowCount: 100,
+        rowProvider: { _ in nil },
+        rowsVersion: 2,
+        rowsUpdate: .reload,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        scrollResetToken: 1,
+        scrollTargetRow: 42,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    let expectedY = CGFloat(42) * fixture.coordinator.currentRowHeight
+    #expect(abs(fixture.scrollView.contentView.bounds.origin.y - expectedY) < 0.5)
+}
+
+@MainActor
+@Test
 func subtitleTableViewClearsCueTextCursorState() {
     let fixture = makeAttachedVirtualTableCoordinator()
 

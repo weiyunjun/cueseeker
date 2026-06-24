@@ -3309,6 +3309,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         limit: Int = 50,
         cursor: SubtitleSearchCursor? = nil,
         anchorWindowSize: Int? = nil,
+        anchorsInitialPage: Bool = false,
         under folders: [URL]? = nil
     ) throws -> SubtitleSearchPage? {
         let requestedLimit = max(0, limit)
@@ -3387,11 +3388,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let targetIndex = targetStatement.intColumn(0)
         let fileCueCount = targetStatement.intColumn(1)
         let resolvedAnchorWindowSize = max(1, anchorWindowSize ?? requestedLimit)
-        let contextStart = min(targetIndex, max(0, fileCueCount - resolvedAnchorWindowSize))
-        let totalCount = max(0, fileCueCount - contextStart)
-        let boundedOffset = min(offset, totalCount)
+        let anchorStart = min(targetIndex, max(0, fileCueCount - resolvedAnchorWindowSize))
+        let totalCount = fileCueCount
+        let requestedOffset = anchorsInitialPage && offset == 0 ? anchorStart : offset
+        let boundedOffset = min(requestedOffset, totalCount)
         let windowLimit = min(requestedLimit, max(0, totalCount - boundedOffset))
-        let rowOffset = contextStart + boundedOffset
+        let rowOffset = boundedOffset
 
         let statement = try database.prepare(
             """

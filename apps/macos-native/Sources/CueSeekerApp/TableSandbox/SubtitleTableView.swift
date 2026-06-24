@@ -1758,6 +1758,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var showsLanguageColumn = false
     var showsSpeakerColumn = false
     var scrollResetToken = 0
+    var scrollTargetRow: Int?
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var isRowSelected: (Int) -> Bool = { _ in false }
     var selectionHeaderState: WorkbenchCheckboxState = .unchecked
@@ -1789,6 +1790,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
+            scrollTargetRow: scrollTargetRow,
             onVisibleRowsChange: onVisibleRowsChange,
             isRowSelected: isRowSelected,
             selectionHeaderState: selectionHeaderState,
@@ -1901,6 +1903,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
+            scrollTargetRow: scrollTargetRow,
             onVisibleRowsChange: onVisibleRowsChange,
             isRowSelected: isRowSelected,
             selectionHeaderState: selectionHeaderState,
@@ -1943,6 +1946,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var showsLanguageColumn: Bool
         private var showsSpeakerColumn: Bool
         private var scrollResetToken: Int
+        private var scrollTargetRow: Int?
         private var onVisibleRowsChange: (Range<Int>) -> Void
         private var isRowSelected: (Int) -> Bool
         private var selectionHeaderState: WorkbenchCheckboxState
@@ -2075,6 +2079,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: Bool = false,
             showsSpeakerColumn: Bool = false,
             scrollResetToken: Int = 0,
+            scrollTargetRow: Int? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             isRowSelected: @escaping (Int) -> Bool = { _ in false },
             selectionHeaderState: WorkbenchCheckboxState = .unchecked,
@@ -2103,6 +2108,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsLanguageColumn = showsLanguageColumn
             self.showsSpeakerColumn = showsSpeakerColumn
             self.scrollResetToken = scrollResetToken
+            self.scrollTargetRow = scrollTargetRow
             self.onVisibleRowsChange = onVisibleRowsChange
             self.isRowSelected = isRowSelected
             self.selectionHeaderState = selectionHeaderState
@@ -2184,6 +2190,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: Bool,
             showsSpeakerColumn: Bool,
             scrollResetToken: Int,
+            scrollTargetRow: Int? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             isRowSelected: @escaping (Int) -> Bool,
             selectionHeaderState: WorkbenchCheckboxState,
@@ -2222,8 +2229,9 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsLanguageColumn = showsLanguageColumn
             let speakerColumnChanged = showsSpeakerColumn != self.showsSpeakerColumn
             self.showsSpeakerColumn = showsSpeakerColumn
-            let shouldScrollToTop = scrollResetToken != self.scrollResetToken
+            let shouldResetScroll = scrollResetToken != self.scrollResetToken
             self.scrollResetToken = scrollResetToken
+            self.scrollTargetRow = scrollTargetRow
             self.onVisibleRowsChange = onVisibleRowsChange
             self.isRowSelected = isRowSelected
             let selectionHeaderChanged = selectionHeaderState != self.selectionHeaderState
@@ -2239,7 +2247,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let changed = nextRowCount != self.rowCount || rowsVersion != self.rowsVersion
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
-            if changed || shouldScrollToTop {
+            if changed || shouldResetScroll {
                 lastNotifiedVisibleRows = nil
             }
             if let focusedCheckboxRow, focusedCheckboxRow >= nextRowCount {
@@ -2259,8 +2267,12 @@ struct SubtitleTableView: NSViewRepresentable {
                     repositionOpenMenu()
                 }
             }
-            if shouldScrollToTop {
-                scrollToTop()
+            if shouldResetScroll {
+                if let scrollTargetRow {
+                    scrollToRow(scrollTargetRow)
+                } else {
+                    scrollToTop()
+                }
             } else if changed || columnVisibilityChanged {
                 notifyVisibleRowsChanged(force: changed)
             }
@@ -2536,6 +2548,23 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.contentView.scroll(to: .zero)
             scrollView.reflectScrolledClipView(scrollView.contentView)
             documentView?.needsDisplay = true
+            scrollbarOverlayView?.needsDisplay = true
+            notifyVisibleRowsChanged(force: true)
+        }
+
+        func scrollToRow(_ row: Int) {
+            guard let scrollView, let documentView else {
+                return
+            }
+
+            let clampedRow = min(max(0, row), max(0, rowCount - 1))
+            let maxY = max(0, documentView.bounds.height - scrollView.contentView.bounds.height)
+            let y = min(rowHeightCache.yOffset(for: clampedRow, defaultHeight: currentRowHeight), maxY)
+            var origin = scrollView.contentView.bounds.origin
+            origin.y = y
+            scrollView.contentView.scroll(to: origin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            documentView.needsDisplay = true
             scrollbarOverlayView?.needsDisplay = true
             notifyVisibleRowsChanged(force: true)
         }

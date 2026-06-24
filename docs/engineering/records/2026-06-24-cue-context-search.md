@@ -63,3 +63,29 @@
 
 - Cue Context now has a focused performance timeline written to `logs/cue-context/` when enabled, while table update timings continue to be written to `logs/table-rendering/` through the existing table logger.
 - No product behavior change is intended by this follow-up.
+
+## 2026-06-25 Complete Context Window Follow-up
+
+### Requirement
+
+- Human-owned requirement: `docs/human/requirements/20260624-Feature-Cue Context Search.md`
+
+### Steps
+
+- Corrected Cue Context paging so the virtual result keeps the complete target subtitle file instead of truncating rows before the target cue.
+- Kept the first Context page anchored at the target cue, shifting upward near the tail, while later hydration ranges load by their real full-file row indexes.
+- Changed the Search table Context path to hydrate the initial anchored page sparsely at its real row index and then scroll the virtual table to that row.
+- Added a table scroll target row parameter and test coverage so a reset can land on a specific virtual row instead of only the top.
+- Kept the Context performance instrumentation in place to measure the corrected flow.
+
+### Verification
+
+- Ran `swift build` from `apps/macos-native`.
+- Ran `swift test --filter 'cueContextSearchPage|SubtitleTableVirtualRow|TableSandboxRowModelStore|SearchStore'` from `apps/macos-native`; 40 Swift Testing tests passed.
+- Ran a read-only micro-benchmark against the live CueSeeker SQLite database. On the largest scoped subtitle file, target lookup averaged about 1.6 ms and 50-row page loads around the anchor averaged about 0.25 ms.
+
+### Outcome
+
+- Context now preserves the complete subtitle file in the virtual table, including rows before the target cue.
+- The initial screen still starts at the target cue when possible and reports the full exact row count.
+- Current database timings indicate that any remaining multi-second delay should be investigated in the UI/view lifecycle timeline rather than the Context SQL page query.

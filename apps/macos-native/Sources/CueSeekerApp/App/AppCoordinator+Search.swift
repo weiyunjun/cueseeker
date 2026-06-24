@@ -270,7 +270,8 @@ extension AppCoordinator {
     func loadCueContextSearchPage(
         request: CueContextSearchRequest,
         range: Range<Int>,
-        anchorWindowSize: Int = TableSandboxHydrationPaging.pageSize
+        anchorWindowSize: Int = TableSandboxHydrationPaging.pageSize,
+        anchorsInitialPage: Bool = false
     ) async -> TableSandboxSearchHydrationPage? {
         let folders = indexing.selectedFolders
         guard subtitleDatabase != nil else {
@@ -307,6 +308,7 @@ extension AppCoordinator {
                     limit: upperBound - lowerBound,
                     cursor: SubtitleSearchCursor(offset: lowerBound),
                     anchorWindowSize: anchorWindowSize,
+                    anchorsInitialPage: anchorsInitialPage,
                     under: folders
                 )
                 CueContextPerformanceLogger.record(
@@ -364,13 +366,13 @@ extension AppCoordinator {
                 displayTitle: request.displayTitle,
                 subtitlePath: request.subtitlePath,
                 targetEntryID: request.targetEntryID,
-                range: lowerBound..<(lowerBound + page.results.count),
+                range: page.appliedCursor.offset..<(page.appliedCursor.offset + page.results.count),
                 returnedRows: page.results.count,
                 totalRows: page.totalCount,
                 status: "returned"
             )
             return TableSandboxSearchHydrationPage(
-                range: lowerBound..<(lowerBound + page.results.count),
+                range: page.appliedCursor.offset..<(page.appliedCursor.offset + page.results.count),
                 results: page.results,
                 totalRowCount: page.totalCount
             )
