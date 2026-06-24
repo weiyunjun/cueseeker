@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 import Testing
 import CueSeekerCore
 
@@ -451,6 +452,44 @@ func indexesASSFontReferencesAndSkipsUnchangedAfterManifest() throws {
 }
 
 @Test
+func reindexesUnchangedSubtitleWhenCueIndexAlgorithmVersionIsStale() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    _ = try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Versioned searchable text.
+
+        """
+    )
+    try fixture.writeVideo(name: "Episode.mkv")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let initialResult = try indexer.index(folder: fixture.root, into: database)
+    let initialMetadata = try #require(try database.subtitleFiles().first)
+    try executeSQLite(
+        at: fixture.databaseURL,
+        "UPDATE subtitle_files SET index_algorithm_version = 0;"
+    )
+
+    let staleVersionResult = try indexer.index(folder: fixture.root, into: database)
+    let refreshedMetadata = try #require(try database.subtitleFiles().first)
+
+    #expect(initialResult.indexedSubtitleFiles == 1)
+    #expect(initialMetadata.indexAlgorithmVersion == SubtitleCueIndexingRules.algorithmVersion)
+    #expect(staleVersionResult.indexedSubtitleFiles == 1)
+    #expect(staleVersionResult.skippedUnchangedSubtitleFiles == 0)
+    #expect(refreshedMetadata.indexAlgorithmVersion == SubtitleCueIndexingRules.algorithmVersion)
+}
+
+@Test
 func assRenderSegmenterBuildsWindowedScriptsWithOverlappingEvents() throws {
     let contents = """
     [Script Info]
@@ -550,5 +589,29 @@ private struct IndexingFixture {
 
     func cleanUp() {
         try? FileManager.default.removeItem(at: root)
+    }
+}
+
+private enum SQLiteFixtureError: Error {
+    case openFailed(String)
+    case executeFailed(String)
+}
+
+private func executeSQLite(at url: URL, _ sql: String) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer {
+        sqlite3_close(database)
+    }
+
+    var errorMessage: UnsafeMutablePointer<CChar>?
+    guard sqlite3_exec(database, sql, nil, nil, &errorMessage) == SQLITE_OK else {
+        let message = errorMessage.map { String(cString: $0) } ?? "Unknown SQLite error"
+        sqlite3_free(errorMessage)
+        throw SQLiteFixtureError.executeFailed(message)
     }
 }

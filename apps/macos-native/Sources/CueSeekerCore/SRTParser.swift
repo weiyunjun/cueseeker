@@ -2,7 +2,19 @@ import Foundation
 
 public enum SRTParser {
     public static func parse(_ contents: String) -> [SubtitleEntry] {
-        splitBlocks(contents).compactMap(parseBlock)
+        var seenEntries = Set<SRTEntryDeduplicationKey>()
+        return splitBlocks(contents).compactMap { block in
+            guard let entry = parseBlock(block) else {
+                return nil
+            }
+
+            let key = SRTEntryDeduplicationKey(entry: entry)
+            guard seenEntries.insert(key).inserted else {
+                return nil
+            }
+
+            return entry
+        }
     }
 
     public static func parseCueGroups(_ contents: String) -> [SubtitleCueGroup] {
@@ -68,7 +80,8 @@ public enum SRTParser {
 
         guard let startMilliseconds = milliseconds(from: startTimecode),
               let endMilliseconds = milliseconds(from: endTimecode),
-              endMilliseconds >= startMilliseconds
+              endMilliseconds >= startMilliseconds,
+              endMilliseconds - startMilliseconds >= SubtitleCueIndexingRules.minimumDurationMilliseconds
         else {
             return nil
         }
@@ -119,5 +132,21 @@ public enum SRTParser {
         }
 
         return blocks
+    }
+
+    private struct SRTEntryDeduplicationKey: Hashable {
+        let startTimecode: String
+        let endTimecode: String
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+        let text: String
+
+        init(entry: SubtitleEntry) {
+            startTimecode = entry.startTimecode
+            endTimecode = entry.endTimecode
+            startMilliseconds = entry.startMilliseconds
+            endMilliseconds = entry.endMilliseconds
+            text = entry.text
+        }
     }
 }

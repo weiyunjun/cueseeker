@@ -26,6 +26,33 @@ func parsesValidSubtitleBlocksAndSkipsMalformedBlocks() throws {
 }
 
 @Test
+func filtersShortSRTCuesAndDeduplicatesCleanedEntries() {
+    let contents = """
+    1
+    00:00:01,000 --> 00:00:01,100
+    Too short.
+
+    2
+    00:00:02,000 --> 00:00:03,000
+      Duplicate text.
+
+    3
+    00:00:02,000 --> 00:00:03,000
+    Duplicate text.
+
+    4
+    00:00:04,000 --> 00:00:04,200
+    Boundary kept.
+
+    """
+
+    let entries = SRTParser.parse(contents)
+
+    #expect(entries.map(\.text) == ["Duplicate text.", "Boundary kept."])
+    #expect(entries.map(\.sequenceNumber) == [2, 4])
+}
+
+@Test
 func parsesTimecodesToMilliseconds() {
     #expect(SRTParser.milliseconds(from: "00:00:00,000") == 0)
     #expect(SRTParser.milliseconds(from: "00:00:01,001") == 1_001)
@@ -40,4 +67,3 @@ func rejectsInvalidTimecodes() {
     #expect(SRTParser.milliseconds(from: "00:00:00,1000") == nil)
     #expect(SRTParser.milliseconds(from: "not a timecode") == nil)
 }
-

@@ -36,6 +36,35 @@ func parsesASSDialogueEventsIntoExactTimeCueGroups() {
 }
 
 @Test
+func filtersShortASSDialogueAndDeduplicatesCleanedRetainedFields() {
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Alignment, MarginL, MarginR, MarginV
+    Style: JP,2,20,20,30
+    Style: CN,8,20,20,40
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:01.10,JP,,0,0,0,fx,Too short
+    Dialogue: 0,0:00:02.00,0:00:03.00,JP,,0,0,0,fx,{\\bord2}Same text
+    Dialogue: 0,0:00:02.00,0:00:03.00,JP,,0,0,0,fx,Same text
+    Dialogue: 1,0:00:02.00,0:00:03.00,CN,,0,0,0,fx,Same text
+    Dialogue: 0,0:00:04.00,0:00:04.20,JP,,0,0,0,fx,Boundary kept
+    """
+
+    let groups = ASSParser.parseCueGroups(contents)
+
+    #expect(groups.count == 2)
+    #expect(groups[0].cueLines.map(\.content) == ["Same text", "Same text"])
+    #expect(groups[0].cueLines.map(\.sourceStyle) == ["CN", "JP"])
+    #expect(groups[1].cueLines.map(\.content) == ["Boundary kept"])
+}
+
+@Test
 func ordersSameTimestampBottomAlignedASSLinesByCollisionPositionAtIndexTime() {
     let contents = """
     [Script Info]

@@ -82,6 +82,7 @@ public enum ASSParser {
         var styles: [String: ASSStyle] = [:]
         var eventFormat: [String] = []
         var parsedLines: [ParsedCueLine] = []
+        var seenCueLineKeys = Set<ParsedCueLineDeduplicationKey>()
 
         mutating func parse() -> [SubtitleCueGroup] {
             let normalized = contents
@@ -183,6 +184,7 @@ public enum ASSParser {
                   let startMilliseconds = ASSParser.milliseconds(from: startTimecode),
                   let endMilliseconds = ASSParser.milliseconds(from: endTimecode),
                   endMilliseconds >= startMilliseconds,
+                  endMilliseconds - startMilliseconds >= SubtitleCueIndexingRules.minimumDurationMilliseconds,
                   let rawText = value(named: "text", fields: fields, format: eventFormat)
             else {
                 return
@@ -204,19 +206,23 @@ public enum ASSParser {
                 marginV: value(named: "marginv", fields: fields, format: eventFormat).flatMap(Double.init)
             )
 
-            parsedLines.append(
-                ParsedCueLine(
-                    eventIndex: eventIndex,
-                    sourceStyle: sourceStyle?.isEmpty == true ? nil : sourceStyle,
-                    sourceLayer: sourceLayer,
-                    startTimecode: startTimecode.trimmingCharacters(in: .whitespacesAndNewlines),
-                    endTimecode: endTimecode.trimmingCharacters(in: .whitespacesAndNewlines),
-                    startMilliseconds: startMilliseconds,
-                    endMilliseconds: endMilliseconds,
-                    content: content,
-                    layout: layout
-                )
+            let parsedLine = ParsedCueLine(
+                eventIndex: eventIndex,
+                sourceStyle: sourceStyle?.isEmpty == true ? nil : sourceStyle,
+                sourceLayer: sourceLayer,
+                startTimecode: startTimecode.trimmingCharacters(in: .whitespacesAndNewlines),
+                endTimecode: endTimecode.trimmingCharacters(in: .whitespacesAndNewlines),
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds,
+                content: content,
+                layout: layout
             )
+            let key = ParsedCueLineDeduplicationKey(line: parsedLine)
+            guard seenCueLineKeys.insert(key).inserted else {
+                return
+            }
+
+            parsedLines.append(parsedLine)
         }
 
         func layoutMetadata(
@@ -671,6 +677,30 @@ public enum ASSParser {
         let endMilliseconds: Int
         let content: String
         let layout: ASSLayoutMetadata
+    }
+
+    private struct ParsedCueLineDeduplicationKey: Hashable {
+        let sourceStyle: String?
+        let sourceLayer: Int?
+        let startTimecode: String
+        let endTimecode: String
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+        let content: String
+        let displayX: Double?
+        let displayY: Double?
+
+        init(line: ParsedCueLine) {
+            sourceStyle = line.sourceStyle
+            sourceLayer = line.sourceLayer
+            startTimecode = line.startTimecode
+            endTimecode = line.endTimecode
+            startMilliseconds = line.startMilliseconds
+            endMilliseconds = line.endMilliseconds
+            content = line.content
+            displayX = line.layout.displayX
+            displayY = line.layout.displayY
+        }
     }
 
     private struct CueGroupKey: Hashable {

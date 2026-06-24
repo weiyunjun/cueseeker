@@ -135,6 +135,7 @@ public struct SubtitleIndexer {
     ) throws -> Bool {
         guard metadata.videoPath == videoFile.path,
               metadata.fileSize == fileSize,
+              metadata.indexAlgorithmVersion == SubtitleCueIndexingRules.algorithmVersion,
               let existingModifiedAt = metadata.modifiedAt,
               let modifiedAt
         else {

@@ -1070,6 +1070,7 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
     public let fileSize: Int64?
     public let modifiedAt: Date?
     public let indexedAt: String
+    public let indexAlgorithmVersion: Int
 }
 
 public enum SubtitleLanguageDetectionScope: String, Equatable, Sendable {
@@ -1169,7 +1170,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 20
+    public static let currentSchemaVersion: Int = 21
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1245,7 +1246,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 format TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
-                indexed_at TEXT NOT NULL
+                indexed_at TEXT NOT NULL,
+                index_algorithm_version INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS video_files (
@@ -1662,6 +1664,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
                       (CAST(position_ms AS REAL) / 1000.0) >= duration * 0.95
                       OR duration - (CAST(position_ms AS REAL) / 1000.0) <= 1
                   );
+                """
+            )
+        }
+
+        if previousVersion < 21,
+           try !columnExists(table: "subtitle_files", column: "index_algorithm_version") {
+            try database.execute(
+                """
+                ALTER TABLE subtitle_files
+                ADD COLUMN index_algorithm_version INTEGER NOT NULL DEFAULT 0;
                 """
             )
         }
@@ -2189,6 +2201,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
 
         do {
+            let preservedCueLineSpeakers = try cueLineSpeakersByStableKey(forSubtitlePath: subtitleFile.path)
             try deleteIndexedSubtitlePath(subtitleFile.path)
 
             let subtitleFileID = try upsertSubtitleFile(
@@ -2248,7 +2261,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     group: group
                 )
                 for line in group.cueLines {
-                    try insertCueLine(cueGroupID: cueGroupID, line: line)
+                    let cueLineID = try insertCueLine(cueGroupID: cueGroupID, line: line)
+                    let speakerKey = CueLineStableKey(line: line)
+                    if let speakers = preservedCueLineSpeakers[speakerKey] {
+                        try insertCueLineSpeakers(
+                            cueLineID: cueLineID,
+                            cueGroupID: cueGroupID,
+                            speakers: speakers
+                        )
+                    }
                 }
                 try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
                 if let languages = languageAnalysis?.cueGroupLanguages[index] {
@@ -2939,7 +2960,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   sf.file_size, sf.modified_at, sf.indexed_at
+                   sf.file_size, sf.modified_at, sf.indexed_at, sf.index_algorithm_version
             FROM subtitle_files sf
             LEFT JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             LEFT JOIN video_files vf ON vf.id = m.video_file_id
@@ -2957,7 +2978,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     videoName: statement.nullableStringColumn(3),
                     fileSize: statement.nullableInt64Column(4),
                     modifiedAt: statement.nullableDoubleColumn(5).map(Date.init(timeIntervalSince1970:)),
-                    indexedAt: statement.stringColumn(6)
+                    indexedAt: statement.stringColumn(6),
+                    indexAlgorithmVersion: statement.intColumn(7)
                 )
             )
         }
@@ -5938,6 +5960,45 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let searchContent: String
     }
 
+    private struct CueLineStableKey: Hashable {
+        let sourceFormat: SubtitleFormat
+        let sourceStyle: String?
+        let sourceLayer: Int?
+        let startTimecode: String
+        let endTimecode: String
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+        let content: String
+        let displayX: Double?
+        let displayY: Double?
+
+        init(line: SubtitleCueLine) {
+            sourceFormat = line.sourceFormat
+            sourceStyle = line.sourceStyle
+            sourceLayer = line.sourceLayer
+            startTimecode = line.startTimecode
+            endTimecode = line.endTimecode
+            startMilliseconds = line.startMilliseconds
+            endMilliseconds = line.endMilliseconds
+            content = line.content
+            displayX = line.displayX
+            displayY = line.displayY
+        }
+
+        init(statement: SQLiteStatement) {
+            sourceFormat = SubtitleFormat(rawValue: statement.stringColumn(0)) ?? .srt
+            sourceStyle = statement.nullableStringColumn(1)
+            sourceLayer = statement.nullableIntColumn(2)
+            startTimecode = statement.stringColumn(3)
+            endTimecode = statement.stringColumn(4)
+            startMilliseconds = statement.intColumn(5)
+            endMilliseconds = statement.intColumn(6)
+            content = statement.stringColumn(7)
+            displayX = statement.nullableDoubleColumn(8)
+            displayY = statement.nullableDoubleColumn(9)
+        }
+    }
+
     private struct SearchQueryPlan {
         let ftsQuery: String
         let lineMatchRule: LineMatchRule
@@ -6787,13 +6848,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
     ) throws -> Int64 {
         let statement = try database.prepare(
             """
-            INSERT INTO subtitle_files(subtitle_path, format, file_size, modified_at, indexed_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO subtitle_files(
+                subtitle_path,
+                format,
+                file_size,
+                modified_at,
+                indexed_at,
+                index_algorithm_version
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(subtitle_path) DO UPDATE SET
                 format = excluded.format,
                 file_size = excluded.file_size,
                 modified_at = excluded.modified_at,
-                indexed_at = excluded.indexed_at
+                indexed_at = excluded.indexed_at,
+                index_algorithm_version = excluded.index_algorithm_version
             RETURNING id;
             """
         )
@@ -6813,6 +6882,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 5)
+        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 6)
 
         guard try statement.step() else {
             return database.lastInsertRowID()
@@ -6924,6 +6994,30 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return statement.int64Column(0)
     }
 
+    private func cueLineSpeakersByStableKey(forSubtitlePath subtitlePath: String) throws -> [CueLineStableKey: Set<String>] {
+        let statement = try database.prepare(
+            """
+            SELECT l.source_format, l.source_style, l.source_layer,
+                   l.start_time, l.end_time, l.start_ms, l.end_ms,
+                   l.content, l.display_x, l.display_y, s.speaker
+            FROM subtitle_cue_line_speakers s
+            JOIN subtitle_cue_lines l ON l.id = s.cue_line_id
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY l.id ASC, s.speaker_key ASC;
+            """
+        )
+        try statement.bind(subtitlePath, at: 1)
+
+        var speakersByKey: [CueLineStableKey: Set<String>] = [:]
+        while try statement.step() {
+            let key = CueLineStableKey(statement: statement)
+            speakersByKey[key, default: []].insert(statement.stringColumn(10))
+        }
+        return speakersByKey
+    }
+
     private func insertCueGroup(
         subtitleFileID: Int64,
         subtitleFile: URL,
@@ -6964,7 +7058,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return database.lastInsertRowID()
     }
 
-    private func insertCueLine(cueGroupID: Int64, line: SubtitleCueLine) throws {
+    private func insertCueLine(cueGroupID: Int64, line: SubtitleCueLine) throws -> Int64 {
         let statement = try database.prepare(
             """
             INSERT INTO subtitle_cue_lines(
@@ -7016,6 +7110,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
         try statement.bind(line.displayOrder, at: 13)
         try statement.run()
+        return database.lastInsertRowID()
     }
 
     private func cueGroupIDsByCueLineID(forSubtitleFile subtitleFile: URL) throws -> [Int64: Int64] {

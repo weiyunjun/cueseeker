@@ -200,6 +200,57 @@ func replacesCueLineSpeakersAsStringSets() throws {
 }
 
 @Test
+func preservesCueLineSpeakersWhenReplacingCueGroups() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerPreserve.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/SpeakerPreserve.mkv")
+    let entries = [
+        SubtitleEntry(
+            sequenceNumber: 1,
+            startTimecode: "00:00:01,000",
+            endTimecode: "00:00:01,500",
+            startMilliseconds: 1_000,
+            endMilliseconds: 1_500,
+            text: "first cue"
+        ),
+        SubtitleEntry(
+            sequenceNumber: 2,
+            startTimecode: "00:00:02,000",
+            endTimecode: "00:00:02,500",
+            startMilliseconds: 2_000,
+            endMilliseconds: 2_500,
+            text: "second cue"
+        ),
+    ]
+    try database.replaceEntries(subtitleFile: subtitleFile, videoFile: videoFile, entries: entries)
+
+    let initialCueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let initialSecondCueLine = try #require(initialCueLines.first { $0.line.content == "second cue" })
+    try database.replaceCueLineSpeakers(
+        forSubtitleFile: subtitleFile,
+        assignments: [
+            SubtitleCueLineSpeakerAssignment(cueLineID: initialSecondCueLine.id, speakers: ["高松灯"])
+        ]
+    )
+
+    try database.replaceEntries(subtitleFile: subtitleFile, videoFile: videoFile, entries: entries)
+
+    let rebuiltCueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let rebuiltSecondCueLine = try #require(rebuiltCueLines.first { $0.line.content == "second cue" })
+    #expect(rebuiltSecondCueLine.id != initialSecondCueLine.id)
+    #expect(try database.speakersByCueLineID(forSubtitleFile: subtitleFile) == [
+        rebuiltSecondCueLine.id: ["高松灯"]
+    ])
+}
+
+@Test
 func reportsStorageStatsAndCompactsFreelistPages() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
