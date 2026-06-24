@@ -38,7 +38,7 @@ private struct WorkbenchShioriTableContent: View {
             tableSummary: tableSummary,
             tableSummaryLeadingInset: tableSummaryLeadingInset,
             tableSummaryAction: selectedAnkiAction,
-            filterableColumnIDs: ["display", "cues", "language"],
+            filterableColumnIDs: ["display", "cues"],
             onSearchSubmit: {
                 submitSearchDraft()
             }
@@ -52,10 +52,14 @@ private struct WorkbenchShioriTableContent: View {
                     rowsUpdate: rowStore.snapshot.update,
                     dateAddedHeader: columnTitle("dateAdded", in: visibleColumns, fallback: "Date Added"),
                     displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
+                    startTimeHeader: columnTitle("startTime", in: visibleColumns, fallback: "Start Time"),
+                    endTimeHeader: columnTitle("endTime", in: visibleColumns, fallback: "End Time"),
                     cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
                     languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
                     showsDateAddedColumn: isColumnVisible("dateAdded", in: visibleColumns),
                     showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
+                    showsStartTimeColumn: isColumnVisible("startTime", in: visibleColumns),
+                    showsEndTimeColumn: isColumnVisible("endTime", in: visibleColumns),
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: false,
                     scrollResetToken: tableScrollResetToken,

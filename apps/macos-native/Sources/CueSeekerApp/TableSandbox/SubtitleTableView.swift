@@ -6,6 +6,7 @@ import SwiftUI
 enum SubtitleTableMetrics {
     static let indexColumnWidth: CGFloat = 50
     static let dateAddedColumnWidth: CGFloat = 160
+    static let timeColumnWidth: CGFloat = 110
     static let nameColumnWidth: CGFloat = 240
     static let cuesColumnMinimumWidth: CGFloat = 520
     static let speakerColumnWidth: CGFloat = 180
@@ -43,6 +44,8 @@ struct SubtitleTableColumnLayout {
     var indexRect: CGRect
     var dateAddedRect: CGRect?
     var nameRect: CGRect
+    var startTimeRect: CGRect?
+    var endTimeRect: CGRect?
     var cuesRect: CGRect
     var speakerRect: CGRect?
     var languageRect: CGRect?
@@ -51,6 +54,8 @@ struct SubtitleTableColumnLayout {
     static func minimumContentWidth(
         showsDateAddedColumn: Bool = false,
         showsDisplayTitleColumn: Bool = true,
+        showsStartTimeColumn: Bool = false,
+        showsEndTimeColumn: Bool = false,
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool,
         cuesMinimumWidth: CGFloat
@@ -58,9 +63,11 @@ struct SubtitleTableColumnLayout {
         let M = SubtitleTableMetrics.self
         let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
         let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
+        let startTimeWidth = showsStartTimeColumn ? M.timeColumnWidth : 0
+        let endTimeWidth = showsEndTimeColumn ? M.timeColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-        return M.indexColumnWidth + dateAddedWidth + displayTitleWidth + cuesMinimumWidth + speakerWidth + languageWidth
+        return M.indexColumnWidth + dateAddedWidth + displayTitleWidth + startTimeWidth + endTimeWidth + cuesMinimumWidth + speakerWidth + languageWidth
     }
 
     static func resolve(
@@ -68,6 +75,8 @@ struct SubtitleTableColumnLayout {
         height: CGFloat,
         showsDateAddedColumn: Bool = false,
         showsDisplayTitleColumn: Bool = true,
+        showsStartTimeColumn: Bool = false,
+        showsEndTimeColumn: Bool = false,
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool,
         cuesMinimumWidth: CGFloat,
@@ -77,6 +86,8 @@ struct SubtitleTableColumnLayout {
         let minimumWidth = minimumContentWidth(
             showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
+            showsStartTimeColumn: showsStartTimeColumn,
+            showsEndTimeColumn: showsEndTimeColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             showsLanguageColumn: showsLanguageColumn,
             cuesMinimumWidth: cuesMinimumWidth
@@ -86,11 +97,13 @@ struct SubtitleTableColumnLayout {
             : max(0, contentWidth)
         let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
         let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
+        let startTimeWidth = showsStartTimeColumn ? M.timeColumnWidth : 0
+        let endTimeWidth = showsEndTimeColumn ? M.timeColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
         let cuesWidth = max(
             cuesMinimumWidth,
-            resolvedContentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - speakerWidth - languageWidth
+            resolvedContentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - startTimeWidth - endTimeWidth - speakerWidth - languageWidth
         )
 
         var x: CGFloat = 0
@@ -105,6 +118,20 @@ struct SubtitleTableColumnLayout {
         }
         let nameRect = CGRect(x: x, y: 0, width: displayTitleWidth, height: height)
         x += displayTitleWidth
+        let startTimeRect: CGRect?
+        if showsStartTimeColumn {
+            startTimeRect = CGRect(x: x, y: 0, width: M.timeColumnWidth, height: height)
+            x += M.timeColumnWidth
+        } else {
+            startTimeRect = nil
+        }
+        let endTimeRect: CGRect?
+        if showsEndTimeColumn {
+            endTimeRect = CGRect(x: x, y: 0, width: M.timeColumnWidth, height: height)
+            x += M.timeColumnWidth
+        } else {
+            endTimeRect = nil
+        }
         let cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
         x += cuesWidth
 
@@ -127,6 +154,8 @@ struct SubtitleTableColumnLayout {
             indexRect: indexRect,
             dateAddedRect: dateAddedRect,
             nameRect: nameRect,
+            startTimeRect: startTimeRect,
+            endTimeRect: endTimeRect,
             cuesRect: cuesRect,
             speakerRect: speakerRect,
             languageRect: languageRect,
@@ -139,23 +168,28 @@ struct SubtitleTableColumnLayout {
         height: CGFloat,
         showsDateAddedColumn: Bool = false,
         showsDisplayTitleColumn: Bool = true,
+        showsStartTimeColumn: Bool = false,
+        showsEndTimeColumn: Bool = false,
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool
     ) -> SubtitleTableColumnLayout {
         let M = SubtitleTableMetrics.self
         let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
         let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
+        let startTimeWidth = showsStartTimeColumn ? M.timeColumnWidth : 0
+        let endTimeWidth = showsEndTimeColumn ? M.timeColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-        let cuesWidth = max(0, contentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - speakerWidth - languageWidth)
+        let cuesWidth = max(0, contentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - startTimeWidth - endTimeWidth - speakerWidth - languageWidth)
+        let cuesX = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + startTimeWidth + endTimeWidth
         let speakerRect = showsSpeakerColumn ? CGRect(
-            x: max(M.indexColumnWidth + dateAddedWidth + displayTitleWidth, contentWidth - languageWidth - M.speakerColumnWidth),
+            x: max(cuesX, contentWidth - languageWidth - M.speakerColumnWidth),
             y: 0,
             width: M.speakerColumnWidth,
             height: height
         ) : nil
         let languageRect = showsLanguageColumn ? CGRect(
-            x: max(M.indexColumnWidth + dateAddedWidth + displayTitleWidth, contentWidth - M.languageColumnWidth),
+            x: max(cuesX, contentWidth - M.languageColumnWidth),
             y: 0,
             width: M.languageColumnWidth,
             height: height
@@ -165,8 +199,10 @@ struct SubtitleTableColumnLayout {
             indexRect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: height),
             dateAddedRect: showsDateAddedColumn ? CGRect(x: M.indexColumnWidth, y: 0, width: dateAddedWidth, height: height) : nil,
             nameRect: CGRect(x: M.indexColumnWidth + dateAddedWidth, y: 0, width: displayTitleWidth, height: height),
+            startTimeRect: showsStartTimeColumn ? CGRect(x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth, y: 0, width: startTimeWidth, height: height) : nil,
+            endTimeRect: showsEndTimeColumn ? CGRect(x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth + startTimeWidth, y: 0, width: endTimeWidth, height: height) : nil,
             cuesRect: CGRect(
-                x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth,
+                x: cuesX,
                 y: 0,
                 width: cuesWidth,
                 height: height
@@ -182,6 +218,8 @@ struct SubtitleTableColumnLayout {
             indexRect: indexRect.offsetBy(dx: dx, dy: 0),
             dateAddedRect: dateAddedRect?.offsetBy(dx: dx, dy: 0),
             nameRect: nameRect.offsetBy(dx: dx, dy: 0),
+            startTimeRect: startTimeRect?.offsetBy(dx: dx, dy: 0),
+            endTimeRect: endTimeRect?.offsetBy(dx: dx, dy: 0),
             cuesRect: cuesRect.offsetBy(dx: dx, dy: 0),
             speakerRect: speakerRect?.offsetBy(dx: dx, dy: 0),
             languageRect: languageRect?.offsetBy(dx: dx, dy: 0),
@@ -1183,6 +1221,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private var indexHeaderHost: NSHostingView<AnyView>?
     private var dateAddedHeaderHost: NSHostingView<AnyView>?
     private var nameHeaderHost: NSHostingView<AnyView>?
+    private var startTimeHeaderHost: NSHostingView<AnyView>?
+    private var endTimeHeaderHost: NSHostingView<AnyView>?
     private var cuesHeaderHost: NSHostingView<AnyView>?
     private var speakerHeaderHost: NSHostingView<AnyView>?
     private var languageHeaderHost: NSHostingView<AnyView>?
@@ -1262,12 +1302,17 @@ final class SubtitleVirtualTableHeaderView: NSView {
             let M = SubtitleTableMetrics.self
             let showsDateAddedColumn = coordinator?.showsDateAddedColumnForRendering() ?? false
             let showsDisplayTitleColumn = coordinator?.showsDisplayTitleColumnForRendering() ?? true
+            let showsStartTimeColumn = coordinator?.showsStartTimeColumnForRendering() ?? false
+            let showsEndTimeColumn = coordinator?.showsEndTimeColumnForRendering() ?? false
             let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
             let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
             let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
             let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
+            let startTimeWidth = showsStartTimeColumn ? M.timeColumnWidth : 0
+            let endTimeWidth = showsEndTimeColumn ? M.timeColumnWidth : 0
             let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
             let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+            let cuesX = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + startTimeWidth + endTimeWidth
             drawHeader(
                 "#",
                 rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height),
@@ -1290,12 +1335,28 @@ final class SubtitleVirtualTableHeaderView: NSView {
                     trailing: M.trailingInset
                 )
             }
+            if showsStartTimeColumn {
+                drawHeader(
+                    coordinator?.startTimeHeaderForRendering() ?? "Start Time",
+                    rect: CGRect(x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth, y: 0, width: startTimeWidth, height: bounds.height),
+                    leading: M.headerHorizontalInset,
+                    trailing: M.trailingInset
+                )
+            }
+            if showsEndTimeColumn {
+                drawHeader(
+                    coordinator?.endTimeHeaderForRendering() ?? "End Time",
+                    rect: CGRect(x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth + startTimeWidth, y: 0, width: endTimeWidth, height: bounds.height),
+                    leading: M.headerHorizontalInset,
+                    trailing: M.trailingInset
+                )
+            }
             drawHeader(
                 coordinator?.cuesHeaderForRendering() ?? "Cues",
                 rect: CGRect(
-                    x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth,
+                    x: cuesX,
                     y: 0,
-                    width: max(0, bounds.width - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - speakerWidth - languageWidth),
+                    width: max(0, bounds.width - cuesX - speakerWidth - languageWidth),
                     height: bounds.height
                 ),
                 leading: M.headerHorizontalInset,
@@ -1305,7 +1366,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 drawHeader(
                     coordinator?.speakerHeaderForRendering() ?? "Speaker",
                     rect: CGRect(
-                        x: max(M.indexColumnWidth + dateAddedWidth + displayTitleWidth, bounds.width - languageWidth - M.speakerColumnWidth),
+                        x: max(cuesX, bounds.width - languageWidth - M.speakerColumnWidth),
                         y: 0,
                         width: M.speakerColumnWidth,
                         height: bounds.height
@@ -1318,7 +1379,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 drawHeader(
                     coordinator?.languageHeaderForRendering() ?? "Language",
                     rect: CGRect(
-                        x: max(M.indexColumnWidth + dateAddedWidth + displayTitleWidth, bounds.width - M.languageColumnWidth),
+                        x: max(cuesX, bounds.width - M.languageColumnWidth),
                         y: 0,
                         width: M.languageColumnWidth,
                         height: bounds.height
@@ -1364,6 +1425,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
             indexHeaderHost?.isHidden = true
             dateAddedHeaderHost?.isHidden = true
             nameHeaderHost?.isHidden = true
+            startTimeHeaderHost?.isHidden = true
+            endTimeHeaderHost?.isHidden = true
             cuesHeaderHost?.isHidden = true
             speakerHeaderHost?.isHidden = true
             languageHeaderHost?.isHidden = true
@@ -1379,6 +1442,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
             height: bounds.height,
             showsDateAddedColumn: false,
             showsDisplayTitleColumn: false,
+            showsStartTimeColumn: false,
+            showsEndTimeColumn: false,
             showsSpeakerColumn: false,
             showsLanguageColumn: false,
             cuesMinimumWidth: max(0, bounds.width - M.indexColumnWidth)
@@ -1394,6 +1459,16 @@ final class SubtitleVirtualTableHeaderView: NSView {
             updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? "Name", columnID: "display", isSortable: true, frame: layout.nameRect)
         } else {
             nameHeaderHost?.isHidden = true
+        }
+        if let startTimeRect = layout.startTimeRect {
+            updateHeaderHost(&startTimeHeaderHost, title: coordinator?.startTimeHeaderForRendering() ?? "Start Time", columnID: "startTime", isSortable: true, frame: startTimeRect)
+        } else {
+            startTimeHeaderHost?.isHidden = true
+        }
+        if let endTimeRect = layout.endTimeRect {
+            updateHeaderHost(&endTimeHeaderHost, title: coordinator?.endTimeHeaderForRendering() ?? "End Time", columnID: "endTime", isSortable: true, frame: endTimeRect)
+        } else {
+            endTimeHeaderHost?.isHidden = true
         }
         updateHeaderHost(&cuesHeaderHost, title: coordinator?.cuesHeaderForRendering() ?? "Cues", columnID: "cues", isSortable: true, frame: layout.cuesRect)
 
@@ -1504,6 +1579,12 @@ final class SubtitleVirtualTableHeaderView: NSView {
         }
         if let cuesHeaderHost, !cuesHeaderHost.isHidden {
             return cuesHeaderHost
+        }
+        if let endTimeHeaderHost, !endTimeHeaderHost.isHidden {
+            return endTimeHeaderHost
+        }
+        if let startTimeHeaderHost, !startTimeHeaderHost.isHidden {
+            return startTimeHeaderHost
         }
         if let nameHeaderHost, !nameHeaderHost.isHidden {
             return nameHeaderHost
@@ -1656,11 +1737,15 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowsUpdate: TableSandboxRowsUpdate
     var dateAddedHeader = "Date Added"
     var displayTitleHeader = "Name"
+    var startTimeHeader = "Start Time"
+    var endTimeHeader = "End Time"
     var cuesHeader = "Cues"
     var speakerHeader = "Speaker"
     var languageHeader = "Language"
     var showsDateAddedColumn = false
     var showsDisplayTitleColumn = true
+    var showsStartTimeColumn = false
+    var showsEndTimeColumn = false
     var showsLanguageColumn = false
     var showsSpeakerColumn = false
     var scrollResetToken = 0
@@ -1682,11 +1767,15 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsVersion: rowsVersion,
             dateAddedHeader: dateAddedHeader,
             displayTitleHeader: displayTitleHeader,
+            startTimeHeader: startTimeHeader,
+            endTimeHeader: endTimeHeader,
             cuesHeader: cuesHeader,
             speakerHeader: speakerHeader,
             languageHeader: languageHeader,
             showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
+            showsStartTimeColumn: showsStartTimeColumn,
+            showsEndTimeColumn: showsEndTimeColumn,
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
@@ -1788,11 +1877,15 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsUpdate: rowsUpdate,
             dateAddedHeader: dateAddedHeader,
             displayTitleHeader: displayTitleHeader,
+            startTimeHeader: startTimeHeader,
+            endTimeHeader: endTimeHeader,
             cuesHeader: cuesHeader,
             speakerHeader: speakerHeader,
             languageHeader: languageHeader,
             showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
+            showsStartTimeColumn: showsStartTimeColumn,
+            showsEndTimeColumn: showsEndTimeColumn,
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
@@ -1817,11 +1910,15 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rowsVersion: Int
         private var dateAddedHeader: String
         private var displayTitleHeader: String
+        private var startTimeHeader: String
+        private var endTimeHeader: String
         private var cuesHeader: String
         private var speakerHeader: String
         private var languageHeader: String
         private var showsDateAddedColumn: Bool
         private var showsDisplayTitleColumn: Bool
+        private var showsStartTimeColumn: Bool
+        private var showsEndTimeColumn: Bool
         private var showsLanguageColumn: Bool
         private var showsSpeakerColumn: Bool
         private var scrollResetToken: Int
@@ -1944,11 +2041,15 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsVersion: Int,
             dateAddedHeader: String = "Date Added",
             displayTitleHeader: String = "Name",
+            startTimeHeader: String = "Start Time",
+            endTimeHeader: String = "End Time",
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
             showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
+            showsStartTimeColumn: Bool = false,
+            showsEndTimeColumn: Bool = false,
             showsLanguageColumn: Bool = false,
             showsSpeakerColumn: Bool = false,
             scrollResetToken: Int = 0,
@@ -1967,11 +2068,15 @@ struct SubtitleTableView: NSViewRepresentable {
             self.rowsVersion = rowsVersion
             self.dateAddedHeader = dateAddedHeader
             self.displayTitleHeader = displayTitleHeader
+            self.startTimeHeader = startTimeHeader
+            self.endTimeHeader = endTimeHeader
             self.cuesHeader = cuesHeader
             self.speakerHeader = speakerHeader
             self.languageHeader = languageHeader
             self.showsDateAddedColumn = showsDateAddedColumn
             self.showsDisplayTitleColumn = showsDisplayTitleColumn
+            self.showsStartTimeColumn = showsStartTimeColumn
+            self.showsEndTimeColumn = showsEndTimeColumn
             self.showsLanguageColumn = showsLanguageColumn
             self.showsSpeakerColumn = showsSpeakerColumn
             self.scrollResetToken = scrollResetToken
@@ -2043,11 +2148,15 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsUpdate: TableSandboxRowsUpdate,
             dateAddedHeader: String = "Date Added",
             displayTitleHeader: String,
+            startTimeHeader: String = "Start Time",
+            endTimeHeader: String = "End Time",
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
             showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
+            showsStartTimeColumn: Bool = false,
+            showsEndTimeColumn: Bool = false,
             showsLanguageColumn: Bool,
             showsSpeakerColumn: Bool,
             scrollResetToken: Int,
@@ -2066,6 +2175,10 @@ struct SubtitleTableView: NSViewRepresentable {
             self.dateAddedHeader = dateAddedHeader
             let displayTitleChanged = displayTitleHeader != self.displayTitleHeader
             self.displayTitleHeader = displayTitleHeader
+            let startTimeChanged = startTimeHeader != self.startTimeHeader
+            self.startTimeHeader = startTimeHeader
+            let endTimeChanged = endTimeHeader != self.endTimeHeader
+            self.endTimeHeader = endTimeHeader
             let cuesHeaderChanged = cuesHeader != self.cuesHeader
             self.cuesHeader = cuesHeader
             let speakerHeaderChanged = speakerHeader != self.speakerHeader
@@ -2076,6 +2189,10 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsDateAddedColumn = showsDateAddedColumn
             let displayTitleColumnChanged = showsDisplayTitleColumn != self.showsDisplayTitleColumn
             self.showsDisplayTitleColumn = showsDisplayTitleColumn
+            let startTimeColumnChanged = showsStartTimeColumn != self.showsStartTimeColumn
+            self.showsStartTimeColumn = showsStartTimeColumn
+            let endTimeColumnChanged = showsEndTimeColumn != self.showsEndTimeColumn
+            self.showsEndTimeColumn = showsEndTimeColumn
             let languageColumnChanged = showsLanguageColumn != self.showsLanguageColumn
             self.showsLanguageColumn = showsLanguageColumn
             let speakerColumnChanged = showsSpeakerColumn != self.showsSpeakerColumn
@@ -2107,8 +2224,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 rowProvider(row) != nil
             }
 
-            let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || languageColumnChanged || speakerColumnChanged
-            let headerTitleChanged = dateAddedChanged || displayTitleChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged
+            let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || startTimeColumnChanged || endTimeColumnChanged || languageColumnChanged || speakerColumnChanged
+            let headerTitleChanged = dateAddedChanged || displayTitleChanged || startTimeChanged || endTimeChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged
 
             resizeDocument()
             if changed || columnVisibilityChanged {
@@ -2137,6 +2254,14 @@ struct SubtitleTableView: NSViewRepresentable {
             displayTitleHeader
         }
 
+        func startTimeHeaderForRendering() -> String {
+            startTimeHeader
+        }
+
+        func endTimeHeaderForRendering() -> String {
+            endTimeHeader
+        }
+
         func cuesHeaderForRendering() -> String {
             cuesHeader
         }
@@ -2155,6 +2280,14 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func showsDisplayTitleColumnForRendering() -> Bool {
             showsDisplayTitleColumn
+        }
+
+        func showsStartTimeColumnForRendering() -> Bool {
+            showsStartTimeColumn
+        }
+
+        func showsEndTimeColumnForRendering() -> Bool {
+            showsEndTimeColumn
         }
 
         func showsLanguageColumnForRendering() -> Bool {
@@ -2278,6 +2411,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 if showsDisplayTitleColumn {
                     headers.append(displayTitleHeader)
                 }
+                if showsStartTimeColumn {
+                    headers.append(startTimeHeader)
+                }
+                if showsEndTimeColumn {
+                    headers.append(endTimeHeader)
+                }
                 headers.append(cuesHeader)
                 if showsSpeakerColumn {
                     headers.append(speakerHeader)
@@ -2300,6 +2439,18 @@ struct SubtitleTableView: NSViewRepresentable {
             if showsDisplayTitleColumn {
                 if column == nextColumn {
                     return model.displayTitle
+                }
+                nextColumn += 1
+            }
+            if showsStartTimeColumn {
+                if column == nextColumn {
+                    return model.startTime
+                }
+                nextColumn += 1
+            }
+            if showsEndTimeColumn {
+                if column == nextColumn {
+                    return model.endTime
                 }
                 nextColumn += 1
             }
@@ -2390,6 +2541,8 @@ struct SubtitleTableView: NSViewRepresentable {
             let minimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
                 showsDateAddedColumn: showsDateAddedColumn,
                 showsDisplayTitleColumn: showsDisplayTitleColumn,
+                showsStartTimeColumn: showsStartTimeColumn,
+                showsEndTimeColumn: showsEndTimeColumn,
                 showsSpeakerColumn: showsSpeakerColumn,
                 showsLanguageColumn: showsLanguageColumn,
                 cuesMinimumWidth: cuesMinimumWidth
@@ -2404,6 +2557,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     height: height,
                     showsDateAddedColumn: showsDateAddedColumn,
                     showsDisplayTitleColumn: showsDisplayTitleColumn,
+                    showsStartTimeColumn: showsStartTimeColumn,
+                    showsEndTimeColumn: showsEndTimeColumn,
                     showsSpeakerColumn: showsSpeakerColumn,
                     showsLanguageColumn: showsLanguageColumn
                 )
@@ -2413,6 +2568,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 height: height,
                 showsDateAddedColumn: showsDateAddedColumn,
                 showsDisplayTitleColumn: showsDisplayTitleColumn,
+                showsStartTimeColumn: showsStartTimeColumn,
+                showsEndTimeColumn: showsEndTimeColumn,
                 showsSpeakerColumn: showsSpeakerColumn,
                 showsLanguageColumn: showsLanguageColumn,
                 cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
@@ -2503,6 +2660,20 @@ struct SubtitleTableView: NSViewRepresentable {
                 drawBody(
                     model?.displayTitle ?? "",
                     in: rowColumnRect(layout.nameRect, rowRect: rowRect),
+                    trailing: M.trailingInset
+                )
+            }
+            if let startTimeRect = layout.startTimeRect {
+                drawBody(
+                    model?.startTime ?? "",
+                    in: rowColumnRect(startTimeRect, rowRect: rowRect),
+                    trailing: M.trailingInset
+                )
+            }
+            if let endTimeRect = layout.endTimeRect {
+                drawBody(
+                    model?.endTime ?? "",
+                    in: rowColumnRect(endTimeRect, rowRect: rowRect),
                     trailing: M.trailingInset
                 )
             }
@@ -3022,7 +3193,9 @@ struct SubtitleTableView: NSViewRepresentable {
             } else {
                 let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
                 let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
-                let x = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + M.cellLeading
+                let startTimeWidth = showsStartTimeColumn ? M.timeColumnWidth : 0
+                let endTimeWidth = showsEndTimeColumn ? M.timeColumnWidth : 0
+                let x = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + startTimeWidth + endTimeWidth + M.cellLeading
                 let y = rowRect.minY + M.rowVerticalInset - 4
                 buttonFrame = CGRect(x: x, y: y, width: 120, height: 28)
             }

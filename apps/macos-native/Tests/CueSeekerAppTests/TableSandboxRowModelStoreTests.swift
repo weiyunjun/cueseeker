@@ -24,6 +24,8 @@ func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
     #expect(store.snapshot.update == .append(0..<2))
     #expect(store.snapshot.rows.count == 2)
     #expect(store.snapshot.rows[0].displayTitle == "Resolved episode-01.ass")
+    #expect(store.snapshot.rows[0].startTime == "00:01")
+    #expect(store.snapshot.rows[0].endTime == "00:02")
     #expect(store.snapshot.rows[0].cues == "line one\nline two")
     #expect(resolvedPaths == [path])
 
@@ -32,6 +34,30 @@ func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
     #expect(store.snapshot.version == 1)
     #expect(store.snapshot.update == .append(0..<2))
     #expect(resolvedPaths == [path])
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreFormatsCueTimeColumns() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 1,
+                path: path,
+                content: "short cue",
+                cueLines: ["short cue"],
+                startMilliseconds: 918_000,
+                endMilliseconds: 4_592_000
+            )
+        ],
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.rows[0].startTime == "15:18")
+    #expect(store.snapshot.rows[0].endTime == "01:16:32")
 }
 
 @MainActor
@@ -251,6 +277,8 @@ func tableSandboxRowModelStoreHydratesSparseShioriRowsForVirtualTableActions() {
     #expect(store.snapshot.rows.isEmpty)
     #expect(store.snapshot.row(at: 299) == nil)
     #expect(store.snapshot.row(at: 300)?.cues == "visible shiori one")
+    #expect(store.snapshot.row(at: 300)?.startTime == "00:01")
+    #expect(store.snapshot.row(at: 300)?.endTime == "00:02")
     #expect(store.snapshot.row(at: 301)?.tags.map(\.label) == ["zh-hans"])
     #expect(store.snapshot.shiori(entryID: 301)?.content == "visible shiori one")
     #expect(store.snapshot.update == .append(300..<302))
@@ -468,7 +496,9 @@ private func searchResult(
     content: String,
     cueLines: [String],
     languages: Set<SubtitleLanguageCode> = [.unknown],
-    speakers: Set<String> = []
+    speakers: Set<String> = [],
+    startMilliseconds: Int = 1_000,
+    endMilliseconds: Int = 2_000
 ) -> SubtitleSearchResult {
     SubtitleSearchResult(
         entryID: id,
@@ -477,8 +507,8 @@ private func searchResult(
         videoPath: path.replacingOccurrences(of: ".ass", with: ".mkv"),
         videoName: "episode.mkv",
         displayTitle: displayTitle,
-        startMilliseconds: 1_000,
-        endMilliseconds: 2_000,
+        startMilliseconds: startMilliseconds,
+        endMilliseconds: endMilliseconds,
         content: content,
         cueLines: cueLines,
         languages: languages,
@@ -489,7 +519,9 @@ private func searchResult(
 private func shioriSource(
     id: Int64,
     content: String,
-    languages: Set<SubtitleLanguageCode>
+    languages: Set<SubtitleLanguageCode>,
+    startMilliseconds: Int = 1_000,
+    endMilliseconds: Int = 2_000
 ) -> TableSandboxShioriRowSource {
     TableSandboxShioriRowSource(
         shiori: Shiori(
@@ -498,8 +530,8 @@ private func shioriSource(
             subtitleFormat: .ass,
             videoPath: "/tmp/CueSeeker/Series/episode-\(id).mkv",
             videoName: "episode-\(id).mkv",
-            startMilliseconds: 1_000,
-            endMilliseconds: 2_000,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
             content: content,
             isValid: true,
             createdAt: "2026-06-23T12:00:00Z"

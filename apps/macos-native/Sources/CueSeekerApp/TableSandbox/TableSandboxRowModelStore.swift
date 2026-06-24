@@ -88,6 +88,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 subtitlePath: result.subtitlePath,
                 dateAdded: "",
                 displayTitle: displayTitle,
+                startTime: tableSandboxCueTimeText(milliseconds: result.startMilliseconds),
+                endTime: tableSandboxCueTimeText(milliseconds: result.endMilliseconds),
                 content: result.content,
                 cueLines: result.cueLines,
                 languages: result.languages,
@@ -108,6 +110,8 @@ final class TableSandboxRowModelStore: ObservableObject {
             let row = SubtitleTableRow(
                 id: key.id,
                 displayTitle: displayTitle,
+                startTime: key.startTime,
+                endTime: key.endTime,
                 cues: tableSandboxDisplayText(
                     content: result.content,
                     cueLines: result.cueLines
@@ -225,6 +229,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 subtitlePath: item.shiori.subtitlePath,
                 dateAdded: item.dateAddedText,
                 displayTitle: item.displayTitle,
+                startTime: tableSandboxCueTimeText(milliseconds: item.shiori.startMilliseconds),
+                endTime: tableSandboxCueTimeText(milliseconds: item.shiori.endMilliseconds),
                 content: item.shiori.content,
                 cueLines: item.shiori.cueLines,
                 languages: item.languages,
@@ -246,6 +252,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 id: key.id,
                 dateAdded: item.dateAddedText,
                 displayTitle: item.displayTitle,
+                startTime: key.startTime,
+                endTime: key.endTime,
                 cues: tableSandboxDisplayText(
                     content: item.shiori.content,
                     cueLines: item.shiori.cueLines
@@ -428,6 +436,8 @@ final class TableSandboxRowModelStore: ObservableObject {
             subtitlePath: result.subtitlePath,
             dateAdded: "",
             displayTitle: displayTitle,
+            startTime: tableSandboxCueTimeText(milliseconds: result.startMilliseconds),
+            endTime: tableSandboxCueTimeText(milliseconds: result.endMilliseconds),
             content: result.content,
             cueLines: result.cueLines,
             languages: result.languages,
@@ -441,6 +451,8 @@ final class TableSandboxRowModelStore: ObservableObject {
         let row = SubtitleTableRow(
             id: key.id,
             displayTitle: displayTitle,
+            startTime: key.startTime,
+            endTime: key.endTime,
             cues: tableSandboxDisplayText(
                 content: result.content,
                 cueLines: result.cueLines
@@ -458,6 +470,8 @@ final class TableSandboxRowModelStore: ObservableObject {
             subtitlePath: item.shiori.subtitlePath,
             dateAdded: item.dateAddedText,
             displayTitle: item.displayTitle,
+            startTime: tableSandboxCueTimeText(milliseconds: item.shiori.startMilliseconds),
+            endTime: tableSandboxCueTimeText(milliseconds: item.shiori.endMilliseconds),
             content: item.shiori.content,
             cueLines: item.shiori.cueLines,
             languages: item.languages,
@@ -472,6 +486,8 @@ final class TableSandboxRowModelStore: ObservableObject {
             id: key.id,
             dateAdded: item.dateAddedText,
             displayTitle: item.displayTitle,
+            startTime: key.startTime,
+            endTime: key.endTime,
             cues: tableSandboxDisplayText(
                 content: item.shiori.content,
                 cueLines: item.shiori.cueLines
@@ -582,6 +598,8 @@ private struct RowCacheKey: Hashable {
     let subtitlePath: String
     let dateAdded: String
     let displayTitle: String
+    let startTime: String
+    let endTime: String
     let content: String
     let cueLines: [String]
     let languages: Set<SubtitleLanguageCode>
@@ -598,6 +616,18 @@ func tableSandboxDisplayText(content: String, cueLines: [String]) -> String {
         .prefix(TableSandboxDisplayTextBudget.maximumLines)
         .map(truncateTableSandboxDisplayLine)
         .joined(separator: "\n")
+}
+
+func tableSandboxCueTimeText(milliseconds: Int) -> String {
+    let totalSeconds = max(0, milliseconds) / 1_000
+    let hours = totalSeconds / 3_600
+    let minutes = (totalSeconds % 3_600) / 60
+    let seconds = totalSeconds % 60
+
+    if hours > 0 {
+        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+    return String(format: "%02d:%02d", minutes, seconds)
 }
 
 private func tableSandboxSpeakerTags(for speakers: Set<String>) -> [WorkbenchTag] {

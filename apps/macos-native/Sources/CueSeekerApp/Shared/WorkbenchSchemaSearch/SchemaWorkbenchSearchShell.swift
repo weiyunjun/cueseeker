@@ -217,22 +217,22 @@ enum SchemaWorkbenchSearchDefaults {
             width: .fixed(300)
         ),
         WorkbenchTableColumn(
+            id: "startTime",
+            title: "Start Time",
+            kind: .text,
+            width: .fixed(130)
+        ),
+        WorkbenchTableColumn(
+            id: "endTime",
+            title: "End Time",
+            kind: .text,
+            width: .fixed(130)
+        ),
+        WorkbenchTableColumn(
             id: "cues",
             title: "Cues",
             kind: .text,
             width: .flexible(min: 580)
-        ),
-        WorkbenchTableColumn(
-            id: "speaker",
-            title: "Speaker",
-            kind: .multiSelect,
-            width: .fixed(230)
-        ),
-        WorkbenchTableColumn(
-            id: "language",
-            title: "Language",
-            kind: .multiSelect,
-            width: .fixed(230)
         ),
     ]
 
@@ -256,16 +256,22 @@ enum SchemaWorkbenchSearchDefaults {
             width: .fixed(300)
         ),
         WorkbenchTableColumn(
+            id: "startTime",
+            title: "Start Time",
+            kind: .text,
+            width: .fixed(130)
+        ),
+        WorkbenchTableColumn(
+            id: "endTime",
+            title: "End Time",
+            kind: .text,
+            width: .fixed(130)
+        ),
+        WorkbenchTableColumn(
             id: "cues",
             title: "Cues",
             kind: .text,
             width: .flexible(min: 580)
-        ),
-        WorkbenchTableColumn(
-            id: "language",
-            title: "Language",
-            kind: .multiSelect,
-            width: .fixed(230)
         ),
     ]
 
@@ -534,7 +540,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             )
         case .filterBuilder:
             SchemaWorkbenchFilterBuilderPopover(
-                columns: columns,
+                columns: filterableColumns,
                 rules: $filterRules,
                 isRedesign: isRedesign,
                 onSave: {

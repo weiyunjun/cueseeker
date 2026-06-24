@@ -9,6 +9,8 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
     let loadedRow = SubtitleTableRow(
         id: 1,
         displayTitle: "Episode 01",
+        startTime: "01:15:32",
+        endTime: "01:16:04",
         cues: "loaded cue",
         tags: [
             WorkbenchTag(key: "zh-hans"),
@@ -26,6 +28,8 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
         },
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
+        showsStartTimeColumn: true,
+        showsEndTimeColumn: true,
         showsLanguageColumn: true,
         showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
@@ -34,16 +38,22 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
 
     #expect(coordinator.numberOfRowsForTesting() == 2_000_000)
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
-    #expect(coordinator.cellFullText(row: -1, column: 3) == "Speaker")
-    #expect(coordinator.cellFullText(row: -1, column: 4) == "Language")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Start Time")
+    #expect(coordinator.cellFullText(row: -1, column: 3) == "End Time")
+    #expect(coordinator.cellFullText(row: -1, column: 5) == "Speaker")
+    #expect(coordinator.cellFullText(row: -1, column: 6) == "Language")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
-    #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
-    #expect(coordinator.cellFullText(row: 0, column: 3) == "高松灯")
-    #expect(coordinator.cellFullText(row: 0, column: 4) == "zh-hans, jp")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "01:15:32")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "01:16:04")
+    #expect(coordinator.cellFullText(row: 0, column: 4) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 5) == "高松灯")
+    #expect(coordinator.cellFullText(row: 0, column: 6) == "zh-hans, jp")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 0) == "1000001")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 2) == "")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 3) == "")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 4) == "")
+    #expect(coordinator.cellFullText(row: 1_000_000, column: 5) == "")
+    #expect(coordinator.cellFullText(row: 1_000_000, column: 6) == "")
 }
 
 @MainActor
@@ -52,6 +62,8 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
     let loadedRow = SubtitleTableRow(
         id: 1,
         displayTitle: "Episode 01",
+        startTime: "15:18",
+        endTime: "15:20",
         cues: "loaded cue",
         tags: [
             WorkbenchTag(key: "zh-hans"),
@@ -68,6 +80,8 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsDisplayTitleColumn: false,
+        showsStartTimeColumn: true,
+        showsEndTimeColumn: true,
         showsLanguageColumn: true,
         showsSpeakerColumn: false,
         onVisibleRowsChange: { _ in },
@@ -75,12 +89,16 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
     )
     coordinator.isRedesign = true
 
-    #expect(coordinator.cellFullText(row: -1, column: 1) == "Cues")
-    #expect(coordinator.cellFullText(row: -1, column: 2) == "Language")
-    #expect(coordinator.cellFullText(row: -1, column: 3) == "")
-    #expect(coordinator.cellFullText(row: 0, column: 1) == "loaded cue")
-    #expect(coordinator.cellFullText(row: 0, column: 2) == "zh-hans, jp")
-    #expect(coordinator.cellFullText(row: 0, column: 3) == "")
+    #expect(coordinator.cellFullText(row: -1, column: 1) == "Start Time")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "End Time")
+    #expect(coordinator.cellFullText(row: -1, column: 3) == "Cues")
+    #expect(coordinator.cellFullText(row: -1, column: 4) == "Language")
+    #expect(coordinator.cellFullText(row: -1, column: 5) == "")
+    #expect(coordinator.cellFullText(row: 0, column: 1) == "15:18")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "15:20")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 4) == "zh-hans, jp")
+    #expect(coordinator.cellFullText(row: 0, column: 5) == "")
 }
 
 @MainActor

@@ -39,6 +39,7 @@ struct WorkbenchTestSearchView: View {
             tableSummary: tableSummary,
             tableSummaryLeadingInset: tableSummaryLeadingInset,
             tableSummaryAction: selectedAnkiAction,
+            filterableColumnIDs: ["display", "cues"],
             onSearchSubmit: {
                 submitSearchDraft()
             }
@@ -51,10 +52,14 @@ struct WorkbenchTestSearchView: View {
                     rowsVersion: rowStore.snapshot.version,
                     rowsUpdate: rowStore.snapshot.update,
                     displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
+                    startTimeHeader: columnTitle("startTime", in: visibleColumns, fallback: "Start Time"),
+                    endTimeHeader: columnTitle("endTime", in: visibleColumns, fallback: "End Time"),
                     cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
                     speakerHeader: columnTitle("speaker", in: visibleColumns, fallback: "Speaker"),
                     languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
                     showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
+                    showsStartTimeColumn: isColumnVisible("startTime", in: visibleColumns),
+                    showsEndTimeColumn: isColumnVisible("endTime", in: visibleColumns),
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
                     scrollResetToken: tableScrollResetToken,
