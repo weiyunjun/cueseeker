@@ -122,6 +122,82 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
 }
 
 @Test
+func cueContextSearchRankUsesFilteredAllCueOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let contextSubtitleFile = URL(fileURLWithPath: "/Media/ContextRank.srt")
+    let contextVideoFile = URL(fileURLWithPath: "/Media/ContextRank.mkv")
+    let otherSubtitleFile = URL(fileURLWithPath: "/Media/OtherRank.srt")
+    let otherVideoFile = URL(fileURLWithPath: "/Media/OtherRank.mkv")
+    try database.replaceEntries(
+        subtitleFile: contextSubtitleFile,
+        videoFile: contextVideoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:01,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 1_500,
+                text: "first context cue"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:02,000",
+                endTimecode: "00:00:02,500",
+                startMilliseconds: 2_000,
+                endMilliseconds: 2_500,
+                text: "second context cue"
+            ),
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: otherSubtitleFile,
+        videoFile: otherVideoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:01,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 1_500,
+                text: "other cue"
+            ),
+        ]
+    )
+
+    let contextEntries = try database.entries(forSubtitleFile: contextSubtitleFile)
+    let otherEntries = try database.entries(forSubtitleFile: otherSubtitleFile)
+    let secondContextEntry = try #require(contextEntries.first { $0.content == "second context cue" })
+    let otherEntry = try #require(otherEntries.first)
+    let filterSet = SubtitleSearchFilterSet(
+        rules: [
+            SubtitleSearchFilterRule(
+                field: .display,
+                operatorID: .contains,
+                value: "ContextRank"
+            )
+        ]
+    )
+
+    #expect(
+        try database.cueGroupID(
+            forSubtitlePath: contextSubtitleFile.path,
+            startMilliseconds: secondContextEntry.startMilliseconds,
+            endMilliseconds: secondContextEntry.endMilliseconds
+        ) == secondContextEntry.id
+    )
+    #expect(try database.allCueGroupSearchRank(of: secondContextEntry.id, filterSet: filterSet) == 1)
+    #expect(try database.allCueGroupSearchRank(of: otherEntry.id, filterSet: filterSet) == nil)
+}
+
+@Test
 func replacesCueLineSpeakersAsStringSets() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

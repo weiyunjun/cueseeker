@@ -19,9 +19,14 @@ struct WorkbenchTestSearchView: View {
     @State private var lastVisibleRows: Range<Int>?
     @State private var appliedFilterSignature = ""
     @State private var tableScrollResetToken = 0
+    @State private var tableScrollRequest: SubtitleTableScrollRequest?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var collageAvailabilityGeneration = 0
     @State private var canExportSelectedRowsAsCollage = false
+    @State private var lastHandledCueContextRequestID: UUID?
+    @State private var cueContextLoadGeneration = 0
+    @State private var suppressNextEmptySearchQueryReload = false
+    @State private var suppressNextFilterRulesReload = false
 
     init() {
         _searchDraft = State(initialValue: "")
@@ -66,12 +71,14 @@ struct WorkbenchTestSearchView: View {
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
                     scrollResetToken: tableScrollResetToken,
+                    scrollRequest: tableScrollRequest,
                     onVisibleRowsChange: hydrateVisibleRows,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
                     onToggleRowSelection: toggleRowSelection,
                     onToggleAllSelection: toggleAllRowSelection,
                     onPlay: play,
+                    onShowContext: showContext,
                     isRedesign: true
                 )
 
@@ -81,6 +88,11 @@ struct WorkbenchTestSearchView: View {
             }
         }
         .onAppear {
+            if let request = search.cueContextSearchRequest,
+               applyCueContextSearchRequest(request) {
+                return
+            }
+
             searchDraft = search.searchQuery
             applyFilterRules(filterRules, force: true)
             if showsSearchEmptyHint {
@@ -92,6 +104,10 @@ struct WorkbenchTestSearchView: View {
             }
         }
         .onChange(of: filterRules) { newValue in
+            if suppressNextFilterRulesReload {
+                suppressNextFilterRulesReload = false
+                return
+            }
             applyFilterRules(newValue)
         }
         .onReceive(search.$searchResults) {
@@ -104,6 +120,10 @@ struct WorkbenchTestSearchView: View {
             rowSelection.reset()
             lastVisibleRows = nil
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if suppressNextEmptySearchQueryReload {
+                    suppressNextEmptySearchQueryReload = false
+                    return
+                }
                 if search.activeFilterSet.isEffectivelyEmpty {
                     clearTableRows(resetScroll: true)
                 } else {
@@ -120,6 +140,12 @@ struct WorkbenchTestSearchView: View {
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
             hydrateLastVisibleRowsIfNeeded()
+        }
+        .onChange(of: search.cueContextSearchRequest) { request in
+            guard let request else {
+                return
+            }
+            _ = applyCueContextSearchRequest(request)
         }
         .onDisappear { visibleHydrator.cancel() }
     }
@@ -141,6 +167,57 @@ struct WorkbenchTestSearchView: View {
         search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && searchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && search.activeFilterSet.isEffectivelyEmpty
+    }
+
+    @discardableResult
+    private func applyCueContextSearchRequest(_ request: CueContextSearchRequest) -> Bool {
+        guard lastHandledCueContextRequestID != request.id else {
+            return false
+        }
+
+        let displayTitle = request.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !displayTitle.isEmpty else {
+            return false
+        }
+
+        lastHandledCueContextRequestID = request.id
+        cueContextLoadGeneration += 1
+        let generation = cueContextLoadGeneration
+        let rules = [
+            SchemaWorkbenchSearchDefaults.makeFilterRule(
+                join: nil,
+                fieldID: "display",
+                operatorID: .contains,
+                value: displayTitle
+            )
+        ]
+        let filterSet = rules.subtitleSearchFilterSet
+        let filterSignature = filterSet.cacheSignature
+
+        if filterRules != rules {
+            suppressNextFilterRulesReload = true
+        }
+        if !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            suppressNextEmptySearchQueryReload = true
+        }
+
+        searchDraft = ""
+        activeFilterSetID = nil
+        filterRules = rules
+        search.searchQuery = ""
+        search.searchNavigationSnapshot = nil
+        appliedFilterSignature = filterSignature
+        appState.updateSearchFilterSet(filterSet)
+        tableScrollRequest = nil
+        tableScrollResetToken += 1
+        clearTableRows(resetScroll: false)
+        loadCueContextRows(
+            request: request,
+            filterSet: filterSet,
+            filterSignature: filterSignature,
+            generation: generation
+        )
+        return true
     }
 
     private var tableSummary: SchemaWorkbenchTableSummary {
@@ -241,6 +318,19 @@ struct WorkbenchTestSearchView: View {
         appState.openSearchResult(result)
     }
 
+    private func showContext(_ row: SubtitleTableRow) {
+        if let result = rowStore.snapshot.searchResult(entryID: row.id)
+            ?? search.searchResults.first(where: { Int($0.entryID) == row.id }) {
+            appState.openSearchResultContext(result)
+            return
+        }
+
+        appState.openCueContextSearch(
+            displayTitle: row.displayTitle,
+            targetEntryID: Int64(row.id)
+        )
+    }
+
     private func hydrateInitialRowsIfNeeded() {
         visibleHydrator.scheduleInitialCompletion(
             totalRowCount: rowStore.snapshot.totalRowCount,
@@ -294,6 +384,66 @@ struct WorkbenchTestSearchView: View {
                 tableName: "test-search"
             )
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+            hydrateLastVisibleRowsIfNeeded()
+        }
+    }
+
+    private func loadCueContextRows(
+        request: CueContextSearchRequest,
+        filterSet: SubtitleSearchFilterSet,
+        filterSignature: String,
+        generation: Int
+    ) {
+        Task { @MainActor in
+            let targetRow: Int?
+            if let targetEntryID = request.targetEntryID {
+                targetRow = await appState.loadCueContextSearchRank(
+                    targetEntryID: targetEntryID,
+                    filterSet: filterSet
+                )
+            } else {
+                targetRow = nil
+            }
+
+            guard generation == cueContextLoadGeneration,
+                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  search.activeFilterSetSignature == filterSignature
+            else {
+                return
+            }
+
+            let pageSize = TableSandboxHydrationPaging.pageSize
+            let pageStart = targetRow.map { max(0, ($0 / pageSize) * pageSize) } ?? 0
+            guard let page = await appState.loadTableSandboxAllCueRows(
+                range: pageStart..<(pageStart + pageSize)
+            ) else {
+                guard generation == cueContextLoadGeneration else { return }
+                rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
+                return
+            }
+
+            guard generation == cueContextLoadGeneration,
+                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  search.activeFilterSetSignature == filterSignature
+            else {
+                return
+            }
+
+            appState.applyTableSandboxAllCueSearchContext(page)
+            if page.results.isEmpty {
+                rowStore.updateSearchRows([], totalRowCount: page.totalRowCount, tableName: "test-search")
+            } else {
+                rowStore.hydrateSearchRows(
+                    page.results,
+                    startIndex: page.range.lowerBound,
+                    totalRowCount: page.totalRowCount,
+                    tableName: "test-search"
+                )
+            }
+            rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+            if let targetRow {
+                tableScrollRequest = SubtitleTableScrollRequest(row: targetRow)
+            }
             hydrateLastVisibleRowsIfNeeded()
         }
     }

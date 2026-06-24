@@ -72,6 +72,7 @@ private struct WorkbenchShioriTableContent: View {
                     onToggleRowSelection: toggleRowSelection,
                     onToggleAllSelection: toggleAllRowSelection,
                     onPlay: openShiori,
+                    onShowContext: showContext,
                     rowActionMenuStyle: .shiori,
                     onRemoveShiori: requestRemoveShiori,
                     isRedesign: true
@@ -246,6 +247,13 @@ private struct WorkbenchShioriTableContent: View {
             return
         }
         appState.openShiori(item)
+    }
+
+    private func showContext(_ row: SubtitleTableRow) {
+        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+            return
+        }
+        appState.openShioriContext(item, displayTitle: row.displayTitle)
     }
 
     private func requestRemoveShiori(_ row: SubtitleTableRow) {

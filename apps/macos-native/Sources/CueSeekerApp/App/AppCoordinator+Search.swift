@@ -43,6 +43,56 @@ extension AppCoordinator {
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
     }
 
+    func openSearchResultContext(_ result: SubtitleSearchResult) {
+        openCueContextSearch(
+            displayTitle: result.displayTitle,
+            targetEntryID: result.entryID
+        )
+    }
+
+    func openShioriContext(_ item: Shiori, displayTitle: String) {
+        let targetEntryID: Int64?
+        if let database = subtitleDatabase {
+            do {
+                targetEntryID = try database.cueGroupID(
+                    forSubtitlePath: item.subtitlePath,
+                    startMilliseconds: item.startMilliseconds,
+                    endMilliseconds: item.endMilliseconds
+                ) ?? database.cueTextSelection(
+                    forSubtitleFile: URL(fileURLWithPath: item.subtitlePath),
+                    atMilliseconds: item.startMilliseconds
+                )?.cueGroupID
+            } catch {
+                print("Failed to resolve Shiori context cue: \(error)")
+                targetEntryID = nil
+            }
+        } else {
+            targetEntryID = nil
+        }
+
+        openCueContextSearch(
+            displayTitle: displayTitle,
+            targetEntryID: targetEntryID
+        )
+    }
+
+    func openCueContextSearch(displayTitle: String, targetEntryID: Int64?) {
+        let trimmedDisplayTitle = displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDisplayTitle.isEmpty else {
+            return
+        }
+
+        UIInvalidationProbe.mark(
+            "ACTION UI.CueContext.opened",
+            details: "hasTarget=\(targetEntryID != nil)"
+        )
+        search.cueContextSearchRequest = CueContextSearchRequest(
+            displayTitle: trimmedDisplayTitle,
+            targetEntryID: targetEntryID
+        )
+        workbenchLayout.selectPanelMode(.search)
+    }
+
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
         if search.searchResultPresentationState == .collapsed {
             loadMoreSearchResultGroupRowsIfNeeded(currentResult: result)
@@ -181,6 +231,31 @@ extension AppCoordinator {
                 totalRowCount: page.totalCount
             )
         } catch {
+            return nil
+        }
+    }
+
+    func loadCueContextSearchRank(
+        targetEntryID: Int64,
+        filterSet: SubtitleSearchFilterSet
+    ) async -> Int? {
+        let folders = indexing.selectedFolders
+        guard subtitleDatabase != nil else {
+            return nil
+        }
+        let pageDatabaseURL = databaseURL
+
+        do {
+            return try await Task.detached(priority: .userInitiated) {
+                let pageDatabase = try SubtitleDatabase(path: pageDatabaseURL)
+                return try pageDatabase.allCueGroupSearchRank(
+                    of: targetEntryID,
+                    under: folders,
+                    filterSet: filterSet
+                )
+            }.value
+        } catch {
+            print("Failed to resolve Cue Context Search rank: \(error)")
             return nil
         }
     }

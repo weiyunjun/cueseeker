@@ -228,6 +228,16 @@ struct SubtitleTableColumnLayout {
     }
 }
 
+struct SubtitleTableScrollRequest: Equatable {
+    let id: UUID
+    let row: Int
+
+    init(id: UUID = UUID(), row: Int) {
+        self.id = id
+        self.row = row
+    }
+}
+
 struct SubtitleTableTagStyle {
     let horizontalInset: CGFloat
     let verticalInset: CGFloat
@@ -585,12 +595,21 @@ enum SubtitleTableRowActionMenuStyle {
 
 private struct RowActionMenu: View {
     var style: SubtitleTableRowActionMenuStyle = .search
+    var onContext: () -> Void
     var onCopy: () -> Void
     var onRemoveShiori: () -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
+                WorkbenchPopoverRow(
+                    title: "Context",
+                    systemImage: "doc.text",
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: true,
+                    action: onContext
+                )
                 WorkbenchPopoverRow(
                     title: "Copy Cue Text",
                     systemImage: "doc.on.doc", // Mapped from "copy" to "doc.on.doc" for macOS copy semantics
@@ -1749,12 +1768,14 @@ struct SubtitleTableView: NSViewRepresentable {
     var showsLanguageColumn = false
     var showsSpeakerColumn = false
     var scrollResetToken = 0
+    var scrollRequest: SubtitleTableScrollRequest?
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var isRowSelected: (Int) -> Bool = { _ in false }
     var selectionHeaderState: WorkbenchCheckboxState = .unchecked
     var onToggleRowSelection: (Int) -> Void = { _ in }
     var onToggleAllSelection: () -> Void = {}
     var onPlay: (SubtitleTableRow) -> Void
+    var onShowContext: (SubtitleTableRow) -> Void = { _ in }
     var rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search
     var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
     var isRedesign: Bool = false
@@ -1779,12 +1800,14 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
+            scrollRequest: scrollRequest,
             onVisibleRowsChange: onVisibleRowsChange,
             isRowSelected: isRowSelected,
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
             onToggleAllSelection: onToggleAllSelection,
             onPlay: onPlay,
+            onShowContext: onShowContext,
             rowActionMenuStyle: rowActionMenuStyle,
             onRemoveShiori: onRemoveShiori
         )
@@ -1889,12 +1912,14 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             scrollResetToken: scrollResetToken,
+            scrollRequest: scrollRequest,
             onVisibleRowsChange: onVisibleRowsChange,
             isRowSelected: isRowSelected,
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
             onToggleAllSelection: onToggleAllSelection,
             onPlay: onPlay,
+            onShowContext: onShowContext,
             rowActionMenuStyle: rowActionMenuStyle,
             onRemoveShiori: onRemoveShiori
         )
@@ -1922,12 +1947,14 @@ struct SubtitleTableView: NSViewRepresentable {
         private var showsLanguageColumn: Bool
         private var showsSpeakerColumn: Bool
         private var scrollResetToken: Int
+        private var scrollRequest: SubtitleTableScrollRequest?
         private var onVisibleRowsChange: (Range<Int>) -> Void
         private var isRowSelected: (Int) -> Bool
         private var selectionHeaderState: WorkbenchCheckboxState
         private var onToggleRowSelection: (Int) -> Void
         private var onToggleAllSelection: () -> Void
         private var onPlay: (SubtitleTableRow) -> Void
+        private var onShowContext: (SubtitleTableRow) -> Void
         private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
         private var onRemoveShiori: (SubtitleTableRow) -> Void
 
@@ -2053,12 +2080,14 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: Bool = false,
             showsSpeakerColumn: Bool = false,
             scrollResetToken: Int = 0,
+            scrollRequest: SubtitleTableScrollRequest? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             isRowSelected: @escaping (Int) -> Bool = { _ in false },
             selectionHeaderState: WorkbenchCheckboxState = .unchecked,
             onToggleRowSelection: @escaping (Int) -> Void = { _ in },
             onToggleAllSelection: @escaping () -> Void = {},
             onPlay: @escaping (SubtitleTableRow) -> Void,
+            onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
@@ -2080,12 +2109,14 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsLanguageColumn = showsLanguageColumn
             self.showsSpeakerColumn = showsSpeakerColumn
             self.scrollResetToken = scrollResetToken
+            self.scrollRequest = scrollRequest
             self.onVisibleRowsChange = onVisibleRowsChange
             self.isRowSelected = isRowSelected
             self.selectionHeaderState = selectionHeaderState
             self.onToggleRowSelection = onToggleRowSelection
             self.onToggleAllSelection = onToggleAllSelection
             self.onPlay = onPlay
+            self.onShowContext = onShowContext
             self.rowActionMenuStyle = rowActionMenuStyle
             self.onRemoveShiori = onRemoveShiori
         }
@@ -2160,12 +2191,14 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: Bool,
             showsSpeakerColumn: Bool,
             scrollResetToken: Int,
+            scrollRequest: SubtitleTableScrollRequest? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
             isRowSelected: @escaping (Int) -> Bool,
             selectionHeaderState: WorkbenchCheckboxState,
             onToggleRowSelection: @escaping (Int) -> Void,
             onToggleAllSelection: @escaping () -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void,
+            onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
@@ -2199,6 +2232,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsSpeakerColumn = showsSpeakerColumn
             let shouldScrollToTop = scrollResetToken != self.scrollResetToken
             self.scrollResetToken = scrollResetToken
+            let pendingScrollRequest = scrollRequest != self.scrollRequest ? scrollRequest : nil
+            self.scrollRequest = scrollRequest
             self.onVisibleRowsChange = onVisibleRowsChange
             self.isRowSelected = isRowSelected
             let selectionHeaderChanged = selectionHeaderState != self.selectionHeaderState
@@ -2206,6 +2241,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onToggleRowSelection = onToggleRowSelection
             self.onToggleAllSelection = onToggleAllSelection
             self.onPlay = onPlay
+            self.onShowContext = onShowContext
             self.rowActionMenuStyle = rowActionMenuStyle
             self.onRemoveShiori = onRemoveShiori
 
@@ -2235,6 +2271,8 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if shouldScrollToTop {
                 scrollToTop()
+            } else if let pendingScrollRequest {
+                scrollToRow(pendingScrollRequest.row)
             } else if changed || columnVisibilityChanged {
                 notifyVisibleRowsChanged(force: changed)
             }
@@ -2510,6 +2548,27 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.contentView.scroll(to: .zero)
             scrollView.reflectScrolledClipView(scrollView.contentView)
             documentView?.needsDisplay = true
+            scrollbarOverlayView?.needsDisplay = true
+            notifyVisibleRowsChanged(force: true)
+        }
+
+        func scrollToRow(_ row: Int) {
+            guard let scrollView, let documentView, rowCount > 0 else {
+                return
+            }
+
+            let boundedRow = min(max(0, row), rowCount - 1)
+            let rowRect = rectForRow(boundedRow, width: documentView.bounds.width)
+            let viewportHeight = scrollView.contentView.bounds.height
+            let maxY = max(0, documentView.bounds.height - viewportHeight)
+            let targetY = min(
+                max(0, rowRect.midY - viewportHeight / 2),
+                maxY
+            )
+            let currentX = scrollView.contentView.bounds.origin.x
+            scrollView.contentView.scroll(to: CGPoint(x: currentX, y: targetY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            documentView.needsDisplay = true
             scrollbarOverlayView?.needsDisplay = true
             notifyVisibleRowsChanged(force: true)
         }
@@ -3273,6 +3332,11 @@ struct SubtitleTableView: NSViewRepresentable {
 
             let menuView = RowActionMenu(
                 style: rowActionMenuStyle,
+                onContext: { [weak self] in
+                    guard let self, let model = self.rowProvider(row) else { return }
+                    self.dismissMenu()
+                    self.onShowContext(model)
+                },
                 onCopy: { [weak self] in
                     self?.copyRow(row)
                     self?.dismissMenu()

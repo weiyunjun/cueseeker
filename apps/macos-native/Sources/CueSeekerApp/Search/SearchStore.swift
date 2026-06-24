@@ -1,6 +1,22 @@
 import Foundation
 import CueSeekerCore
 
+struct CueContextSearchRequest: Equatable, Identifiable {
+    let id: UUID
+    let displayTitle: String
+    let targetEntryID: Int64?
+
+    init(
+        id: UUID = UUID(),
+        displayTitle: String,
+        targetEntryID: Int64?
+    ) {
+        self.id = id
+        self.displayTitle = displayTitle
+        self.targetEntryID = targetEntryID
+    }
+}
+
 @MainActor
 final class SearchStore: ObservableObject {
     @Published var searchQuery = ""
@@ -20,6 +36,7 @@ final class SearchStore: ObservableObject {
     @Published var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
+    @Published var cueContextSearchRequest: CueContextSearchRequest?
 
     var isSearching: Bool {
         if case .searching = searchStatus {

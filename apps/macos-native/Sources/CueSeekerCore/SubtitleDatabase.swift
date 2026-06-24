@@ -2576,6 +2576,34 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return languages.isEmpty ? [.unknown] : languages
     }
 
+    public func cueGroupID(
+        forSubtitlePath subtitlePath: String,
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT g.id
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND g.start_ms = ?
+              AND g.end_ms = ?
+            ORDER BY g.id ASC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(subtitlePath, at: 1)
+        try statement.bind(startMilliseconds, at: 2)
+        try statement.bind(endMilliseconds, at: 3)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return statement.int64Column(0)
+    }
+
     private func cueGroupLanguages(
         forCueGroupIDs cueGroupIDs: [Int64]
     ) throws -> [Int64: Set<SubtitleLanguageCode>] {
@@ -3273,6 +3301,87 @@ public final class SubtitleDatabase: @unchecked Sendable {
             orderSource: "defaultCueOrder",
             materializedOrderRows: results.count
         )
+    }
+
+    public func allCueGroupSearchRank(
+        of cueGroupID: Int64,
+        under folders: [URL]? = nil,
+        filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet()
+    ) throws -> Int? {
+        let pathPrefixes: [String]?
+        if let folders {
+            let prefixes = Self.folderPathPrefixes(for: folders)
+            guard !prefixes.isEmpty else {
+                return nil
+            }
+            pathPrefixes = prefixes
+        } else {
+            pathPrefixes = nil
+        }
+
+        let scopeCondition = pathPrefixes.map {
+            let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
+                .joined(separator: " OR ")
+            return "AND (\(conditions))"
+        } ?? ""
+
+        try requireCompleteSearchOrderRows(
+            pathPrefixes: pathPrefixes,
+            subtitlePath: nil
+        )
+
+        let statement = try database.prepare(
+            """
+            SELECT g.id, g.search_content, sor.display_title,
+                   (
+                       SELECT GROUP_CONCAT(cgl.language_code)
+                       FROM subtitle_cue_group_languages cgl
+                       WHERE cgl.cue_group_id = g.id
+                   ) AS language_values,
+                   (
+                       SELECT GROUP_CONCAT(speaker, char(31))
+                       FROM (
+                           SELECT speaker
+                           FROM subtitle_cue_line_speakers cls
+                           WHERE cls.cue_group_id = g.id
+                           GROUP BY speaker_key, speaker
+                           ORDER BY speaker_key ASC
+                       )
+                   ) AS speaker_values
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            WHERE 1 = 1
+            \(scopeCondition)
+            ORDER BY sor.folder_order ASC, sor.file_order ASC, g.start_ms ASC, g.end_ms ASC, g.id ASC
+            """
+        )
+        _ = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: 1)
+
+        var acceptedCount = 0
+        while try statement.step() {
+            let candidateID = statement.int64Column(0)
+            if !filterSet.isEffectivelyEmpty {
+                let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(3))
+                let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(4))
+                guard filterSet.matches(
+                    display: statement.stringColumn(2),
+                    cues: statement.stringColumn(1),
+                    languages: Self.filterSetLanguageValues(displayLanguages),
+                    speakers: Self.filterSetSpeakerValues(displaySpeakers)
+                ) else {
+                    continue
+                }
+            }
+
+            if candidateID == cueGroupID {
+                return acceptedCount
+            }
+            acceptedCount += 1
+        }
+
+        return nil
     }
 
     private func searchCandidate(from statement: SQLiteStatement) -> SearchCandidate {
