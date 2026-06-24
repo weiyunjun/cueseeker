@@ -3307,16 +3307,20 @@ public final class SubtitleDatabase: @unchecked Sendable {
         subtitlePath: String,
         targetCueGroupID: Int64,
         limit: Int = 50,
+        cursor: SubtitleSearchCursor? = nil,
+        anchorWindowSize: Int? = nil,
         under folders: [URL]? = nil
     ) throws -> SubtitleSearchPage? {
         let requestedLimit = max(0, limit)
+        let appliedCursor = cursor ?? .start
+        let offset = appliedCursor.offset
         guard requestedLimit > 0 else {
             return SubtitleSearchPage(
                 results: [],
                 totalCount: 0,
                 fileSummaries: [],
                 countSnapshot: .exact(totalCount: 0, fileSummaryCount: 0),
-                appliedCursor: .start,
+                appliedCursor: appliedCursor,
                 pageMode: .visibleWindow,
                 orderSource: "cueContextWindow",
                 materializedOrderRows: 0
@@ -3332,7 +3336,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     totalCount: 0,
                     fileSummaries: [],
                     countSnapshot: .exact(totalCount: 0, fileSummaryCount: 0),
-                    appliedCursor: .start,
+                    appliedCursor: appliedCursor,
                     pageMode: .visibleWindow,
                     orderSource: "cueContextWindow",
                     materializedOrderRows: 0
@@ -3382,8 +3386,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         let targetIndex = targetStatement.intColumn(0)
         let fileCueCount = targetStatement.intColumn(1)
-        let windowStart = min(targetIndex, max(0, fileCueCount - requestedLimit))
-        let windowLimit = min(requestedLimit, fileCueCount)
+        let resolvedAnchorWindowSize = max(1, anchorWindowSize ?? requestedLimit)
+        let contextStart = min(targetIndex, max(0, fileCueCount - resolvedAnchorWindowSize))
+        let totalCount = max(0, fileCueCount - contextStart)
+        let boundedOffset = min(offset, totalCount)
+        let windowLimit = min(requestedLimit, max(0, totalCount - boundedOffset))
+        let rowOffset = contextStart + boundedOffset
 
         let statement = try database.prepare(
             """
@@ -3422,7 +3430,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         bindIndex = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: bindIndex)
         try statement.bind(windowLimit, at: bindIndex)
         bindIndex += 1
-        try statement.bind(windowStart, at: bindIndex)
+        try statement.bind(rowOffset, at: bindIndex)
 
         var results: [SubtitleSearchResult] = []
         results.reserveCapacity(windowLimit)
@@ -3456,12 +3464,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     cueLines: lineContents,
                     languages: displayLanguages,
                     speakers: displaySpeakers,
-                    searchRank: results.count
+                    searchRank: boundedOffset + results.count
                 )
             )
         }
 
-        let totalCount = results.count
         let summaries = fileSummary.map {
             [
                 SubtitleSearchFileSummary(
@@ -3472,17 +3479,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 )
             ]
         } ?? []
+        let upperBound = min(totalCount, boundedOffset + results.count)
 
         return SubtitleSearchPage(
             results: results,
             totalCount: totalCount,
             fileSummaries: summaries,
             countSnapshot: .exact(totalCount: totalCount, fileSummaryCount: summaries.count),
-            appliedCursor: .start,
-            nextCursor: nil,
+            appliedCursor: SubtitleSearchCursor(offset: boundedOffset),
+            nextCursor: upperBound < totalCount ? SubtitleSearchCursor(offset: upperBound) : nil,
             pageMode: .visibleWindow,
             orderSource: "cueContextWindow",
-            materializedOrderRows: totalCount
+            materializedOrderRows: results.count
         )
     }
 

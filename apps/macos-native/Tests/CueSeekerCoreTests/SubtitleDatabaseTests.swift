@@ -183,13 +183,26 @@ func cueContextSearchPageStartsAtTargetCueWhenWindowCanFitFollowingRows() throws
             limit: 3
         )
     )
-    #expect(targetFirstPage.totalCount == 3)
+    #expect(targetFirstPage.totalCount == 4)
     #expect(targetFirstPage.results.map(\.content) == [
         "context cue 3",
         "context cue 4",
         "context cue 5",
     ])
     #expect(targetFirstPage.results.map(\.searchRank) == [0, 1, 2])
+    #expect(targetFirstPage.nextCursor == SubtitleSearchCursor(offset: 3))
+
+    let followingPage = try #require(
+        try database.cueContextSearchPage(
+            subtitlePath: contextSubtitleFile.path,
+            targetCueGroupID: thirdContextEntry.id,
+            limit: 3,
+            cursor: SubtitleSearchCursor(offset: 3)
+        )
+    )
+    #expect(followingPage.totalCount == 4)
+    #expect(followingPage.results.map(\.content) == ["context cue 6"])
+    #expect(followingPage.results.map(\.searchRank) == [3])
 
     let tailPage = try #require(
         try database.cueContextSearchPage(

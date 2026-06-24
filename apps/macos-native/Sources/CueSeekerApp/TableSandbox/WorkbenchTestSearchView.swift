@@ -23,6 +23,7 @@ struct WorkbenchTestSearchView: View {
     @State private var collageAvailabilityGeneration = 0
     @State private var canExportSelectedRowsAsCollage = false
     @State private var lastHandledCueContextRequestID: UUID?
+    @State private var activeCueContextRequest: CueContextSearchRequest?
     @State private var cueContextLoadGeneration = 0
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
@@ -117,6 +118,10 @@ struct WorkbenchTestSearchView: View {
             visibleHydrator.reset()
             rowSelection.reset()
             lastVisibleRows = nil
+            if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                activeCueContextRequest = nil
+                cueContextLoadGeneration += 1
+            }
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 if suppressNextEmptySearchQueryReload {
                     suppressNextEmptySearchQueryReload = false
@@ -179,6 +184,7 @@ struct WorkbenchTestSearchView: View {
         }
 
         lastHandledCueContextRequestID = request.id
+        activeCueContextRequest = request
         cueContextLoadGeneration += 1
         let generation = cueContextLoadGeneration
         let rules = [
@@ -267,10 +273,14 @@ struct WorkbenchTestSearchView: View {
     private func submitSearchDraft() {
         let trimmedDraft = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedDraft.isEmpty else {
+            activeCueContextRequest = nil
+            cueContextLoadGeneration += 1
             appState.submitSearch(searchDraft)
             return
         }
 
+        activeCueContextRequest = nil
+        cueContextLoadGeneration += 1
         search.searchQuery = ""
         search.searchResults = []
         search.searchResultTotalCount = 0
@@ -349,6 +359,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func loadAllCueRows(resetScroll: Bool) {
+        activeCueContextRequest = nil
         visibleHydrator.reset()
         lastVisibleRows = nil
         if resetScroll {
@@ -389,7 +400,7 @@ struct WorkbenchTestSearchView: View {
         Task { @MainActor in
             guard let page = await appState.loadCueContextSearchPage(
                 request: request,
-                limit: TableSandboxHydrationPaging.pageSize
+                range: 0..<TableSandboxHydrationPaging.pageSize
             ) else {
                 guard generation == cueContextLoadGeneration else { return }
                 rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
@@ -416,6 +427,12 @@ struct WorkbenchTestSearchView: View {
 
     private func loadRows(range: Range<Int>) async -> TableSandboxSearchHydrationPage? {
         if isFilterOnlyMode {
+            if let activeCueContextRequest {
+                return await appState.loadCueContextSearchPage(
+                    request: activeCueContextRequest,
+                    range: range
+                )
+            }
             return await appState.loadTableSandboxAllCueRows(range: range)
         }
         guard !showsSearchEmptyHint else { return nil }
@@ -449,6 +466,8 @@ struct WorkbenchTestSearchView: View {
             return
         }
 
+        activeCueContextRequest = nil
+        cueContextLoadGeneration += 1
         appliedFilterSignature = nextSignature
         visibleHydrator.reset()
         rowSelection.reset()

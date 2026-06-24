@@ -250,13 +250,17 @@ extension AppCoordinator {
 
     func loadCueContextSearchPage(
         request: CueContextSearchRequest,
-        limit: Int
+        range: Range<Int>,
+        anchorWindowSize: Int = TableSandboxHydrationPaging.pageSize
     ) async -> TableSandboxSearchHydrationPage? {
         let folders = indexing.selectedFolders
         guard subtitleDatabase != nil else {
             return nil
         }
         let pageDatabaseURL = databaseURL
+        let lowerBound = max(0, range.lowerBound)
+        let upperBound = max(lowerBound, range.upperBound)
+        guard lowerBound < upperBound else { return nil }
 
         do {
             let loadedPage = try await Task.detached(priority: .userInitiated) {
@@ -264,7 +268,9 @@ extension AppCoordinator {
                 return try pageDatabase.cueContextSearchPage(
                     subtitlePath: request.subtitlePath,
                     targetCueGroupID: request.targetEntryID,
-                    limit: limit,
+                    limit: upperBound - lowerBound,
+                    cursor: SubtitleSearchCursor(offset: lowerBound),
+                    anchorWindowSize: anchorWindowSize,
                     under: folders
                 )
             }.value
@@ -273,13 +279,14 @@ extension AppCoordinator {
             }
 
             guard !Task.isCancelled,
-                  indexing.selectedFolders.map(\.path) == folders.map(\.path)
+                  indexing.selectedFolders.map(\.path) == folders.map(\.path),
+                  search.cueContextSearchRequest?.id == request.id
             else {
                 return nil
             }
 
             return TableSandboxSearchHydrationPage(
-                range: 0..<page.results.count,
+                range: lowerBound..<(lowerBound + page.results.count),
                 results: page.results,
                 totalRowCount: page.totalCount
             )
