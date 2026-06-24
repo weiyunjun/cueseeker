@@ -46,6 +46,7 @@ extension AppCoordinator {
     func openSearchResultContext(_ result: SubtitleSearchResult) {
         openCueContextSearch(
             displayTitle: result.displayTitle,
+            subtitlePath: result.subtitlePath,
             targetEntryID: result.entryID
         )
     }
@@ -70,24 +71,36 @@ extension AppCoordinator {
             targetEntryID = nil
         }
 
+        guard let targetEntryID else {
+            return
+        }
+
         openCueContextSearch(
             displayTitle: displayTitle,
+            subtitlePath: item.subtitlePath,
             targetEntryID: targetEntryID
         )
     }
 
-    func openCueContextSearch(displayTitle: String, targetEntryID: Int64?) {
+    func openCueContextSearch(
+        displayTitle: String,
+        subtitlePath: String,
+        targetEntryID: Int64
+    ) {
         let trimmedDisplayTitle = displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedDisplayTitle.isEmpty else {
+        guard !trimmedDisplayTitle.isEmpty,
+              !subtitlePath.isEmpty
+        else {
             return
         }
 
         UIInvalidationProbe.mark(
             "ACTION UI.CueContext.opened",
-            details: "hasTarget=\(targetEntryID != nil)"
+            details: "hasTarget=true"
         )
         search.cueContextSearchRequest = CueContextSearchRequest(
             displayTitle: trimmedDisplayTitle,
+            subtitlePath: subtitlePath,
             targetEntryID: targetEntryID
         )
         workbenchLayout.selectPanelMode(.search)
@@ -235,10 +248,10 @@ extension AppCoordinator {
         }
     }
 
-    func loadCueContextSearchRank(
-        targetEntryID: Int64,
-        filterSet: SubtitleSearchFilterSet
-    ) async -> Int? {
+    func loadCueContextSearchPage(
+        request: CueContextSearchRequest,
+        limit: Int
+    ) async -> TableSandboxSearchHydrationPage? {
         let folders = indexing.selectedFolders
         guard subtitleDatabase != nil else {
             return nil
@@ -246,16 +259,32 @@ extension AppCoordinator {
         let pageDatabaseURL = databaseURL
 
         do {
-            return try await Task.detached(priority: .userInitiated) {
+            let loadedPage = try await Task.detached(priority: .userInitiated) {
                 let pageDatabase = try SubtitleDatabase(path: pageDatabaseURL)
-                return try pageDatabase.allCueGroupSearchRank(
-                    of: targetEntryID,
-                    under: folders,
-                    filterSet: filterSet
+                return try pageDatabase.cueContextSearchPage(
+                    subtitlePath: request.subtitlePath,
+                    targetCueGroupID: request.targetEntryID,
+                    limit: limit,
+                    under: folders
                 )
             }.value
+            guard let page = loadedPage else {
+                return nil
+            }
+
+            guard !Task.isCancelled,
+                  indexing.selectedFolders.map(\.path) == folders.map(\.path)
+            else {
+                return nil
+            }
+
+            return TableSandboxSearchHydrationPage(
+                range: 0..<page.results.count,
+                results: page.results,
+                totalRowCount: page.totalCount
+            )
         } catch {
-            print("Failed to resolve Cue Context Search rank: \(error)")
+            print("Failed to load Cue Context Search page: \(error)")
             return nil
         }
     }

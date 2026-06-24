@@ -3303,16 +3303,40 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    public func allCueGroupSearchRank(
-        of cueGroupID: Int64,
-        under folders: [URL]? = nil,
-        filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet()
-    ) throws -> Int? {
+    public func cueContextSearchPage(
+        subtitlePath: String,
+        targetCueGroupID: Int64,
+        limit: Int = 50,
+        under folders: [URL]? = nil
+    ) throws -> SubtitleSearchPage? {
+        let requestedLimit = max(0, limit)
+        guard requestedLimit > 0 else {
+            return SubtitleSearchPage(
+                results: [],
+                totalCount: 0,
+                fileSummaries: [],
+                countSnapshot: .exact(totalCount: 0, fileSummaryCount: 0),
+                appliedCursor: .start,
+                pageMode: .visibleWindow,
+                orderSource: "cueContextWindow",
+                materializedOrderRows: 0
+            )
+        }
+
         let pathPrefixes: [String]?
         if let folders {
             let prefixes = Self.folderPathPrefixes(for: folders)
             guard !prefixes.isEmpty else {
-                return nil
+                return SubtitleSearchPage(
+                    results: [],
+                    totalCount: 0,
+                    fileSummaries: [],
+                    countSnapshot: .exact(totalCount: 0, fileSummaryCount: 0),
+                    appliedCursor: .start,
+                    pageMode: .visibleWindow,
+                    orderSource: "cueContextWindow",
+                    materializedOrderRows: 0
+                )
             }
             pathPrefixes = prefixes
         } else {
@@ -3327,12 +3351,45 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         try requireCompleteSearchOrderRows(
             pathPrefixes: pathPrefixes,
-            subtitlePath: nil
+            subtitlePath: subtitlePath
         )
+
+        let targetStatement = try database.prepare(
+            """
+            SELECT row_index, total_count
+            FROM (
+                SELECT g.id,
+                       ROW_NUMBER() OVER (ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC) - 1 AS row_index,
+                       COUNT(*) OVER () AS total_count
+                FROM subtitle_cue_groups g
+                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                WHERE sf.subtitle_path = ?
+                \(scopeCondition)
+            ) ordered
+            WHERE id = ?;
+            """
+        )
+        var bindIndex: Int32 = 1
+        try targetStatement.bind(subtitlePath, at: bindIndex)
+        bindIndex += 1
+        bindIndex = try bindPathPrefixes(pathPrefixes, to: targetStatement, startingAt: bindIndex)
+        try targetStatement.bind(targetCueGroupID, at: bindIndex)
+
+        guard try targetStatement.step() else {
+            return nil
+        }
+
+        let targetIndex = targetStatement.intColumn(0)
+        let fileCueCount = targetStatement.intColumn(1)
+        let windowStart = min(targetIndex, max(0, fileCueCount - requestedLimit))
+        let windowLimit = min(requestedLimit, fileCueCount)
 
         let statement = try database.prepare(
             """
-            SELECT g.id, g.search_content, sor.display_title,
+            SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+                   g.start_ms, g.end_ms, g.search_content, g.line_count,
+                   sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
                    (
                        SELECT GROUP_CONCAT(cgl.language_code)
                        FROM subtitle_cue_group_languages cgl
@@ -3351,37 +3408,82 @@ public final class SubtitleDatabase: @unchecked Sendable {
             FROM subtitle_cue_groups g
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
             JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
-            WHERE 1 = 1
+            WHERE sf.subtitle_path = ?
             \(scopeCondition)
-            ORDER BY sor.folder_order ASC, sor.file_order ASC, g.start_ms ASC, g.end_ms ASC, g.id ASC
+            ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC
+            LIMIT ? OFFSET ?;
             """
         )
-        _ = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: 1)
+        bindIndex = 1
+        try statement.bind(subtitlePath, at: bindIndex)
+        bindIndex += 1
+        bindIndex = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: bindIndex)
+        try statement.bind(windowLimit, at: bindIndex)
+        bindIndex += 1
+        try statement.bind(windowStart, at: bindIndex)
 
-        var acceptedCount = 0
+        var results: [SubtitleSearchResult] = []
+        results.reserveCapacity(windowLimit)
+        var fileSummary: SubtitleSearchFileSummary?
         while try statement.step() {
-            let candidateID = statement.int64Column(0)
-            if !filterSet.isEffectivelyEmpty {
-                let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(3))
-                let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(4))
-                guard filterSet.matches(
-                    display: statement.stringColumn(2),
-                    cues: statement.stringColumn(1),
-                    languages: Self.filterSetLanguageValues(displayLanguages),
-                    speakers: Self.filterSetSpeakerValues(displaySpeakers)
-                ) else {
-                    continue
-                }
+            let candidate = searchCandidate(from: statement)
+            let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(14))
+            let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(15))
+            if fileSummary == nil {
+                fileSummary = SubtitleSearchFileSummary(
+                    subtitlePath: candidate.subtitlePath,
+                    subtitleFileName: candidate.order.subtitleFileName,
+                    subtitleDisplayTitle: candidate.order.displayTitle,
+                    matchCount: 0
+                )
             }
 
-            if candidateID == cueGroupID {
-                return acceptedCount
-            }
-            acceptedCount += 1
+            let lines = candidate.lineCount > 1 ? try cueLines(forCueGroupID: candidate.cueGroupID) : []
+            let lineContents = lines.isEmpty ? [candidate.searchContent] : lines.map(\.content)
+            results.append(
+                SubtitleSearchResult(
+                    entryID: candidate.cueGroupID,
+                    subtitlePath: candidate.subtitlePath,
+                    subtitleFormat: candidate.subtitleFormat,
+                    videoPath: candidate.videoPath,
+                    videoName: candidate.videoName,
+                    displayTitle: candidate.order.displayTitle,
+                    startMilliseconds: candidate.startMilliseconds,
+                    endMilliseconds: candidate.endMilliseconds,
+                    content: candidate.searchContent,
+                    cueLines: lineContents,
+                    languages: displayLanguages,
+                    speakers: displaySpeakers,
+                    searchRank: results.count
+                )
+            )
         }
 
-        return nil
+        let totalCount = results.count
+        let summaries = fileSummary.map {
+            [
+                SubtitleSearchFileSummary(
+                    subtitlePath: $0.subtitlePath,
+                    subtitleFileName: $0.subtitleFileName,
+                    subtitleDisplayTitle: $0.subtitleDisplayTitle,
+                    matchCount: totalCount
+                )
+            ]
+        } ?? []
+
+        return SubtitleSearchPage(
+            results: results,
+            totalCount: totalCount,
+            fileSummaries: summaries,
+            countSnapshot: .exact(totalCount: totalCount, fileSummaryCount: summaries.count),
+            appliedCursor: .start,
+            nextCursor: nil,
+            pageMode: .visibleWindow,
+            orderSource: "cueContextWindow",
+            materializedOrderRows: totalCount
+        )
     }
 
     private func searchCandidate(from statement: SQLiteStatement) -> SearchCandidate {

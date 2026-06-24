@@ -19,7 +19,6 @@ struct WorkbenchTestSearchView: View {
     @State private var lastVisibleRows: Range<Int>?
     @State private var appliedFilterSignature = ""
     @State private var tableScrollResetToken = 0
-    @State private var tableScrollRequest: SubtitleTableScrollRequest?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var collageAvailabilityGeneration = 0
     @State private var canExportSelectedRowsAsCollage = false
@@ -71,7 +70,6 @@ struct WorkbenchTestSearchView: View {
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
                     scrollResetToken: tableScrollResetToken,
-                    scrollRequest: tableScrollRequest,
                     onVisibleRowsChange: hydrateVisibleRows,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
@@ -208,12 +206,10 @@ struct WorkbenchTestSearchView: View {
         search.searchNavigationSnapshot = nil
         appliedFilterSignature = filterSignature
         appState.updateSearchFilterSet(filterSet)
-        tableScrollRequest = nil
         tableScrollResetToken += 1
         clearTableRows(resetScroll: false)
         loadCueContextRows(
             request: request,
-            filterSet: filterSet,
             filterSignature: filterSignature,
             generation: generation
         )
@@ -319,16 +315,13 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func showContext(_ row: SubtitleTableRow) {
-        if let result = rowStore.snapshot.searchResult(entryID: row.id)
-            ?? search.searchResults.first(where: { Int($0.entryID) == row.id }) {
-            appState.openSearchResultContext(result)
+        guard let result = rowStore.snapshot.searchResult(entryID: row.id)
+            ?? search.searchResults.first(where: { Int($0.entryID) == row.id })
+        else {
             return
         }
 
-        appState.openCueContextSearch(
-            displayTitle: row.displayTitle,
-            targetEntryID: Int64(row.id)
-        )
+        appState.openSearchResultContext(result)
     }
 
     private func hydrateInitialRowsIfNeeded() {
@@ -390,32 +383,13 @@ struct WorkbenchTestSearchView: View {
 
     private func loadCueContextRows(
         request: CueContextSearchRequest,
-        filterSet: SubtitleSearchFilterSet,
         filterSignature: String,
         generation: Int
     ) {
         Task { @MainActor in
-            let targetRow: Int?
-            if let targetEntryID = request.targetEntryID {
-                targetRow = await appState.loadCueContextSearchRank(
-                    targetEntryID: targetEntryID,
-                    filterSet: filterSet
-                )
-            } else {
-                targetRow = nil
-            }
-
-            guard generation == cueContextLoadGeneration,
-                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  search.activeFilterSetSignature == filterSignature
-            else {
-                return
-            }
-
-            let pageSize = TableSandboxHydrationPaging.pageSize
-            let pageStart = targetRow.map { max(0, ($0 / pageSize) * pageSize) } ?? 0
-            guard let page = await appState.loadTableSandboxAllCueRows(
-                range: pageStart..<(pageStart + pageSize)
+            guard let page = await appState.loadCueContextSearchPage(
+                request: request,
+                limit: TableSandboxHydrationPaging.pageSize
             ) else {
                 guard generation == cueContextLoadGeneration else { return }
                 rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
@@ -430,20 +404,12 @@ struct WorkbenchTestSearchView: View {
             }
 
             appState.applyTableSandboxAllCueSearchContext(page)
-            if page.results.isEmpty {
-                rowStore.updateSearchRows([], totalRowCount: page.totalRowCount, tableName: "test-search")
-            } else {
-                rowStore.hydrateSearchRows(
-                    page.results,
-                    startIndex: page.range.lowerBound,
-                    totalRowCount: page.totalRowCount,
-                    tableName: "test-search"
-                )
-            }
+            rowStore.updateSearchRows(
+                page.results,
+                totalRowCount: page.totalRowCount,
+                tableName: "test-search"
+            )
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-            if let targetRow {
-                tableScrollRequest = SubtitleTableScrollRequest(row: targetRow)
-            }
             hydrateLastVisibleRowsIfNeeded()
         }
     }

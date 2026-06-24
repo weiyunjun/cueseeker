@@ -4,15 +4,18 @@ import CueSeekerCore
 struct CueContextSearchRequest: Equatable, Identifiable {
     let id: UUID
     let displayTitle: String
-    let targetEntryID: Int64?
+    let subtitlePath: String
+    let targetEntryID: Int64
 
     init(
         id: UUID = UUID(),
         displayTitle: String,
-        targetEntryID: Int64?
+        subtitlePath: String,
+        targetEntryID: Int64
     ) {
         self.id = id
         self.displayTitle = displayTitle
+        self.subtitlePath = subtitlePath
         self.targetEntryID = targetEntryID
     }
 }

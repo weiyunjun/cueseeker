@@ -7,29 +7,30 @@
 ## Scope
 
 - Added a technical-validation Context action to the Search and Shiori cue row action menus.
-- Kept the change in the macOS UI/Search coordination path, with durable cue identity and row-rank lookup handled through `CueSeekerCore`.
+- Kept the change in the macOS UI/Search coordination path, with durable cue identity and first-screen context window loading handled through `CueSeekerCore`.
+- The target cue is shown as the first row when enough following rows exist; near the end of a subtitle file, the window shifts upward so the target stays as early as possible.
 - Did not add row highlighting or selection after navigation; this remains a later interaction refinement.
 
 ## Steps
 
 - Added a Cue Context Search request model to the Search store.
 - Added AppCoordinator entry points for Search-result and Shiori-originated Context actions.
-- Added Core helpers to resolve a cue group from Shiori timing and to compute the filtered all-cue row rank for a target cue group.
-- Added a shared table scroll request so the Search table can scroll to the target row without selecting it.
+- Added Core helpers to resolve a cue group from Shiori timing and load a target-anchored context page from the current subtitle file.
+- Removed the previous all-cue rank lookup and table scroll request path so the Search table can render the initial context window directly.
 - Added `Context` to the cue row action menu with the `doc.text` SF Symbol.
 - Wired Search and Shiori table rows to emit the Context action.
 
 ## Verification
 
-- Added Core tests for exact cue-group lookup and filtered all-cue rank resolution.
+- Added Core tests for exact cue-group lookup, target-first context windows, and near-tail context windows.
 - Ran `swift test` from `apps/macos-native`.
 
 ## Outcome
 
 - Cue Context Search technical validation is implemented. Search and Shiori cue
   row menus can request a filtered Search view with an empty query and a single
-  Display Title filter, and Search can load and scroll to the target cue row
-  without selecting or highlighting it.
+  Display Title filter, and Search can render the target-anchored first-screen
+  context window without selecting or highlighting the target cue.
 
 ## Follow-ups
 

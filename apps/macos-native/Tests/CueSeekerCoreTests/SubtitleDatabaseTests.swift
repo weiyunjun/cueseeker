@@ -122,7 +122,7 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
 }
 
 @Test
-func cueContextSearchRankUsesFilteredAllCueOrder() throws {
+func cueContextSearchPageStartsAtTargetCueWhenWindowCanFitFollowingRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -138,24 +138,16 @@ func cueContextSearchRankUsesFilteredAllCueOrder() throws {
     try database.replaceEntries(
         subtitleFile: contextSubtitleFile,
         videoFile: contextVideoFile,
-        entries: [
+        entries: (1...6).map { index in
             SubtitleEntry(
-                sequenceNumber: 1,
-                startTimecode: "00:00:01,000",
-                endTimecode: "00:00:01,500",
-                startMilliseconds: 1_000,
-                endMilliseconds: 1_500,
-                text: "first context cue"
-            ),
-            SubtitleEntry(
-                sequenceNumber: 2,
-                startTimecode: "00:00:02,000",
-                endTimecode: "00:00:02,500",
-                startMilliseconds: 2_000,
-                endMilliseconds: 2_500,
-                text: "second context cue"
-            ),
-        ]
+                sequenceNumber: index,
+                startTimecode: String(format: "00:00:%02d,000", index),
+                endTimecode: String(format: "00:00:%02d,500", index),
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + 500,
+                text: "context cue \(index)"
+            )
+        }
     )
     try database.replaceEntries(
         subtitleFile: otherSubtitleFile,
@@ -173,28 +165,45 @@ func cueContextSearchRankUsesFilteredAllCueOrder() throws {
     )
 
     let contextEntries = try database.entries(forSubtitleFile: contextSubtitleFile)
-    let otherEntries = try database.entries(forSubtitleFile: otherSubtitleFile)
-    let secondContextEntry = try #require(contextEntries.first { $0.content == "second context cue" })
-    let otherEntry = try #require(otherEntries.first)
-    let filterSet = SubtitleSearchFilterSet(
-        rules: [
-            SubtitleSearchFilterRule(
-                field: .display,
-                operatorID: .contains,
-                value: "ContextRank"
-            )
-        ]
-    )
+    let thirdContextEntry = try #require(contextEntries.first { $0.content == "context cue 3" })
+    let lastContextEntry = try #require(contextEntries.first { $0.content == "context cue 6" })
 
     #expect(
         try database.cueGroupID(
             forSubtitlePath: contextSubtitleFile.path,
-            startMilliseconds: secondContextEntry.startMilliseconds,
-            endMilliseconds: secondContextEntry.endMilliseconds
-        ) == secondContextEntry.id
+            startMilliseconds: thirdContextEntry.startMilliseconds,
+            endMilliseconds: thirdContextEntry.endMilliseconds
+        ) == thirdContextEntry.id
     )
-    #expect(try database.allCueGroupSearchRank(of: secondContextEntry.id, filterSet: filterSet) == 1)
-    #expect(try database.allCueGroupSearchRank(of: otherEntry.id, filterSet: filterSet) == nil)
+
+    let targetFirstPage = try #require(
+        try database.cueContextSearchPage(
+            subtitlePath: contextSubtitleFile.path,
+            targetCueGroupID: thirdContextEntry.id,
+            limit: 3
+        )
+    )
+    #expect(targetFirstPage.totalCount == 3)
+    #expect(targetFirstPage.results.map(\.content) == [
+        "context cue 3",
+        "context cue 4",
+        "context cue 5",
+    ])
+    #expect(targetFirstPage.results.map(\.searchRank) == [0, 1, 2])
+
+    let tailPage = try #require(
+        try database.cueContextSearchPage(
+            subtitlePath: contextSubtitleFile.path,
+            targetCueGroupID: lastContextEntry.id,
+            limit: 3
+        )
+    )
+    #expect(tailPage.totalCount == 3)
+    #expect(tailPage.results.map(\.content) == [
+        "context cue 4",
+        "context cue 5",
+        "context cue 6",
+    ])
 }
 
 @Test
