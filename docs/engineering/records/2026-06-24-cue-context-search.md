@@ -89,3 +89,26 @@
 - Context now preserves the complete subtitle file in the virtual table, including rows before the target cue.
 - The initial screen still starts at the target cue when possible and reports the full exact row count.
 - Current database timings indicate that any remaining multi-second delay should be investigated in the UI/view lifecycle timeline rather than the Context SQL page query.
+
+## 2026-06-25 Validation Logging Cleanup
+
+### Requirement
+
+- Human-owned requirement: `docs/human/requirements/20260624-Feature-Cue Context Search.md`
+
+### Steps
+
+- Removed the temporary Cue Context JSONL performance logger after the technical validation confirmed the corrected Context path is fast.
+- Removed the temporary table rendering JSONL logger and its row-store / `updateNSView` timing calls.
+- Removed the Context request timestamp field that only existed to correlate the temporary performance log.
+- Left the Context virtual-table behavior unchanged: the initial load still anchors at the target cue and returns the applied full-file row range through `page.appliedCursor`.
+
+### Verification
+
+- Ran `swift build` from `apps/macos-native`.
+- Ran `swift test --filter 'cueContextSearchPage|SubtitleTableVirtualRow|TableSandboxRowModelStore|SearchStore|TableSandboxVisibleSearchHydrator'` from `apps/macos-native`; 45 Swift Testing tests passed.
+
+### Outcome
+
+- Context no longer writes temporary `logs/cue-context/` or `logs/table-rendering/` diagnostics.
+- The previous `requestedRange` versus applied range diagnostic ambiguity is gone with the removed Context-specific log stream.

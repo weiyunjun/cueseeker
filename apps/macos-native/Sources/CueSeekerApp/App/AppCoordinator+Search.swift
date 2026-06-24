@@ -103,26 +103,8 @@ extension AppCoordinator {
             subtitlePath: subtitlePath,
             targetEntryID: targetEntryID
         )
-        CueContextPerformanceLogger.record(
-            event: "context_request_opened",
-            contextID: request.id,
-            startedAt: request.requestedAt,
-            displayTitle: trimmedDisplayTitle,
-            subtitlePath: subtitlePath,
-            targetEntryID: targetEntryID,
-            status: "requested"
-        )
         search.cueContextSearchRequest = request
         workbenchLayout.selectPanelMode(.search)
-        CueContextPerformanceLogger.record(
-            event: "context_search_panel_selected",
-            contextID: request.id,
-            startedAt: request.requestedAt,
-            displayTitle: trimmedDisplayTitle,
-            subtitlePath: subtitlePath,
-            targetEntryID: targetEntryID,
-            status: "selected"
-        )
     }
 
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
@@ -281,28 +263,13 @@ extension AppCoordinator {
         let lowerBound = max(0, range.lowerBound)
         let upperBound = max(lowerBound, range.upperBound)
         guard lowerBound < upperBound else { return nil }
-        let resolvedRange = lowerBound..<upperBound
-        CueContextPerformanceLogger.record(
-            event: "context_page_requested",
-            contextID: request.id,
-            startedAt: request.requestedAt,
-            displayTitle: request.displayTitle,
-            subtitlePath: request.subtitlePath,
-            targetEntryID: request.targetEntryID,
-            range: resolvedRange,
-            status: "requested"
-        )
 
         do {
-            let contextID = request.id
-            let startedAt = request.requestedAt
-            let displayTitle = request.displayTitle
             let subtitlePath = request.subtitlePath
             let targetEntryID = request.targetEntryID
             let loadedPage = try await Task.detached(priority: .userInitiated) {
-                let databaseStart = CueContextPerformanceLogger.now()
                 let pageDatabase = try SubtitleDatabase(path: pageDatabaseURL)
-                let page = try pageDatabase.cueContextSearchPage(
+                return try pageDatabase.cueContextSearchPage(
                     subtitlePath: subtitlePath,
                     targetCueGroupID: targetEntryID,
                     limit: upperBound - lowerBound,
@@ -311,32 +278,8 @@ extension AppCoordinator {
                     anchorsInitialPage: anchorsInitialPage,
                     under: folders
                 )
-                CueContextPerformanceLogger.record(
-                    event: "context_page_database_returned",
-                    contextID: contextID,
-                    startedAt: startedAt,
-                    phaseStart: databaseStart,
-                    displayTitle: displayTitle,
-                    subtitlePath: subtitlePath,
-                    targetEntryID: targetEntryID,
-                    range: resolvedRange,
-                    returnedRows: page?.results.count,
-                    totalRows: page?.totalCount,
-                    status: page == nil ? "notFound" : "loaded"
-                )
-                return page
             }.value
             guard let page = loadedPage else {
-                CueContextPerformanceLogger.record(
-                    event: "context_page_missing",
-                    contextID: request.id,
-                    startedAt: request.requestedAt,
-                    displayTitle: request.displayTitle,
-                    subtitlePath: request.subtitlePath,
-                    targetEntryID: request.targetEntryID,
-                    range: resolvedRange,
-                    status: "notFound"
-                )
                 return nil
             }
 
@@ -344,50 +287,15 @@ extension AppCoordinator {
                   indexing.selectedFolders.map(\.path) == folders.map(\.path),
                   search.cueContextSearchRequest?.id == request.id
             else {
-                CueContextPerformanceLogger.record(
-                    event: "context_page_discarded",
-                    contextID: request.id,
-                    startedAt: request.requestedAt,
-                    displayTitle: request.displayTitle,
-                    subtitlePath: request.subtitlePath,
-                    targetEntryID: request.targetEntryID,
-                    range: resolvedRange,
-                    returnedRows: page.results.count,
-                    totalRows: page.totalCount,
-                    status: "discarded"
-                )
                 return nil
             }
 
-            CueContextPerformanceLogger.record(
-                event: "context_page_returned",
-                contextID: request.id,
-                startedAt: request.requestedAt,
-                displayTitle: request.displayTitle,
-                subtitlePath: request.subtitlePath,
-                targetEntryID: request.targetEntryID,
-                range: page.appliedCursor.offset..<(page.appliedCursor.offset + page.results.count),
-                returnedRows: page.results.count,
-                totalRows: page.totalCount,
-                status: "returned"
-            )
             return TableSandboxSearchHydrationPage(
                 range: page.appliedCursor.offset..<(page.appliedCursor.offset + page.results.count),
                 results: page.results,
                 totalRowCount: page.totalCount
             )
         } catch {
-            CueContextPerformanceLogger.record(
-                event: "context_page_failed",
-                contextID: request.id,
-                startedAt: request.requestedAt,
-                displayTitle: request.displayTitle,
-                subtitlePath: request.subtitlePath,
-                targetEntryID: request.targetEntryID,
-                range: resolvedRange,
-                status: "failed",
-                error: String(describing: error)
-            )
             print("Failed to load Cue Context Search page: \(error)")
             return nil
         }

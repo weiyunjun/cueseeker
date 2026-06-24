@@ -71,9 +71,8 @@ final class TableSandboxRowModelStore: ObservableObject {
     func updateSearchRows(
         _ results: [SubtitleSearchResult],
         totalRowCount: Int? = nil,
-        tableName: String
+        tableName _: String
     ) {
-        let start = TableRenderingPerformanceLogger.now()
         var nextRowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
         nextRowsByKey.reserveCapacity(results.count)
         var prefixUnchanged = results.count >= snapshot.rows.count
@@ -137,10 +136,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             references: references,
             totalRowCount: max(totalRowCount ?? results.count, results.count),
             nextRowsByKey: nextRowsByKey,
-            tableName: tableName,
-            sourceCount: results.count,
-            prefixUnchanged: prefixUnchanged,
-            start: start
+            prefixUnchanged: prefixUnchanged
         )
     }
 
@@ -148,11 +144,10 @@ final class TableSandboxRowModelStore: ObservableObject {
         _ results: [SubtitleSearchResult],
         startIndex: Int,
         totalRowCount: Int,
-        tableName: String
+        tableName _: String
     ) {
         guard startIndex >= 0, !results.isEmpty else { return }
 
-        let start = TableRenderingPerformanceLogger.now()
         var nextRowsBySourceIndex = snapshot.rowsBySourceIndex
         var nextSearchResultsByEntryID = snapshot.searchResultsByEntryID
         var referencesBySourceIndex = Dictionary(uniqueKeysWithValues: snapshot.references.map { reference in
@@ -192,15 +187,6 @@ final class TableSandboxRowModelStore: ObservableObject {
         }
         let resolvedTotalRowCount = max(snapshot.totalRowCount, totalRowCount, (references.last?.sourceIndex ?? -1) + 1)
         let update: TableSandboxRowsUpdate = .append(lowerChangedIndex..<upperChangedIndex)
-        TableRenderingPerformanceLogger.record(
-            event: "rows_hydrated",
-            table: tableName,
-            reason: update.reason,
-            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
-            rowCount: resolvedTotalRowCount,
-            sourceCount: results.count,
-            changed: true
-        )
 
         snapshot = TableSandboxRowsSnapshot(
             rows: contiguousPrefixRows(from: nextRowsBySourceIndex),
@@ -214,8 +200,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         )
     }
 
-    func updateShioriRows(_ shioris: [TableSandboxShioriRowSource], tableName: String) {
-        let start = TableRenderingPerformanceLogger.now()
+    func updateShioriRows(_ shioris: [TableSandboxShioriRowSource], tableName _: String) {
         var nextRowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
         nextRowsByKey.reserveCapacity(shioris.count)
         var prefixUnchanged = shioris.count >= snapshot.rows.count
@@ -278,10 +263,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             references: references,
             totalRowCount: shioris.count,
             nextRowsByKey: nextRowsByKey,
-            tableName: tableName,
-            sourceCount: shioris.count,
-            prefixUnchanged: prefixUnchanged,
-            start: start
+            prefixUnchanged: prefixUnchanged
         )
     }
 
@@ -289,7 +271,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         _ shioris: [TableSandboxShioriRowSource],
         startIndex: Int,
         totalRowCount: Int,
-        tableName: String
+        tableName _: String
     ) {
         guard startIndex >= 0 else { return }
 
@@ -310,7 +292,6 @@ final class TableSandboxRowModelStore: ObservableObject {
             return
         }
 
-        let start = TableRenderingPerformanceLogger.now()
         var nextRowsBySourceIndex = snapshot.rowsBySourceIndex
         var nextShiorisByEntryID = snapshot.shiorisByEntryID
         var referencesBySourceIndex = Dictionary(uniqueKeysWithValues: snapshot.references.map { reference in
@@ -350,15 +331,6 @@ final class TableSandboxRowModelStore: ObservableObject {
         }
         let resolvedTotalRowCount = max(totalRowCount, (references.last?.sourceIndex ?? -1) + 1)
         let update: TableSandboxRowsUpdate = .append(lowerChangedIndex..<upperChangedIndex)
-        TableRenderingPerformanceLogger.record(
-            event: "rows_hydrated",
-            table: tableName,
-            reason: update.reason,
-            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
-            rowCount: resolvedTotalRowCount,
-            sourceCount: shioris.count,
-            changed: true
-        )
 
         snapshot = TableSandboxRowsSnapshot(
             rows: contiguousPrefixRows(from: nextRowsBySourceIndex),
@@ -380,10 +352,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         references: [TableSandboxRowReference],
         totalRowCount: Int,
         nextRowsByKey: [RowCacheKey: SubtitleTableRow],
-        tableName: String,
-        sourceCount: Int,
-        prefixUnchanged: Bool,
-        start: UInt64
+        prefixUnchanged: Bool
     ) {
         let rowsUpdate = rowsUpdate(for: rows, prefixUnchanged: prefixUnchanged)
         let metadataChanged = references != snapshot.references
@@ -391,15 +360,6 @@ final class TableSandboxRowModelStore: ObservableObject {
         let update = rowsUpdate == .none && metadataChanged ? .reload : rowsUpdate
         let changed = update != .none || metadataChanged
         rowsByKey = nextRowsByKey
-        TableRenderingPerformanceLogger.record(
-            event: "rows_mapped",
-            table: tableName,
-            reason: update.reason,
-            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: start),
-            rowCount: rows.count,
-            sourceCount: sourceCount,
-            changed: changed
-        )
 
         guard changed else {
             return
