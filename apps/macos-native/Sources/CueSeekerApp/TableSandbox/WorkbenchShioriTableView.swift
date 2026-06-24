@@ -1,5 +1,6 @@
 import SwiftUI
 import CueSeekerCore
+import CueSeekerPlayback
 
 struct WorkbenchShioriTableView: View {
     @EnvironmentObject private var shioriStore: ShioriStore
@@ -24,6 +25,8 @@ private struct WorkbenchShioriTableContent: View {
     @State private var lastVisibleRows: Range<Int>?
     @State private var reloadGeneration = 0
     @State private var pendingRemoval: Shiori?
+    @State private var collageAvailabilityGeneration = 0
+    @State private var canExportSelectedRowsAsCollage = false
 
     var body: some View {
         SchemaWorkbenchSearchShell(
@@ -37,7 +40,7 @@ private struct WorkbenchShioriTableContent: View {
             isRedesign: true,
             tableSummary: tableSummary,
             tableSummaryLeadingInset: tableSummaryLeadingInset,
-            tableSummaryAction: selectedAnkiAction,
+            tableSummaryAction: selectedSummaryActions,
             filterableColumnIDs: ["display", "cues"],
             onSearchSubmit: {
                 submitSearchDraft()
@@ -120,17 +123,32 @@ private struct WorkbenchShioriTableContent: View {
         SubtitleTableMetrics.checkboxLeadingInset
     }
 
-    private var selectedAnkiAction: AnyView? {
+    private var selectedSummaryActions: AnyView? {
         guard tableSummary.selectedRowCount > 0 else {
             return nil
         }
         return AnyView(
-            WorkbenchButton(
-                title: "Anki",
-                systemImage: "square.and.arrow.up",
-                isRedesign: true,
-                action: exportSelectedRowsToAnki
-            )
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                WorkbenchButton(
+                    title: "Anki",
+                    systemImage: "square.and.arrow.up",
+                    isRedesign: true,
+                    action: exportSelectedRowsToAnki
+                )
+                WorkbenchButton(
+                    title: "Screenshot",
+                    systemImage: "photo",
+                    isRedesign: true,
+                    action: exportSelectedRowsAsScreenshots
+                )
+                WorkbenchButton(
+                    title: "Collage",
+                    systemImage: "rectangle.stack",
+                    isRedesign: true,
+                    action: exportSelectedRowsAsCollage
+                )
+                .disabled(!canExportSelectedRowsAsCollage)
+            }
         )
     }
 
@@ -162,6 +180,7 @@ private struct WorkbenchShioriTableContent: View {
         visibleHydrator.reset()
         lastVisibleRows = nil
         rowSelection.reset()
+        resetSelectedCollageAvailability()
         shioriStore.clearTableRowsForReload()
         if resetScroll {
             tableScrollResetToken += 1
@@ -252,6 +271,40 @@ private struct WorkbenchShioriTableContent: View {
         }
     }
 
+    private func exportSelectedRowsAsScreenshots() {
+        let selectedRows = rowSelection.selectedRows(rowCount: rowStore.snapshot.totalRowCount)
+        guard !selectedRows.isEmpty else {
+            return
+        }
+
+        Task { @MainActor in
+            let sources = await selectedShioriScreenshotSources(for: selectedRows)
+            let items = sources.map {
+                appState.subtitleScreenshotItem(for: $0.shiori, displayTitle: $0.displayTitle)
+            }
+            appState.exportSubtitleScreenshots(items)
+        }
+    }
+
+    private func exportSelectedRowsAsCollage() {
+        let selectedRows = rowSelection.selectedRows(rowCount: rowStore.snapshot.totalRowCount)
+        guard !selectedRows.isEmpty else {
+            return
+        }
+
+        Task { @MainActor in
+            let sources = await selectedShioriScreenshotSources(for: selectedRows)
+            let items = sources.map {
+                appState.subtitleScreenshotItem(for: $0.shiori, displayTitle: $0.displayTitle)
+            }
+            guard SubtitleScreenshotExporter.canExportCollage(items) else {
+                refreshSelectedCollageAvailability()
+                return
+            }
+            appState.exportSubtitleCollage(items)
+        }
+    }
+
     private func selectedShioris(for selectedRows: [Int]) async -> [Shiori] {
         await hydrateRowsForExport(selectedRows)
         return selectedRows.compactMap { row in
@@ -260,6 +313,48 @@ private struct WorkbenchShioriTableContent: View {
             }
             return rowStore.snapshot.shiori(entryID: tableRow.id)
         }
+    }
+
+    private func selectedShioriScreenshotSources(for selectedRows: [Int]) async -> [(shiori: Shiori, displayTitle: String)] {
+        await hydrateRowsForExport(selectedRows)
+        return selectedShioriScreenshotSourcesFromSnapshot(for: selectedRows)
+    }
+
+    private func selectedShioriScreenshotSourcesFromSnapshot(for selectedRows: [Int]) -> [(shiori: Shiori, displayTitle: String)] {
+        selectedRows.compactMap { row in
+            guard let tableRow = rowStore.snapshot.row(at: row),
+                  let shiori = rowStore.snapshot.shiori(entryID: tableRow.id)
+            else {
+                return nil
+            }
+            return (shiori: shiori, displayTitle: tableRow.displayTitle)
+        }
+    }
+
+    private func refreshSelectedCollageAvailability() {
+        collageAvailabilityGeneration += 1
+        let generation = collageAvailabilityGeneration
+        let selectedRows = rowSelection.selectedRows(rowCount: rowStore.snapshot.totalRowCount)
+        guard !selectedRows.isEmpty, selectedRows.count <= 50 else {
+            canExportSelectedRowsAsCollage = false
+            return
+        }
+
+        canExportSelectedRowsAsCollage = false
+        Task { @MainActor in
+            await hydrateRowsForExport(selectedRows)
+            guard generation == collageAvailabilityGeneration else {
+                return
+            }
+            let items = selectedShioriScreenshotSourcesFromSnapshot(for: selectedRows)
+                .map { appState.subtitleScreenshotItem(for: $0.shiori, displayTitle: $0.displayTitle) }
+            canExportSelectedRowsAsCollage = SubtitleScreenshotExporter.canExportCollage(items)
+        }
+    }
+
+    private func resetSelectedCollageAvailability() {
+        collageAvailabilityGeneration += 1
+        canExportSelectedRowsAsCollage = false
     }
 
     private func hydrateRowsForExport(_ selectedRows: [Int]) async {
@@ -300,9 +395,11 @@ private struct WorkbenchShioriTableContent: View {
 
     private func toggleRowSelection(_ row: Int) {
         rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        refreshSelectedCollageAvailability()
     }
 
     private func toggleAllRowSelection() {
         rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
+        refreshSelectedCollageAvailability()
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import CueSeekerCore
+import CueSeekerPlayback
 
 struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
@@ -19,6 +20,8 @@ struct WorkbenchTestSearchView: View {
     @State private var appliedFilterSignature = ""
     @State private var tableScrollResetToken = 0
     @State private var rowSelection = TableSandboxRowSelectionState()
+    @State private var collageAvailabilityGeneration = 0
+    @State private var canExportSelectedRowsAsCollage = false
 
     init() {
         _searchDraft = State(initialValue: "")
@@ -38,7 +41,7 @@ struct WorkbenchTestSearchView: View {
             isRedesign: true,
             tableSummary: tableSummary,
             tableSummaryLeadingInset: tableSummaryLeadingInset,
-            tableSummaryAction: selectedAnkiAction,
+            tableSummaryAction: selectedSummaryActions,
             filterableColumnIDs: ["display", "cues"],
             onSearchSubmit: {
                 submitSearchDraft()
@@ -159,17 +162,32 @@ struct WorkbenchTestSearchView: View {
         SubtitleTableMetrics.checkboxLeadingInset
     }
 
-    private var selectedAnkiAction: AnyView? {
+    private var selectedSummaryActions: AnyView? {
         guard tableSummary.selectedRowCount > 0 else {
             return nil
         }
         return AnyView(
-            WorkbenchButton(
-                title: "Anki",
-                systemImage: "square.and.arrow.up",
-                isRedesign: true,
-                action: exportSelectedRowsToAnki
-            )
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                WorkbenchButton(
+                    title: "Anki",
+                    systemImage: "square.and.arrow.up",
+                    isRedesign: true,
+                    action: exportSelectedRowsToAnki
+                )
+                WorkbenchButton(
+                    title: "Screenshot",
+                    systemImage: "photo",
+                    isRedesign: true,
+                    action: exportSelectedRowsAsScreenshots
+                )
+                WorkbenchButton(
+                    title: "Collage",
+                    systemImage: "rectangle.stack",
+                    isRedesign: true,
+                    action: exportSelectedRowsAsCollage
+                )
+                .disabled(!canExportSelectedRowsAsCollage)
+            }
         )
     }
 
@@ -199,6 +217,7 @@ struct WorkbenchTestSearchView: View {
             tableName: "test-search"
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+        refreshSelectedCollageAvailability()
         hydrateInitialRowsIfNeeded()
     }
 
@@ -206,6 +225,7 @@ struct WorkbenchTestSearchView: View {
         visibleHydrator.reset()
         lastVisibleRows = nil
         rowSelection.reset()
+        resetSelectedCollageAvailability()
         rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
         if resetScroll {
             tableScrollResetToken += 1
@@ -250,6 +270,7 @@ struct WorkbenchTestSearchView: View {
         lastVisibleRows = nil
         if resetScroll {
             rowSelection.reset()
+            resetSelectedCollageAvailability()
             tableScrollResetToken += 1
         }
 
@@ -315,6 +336,7 @@ struct WorkbenchTestSearchView: View {
         appliedFilterSignature = nextSignature
         visibleHydrator.reset()
         rowSelection.reset()
+        resetSelectedCollageAvailability()
         lastVisibleRows = nil
         tableScrollResetToken += 1
         appState.updateSearchFilterSet(filterSet)
@@ -339,6 +361,36 @@ struct WorkbenchTestSearchView: View {
         }
     }
 
+    private func exportSelectedRowsAsScreenshots() {
+        let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
+        guard !selectedRows.isEmpty else {
+            return
+        }
+
+        Task { @MainActor in
+            let results = await selectedSearchResults(for: selectedRows)
+            let items = results.map { appState.subtitleScreenshotItem(for: $0) }
+            appState.exportSubtitleScreenshots(items)
+        }
+    }
+
+    private func exportSelectedRowsAsCollage() {
+        let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
+        guard !selectedRows.isEmpty else {
+            return
+        }
+
+        Task { @MainActor in
+            let results = await selectedSearchResults(for: selectedRows)
+            let items = results.map { appState.subtitleScreenshotItem(for: $0) }
+            guard SubtitleScreenshotExporter.canExportCollage(items) else {
+                refreshSelectedCollageAvailability()
+                return
+            }
+            appState.exportSubtitleCollage(items)
+        }
+    }
+
     private func selectedSearchResults(for selectedRows: [Int]) async -> [SubtitleSearchResult] {
         await hydrateRowsForExport(selectedRows)
         return selectedRows.compactMap { row in
@@ -348,6 +400,42 @@ struct WorkbenchTestSearchView: View {
             return rowStore.snapshot.searchResult(entryID: tableRow.id)
                 ?? search.searchResults.first { Int($0.entryID) == tableRow.id }
         }
+    }
+
+    private func selectedSearchResultsFromSnapshot(for selectedRows: [Int]) -> [SubtitleSearchResult] {
+        selectedRows.compactMap { row in
+            guard let tableRow = rowStore.snapshot.row(at: row) else {
+                return nil
+            }
+            return rowStore.snapshot.searchResult(entryID: tableRow.id)
+                ?? search.searchResults.first { Int($0.entryID) == tableRow.id }
+        }
+    }
+
+    private func refreshSelectedCollageAvailability() {
+        collageAvailabilityGeneration += 1
+        let generation = collageAvailabilityGeneration
+        let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
+        guard !selectedRows.isEmpty, selectedRows.count <= 50 else {
+            canExportSelectedRowsAsCollage = false
+            return
+        }
+
+        canExportSelectedRowsAsCollage = false
+        Task { @MainActor in
+            await hydrateRowsForExport(selectedRows)
+            guard generation == collageAvailabilityGeneration else {
+                return
+            }
+            let items = selectedSearchResultsFromSnapshot(for: selectedRows)
+                .map { appState.subtitleScreenshotItem(for: $0) }
+            canExportSelectedRowsAsCollage = SubtitleScreenshotExporter.canExportCollage(items)
+        }
+    }
+
+    private func resetSelectedCollageAvailability() {
+        collageAvailabilityGeneration += 1
+        canExportSelectedRowsAsCollage = false
     }
 
     private func hydrateRowsForExport(_ selectedRows: [Int]) async {
@@ -388,9 +476,11 @@ struct WorkbenchTestSearchView: View {
 
     private func toggleRowSelection(_ row: Int) {
         rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        refreshSelectedCollageAvailability()
     }
 
     private func toggleAllRowSelection() {
         rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
+        refreshSelectedCollageAvailability()
     }
 }
